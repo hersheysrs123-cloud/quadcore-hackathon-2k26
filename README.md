@@ -3,10 +3,11 @@
 > quadcore-hackathon-2k26
 
 An all-in-one productivity and Socratic learning workspace. Block-based notes,
-organised into spaces, with a Socratic Duck that quizzes you on any block until
-it can score what you actually understand.
+organised into spaces, with a Socratic Rubber Duck that quizzes you on any block,
+scores what you actually understand, and generates an interactive playground
+aimed at whatever you got wrong.
 
-Next.js (App Router) · Tailwind CSS v4 · Supabase · Claude.
+Next.js (App Router) · Tailwind CSS v4 · Supabase · Google AI Studio (Gemini).
 
 ## Setup
 
@@ -26,9 +27,9 @@ idempotent, so re-run it freely while you iterate.
 npm run dev
 ```
 
-The workspace renders a mock note at [localhost:3000](http://localhost:3000) —
-no database or API key required to see it. Set `ANTHROPIC_API_KEY` to get real
-questions out of the Duck instead of the canned placeholder.
+The workspace renders a mock note at [localhost:3000](http://localhost:3000) with
+no keys at all. `GOOGLE_API_KEY` is what makes the Duck work; the database is
+only needed for the notes routes.
 
 ## Layout
 
@@ -40,93 +41,94 @@ app/
   api/
     notes/create/route.js       POST   create a note + its blocks
     notes/[id]/route.js         GET    note + ordered blocks + sessions
-    socratic/chat/route.js      POST   one Socratic turn against Claude
+    socratic/chat/route.js      POST   one Socratic turn, or the final score
+    socratic/widget/route.js    POST   build a playground from the gaps
 components/
   Workspace.jsx                 Shell state (active space, Duck target)
   Sidebar.jsx                   Spaces + note list
   NoteEditor.jsx                Note header + block list
   Block.jsx                     Per-block renderer + "Talk to Duck 🦆"
-  DuckPane.jsx                  Slide-over: chat + understanding heatmap
+  SocraticWorkspace.jsx         Drawer: chat -> diagnostic -> playground
+  ConfidenceHeatmap.jsx         Score, summary, per-subtopic heatmap
+  WidgetCanvas.jsx              Interactive canvas + generated sliders
 lib/
-  supabaseClient.js             Browser client (anon key, RLS applies)
-  supabaseServer.js             Route-handler client (service role if present)
+  gemini.js                     Gemini REST client, model + token constants
+  schemas.js                    Structured-output schemas for both routes
+  supabaseClient.js             Browser client (publishable key, RLS applies)
+  supabaseServer.js             Route-handler client (secret key if present)
   constants.js                  SPACES, BLOCK_TYPES, content shapes
-  blocks.js                     Block display helpers
+  blocks.js                     Block display + note flattening helpers
   mockNote.js                   Placeholder note for the boilerplate UI
 supabase/
   schema.sql                    Tables, enums, indexes, RLS, triggers
 ```
 
-## API
+## The Socratic loop
 
-### `POST /api/notes/create`
-
-Creates a note in a space and seeds its blocks. With no `blocks`, you get a
-single empty text block so the editor never opens on nothing.
-
-```jsonc
-{
-  "spaceId": "uuid",
-  "title": "Eigenvectors",        // optional, defaults to "Untitled"
-  "blocks": [                     // optional
-    { "block_type": "heading", "content_json": { "text": "Why Av = λv?", "level": 2 } }
-  ]
-}
 ```
-
-→ `201 { note: { ...note, blocks: [...] } }`
-
-### `GET /api/notes/[id]`
-
-→ `200 { note: { ...note, blocks: [{ ...block, socratic_sessions: [...] }] } }`
-
-Blocks come back sorted by `order_index`.
+chat ──(isFinalTurn)──▶ diagnostic + heatmap ──(red gaps)──▶ widget
+```
 
 ### `POST /api/socratic/chat`
 
-One turn of the diagnostic. Send the conversation so far; get back the next
-question plus an updated confidence map.
-
 ```jsonc
 {
-  "conceptName": "Eigenvectors",
-  "messages": [{ "role": "user", "content": "..." }],
-  "blockId": "uuid"               // optional — persists to socratic_sessions
+  "noteContent": "...",           // whole note, flattened — optional context
+  "concept": "Eigenvectors",      // required
+  "conversationHistory": [{ "role": "user", "content": "..." }],
+  "isFinalTurn": false
 }
 ```
 
-→ `200`
+`isFinalTurn: false` → `{ type: "question", reply, usage }`
+`isFinalTurn: true` → `{ type: "diagnostic", diagnostic: { score, summary, heatmap, recommendedWidget }, usage }`
+
+### `POST /api/socratic/widget`
 
 ```jsonc
 {
-  "reply": "What would happen to a vector at 45° under that shear?",
-  "understanding": [
-    { "concept": "Invariant directions", "confidence": 0.4, "evidence": "..." }
-  ],
-  "status": "active",
-  "persisted": true
+  "concept": "Eigenvectors",
+  "redSubtopics": [{ "subtopic": "Shear matrices", "feedback": "..." }],
+  "recommendedWidget": "3d_vector_simulation"
 }
 ```
 
-Uses `claude-opus-5` with structured outputs, so `understanding` is schema-valid
-JSON rather than something you have to parse out of prose. It drops straight
-into `socratic_sessions.heatmap_json`.
+→ `{ widget: { widgetType, initialState, interactiveControls, explanationKey }, usage }`
 
-## Schema notes
+Both use Gemini structured output (`responseMimeType: "application/json"` plus a
+`responseSchema`), so the heatmap and the widget config arrive schema-valid
+rather than parsed out of prose.
 
-Three decisions worth knowing about before you build on it:
+## Notes API
 
+`POST /api/notes/create` creates a note *and* seeds its blocks, so the editor
+never opens on nothing. `GET /api/notes/[id]` returns the note with blocks sorted
+by `order_index`.
+
+## Design notes
+
+- **`lib/gemini.js` talks to the REST API with `fetch`**, not `@google/genai`.
+  One fewer dependency, no SDK drift, and `generate()` is the only function that
+  touches the network if you want to swap it.
 - **`blocks.order_index` is `double precision`, not an integer.** Inserting
-  between two blocks is `(prev + next) / 2` — no renumbering every row below it
-  when someone drags a block during the demo.
+  between two blocks is `(prev + next) / 2` — no renumbering every row below it.
 - **`spaces.name` is `text` + a CHECK constraint**, while `block_type` and
-  `status` are real enums. User-named spaces are the obvious next feature and
+  `status` are real enums. User-named spaces are the likely next feature and
   relaxing a CHECK is one line; altering an in-use enum is not.
+- **`WidgetCanvas` uses Canvas 2D with a hand-rolled perspective projection**,
+  not Three.js. `project()` and `draw()` are the only functions touching the
+  canvas, so swapping in react-three-fiber is a contained change.
 - **RLS is on and keyed to `auth.uid()`**, so it denies everything until
-  Supabase Auth is wired up. Until then you need one of: the secret key in
-  `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS entirely), or the DEV MODE block at
-  the bottom of `schema.sql` uncommented (opens the tables to the publishable
-  key). The mock UI renders without either; the API routes don't. Delete the DEV
-  MODE policies before anything ships.
+  Supabase Auth is wired up. Until then you need either the secret key in
+  `SUPABASE_SERVICE_ROLE_KEY` or the DEV MODE block at the bottom of
+  `schema.sql`. Delete those policies before anything ships.
 
 A trigger on `auth.users` seeds School / Personal / Misc for every new signup.
+
+## Known warnings
+
+`npm audit` reports 3 high-severity advisories in `postcss` and `sharp`. Both are
+transitive dependencies *inside* Next.js, the vulnerable range covers every
+current Next version, and neither is reachable here (no attacker-controlled CSS,
+no image uploads). **Do not run `npm audit fix --force`** — it "fixes" them by
+downgrading to `next@9.3.3`, which would delete the App Router.
