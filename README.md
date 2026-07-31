@@ -46,7 +46,8 @@ app/
 components/
   Workspace.jsx                 Shell state (active space, Duck target)
   Sidebar.jsx                   Spaces + note list
-  NoteEditor.jsx                Note header + block list
+  BlockNoteEditor.jsx           Notion-style editor: slash menu, Duck action bar
+  NoteEditor.jsx                Superseded by BlockNoteEditor; unreferenced
   Block.jsx                     Per-block renderer + "Talk to Duck 🦆"
   SocraticWorkspace.jsx         Drawer: chat -> diagnostic -> playground
   ConfidenceHeatmap.jsx         Score, summary, per-subtopic heatmap
@@ -58,7 +59,10 @@ lib/
   supabaseServer.js             Route-handler client (secret key if present)
   constants.js                  SPACES, BLOCK_TYPES, content shapes
   blocks.js                     Block display + note flattening helpers
+  blockMapping.js               Editor <-> database block translation
   mockNote.js                   Placeholder note for the boilerplate UI
+scripts/
+  check-block-mapping.mjs       Round-trip guard for blockMapping (npm run check:blocks)
 supabase/
   schema.sql                    Tables, enums, indexes, RLS, triggers
 ```
@@ -110,6 +114,13 @@ by `order_index`.
 - **`lib/gemini.js` talks to the REST API with `fetch`**, not `@google/genai`.
   One fewer dependency, no SDK drift, and `generate()` is the only function that
   touches the network if you want to swap it.
+- **`lib/blockMapping.js` is the only place the editor and the database meet.**
+  The editor is flat (`{id, type, content}`); rows are structured
+  (`{block_type, content_json}`). Headings split by level in the editor and
+  collapse to one enum value with `content_json.level`; `media` and `socratic`
+  have no editor equivalent, so they flatten to text and carry their payload on
+  a `meta` field the editor preserves but ignores. That round trip is lossless
+  and `npm run check:blocks` asserts it.
 - **`blocks.order_index` is `double precision`, not an integer.** Inserting
   between two blocks is `(prev + next) / 2` — no renumbering every row below it.
 - **`spaces.name` is `text` + a CHECK constraint**, while `block_type` and

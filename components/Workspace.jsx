@@ -2,29 +2,40 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
-import NoteEditor from "@/components/NoteEditor";
+import BlockNoteEditor from "@/components/BlockNoteEditor";
 import SocraticWorkspace from "@/components/SocraticWorkspace";
 import { SPACES } from "@/lib/constants";
-import { conceptFromBlock, noteToPlainText } from "@/lib/blocks";
+import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
+import { toEditorBlocks } from "@/lib/blockMapping";
 
 /**
- * Owns the two pieces of shell state: which space is selected, and which block
- * the Duck is interrogating.
+ * Shell state: which space is selected, the live editor content, and what the
+ * Duck is currently interrogating.
  *
- * `duckBlock` deliberately survives closing — nulling it would blank the drawer
- * while it's still sliding out.
+ * `duckConcept` deliberately survives closing — clearing it would blank the
+ * drawer while it's still sliding out.
  */
 export default function Workspace({ note }) {
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
-  const [duckBlock, setDuckBlock] = useState(null);
+  const [duckConcept, setDuckConcept] = useState("");
   const [duckOpen, setDuckOpen] = useState(false);
 
-  // The whole note is context for the diagnostic, not just the flagged block.
-  const noteContent = useMemo(() => noteToPlainText(note), [note]);
-  const concept = useMemo(() => conceptFromBlock(duckBlock), [duckBlock]);
+  // Seed the editor from the note so the demo opens on real content, then let
+  // the editor own it. setEditorBlocks is a stable setter, which is what
+  // BlockNoteEditor's onBlocksChange effect requires.
+  const seedBlocks = useMemo(() => toEditorBlocks(note), [note]);
+  const [editorBlocks, setEditorBlocks] = useState(seedBlocks);
 
-  const openDuck = useCallback((block) => {
-    setDuckBlock(block);
+  // Whole-note context for the diagnostic, tracking live edits.
+  const noteContent = useMemo(
+    () => editorBlocksToText(editorBlocks),
+    [editorBlocks],
+  );
+
+  // BlockNoteEditor hands us the selected block's text; the Duck wants a
+  // concept label.
+  const openDuck = useCallback((blockContent) => {
+    setDuckConcept(conceptFromText(blockContent));
     setDuckOpen(true);
   }, []);
 
@@ -40,16 +51,16 @@ export default function Workspace({ note }) {
       />
 
       <main className="flex-1 overflow-y-auto">
-        <NoteEditor
-          note={note}
-          activeSpace={activeSpace}
-          onTalkToDuck={openDuck}
+        <BlockNoteEditor
+          initialBlocks={seedBlocks}
+          onBlocksChange={setEditorBlocks}
+          onTriggerSocratic={openDuck}
         />
       </main>
 
       <SocraticWorkspace
         open={duckOpen}
-        concept={concept}
+        concept={duckConcept}
         noteContent={noteContent}
         onClose={closeDuck}
       />
