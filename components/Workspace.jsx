@@ -5,11 +5,8 @@ import Sidebar from "@/components/Sidebar";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import SocraticWorkspace from "@/components/SocraticWorkspace";
 import { SPACES } from "@/lib/constants";
-import {
-  conceptFromText,
-  editorBlocksToText,
-  toEditorBlocks,
-} from "@/lib/blocks";
+import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
+import { toEditorBlocks } from "@/lib/blockMapping";
 
 /**
  * Shell state: which space is selected, the live editor content, and what the

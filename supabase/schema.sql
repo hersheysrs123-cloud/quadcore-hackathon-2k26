@@ -14,9 +14,22 @@ create extension if not exists pgcrypto;   -- gen_random_uuid()
 -- below) because user-named spaces are the obvious next feature and relaxing a
 -- CHECK is one line, whereas altering an enum in use is not.
 
+-- Mirrors EDITOR_TYPES in lib/blockMapping.js. `heading` covers h1/h2/h3 —
+-- the level lives in content_json.level rather than getting its own enum value.
 do $$ begin
-  create type public.block_type as enum ('text', 'heading', 'media', 'socratic');
+  create type public.block_type as enum (
+    'text', 'heading', 'bullet', 'code', 'media', 'socratic', 'action'
+  );
 exception when duplicate_object then null; end $$;
+
+-- Tops up a database created before the editor block types existed. The DO
+-- block above is a no-op once the type exists, so these have to be separate
+-- statements. They must also stay OUTSIDE a transaction that then uses the new
+-- values: Postgres only makes an added enum value usable after the adding
+-- transaction commits.
+alter type public.block_type add value if not exists 'bullet';
+alter type public.block_type add value if not exists 'code';
+alter type public.block_type add value if not exists 'action';
 
 do $$ begin
   create type public.socratic_status as enum ('active', 'completed');
