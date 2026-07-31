@@ -374,7 +374,11 @@ function EditorBlock({
 }
 
 // ─── BlockNoteEditor (main export) ──────────────────────────────────
-export default function BlockNoteEditor({ onTriggerSocratic, initialBlocks }) {
+export default function BlockNoteEditor({
+  onTriggerSocratic,
+  initialBlocks,
+  onBlocksChange,
+}) {
   const [blocks, setBlocks] = useState(() =>
     initialBlocks && initialBlocks.length > 0
       ? initialBlocks
@@ -385,6 +389,13 @@ export default function BlockNoteEditor({ onTriggerSocratic, initialBlocks }) {
   );
   const [selectedId, setSelectedId] = useState(null);
   const blockRefs = useRef({});
+
+  // Optional mirror for the parent. The Duck takes the whole note as context,
+  // so without this it would keep seeing the seed content after you edit.
+  // Pass a stable callback (a useState setter works) or this loops.
+  useEffect(() => {
+    onBlocksChange?.(blocks);
+  }, [blocks, onBlocksChange]);
 
   // Register refs for each block's contentEditable element
   const registerRef = useCallback((id, ref) => {

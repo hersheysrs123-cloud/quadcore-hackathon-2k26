@@ -171,12 +171,25 @@ function QuickAddWidget() {
     );
   }
 
-  const today = new Date();
-  const dayLabel = today.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  // Computed after mount, not during render.
+  //
+  // "Today" depends on the viewer's clock, locale and timezone — none of which
+  // the server shares. Formatting it during SSR guarantees a hydration
+  // mismatch: the server rendered "Fri, Jul 31" while the browser produced
+  // "Fri 31 Jul". Pinning the locale alone wouldn't be enough here, because a
+  // server in UTC and a reader at +08:00 can legitimately disagree about which
+  // day it is. Rendering nothing until mount sidesteps both.
+  const [dayLabel, setDayLabel] = useState("");
+
+  useEffect(() => {
+    setDayLabel(
+      new Date().toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }),
+    );
+  }, []);
 
   return (
     <div className="border-t border-ink-800 px-4 py-3">
