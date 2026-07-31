@@ -1,22 +1,27 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import NoteEditor from "@/components/NoteEditor";
-import DuckPane from "@/components/DuckPane";
+import SocraticWorkspace from "@/components/SocraticWorkspace";
 import { SPACES } from "@/lib/constants";
+import { conceptFromBlock, noteToPlainText } from "@/lib/blocks";
 
 /**
  * Owns the two pieces of shell state: which space is selected, and which block
  * the Duck is interrogating.
  *
- * `duckBlock` deliberately survives closing — nulling it would blank the pane
+ * `duckBlock` deliberately survives closing — nulling it would blank the drawer
  * while it's still sliding out.
  */
 export default function Workspace({ note }) {
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
   const [duckBlock, setDuckBlock] = useState(null);
   const [duckOpen, setDuckOpen] = useState(false);
+
+  // The whole note is context for the diagnostic, not just the flagged block.
+  const noteContent = useMemo(() => noteToPlainText(note), [note]);
+  const concept = useMemo(() => conceptFromBlock(duckBlock), [duckBlock]);
 
   const openDuck = useCallback((block) => {
     setDuckBlock(block);
@@ -42,7 +47,12 @@ export default function Workspace({ note }) {
         />
       </main>
 
-      <DuckPane open={duckOpen} block={duckBlock} onClose={closeDuck} />
+      <SocraticWorkspace
+        open={duckOpen}
+        concept={concept}
+        noteContent={noteContent}
+        onClose={closeDuck}
+      />
     </div>
   );
 }

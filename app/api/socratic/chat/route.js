@@ -1,97 +1,110 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import {
+  errorPayload,
+  generate,
+  hasApiKey,
+  normalizeHistory,
+  readJson,
+  readText,
+  readUsage,
+} from "@/lib/gemini";
+import {
+  DIAGNOSTIC_SCHEMA,
+  HEATMAP_STATUSES,
+  RECOMMENDED_WIDGETS,
+} from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "claude-opus-5";
+const PERSONA = `You are the Socratic Rubber Duck inside SocraticOS.
 
-const SYSTEM_PROMPT = `You are the Socratic Duck, a diagnostic tutor inside SocraticOS.
+A learner explains a concept to you. Your job is to find the exact edge of what
+they actually understand — using the Feynman technique — and never to teach.
 
-Your job is to find the exact edge of what the student actually understands about
-a concept — not to teach, summarise, or reassure.
-
-How you behave:
-- Ask exactly ONE question per turn. Never stack questions.
-- Questions probe mechanism and edge cases ("what would happen if...", "why does
-  that step work?"), not recall of definitions.
+Non-negotiable:
+- NEVER state the answer, supply the missing step, or complete their reasoning.
+  If they are one inch from it, ask the question that closes the inch themselves.
+- NEVER confirm correctness ("exactly", "right", "good"). If they are correct,
+  move to a harder case. Praise ends the diagnostic.
+- Target mechanism, not vocabulary. "Why does that step work?" beats "what is
+  the definition of X?"
 - When an answer is vague, ask for a concrete instance rather than pointing out
-  the vagueness.
-- Never state the answer, never confirm correctness explicitly, never praise. If
-  the student is right, move to a harder case. If they are wrong, ask the
-  question that makes the contradiction visible to them.
-- Keep questions under 40 words. Plain language.
-- Set status to "completed" only once you have enough evidence to score every
-  sub-concept you have raised — usually 5 or more exchanges.
+  that it was vague.
+- Prefer the edge case that would break a memorised answer but not an understood
+  one.
+- Plain language. No jargon the learner has not used first.
+- Do not include internal or system XML tags in your response.`;
 
-Alongside each question, maintain a confidence map: for every sub-concept you've
-probed, a confidence from 0 (demonstrably confused) to 1 (explained the
-mechanism unprompted), with a one-line quote or paraphrase as evidence. Base
-confidence only on what the student has said in this conversation — never on
-what a typical student would know.`;
+const TURN_INSTRUCTIONS = `This is a normal turn.
 
-/**
- * Structured output schema. Keep this in sync with the heatmap_json shape read
- * by the Duck pane. Note: JSON Schema numeric bounds (minimum/maximum) are not
- * supported by the structured-outputs API, so the 0..1 range for `confidence`
- * lives in the system prompt and the clamp below instead.
- */
-const RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "The single Socratic question to show the student.",
-    },
-    understanding: {
-      type: "array",
-      description: "One entry per sub-concept probed so far.",
-      items: {
-        type: "object",
-        properties: {
-          concept: { type: "string" },
-          confidence: { type: "number" },
-          evidence: {
-            type: "string",
-            description: "What the student said that justifies this score.",
-          },
-        },
-        required: ["concept", "confidence", "evidence"],
-        additionalProperties: false,
-      },
-    },
-    status: { type: "string", enum: ["active", "completed"] },
-  },
-  required: ["reply", "understanding", "status"],
-  additionalProperties: false,
-};
+Ask 1-2 probing questions and nothing else. No preamble, no summary of what they
+just said, no encouragement. If you ask two, the second must depend on the first
+rather than opening a new thread.
 
-const clamp01 = (n) => Math.min(1, Math.max(0, Number(n) || 0));
+Keep the whole reply under 60 words.`;
 
-/** Keeps the UI demoable before anyone adds an API key. */
-function stubResponse(conceptName) {
+const FINAL_INSTRUCTIONS = `This is the final turn. Stop asking questions and
+score the session.
+
+Judge ONLY what the learner said in this conversation. Never credit them for
+knowledge a typical learner would have, and never penalise them for something
+you never probed.
+
+- score: 0-100, calibrated to explanation quality, not effort or politeness.
+- summary: exactly two sentences, addressed to the learner as "you".
+- heatmap: one entry per sub-topic you actually probed. green = explained the
+  mechanism unprompted; yellow = correct but recited, or needed leading;
+  red = wrong, absent, or collapsed under a follow-up. Each feedback line names
+  the specific gap and still withholds the answer.
+- recommendedWidget: pick the one whose interaction would expose the largest
+  red or yellow gap.`;
+
+function buildSystemPrompt({ concept, noteContent, isFinalTurn }) {
+  const sections = [PERSONA, `Concept under examination: ${concept}`];
+
+  if (noteContent?.trim()) {
+    sections.push(
+      `The learner's own notes on this concept are below. Use them to spot what
+they wrote down but cannot explain — that gap is the most valuable thing you can
+find. Do not quote the notes back to them as an answer.
+
+<learner_notes>
+${noteContent.trim()}
+</learner_notes>`,
+    );
+  }
+
+  sections.push(isFinalTurn ? FINAL_INSTRUCTIONS : TURN_INSTRUCTIONS);
+  return sections.join("\n\n");
+}
+
+const clampScore = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+
+/** Structured outputs guarantee the shape; this guards the value ranges. */
+function normalizeDiagnostic(raw) {
   return {
-    reply: `Before we get into ${conceptName || "this"} — describe a situation where it would break down, and tell me what goes wrong.`,
-    understanding: [],
-    status: "active",
-    stubbed: true,
+    score: clampScore(raw.score),
+    summary: String(raw.summary ?? "").trim(),
+    heatmap: (raw.heatmap ?? [])
+      .filter((entry) => entry?.subtopic)
+      .map((entry) => ({
+        subtopic: String(entry.subtopic),
+        status: HEATMAP_STATUSES.includes(entry.status) ? entry.status : "yellow",
+        feedback: String(entry.feedback ?? ""),
+      })),
+    recommendedWidget: RECOMMENDED_WIDGETS.includes(raw.recommendedWidget)
+      ? raw.recommendedWidget
+      : "interactive_quiz",
   };
 }
 
 /**
  * POST /api/socratic/chat
  *
- * Body:
- * {
- *   "conceptName": "Eigenvectors",     // required
- *   "messages": [                      // required, may be empty to open a session
- *     { "role": "user", "content": "..." },
- *     { "role": "assistant", "content": "..." }
- *   ],
- *   "blockId": "uuid"                  // optional — persists to socratic_sessions
- * }
+ * Body: { noteContent?, concept, conversationHistory?, isFinalTurn? }
  *
- * 200 -> { reply, understanding: [...], status, persisted }
+ * isFinalTurn = false -> 200 { type: "question", reply, usage }
+ * isFinalTurn = true  -> 200 { type: "diagnostic", diagnostic: {...}, usage }
  */
 export async function POST(request) {
   let body;
@@ -101,177 +114,79 @@ export async function POST(request) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const { conceptName, messages, blockId } = body ?? {};
+  const { noteContent, concept, conversationHistory, isFinalTurn = false } =
+    body ?? {};
 
-  if (!conceptName || typeof conceptName !== "string") {
+  if (!concept || typeof concept !== "string" || !concept.trim()) {
     return NextResponse.json(
-      { error: "`conceptName` is required." },
+      { error: "`concept` is required." },
       { status: 400 },
     );
   }
 
-  if (messages !== undefined && !Array.isArray(messages)) {
+  const history = normalizeHistory(conversationHistory);
+
+  if (isFinalTurn && history.length === 0) {
     return NextResponse.json(
-      { error: "`messages` must be an array when provided." },
+      { error: "Cannot score a session with no learner answers." },
       { status: 400 },
     );
   }
 
-  const history = (messages ?? [])
-    .filter((m) => m && (m.role === "user" || m.role === "assistant"))
-    .map((m) => ({ role: m.role, content: String(m.content ?? "") }));
-
-  // The Messages API must start on a user turn, and a trailing assistant turn
-  // is an assistant prefill — which Opus 5 rejects outright. Trim both ends so
-  // a caller replaying a stored conversation gets a clear result instead of a
-  // 400 that reads like an SDK problem.
-  while (history.length && history[0].role === "assistant") history.shift();
-  while (history.length && history.at(-1).role === "assistant") history.pop();
-
-  // No key configured: hand back a canned question so the pane still works.
-  if (!process.env.ANTHROPIC_API_KEY) {
-    const stub = stubResponse(conceptName);
-    return NextResponse.json({ ...stub, persisted: false });
+  if (!hasApiKey()) {
+    return NextResponse.json(
+      {
+        error:
+          "GOOGLE_API_KEY is not set. Add it to .env.local and restart the dev server.",
+      },
+      { status: 503 },
+    );
   }
 
-  // The API requires a leading user turn. Opening the session counts as one.
-  const apiMessages = history.length
+  // An empty history means the learner just opened the drawer — the API needs a
+  // leading user turn, so opening the session becomes one.
+  const messages = history.length
     ? history
     : [
         {
           role: "user",
-          content: `I want to be quizzed on: ${conceptName}. Start with your first question.`,
+          content: `I want to be examined on: ${concept.trim()}. Ask me your first question.`,
         },
       ];
 
-  const anthropic = new Anthropic();
+  const system = buildSystemPrompt({
+    concept: concept.trim(),
+    noteContent,
+    isFinalTurn,
+  });
 
-  let result;
   try {
-    const message = await anthropic.messages.create({
-      model: MODEL,
-      // Thinking is on by default on Opus 5 and max_tokens caps thinking plus
-      // response text together — hence the headroom for a short question.
-      max_tokens: 8000,
-      output_config: {
-        effort: "medium",
-        format: { type: "json_schema", schema: RESPONSE_SCHEMA },
-      },
-      system: SYSTEM_PROMPT,
-      messages: apiMessages,
+    const payload = await generate({
+      system,
+      messages,
+      // Scoring wants repeatability; asking questions wants variety, so the
+      // learner doesn't get the same probe twice across sessions.
+      temperature: isFinalTurn ? 0.3 : 0.9,
+      schema: isFinalTurn ? DIAGNOSTIC_SCHEMA : null,
     });
 
-    if (message.stop_reason === "refusal") {
-      return NextResponse.json(
-        {
-          error: "The model declined this request.",
-          detail: message.stop_details?.explanation ?? null,
-        },
-        { status: 422 },
-      );
+    const usage = readUsage(payload);
+
+    if (isFinalTurn) {
+      return NextResponse.json({
+        type: "diagnostic",
+        diagnostic: normalizeDiagnostic(readJson(payload)),
+        usage,
+      });
     }
 
-    if (message.stop_reason === "max_tokens") {
-      return NextResponse.json(
-        { error: "Response hit max_tokens before completing. Raise max_tokens." },
-        { status: 502 },
-      );
-    }
-
-    const textBlock = message.content.find((b) => b.type === "text");
-    if (!textBlock) {
-      return NextResponse.json(
-        { error: "Model returned no text block." },
-        { status: 502 },
-      );
-    }
-
-    const parsed = JSON.parse(textBlock.text);
-    result = {
-      reply: parsed.reply,
-      understanding: (parsed.understanding ?? []).map((u) => ({
-        concept: u.concept,
-        confidence: clamp01(u.confidence),
-        evidence: u.evidence,
-      })),
-      status: parsed.status === "completed" ? "completed" : "active",
-      usage: {
-        input_tokens: message.usage.input_tokens,
-        output_tokens: message.usage.output_tokens,
-      },
-    };
+    return NextResponse.json({
+      type: "question",
+      reply: readText(payload),
+      usage,
+    });
   } catch (error) {
-    if (error instanceof Anthropic.RateLimitError) {
-      return NextResponse.json(
-        { error: "Rate limited by the Anthropic API. Retry shortly." },
-        { status: 429 },
-      );
-    }
-    if (error instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY is invalid." },
-        { status: 500 },
-      );
-    }
-    if (error instanceof Anthropic.APIError) {
-      return NextResponse.json(
-        { error: "Anthropic API error.", detail: error.message },
-        { status: error.status ?? 502 },
-      );
-    }
-    return NextResponse.json(
-      { error: "Socratic turn failed.", detail: String(error?.message ?? error) },
-      { status: 500 },
-    );
+    const { status, body: payload } = errorPayload(error);
+    return NextResponse.json(payload, { status });
   }
-
-  // Optional persistence. Reported rather than thrown so a DB hiccup doesn't
-  // cost the student the turn they just paid for.
-  let persisted = false;
-  let persistError = null;
-
-  if (blockId) {
-    try {
-      const supabase = getSupabaseServerClient();
-      const conversation = [
-        ...apiMessages,
-        { role: "assistant", content: result.reply },
-      ];
-      const heatmap = {
-        concepts: result.understanding,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data: existing } = await supabase
-        .from("socratic_sessions")
-        .select("id")
-        .eq("block_id", blockId)
-        .eq("status", "active")
-        .maybeSingle();
-
-      const { error: writeError } = existing
-        ? await supabase
-            .from("socratic_sessions")
-            .update({
-              conversation_history: conversation,
-              heatmap_json: heatmap,
-              status: result.status,
-            })
-            .eq("id", existing.id)
-        : await supabase.from("socratic_sessions").insert({
-            block_id: blockId,
-            concept_name: conceptName,
-            conversation_history: conversation,
-            heatmap_json: heatmap,
-            status: result.status,
-          });
-
-      if (writeError) persistError = writeError.message;
-      else persisted = true;
-    } catch (error) {
-      persistError = String(error?.message ?? error);
-    }
-  }
-
-  return NextResponse.json({ ...result, persisted, persistError });
 }
