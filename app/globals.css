@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  /* Neutral ramp — everything in the shell is built from these. */
+  --color-ink-950: #0a0b0d;
+  --color-ink-900: #101216;
+  --color-ink-850: #14171c;
+  --color-ink-800: #191d23;
+  --color-ink-700: #242931;
+  --color-ink-600: #333a45;
+  --color-ink-500: #5b6472;
+  --color-ink-400: #8a92a0;
+  --color-ink-200: #c9cfd8;
+  --color-ink-100: #e8ebf0;
+
+  /* The Duck. */
+  --color-duck-300: #f7d67c;
+  --color-duck-400: #f0c04a;
+  --color-duck-500: #d9a227;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-ink-950);
+  color: var(--color-ink-100);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: var(--color-duck-400);
+  color: var(--color-ink-950);
+}
+
+/* Thin scrollbars so the panes don't get chunky rails. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-700) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-ink-700);
+  border-radius: 9999px;
+}
