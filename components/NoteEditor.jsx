@@ -2,10 +2,22 @@
 
 import Block from "@/components/Block";
 
+/**
+ * Locale and timeZone are both pinned deliberately.
+ *
+ * Passing `undefined` as the locale means "use the runtime default", and the
+ * Node server's default rarely matches the browser's — that renders "Jul 31" on
+ * the server and "31 Jul" on the client, which React reports as a hydration
+ * mismatch. Pinning the timeZone kills the same class of bug for servers running
+ * in a different zone than the viewer.
+ *
+ * Swap "en-US" for "en-GB" if you prefer day-first; just keep it explicit.
+ */
 function formatDate(iso) {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 
