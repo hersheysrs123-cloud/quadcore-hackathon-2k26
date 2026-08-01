@@ -91,14 +91,14 @@ light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
 - **Far Right Action Bar**:
   - `💾 Save Note` button (triggers Supabase note persistence & toast notification).
   - `✨ Explain` button (opens the Explain drawer for the active note).
-  - `🦆 Quiz me` button (opens the graded quiz / Socratic drawer).
-  - `💬 Ask Duck` button (opens the original Socratic Rubber Duck diagnostic drawer).
+  - `🦆 Quiz me` button (opens the graded quiz drawer; the Socratic Duck is its second tab).
 
 ### 3. BlockNoteEditor (`BlockNoteEditor.jsx`)
 - **Page Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*.
 - **Top Right Cover Button**: Positioned at top-right (`right-6 top-3/top-4`). Renders as a translucent glassmorphic button over active cover banners (`bg-ink-950/40 opacity-60 hover:opacity-100`).
 - **Slash Menu (`/`)**: Floating block-type picker menu (`text`, `h1`, `h2`, `h3`, `bullet`, `code`, `action`).
-- **Floating Action Bar**: Appears above non-empty selected text blocks with `🦆 Test Understanding with Duck` and formatting triggers (`B`, *I*, <u>U</u>).
+- **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>).
+- **Block Context Menu**: `✨ Explain` / `🦆 Quiz me` for that block, then formatting, "turn into", and delete. There is deliberately no separate Duck entry — it opened the same Socratic session that is already the second tab of the Quiz drawer.
 - **6-Dots Handle is draggable**: holding `⠿` sets `draggable` on the row so blocks reorder by drag; a plain click still opens the context menu. The drop target shows a `duck-400` insertion rule.
 
 ### 4. Settings & Factory Reset (`Sidebar.jsx`)

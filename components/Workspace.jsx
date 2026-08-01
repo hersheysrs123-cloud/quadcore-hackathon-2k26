@@ -5,7 +5,6 @@ import Sidebar from "@/components/Sidebar";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
 import ThreeDView from "@/components/ThreeDView";
-import SocraticWorkspace from "@/components/SocraticWorkspace";
 import InstantNoteModal from "@/components/InstantNoteModal";
 import AlarmOverlay from "@/components/AlarmOverlay";
 import ExplainPanel from "@/components/ExplainPanel";
@@ -37,8 +36,6 @@ export default function Workspace({ note: initialNote }) {
   const [mounted, setMounted] = useState(false);
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
   const [activeTab, setActiveTab] = useState("notes");
-  const [duckConcept, setDuckConcept] = useState("");
-  const [duckOpen, setDuckOpen] = useState(false);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
 
@@ -259,13 +256,6 @@ export default function Workspace({ note: initialNote }) {
     () => editorBlocksToText(editorBlocks),
     [editorBlocks],
   );
-
-  const openDuck = useCallback((blockContent) => {
-    setDuckConcept(conceptFromText(blockContent));
-    setDuckOpen(true);
-  }, []);
-
-  const closeDuck = useCallback(() => setDuckOpen(false), []);
 
   /**
    * Opens the Explain or Quiz drawer.
@@ -681,18 +671,6 @@ export default function Workspace({ note: initialNote }) {
               <span>🦆</span>
               <span className="hidden sm:inline">Quiz me</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                openDuck(noteContent || activeNoteObj?.title || "Socratic Workspace")
-              }
-              title="Open the Socratic diagnostic drawer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300"
-            >
-              <span>💬</span>
-              <span className="hidden lg:inline">Ask Duck</span>
-            </button>
           </div>
         </header>
 
@@ -708,7 +686,6 @@ export default function Workspace({ note: initialNote }) {
               initialEmoji={activeNoteObj?.emoji}
               onBlocksChange={setEditorBlocks}
               onSaveNote={handleSaveNote}
-              onTriggerSocratic={openDuck}
               onExplainBlock={(text) => openStudy("explain", text)}
               onQuizBlock={(text) => openStudy("quiz", text)}
               notesBySpace={notesBySpace}
@@ -741,14 +718,6 @@ export default function Workspace({ note: initialNote }) {
           )}
         </main>
       </div>
-
-      {/* Socratic Rubber Duck Drawer */}
-      <SocraticWorkspace
-        open={duckOpen}
-        concept={duckConcept}
-        noteContent={noteContent}
-        onClose={closeDuck}
-      />
 
       {/* Explain — the teaching half. Stays mounted so it can animate out,
           which is also why `studyTarget` survives closing. */}

@@ -45,7 +45,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── CalendarView.jsx                # Study schedule, month navigation, & Pomodoro countdown timer widget
 │   ├── InstantNoteModal.jsx            # 75% screen instant note popup triggered via Ctrl+I or UI buttons
 │   ├── Sidebar.jsx                     # Spaces navigation, 24h trash tab, Settings ⚙️ modal & Factory Reset captcha
-│   ├── SocraticWorkspace.jsx           # Socratic Rubber Duck diagnostic drawer & interactive quiz engine
+│   ├── SocraticWorkspace.jsx           # UNREFERENCED — the Socratic session now lives in QuizPanel
 │   ├── ThreeDView.jsx                  # Interactive 3D visualization studio
 │   ├── Drawer.jsx                      # Shared right-panel chrome for Explain & Quiz
 │   ├── ExplainPanel.jsx                # LLM explanation of the active note/block
@@ -75,7 +75,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 - **17 Block Types Supported**: `Text`, `Heading 1` (h1), `Heading 2` (h2), `Heading 3` (h3), `Heading 4` (h4), `Bullet List`, `Numbered List` (auto-indexing `1.`, `2.`), `To-Do List` (interactive checkboxes with strikethrough), `Toggle List` (collapsible arrow `▶`/`▼`), `Callout Box` (bordered frame with 8 icon presets), `Quote` (thick left border), `Divider` (`hr`), `Note Link` (workspace note picker popover), `Site Bookmark Embed` (clickable bookmark card with favicon), `Media Embed` (Image, Audio, or Video player), `Code Snippet`, and `Action Button`.
 - **In-Context Slash Menu (`/`)**: Typing `/` pops up the block type menu directly underneath the active line (`absolute top-full left-0 mt-1`). Selecting a block type instantly clears initial typed text and `/`.
 - **6-Dots Handles (`⠿`) & Context Menu**: Hovering a block displays aligned `🗑️` delete and `⠿` menu handles. Clicking `⠿` opens a popover containing:
-  - 🦆 **Test Understanding with Duck**
+  - ✨ **Explain** / 🦆 **Quiz me** for that block
   - **Formatting Controls**: <b>B</b> Bold, <i>I</i> Italic, <u>U</u> Underline, <s>S</s> Strikethrough
   - 🔄 **Turn Into Submenu** (all 17 block types)
   - 🗑️ **Delete Block** (in light red)

@@ -69,9 +69,10 @@ Multiple choice is graded **in the route, by comparing two integers**, and that
 result is handed to the model as established fact; only short answers are graded
 by the LLM, on the mechanism rather than the wording.
 
-**Socratic** — `POST /api/socratic/chat` is the Rubber Duck. It never gives an
-answer, never says "correct", and keeps probing until it finds the edge of what
-you understand. Ending the session scores the transcript.
+**Socratic** — the second tab of the same drawer. `POST /api/socratic/chat` is
+the Rubber Duck: it never gives an answer, never says "correct", and keeps
+probing until it finds the edge of what you understand. Ending the session
+scores the transcript and builds an interactive playground from the gaps.
 
 Both produce `{ score, summary, heatmap }` where heatmap is one
 `{ subtopic, status, feedback }` per sub-topic probed. That shared shape is what

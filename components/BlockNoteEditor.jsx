@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 //   • Callout Box with icon picker (💡, ⚠️, 📌, 🔥, ⭐, 🎉, ℹ️, 🦆)
 //   • Quote (accent bar), Divider (hr), Note Link (workspace note picker)
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
-//   • 6-dots (⠿) context menu with Socratic Duck & formatting (B, I, U, S)
+//   • 6-dots (⠿) context menu: Explain / Quiz, formatting (B, I, U, S), turn-into
 // ─────────────────────────────────────────────────────────────────────
 
 const BLOCK_TYPES = [
@@ -158,7 +158,6 @@ function BlockContextMenu({
   onClose,
   onChangeType,
   onDelete,
-  onTriggerSocratic,
   onExplainBlock,
   onQuizBlock,
 }) {
@@ -211,18 +210,6 @@ function BlockContextMenu({
           </button>
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => {
-          onTriggerSocratic(block.content || "Socratic concept");
-          onClose();
-        }}
-        className="flex w-full items-center gap-2 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-2 font-semibold text-duck-300 transition-colors hover:bg-duck-500/20"
-      >
-        <span>🦆</span>
-        <span>Test Understanding with Duck</span>
-      </button>
 
       <div className="my-2 flex items-center justify-around rounded-lg border border-ink-800 bg-ink-850 p-1.5">
         <button
@@ -325,7 +312,6 @@ function EditorBlock({
   onDelete,
   onKeyDown,
   onAddAfter,
-  onTriggerSocratic,
   onExplainBlock,
   onQuizBlock,
   notesBySpace = {},
@@ -508,7 +494,6 @@ function EditorBlock({
           onClose={() => setMenuOpen(false)}
           onChangeType={onChangeType}
           onDelete={onDelete}
-          onTriggerSocratic={onTriggerSocratic}
           onExplainBlock={onExplainBlock}
           onQuizBlock={onQuizBlock}
         />
@@ -1572,7 +1557,6 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
 
 // ─── BlockNoteEditor (main export) ──────────────────────────────────
 export default function BlockNoteEditor({
-  onTriggerSocratic,
   onExplainBlock,
   onQuizBlock,
   initialTitle = "",
@@ -2104,7 +2088,6 @@ export default function BlockNoteEditor({
                 onDelete={handleDeleteBlock}
                 onKeyDown={handleKeyDown}
                 onAddAfter={handleAddAfter}
-                onTriggerSocratic={onTriggerSocratic}
                 onExplainBlock={onExplainBlock}
                 onQuizBlock={onQuizBlock}
                 dragHandlers={dragHandlers}
