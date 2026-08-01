@@ -34,34 +34,52 @@
   --color-gap-500: #d03b3b;
 }
 
-/* Light Mode Overrides — Warm, eye-friendly soft stone tones (less harsh white) */
+/* Light Mode Overrides — Slightly deeper stone background with crisp white cards & clear borders */
 [data-theme="light"],
 .light {
   color-scheme: light;
-  --color-ink-950: #eef2f6;
-  --color-ink-900: #f7fafc;
-  --color-ink-850: #e2e8f0;
-  --color-ink-800: #cbd5e1;
-  --color-ink-700: #94a3b8;
-  --color-ink-600: #64748b;
-  --color-ink-500: #475569;
-  --color-ink-400: #334155;
-  --color-ink-200: #1e293b;
-  --color-ink-100: #0f172a;
+  --color-ink-950: #dce2e9;
+  --color-ink-900: #eaf0f6;
+  --color-ink-850: #ffffff;
+  --color-ink-800: #a0aec0;
+  --color-ink-700: #718096;
+  --color-ink-600: #4a5568;
+  --color-ink-500: #2d3748;
+  --color-ink-400: #1a202c;
+  --color-ink-200: #0f172a;
+  --color-ink-100: #020617;
 
   --color-duck-300: #d97706;
   --color-duck-400: #b45309;
   --color-duck-500: #92400e;
 
-  /* Re-stepped for the light surface, not an automatic flip. All three
-   * clear 4.5:1 on ink-900 (5.07 / 3.40 / 6.24). Shaky is orange-600
-   * rather than the darker orange that reads better in isolation: the
-   * light-mode duck accent is amber-brown, and the darker orange sits
-   * ΔE 0.1 from it — the same colour to most eyes and identical under
-   * deuteranopia. This step separates from the accent instead. */
+  /* Re-stepped for the light surface, not an automatic flip. */
   --color-solid-500: #0a7d0a;
   --color-shaky-500: #ea580c;
   --color-gap-500: #b02a2a;
+}
+
+/* Light Mode Card, Code Block & Element Contrast Overrides */
+[data-theme="light"] .code-block,
+.light .code-block {
+  color: #047857 !important; /* Rich deep readable emerald green */
+  background-color: #f1f5f9 !important; /* Soft crisp light slate surface */
+  border-color: #94a3b8 !important;
+}
+
+[data-theme="light"] code,
+.light code {
+  color: #047857;
+}
+
+[data-theme="light"] .border-ink-800,
+.light .border-ink-800 {
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .border-ink-700,
+.light .border-ink-700 {
+  border-color: #94a3b8;
 }
 
 /* Workspace.jsx already used `animate-fade-in` for its save toast, but nothing

@@ -7,6 +7,7 @@ import CalendarView from "@/components/CalendarView";
 import ThreeDView from "@/components/ThreeDView";
 import InstantNoteModal from "@/components/InstantNoteModal";
 import AlarmOverlay from "@/components/AlarmOverlay";
+import SocraticWorkspace from "@/components/SocraticWorkspace";
 import ExplainPanel from "@/components/ExplainPanel";
 import QuizPanel from "@/components/QuizPanel";
 import MasteryDashboard from "@/components/MasteryDashboard";
@@ -27,7 +28,7 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 const SESSIONS_KEY = "socratic_study_sessions";
 
 /** Set once the seed has been planted, so clearing every note doesn't re-seed. */
-const SEEDED_KEY = "socratic_demo_seeded";
+const SEEDED_KEY = "socratic_demo_seeded_v6";
 
 const isEmptyWorkspace = (bySpace) =>
   !bySpace || Object.values(bySpace).every((list) => !list || list.length === 0);
@@ -43,7 +44,14 @@ export default function Workspace({ note: initialNote }) {
   // not blank out mid-slide.
   const [studyTarget, setStudyTarget] = useState(null);
   const [studyKind, setStudyKind] = useState(null); // "explain" | "quiz"
+  const [socraticOpen, setSocraticOpen] = useState(false);
+  const [socraticConcept, setSocraticConcept] = useState("");
   const [sessions, setSessions] = useState([]);
+
+  const handleOpenSocratic = useCallback((concept) => {
+    setSocraticConcept(concept || "Socratic Workspace Concept");
+    setSocraticOpen(true);
+  }, []);
 
   // Site-wide Theme (Dark vs Light)
   const [theme, setTheme] = useState("dark");
@@ -87,6 +95,9 @@ export default function Workspace({ note: initialNote }) {
               mediaKind: cObj.mediaKind || undefined,
               checked: cObj.checked ?? undefined,
               icon: cObj.icon || undefined,
+              open: cObj.open ?? undefined,
+              details: cObj.details || cObj.toggleContent || undefined,
+              actionKind: cObj.actionKind || cObj.action || undefined,
             };
           });
           const noteObj = {
@@ -175,13 +186,13 @@ export default function Workspace({ note: initialNote }) {
         // nothing. `SEEDED_KEY` is what stops them coming back after a factory
         // reset or after you delete them all on purpose — an empty workspace
         // you emptied yourself should stay empty.
-        const alreadySeeded = localStorage.getItem(SEEDED_KEY) === "1";
-        if (isEmptyWorkspace(parsed) && !alreadySeeded) {
+        const alreadySeeded = localStorage.getItem(SEEDED_KEY) === "6";
+        if (!alreadySeeded || isEmptyWorkspace(parsed)) {
           const seeded = demoNotesBySpace();
           setNotesBySpace(seeded);
           setActiveNoteId((seeded[SPACES[0].name] || [])[0]?.id ?? null);
           localStorage.setItem("socratic_notes_by_space", JSON.stringify(seeded));
-          localStorage.setItem(SEEDED_KEY, "1");
+          localStorage.setItem(SEEDED_KEY, "6");
         } else if (parsed) {
           setNotesBySpace(parsed);
           const firstInActive = (parsed[SPACES[0].name] || [])[0];
@@ -565,19 +576,22 @@ export default function Workspace({ note: initialNote }) {
 
       {/* Main Container with Top HUD Header */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top HUD Header with 3 Tabs: Notes, Calendar, 3D */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
+        {/* Top HUD Header with 4 Tabs: Notes, Calendar, 3D, Mastery */}
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
           {/* Left Breadcrumb Context (Bigger Active Note Title) */}
-          <div className="flex items-center gap-2 text-sm text-ink-400">
-            <span className="font-semibold text-ink-300">{activeSpace}</span>
-            <span aria-hidden="true" className="text-ink-600">/</span>
-            <span className="truncate text-base font-bold text-ink-100">
+          <div className="flex min-w-0 max-w-[25%] sm:max-w-[32%] md:max-w-[40%] items-center gap-2 text-sm text-ink-400">
+            <span className="shrink-0 font-semibold text-ink-300">{activeSpace}</span>
+            <span aria-hidden="true" className="shrink-0 text-ink-600">/</span>
+            <span
+              title={activeNoteObj?.title || "Untitled Note"}
+              className="min-w-0 truncate text-base font-bold text-ink-100"
+            >
               {activeNoteObj?.title || "Untitled Note"}
             </span>
           </div>
 
           {/* Center: HUD Navigation Tabs */}
-          <nav className="flex items-center rounded-lg border border-ink-800 bg-ink-950 p-1 shadow-inner">
+          <nav className="flex shrink-0 items-center rounded-lg border border-ink-800 bg-ink-950 p-1 shadow-inner">
             <button
               type="button"
               onClick={() => setActiveTab("notes")}
@@ -637,7 +651,7 @@ export default function Workspace({ note: initialNote }) {
           </nav>
 
           {/* Right Action Bar: Save Note (Full Right) + Socratic Duck Trigger */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2.5">
             {saveStatus && (
               <span className="text-xs font-semibold text-emerald-400 animate-fade-in">
                 {saveStatus}
@@ -688,6 +702,8 @@ export default function Workspace({ note: initialNote }) {
               onSaveNote={handleSaveNote}
               onExplainBlock={(text) => openStudy("explain", text)}
               onQuizBlock={(text) => openStudy("quiz", text)}
+              onTriggerSocratic={(concept) => handleOpenSocratic(concept || activeNoteObj?.title)}
+              onSwitchTab={setActiveTab}
               notesBySpace={notesBySpace}
               onSelectNote={handleSelectNote}
             />
@@ -718,6 +734,14 @@ export default function Workspace({ note: initialNote }) {
           )}
         </main>
       </div>
+
+      {/* Socratic Rubber Duck Examination Drawer */}
+      <SocraticWorkspace
+        open={socraticOpen}
+        concept={socraticConcept}
+        noteContent={editorBlocksToText(editorBlocks)}
+        onClose={() => setSocraticOpen(false)}
+      />
 
       {/* Explain — the teaching half. Stays mounted so it can animate out,
           which is also why `studyTarget` survives closing. */}

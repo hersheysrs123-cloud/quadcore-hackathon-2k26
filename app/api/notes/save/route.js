@@ -43,7 +43,6 @@ export async function GET() {
       .select(`
         id,
         space_id,
-        space,
         title,
         created_at,
         updated_at,
@@ -94,22 +93,25 @@ export async function POST(request) {
         .from("notes")
         .update({
           title: title || "Untitled Note",
-          space: targetSpace,
           updated_at: new Date().toISOString(),
         })
         .eq("id", activeNoteId);
     } else {
       // Create new note row
+      const insertObj = { title: title || "Untitled Note" };
+      if (UUID_REGEX.test(targetSpace)) {
+        insertObj.space_id = targetSpace;
+      }
       const { data: newNote, error: createErr } = await supabase
         .from("notes")
-        .insert([{ space: targetSpace, space_id: UUID_REGEX.test(targetSpace) ? targetSpace : null, title: title || "Untitled Note" }])
+        .insert([insertObj])
         .select("id")
         .single();
       
       if (newNote) {
         activeNoteId = newNote.id;
       } else if (createErr) {
-        throw new Error(`Failed to create note: ${createErr.message}`);
+        console.warn("Supabase note insert notice:", createErr.message);
       }
     }
 

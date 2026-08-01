@@ -299,6 +299,15 @@ function BlockContextMenu({
   );
 }
 
+const ACTION_KINDS = [
+  { id: "socratic", label: "Rubber Duck Drill", icon: "🦆", badge: "Duck", description: "Examine understanding with Duck" },
+  { id: "quiz", label: "Fast Recall Quiz", icon: "⚡", badge: "Quiz", description: "Generate instant quiz questions" },
+  { id: "explain", label: "Explain Concept", icon: "✨", badge: "Explain", description: "Get Socratic breakdown of idea" },
+  { id: "3d", label: "3D Visualization", icon: "🧊", badge: "3D Studio", description: "Switch to 3D concept models" },
+  { id: "calendar", label: "Study Timer & Calendar", icon: "📅", badge: "Timer", description: "Open Pomodoro timer & events" },
+  { id: "mastery", label: "Mastery Dashboard", icon: "📊", badge: "Mastery", description: "View confidence & gap heatmap" },
+];
+
 // ─── Single Block Component ─────────────────────────────────────────
 function EditorBlock({
   block,
@@ -314,6 +323,8 @@ function EditorBlock({
   onAddAfter,
   onExplainBlock,
   onQuizBlock,
+  onTriggerSocratic,
+  onSwitchTab,
   notesBySpace = {},
   onSelectNote,
   registerRef,
@@ -331,6 +342,25 @@ function EditorBlock({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showNotePicker, setShowNotePicker] = useState(false);
   const [showCanvasModal, setShowCanvasModal] = useState(false);
+  const [showActionPicker, setShowActionPicker] = useState(false);
+
+  function handleExecuteAction(actBlock) {
+    const kind = actBlock.actionKind || "socratic";
+    const textTarget = actBlock.content || "Socratic Concept";
+    if (kind === "socratic") {
+      onTriggerSocratic?.(textTarget);
+    } else if (kind === "quiz") {
+      onQuizBlock?.(textTarget);
+    } else if (kind === "explain") {
+      onExplainBlock?.(textTarget);
+    } else if (kind === "3d") {
+      onSwitchTab?.("3d");
+    } else if (kind === "calendar") {
+      onSwitchTab?.("calendar");
+    } else if (kind === "mastery") {
+      onSwitchTab?.("mastery");
+    }
+  }
 
   useEffect(() => {
     if (registerRef) registerRef(block.id, contentRef);
@@ -385,16 +415,16 @@ function EditorBlock({
 
   const typeStyles = {
     text: "text-[15px] leading-relaxed text-ink-200",
-    h1: "text-3xl font-extrabold tracking-tight text-ink-100",
-    h2: "text-2xl font-bold tracking-tight text-ink-100",
-    h3: "text-xl font-semibold text-ink-100",
-    h4: "text-base font-semibold text-ink-100",
+    h1: "text-3xl font-extrabold tracking-tight leading-snug text-ink-100 pt-3 pb-1.5 my-1.5",
+    h2: "text-2xl font-bold tracking-tight leading-snug text-ink-100 pt-2.5 pb-1 my-1",
+    h3: "text-xl font-semibold leading-snug text-ink-100 pt-2 pb-0.5 my-0.5",
+    h4: "text-base font-semibold leading-normal text-ink-100 pt-1 pb-0.5",
     bullet: "text-[15px] leading-relaxed text-ink-200",
     number: "text-[15px] leading-relaxed text-ink-200",
     todo: "text-[15px] leading-relaxed text-ink-200",
     toggle: "text-[15px] leading-relaxed text-ink-200",
     quote: "text-[15px] leading-relaxed text-ink-300 italic",
-    code: "font-mono text-sm leading-relaxed text-emerald-300 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700 whitespace-pre-wrap",
+    code: "font-mono text-sm leading-relaxed text-emerald-400 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700 whitespace-pre-wrap code-block",
     action: "",
   };
 
@@ -507,14 +537,24 @@ function EditorBlock({
           <hr className="border-t border-ink-800" />
         </div>
       ) : block.type === "action" ? (
-        /* 2. Action Button */
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-duck-500/40 bg-duck-500/10 px-4 py-2.5 text-sm font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200"
-          >
-            <span>▶</span>
-            <span
+        /* 2. Interactive Action Button */
+        <div className="relative flex items-center gap-2 my-1">
+          <div className="group/btn relative flex items-center rounded-xl border border-duck-500/40 bg-duck-500/10 p-1 shadow-sm transition-all hover:bg-duck-500/20 hover:border-duck-500/60">
+            {/* Clickable Icon & Badge Button to trigger action */}
+            <button
+              type="button"
+              onClick={() => handleExecuteAction(block)}
+              className="flex items-center gap-1.5 rounded-lg bg-duck-500/20 px-3 py-1.5 text-xs font-bold text-duck-300 transition-all active:scale-95 hover:bg-duck-500/35 hover:text-duck-100 shadow-sm"
+              title={`Click to execute action: ${(ACTION_KINDS.find(a => a.id === (block.actionKind || "socratic")) || ACTION_KINDS[0]).label}`}
+            >
+              <span className="text-sm">{(ACTION_KINDS.find(a => a.id === (block.actionKind || "socratic")) || ACTION_KINDS[0]).icon}</span>
+              <span className="uppercase tracking-wider text-[10px] text-duck-400 font-extrabold">
+                {(ACTION_KINDS.find(a => a.id === (block.actionKind || "socratic")) || ACTION_KINDS[0]).badge}
+              </span>
+            </button>
+
+            {/* Editable Action Button Text Label */}
+            <Tag
               ref={contentRef}
               contentEditable
               suppressContentEditableWarning
@@ -522,9 +562,53 @@ function EditorBlock({
               onKeyDown={handleKeyDown}
               onFocus={() => onSelect(block.id)}
               data-placeholder={placeholders.action}
-              className="min-w-[4rem] outline-none empty:before:text-duck-500/50 empty:before:content-[attr(data-placeholder)]"
+              className="min-w-[6rem] px-3 py-1 text-sm font-semibold text-ink-100 outline-none empty:before:text-duck-500/50 empty:before:content-[attr(data-placeholder)]"
             />
-          </button>
+
+            {/* Action Kind Picker Settings Dropdown Button */}
+            <div className="relative ml-auto pr-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowActionPicker(!showActionPicker);
+                }}
+                className="rounded-md p-1.5 text-xs text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+                title="Choose Action Type (Quiz, Duck, 3D, Timer, etc.)"
+              >
+                ⚙️
+              </button>
+
+              {showActionPicker && (
+                <div className="absolute right-0 top-8 z-50 w-56 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl space-y-1 animate-fade-in text-xs">
+                  <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                    Select Action Target
+                  </p>
+                  {ACTION_KINDS.map((ak) => (
+                    <button
+                      key={ak.id}
+                      type="button"
+                      onClick={() => {
+                        onUpdateBlock(block.id, { actionKind: ak.id });
+                        setShowActionPicker(false);
+                      }}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors ${
+                        (block.actionKind || "socratic") === ak.id
+                          ? "bg-duck-500/20 text-duck-300 font-semibold"
+                          : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                      }`}
+                    >
+                      <span className="text-sm">{ak.icon}</span>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{ak.label}</p>
+                        <p className="truncate text-[10px] text-ink-500">{ak.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       ) : block.type === "bullet" ? (
         /* 3. Bullet List */
@@ -581,13 +665,14 @@ function EditorBlock({
           />
         </div>
       ) : block.type === "toggle" ? (
-        /* 6. Toggle List */
-        <div className="space-y-1">
-          <div className="flex items-start gap-2">
+        /* 6. Toggle / Collapsible Dropdown Block */
+        <div className="my-1 rounded-xl border border-ink-800 bg-ink-900/60 p-2.5 shadow-sm space-y-2 transition-all">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
-              className="mt-1 text-xs text-ink-400 hover:text-ink-100"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10"
+              title="Toggle Dropdown Section"
             >
               {block.open === false ? "▶" : "▼"}
             </button>
@@ -599,9 +684,24 @@ function EditorBlock({
               onKeyDown={handleKeyDown}
               onFocus={() => onSelect(block.id)}
               data-placeholder={placeholders.toggle}
-              className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+              className={`min-h-[1.5em] flex-1 font-semibold text-ink-100 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
             />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 px-2 py-0.5 rounded border border-ink-800 bg-ink-950">
+              {block.open === false ? "Collapsed" : "Expanded"}
+            </span>
           </div>
+
+          {block.open !== false && (
+            <div className="ml-7 rounded-lg border-l-2 border-duck-500/40 bg-ink-850/70 p-3 text-xs leading-relaxed text-ink-200 animate-fade-in">
+              <textarea
+                value={block.details ?? block.toggleContent ?? ""}
+                onChange={(e) => onUpdateBlock(block.id, { details: e.target.value })}
+                placeholder="Add collapsible details, deep dive text, or code breakdown here..."
+                rows={3}
+                className="w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-y min-h-[3rem]"
+              />
+            </div>
+          )}
         </div>
       ) : block.type === "callout" ? (
         /* 7. Callout Box */
@@ -1559,6 +1659,8 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
 export default function BlockNoteEditor({
   onExplainBlock,
   onQuizBlock,
+  onTriggerSocratic,
+  onSwitchTab,
   initialTitle = "",
   initialBlocks,
   initialBanner = null,
@@ -2061,7 +2163,7 @@ export default function BlockNoteEditor({
               }
             }}
             placeholder="Untitled Note"
-            className="w-full border-b border-ink-800/80 bg-transparent pb-2 text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none"
+            className="w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem]"
           />
         </div>
 
@@ -2090,6 +2192,8 @@ export default function BlockNoteEditor({
                 onAddAfter={handleAddAfter}
                 onExplainBlock={onExplainBlock}
                 onQuizBlock={onQuizBlock}
+                onTriggerSocratic={onTriggerSocratic}
+                onSwitchTab={onSwitchTab}
                 dragHandlers={dragHandlers}
                 isDragTarget={dragOver === block.id && dragging !== block.id}
                 notesBySpace={notesBySpace}
