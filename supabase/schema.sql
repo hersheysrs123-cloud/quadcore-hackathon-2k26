@@ -268,12 +268,33 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ---------------------------------------------------------------------------
--- 8. DEV MODE (optional) — uncomment while auth is not wired up yet
+-- 9. Calendar Events & 3D Visualizations Tables
 -- ---------------------------------------------------------------------------
--- These let the anon key read/write everything. Convenient for a demo, wide
--- open for anyone with your anon key. Delete before anything ships.
---
--- create policy "DEV: anon full access" on public.spaces            for all using (true) with check (true);
--- create policy "DEV: anon full access" on public.notes             for all using (true) with check (true);
--- create policy "DEV: anon full access" on public.blocks            for all using (true) with check (true);
--- create policy "DEV: anon full access" on public.socratic_sessions for all using (true) with check (true);
+
+create table if not exists public.calendar_events (
+  id         uuid primary key default gen_random_uuid(),
+  date       text not null,
+  title      text not null,
+  type       text not null default 'socratic',
+  time       text not null default '10:00 AM',
+  space      text not null default 'School',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.visualizations (
+  id           uuid primary key default gen_random_uuid(),
+  title        text not null,
+  concept_name text not null,
+  widget_json  jsonb not null default '{}'::jsonb,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists calendar_events_date_idx on public.calendar_events (date);
+create index if not exists visualizations_concept_idx on public.visualizations (concept_name);
+
+alter table public.calendar_events enable row level security;
+alter table public.visualizations  enable row level security;
+
+create policy "DEV: full access calendar_events" on public.calendar_events for all using (true) with check (true);
+create policy "DEV: full access visualizations"  on public.visualizations  for all using (true) with check (true);
+

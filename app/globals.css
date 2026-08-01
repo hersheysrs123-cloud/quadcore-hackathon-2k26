@@ -1,22 +1,42 @@
 @import "tailwindcss";
 
 @theme {
-  /* Neutral ramp — everything in the shell is built from these. */
-  --color-ink-950: #0a0b0d;
-  --color-ink-900: #101216;
-  --color-ink-850: #14171c;
-  --color-ink-800: #191d23;
-  --color-ink-700: #242931;
-  --color-ink-600: #333a45;
-  --color-ink-500: #5b6472;
-  --color-ink-400: #8a92a0;
-  --color-ink-200: #c9cfd8;
-  --color-ink-100: #e8ebf0;
+  /* Default Neutral Ramp (Dark Mode) — lighter & warmer slate tones */
+  --color-ink-950: #12151e;
+  --color-ink-900: #181c27;
+  --color-ink-850: #1f2332;
+  --color-ink-800: #282d3f;
+  --color-ink-700: #363d54;
+  --color-ink-600: #4e5672;
+  --color-ink-500: #737c9a;
+  --color-ink-400: #9aa2bc;
+  --color-ink-200: #d6dbed;
+  --color-ink-100: #f1f3fa;
 
-  /* The Duck. */
+  /* The Duck Accent */
   --color-duck-300: #f7d67c;
   --color-duck-400: #f0c04a;
   --color-duck-500: #d9a227;
+}
+
+/* Light Mode Overrides — Warm, eye-friendly soft stone tones (less harsh white) */
+[data-theme="light"],
+.light {
+  color-scheme: light;
+  --color-ink-950: #eef2f6;
+  --color-ink-900: #f7fafc;
+  --color-ink-850: #e2e8f0;
+  --color-ink-800: #cbd5e1;
+  --color-ink-700: #94a3b8;
+  --color-ink-600: #64748b;
+  --color-ink-500: #475569;
+  --color-ink-400: #334155;
+  --color-ink-200: #1e293b;
+  --color-ink-100: #0f172a;
+
+  --color-duck-300: #d97706;
+  --color-duck-400: #b45309;
+  --color-duck-500: #92400e;
 }
 
 html {
@@ -27,6 +47,7 @@ body {
   background-color: var(--color-ink-950);
   color: var(--color-ink-100);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::selection {
@@ -34,7 +55,7 @@ body {
   color: var(--color-ink-950);
 }
 
-/* Thin scrollbars so the panes don't get chunky rails. */
+/* Thin scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-ink-700) transparent;
