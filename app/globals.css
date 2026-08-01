@@ -2,7 +2,7 @@
 
 @theme {
   /* Neutral ramp — everything in the shell is built from these. */
-  --color-ink-950: #0a0b0d;
+  --color-ink-950: #090d16;
   --color-ink-900: #101216;
   --color-ink-850: #14171c;
   --color-ink-800: #191d23;
@@ -14,9 +14,9 @@
   --color-ink-100: #e8ebf0;
 
   /* The Duck. */
-  --color-duck-300: #f7d67c;
-  --color-duck-400: #f0c04a;
-  --color-duck-500: #d9a227;
+  --color-duck-300: #fcd34d;
+  --color-duck-400: #fbbf24;
+  --color-duck-500: #f59e0b;
 }
 
 html {
