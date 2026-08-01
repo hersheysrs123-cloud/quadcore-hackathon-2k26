@@ -17,6 +17,21 @@
   --color-duck-300: #f7d67c;
   --color-duck-400: #f0c04a;
   --color-duck-500: #d9a227;
+
+  /* ── Mastery status scale (Solid / Shaky / Gap) ────────────────────
+   * Reserved meanings. Never reuse these as decoration or as a series
+   * colour. Every place that paints one MUST also render the matching
+   * glyph (● ◐ ○) and word — a good/bad scale is red-vs-green by
+   * definition, which collapses under deuteranopia, so colour is never
+   * allowed to be the only channel here.
+   *
+   * Dark steps clear 3:1 on ink-900 (5.07 / 6.45 / 3.54). The scale's
+   * yellow step is deliberately unused: it is indistinguishable from
+   * --color-duck-400, so a "shaky" chip would read as a primary button.
+   */
+  --color-solid-500: #0ca30c;
+  --color-shaky-500: #ec835a;
+  --color-gap-500: #d03b3b;
 }
 
 /* Light Mode Overrides — Warm, eye-friendly soft stone tones (less harsh white) */
@@ -37,6 +52,78 @@
   --color-duck-300: #d97706;
   --color-duck-400: #b45309;
   --color-duck-500: #92400e;
+
+  /* Re-stepped for the light surface, not an automatic flip. All three
+   * clear 4.5:1 on ink-900 (5.07 / 3.40 / 6.24). Shaky is orange-600
+   * rather than the darker orange that reads better in isolation: the
+   * light-mode duck accent is amber-brown, and the darker orange sits
+   * ΔE 0.1 from it — the same colour to most eyes and identical under
+   * deuteranopia. This step separates from the accent instead. */
+  --color-solid-500: #0a7d0a;
+  --color-shaky-500: #ea580c;
+  --color-gap-500: #b02a2a;
+}
+
+/* Workspace.jsx already used `animate-fade-in` for its save toast, but nothing
+ * defined it — Tailwind v4 ships no such utility. These are the definitions. */
+@theme {
+  --animate-fade-in: fade-in 0.35s ease-out both;
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pop: pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-drift: drift 22s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Slow parallax for the landing hero's background blooms. */
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, -4%, 0) scale(1.08); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+/* Loading placeholder — a moving sheen rather than a blinking block. */
+@utility skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-ink-850) 25%,
+    var(--color-ink-800) 50%,
+    var(--color-ink-850) 75%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 html {

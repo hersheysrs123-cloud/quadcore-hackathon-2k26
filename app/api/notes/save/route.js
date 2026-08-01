@@ -6,6 +6,32 @@ export const dynamic = "force-dynamic";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * True when the database simply isn't there, as opposed to a real query error.
+ *
+ * supabase-js swallows network failures and hands them back on the `error`
+ * field rather than throwing, so this has to be checked on both paths.
+ */
+const isUnreachable = (message) =>
+  /fetch failed|ENOTFOUND|ECONNREFUSED|getaddrinfo|network/i.test(
+    String(message ?? ""),
+  );
+
+/**
+ * Reaching Supabase is optional: the workspace runs entirely on localStorage
+ * until a real project URL is configured, and Workspace.jsx calls this on
+ * every mount. Answering 500 for "no database configured" put a red error in
+ * the console on every page load for a state that is expected and already
+ * handled, so that case answers 200 with `offline: true` instead.
+ */
+const offlineResponse = () =>
+  NextResponse.json({
+    success: false,
+    offline: true,
+    notes: [],
+    error: "Supabase is not reachable — using local storage.",
+  });
+
+/**
  * GET /api/notes/save
  * Fetches all saved notes and their associated blocks from Supabase.
  */
@@ -31,11 +57,13 @@ export async function GET() {
       .order("updated_at", { ascending: false });
 
     if (error) {
+      if (isUnreachable(error.message)) return offlineResponse();
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, notes: notes || [] });
   } catch (err) {
+    if (isUnreachable(err?.message)) return offlineResponse();
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

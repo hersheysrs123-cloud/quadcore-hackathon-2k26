@@ -5,11 +5,15 @@ import Sidebar from "@/components/Sidebar";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
 import ThreeDView from "@/components/ThreeDView";
-import SocraticWorkspace from "@/components/SocraticWorkspace";
 import InstantNoteModal from "@/components/InstantNoteModal";
 import AlarmOverlay from "@/components/AlarmOverlay";
+import ExplainPanel from "@/components/ExplainPanel";
+import QuizPanel from "@/components/QuizPanel";
+import MasteryDashboard from "@/components/MasteryDashboard";
 import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
+import { demoNotesBySpace } from "@/lib/demoNotes";
+import { summariseMastery } from "@/lib/mastery";
 
 const DEFAULT_NOTES_BY_SPACE = {
   School: [],
@@ -19,14 +23,27 @@ const DEFAULT_NOTES_BY_SPACE = {
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
+/** Graded quiz and Socratic sessions, for the mastery heatmap. */
+const SESSIONS_KEY = "socratic_study_sessions";
+
+/** Set once the seed has been planted, so clearing every note doesn't re-seed. */
+const SEEDED_KEY = "socratic_demo_seeded";
+
+const isEmptyWorkspace = (bySpace) =>
+  !bySpace || Object.values(bySpace).every((list) => !list || list.length === 0);
+
 export default function Workspace({ note: initialNote }) {
   const [mounted, setMounted] = useState(false);
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
   const [activeTab, setActiveTab] = useState("notes");
-  const [duckConcept, setDuckConcept] = useState("");
-  const [duckOpen, setDuckOpen] = useState(false);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+
+  // Explain / Quiz drawers. `studyTarget` survives closing so the panel does
+  // not blank out mid-slide.
+  const [studyTarget, setStudyTarget] = useState(null);
+  const [studyKind, setStudyKind] = useState(null); // "explain" | "quiz"
+  const [sessions, setSessions] = useState([]);
 
   // Site-wide Theme (Dark vs Light)
   const [theme, setTheme] = useState("dark");
@@ -107,8 +124,14 @@ export default function Workspace({ note: initialNote }) {
       if (target === "notes" || target === "all") {
         setNotesBySpace(DEFAULT_NOTES_BY_SPACE);
         setActiveNoteId(null);
+        setSessions([]);
         if (typeof window !== "undefined") {
           localStorage.removeItem("socratic_notes_by_space");
+          // Mastery is derived from notes that no longer exist, so it goes
+          // with them rather than pointing at nothing.
+          localStorage.removeItem(SESSIONS_KEY);
+          // A factory reset means "empty", not "back to the demo".
+          localStorage.setItem(SEEDED_KEY, "1");
         }
       }
 
@@ -146,12 +169,27 @@ export default function Workspace({ note: initialNote }) {
         setTheme(savedTheme);
 
         const cachedNotes = localStorage.getItem("socratic_notes_by_space");
-        if (cachedNotes) {
-          const parsed = JSON.parse(cachedNotes);
+        const parsed = cachedNotes ? JSON.parse(cachedNotes) : null;
+
+        // First run gets the six demo notes so the workspace never opens on
+        // nothing. `SEEDED_KEY` is what stops them coming back after a factory
+        // reset or after you delete them all on purpose — an empty workspace
+        // you emptied yourself should stay empty.
+        const alreadySeeded = localStorage.getItem(SEEDED_KEY) === "1";
+        if (isEmptyWorkspace(parsed) && !alreadySeeded) {
+          const seeded = demoNotesBySpace();
+          setNotesBySpace(seeded);
+          setActiveNoteId((seeded[SPACES[0].name] || [])[0]?.id ?? null);
+          localStorage.setItem("socratic_notes_by_space", JSON.stringify(seeded));
+          localStorage.setItem(SEEDED_KEY, "1");
+        } else if (parsed) {
           setNotesBySpace(parsed);
           const firstInActive = (parsed[SPACES[0].name] || [])[0];
           if (firstInActive) setActiveNoteId(firstInActive.id);
         }
+
+        const cachedSessions = localStorage.getItem(SESSIONS_KEY);
+        if (cachedSessions) setSessions(JSON.parse(cachedSessions));
 
         const cachedTrash = localStorage.getItem("socratic_trash_notes");
         if (cachedTrash) {
@@ -193,6 +231,12 @@ export default function Workspace({ note: initialNote }) {
     }
   }, [trashNotes, mounted]);
 
+  useEffect(() => {
+    if (mounted && typeof window !== "undefined") {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    }
+  }, [sessions, mounted]);
+
   // Periodic 24h auto-purge check every minute
   useEffect(() => {
     if (!mounted) return;
@@ -213,12 +257,100 @@ export default function Workspace({ note: initialNote }) {
     [editorBlocks],
   );
 
-  const openDuck = useCallback((blockContent) => {
-    setDuckConcept(conceptFromText(blockContent));
-    setDuckOpen(true);
-  }, []);
+  /**
+   * Opens the Explain or Quiz drawer.
+   *
+   * `blockText` is the selected block when this came from a block's ⠿ menu,
+   * and null when it came from the header. A block narrows the concept and
+   * becomes the focus; the whole note is the context either way.
+   */
+  const openStudy = useCallback(
+    (kind, blockText, note = activeNoteObj, content = noteContent) => {
+      if (!note) return;
+      const focused = blockText?.trim?.() ? blockText : "";
+      setStudyTarget({
+        concept: focused ? conceptFromText(focused) : note.title || "this note",
+        focus: focused,
+        content,
+        noteId: note.id,
+        noteTitle: note.title,
+        space: note.space || activeSpace,
+      });
+      setStudyKind(kind);
+    },
+    [activeNoteObj, activeSpace, noteContent],
+  );
 
-  const closeDuck = useCallback(() => setDuckOpen(false), []);
+  const closeStudy = useCallback(() => setStudyKind(null), []);
+
+  /** One graded session — from either quiz mode — lands on the mastery map. */
+  const handleRecordSession = useCallback(
+    ({ mode, concept, score, summary, heatmap }) => {
+      setSessions((prev) => [
+        {
+          id: `ses_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+          noteId: studyTarget?.noteId ?? null,
+          noteTitle: studyTarget?.noteTitle ?? "",
+          space: studyTarget?.space ?? activeSpace,
+          concept,
+          mode,
+          score: Number(score) || 0,
+          summary: summary ?? "",
+          heatmap: Array.isArray(heatmap) ? heatmap : [],
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    },
+    [activeSpace, studyTarget],
+  );
+
+  /** From the mastery dashboard: open that note, then reopen on that topic. */
+  const handleStudyTopic = useCallback(
+    (topic, kind) => {
+      let found = null;
+      for (const [space, list] of Object.entries(notesBySpace)) {
+        const match = (list || []).find((n) => n.id === topic.noteId);
+        if (match) {
+          found = { ...match, space };
+          break;
+        }
+      }
+
+      if (found) {
+        setActiveSpace(found.space);
+        setActiveNoteId(found.id);
+      }
+      setActiveTab("notes");
+
+      const note = found ?? activeNoteObj;
+      if (!note) return;
+
+      setStudyTarget({
+        concept: topic.subtopic || note.title || "this note",
+        focus: topic.subtopic ?? "",
+        content: editorBlocksToText(note.blocks || []),
+        noteId: note.id,
+        noteTitle: note.title,
+        space: note.space || activeSpace,
+      });
+      setStudyKind(kind);
+    },
+    [activeNoteObj, activeSpace, notesBySpace],
+  );
+
+  const allNotes = useMemo(
+    () =>
+      Object.entries(notesBySpace).flatMap(([space, list]) =>
+        (list || []).map((n) => ({ ...n, space })),
+      ),
+    [notesBySpace],
+  );
+
+  const gapCount = useMemo(
+    () => summariseMastery(sessions).weaknesses.length,
+    [sessions],
+  );
 
   const handleSaveNote = useCallback(
     async ({ title, blocks, banner, isFavorite, emoji }) => {
@@ -484,6 +616,24 @@ export default function Workspace({ note: initialNote }) {
               <span>🧊</span>
               <span>3D</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("mastery")}
+              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
+                activeTab === "mastery"
+                  ? "bg-ink-800 text-ink-100 shadow-sm"
+                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+              }`}
+            >
+              <span>📊</span>
+              <span>Mastery</span>
+              {gapCount > 0 && (
+                <span className="rounded-full border border-gap-500/40 bg-gap-500/10 px-1.5 text-[10px] font-semibold tabular-nums text-gap-500">
+                  {gapCount}
+                </span>
+              )}
+            </button>
           </nav>
 
           {/* Right Action Bar: Save Note (Full Right) + Socratic Duck Trigger */}
@@ -504,13 +654,22 @@ export default function Workspace({ note: initialNote }) {
 
             <button
               type="button"
-              onClick={() =>
-                openDuck(noteContent || activeNoteObj?.title || "Socratic Workspace")
-              }
+              onClick={() => openStudy("explain", null)}
+              title="Explain this note"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300"
+            >
+              <span>✨</span>
+              <span className="hidden sm:inline">Explain</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openStudy("quiz", null)}
+              title="Quiz me on this note"
               className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
             >
               <span>🦆</span>
-              <span className="hidden sm:inline">Ask Duck</span>
+              <span className="hidden sm:inline">Quiz me</span>
             </button>
           </div>
         </header>
@@ -527,7 +686,8 @@ export default function Workspace({ note: initialNote }) {
               initialEmoji={activeNoteObj?.emoji}
               onBlocksChange={setEditorBlocks}
               onSaveNote={handleSaveNote}
-              onTriggerSocratic={openDuck}
+              onExplainBlock={(text) => openStudy("explain", text)}
+              onQuizBlock={(text) => openStudy("quiz", text)}
               notesBySpace={notesBySpace}
               onSelectNote={handleSelectNote}
             />
@@ -538,15 +698,45 @@ export default function Workspace({ note: initialNote }) {
           )}
 
           {activeTab === "3d" && <ThreeDView />}
+
+          {activeTab === "mastery" && (
+            <MasteryDashboard
+              sessions={sessions}
+              notes={allNotes}
+              mounted={mounted}
+              onOpenNote={(noteId) => {
+                const match = allNotes.find((n) => n.id === noteId);
+                if (match) {
+                  setActiveSpace(match.space);
+                  setActiveNoteId(match.id);
+                }
+                setActiveTab("notes");
+              }}
+              onStudy={handleStudyTopic}
+              onClearSessions={() => setSessions([])}
+            />
+          )}
         </main>
       </div>
 
-      {/* Socratic Rubber Duck Drawer */}
-      <SocraticWorkspace
-        open={duckOpen}
-        concept={duckConcept}
-        noteContent={noteContent}
-        onClose={closeDuck}
+      {/* Explain — the teaching half. Stays mounted so it can animate out,
+          which is also why `studyTarget` survives closing. */}
+      <ExplainPanel
+        open={studyKind === "explain"}
+        concept={studyTarget?.concept ?? ""}
+        focus={studyTarget?.focus ?? ""}
+        noteContent={studyTarget?.content ?? ""}
+        onClose={closeStudy}
+        onQuiz={() => setStudyKind("quiz")}
+      />
+
+      {/* Quiz — graded questions or a Socratic interrogation. */}
+      <QuizPanel
+        open={studyKind === "quiz"}
+        concept={studyTarget?.concept ?? ""}
+        noteContent={studyTarget?.content ?? ""}
+        onClose={closeStudy}
+        onComplete={handleRecordSession}
       />
 
       {/* 75% Screen Instant Note Popup Modal */}

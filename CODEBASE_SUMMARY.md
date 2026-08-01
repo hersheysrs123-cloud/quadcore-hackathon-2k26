@@ -25,6 +25,9 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 ├── app/
 │   ├── api/
 │   │   ├── calendar/events/route.js    # Calendar event persistence
+│   │   ├── explain/route.js            # Structured explanation of a note
+│   │   ├── quiz/generate/route.js      # Builds a graded quiz from a note
+│   │   ├── quiz/grade/route.js         # Marks it & emits the heatmap
 │   │   ├── notes/[id]/route.js         # Single note API
 │   │   ├── notes/create/route.js       # Note creation API
 │   │   ├── notes/save/route.js         # GET & POST for note hydration & saving
@@ -33,20 +36,30 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── socratic/widget/route.js    # AI Widget generator
 │   │   └── visualizations/route.js     # 3D visualization persistence
 │   ├── globals.css                     # Site-wide CSS variables for Dark & Light themes
-│   ├── layout.js                       # Root layout & metadata
-│   └── page.js                         # Root entry component rendering Workspace
+│   ├── layout.js                       # Root layout, metadata & pre-paint theme bootstrap
+│   ├── page.js                         # Marketing landing page (server component, no client JS)
+│   └── workspace/page.js               # The app — renders <Workspace />
 ├── components/
 │   ├── AlarmOverlay.jsx                # Global visual/audio alarm overlay & dynamic tab favicon swap (🦆 <-> ❗️)
 │   ├── BlockNoteEditor.jsx             # Notion-style block editor with 17+ block types, 6-dots handles, covers & stats
 │   ├── CalendarView.jsx                # Study schedule, month navigation, & Pomodoro countdown timer widget
 │   ├── InstantNoteModal.jsx            # 75% screen instant note popup triggered via Ctrl+I or UI buttons
 │   ├── Sidebar.jsx                     # Spaces navigation, 24h trash tab, Settings ⚙️ modal & Factory Reset captcha
-│   ├── SocraticWorkspace.jsx           # Socratic Rubber Duck diagnostic drawer & interactive quiz engine
+│   ├── SocraticWorkspace.jsx           # UNREFERENCED — the Socratic session now lives in QuizPanel
 │   ├── ThreeDView.jsx                  # Interactive 3D visualization studio
+│   ├── Drawer.jsx                      # Shared right-panel chrome for Explain & Quiz
+│   ├── ExplainPanel.jsx                # LLM explanation of the active note/block
+│   ├── QuizPanel.jsx                   # Graded quiz + Socratic mode, one drawer
+│   ├── ScoreRing.jsx                   # Animated score dial
+│   ├── ConfidenceHeatmap.jsx           # Per-session sub-topic heatmap
+│   ├── MasteryDashboard.jsx            # Aggregate strengths/weaknesses heatmap
 │   └── Workspace.jsx                   # Main workspace layout, top HUD header, space state & auto-note creation
 ├── lib/
 │   ├── blocks.js                       # Block text extractors & concept mappers
 │   ├── constants.js                    # SPACES definition (School, Personal, Misc)
+│   ├── demoNotes.js                    # Six seeded demo notes (first-run content)
+│   ├── mastery.js                      # Status vocabulary + session -> topic rollup
+│   ├── schemas.js                      # Gemini structured-output schemas (all AI routes)
 │   └── supabaseClient.js               # Supabase browser client setup
 ├── supabase/
 │   └── schema.sql                      # Idempotent PostgreSQL schema for Supabase SQL Editor
@@ -62,7 +75,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 - **17 Block Types Supported**: `Text`, `Heading 1` (h1), `Heading 2` (h2), `Heading 3` (h3), `Heading 4` (h4), `Bullet List`, `Numbered List` (auto-indexing `1.`, `2.`), `To-Do List` (interactive checkboxes with strikethrough), `Toggle List` (collapsible arrow `▶`/`▼`), `Callout Box` (bordered frame with 8 icon presets), `Quote` (thick left border), `Divider` (`hr`), `Note Link` (workspace note picker popover), `Site Bookmark Embed` (clickable bookmark card with favicon), `Media Embed` (Image, Audio, or Video player), `Code Snippet`, and `Action Button`.
 - **In-Context Slash Menu (`/`)**: Typing `/` pops up the block type menu directly underneath the active line (`absolute top-full left-0 mt-1`). Selecting a block type instantly clears initial typed text and `/`.
 - **6-Dots Handles (`⠿`) & Context Menu**: Hovering a block displays aligned `🗑️` delete and `⠿` menu handles. Clicking `⠿` opens a popover containing:
-  - 🦆 **Test Understanding with Duck**
+  - ✨ **Explain** / 🦆 **Quiz me** for that block
   - **Formatting Controls**: <b>B</b> Bold, <i>I</i> Italic, <u>U</u> Underline, <s>S</s> Strikethrough
   - 🔄 **Turn Into Submenu** (all 17 block types)
   - 🗑️ **Delete Block** (in light red)
@@ -91,6 +104,51 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 - **Site-Wide Themes**: Dark Mode (`#12151e` Sleek Slate) and Light Mode (`#eef2f6` Warm Stone) via `data-theme` on root HTML.
 - **Factory Reset 🚨**: Purges targeted tables (`notes`, `calendar`, `3d`, or `all`) via `POST /api/reset` requiring double confirmation and a randomized math human captcha verification check (`What is X + Y?`).
 
+
+### ✨ F. Explain — the Teaching Half (`components/ExplainPanel.jsx`, `app/api/explain/route.js`)
+- Reads the learner's own note and returns a **structured** explanation: one-line
+  TL;DR, the mechanism in order, an analogy **with where it breaks marked**, the
+  misconceptions most likely to bite, a worked example, and check-yourself
+  questions that hand straight over to the quiz.
+- Deliberately the opposite persona to the Socratic Duck (which is forbidden from
+  ever answering). Keeping them as separate endpoints is what stops either from
+  drifting into a hedged middle.
+- Scope: whole note from the header `✨ Explain`, or one block from its `⠿` menu.
+
+### 📋 G. Graded Quiz & Mastery Heatmap (`components/QuizPanel.jsx`, `components/MasteryDashboard.jsx`)
+- `POST /api/quiz/generate` writes 5–6 questions from the note (mixed
+  multiple-choice and short answer, distractors built from real mistakes).
+- `POST /api/quiz/grade` marks them. **Multiple choice is graded in the route by
+  integer comparison** and handed to the model as established fact; only short
+  answers are LLM-graded, on the mechanism rather than the wording. A learner
+  told a correct answer was wrong stops trusting every other number on the page.
+- Both the quick quiz and the Socratic mode emit the same
+  `{ score, summary, heatmap[] }` shape, which is what lets the dashboard treat
+  them as one dataset.
+- The **Mastery tab** rolls every session up per sub-topic: topic heatmap grouped
+  by note, stat tiles, a weakest-first "what to study next" list where each row
+  can re-explain or re-test that exact sub-topic, and a session log. A topic seen
+  more than once keeps its history and shows whether it is improving.
+- Sessions persist to `localStorage` under `socratic_study_sessions`, following
+  the same `mounted`-guard convention as notes and trash.
+
+### 🏠 H. Landing Page (`app/page.js`)
+- The root route is a marketing page; the app moved to `/workspace`.
+- Server component with **no client JS** — every effect is CSS. The product shot
+  is hand-built markup rather than a screenshot so it cannot go stale against the
+  palette.
+- Written entirely in ink/duck tokens, so it follows the reader's light/dark
+  choice like the rest of the app.
+
+### 📚 I. First-Run Demo Content (`lib/demoNotes.js`)
+- Six notes across School / Personal / Misc — eigenvectors, photosynthesis,
+  Big-O, elasticity, memory science, neural networks.
+- Written the way real notes are, **including the passages where the author
+  admits being stuck**, because that is precisely what Explain and the quiz
+  generator key off.
+- Seeded only when the workspace is genuinely empty AND `socratic_demo_seeded`
+  is unset, so a factory reset or a deliberate "delete everything" stays empty.
+
 ---
 
 ## 🗄️ 4. Database Schema & API Specifications
@@ -106,6 +164,15 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 - `POST /api/notes/save`: Expects `{ noteId, title, blocks, banner, isFavorite, emoji, space }`. Upserts note metadata and replace-inserts all blocks into Supabase.
 - `GET /api/notes/save`: Returns all saved notes with nested blocks for client hydration.
 - `POST /api/reset`: Expects `{ target: "notes" | "calendar" | "3d" | "all" }`. Executes SQL DELETE on Supabase tables.
+- `POST /api/explain`: Expects `{ concept, noteContent?, focus? }` → `{ explanation, usage }`.
+- `POST /api/quiz/generate`: Expects `{ concept, noteContent }` → `{ quiz: { topic, questions[] }, usage }`.
+- `POST /api/quiz/grade`: Expects `{ concept, noteContent?, questions[], responses[] }` → `{ result: { score, summary, gradedAnswers[], heatmap[] }, usage }`.
+
+> **`GET /api/notes/save` soft-fails when Supabase is unreachable.** It answers
+> `200 { success: false, offline: true, notes: [] }` rather than 500, because the
+> workspace runs fine on `localStorage` alone and this route is called on every
+> mount — a 500 put a red console error on every page load for an expected state.
+> A genuine query error still returns 500.
 
 ---
 

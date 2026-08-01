@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 //   • Callout Box with icon picker (💡, ⚠️, 📌, 🔥, ⭐, 🎉, ℹ️, 🦆)
 //   • Quote (accent bar), Divider (hr), Note Link (workspace note picker)
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
-//   • 6-dots (⠿) context menu with Socratic Duck & formatting (B, I, U, S)
+//   • 6-dots (⠿) context menu: Explain / Quiz, formatting (B, I, U, S), turn-into
 // ─────────────────────────────────────────────────────────────────────
 
 const BLOCK_TYPES = [
@@ -153,7 +153,14 @@ function SlashMenu({ onSelect, onClose, filter }) {
 }
 
 // ─── Notion 6-Dots Block Context Menu ───────────────────────────────
-function BlockContextMenu({ block, onClose, onChangeType, onDelete, onTriggerSocratic }) {
+function BlockContextMenu({
+  block,
+  onClose,
+  onChangeType,
+  onDelete,
+  onExplainBlock,
+  onQuizBlock,
+}) {
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -173,17 +180,36 @@ function BlockContextMenu({ block, onClose, onChangeType, onDelete, onTriggerSoc
       ref={menuRef}
       className="absolute -left-2 top-full z-50 mt-1 w-72 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl animate-fade-in p-2 text-xs"
     >
-      <button
-        type="button"
-        onClick={() => {
-          onTriggerSocratic(block.content || "Socratic concept");
-          onClose();
-        }}
-        className="flex w-full items-center gap-2 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-2 font-semibold text-duck-300 transition-colors hover:bg-duck-500/20"
-      >
-        <span>🦆</span>
-        <span>Test Understanding with Duck</span>
-      </button>
+      {/* Study this block specifically: explained, or tested. Both scope to
+          the block's text but still send the whole note as context. */}
+      {(onExplainBlock || onQuizBlock) && (
+        <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            disabled={!block.content?.trim()}
+            onClick={() => {
+              onExplainBlock?.(block.content);
+              onClose();
+            }}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 px-2 py-2 font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30"
+          >
+            <span>✨</span>
+            <span>Explain</span>
+          </button>
+          <button
+            type="button"
+            disabled={!block.content?.trim()}
+            onClick={() => {
+              onQuizBlock?.(block.content);
+              onClose();
+            }}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 px-2 py-2 font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30"
+          >
+            <span>🦆</span>
+            <span>Quiz me</span>
+          </button>
+        </div>
+      )}
 
       <div className="my-2 flex items-center justify-around rounded-lg border border-ink-800 bg-ink-850 p-1.5">
         <button
@@ -286,16 +312,22 @@ function EditorBlock({
   onDelete,
   onKeyDown,
   onAddAfter,
-  onTriggerSocratic,
+  onExplainBlock,
+  onQuizBlock,
   notesBySpace = {},
   onSelectNote,
   registerRef,
   onSaveNote,
+  dragHandlers,
+  isDragTarget,
 }) {
   const contentRef = useRef(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  // The block only becomes draggable while the ⠿ handle is held. Making the
+  // whole row draggable would hijack text selection inside contentEditable.
+  const [handleHeld, setHandleHeld] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showNotePicker, setShowNotePicker] = useState(false);
   const [showCanvasModal, setShowCanvasModal] = useState(false);
@@ -402,8 +434,31 @@ function EditorBlock({
     <div
       className={`group relative rounded-lg px-2.5 py-1.5 transition-colors ${
         isSelected ? "bg-ink-900/60" : "hover:bg-ink-900/30"
+      } ${
+        isDragTarget
+          ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-duck-400"
+          : ""
       }`}
       onClick={() => onSelect(block.id)}
+      draggable={handleHeld}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        dragHandlers?.onDragStart(block.id);
+      }}
+      onDragOver={(e) => {
+        if (!dragHandlers?.dragging) return;
+        e.preventDefault();
+        dragHandlers.onDragOver(block.id);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setHandleHeld(false);
+        dragHandlers?.onDrop();
+      }}
+      onDragEnd={() => {
+        setHandleHeld(false);
+        dragHandlers?.onDragEnd();
+      }}
     >
       {/* Properly Aligned Controls */}
       <div className="absolute -left-14 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -420,12 +475,14 @@ function EditorBlock({
         </button>
         <button
           type="button"
+          onMouseDown={() => setHandleHeld(true)}
+          onMouseUp={() => setHandleHeld(false)}
           onClick={(e) => {
             e.stopPropagation();
             setMenuOpen(!menuOpen);
           }}
-          title="Block Menu"
-          className="rounded p-1 text-xs text-ink-500 transition-colors hover:bg-ink-800 hover:text-duck-300"
+          title="Drag to move · click for block menu"
+          className="cursor-grab rounded p-1 text-xs text-ink-500 transition-colors hover:bg-ink-800 hover:text-duck-300 active:cursor-grabbing"
         >
           ⠿
         </button>
@@ -437,7 +494,8 @@ function EditorBlock({
           onClose={() => setMenuOpen(false)}
           onChangeType={onChangeType}
           onDelete={onDelete}
-          onTriggerSocratic={onTriggerSocratic}
+          onExplainBlock={onExplainBlock}
+          onQuizBlock={onQuizBlock}
         />
       )}
 
@@ -1499,7 +1557,8 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
 
 // ─── BlockNoteEditor (main export) ──────────────────────────────────
 export default function BlockNoteEditor({
-  onTriggerSocratic,
+  onExplainBlock,
+  onQuizBlock,
   initialTitle = "",
   initialBlocks,
   initialBanner = null,
@@ -1524,6 +1583,37 @@ export default function BlockNoteEditor({
   );
   const [selectedId, setSelectedId] = useState(null);
   const blockRefs = useRef({});
+
+  // Drag-to-reorder, driven by each block's ⠿ handle.
+  const [dragging, setDragging] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  const dragHandlers = useMemo(
+    () => ({
+      dragging,
+      onDragStart: setDragging,
+      onDragOver: (id) => setDragOver((current) => (current === id ? current : id)),
+      onDragEnd: () => {
+        setDragging(null);
+        setDragOver(null);
+      },
+      onDrop: () => {
+        setBlocks((prev) => {
+          if (!dragging || !dragOver || dragging === dragOver) return prev;
+          const from = prev.findIndex((b) => b.id === dragging);
+          const to = prev.findIndex((b) => b.id === dragOver);
+          if (from === -1 || to === -1) return prev;
+          const next = [...prev];
+          const [moved] = next.splice(from, 1);
+          next.splice(to, 0, moved);
+          return next;
+        });
+        setDragging(null);
+        setDragOver(null);
+      },
+    }),
+    [dragging, dragOver],
+  );
 
   const totalCharacters = useMemo(() => {
     return blocks.reduce((sum, b) => sum + (b.content ? b.content.length : 0), 0);
@@ -1998,7 +2088,10 @@ export default function BlockNoteEditor({
                 onDelete={handleDeleteBlock}
                 onKeyDown={handleKeyDown}
                 onAddAfter={handleAddAfter}
-                onTriggerSocratic={onTriggerSocratic}
+                onExplainBlock={onExplainBlock}
+                onQuizBlock={onQuizBlock}
+                dragHandlers={dragHandlers}
+                isDragTarget={dragOver === block.id && dragging !== block.id}
                 notesBySpace={notesBySpace}
                 onSelectNote={onSelectNote}
                 registerRef={registerRef}
