@@ -728,7 +728,7 @@ const TOPICS = [
     blurb: "Plant vs. animal cells, with an osmosis simulation",
     syllabus: "Biology 2 · Cell structure",
     keywords: "cell organelle nucleus mitochondria chloroplast vacuole cell wall membrane osmosis turgid plasmolysis plant animal",
-    defaults: { cellType: "plant", tonicity: 0, showLabels: true, water: true },
+    defaults: { cellType: "plant", tonicity: 0, showLabels: true, water: true, cutaway: false },
     controls: [
       {
         type: "choice",
@@ -748,6 +748,7 @@ const TOPICS = [
         step: 0.05,
         format: (v) => (v > 0.05 ? "concentrated" : v < -0.05 ? "dilute" : "isotonic"),
       },
+      { type: "toggle", key: "cutaway", label: "Cutaway view" },
       { type: "toggle", key: "water", label: "Show water movement" },
       { type: "toggle", key: "showLabels", label: "Show organelle labels" },
     ],

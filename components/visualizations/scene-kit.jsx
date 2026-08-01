@@ -30,11 +30,15 @@ export const PALETTE = {
   line: "#333a45",
 };
 
-export function StudioLights({ ambient = 0.55, key: keyIntensity = 1.5, rim = PALETTE.sky }) {
+/**
+ * `keyLight`, not `key`: React reserves `key`, so spreading a `lights` object
+ * that carried one both dropped the value and logged a warning per frame.
+ */
+export function StudioLights({ ambient = 0.55, keyLight = 1.5, rim = PALETTE.sky }) {
   return (
     <>
       <ambientLight intensity={ambient} />
-      <directionalLight position={[6, 9, 6]} intensity={keyIntensity} />
+      <directionalLight position={[6, 9, 6]} intensity={keyLight} />
       <directionalLight position={[-7, -4, -6]} intensity={0.42} color={rim} />
     </>
   );

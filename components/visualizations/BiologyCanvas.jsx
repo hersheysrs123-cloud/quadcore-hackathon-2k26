@@ -5,7 +5,6 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  AtomSphere,
   Halo,
   PALETTE,
   SceneCanvas,
@@ -16,6 +15,27 @@ import {
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
+import {
+  BilayerPatch,
+  CellWall,
+  Centrioles,
+  Chloroplast,
+  CutawayProvider,
+  Cytoplasm,
+  Cytoskeleton,
+  FreeRibosomes,
+  Golgi,
+  Lysosome,
+  MembraneMaterial,
+  Mitochondrion,
+  Nucleus,
+  Pickable,
+  RoughER,
+  SmoothER,
+  Vacuole,
+  makeBlobGeometry,
+  makeRoundedBoxGeometry,
+} from "@/components/visualizations/cell-organelles";
 
 // ─── IGCSE Biology · three scenes ───────────────────────────────────
 // Enzyme action, DNA base pairing, and the plant/animal cell explorer.
@@ -641,46 +661,71 @@ export function DNAScene({ params }) {
 const ORGANELLES = {
   nucleus: {
     label: "Nucleus",
-    info: "Holds the DNA and controls all the cell's activities.",
+    info: "Holds the DNA as chromatin and controls all the cell's activities. The dense patch inside is the nucleolus, where ribosomes are built.",
     both: true,
   },
   mitochondrion: {
     label: "Mitochondrion",
-    info: "Site of aerobic respiration — releases energy from glucose.",
+    info: "Site of aerobic respiration. The folded inner membrane — the cristae — gives a huge surface area for releasing energy from glucose.",
     both: true,
   },
   chloroplast: {
     label: "Chloroplast",
-    info: "Contains chlorophyll and traps light energy for photosynthesis. Plant cells only.",
+    info: "Stacks of thylakoid discs (grana) hold the chlorophyll that traps light for photosynthesis. Plant cells only.",
     both: false,
   },
   vacuole: {
     label: "Permanent vacuole",
-    info: "Filled with cell sap; its pressure against the wall keeps the plant cell turgid. Plant cells only.",
+    info: "Filled with cell sap and bounded by the tonoplast; its pressure against the wall keeps the plant cell turgid. Plant cells only.",
     both: false,
   },
   wall: {
     label: "Cell wall",
-    info: "Rigid cellulose layer that stops the cell bursting. Plant cells only.",
+    info: "Crossed layers of cellulose microfibrils. Fully permeable, but rigid — it is what stops the cell bursting. Plant cells only.",
     both: false,
   },
   membrane: {
     label: "Cell membrane",
-    info: "Partially permeable — controls what enters and leaves, and lets water through by osmosis.",
+    info: "A phospholipid bilayer: heads out, tails in. Partially permeable — water crosses by osmosis, larger molecules need a protein channel.",
     both: true,
   },
   ribosome: {
     label: "Ribosomes",
-    info: "Where proteins are made.",
+    info: "Where proteins are made. Free in the cytoplasm, or stuck to the rough ER.",
     both: true,
+  },
+  er: {
+    label: "Rough endoplasmic reticulum",
+    info: "Folded sheets studded with ribosomes. Proteins made here are folded and sent on to the Golgi.",
+    both: true,
+  },
+  smoothEr: {
+    label: "Smooth endoplasmic reticulum",
+    info: "Tubules with no ribosomes — makes lipids and steroids, and stores calcium.",
+    both: true,
+  },
+  golgi: {
+    label: "Golgi apparatus",
+    info: "Stacked cisternae that modify and package proteins, then bud them off in vesicles for secretion.",
+    both: true,
+  },
+  lysosome: {
+    label: "Lysosome",
+    info: "A bag of digestive enzymes that breaks down worn-out organelles and anything the cell engulfs.",
+    both: true,
+  },
+  centriole: {
+    label: "Centrioles",
+    info: "Nine triplets of microtubules in each barrel. They organise the spindle when the cell divides. Animal cells only.",
+    both: false,
   },
 };
 
-function WaterFlow({ direction, active }) {
+function WaterFlow({ direction, active, reach = 4.9 }) {
   const meshes = useRef([]);
   const drops = useMemo(
     () =>
-      Array.from({ length: 22 }, (_, i) => ({
+      Array.from({ length: 26 }, (_, i) => ({
         angle: hashRandom(i + 2) * Math.PI * 2,
         tilt: (hashRandom(i + 40) - 0.5) * 2,
         phase: hashRandom(i + 80),
@@ -696,12 +741,8 @@ function WaterFlow({ direction, active }) {
       if (!mesh) return;
       const local = (t.current + d.phase) % 1;
       // direction > 0 → water entering the cell.
-      const r = direction > 0 ? lerp(4.6, 1.2, local) : lerp(1.2, 4.6, local);
-      mesh.position.set(
-        Math.cos(d.angle) * r,
-        d.tilt * r * 0.32,
-        Math.sin(d.angle) * r,
-      );
+      const r = direction > 0 ? lerp(reach, 1.2, local) : lerp(1.2, reach, local);
+      mesh.position.set(Math.cos(d.angle) * r, d.tilt * r * 0.32, Math.sin(d.angle) * r);
       const fade = Math.sin(local * Math.PI);
       mesh.scale.setScalar(0.001 + fade * 0.11);
     });
@@ -731,38 +772,87 @@ function WaterFlow({ direction, active }) {
   );
 }
 
-function Organelle({ id, position, geometry, colour, scale = 1, selected, onSelect, label }) {
+const PLANT_SIZE = [7.6, 5.1, 5.1];
+const ANIMAL_RADIUS = 3.15;
+
+/**
+ * Where each organelle sits.
+ *
+ * Hand-placed rather than scattered, because the arrangement is itself
+ * examinable: in a plant cell the vacuole takes the middle and everything
+ * else is squeezed into a thin layer of cytoplasm against the wall, which is
+ * exactly why chloroplasts end up near the surface where the light is.
+ */
+const PLANT_LAYOUT = {
+  nucleus: [-2.1, 0.5, 0.15],
+  golgi: [-1.15, -1.4, 0.6],
+  smoothEr: [-0.9, 1.45, -0.55],
+  mitochondria: [
+    [-0.25, 1.6, 0.85],
+    [1.8, 1.35, -0.75],
+    [2.6, -0.55, 0.65],
+    [0.35, -1.6, -0.85],
+    [-2.35, -1.05, -0.75],
+    [2.0, 0.8, 1.05],
+  ],
+  chloroplasts: [
+    [-2.75, 1.35, 0.35],
+    [-1.3, 1.8, -1.0],
+    [0.95, 1.75, 0.95],
+    [2.7, 1.05, -0.45],
+    [2.75, -1.15, 0.3],
+    [1.15, -1.75, 0.85],
+    [-1.5, -1.7, -0.85],
+    [-2.6, -1.55, 0.85],
+  ],
+  lysosomes: [
+    [-2.85, 0.95, -0.75],
+    [-0.55, -1.5, 1.15],
+    [2.45, 0.25, -1.05],
+  ],
+};
+
+const ANIMAL_LAYOUT = {
+  nucleus: [0, 0, 0],
+  golgi: [1.55, -1.15, 0.35],
+  smoothEr: [1.5, 1.15, -0.6],
+  centrioles: [-1.75, 1.05, 0.5],
+  mitochondria: [
+    [-1.9, -1.0, 0.8],
+    [1.0, 1.75, -0.7],
+    [2.3, 0.35, 0.9],
+    [-0.6, -2.0, -0.8],
+    [-2.4, 0.5, -0.9],
+    [0.7, -1.5, 1.5],
+  ],
+  lysosomes: [
+    [-1.2, 1.8, 0.9],
+    [2.0, -1.3, -0.7],
+    [-2.3, -1.3, 0.2],
+    [1.3, 1.2, 1.4],
+  ],
+};
+
+/**
+ * Lights placed *inside* the cell.
+ *
+ * The shared StudioLights rig lights an object from outside, which is right
+ * for a molecule and wrong for a cell — everything past the membrane fell
+ * into flat shadow. Two dim point lights in the cytoplasm give the interior
+ * its own falloff, so depth reads through the translucent envelope.
+ */
+function InteriorLights() {
   return (
-    <group position={position} scale={scale}>
-      <mesh
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(id);
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "auto";
-        }}
-      >
-        {geometry}
-        <meshStandardMaterial
-          color={colour}
-          emissive={colour}
-          emissiveIntensity={selected ? 1.5 : 0.35}
-          roughness={0.4}
-          metalness={0.1}
-        />
-      </mesh>
-      {label && selected && <SceneLabel position={[0, 1.1, 0]} accent>{label}</SceneLabel>}
-    </group>
+    <>
+      <pointLight position={[0, 0, 0]} intensity={9} distance={9} decay={2} color="#bfdbfe" />
+      <pointLight position={[-2.4, 1.6, 1.8]} intensity={5} distance={7} decay={2} color="#fef3c7" />
+      <pointLight position={[2.2, -1.4, -1.6]} intensity={4} distance={7} decay={2} color="#a7f3d0" />
+    </>
   );
 }
 
 export function CellExplorerScene({ params }) {
-  const { cellType, tonicity, showLabels, water } = params;
+  const { cellType, tonicity, showLabels, water, cutaway } = params;
   const [selected, setSelected] = useState(null);
   const isPlant = cellType === "plant";
 
@@ -782,190 +872,153 @@ export function CellExplorerScene({ params }) {
         ? { text: "Lysed (burst)", tone: "bad" }
         : { text: "Normal", tone: "good" };
 
-  const mitochondria = useMemo(
-    () =>
-      Array.from({ length: 4 }, (_, i) => [
-        Math.cos(i * 1.9 + 0.6) * 2.1,
-        Math.sin(i * 2.6) * 1.2,
-        Math.sin(i * 1.7) * 1.3,
-      ]),
-    [],
-  );
-  const chloroplasts = useMemo(
-    () =>
-      Array.from({ length: 6 }, (_, i) => [
-        Math.cos(i * 1.05) * 2.7,
-        Math.sin(i * 1.9) * 1.5,
-        Math.sin(i * 1.3) * 1.5,
-      ]),
-    [],
-  );
-  const ribosomes = useMemo(
-    () =>
-      Array.from({ length: 16 }, (_, i) => [
-        (hashRandom(i + 3) - 0.5) * 5.4,
-        (hashRandom(i + 33) - 0.5) * 3.4,
-        (hashRandom(i + 63) - 0.5) * 3.4,
-      ]),
-    [],
-  );
+  const layout = isPlant ? PLANT_LAYOUT : ANIMAL_LAYOUT;
 
+  const membraneGeometry = useMemo(
+    () =>
+      isPlant
+        ? makeRoundedBoxGeometry({ size: [7.0, 4.7, 4.7], exponent: 6, amp: 0.014, seed: 9 })
+        : makeBlobGeometry({ radius: ANIMAL_RADIUS, amp: 0.055, freq: 1.5, seed: 17, segments: 76, rings: 52 }),
+    [isPlant],
+  );
+  useEffect(() => () => membraneGeometry.dispose(), [membraneGeometry]);
+
+  const bounds = isPlant ? [3.0, 2.0, 2.0] : [2.4, 2.0, 2.0];
   const detail = selected ? ORGANELLES[selected] : null;
 
   return (
     <SceneCanvas
       camera={{ position: [0, 3, 12], fov: 45 }}
+      controls={{ minDistance: 1.1, maxDistance: 34 }}
+      lights={{ ambient: 0.4, keyLight: 1.05 }}
       onPointerMissed={() => setSelected(null)}
     >
-      {/* Plant cells get a rigid wall the membrane can pull away from. */}
-      {isPlant && (
-        <mesh
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelected("wall");
-          }}
-        >
-          <boxGeometry args={[7.4, 5, 5]} />
-          <meshStandardMaterial
-            color={selected === "wall" ? PALETTE.emerald : "#3f6212"}
-            emissive={selected === "wall" ? PALETTE.emerald : "#3f6212"}
-            emissiveIntensity={selected === "wall" ? 0.8 : 0.2}
-            transparent
-            opacity={0.18}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
-        </mesh>
-      )}
+      <CutawayProvider enabled={Boolean(cutaway)}>
+        <InteriorLights />
 
-      {/* Membrane. */}
-      <mesh
-        scale={membraneScale}
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelected("membrane");
-        }}
-      >
-        {isPlant ? <boxGeometry args={[7, 4.7, 4.7]} /> : <sphereGeometry args={[3.3, 40, 40]} />}
-        <meshStandardMaterial
-          color={selected === "membrane" ? PALETTE.gold : PALETTE.sky}
-          emissive={selected === "membrane" ? PALETTE.gold : PALETTE.sky}
-          emissiveIntensity={selected === "membrane" ? 0.9 : 0.25}
-          transparent
-          opacity={0.16}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-
-      <group scale={membraneScale}>
-        <Organelle
-          id="nucleus"
-          position={isPlant ? [-2, 0.9, 0] : [0, 0, 0]}
-          geometry={<sphereGeometry args={[1, 32, 32]} />}
-          colour={PALETTE.violet}
-          selected={selected === "nucleus"}
-          onSelect={setSelected}
-          label={showLabels ? "Nucleus" : null}
-        />
-        {/* Nuclear envelope — outer double membrane ring */}
-        <mesh position={isPlant ? [-2, 0.9, 0] : [0, 0, 0]}>
-          <sphereGeometry args={[1.12, 28, 28]} />
-          <meshStandardMaterial
-            color={PALETTE.violet}
-            transparent
-            opacity={0.12}
-            roughness={0.2}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
-        </mesh>
-        {/* Nuclear pore rings (4 rings around equator) */}
-        {Array.from({ length: 4 }, (_, i) => {
-          const angle = (i / 4) * Math.PI * 2;
-          const nx = isPlant ? -2 : 0;
-          const ny = 0.9;
-          return (
-            <mesh key={i} position={[nx + Math.cos(angle) * 1.12, ny + Math.sin(angle) * 0.5, 0.3]} rotation={[0.4, angle, 0]}>
-              <torusGeometry args={[0.14, 0.04, 8, 16]} />
-              <meshStandardMaterial color={PALETTE.violet} emissive={PALETTE.violet} emissiveIntensity={0.9} />
-            </mesh>
-          );
-        })}
-
+        {/* The wall is outside the protoplast, so it does not move when the
+            membrane pulls away during plasmolysis — that gap is the point. */}
         {isPlant && (
-          <Organelle
-            id="vacuole"
-            position={[1.1, 0, 0]}
-            geometry={<sphereGeometry args={[1.7, 32, 32]} />}
-            colour="#0ea5e9"
-            scale={clamp(1 - Math.max(0, tonicity) * 0.45, 0.5, 1.15)}
-            selected={selected === "vacuole"}
+          <CellWall
+            size={PLANT_SIZE}
+            selected={selected === "wall"}
             onSelect={setSelected}
-            label={showLabels ? "Vacuole" : null}
+            showLabel={showLabels}
           />
         )}
 
-        {mitochondria.map((p, i) => (
-          <group key={i} position={p} rotation={[0, i * 0.8, 0.5]}>
-            <Organelle
-              id="mitochondrion"
-              position={[0, 0, 0]}
-              geometry={<capsuleGeometry args={[0.26, 0.68, 6, 16]} />}
-              colour={PALETTE.rose}
-              selected={selected === "mitochondrion"}
-              onSelect={setSelected}
-              label={showLabels && i === 0 ? "Mitochondria" : null}
-            />
-            {/* Inner membrane cristae — 3 horizontal rings */}
-            {[0, -0.24, 0.24].map((dy, ci) => (
-              <mesh key={ci} position={[0, dy, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[0.22, 0.04, 6, 14]} />
-                <meshStandardMaterial color={PALETTE.rose} emissive={PALETTE.rose} emissiveIntensity={0.55} transparent opacity={0.65} />
-              </mesh>
-            ))}
-          </group>
-        ))}
-
-        {isPlant &&
-          chloroplasts.map((p, i) => (
-            <group key={i} position={p} rotation={[0.4, i * 0.9, 0]}>
-              <Organelle
-                id="chloroplast"
-                position={[0, 0, 0]}
-                geometry={<sphereGeometry args={[0.38, 20, 20]} />}
-                colour={PALETTE.emerald}
-                scale={[1, 0.55, 1]}
-                selected={selected === "chloroplast"}
-                onSelect={setSelected}
-                label={showLabels && i === 0 ? "Chloroplasts" : null}
+        <group scale={membraneScale}>
+          <Pickable id="membrane" onSelect={setSelected}>
+            <mesh geometry={membraneGeometry}>
+              <MembraneMaterial
+                color={selected === "membrane" ? PALETTE.gold : PALETTE.sky}
+                // MembraneMaterial already lifts opacity when selected, so the
+                // base drops here — otherwise picking the membrane draws a
+                // gold film over every organelle you were trying to look at.
+                opacity={selected === "membrane" ? 0.09 : 0.13}
+                selected={selected === "membrane"}
               />
-              {/* Thylakoid grana disc stack */}
-              {[0, 0.15, -0.15].map((dy, ti) => (
-                <mesh key={ti} position={[0, dy * 0.55, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                  <cylinderGeometry args={[0.18, 0.18, 0.06, 12]} />
-                  <meshStandardMaterial color="#15803d" emissive={PALETTE.emerald} emissiveIntensity={0.7} transparent opacity={0.7} />
-                </mesh>
-              ))}
+            </mesh>
+          </Pickable>
+
+          <Cytoskeleton bounds={bounds} />
+          <Cytoplasm bounds={bounds} tint={isPlant ? PALETTE.emerald : PALETTE.sky} />
+          <FreeRibosomes
+            bounds={[bounds[0] * 0.92, bounds[1] * 0.85, bounds[2] * 0.85]}
+            selected={selected === "ribosome"}
+            onSelect={setSelected}
+          />
+
+          <group position={layout.nucleus}>
+            <Nucleus
+              radius={isPlant ? 0.95 : 1.15}
+              selected={selected === "nucleus"}
+              onSelect={setSelected}
+              showLabel={showLabels}
+            />
+            <RoughER
+              radius={isPlant ? 1.24 : 1.5}
+              selected={selected === "er"}
+              onSelect={setSelected}
+              showLabel={showLabels}
+            />
+          </group>
+
+          <group position={layout.golgi}>
+            <Golgi selected={selected === "golgi"} onSelect={setSelected} showLabel={showLabels} />
+          </group>
+
+          <SmoothER
+            position={layout.smoothEr}
+            selected={selected === "smoothEr"}
+            onSelect={setSelected}
+            showLabel={showLabels}
+          />
+
+          {isPlant && (
+            <group position={[0.6, 0, 0]}>
+              <Vacuole
+                scale={clamp(1 - Math.max(0, tonicity) * 0.45, 0.5, 1.15)}
+                selected={selected === "vacuole"}
+                onSelect={setSelected}
+                showLabel={showLabels}
+              />
+            </group>
+          )}
+
+          {layout.mitochondria.map((position, i) => (
+            <group key={i} position={position} rotation={[hashRandom(i) * 1.2, i * 0.9, hashRandom(i + 9) * 1.4 - 0.7]}>
+              <Mitochondrion
+                seed={i}
+                selected={selected === "mitochondrion"}
+                onSelect={setSelected}
+                showLabel={showLabels && i === 0}
+              />
             </group>
           ))}
 
-        {ribosomes.map((p, i) => (
-          <AtomSphere
-            key={i}
-            position={p}
-            radius={0.09}
-            color={PALETTE.bone}
-            emissiveIntensity={0.7}
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelected("ribosome");
-            }}
-          />
-        ))}
-      </group>
+          {isPlant &&
+            layout.chloroplasts.map((position, i) => (
+              <group key={i} position={position} rotation={[hashRandom(i + 20) * 0.9 - 0.45, i * 0.8, hashRandom(i + 40) * 0.7 - 0.35]}>
+                <Chloroplast
+                  seed={i}
+                  selected={selected === "chloroplast"}
+                  onSelect={setSelected}
+                  showLabel={showLabels && i === 0}
+                />
+              </group>
+            ))}
 
-      <WaterFlow direction={-tonicity} active={water && Math.abs(tonicity) > 0.05} />
+          {layout.lysosomes.map((position, i) => (
+            <group key={i} position={position}>
+              <Lysosome seed={i} selected={selected === "lysosome"} onSelect={setSelected} />
+            </group>
+          ))}
+
+          {!isPlant && (
+            <group position={layout.centrioles} rotation={[0.5, 0.7, 0]}>
+              <Centrioles
+                selected={selected === "centriole"}
+                onSelect={setSelected}
+                showLabel={showLabels}
+              />
+            </group>
+          )}
+
+          {/* Molecular-scale inset, only while the membrane is the subject. */}
+          <BilayerPatch
+            visible={selected === "membrane"}
+            position={isPlant ? [0, 2.9, 0] : [0, ANIMAL_RADIUS + 0.75, 0]}
+            normal={[0, 0, 1]}
+          />
+        </group>
+
+        <WaterFlow
+          direction={-tonicity}
+          active={water && Math.abs(tonicity) > 0.05}
+          reach={isPlant ? 5.6 : 4.9}
+        />
+      </CutawayProvider>
 
       <SceneReadout
         title={isPlant ? "Plant cell" : "Animal cell"}
@@ -977,13 +1030,14 @@ export function CellExplorerScene({ params }) {
           ["Cell wall", isPlant ? "yes — cellulose" : "no", isPlant ? "good" : "bad"],
           ["Chloroplasts", isPlant ? "yes" : "no", isPlant ? "good" : "bad"],
           ["Permanent vacuole", isPlant ? "yes" : "no", isPlant ? "good" : "bad"],
+          ["Centrioles", isPlant ? "no" : "yes", isPlant ? "bad" : "good"],
         ]}
         note={
           detail
             ? `${detail.label}: ${detail.info}`
             : isPlant
-              ? "Click any organelle to identify it. The rigid wall is what saves a plant cell: water can push the membrane against it until the cell is turgid, without it bursting."
-              : "Click any organelle to identify it. With no cell wall, an animal cell has nothing to resist the pressure — too much water in and it bursts."
+              ? "Click any organelle to identify it, and turn on Cutaway to see inside them. The rigid wall is what saves a plant cell: water can push the membrane against it until the cell is turgid, without it bursting."
+              : "Click any organelle to identify it, and turn on Cutaway to see inside them. With no cell wall, an animal cell has nothing to resist the pressure — too much water in and it bursts."
         }
         noteTone={detail ? "good" : "neutral"}
       />
@@ -991,15 +1045,23 @@ export function CellExplorerScene({ params }) {
       <SceneLegend
         title={isPlant ? "Organelles · plant" : "Organelles · animal"}
         items={[
-          { color: PALETTE.violet, label: "Nucleus", note: "holds the DNA, controls the cell" },
-          { color: PALETTE.rose, label: "Mitochondria", note: "aerobic respiration — releases energy" },
-          { color: PALETTE.bone, label: "Ribosomes", note: "where proteins are made" },
+          { color: PALETTE.violet, label: "Nucleus", note: "chromatin + nucleolus, inside a pored double membrane" },
+          { color: PALETTE.rose, label: "Mitochondria", note: "cristae — folded inner membrane for respiration" },
+          { color: "#38bdf8", label: "Rough ER", note: "ribosome-studded sheets" },
+          { color: "#22d3ee", label: "Smooth ER", note: "tubules — lipids, no ribosomes" },
+          { color: PALETTE.gold, label: "Golgi apparatus", note: "packages proteins into vesicles" },
+          { color: "#f472b6", label: "Lysosomes", note: "digestive enzymes" },
+          { color: PALETTE.bone, label: "Free ribosomes", note: "where proteins are made" },
           ...(isPlant
             ? [
-                { color: PALETTE.emerald, label: "Chloroplasts", note: "trap light for photosynthesis" },
+                { color: PALETTE.emerald, label: "Chloroplasts", note: "grana stacks trap light" },
                 { color: "#0ea5e9", label: "Permanent vacuole", note: "cell sap — its pressure keeps the cell turgid" },
+                { color: "#65a30d", label: "Cell wall", note: "crossed cellulose microfibrils" },
               ]
-            : [{ color: PALETTE.sky, label: "Cell membrane", note: "partially permeable — and the only barrier there is" }]),
+            : [
+                { color: "#a5b4fc", label: "Centrioles", note: "nine microtubule triplets — organise division" },
+                { color: PALETTE.sky, label: "Cell membrane", note: "partially permeable — and the only barrier there is" },
+              ]),
           ...(water && Math.abs(tonicity) > 0.05
             ? [{ color: PALETTE.sky, label: "Water molecules", note: tonicity > 0 ? "leaving by osmosis" : "entering by osmosis" }]
             : []),
