@@ -1,15 +1,14 @@
 # SocraticOS
 
-> quadcore-hackathon-2k26
+> **quadcore-hackathon-2k26** — An intelligent, interactive study workspace & 3D scientific visualization studio.
 
-A study workspace built around one idea: **rereading is not studying**. You take
-block-based notes, have them explained properly, then get quizzed on them — and
-every session grades each sub-topic separately so a heatmap can tell you what
-you actually know rather than what you spent the most time reading.
+A study workspace built around one idea: **rereading is not studying**. You take block-based notes, have concepts explained through structured mechanisms, test your understanding through interactive quizzes, and explore concepts through real-time 3D simulations. Every session grades sub-topics independently to build an actionable mastery heatmap.
 
-Next.js (App Router) · Tailwind CSS v4 · Google AI Studio (Gemini) · Supabase (optional).
+**Stack**: Next.js 15 (App Router) · React 19 · Three.js / React Three Fiber · Tailwind CSS v4 · Google AI Studio (Gemini) · Supabase (optional).
 
-## Setup
+---
+
+## Quick Setup
 
 ```bash
 npm install
@@ -17,159 +16,106 @@ cp .env.example .env.local   # fill in GOOGLE_API_KEY
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000) for the landing page, or go
-straight to [/workspace](http://localhost:3000/workspace).
+Open [localhost:3000](http://localhost:3000) for the landing page, or go straight to [/workspace](http://localhost:3000/workspace).
 
-**`GOOGLE_API_KEY` is the only key you need.** Get one at
-[aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it the
-notes, editor and heatmap all still work; the three AI features return a 503
-explaining what's missing.
+> **Note**: `GOOGLE_API_KEY` is the only required key. Get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it, the note editor, 3D simulations, and local mastery heatmaps function normally; AI tutoring endpoints will report missing credentials cleanly.
 
-Supabase is optional and currently unused by the running app — see
-[Persistence](#persistence).
+---
 
-## The three features
+## Key Features
 
-### 1. Notes
+### 1. Block Note Editor & Workspace
+- **Notion-Style Block Editor**: Supports 17 block types behind a `/` menu — headings, to-dos, toggles, callouts, quotes, code blocks, media embeds, bookmarks, and internal note links.
+- **Drag Reordering**: Drag blocks with the `⠿` handle or click to access context formatting, "turn into", and per-block AI Explain / Quiz actions.
+- **Organization & Capture**: Note cover banners, emojis, space organization, 24-hour soft-delete trash recovery, and an instant note capture modal accessible via `Ctrl+I`.
+- **Seeded Notes**: Ships with demo notes for eigenvectors, photosynthesis, Big-O notation, elasticity, memory science, and neural networks.
 
-A Notion-style block editor with 17 block types behind a `/` menu — headings,
-to-dos, toggles, callouts, quotes, code, media embeds, bookmarks and note links.
-Blocks reorder by dragging the `⠿` handle; clicking it opens a context menu with
-formatting, "turn into", and per-block Explain / Quiz actions. Notes take cover
-banners, emoji and a favourite star, live in spaces, and deleting one drops it
-into a trash that holds it for 24 hours before purging.
+### 2. Interactive 3D Visualization Studio
+A full suite of real-time 3D interactive science simulations built using Three.js and `@react-three/fiber`:
 
-Six demo notes ship with the app — eigenvectors, photosynthesis, Big-O,
-elasticity, memory science and neural networks. They are written the way real
-notes are, including the bits where the author admits to being stuck, because
-that is what the AI features key off. They seed only on a genuinely empty
-workspace, so a factory reset stays empty.
+- 🧪 **Chemistry Engine** ([`ChemistryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ChemistryCanvas.jsx)):
+  - **Organic Chemistry Builder**: Supports 6 homologous series (Alkanes, Alkenes, Alkynes, Alcohols, Carboxylic Acids, Esters) with chain lengths **C1–C12** and VSEPR tetrahedral ($109.5^\circ$), trigonal planar ($120^\circ$), and linear ($sp$) geometries.
+  - **Crystal Lattices**: 3D lattice visualizers for Sodium Chloride (NaCl), Diamond, Graphite, Quartz ($SiO_2$), and Ice ($H_2O$).
+  - **Electrolysis**: Glass beaker solution bath with cathode/anode electroplating dynamics and rising $H_2$ / $O_2$ bubble particle streams.
+  - **Fractional Distillation**: Multi-stage column with translucent glass sheath, fraction boiling point gradient, and kinetic vapour flow.
+  - **Bohr Atom**: Quantized electron shell model with orbital rings and photon absorption/emission transitions.
 
-Alongside the notes tab there is a **calendar** with a Pomodoro timer and a
-full-screen alarm, a **3D visualisation studio**, and an **instant-note capture
-window** on `Ctrl+I`.
+- ⚡ **Physics Engine** ([`PhysicsCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/PhysicsCanvas.jsx)):
+  - **Kinetic Gas Laws ($PV=nRT$)**: Interactive gas particle container with dynamic collision vectors, temperature/volume controls, and Z-fighting offset geometry.
+  - **Optics & Refraction**: Real-time ray tracing through convex/concave lenses and prisms.
+  - **Electromagnetic Induction**: Moving magnet field lines, coil flux, and galvanometer deflection.
 
-### 2. Explain — `POST /api/explain`
+- 🌿 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx)):
+  - **Cell Explorer**: High-detail plant and animal cells featuring a double-layer nuclear envelope with 4 nuclear pores, mitochondrial cristae rings, chloroplast thylakoid grana stacks, and turgor pressure vacuoles.
+  - **Enzyme Dynamics**: Lock-and-key substrate binding with complementary active-site ridges, wobble animations, denaturation temperature cliffs, and pH stress response.
 
-Reads the note and returns a structured explanation: a one-line summary, the
-mechanism in the order you should meet it, an analogy **with its own limits
-marked**, the misconceptions most likely to bite, a worked example, and
-questions that hand straight over to the quiz.
+- 💻 **Computer Science 3D** ([`BinaryTree3D.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BinaryTree3D.jsx)):
+  - Interactive 3D Binary Search Tree / AVL tree with node insertion, deletion, balancing rotations, and traversal step-throughs.
 
-It is pointed deliberately at the gaps: where the notes are thin, or where the
-learner wrote down a result without a reason, or wrote "I can't explain why…".
+### 3. AI Explain — `POST /api/explain`
+Analyzes note content to return structured explanations: a one-line summary, ordered mechanism breakdowns, analogies with explicit limitations, common misconceptions, worked examples, and follow-up quiz prompts.
 
-### 3. Quiz, score and heatmap
+### 4. Quizzes, Socratic Tutoring & Mastery Heatmap
+- **Quick Quiz**: `POST /api/quiz/generate` generates 5–6 mixed multiple-choice and short-answer questions. `POST /api/quiz/grade` performs deterministic integer grading for multiple choice and LLM mechanism grading for short answers.
+- **Socratic Rubber Duck**: `POST /api/socratic/chat` provides guided questioning that never spoils answers directly, probing edges of understanding and generating interactive gap-repair widgets.
+- **Mastery Dashboard**: Consolidates session scores into topic heatmaps grouped by note, tracking progress over time (Solid / Shaky / Gap) with weakest-first revision suggestions.
 
-Two modes, one output shape.
+---
 
-**Quick quiz** — `POST /api/quiz/generate` writes 5–6 questions from the note
-(mixed multiple-choice and short answer), `POST /api/quiz/grade` marks them.
-Multiple choice is graded **in the route, by comparing two integers**, and that
-result is handed to the model as established fact; only short answers are graded
-by the LLM, on the mechanism rather than the wording.
-
-**Socratic** — the second tab of the same drawer. `POST /api/socratic/chat` is
-the Rubber Duck: it never gives an answer, never says "correct", and keeps
-probing until it finds the edge of what you understand. Ending the session
-scores the transcript and builds an interactive playground from the gaps.
-
-Both produce `{ score, summary, heatmap }` where heatmap is one
-`{ subtopic, status, feedback }` per sub-topic probed. That shared shape is what
-lets the dashboard treat both modes as one dataset.
-
-### The mastery map
-
-Every graded session lands on the **Mastery** tab in the workspace header: a topic heatmap
-grouped by note, stat tiles, a weakest-first "what to study next" list where each
-row can re-explain or re-test that exact sub-topic, and a session log. A topic
-seen more than once keeps its history and shows whether it is improving, because
-"was a gap twice, now shaky" is the interesting shape and an average would erase
-it.
-
-## Layout
-
-Full technical detail lives in [`CODEBASE_SUMMARY.md`](CODEBASE_SUMMARY.md);
-UI tokens and component rules in [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
+## Codebase Architecture
 
 ```
 app/
-  page.js                       Landing page (server component, no client JS)
-  workspace/page.js             The app
-  layout.js                     Root shell + pre-paint theme bootstrap
-  globals.css                   Tailwind v4 @theme — dark & light ramps
+  page.js                       Landing page & feature showcase
+  workspace/page.js             Primary workspace application page
+  visualizations/page.js        Standalone 3D visualizer page
+  layout.js                     Root shell & pre-paint theme bootstrap
+  globals.css                   Tailwind CSS v4 theme design tokens & animations
   api/
-    explain/route.js            POST  structured explanation from a note
-    quiz/generate/route.js      POST  build a quiz from a note
-    quiz/grade/route.js         POST  mark it, score it, build the heatmap
-    socratic/chat|widget/       POST  the Socratic Duck + its playground
-    notes/save|create|[id]/     Supabase note persistence
+    explain/route.js            POST  Structured explanation generation
+    quiz/generate/route.js      POST  Interactive quiz builder
+    quiz/grade/route.js         POST  Quiz grading & heatmap calculation
+    socratic/chat|widget/       POST  Socratic assistant & interactive widgets
+    notes/save|create|[id]/     Supabase note persistence routes
     calendar/events, visualizations, reset
 components/
-  Workspace.jsx                 Shell: HUD tabs, drawers, session recording
-  Sidebar.jsx                   Spaces, notes, 24h trash, settings, reset
-  BlockNoteEditor.jsx           17 block types, covers, drag-reorder
-  CalendarView.jsx              Month view + Pomodoro
-  ThreeDView.jsx                3D visualisation studio
-  InstantNoteModal.jsx          Ctrl+I capture window
-  AlarmOverlay.jsx              Global alarm + tab-favicon swap
-  Drawer.jsx                    Shared right-panel chrome
-  ExplainPanel.jsx              Feature 2
-  QuizPanel.jsx                 Feature 3 — graded quiz + Socratic
-  ConfidenceHeatmap.jsx         Per-session heatmap
-  MasteryDashboard.jsx          Aggregate heatmap
-  ScoreRing.jsx                 The score dial
+  Workspace.jsx                 Application container shell & header
+  Sidebar.jsx                   Space navigation, 24h trash, settings modal
+  BlockNoteEditor.jsx           17 block types, covers, drag-reorder handles
+  CalendarView.jsx              Month study calendar & Pomodoro timer
+  ThreeDView.jsx                3D visualization engine container & HUD controls
+  InstantNoteModal.jsx          Ctrl+I quick capture window
+  AlarmOverlay.jsx              Global alarm overlay & tab favicon manager
+  visualizations/
+    PhysicsCanvas.jsx           Gas laws, optics, induction 3D engines
+    ChemistryCanvas.jsx         Bohr atom, organic builder, lattices, electrolysis
+    BiologyCanvas.jsx           Cell explorer & enzyme lock-and-key engines
+    BinaryTree3D.jsx            3D binary search tree / AVL engine
+    VisualizationHUD.jsx        3D controls overlay & quiz dialogs
+    scene-kit.jsx               Shared Three.js lighting, camera & label components
+  ConfidenceHeatmap.jsx         Per-session topic heatmap
+  MasteryDashboard.jsx          Aggregate mastery analytics dashboard
 lib/
-  demoNotes.js                  The six seeded notes
-  mastery.js                    Status vocabulary + session -> topic rollup
-  gemini.js                     Gemini REST client
-  schemas.js                    Structured-output schemas for every AI route
-  blocks.js, blockMapping.js    Block helpers + editor <-> database mapping
-scripts/
-  check-block-mapping.mjs       Round-trip guard (npm run check:blocks)
+  demoNotes.js                  Seeded demonstration study notes
+  mastery.js                    Mastery scoring & spaced repetition algorithms
+  gemini.js                     Gemini REST API client
+  schemas.js                    OpenAPI 3.0 structured output schemas
+  blocks.js, blockMapping.js    BlockNote document transformation utilities
 supabase/
-  schema.sql                    Tables, enums, indexes, RLS, triggers
+  schema.sql                    PostgreSQL schema, indexes, RLS policies, & triggers
 ```
 
-## Persistence
+---
 
-Everything works offline in `localStorage` (`socratic_notes_by_space`,
-`socratic_trash_notes`, `socratic_study_sessions`, `socratic_calendar_events`,
-`socratic_visualizations`, `socratic_theme`). Point
-`NEXT_PUBLIC_SUPABASE_URL` at a real project and run `supabase/schema.sql`, and
-notes, calendar events and visualisations sync there too.
+## Design & Architecture Highlights
 
-`GET /api/notes/save` deliberately answers `200 { offline: true }` rather than
-500 when Supabase is unreachable — the workspace calls it on every mount, and an
-unconfigured database is an expected state, not an error.
+- **Direct REST Gemini Client**: [`lib/gemini.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/gemini.js) communicates directly with Gemini REST endpoints via `fetch` using structured JSON schemas (`OpenAPI 3.0` compliant), eliminating unnecessary wrapper overhead.
+- **Modal Layering & Stacking Context**: Modal dialogs (Settings, Quiz, Space Creation, Trash) utilize elevated z-index tiers (`z-[200/210]`), ensuring React Three Drei 3D canvas labels never bleed through overlay panels.
+- **Deterministic Grading**: Multiple-choice quiz options are evaluated deterministically in code via integer comparison before passing facts to the LLM, preventing grading hallucination.
+- **Offline-First Storage**: Primary data resides in `localStorage` (`socratic_notes_by_space`, `socratic_trash_notes`, `socratic_study_sessions`, `socratic_calendar_events`, `socratic_theme`). Optional Supabase connectivity seamlessly syncs notes when configured without interrupting offline workflows.
 
-## Design notes
+---
 
-- **`lib/gemini.js` talks to the REST API with `fetch`**, not `@google/genai` —
-  one fewer dependency, and `generate()` is the only function touching the
-  network if you want to swap providers.
-- **Every AI route uses structured output** (`responseMimeType: "application/json"`
-  plus a `responseSchema`), so heatmaps and quizzes arrive schema-valid rather
-  than parsed out of prose. Gemini's schema dialect is OpenAPI 3.0, not JSON
-  Schema — see the header comment in `lib/schemas.js` before editing one.
-- **Multiple choice is never graded by the LLM.** It is a comparison of two
-  integers; routing it through a model only adds a way to be wrong, and a
-  learner told a right answer was wrong stops trusting every other number.
-- **Status colour is never the only channel.** Each of Solid / Shaky / Gap
-  carries a colour, a glyph forming an ordinal ramp (`●` `◐` `○`), and a word.
-  The palette's yellow "warning" step is deliberately unused: it measures 1.08
-  contrast against the brand yellow, so a yellow status cell would read as a
-  button. Orange carries "shaky" instead.
-- **`blocks.order_index` is `double precision`.** Inserting between two blocks
-  is `(prev + next) / 2`, not a renumber of everything below.
-- **RLS is on and keyed to `auth.uid()`**, so it denies everything until
-  Supabase Auth is wired up. The DEV MODE block at the bottom of `schema.sql`
-  opens it up; delete those policies before anything ships.
+## Known Advisories
 
-## Known warnings
-
-`npm audit` reports high-severity advisories in `postcss` and `sharp`. Both are
-transitive dependencies *inside* Next.js, the vulnerable range covers every
-current Next version, and neither is reachable here. **Do not run
-`npm audit fix --force`** — it "fixes" them by downgrading to `next@9.3.3`,
-which would delete the App Router.
+`npm audit` may report high-severity advisories in `postcss` and `sharp`. These are transitive dependencies contained within Next.js. **Do not run `npm audit fix --force`**, as it will attempt to resolve dependencies by downgrading to legacy Next.js versions that lack App Router support.
