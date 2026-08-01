@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PanelLeftClose } from "lucide-react";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -173,13 +174,13 @@ function SettingsModal({ open, onClose, theme, setTheme, onSyncSupabase, onReset
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 z-[60] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-[200] bg-ink-950/70 backdrop-blur-sm transition-opacity"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
-        className="fixed left-1/2 top-1/2 z-[70] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
           <div className="flex items-center gap-2">
@@ -391,13 +392,13 @@ function CreateSpaceModal({ open, onClose, onCreate }) {
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 z-[60] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-[200] bg-ink-950/70 backdrop-blur-sm transition-opacity"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Create New Space"
-        className="fixed left-1/2 top-1/2 z-[70] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
           <h2 className="text-sm font-semibold text-ink-100">Create New Space</h2>
@@ -492,13 +493,13 @@ function TrashModal({
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 z-[60] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-[200] bg-ink-950/70 backdrop-blur-sm transition-opacity"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Temporarily Deleted Notes"
-        className="fixed left-1/2 top-1/2 z-[70] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-6 py-4">
           <div className="flex items-center gap-2">
@@ -618,6 +619,7 @@ export default function Sidebar({
   onSyncSupabase,
   onResetData,
   onOpenInstantNote,
+  onToggleSidebar,
 }) {
   const [spaces, setSpaces] = useState(initialSpaces);
   const [modalOpen, setModalOpen] = useState(false);
@@ -642,7 +644,7 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900">
+      <aside className="flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 h-full">
         {/* Brand Header with Settings ⚙️ button beside SocraticOS */}
         <div className="flex items-center justify-between border-b border-ink-800/60 px-5 py-4">
           <div className="flex items-center gap-2.5">
@@ -652,14 +654,26 @@ export default function Sidebar({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            title="Settings"
-            className="rounded-lg p-1.5 text-lg text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100"
-          >
-            ⚙️
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              title="Settings"
+              className="rounded-lg p-1.5 text-lg text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100"
+            >
+              ⚙️
+            </button>
+            {onToggleSidebar && (
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                title="Collapse Sidebar"
+                className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100"
+              >
+                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Instant Note Big Button */}

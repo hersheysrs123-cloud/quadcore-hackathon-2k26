@@ -15,6 +15,7 @@ import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { demoNotesBySpace } from "@/lib/demoNotes";
 import { summariseMastery } from "@/lib/mastery";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 const DEFAULT_NOTES_BY_SPACE = {
   School: [],
@@ -37,6 +38,7 @@ export default function Workspace({ note: initialNote }) {
   const [mounted, setMounted] = useState(false);
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
   const [activeTab, setActiveTab] = useState("notes");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
 
@@ -547,39 +549,59 @@ export default function Workspace({ note: initialNote }) {
   return (
     <div className="flex h-screen overflow-hidden bg-ink-950 text-ink-100 transition-colors duration-200">
       {/* Left Sidebar */}
-      <Sidebar
-        spaces={SPACES}
-        activeSpace={activeSpace}
-        onSelectSpace={(spaceName) => {
-          setActiveSpace(spaceName);
-          const firstInSpace = (notesBySpace[spaceName] || [])[0];
-          if (firstInSpace) setActiveNoteId(firstInSpace.id);
-          else setActiveNoteId(null);
-        }}
-        activeNoteId={activeNoteObj?.id || null}
-        notesBySpace={notesBySpace}
-        onSelectNote={handleSelectNote}
-        onCreateNote={handleCreateNote}
-        onDeleteNote={handleDeleteNote}
-        trashNotes={trashNotes}
-        onRecoverNote={handleRecoverNote}
-        onPermanentlyDeleteNote={handlePermanentlyDeleteNote}
-        onRecoverAllNotes={handleRecoverAllNotes}
-        onPermanentlyDeleteAllNotes={handlePermanentlyDeleteAllNotes}
-        theme={theme}
-        setTheme={setTheme}
-        onSyncSupabase={syncFromSupabase}
-        onResetData={handleResetData}
-        onOpenInstantNote={() => setInstantNoteOpen(true)}
-        note={initialNote}
-      />
+      <div
+        className={`transition-all duration-300 ease-in-out shrink-0 h-full ${
+          sidebarOpen ? "w-64 opacity-100" : "w-0 opacity-0 overflow-hidden pointer-events-none"
+        }`}
+      >
+        <Sidebar
+          spaces={SPACES}
+          activeSpace={activeSpace}
+          onSelectSpace={(spaceName) => {
+            setActiveSpace(spaceName);
+            const firstInSpace = (notesBySpace[spaceName] || [])[0];
+            if (firstInSpace) setActiveNoteId(firstInSpace.id);
+            else setActiveNoteId(null);
+          }}
+          activeNoteId={activeNoteObj?.id || null}
+          notesBySpace={notesBySpace}
+          onSelectNote={handleSelectNote}
+          onCreateNote={handleCreateNote}
+          onDeleteNote={handleDeleteNote}
+          trashNotes={trashNotes}
+          onRecoverNote={handleRecoverNote}
+          onPermanentlyDeleteNote={handlePermanentlyDeleteNote}
+          onRecoverAllNotes={handleRecoverAllNotes}
+          onPermanentlyDeleteAllNotes={handlePermanentlyDeleteAllNotes}
+          theme={theme}
+          setTheme={setTheme}
+          onSyncSupabase={syncFromSupabase}
+          onResetData={handleResetData}
+          onOpenInstantNote={() => setInstantNoteOpen(true)}
+          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          note={initialNote}
+        />
+      </div>
 
       {/* Main Container with Top HUD Header */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top HUD Header with 4 Tabs: Notes, Calendar, 3D, Mastery */}
         <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
-          {/* Left Breadcrumb Context (Bigger Active Note Title) */}
-          <div className="flex min-w-0 max-w-[25%] sm:max-w-[32%] md:max-w-[40%] items-center gap-2 text-sm text-ink-400">
+          {/* Left Breadcrumb Context & Sidebar Toggle */}
+          <div className="flex min-w-0 max-w-[30%] sm:max-w-[36%] md:max-w-[44%] items-center gap-2.5 text-sm text-ink-400">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+              className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors shrink-0"
+            >
+              {sidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4 text-duck-400" strokeWidth={2} />
+              )}
+            </button>
+
             <span className="shrink-0 font-semibold text-ink-300">{activeSpace}</span>
             <span aria-hidden="true" className="shrink-0 text-ink-600">/</span>
             <span
@@ -689,7 +711,7 @@ export default function Workspace({ note: initialNote }) {
         </header>
 
         {/* Tab Viewport Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className={`flex-1 ${activeTab === "3d" ? "overflow-hidden flex flex-col h-full min-h-0" : "overflow-y-auto"}`}>
           {activeTab === "notes" && (
             <BlockNoteEditor
               key={activeNoteObj?.id || "empty_editor"}
