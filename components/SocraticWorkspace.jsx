@@ -68,6 +68,11 @@ export default function SocraticWorkspace({
   const toWire = (history) =>
     history.map(({ role, content }) => ({ role, content }));
 
+  const noteContentRef = useRef(noteContent);
+  useEffect(() => {
+    noteContentRef.current = noteContent;
+  }, [noteContent]);
+
   /** One conversational turn. `history` already ends with the learner's answer. */
   const askDuck = useCallback(
     async (history) => {
@@ -75,7 +80,7 @@ export default function SocraticWorkspace({
       setError(null);
       try {
         const data = await postJson("/api/socratic/chat", {
-          noteContent,
+          noteContent: noteContentRef.current,
           concept,
           conversationHistory: toWire(history),
           isFinalTurn: false,
@@ -87,7 +92,7 @@ export default function SocraticWorkspace({
         setThinking(false);
       }
     },
-    [concept, noteContent],
+    [concept],
   );
 
   /** Builds the playground from whatever the diagnostic flagged. */
@@ -129,7 +134,7 @@ export default function SocraticWorkspace({
     setError(null);
     try {
       const data = await postJson("/api/socratic/chat", {
-        noteContent,
+        noteContent: noteContentRef.current,
         concept,
         conversationHistory: toWire(messages),
         isFinalTurn: true,
@@ -141,7 +146,7 @@ export default function SocraticWorkspace({
     } finally {
       setScoring(false);
     }
-  }, [buildWidget, concept, messages, noteContent]);
+  }, [buildWidget, concept, messages]);
 
   // Fresh session each time the drawer opens on a concept.
   useEffect(() => {
@@ -154,7 +159,7 @@ export default function SocraticWorkspace({
     setError(null);
     setWidgetError(null);
     askDuck(seed);
-  }, [open, concept, askDuck, seedTranscript]);
+  }, [open, concept]);
 
   useEffect(() => {
     if (!open) return;

@@ -6,6 +6,9 @@ import {
   ORDER_INDEX_STEP,
 } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+
+
 /**
  * POST /api/notes/create
  *
