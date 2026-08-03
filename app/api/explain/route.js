@@ -113,7 +113,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "`concept` is required." }, { status: 400 });
   }
 
-  if (!hasApiKey()) {
+  if (!(await hasApiKey())) {
     return NextResponse.json(
       {
         error:

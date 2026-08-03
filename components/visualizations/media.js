@@ -25,7 +25,9 @@ export function mediumFor(n) {
 }
 
 export function mediumName(id, n) {
-  return MEDIA[id]?.label ?? `n = ${n.toFixed(2)}`;
+  if (MEDIA[id]?.label) return MEDIA[id].label;
+  const val = typeof n === "number" && !isNaN(n) ? n : 1.0;
+  return `n = ${val.toFixed(2)}`;
 }
 
 export function mediumColour(id) {

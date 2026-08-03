@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  getCalendarEvents,
+  saveCalendarEvent,
+  deleteCalendarEvent,
+  getAlarms,
+  saveAlarm,
+  deleteAlarm,
+  toggleAlarm,
+} from "@/lib/storageService";
+import { Edit3, Trash2, Bell, Plus, Clock, Calendar as CalendarIcon, Check, Volume2 } from "lucide-react";
+import { useGlobalTimer } from "@/lib/timerStore";
 
-// ─── Calendar & Pomodoro Timer View ──────────────────────────────────
-// Features:
-//   1. Full month toggling (Prev, Next, Today reset)
-//   2. Dynamic addition, deletion, and Supabase / Local persistence of events
-//   3. Integrated Pomodoro & Countdown Timer widget (25m Focus / 5m Break / Custom)
-// ─────────────────────────────────────────────────────────────────────
-
+// ─── Constants ──────────────────────────────────────────────────────────────
 const EVENT_TYPES = [
   { id: "socratic", label: "Socratic Drill", icon: "🦆", badge: "bg-duck-500/20 text-duck-300 border-duck-500/30" },
   { id: "study", label: "Study Session", icon: "📚", badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
@@ -19,112 +24,75 @@ const EVENT_TYPES = [
   { id: "group", label: "Group Review", icon: "👥", badge: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" },
 ];
 
+const DAY_LABELS = [
+  { id: 0, short: "S", label: "Sun" },
+  { id: 1, short: "M", label: "Mon" },
+  { id: 2, short: "T", label: "Tue" },
+  { id: 3, short: "W", label: "Wed" },
+  { id: 4, short: "T", label: "Thu" },
+  { id: 5, short: "F", label: "Fri" },
+  { id: 6, short: "S", label: "Sat" },
+];
+
+// Helper to convert 24h "14:30" to 12h "2:30 PM"
+function format24to12(timeStr) {
+  if (!timeStr) return "12:00 AM";
+  const [h, m] = timeStr.split(":").map(Number);
+  if (isNaN(h)) return timeStr;
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 || 12;
+  const minuteStr = String(m || 0).padStart(2, "0");
+  return `${hour12}:${minuteStr} ${period}`;
+}
+
+// ─── Real-Time Timer Widget ──────────────────────────────────────────────────
 function StudyTimerWidget() {
-  const [mode, setMode] = useState("focus");
-  const [totalSeconds, setTotalSeconds] = useState(25 * 60);
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [customMins, setCustomMins] = useState(10);
-  const timerRef = useRef(null);
+  const {
+    mode,
+    totalSeconds,
+    secondsLeft,
+    isActive,
+    isNearingEnd,
+    percentLeft,
+    customMins,
+    togglePlayPause,
+    resetTimer,
+    extendTimer,
+    startTimer,
+    pausedSecondsLeft,
+  } = useGlobalTimer();
 
-  const presets = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
+  const [inputCustomMins, setInputCustomMins] = useState(customMins || 10);
 
-  function switchMode(newMode) {
-    setIsActive(false);
-    clearInterval(timerRef.current);
-    setMode(newMode);
-    if (newMode === "custom") {
-      const secs = Math.max(1, customMins) * 60;
-      setTotalSeconds(secs);
-      setSecondsLeft(secs);
-    } else {
-      const secs = presets[newMode];
-      setTotalSeconds(secs);
-      setSecondsLeft(secs);
-    }
-  }
-
-  function handleCustomChange(mins) {
-    const validMins = Math.max(1, Math.min(180, Number(mins) || 1));
-    setCustomMins(validMins);
-    if (mode === "custom") {
-      setIsActive(false);
-      clearInterval(timerRef.current);
-      const secs = validMins * 60;
-      setTotalSeconds(secs);
-      setSecondsLeft(secs);
-    }
-  }
-
-  // Listen for timer extension events from Alarm Overlay
-  useEffect(() => {
-    function handleExtend(e) {
-      const mins = e.detail?.minutes || 5;
-      const addSecs = mins * 60;
-      setTotalSeconds((prev) => prev + addSecs);
-      setSecondsLeft(addSecs);
-      setIsActive(true);
-    }
-    window.addEventListener("socratic_extend_timer", handleExtend);
-    return () => window.removeEventListener("socratic_extend_timer", handleExtend);
-  }, []);
-
-  useEffect(() => {
-    if (isActive) {
-      timerRef.current = setInterval(() => {
-        setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-      }, 1000);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [isActive]);
-
-  useEffect(() => {
-    if (secondsLeft === 0 && isActive) {
-      setIsActive(false);
-      if (typeof window !== "undefined") {
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent("socratic_alarm_triggered", {
-              detail: {
-                alarmType: "timer",
-                title: "Timer Complete!",
-                message: `Your ${mode.toUpperCase()} timer of ${Math.round(totalSeconds / 60)} minutes has finished.`,
-              },
-            })
-          );
-        }, 0);
-      }
-    }
-  }, [secondsLeft, isActive, mode, totalSeconds]);
-
-  function toggleTimer() {
-    if (secondsLeft === 0) setSecondsLeft(totalSeconds);
-    setIsActive((prev) => !prev);
-  }
-
-  function resetTimer() {
-    setIsActive(false);
-    clearInterval(timerRef.current);
-    setSecondsLeft(totalSeconds);
+  function handleCustomSubmit(e) {
+    e.preventDefault();
+    const valid = Math.max(1, Math.min(180, Number(inputCustomMins) || 10));
+    startTimer("custom", valid);
   }
 
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const timeFormatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  const progressPercent = totalSeconds > 0 ? ((totalSeconds - secondsLeft) / totalSeconds) * 100 : 0;
 
   return (
-    <div className="rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-xl">
+    <div className={`rounded-xl border p-5 shadow-xl transition-colors ${
+      isNearingEnd
+        ? "border-rose-500/60 bg-rose-500/10 ring-2 ring-rose-500/30 animate-pulse"
+        : "border-ink-800 bg-ink-900"
+    }`}>
       <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
         <div className="flex items-center gap-2">
           <span className="text-lg">⏱️</span>
-          <h2 className="text-sm font-semibold text-ink-100">Study & Pomodoro Timer</h2>
+          <h2 className="text-sm font-semibold text-ink-100">Real-Time Study & Pomodoro Timer</h2>
         </div>
         {secondsLeft === 0 && (
-          <span className="animate-pulse rounded-full border border-duck-400/40 bg-duck-400/20 px-2 py-0.5 text-[10px] font-bold text-duck-300">
+          <span className="animate-pulse rounded-full border border-duck-400/40 bg-duck-400/20 px-2.5 py-0.5 text-[10px] font-bold text-duck-300">
             🎉 Session Complete!
+          </span>
+        )}
+        {isNearingEnd && (
+          <span className="animate-bounce rounded-full border border-rose-500/40 bg-rose-500/20 px-2.5 py-0.5 text-[10px] font-bold text-rose-300">
+            ⚠️ Nearing End!
           </span>
         )}
       </div>
@@ -132,7 +100,7 @@ function StudyTimerWidget() {
       <div className="mb-4 flex items-center justify-center gap-1.5 rounded-lg border border-ink-800 bg-ink-950 p-1">
         <button
           type="button"
-          onClick={() => switchMode("focus")}
+          onClick={() => startTimer("focus")}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
             mode === "focus"
               ? "border border-amber-500/30 bg-amber-500/20 text-amber-300"
@@ -143,7 +111,7 @@ function StudyTimerWidget() {
         </button>
         <button
           type="button"
-          onClick={() => switchMode("short")}
+          onClick={() => startTimer("short")}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
             mode === "short"
               ? "border border-emerald-500/30 bg-emerald-500/20 text-emerald-300"
@@ -154,7 +122,7 @@ function StudyTimerWidget() {
         </button>
         <button
           type="button"
-          onClick={() => switchMode("long")}
+          onClick={() => startTimer("long")}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
             mode === "long"
               ? "border border-cyan-500/30 bg-cyan-500/20 text-cyan-300"
@@ -165,7 +133,7 @@ function StudyTimerWidget() {
         </button>
         <button
           type="button"
-          onClick={() => switchMode("custom")}
+          onClick={() => startTimer("custom", inputCustomMins)}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
             mode === "custom"
               ? "border border-purple-500/30 bg-purple-500/20 text-purple-300"
@@ -177,27 +145,37 @@ function StudyTimerWidget() {
       </div>
 
       {mode === "custom" && (
-        <div className="mb-4 flex items-center justify-center gap-2">
+        <form onSubmit={handleCustomSubmit} className="mb-4 flex items-center justify-center gap-2">
           <label className="text-xs text-ink-400">Duration (mins):</label>
           <input
             type="number"
             min="1"
             max="180"
-            value={customMins}
-            onChange={(e) => handleCustomChange(e.target.value)}
+            value={inputCustomMins}
+            onChange={(e) => setInputCustomMins(e.target.value)}
             className="w-20 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-center text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none"
           />
-        </div>
+          <button
+            type="submit"
+            className="rounded-md border border-purple-500/40 bg-purple-500/20 px-2 py-1 text-[11px] font-semibold text-purple-300 hover:bg-purple-500/30"
+          >
+            Apply
+          </button>
+        </form>
       )}
 
       <div className="my-3 text-center">
-        <div className="font-mono text-5xl font-extrabold tracking-tight text-ink-100">
+        <div className={`font-mono text-5xl font-extrabold tracking-tight tabular-nums ${
+          isNearingEnd ? "text-rose-400" : "text-ink-100"
+        }`}>
           {timeFormatted}
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-800">
           <div
-            className="h-full bg-duck-400 transition-all duration-300 ease-linear"
-            style={{ width: `${progressPercent}%` }}
+            className={`h-full transition-all duration-300 ease-linear ${
+              isNearingEnd ? "bg-rose-500" : "bg-duck-400"
+            }`}
+            style={{ width: `${percentLeft}%` }}
           />
         </div>
       </div>
@@ -205,19 +183,19 @@ function StudyTimerWidget() {
       <div className="mt-4 flex items-center justify-center gap-3">
         <button
           type="button"
-          onClick={toggleTimer}
+          onClick={() => togglePlayPause()}
           className={`w-28 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-all ${
             isActive
               ? "border border-rose-500/40 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
               : "bg-duck-400 text-ink-950 hover:bg-duck-300"
           }`}
         >
-          {isActive ? "⏸ Pause" : secondsLeft === 0 ? "🔄 Restart" : "▶ Start"}
+          {isActive ? "⏸ Pause" : secondsLeft === 0 ? "🔄 Restart" : pausedSecondsLeft !== null ? "▶ Resume" : "▶ Start"}
         </button>
 
         <button
           type="button"
-          onClick={resetTimer}
+          onClick={() => resetTimer()}
           className="rounded-lg border border-ink-700 bg-ink-850 px-3.5 py-2 text-xs font-medium text-ink-400 transition-colors hover:border-ink-600 hover:text-ink-200"
         >
           ↺ Reset
@@ -227,41 +205,504 @@ function StudyTimerWidget() {
   );
 }
 
-export default function CalendarView({ activeSpace }) {
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(6);
-  const [selectedDate, setSelectedDate] = useState("2026-07-31");
-  const [events, setEvents] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
+// ─── Regular Alarms Widget ──────────────────────────────────────────────────
+function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, onToggleAlarm }) {
+  return (
+    <div className="rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-xl">
+      <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-duck-400" />
+          <h2 className="text-sm font-semibold text-ink-100">Regular Alarms & Reminders</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onAddAlarm}
+          className="flex items-center gap-1 rounded-lg border border-duck-500/40 bg-duck-500/10 px-2.5 py-1 text-xs font-bold text-duck-300 hover:bg-duck-500/20 transition-all"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>New Alarm</span>
+        </button>
+      </div>
 
-  const [newTitle, setNewTitle] = useState("");
-  const [newType, setNewType] = useState("socratic");
-  const [newTime, setNewTime] = useState("10:00 AM");
+      {alarms.length === 0 ? (
+        <div className="py-6 text-center">
+          <Bell className="mx-auto h-8 w-8 text-ink-600 mb-2" />
+          <p className="text-xs text-ink-500">No regular alarms configured.</p>
+          <button
+            type="button"
+            onClick={onAddAlarm}
+            className="mt-2 text-xs font-semibold text-duck-400 hover:underline"
+          >
+            + Add a recurring daily or weekly alarm
+          </button>
+        </div>
+      ) : (
+        <ul className="space-y-2.5">
+          {alarms.map((alarm) => {
+            const daysList = Array.isArray(alarm.days) ? alarm.days : [0, 1, 2, 3, 4, 5, 6];
+            return (
+              <li
+                key={alarm.id}
+                className={`group flex items-center justify-between rounded-xl border p-3 transition-all ${
+                  alarm.enabled
+                    ? "border-ink-700 bg-ink-850"
+                    : "border-ink-800/60 bg-ink-950/40 opacity-60"
+                }`}
+              >
+                <div className="min-w-0 flex-1 pr-3">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-lg font-bold text-ink-100">
+                      {format24to12(alarm.time)}
+                    </span>
+                    <span className="truncate text-xs font-medium text-ink-300">
+                      {alarm.title || "Study Alarm"}
+                    </span>
+                  </div>
+
+                  {/* Day badges */}
+                  <div className="mt-1 flex items-center gap-1">
+                    {DAY_LABELS.map((d) => {
+                      const active = daysList.includes(d.id);
+                      return (
+                        <span
+                          key={d.id}
+                          className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold ${
+                            active
+                              ? alarm.enabled
+                                ? "bg-duck-400 text-ink-950"
+                                : "bg-ink-700 text-ink-300"
+                              : "bg-ink-950 text-ink-600"
+                          }`}
+                          title={d.label}
+                        >
+                          {d.short}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Test Alarm Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.dispatchEvent(
+                          new CustomEvent("socratic_alarm_triggered", {
+                            detail: {
+                              alarmType: "regular_alarm",
+                              title: `Test Alarm: ${alarm.title}`,
+                              message: `Testing regular alarm set for ${format24to12(alarm.time)}.`,
+                            },
+                          })
+                        );
+                      }
+                    }}
+                    title="Test Sound & Overlay"
+                    className="p-1 text-ink-500 hover:text-amber-400 transition-colors"
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => onEditAlarm(alarm)}
+                    title="Edit Alarm"
+                    className="p-1 text-ink-500 hover:text-duck-300 transition-colors"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Delete Button */}
+                  <button
+                    type="button"
+                    onClick={() => onDeleteAlarm(alarm.id)}
+                    title="Delete Alarm"
+                    className="p-1 text-ink-500 hover:text-rose-400 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => onToggleAlarm(alarm.id)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                      alarm.enabled ? "bg-duck-400" : "bg-ink-700"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-ink-950 shadow ring-0 transition duration-200 ease-in-out ${
+                        alarm.enabled ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── Add/Edit Event Modal ───────────────────────────────────────────────────
+function EventModal({ open, eventData, selectedDate, onClose, onSave }) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState("socratic");
+  const [time, setTime] = useState("10:00 AM");
+  const [date, setDate] = useState(selectedDate || "2026-07-31");
+  const [space, setSpace] = useState("School");
+
+  useEffect(() => {
+    if (open) {
+      if (eventData) {
+        setTitle(eventData.title || "");
+        setType(eventData.type || "socratic");
+        setTime(eventData.time || "10:00 AM");
+        setDate(eventData.date || selectedDate || "2026-07-31");
+        setSpace(eventData.space || "School");
+      } else {
+        setTitle("");
+        setType("socratic");
+        setTime("10:00 AM");
+        setDate(selectedDate || "2026-07-31");
+        setSpace("School");
+      }
+    }
+  }, [open, eventData, selectedDate]);
+
+  if (!open) return null;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    onSave({
+      id: eventData?.id || `evt_${Date.now()}`,
+      title: title.trim(),
+      type,
+      time: time.trim(),
+      date,
+      space,
+    });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-fade-up">
+        <div className="flex items-center justify-between border-b border-ink-800 pb-3">
+          <h3 className="text-sm font-semibold text-ink-100">
+            {eventData ? "Edit Calendar Event" : `Add Event (${date})`}
+          </h3>
+          <button type="button" onClick={onClose} className="text-ink-500 hover:text-ink-200">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-ink-400">Event Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Socratic Quiz or Exam Review"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-ink-400">Event Type</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              >
+                {EVENT_TYPES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.icon} {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-ink-400">Date</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-ink-400">Time</label>
+              <input
+                type="text"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                placeholder="10:00 AM"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-ink-400">Space</label>
+              <input
+                type="text"
+                value={space}
+                onChange={(e) => setSpace(e.target.value)}
+                placeholder="School"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-ink-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-3 py-1.5 text-xs text-ink-400 hover:text-ink-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!title.trim()}
+              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 disabled:opacity-40"
+            >
+              {eventData ? "Update Event" : "Save Event"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add/Edit Regular Alarm Modal ──────────────────────────────────────────
+function AlarmModal({ open, alarmData, onClose, onSave }) {
+  const [title, setTitle] = useState("");
+  const [time, setTime] = useState("08:00");
+  const [days, setDays] = useState([0, 1, 2, 3, 4, 5, 6]);
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    if (open) {
+      if (alarmData) {
+        setTitle(alarmData.title || "");
+        setTime(alarmData.time || "08:00");
+        setDays(Array.isArray(alarmData.days) ? alarmData.days : [0, 1, 2, 3, 4, 5, 6]);
+        setEnabled(alarmData.enabled !== undefined ? alarmData.enabled : true);
+      } else {
+        setTitle("Morning Study Review");
+        setTime("08:00");
+        setDays([0, 1, 2, 3, 4, 5, 6]);
+        setEnabled(true);
+      }
+    }
+  }, [open, alarmData]);
+
+  if (!open) return null;
+
+  function toggleDay(dayId) {
+    setDays((prev) =>
+      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId].sort()
+    );
+  }
+
+  function selectQuick(type) {
+    if (type === "all") setDays([0, 1, 2, 3, 4, 5, 6]);
+    if (type === "weekdays") setDays([1, 2, 3, 4, 5]);
+    if (type === "weekends") setDays([0, 6]);
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    onSave({
+      id: alarmData?.id || `alarm_${Date.now()}`,
+      title: title.trim() || "Study Alarm",
+      time,
+      days,
+      enabled,
+    });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-fade-up">
+        <div className="flex items-center justify-between border-b border-ink-800 pb-3">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-duck-400" />
+            <h3 className="text-sm font-semibold text-ink-100">
+              {alarmData ? "Edit Regular Alarm" : "New Regular Alarm"}
+            </h3>
+          </div>
+          <button type="button" onClick={onClose} className="text-ink-500 hover:text-ink-200">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-ink-400">Alarm Label</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Daily Math Review"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-ink-400">Time (24h format)</label>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm font-mono font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-ink-400">Repeat Days</label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => selectQuick("all")}
+                  className="text-[10px] text-duck-400 hover:underline"
+                >
+                  Every Day
+                </button>
+                <span className="text-[10px] text-ink-600">•</span>
+                <button
+                  type="button"
+                  onClick={() => selectQuick("weekdays")}
+                  className="text-[10px] text-duck-400 hover:underline"
+                >
+                  Weekdays
+                </button>
+                <span className="text-[10px] text-ink-600">•</span>
+                <button
+                  type="button"
+                  onClick={() => selectQuick("weekends")}
+                  className="text-[10px] text-duck-400 hover:underline"
+                >
+                  Weekends
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5">
+              {DAY_LABELS.map((d) => {
+                const active = days.includes(d.id);
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => toggleDay(d.id)}
+                    className={`flex flex-col items-center justify-center rounded-lg border py-2 text-xs transition-all ${
+                      active
+                        ? "border-duck-500/60 bg-duck-500/20 text-duck-300 font-bold"
+                        : "border-ink-800 bg-ink-850 text-ink-500 hover:border-ink-700"
+                    }`}
+                  >
+                    <span>{d.short}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="alarm-enabled"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+              className="rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0"
+            />
+            <label htmlFor="alarm-enabled" className="text-xs text-ink-300 font-medium">
+              Enable Alarm Immediately
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-ink-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-3 py-1.5 text-xs text-ink-400 hover:text-ink-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950"
+            >
+              {alarmData ? "Update Alarm" : "Save Alarm"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main CalendarView Export ───────────────────────────────────────────────
+export default function CalendarView({ activeSpace = "School", onNavigateNote }) {
+  const today = new Date();
+  const initialYear = today.getFullYear();
+  const initialMonth = today.getMonth();
+  const initialFormattedDay = String(today.getDate()).padStart(2, "0");
+  const initialFormattedMonth = String(today.getMonth() + 1).padStart(2, "0");
+  const initialDateStr = `${initialYear}-${initialFormattedMonth}-${initialFormattedDay}`;
+
+  const [currentYear, setCurrentYear] = useState(initialYear);
+  const [currentMonth, setCurrentMonth] = useState(initialMonth);
+  const [selectedDate, setSelectedDate] = useState(initialDateStr);
+  const [events, setEvents] = useState([]);
+  const [alarms, setAlarms] = useState([]);
+
+  // Modal controls
+  const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+
+  const [alarmModalOpen, setAlarmModalOpen] = useState(false);
+  const [editingAlarm, setEditingAlarm] = useState(null);
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // Fetch events from Supabase or localStorage on mount
+  // Fetch events & alarms from Dexie on mount
   useEffect(() => {
-    async function loadEvents() {
+    async function loadData() {
       try {
-        const res = await fetch("/api/calendar/events");
-        const data = await res.json();
-        if (data.events && data.events.length > 0) {
-          setEvents(data.events);
-          localStorage.setItem("socratic_calendar_events", JSON.stringify(data.events));
-        } else {
-          const cached = localStorage.getItem("socratic_calendar_events");
-          if (cached) setEvents(JSON.parse(cached));
-        }
-      } catch {
-        const cached = localStorage.getItem("socratic_calendar_events");
-        if (cached) setEvents(JSON.parse(cached));
+        const localEvts = await getCalendarEvents();
+        if (Array.isArray(localEvts)) setEvents(localEvts);
+
+        const localAlarms = await getAlarms();
+        if (Array.isArray(localAlarms)) setAlarms(localAlarms);
+      } catch (err) {
+        console.error("Failed to load calendar data:", err);
       }
     }
-    loadEvents();
+    loadData();
   }, []);
 
   function prevMonth() {
@@ -283,9 +724,12 @@ export default function CalendarView({ activeSpace }) {
   }
 
   function goToday() {
-    setCurrentYear(2026);
-    setCurrentMonth(6);
-    setSelectedDate("2026-07-31");
+    const today = new Date();
+    setCurrentYear(today.getFullYear());
+    setCurrentMonth(today.getMonth());
+    const formattedDay = String(today.getDate()).padStart(2, "0");
+    const formattedMonth = String(today.getMonth() + 1).padStart(2, "0");
+    setSelectedDate(`${today.getFullYear()}-${formattedMonth}-${formattedDay}`);
   }
 
   const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
@@ -300,64 +744,64 @@ export default function CalendarView({ activeSpace }) {
     calendarCells.push({ day, dateStr });
   }
 
-  async function handleAddEvent(e) {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-
-    const newEv = {
-      id: `ev_${Date.now()}`,
-      date: selectedDate,
-      title: newTitle.trim(),
-      type: newType,
-      time: newTime,
-      space: activeSpace || "School",
-    };
-
-    const nextEvents = [...events, newEv];
-    setEvents(nextEvents);
-    localStorage.setItem("socratic_calendar_events", JSON.stringify(nextEvents));
-    setNewTitle("");
-    setShowAddModal(false);
-
-    try {
-      await fetch("/api/calendar/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", event: newEv }),
-      });
-    } catch {
-      // Saved to local state & localStorage fallback
-    }
+  // Event handlers
+  async function handleSaveEvent(evData) {
+    const saved = await saveCalendarEvent(evData);
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === saved.id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = saved;
+        return updated;
+      }
+      return [...prev, saved];
+    });
   }
 
   async function handleDeleteEvent(eventId) {
-    const nextEvents = events.filter((ev) => ev.id !== eventId);
-    setEvents(nextEvents);
-    localStorage.setItem("socratic_calendar_events", JSON.stringify(nextEvents));
+    setEvents((prev) => prev.filter((ev) => ev.id !== eventId));
+    await deleteCalendarEvent(eventId);
+  }
 
-    try {
-      await fetch("/api/calendar/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id: eventId }),
-      });
-    } catch {
-      // Saved to local state & localStorage fallback
-    }
+  // Alarm handlers
+  async function handleSaveAlarm(alarmData) {
+    const saved = await saveAlarm(alarmData);
+    setAlarms((prev) => {
+      const idx = prev.findIndex((a) => a.id === saved.id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = saved;
+        return updated;
+      }
+      return [...prev, saved];
+    });
+  }
+
+  async function handleDeleteAlarm(alarmId) {
+    setAlarms((prev) => prev.filter((a) => a.id !== alarmId));
+    await deleteAlarm(alarmId);
+  }
+
+  async function handleToggleAlarm(alarmId) {
+    setAlarms((prev) =>
+      prev.map((a) => (a.id === alarmId ? { ...a, enabled: !a.enabled } : a))
+    );
+    await toggleAlarm(alarmId);
   }
 
   const selectedDateEvents = events.filter((ev) => ev.date === selectedDate);
   const getTypeObj = (typeId) => EVENT_TYPES.find((t) => t.id === typeId) || EVENT_TYPES[0];
 
   return (
-    <div className="mx-auto max-w-6xl px-8 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto max-w-6xl px-8 py-8 space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink-800 pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-ink-100">
-            Study Schedule & Timers
+            Study Schedule, Timers &amp; Alarms
           </h1>
           <p className="mt-1 text-xs text-ink-400">
-            Track Socratic drills, deadlines, and run Pomodoro focus sprints saved to Supabase.
+            Manage drills, Pomodoro focus sprints, and recurring alarms stored 100% locally in IndexedDB.
           </p>
         </div>
 
@@ -394,7 +838,10 @@ export default function CalendarView({ activeSpace }) {
 
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setEditingEvent(null);
+              setEventModalOpen(true);
+            }}
             className="flex items-center gap-1.5 rounded-lg bg-duck-400 px-3.5 py-2 text-xs font-semibold text-ink-950 shadow-md transition-opacity hover:opacity-90"
           >
             <span>＋</span>
@@ -404,6 +851,7 @@ export default function CalendarView({ activeSpace }) {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Month Grid */}
         <div className="rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-xl lg:col-span-2">
           <div className="mb-3 grid grid-cols-7 text-center text-xs font-medium text-ink-500">
             <span>Sun</span>
@@ -419,15 +867,14 @@ export default function CalendarView({ activeSpace }) {
             {calendarCells.map((cell, idx) => {
               if (!cell) {
                 return (
-                  <div
-                    key={`pad-${idx}`}
-                    className="h-24 rounded-lg bg-ink-950/30 p-1.5"
-                  />
+                  <div key={`pad-${idx}`} className="h-24 rounded-lg bg-ink-950/30 p-1.5" />
                 );
               }
 
               const isSelected = cell.dateStr === selectedDate;
-              const isToday = cell.dateStr === "2026-07-31";
+              const todayObj = new Date();
+              const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
+              const isToday = cell.dateStr === todayStr;
               const dayEvs = events.filter((ev) => ev.date === cell.dateStr);
 
               return (
@@ -455,9 +902,7 @@ export default function CalendarView({ activeSpace }) {
                     >
                       {cell.day}
                     </span>
-                    {dayEvs.length > 0 && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-duck-400" />
-                    )}
+                    {dayEvs.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-duck-400" />}
                   </div>
 
                   <div className="space-y-1 overflow-hidden">
@@ -484,14 +929,28 @@ export default function CalendarView({ activeSpace }) {
           </div>
         </div>
 
+        {/* Sidebar Widgets (Timer + Alarms + Agenda) */}
         <div className="space-y-6">
           <StudyTimerWidget />
 
+          <RegularAlarmsWidget
+            alarms={alarms}
+            onAddAlarm={() => {
+              setEditingAlarm(null);
+              setAlarmModalOpen(true);
+            }}
+            onEditAlarm={(alarm) => {
+              setEditingAlarm(alarm);
+              setAlarmModalOpen(true);
+            }}
+            onDeleteAlarm={handleDeleteAlarm}
+            onToggleAlarm={handleToggleAlarm}
+          />
+
+          {/* Agenda */}
           <div className="rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-xl">
             <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
-              <h2 className="text-sm font-semibold text-ink-100">
-                Agenda ({selectedDate})
-              </h2>
+              <h2 className="text-sm font-semibold text-ink-100">Agenda ({selectedDate})</h2>
               <span className="text-xs font-medium text-duck-400">
                 {selectedDateEvents.length} Event{selectedDateEvents.length === 1 ? "" : "s"}
               </span>
@@ -499,14 +958,15 @@ export default function CalendarView({ activeSpace }) {
 
             {selectedDateEvents.length === 0 ? (
               <div className="py-6 text-center">
-                <span className="text-2xl">📅</span>
-                <p className="mt-2 text-xs text-ink-500">
-                  No events scheduled for this date.
-                </p>
+                <CalendarIcon className="mx-auto h-8 w-8 text-ink-600 mb-2" />
+                <p className="text-xs text-ink-500">No events scheduled for this date.</p>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(true)}
-                  className="mt-3 text-xs text-duck-400 hover:underline"
+                  onClick={() => {
+                    setEditingEvent(null);
+                    setEventModalOpen(true);
+                  }}
+                  className="mt-2 text-xs font-semibold text-duck-400 hover:underline"
                 >
                   + Add an event or drill
                 </button>
@@ -527,46 +987,59 @@ export default function CalendarView({ activeSpace }) {
                           <span>{tObj.icon}</span>
                           <span>{tObj.label}</span>
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-ink-500">{ev.time}</span>
+
+                          {/* Test Trigger */}
                           <button
                             type="button"
                             onClick={() => {
                               if (typeof window !== "undefined") {
-                                setTimeout(() => {
-                                  window.dispatchEvent(
-                                    new CustomEvent("socratic_alarm_triggered", {
-                                      detail: {
-                                        alarmType: "event",
-                                        title: `Event Alert: ${ev.title}`,
-                                        message: `Scheduled ${tObj.label} event for ${ev.space} space at ${ev.time}.`,
-                                      },
-                                    })
-                                  );
-                                }, 0);
+                                window.dispatchEvent(
+                                  new CustomEvent("socratic_alarm_triggered", {
+                                    detail: {
+                                      alarmType: "event",
+                                      title: `Event Alert: ${ev.title}`,
+                                      message: `Scheduled ${tObj.label} event for ${ev.space || "School"} space at ${ev.time}.`,
+                                    },
+                                  })
+                                );
                               }
                             }}
                             title="Trigger Event Alarm"
-                            className="text-xs text-amber-400/80 opacity-0 transition-opacity hover:scale-110 hover:text-amber-300 group-hover:opacity-100"
+                            className="p-1 text-ink-500 hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
                           >
-                            ⏰
+                            <Bell className="h-3.5 w-3.5" />
                           </button>
+
+                          {/* Edit Event */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEvent(ev);
+                              setEventModalOpen(true);
+                            }}
+                            title="Edit Event"
+                            className="p-1 text-ink-500 hover:text-duck-300 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+
+                          {/* Delete Event */}
                           <button
                             type="button"
                             onClick={() => handleDeleteEvent(ev.id)}
                             title="Delete Event"
-                            className="text-xs text-ink-600 opacity-0 transition-opacity hover:text-rose-400 group-hover:opacity-100"
+                            className="p-1 text-ink-500 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
                           >
-                            🗑️
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
                       <p className="mt-2 text-xs font-medium leading-snug text-ink-100">
                         {ev.title}
                       </p>
-                      <p className="mt-1 text-[10px] text-ink-500">
-                        Space: {ev.space}
-                      </p>
+                      <p className="mt-1 text-[10px] text-ink-500">Space: {ev.space || "School"}</p>
                     </li>
                   );
                 })}
@@ -576,89 +1049,28 @@ export default function CalendarView({ activeSpace }) {
         </div>
       </div>
 
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-ink-800 pb-3">
-              <h3 className="text-sm font-semibold text-ink-100">
-                Add Event ({selectedDate})
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="text-ink-500 hover:text-ink-200"
-              >
-                ✕
-              </button>
-            </div>
+      {/* Event Add/Edit Modal */}
+      <EventModal
+        open={eventModalOpen}
+        eventData={editingEvent}
+        selectedDate={selectedDate}
+        onClose={() => {
+          setEventModalOpen(false);
+          setEditingEvent(null);
+        }}
+        onSave={handleSaveEvent}
+      />
 
-            <form onSubmit={handleAddEvent} className="mt-4 space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-ink-400">
-                  Event Title
-                </label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Pomodoro Sprint or Socratic Quiz"
-                  className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
-                  autoFocus
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-ink-400">
-                    Event Type
-                  </label>
-                  <select
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                    className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
-                  >
-                    {EVENT_TYPES.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.icon} {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-ink-400">
-                    Time
-                  </label>
-                  <input
-                    type="text"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    placeholder="10:00 AM"
-                    className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="rounded-lg px-3 py-1.5 text-xs text-ink-400 hover:text-ink-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newTitle.trim()}
-                  className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 disabled:opacity-40"
-                >
-                  Save Event
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Alarm Add/Edit Modal */}
+      <AlarmModal
+        open={alarmModalOpen}
+        alarmData={editingAlarm}
+        onClose={() => {
+          setAlarmModalOpen(false);
+          setEditingAlarm(null);
+        }}
+        onSave={handleSaveAlarm}
+      />
     </div>
   );
 }

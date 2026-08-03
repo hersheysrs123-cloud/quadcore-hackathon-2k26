@@ -206,19 +206,19 @@ function Ray({ from, to, color, label, labelSide = 1, width = 3.4, dashed = fals
   );
 }
 
-export function RefractionScene({ params }) {
+export function RefractionScene({ params = {} }) {
   const {
-    angle,
-    n1,
-    n2,
-    thickness,
-    wavelength,
-    medium1,
-    medium2,
-    showReflection,
-    showLabels,
-    animate,
-  } = params;
+    angle = 30,
+    n1 = 1.0,
+    n2 = 1.5,
+    thickness = 3.0,
+    wavelength = 550,
+    medium1 = "air",
+    medium2 = "glass",
+    showReflection = true,
+    showLabels = true,
+    animate = true,
+  } = params || {};
 
   const { i, r, e, tir, critical, lateral, run, reflectance } = solveBlock(
     angle,
@@ -275,7 +275,7 @@ export function RefractionScene({ params }) {
   const name2 = mediumName(medium2, n2);
 
   return (
-    <SceneCanvas camera={{ position: [1.5, 1.5, 13], fov: 45 }} fog={[22, 44]}>
+    <SceneCanvas camera={{ position: [1.5, 1.5, 13], fov: 45 }} controls={{ autoRotate: params.spin !== false }} fog={[22, 44]}>
      <group scale={fit}>
       {/* ── Medium 1: everything outside the block ───────────────── */}
       <mesh position={[0, halfT + 5, 0]} renderOrder={-3}>
@@ -542,6 +542,7 @@ export function RefractionScene({ params }) {
       </SceneLabel>
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Snell's law"
         subtitle={`${name1} → ${name2} → ${name1}`}
         rows={[
@@ -964,7 +965,16 @@ function PolePlate({ position, pole }) {
 // numbers in the readout are a real F = BIL and not I × B with a silent unit.
 const WIRE_LENGTH = 1;
 
-export function MotorEffectScene({ params }) {
+export function MotorEffectScene({
+  params = {
+    current: 1.0,
+    field: 1.0,
+    reverseCurrent: false,
+    reverseField: false,
+    showFieldLines: true,
+    animate: true,
+  },
+}) {
   const { current, field, reverseCurrent, reverseField, showFieldLines, animate } = params;
 
   // B runs from the N pole to the S pole; I runs along the second finger.
@@ -1132,6 +1142,7 @@ export function MotorEffectScene({ params }) {
       )}
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Motor effect"
         subtitle="F = B I L, all three at right angles"
         rows={[
@@ -1438,6 +1449,7 @@ export function LensOpticsScene({ params }) {
       )}
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title={isConvex ? "Converging lens" : "Diverging lens"}
         subtitle="1/v = 1/f − 1/u  ·  m = |v ÷ u|"
         rows={[
@@ -1840,6 +1852,7 @@ export function InductionScene({ params }) {
       <EmfTrace speed={speed} field={field} turns={turns} angleRef={angleRef} />
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Faraday's law"
         subtitle="Φ = B A sin θ  ·  ε = −N ΔΦ/Δt"
         rows={[
@@ -2005,8 +2018,12 @@ function GasParticles({ count, temperature, halfLength, onCollisionRate }) {
   );
 }
 
-export function GasLawsScene({ params }) {
-  const { temperature, volume, particles } = params;
+export function GasLawsScene({ params = {} }) {
+  const {
+    temperature = 300,
+    volume = 1.0,
+    particles = 60,
+  } = params || {};
   const [rate, setRate] = useState(0);
 
   // A cylinder with a sliding piston, not a cube shrinking in every
@@ -2030,7 +2047,7 @@ export function GasLawsScene({ params }) {
   const pV = pressure * volume;
 
   return (
-    <SceneCanvas camera={{ position: [4, 3.5, 11], fov: 45 }}>
+    <SceneCanvas camera={{ position: [4, 3.5, 11], fov: 45 }} controls={{ autoRotate: params.spin !== false }}>
       {/* Translucent glass container chamber */}
       <mesh>
         <boxGeometry args={[bodyLength, BORE * 2, BORE * 2]} />
@@ -2089,6 +2106,7 @@ export function GasLawsScene({ params }) {
       />
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Gas state"
         subtitle="p ∝ N T ÷ V"
         rows={[

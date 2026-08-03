@@ -49,10 +49,65 @@ function playAlarmChime() {
 export default function AlarmOverlay() {
   const [alarm, setAlarm] = useState(null);
   const snoozeTimerRef = useRef(null);
+  const lastTriggeredRef = useRef(new Set());
 
   // Set default Duck favicon on mount
   useEffect(() => {
     setFavicon(DUCK_FAVICON);
+  }, []);
+
+  // Real-time Background Alarm Checker (runs every 5s)
+  useEffect(() => {
+    let intervalId;
+    async function checkAlarms() {
+      if (typeof window === "undefined") return;
+      try {
+        const { getAlarms } = await import("@/lib/storageService");
+        const alarms = await getAlarms();
+
+        const now = new Date();
+        const currentHours = String(now.getHours()).padStart(2, "0");
+        const currentMinutes = String(now.getMinutes()).padStart(2, "0");
+        const currentTimeStr = `${currentHours}:${currentMinutes}`;
+        const currentDay = now.getDay(); // 0 = Sun .. 6 = Sat
+        const dateKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+
+        for (const a of alarms) {
+          if (!a.enabled) continue;
+          const daysList = Array.isArray(a.days) ? a.days : [0, 1, 2, 3, 4, 5, 6];
+
+          if (a.time === currentTimeStr && daysList.includes(currentDay)) {
+            const triggerKey = `${a.id}_${dateKey}_${currentTimeStr}`;
+            if (!lastTriggeredRef.current.has(triggerKey)) {
+              lastTriggeredRef.current.add(triggerKey);
+
+              // Limit size of set to prevent memory growth
+              if (lastTriggeredRef.current.size > 100) {
+                lastTriggeredRef.current.clear();
+                lastTriggeredRef.current.add(triggerKey);
+              }
+
+              window.dispatchEvent(
+                new CustomEvent("socratic_alarm_triggered", {
+                  detail: {
+                    alarmType: "regular_alarm",
+                    title: `Alarm: ${a.title || "Scheduled Alarm"}`,
+                    message: `Regular alarm set for ${a.time} is triggering!`,
+                  },
+                })
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error in alarm background check:", err);
+      }
+    }
+
+    intervalId = setInterval(checkAlarms, 5000);
+    checkAlarms(); // Check immediately on mount
+
+    return () => clearInterval(intervalId);
   }, []);
 
   // Listen for socratic_alarm_triggered events

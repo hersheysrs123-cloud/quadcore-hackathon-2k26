@@ -198,7 +198,7 @@ export async function POST(request) {
     );
   }
 
-  if (!hasApiKey()) {
+  if (!(await hasApiKey())) {
     return NextResponse.json(
       {
         error:

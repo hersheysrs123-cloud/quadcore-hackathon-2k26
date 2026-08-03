@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
+import { explainConcept, shouldUseClientAI } from "@/lib/aiService";
 
 /**
  * The teaching half of the app.
@@ -30,13 +31,22 @@ export default function ExplainPanel({
     setExplanation(null);
 
     try {
-      const res = await fetch("/api/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concept, focus, noteContent }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status}).`);
+      const payload = { concept, focus, noteContent };
+      const isClient = await shouldUseClientAI();
+
+      let data;
+      if (isClient) {
+        data = await explainConcept(payload);
+      } else {
+        const res = await fetch("/api/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status}).`);
+      }
+
       setExplanation(data.explanation);
     } catch (err) {
       setError(err.message);

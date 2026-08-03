@@ -349,6 +349,7 @@ export function EnzymeScene({ params }) {
       <RateCurve temperature={temperature} ph={ph} />
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Reaction"
         subtitle="Lock and key · one enzyme, one substrate"
         rows={[
@@ -621,6 +622,7 @@ export function DNAScene({ params }) {
       </group>
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Double helix"
         subtitle="Two complementary strands"
         rows={[
@@ -1021,6 +1023,7 @@ export function CellExplorerScene({ params }) {
       </CutawayProvider>
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title={isPlant ? "Plant cell" : "Animal cell"}
         subtitle="Osmosis: water moves dilute → concentrated"
         rows={[

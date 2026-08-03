@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 @theme {
   /* Default Neutral Ramp (Dark Mode) — lighter & warmer slate tones */

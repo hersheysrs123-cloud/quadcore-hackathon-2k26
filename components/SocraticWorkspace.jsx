@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import WidgetCanvas from "@/components/WidgetCanvas";
+import { socraticChat, socraticWidget, shouldUseClientAI } from "@/lib/aiService";
 
 /**
  * Drives the full Socratic loop:
@@ -79,12 +80,18 @@ export default function SocraticWorkspace({
       setThinking(true);
       setError(null);
       try {
-        const data = await postJson("/api/socratic/chat", {
+        const payload = {
           noteContent: noteContentRef.current,
           concept,
           conversationHistory: toWire(history),
           isFinalTurn: false,
-        });
+        };
+
+        const isClient = await shouldUseClientAI();
+        const data = isClient
+          ? await socraticChat(payload)
+          : await postJson("/api/socratic/chat", payload);
+
         setMessages([...history, { role: "assistant", content: data.reply }]);
       } catch (err) {
         setError(err.message);
@@ -98,27 +105,30 @@ export default function SocraticWorkspace({
   /** Builds the playground from whatever the diagnostic flagged. */
   const buildWidget = useCallback(
     async (result) => {
-      // Reds are the target, but an all-green session still deserves a
-      // playground — fall back to yellows so the widget route has something to
-      // build around instead of 400ing.
       const reds = result.heatmap.filter((h) => h.status === "red");
       const gaps = reds.length
         ? reds
         : result.heatmap.filter((h) => h.status === "yellow");
 
-      if (!gaps.length) return; // genuinely nothing to reinforce
+      if (!gaps.length) return;
 
       setBuildingWidget(true);
       setWidgetError(null);
       try {
-        const data = await postJson("/api/socratic/widget", {
+        const payload = {
           concept,
           redSubtopics: gaps.map((g) => ({
             subtopic: g.subtopic,
             feedback: g.feedback,
           })),
           recommendedWidget: result.recommendedWidget,
-        });
+        };
+
+        const isClient = await shouldUseClientAI();
+        const data = isClient
+          ? await socraticWidget(payload)
+          : await postJson("/api/socratic/widget", payload);
+
         setWidget(data.widget);
       } catch (err) {
         setWidgetError(err.message);
@@ -133,12 +143,18 @@ export default function SocraticWorkspace({
     setScoring(true);
     setError(null);
     try {
-      const data = await postJson("/api/socratic/chat", {
+      const payload = {
         noteContent: noteContentRef.current,
         concept,
         conversationHistory: toWire(messages),
         isFinalTurn: true,
-      });
+      };
+
+      const isClient = await shouldUseClientAI();
+      const data = isClient
+        ? await socraticChat(payload)
+        : await postJson("/api/socratic/chat", payload);
+
       setDiagnostic(data.diagnostic);
       await buildWidget(data.diagnostic);
     } catch (err) {

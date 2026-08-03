@@ -5,6 +5,7 @@ import Drawer, { DrawerError } from "@/components/Drawer";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import WidgetCanvas from "@/components/WidgetCanvas";
 import ScoreRing from "@/components/ScoreRing";
+import { quizGenerate, quizGrade, socraticChat, socraticWidget, shouldUseClientAI } from "@/lib/aiService";
 
 /**
  * Both ways of being quizzed, in one drawer.
@@ -134,7 +135,12 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
     setIndex(0);
 
     try {
-      const data = await postJson("/api/quiz/generate", { concept, noteContent });
+      const payload = { concept, noteContent };
+      const isClient = await shouldUseClientAI();
+      const data = isClient
+        ? await quizGenerate(payload)
+        : await postJson("/api/quiz/generate", payload);
+
       setQuiz(data.quiz);
       setPhase("answering");
     } catch (err) {
@@ -157,12 +163,18 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
     setError(null);
 
     try {
-      const data = await postJson("/api/quiz/grade", {
+      const payload = {
         concept,
         noteContent,
         questions: quiz.questions,
         responses: quiz.questions.map((_, i) => ({ answer: answers[i] })),
-      });
+      };
+
+      const isClient = await shouldUseClientAI();
+      const data = isClient
+        ? await quizGrade(payload)
+        : await postJson("/api/quiz/grade", payload);
+
       setResult(data.result);
       setPhase("review");
       onComplete?.({
@@ -471,12 +483,18 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
       setThinking(true);
       setError(null);
       try {
-        const data = await postJson("/api/socratic/chat", {
+        const payload = {
           noteContent,
           concept,
           conversationHistory: toWire(history),
           isFinalTurn: false,
-        });
+        };
+
+        const isClient = await shouldUseClientAI();
+        const data = isClient
+          ? await socraticChat(payload)
+          : await postJson("/api/socratic/chat", payload);
+
         setMessages([...history, { role: "assistant", content: data.reply }]);
       } catch (err) {
         setError(err.message);
@@ -489,8 +507,6 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
 
   const buildWidget = useCallback(
     async (result) => {
-      // Reds are the target, but an all-green session still deserves a
-      // playground — fall back to yellows rather than 400ing the widget route.
       const reds = result.heatmap.filter((h) => h.status === "red");
       const gaps = reds.length
         ? reds
@@ -500,14 +516,20 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
       setBuildingWidget(true);
       setWidgetError(null);
       try {
-        const data = await postJson("/api/socratic/widget", {
+        const payload = {
           concept,
           redSubtopics: gaps.map((g) => ({
             subtopic: g.subtopic,
             feedback: g.feedback,
           })),
           recommendedWidget: result.recommendedWidget,
-        });
+        };
+
+        const isClient = await shouldUseClientAI();
+        const data = isClient
+          ? await socraticWidget(payload)
+          : await postJson("/api/socratic/widget", payload);
+
         setWidget(data.widget);
       } catch (err) {
         setWidgetError(err.message);
@@ -522,12 +544,18 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
     setScoring(true);
     setError(null);
     try {
-      const data = await postJson("/api/socratic/chat", {
+      const payload = {
         noteContent,
         concept,
         conversationHistory: toWire(messages),
         isFinalTurn: true,
-      });
+      };
+
+      const isClient = await shouldUseClientAI();
+      const data = isClient
+        ? await socraticChat(payload)
+        : await postJson("/api/socratic/chat", payload);
+
       setDiagnostic(data.diagnostic);
       onComplete?.({
         mode: "socratic",

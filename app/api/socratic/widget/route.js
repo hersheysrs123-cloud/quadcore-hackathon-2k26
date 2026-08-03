@@ -180,7 +180,7 @@ export async function POST(request) {
     : "3d_vector_simulation";
   const preferredType = WIDGET_PREFERENCE[requested];
 
-  if (!hasApiKey()) {
+  if (!(await hasApiKey())) {
     return NextResponse.json(
       {
         error:

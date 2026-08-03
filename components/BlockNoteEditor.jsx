@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 // ─── BlockNoteEditor ────────────────────────────────────────────────
 // Full Notion-style block suite:
@@ -9,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 //   • Callout Box with icon picker (💡, ⚠️, 📌, 🔥, ⭐, 🎉, ℹ️, 🦆)
 //   • Quote (accent bar), Divider (hr), Note Link (workspace note picker)
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
+//   • Math Equation Container (LaTeX & KaTeX renderer)
 //   • 6-dots (⠿) context menu: Explain / Quiz, formatting (B, I, U, S), turn-into
 // ─────────────────────────────────────────────────────────────────────
 
@@ -24,12 +27,12 @@ const BLOCK_TYPES = [
   { type: "toggle", label: "Toggle List", icon: "▶", description: "Collapsible text container" },
   { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame" },
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations" },
+  { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer" },
   { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line" },
   { type: "notelink", label: "Note Link", icon: "🔗", description: "Link to another note" },
   { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card" },
   { type: "media", label: "Image / Audio / Video", icon: "🖼️", description: "Embed media file or URL" },
   { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax" },
-  { type: "action", label: "Action Button", icon: "▶", description: "Clickable action block" },
   { type: "canvas", label: "Canvas / Drawing", icon: "🎨", description: "Interactive 70% whiteboard & sketching tool" },
 ];
 
@@ -60,8 +63,141 @@ function makeId() {
   return `blk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createBlock(type = "text", content = "") {
-  return { id: makeId(), type, content };
+function createBlock(type = "text", content = "", extra = {}) {
+  return { id: extra.id || makeId(), type, content, ...extra };
+}
+
+function blockToMarkdown(block) {
+  if (!block) return "";
+  const content = block.content || "";
+
+  switch (block.type) {
+    case "h1":
+      return `# ${content}`;
+    case "h2":
+      return `## ${content}`;
+    case "h3":
+      return `### ${content}`;
+    case "h4":
+      return `#### ${content}`;
+    case "bullet":
+      return `- ${content}`;
+    case "number":
+      return `1. ${content}`;
+    case "todo":
+      return block.checked ? `[x] ${content}` : `[ ] ${content}`;
+    case "quote":
+      return `> ${content}`;
+    case "callout":
+      return `💡 ${content}`;
+    case "divider":
+      return `---`;
+    case "code":
+      return `\`\`\`${block.meta?.language || ""}\n${content}\n\`\`\``;
+    case "math":
+      return `$$\n${content}\n$$`;
+    case "canvas":
+      return `[Canvas Drawing: ${content}]`;
+    case "text":
+    default:
+      return content;
+  }
+}
+
+function parseMarkdownToBlocks(rawText) {
+  if (!rawText || typeof rawText !== "string") return [];
+
+  const lines = rawText.split(/\r?\n/);
+  const resultBlocks = [];
+  let inCodeBlock = false;
+  let codeLang = null;
+  let codeBuffer = [];
+
+  let inMathBlock = false;
+  let mathBuffer = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("```")) {
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeLang = trimmed.slice(3).trim() || null;
+        codeBuffer = [];
+      } else {
+        inCodeBlock = false;
+        resultBlocks.push(
+          createBlock("code", codeBuffer.join("\n"), { meta: { language: codeLang } })
+        );
+        codeBuffer = [];
+        codeLang = null;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      continue;
+    }
+
+    if (trimmed.startsWith("$$")) {
+      if (!inMathBlock) {
+        inMathBlock = true;
+        const rest = trimmed.slice(2).trim();
+        mathBuffer = rest ? [rest] : [];
+      } else {
+        inMathBlock = false;
+        resultBlocks.push(createBlock("math", mathBuffer.join("\n")));
+        mathBuffer = [];
+      }
+      continue;
+    }
+
+    if (inMathBlock) {
+      mathBuffer.push(line);
+      continue;
+    }
+
+    if (!trimmed) continue;
+
+    if (line.startsWith("#### ")) {
+      resultBlocks.push(createBlock("h4", line.slice(5)));
+    } else if (line.startsWith("### ")) {
+      resultBlocks.push(createBlock("h3", line.slice(4)));
+    } else if (line.startsWith("## ")) {
+      resultBlocks.push(createBlock("h2", line.slice(3)));
+    } else if (line.startsWith("# ")) {
+      resultBlocks.push(createBlock("h1", line.slice(2)));
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      resultBlocks.push(createBlock("bullet", line.slice(2)));
+    } else if (/^\d+\.\s/.test(line)) {
+      resultBlocks.push(createBlock("number", line.replace(/^\d+\.\s/, "")));
+    } else if (line.startsWith("[ ] ") || line.startsWith("[] ")) {
+      resultBlocks.push(createBlock("todo", line.slice(line.indexOf("]") + 1).trim(), { checked: false }));
+    } else if (line.startsWith("[x] ") || line.startsWith("[X] ")) {
+      resultBlocks.push(createBlock("todo", line.slice(line.indexOf("]") + 1).trim(), { checked: true }));
+    } else if (line.startsWith("> ")) {
+      resultBlocks.push(createBlock("quote", line.slice(2)));
+    } else if (line.startsWith("💡 ") || line.startsWith(">! ")) {
+      resultBlocks.push(createBlock("callout", line.slice(3)));
+    } else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
+      resultBlocks.push(createBlock("divider", ""));
+    } else if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length > 2) {
+      resultBlocks.push(createBlock("math", trimmed.slice(2, -2).trim()));
+    } else {
+      resultBlocks.push(createBlock("text", line));
+    }
+  }
+
+  if (codeBuffer.length > 0) {
+    resultBlocks.push(createBlock("code", codeBuffer.join("\n"), { meta: { language: codeLang } }));
+  }
+  if (mathBuffer.length > 0) {
+    resultBlocks.push(createBlock("math", mathBuffer.join("\n")));
+  }
+
+  return resultBlocks.length > 0 ? resultBlocks : [createBlock("text", rawText)];
 }
 
 // ─── Slash-Command Menu ─────────────────────────────────────────────
@@ -69,9 +205,14 @@ function SlashMenu({ onSelect, onClose, filter }) {
   const menuRef = useRef(null);
   const [activeIdx, setActiveIdx] = useState(0);
 
-  const filtered = BLOCK_TYPES.filter((bt) =>
-    bt.label.toLowerCase().includes(filter.toLowerCase())
-  );
+  const filtered = BLOCK_TYPES.filter((bt) => {
+    const q = filter.toLowerCase();
+    return (
+      bt.label.toLowerCase().includes(q) ||
+      bt.type.toLowerCase().includes(q) ||
+      (bt.type === "math" && ["math", "equation", "latex", "formula"].some((k) => k.includes(q)))
+    );
+  });
 
   useEffect(() => {
     setActiveIdx(0);
@@ -256,6 +397,25 @@ function BlockContextMenu({
         >
           S
         </button>
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              const text = sel.toString();
+              if (text) {
+                document.execCommand("insertText", false, `$${text}$`);
+              } else {
+                document.execCommand("insertText", false, "$E = mc^2$");
+              }
+            }
+          }}
+          className="rounded px-2 py-1 font-mono text-xs font-bold text-duck-300 hover:bg-ink-800"
+          title="Inline Math ($x$)"
+        >
+          $x$
+        </button>
       </div>
 
       <p className="px-2 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
@@ -331,6 +491,7 @@ function EditorBlock({
   onSaveNote,
   dragHandlers,
   isDragTarget,
+  isMultiSelected = false,
 }) {
   const contentRef = useRef(null);
   const [slashOpen, setSlashOpen] = useState(false);
@@ -382,9 +543,41 @@ function EditorBlock({
     if (text.startsWith("/")) {
       setSlashOpen(true);
       setSlashFilter(text.slice(1));
+      return;
     } else {
       setSlashOpen(false);
       setSlashFilter("");
+    }
+
+    const shortcuts = [
+      { prefix: "#### ", type: "h4" },
+      { prefix: "### ", type: "h3" },
+      { prefix: "## ", type: "h2" },
+      { prefix: "# ", type: "h1" },
+      { prefix: "- ", type: "bullet" },
+      { prefix: "* ", type: "bullet" },
+      { prefix: "1. ", type: "number" },
+      { prefix: "[ ] ", type: "todo" },
+      { prefix: "[] ", type: "todo" },
+      { prefix: "> ", type: "quote" },
+      { prefix: "💡 ", type: "callout" },
+      { prefix: ">! ", type: "callout" },
+      { prefix: "---", type: "divider" },
+      { prefix: "***", type: "divider" },
+      { prefix: "```", type: "code" },
+      { prefix: "$$", type: "math" },
+    ];
+
+    for (const sc of shortcuts) {
+      if (text.startsWith(sc.prefix)) {
+        const remaining = text.slice(sc.prefix.length);
+        onChangeType(block.id, sc.type);
+        onChange(block.id, remaining);
+        if (contentRef.current) {
+          contentRef.current.textContent = remaining;
+        }
+        return;
+      }
     }
   }
 
@@ -412,6 +605,121 @@ function EditorBlock({
 
     onKeyDown?.(e, block.id, contentRef.current);
   }
+function KaTeXRender({ formula, displayMode = false, className = "" }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      try {
+        katex.render(formula || "", containerRef.current, {
+          displayMode,
+          throwOnError: false,
+        });
+      } catch (err) {
+        if (containerRef.current) {
+          containerRef.current.innerText = formula;
+        }
+      }
+    }
+  }, [formula, displayMode]);
+
+  return <span ref={containerRef} className={`katex-wrapper inline-block ${className}`} />;
+}
+
+// ─── Math Block Component (KaTeX LaTeX Equation Container) ───────────
+function MathBlock({ block, onUpdateBlock, onSelect }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formula, setFormula] = useState(block.content || "E = mc^2");
+
+  useEffect(() => {
+    setFormula(block.content || "E = mc^2");
+  }, [block.content]);
+
+  const presets = [
+    { label: "Quadratic", math: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" },
+    { label: "Euler", math: "e^{i\\pi} + 1 = 0" },
+    { label: "Integral", math: "\\int_{a}^{b} f(x) dx = F(b) - F(a)" },
+    { label: "Einstein", math: "E = mc^2" },
+    { label: "Normal Dist", math: "f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{1}{2}\\left(\\frac{x-\\mu}{\\sigma}\\right)^2}" },
+    { label: "Derivative", math: "\\frac{d}{dx}\\left( \\sin(x) \\right) = \\cos(x)" },
+    { label: "Matrix", math: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}" },
+  ];
+
+  return (
+    <div
+      onClick={() => {
+        onSelect(block.id);
+        setIsEditing(true);
+      }}
+      className="group/mathblk relative my-2 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 transition-all hover:border-duck-500/50 shadow-md"
+    >
+      <div className="flex items-center justify-between border-b border-ink-800 pb-2 mb-3">
+        <div className="flex items-center gap-2 text-xs font-bold text-duck-300">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 font-mono text-xs text-duck-400">∑</span>
+          <span>LaTeX Math Equation Container</span>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(!isEditing);
+          }}
+          className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-semibold text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/10 hover:text-duck-300"
+        >
+          {isEditing ? "Done 👁️" : "Edit Formula ✏️"}
+        </button>
+      </div>
+
+      {/* Rendered KaTeX Formula Viewport */}
+      <div className="flex items-center justify-center min-h-[3.5rem] py-2 px-4 overflow-x-auto text-ink-100 text-lg">
+        <KaTeXRender formula={formula || "E = mc^2"} displayMode={true} className="text-duck-300" />
+      </div>
+
+      {/* Interactive LaTeX Code Input & Presets */}
+      {isEditing && (
+        <div
+          className="mt-3 border-t border-ink-800 pt-3 space-y-2.5 animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-400">
+              LaTeX Code Input
+            </label>
+            <input
+              type="text"
+              value={formula}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormula(val);
+                onUpdateBlock(block.id, { content: val });
+              }}
+              placeholder="e.g. E = mc^2 or \int_{a}^{b} f(x) dx"
+              className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-xs font-mono text-duck-300 outline-none focus:border-duck-400 focus:ring-1 focus:ring-duck-400"
+            />
+          </div>
+
+          {/* Preset Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-500 mr-1">Quick Presets:</span>
+            {presets.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => {
+                  setFormula(p.math);
+                  onUpdateBlock(block.id, { content: p.math });
+                }}
+                className="rounded-md border border-ink-700 bg-ink-850 px-2 py-0.5 text-[10px] font-medium text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/20 hover:text-duck-300"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
   const typeStyles = {
     text: "text-[15px] leading-relaxed text-ink-200",
@@ -423,9 +731,7 @@ function EditorBlock({
     number: "text-[15px] leading-relaxed text-ink-200",
     todo: "text-[15px] leading-relaxed text-ink-200",
     toggle: "text-[15px] leading-relaxed text-ink-200",
-    quote: "text-[15px] leading-relaxed text-ink-300 italic",
     code: "font-mono text-sm leading-relaxed text-emerald-400 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700 whitespace-pre-wrap code-block",
-    action: "",
   };
 
   const placeholders = {
@@ -441,7 +747,7 @@ function EditorBlock({
     callout: "Callout text…",
     quote: "Quote or citation…",
     code: "Write code…",
-    action: "Button label…",
+    math: "LaTeX formula…",
   };
 
   const Tag =
@@ -462,8 +768,13 @@ function EditorBlock({
 
   return (
     <div
-      className={`group relative rounded-lg px-2.5 py-1.5 transition-colors ${
-        isSelected ? "bg-ink-900/60" : "hover:bg-ink-900/30"
+      data-block-id={block.id}
+      className={`group relative rounded-lg px-2.5 py-1.5 transition-all ${
+        isMultiSelected
+          ? "bg-duck-500/20 border border-duck-400/60 shadow-md ring-1 ring-duck-400/40"
+          : isSelected
+            ? "bg-ink-900/60"
+            : "hover:bg-ink-900/30"
       } ${
         isDragTarget
           ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-duck-400"
@@ -532,84 +843,13 @@ function EditorBlock({
       {/* ─── Render Specific Block Types ─────────────────── */}
 
       {/* 1. Divider */}
-      {block.type === "divider" ? (
+      {block.type === "action" ? null : block.type === "divider" ? (
         <div className="py-2">
           <hr className="border-t border-ink-800" />
         </div>
-      ) : block.type === "action" ? (
-        /* 2. Interactive Action Button */
-        <div className="relative flex items-center gap-2 my-1">
-          <div className="group/btn relative flex items-center rounded-xl border border-duck-500/40 bg-duck-500/10 p-1 shadow-sm transition-all hover:bg-duck-500/20 hover:border-duck-500/60">
-            {/* Clickable Icon & Badge Button to trigger action */}
-            <button
-              type="button"
-              onClick={() => handleExecuteAction(block)}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-500/20 px-3 py-1.5 text-xs font-bold text-duck-300 transition-all active:scale-95 hover:bg-duck-500/35 hover:text-duck-100 shadow-sm"
-              title={`Click to execute action: ${(ACTION_KINDS.find(a => a.id === (block.actionKind || "socratic")) || ACTION_KINDS[0]).label}`}
-            >
-              <span className="text-sm">{(ACTION_KINDS.find(a => a.id === (block.actionKind || "socratic")) || ACTION_KINDS[0]).icon}</span>
-              <span className="uppercase tracking-wider text-[10px] text-duck-400 font-extrabold">
-                {(ACTION_KINDS.find(a => a.id === (block.actionKind || "socratic")) || ACTION_KINDS[0]).badge}
-              </span>
-            </button>
-
-            {/* Editable Action Button Text Label */}
-            <Tag
-              ref={contentRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={handleInput}
-              onKeyDown={handleKeyDown}
-              onFocus={() => onSelect(block.id)}
-              data-placeholder={placeholders.action}
-              className="min-w-[6rem] px-3 py-1 text-sm font-semibold text-ink-100 outline-none empty:before:text-duck-500/50 empty:before:content-[attr(data-placeholder)]"
-            />
-
-            {/* Action Kind Picker Settings Dropdown Button */}
-            <div className="relative ml-auto pr-1">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowActionPicker(!showActionPicker);
-                }}
-                className="rounded-md p-1.5 text-xs text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-                title="Choose Action Type (Quiz, Duck, 3D, Timer, etc.)"
-              >
-                ⚙️
-              </button>
-
-              {showActionPicker && (
-                <div className="absolute right-0 top-8 z-50 w-56 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl space-y-1 animate-fade-in text-xs">
-                  <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-                    Select Action Target
-                  </p>
-                  {ACTION_KINDS.map((ak) => (
-                    <button
-                      key={ak.id}
-                      type="button"
-                      onClick={() => {
-                        onUpdateBlock(block.id, { actionKind: ak.id });
-                        setShowActionPicker(false);
-                      }}
-                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors ${
-                        (block.actionKind || "socratic") === ak.id
-                          ? "bg-duck-500/20 text-duck-300 font-semibold"
-                          : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
-                      }`}
-                    >
-                      <span className="text-sm">{ak.icon}</span>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{ak.label}</p>
-                        <p className="truncate text-[10px] text-ink-500">{ak.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      ) : block.type === "math" ? (
+        /* Math Equation Block */
+        <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
       ) : block.type === "bullet" ? (
         /* 3. Bullet List */
         <div className="flex items-start gap-2.5">
@@ -1681,9 +1921,118 @@ export default function BlockNoteEditor({
   const [blocks, setBlocks] = useState(() =>
     initialBlocks && initialBlocks.length > 0
       ? initialBlocks
-      : [createBlock("text", "")]
+      : [{ id: "blk_default_init_0", type: "text", content: "" }]
   );
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedBlockIds, setSelectedBlockIds] = useState(new Set());
+  const [marqueeBox, setMarqueeBox] = useState(null);
+  const isDraggingMarquee = useRef(false);
+  const marqueeStart = useRef({ x: 0, y: 0 });
+  const editorContainerRef = useRef(null);
+
+  // Marquee Drag Selection Handlers
+  const handleEditorMouseDown = (e) => {
+    const isInput = e.target.closest('[contenteditable="true"], input, textarea, button, a');
+    if (isInput) {
+      if (!e.shiftKey) {
+        setSelectedBlockIds(new Set());
+      }
+      return;
+    }
+
+    isDraggingMarquee.current = true;
+    marqueeStart.current = { x: e.clientX, y: e.clientY };
+    setMarqueeBox({
+      startX: e.clientX,
+      startY: e.clientY,
+      currentX: e.clientX,
+      currentY: e.clientY,
+    });
+
+    if (!e.shiftKey) {
+      setSelectedBlockIds(new Set());
+    }
+  };
+
+  const handleEditorMouseMove = (e) => {
+    if (!isDraggingMarquee.current) return;
+
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const startX = marqueeStart.current.x;
+    const startY = marqueeStart.current.y;
+
+    setMarqueeBox({
+      startX,
+      startY,
+      currentX,
+      currentY,
+    });
+
+    const boxRect = {
+      left: Math.min(startX, currentX),
+      top: Math.min(startY, currentY),
+      right: Math.max(startX, currentX),
+      bottom: Math.max(startY, currentY),
+    };
+
+    const newSelected = new Set();
+    blocks.forEach((b) => {
+      const el = document.querySelector(`[data-block-id="${b.id}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        const intersects =
+          r.left < boxRect.right &&
+          r.right > boxRect.left &&
+          r.top < boxRect.bottom &&
+          r.bottom > boxRect.top;
+        if (intersects) {
+          newSelected.add(b.id);
+        }
+      }
+    });
+
+    setSelectedBlockIds(newSelected);
+  };
+
+  const handleEditorMouseUp = () => {
+    if (isDraggingMarquee.current) {
+      isDraggingMarquee.current = false;
+      setMarqueeBox(null);
+    }
+  };
+
+  // Smart Markdown Paste Handler
+  const handleSmartPaste = useCallback(
+    (e) => {
+      const text = e.clipboardData?.getData("text/plain");
+      if (!text) return;
+
+      const isMarkdown =
+        text.includes("\n") ||
+        /^(#+|-|\*|\d+\.|>|```|\$\$|\[\s*\]|---)\s/m.test(text);
+
+      if (isMarkdown) {
+        e.preventDefault();
+        const parsedBlocks = parseMarkdownToBlocks(text);
+        if (parsedBlocks.length > 0) {
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+          setBlocks((prev) => {
+            const activeIdx = prev.findIndex((b) => b.id === selectedId);
+            if (activeIdx !== -1) {
+              const next = [...prev];
+              next.splice(activeIdx, 1, ...parsedBlocks);
+              return next;
+            }
+            return [...prev, ...parsedBlocks];
+          });
+        }
+      }
+    },
+    [selectedId]
+  );
+
   const blockRefs = useRef({});
 
   // Drag-to-reorder, driven by each block's ⠿ handle.
@@ -1731,25 +2080,10 @@ export default function BlockNoteEditor({
 
   const totalBlocks = blocks.length;
 
-  useEffect(() => {
-    if (initialTitle !== undefined) setTitle(initialTitle);
-  }, [initialTitle]);
-
-  useEffect(() => {
-    if (initialBlocks && initialBlocks.length > 0) setBlocks(initialBlocks);
-  }, [initialBlocks]);
-
-  useEffect(() => {
-    if (initialBanner !== undefined) setBanner(initialBanner);
-  }, [initialBanner]);
-
-  useEffect(() => {
-    if (initialFavorite !== undefined) setIsFavorite(initialFavorite);
-  }, [initialFavorite]);
-
-  useEffect(() => {
-    if (initialEmoji !== undefined) setEmoji(initialEmoji);
-  }, [initialEmoji]);
+  // Initial states are handled by useState initialization.
+  // The component is completely remounted when changing notes because of the `key` prop in Workspace.jsx.
+  // We avoid syncing these via useEffect to prevent the editor's internal state from being overwritten
+  // during typing or saving, which causes cursor jumps and lost focus.
 
   useEffect(() => {
     onBlocksChange?.(blocks);
@@ -1759,7 +2093,15 @@ export default function BlockNoteEditor({
     blockRefs.current[id] = ref;
   }, []);
 
+  const lastHistoryPush = useRef(0);
+
   const handleChange = useCallback((id, content) => {
+    const now = Date.now();
+    if (now - lastHistoryPush.current > 600) {
+      setPastBlocks((p) => [...p.slice(-30), blocksRef.current]);
+      setFutureBlocks([]);
+      lastHistoryPush.current = now;
+    }
     setBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, content } : b))
     );
@@ -1798,6 +2140,13 @@ export default function BlockNoteEditor({
 
   useEffect(() => {
     const handleGlobalUndoRedo = (e) => {
+      const activeEl = document.activeElement;
+      const inEditor =
+        (editorContainerRef.current && editorContainerRef.current.contains(activeEl)) ||
+        activeEl === document.body;
+
+      if (!inEditor) return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         if (e.shiftKey) {
           if (futureBlocksRef.current.length > 0) {
@@ -1806,16 +2155,16 @@ export default function BlockNoteEditor({
             setFutureBlocks((f) => f.slice(1));
             setPastBlocks((p) => [...p, blocksRef.current]);
             setBlocks(next);
+            onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
           }
         } else {
-          const activeEl = document.activeElement;
-          const isTextEditing = activeEl && (activeEl.isContentEditable || activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
-          if (!isTextEditing && pastBlocksRef.current.length > 0) {
+          if (pastBlocksRef.current.length > 0) {
             e.preventDefault();
             const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
             setPastBlocks((p) => p.slice(0, p.length - 1));
             setFutureBlocks((f) => [blocksRef.current, ...f]);
             setBlocks(previous);
+            onSaveNote?.({ title, blocks: previous, banner, isFavorite, emoji });
           }
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
@@ -1825,12 +2174,75 @@ export default function BlockNoteEditor({
           setFutureBlocks((f) => f.slice(1));
           setPastBlocks((p) => [...p, blocksRef.current]);
           setBlocks(next);
+          onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
         }
       }
     };
     window.addEventListener("keydown", handleGlobalUndoRedo);
     return () => window.removeEventListener("keydown", handleGlobalUndoRedo);
-  }, []);
+  }, [title, banner, isFavorite, emoji, onSaveNote]);
+
+  // Multi-Block Selection Keyboard Shortcuts: Ctrl+A, Ctrl+C, Ctrl+X, Delete/Backspace
+  useEffect(() => {
+    const handleMultiBlockKeydown = (e) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl &&
+        (activeEl.isContentEditable || activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+
+      // Ctrl+A / Cmd+A Select All Blocks
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        if (!isInput || (editorContainerRef.current && editorContainerRef.current.contains(activeEl))) {
+          e.preventDefault();
+          setSelectedBlockIds(new Set(blocksRef.current.map((b) => b.id)));
+        }
+        return;
+      }
+
+      if (selectedBlockIds.size > 0) {
+        // Ctrl+C / Cmd+C Copy Selected Blocks as Markdown
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+          e.preventDefault();
+          const selected = blocksRef.current.filter((b) => selectedBlockIds.has(b.id));
+          const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
+          navigator.clipboard.writeText(md);
+          return;
+        }
+
+        // Ctrl+X / Cmd+X Cut Selected Blocks
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+          e.preventDefault();
+          const selected = blocksRef.current.filter((b) => selectedBlockIds.has(b.id));
+          const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
+          navigator.clipboard.writeText(md);
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+          setBlocks((prev) => {
+            const next = prev.filter((b) => !selectedBlockIds.has(b.id));
+            return next.length > 0 ? next : [createBlock("text", "")];
+          });
+          setSelectedBlockIds(new Set());
+          return;
+        }
+
+        // Backspace / Delete Selected Blocks
+        if ((e.key === "Backspace" || e.key === "Delete") && !isInput) {
+          e.preventDefault();
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+          setBlocks((prev) => {
+            const next = prev.filter((b) => !selectedBlockIds.has(b.id));
+            return next.length > 0 ? next : [createBlock("text", "")];
+          });
+          setSelectedBlockIds(new Set());
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleMultiBlockKeydown);
+    return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
+  }, [selectedBlockIds]);
 
   const handleChangeType = useCallback((id, type) => {
     setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
@@ -1940,7 +2352,26 @@ export default function BlockNoteEditor({
   let currentNumber = 0;
 
   return (
-    <div className="relative min-h-full w-full pb-32">
+    <div
+      ref={editorContainerRef}
+      onMouseDown={handleEditorMouseDown}
+      onMouseMove={handleEditorMouseMove}
+      onMouseUp={handleEditorMouseUp}
+      onPaste={handleSmartPaste}
+      className="relative min-h-full w-full pb-32"
+    >
+      {/* Marquee Selection Box Overlay */}
+      {marqueeBox && (
+        <div
+          className="fixed z-50 pointer-events-none rounded-lg border border-duck-400/60 bg-duck-500/20 backdrop-blur-[1px] shadow-lg animate-pulse"
+          style={{
+            left: Math.min(marqueeBox.startX, marqueeBox.currentX),
+            top: Math.min(marqueeBox.startY, marqueeBox.currentY),
+            width: Math.abs(marqueeBox.currentX - marqueeBox.startX),
+            height: Math.abs(marqueeBox.currentY - marqueeBox.startY),
+          }}
+        />
+      )}
       {banner && (
         <div className={`group relative h-44 md:h-52 w-full ${activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600"} border-b border-ink-800/40 shadow-lg transition-all`} />
       )}
@@ -2196,6 +2627,7 @@ export default function BlockNoteEditor({
                 onSwitchTab={onSwitchTab}
                 dragHandlers={dragHandlers}
                 isDragTarget={dragOver === block.id && dragging !== block.id}
+                isMultiSelected={selectedBlockIds.has(block.id)}
                 notesBySpace={notesBySpace}
                 onSelectNote={onSelectNote}
                 registerRef={registerRef}

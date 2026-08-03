@@ -11,10 +11,25 @@ import SocraticWorkspace from "@/components/SocraticWorkspace";
 import ExplainPanel from "@/components/ExplainPanel";
 import QuizPanel from "@/components/QuizPanel";
 import MasteryDashboard from "@/components/MasteryDashboard";
+import GlobalTimerHUD from "@/components/GlobalTimerHUD";
+import PinnedTimersOverlay from "@/components/PinnedTimersOverlay";
 import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { demoNotesBySpace } from "@/lib/demoNotes";
 import { summariseMastery } from "@/lib/mastery";
+import { initAndSeedDatabase } from "@/lib/db";
+import {
+  getAllNotes,
+  saveNote,
+  deleteNoteToTrash,
+  getTrashNotes,
+  recoverNote,
+  permanentlyDeleteNote,
+  getStudySessions,
+  recordStudySession,
+  factoryResetWorkspace,
+  clearTrash,
+} from "@/lib/storageService";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 const DEFAULT_NOTES_BY_SPACE = {
@@ -66,6 +81,8 @@ export default function Workspace({ note: initialNote }) {
 
   // Bind global Ctrl+I shortcut to open Instant Note modal
   useEffect(() => {
+    setMounted(true);
+
     function handleGlobalKeyDown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
         e.preventDefault();
@@ -76,147 +93,67 @@ export default function Workspace({ note: initialNote }) {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, []);
 
-  // Sync notes directly from Supabase DB
-  const syncFromSupabase = useCallback(async () => {
-    try {
-      const res = await fetch("/api/notes/save");
-      const data = await res.json();
-      if (data.success && Array.isArray(data.notes) && data.notes.length > 0) {
-        const spaceMap = { School: [], Personal: [], Misc: [] };
-        data.notes.forEach((n) => {
-          const sp = n.space || n.space_id || "School";
-          const formattedBlocks = (n.blocks || []).map((b) => {
-            const cObj = typeof b.content_json === "object" && b.content_json !== null ? b.content_json : {};
-            return {
-              id: b.id,
-              type: b.block_type || "text",
-              content: cObj.text ?? (typeof b.content_json === "string" ? b.content_json : ""),
-              drawingData: cObj.drawingData || undefined,
-              bgType: cObj.bgType || undefined,
-              url: cObj.url || undefined,
-              mediaKind: cObj.mediaKind || undefined,
-              checked: cObj.checked ?? undefined,
-              icon: cObj.icon || undefined,
-              open: cObj.open ?? undefined,
-              details: cObj.details || cObj.toggleContent || undefined,
-              actionKind: cObj.actionKind || cObj.action || undefined,
-            };
-          });
-          const noteObj = {
-            id: n.id,
-            title: n.title || "Untitled Note",
-            space: sp,
-            banner: n.banner || null,
-            blocks: formattedBlocks.length > 0 ? formattedBlocks : [{ id: `blk_${Date.now()}`, type: "text", content: "" }],
-          };
-          if (!spaceMap[sp]) spaceMap[sp] = [];
-          spaceMap[sp].push(noteObj);
-        });
 
-        setNotesBySpace(spaceMap);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("socratic_notes_by_space", JSON.stringify(spaceMap));
-        }
-        const firstInActive = (spaceMap[activeSpace] || [])[0];
-        if (firstInActive) setActiveNoteId(firstInActive.id);
-      }
-    } catch {
-      // Fallback to local
-    }
-  }, [activeSpace]);
 
   // Factory Reset Handler
   const handleResetData = useCallback(async (target) => {
     try {
-      await fetch("/api/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target }),
-      });
-
-      if (target === "notes" || target === "all") {
-        setNotesBySpace(DEFAULT_NOTES_BY_SPACE);
-        setActiveNoteId(null);
-        setSessions([]);
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("socratic_notes_by_space");
-          // Mastery is derived from notes that no longer exist, so it goes
-          // with them rather than pointing at nothing.
-          localStorage.removeItem(SESSIONS_KEY);
-          // A factory reset means "empty", not "back to the demo".
-          localStorage.setItem(SEEDED_KEY, "1");
-        }
-      }
-
-      if (target === "calendar" || target === "all") {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("socratic_calendar_events");
-        }
-      }
-
-      if (target === "3d" || target === "all") {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("socratic_visualizations");
-        }
-      }
-
-      if (target === "all") {
-        setTrashNotes([]);
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("socratic_trash_notes");
-        }
-      }
-
+      await factoryResetWorkspace();
+      setNotesBySpace(DEFAULT_NOTES_BY_SPACE);
+      setActiveNoteId(null);
+      setSessions([]);
+      setTrashNotes([]);
       window.location.reload();
     } catch (err) {
       alert("Reset error: " + err.message);
     }
   }, []);
 
-  // Hydrate state from localStorage & Supabase on client mount
+  // Hydrate state from IndexedDB on client mount
   useEffect(() => {
     setMounted(true);
     if (typeof window !== "undefined") {
-      try {
-        const savedTheme = localStorage.getItem("socratic_theme") || "dark";
-        setTheme(savedTheme);
+      const savedTheme = localStorage.getItem("socratic_theme") || "dark";
+      setTheme(savedTheme);
 
-        const cachedNotes = localStorage.getItem("socratic_notes_by_space");
-        const parsed = cachedNotes ? JSON.parse(cachedNotes) : null;
+      async function loadLocalWorkspace() {
+        try {
+          await initAndSeedDatabase();
+          const allDbNotes = await getAllNotes();
 
-        // First run gets the six demo notes so the workspace never opens on
-        // nothing. `SEEDED_KEY` is what stops them coming back after a factory
-        // reset or after you delete them all on purpose — an empty workspace
-        // you emptied yourself should stay empty.
-        const alreadySeeded = localStorage.getItem(SEEDED_KEY) === "6";
-        if (!alreadySeeded || isEmptyWorkspace(parsed)) {
-          const seeded = demoNotesBySpace();
-          setNotesBySpace(seeded);
-          setActiveNoteId((seeded[SPACES[0].name] || [])[0]?.id ?? null);
-          localStorage.setItem("socratic_notes_by_space", JSON.stringify(seeded));
-          localStorage.setItem(SEEDED_KEY, "6");
-        } else if (parsed) {
-          setNotesBySpace(parsed);
-          const firstInActive = (parsed[SPACES[0].name] || [])[0];
+          const spaceMap = { School: [], Personal: [], Misc: [] };
+          allDbNotes.forEach((n) => {
+            const sp = n.spaceId || n.space || "School";
+            if (!spaceMap[sp]) spaceMap[sp] = [];
+            spaceMap[sp].push({
+              id: n.id,
+              title: n.title || "Untitled Note",
+              space: sp,
+              spaceId: sp,
+              banner: n.banner || null,
+              emoji: n.emoji || "📝",
+              isFavorite: Boolean(n.isFavorite),
+              blocks: n.blocks || [],
+            });
+          });
+
+          setNotesBySpace(spaceMap);
+          const firstInActive = (spaceMap[SPACES[0].name] || [])[0];
           if (firstInActive) setActiveNoteId(firstInActive.id);
+
+          const trash = await getTrashNotes();
+          setTrashNotes(trash);
+
+          const studySess = await getStudySessions();
+          setSessions(studySess);
+        } catch (err) {
+          console.error("Dexie hydration error:", err);
         }
-
-        const cachedSessions = localStorage.getItem(SESSIONS_KEY);
-        if (cachedSessions) setSessions(JSON.parse(cachedSessions));
-
-        const cachedTrash = localStorage.getItem("socratic_trash_notes");
-        if (cachedTrash) {
-          const parsedTrash = JSON.parse(cachedTrash);
-          const now = Date.now();
-          setTrashNotes(parsedTrash.filter((item) => now - item.deletedAt < TWENTY_FOUR_HOURS_MS));
-        }
-
-        syncFromSupabase();
-      } catch {
-        // Fallback
       }
+
+      loadLocalWorkspace();
     }
-  }, [syncFromSupabase]);
+  }, []);
 
   // Update theme data attribute on root HTML element
   useEffect(() => {
@@ -256,7 +193,10 @@ export default function Workspace({ note: initialNote }) {
     const interval = setInterval(() => {
       const now = Date.now();
       setTrashNotes((prev) =>
-        prev.filter((item) => now - item.deletedAt < TWENTY_FOUR_HOURS_MS)
+        prev.filter((item) => {
+          const ts = typeof item.deletedAt === "number" ? item.deletedAt : new Date(item.deletedAt || 0).getTime();
+          return !isNaN(ts) && now - ts < TWENTY_FOUR_HOURS_MS;
+        })
       );
     }, 60000);
     return () => clearInterval(interval);
@@ -298,22 +238,21 @@ export default function Workspace({ note: initialNote }) {
 
   /** One graded session — from either quiz mode — lands on the mastery map. */
   const handleRecordSession = useCallback(
-    ({ mode, concept, score, summary, heatmap }) => {
-      setSessions((prev) => [
-        {
-          id: `ses_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-          noteId: studyTarget?.noteId ?? null,
-          noteTitle: studyTarget?.noteTitle ?? "",
-          space: studyTarget?.space ?? activeSpace,
-          concept,
-          mode,
-          score: Number(score) || 0,
-          summary: summary ?? "",
-          heatmap: Array.isArray(heatmap) ? heatmap : [],
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+    async ({ mode, concept, score, summary, heatmap }) => {
+      const newSession = {
+        id: `ses_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        noteId: studyTarget?.noteId ?? null,
+        noteTitle: studyTarget?.noteTitle ?? "",
+        space: studyTarget?.space ?? activeSpace,
+        concept,
+        mode,
+        score: Number(score) || 0,
+        summary: summary ?? "",
+        heatmap: Array.isArray(heatmap) ? heatmap : [],
+        createdAt: new Date().toISOString(),
+      };
+      setSessions((prev) => [newSession, ...prev]);
+      await recordStudySession(newSession);
     },
     [activeSpace, studyTarget],
   );
@@ -374,6 +313,16 @@ export default function Workspace({ note: initialNote }) {
       const updatedFav = isFavorite !== undefined ? isFavorite : activeNoteObj?.isFavorite;
       const updatedEmoji = emoji !== undefined ? emoji : activeNoteObj?.emoji;
 
+      const noteData = {
+        id: targetNoteId,
+        spaceId: activeSpace,
+        title: updatedTitle,
+        blocks: updatedBlocks,
+        banner: updatedBanner,
+        isFavorite: updatedFav,
+        emoji: updatedEmoji,
+      };
+
       setNotesBySpace((prev) => {
         const spaceNotes = prev[activeSpace] || [];
         const existingIdx = spaceNotes.findIndex((n) => n.id === targetNoteId);
@@ -386,50 +335,18 @@ export default function Workspace({ note: initialNote }) {
               : n
           );
         } else {
-          // Auto-create new note when typing on blank page in an empty space
-          const newNoteObj = {
-            id: targetNoteId,
-            title: updatedTitle,
-            space: activeSpace,
-            blocks: updatedBlocks,
-            banner: updatedBanner,
-            isFavorite: updatedFav,
-            emoji: updatedEmoji,
-          };
-          updatedNotes = [...spaceNotes, newNoteObj];
+          updatedNotes = [...spaceNotes, noteData];
         }
-
-        const next = { ...prev, [activeSpace]: updatedNotes };
-        if (typeof window !== "undefined") {
-          localStorage.setItem("socratic_notes_by_space", JSON.stringify(next));
-        }
-        return next;
+        return { ...prev, [activeSpace]: updatedNotes };
       });
 
       if (!activeNoteObj) {
         setActiveNoteId(targetNoteId);
       }
 
-      try {
-        await fetch("/api/notes/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            noteId: targetNoteId,
-            title: updatedTitle,
-            blocks: updatedBlocks,
-            banner: updatedBanner,
-            isFavorite: updatedFav,
-            emoji: updatedEmoji,
-            space: activeSpace,
-          }),
-        });
-        setSaveStatus("✓ Saved");
-        setTimeout(() => setSaveStatus(""), 3000);
-      } catch {
-        setSaveStatus("✓ Saved locally");
-        setTimeout(() => setSaveStatus(""), 3000);
-      }
+      await saveNote(noteData);
+      setSaveStatus("✓ Saved locally");
+      setTimeout(() => setSaveStatus(""), 3000);
     },
     [activeNoteObj, activeSpace]
   );
@@ -437,34 +354,26 @@ export default function Workspace({ note: initialNote }) {
   const handleSaveInstantNote = useCallback(
     async (instantNote) => {
       const targetSpace = instantNote.space || "Misc";
+      const noteData = {
+        id: instantNote.id,
+        spaceId: targetSpace,
+        title: instantNote.title || "Untitled Note",
+        blocks: instantNote.blocks || [],
+        banner: instantNote.banner || null,
+        emoji: instantNote.emoji || "📝",
+        isFavorite: Boolean(instantNote.isFavorite),
+      };
 
       setNotesBySpace((prev) => {
         const spaceNotes = prev[targetSpace] || [];
-        const next = { ...prev, [targetSpace]: [...spaceNotes, instantNote] };
-        if (typeof window !== "undefined") {
-          localStorage.setItem("socratic_notes_by_space", JSON.stringify(next));
-        }
-        return next;
+        return { ...prev, [targetSpace]: [...spaceNotes, noteData] };
       });
 
       setActiveSpace(targetSpace);
       setActiveNoteId(instantNote.id);
       setActiveTab("notes");
 
-      try {
-        await fetch("/api/notes/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            noteId: instantNote.id,
-            title: instantNote.title,
-            blocks: instantNote.blocks,
-            space: targetSpace,
-          }),
-        });
-      } catch {
-        // Saved locally
-      }
+      await saveNote(noteData);
     },
     []
   );
@@ -487,8 +396,9 @@ export default function Workspace({ note: initialNote }) {
     setActiveTab("notes");
   }
 
-  function handleDeleteNote(noteId) {
-    const targetNote = currentNotesInSpace.find((n) => n.id === noteId);
+  async function handleDeleteNote(noteId) {
+    const spaceNotes = notesBySpace[activeSpace] || [];
+    const targetNote = spaceNotes.find((n) => n.id === noteId);
     if (!targetNote) return;
 
     setNotesBySpace((prev) => ({
@@ -498,15 +408,17 @@ export default function Workspace({ note: initialNote }) {
 
     setTrashNotes((prev) => [
       ...prev,
-      { ...targetNote, space: activeSpace, deletedAt: Date.now() },
+      { ...targetNote, space: activeSpace, deletedAt: new Date().toISOString() },
     ]);
 
     if (activeNoteId === noteId) {
       setActiveNoteId(null);
     }
+
+    await deleteNoteToTrash(noteId);
   }
 
-  function handleRecoverNote(noteId) {
+  async function handleRecoverNote(noteId) {
     const target = trashNotes.find((n) => n.id === noteId);
     if (!target) return;
 
@@ -519,13 +431,15 @@ export default function Workspace({ note: initialNote }) {
     }));
 
     setActiveNoteId(target.id);
+    await recoverNote(noteId);
   }
 
-  function handlePermanentlyDeleteNote(noteId) {
+  async function handlePermanentlyDeleteNote(noteId) {
     setTrashNotes((prev) => prev.filter((n) => n.id !== noteId));
+    await permanentlyDeleteNote(noteId);
   }
 
-  function handleRecoverAllNotes() {
+  async function handleRecoverAllNotes() {
     setNotesBySpace((prev) => {
       const updated = { ...prev };
       for (const item of trashNotes) {
@@ -534,11 +448,18 @@ export default function Workspace({ note: initialNote }) {
       }
       return updated;
     });
+
+    const itemsToRecover = [...trashNotes];
     setTrashNotes([]);
+
+    for (const item of itemsToRecover) {
+      await recoverNote(item.id);
+    }
   }
 
-  function handlePermanentlyDeleteAllNotes() {
+  async function handlePermanentlyDeleteAllNotes() {
     setTrashNotes([]);
+    await clearTrash();
   }
 
   function handleSelectNote(noteObj) {
@@ -575,7 +496,6 @@ export default function Workspace({ note: initialNote }) {
           onPermanentlyDeleteAllNotes={handlePermanentlyDeleteAllNotes}
           theme={theme}
           setTheme={setTheme}
-          onSyncSupabase={syncFromSupabase}
           onResetData={handleResetData}
           onOpenInstantNote={() => setInstantNoteOpen(true)}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
@@ -586,7 +506,7 @@ export default function Workspace({ note: initialNote }) {
       {/* Main Container with Top HUD Header */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top HUD Header with 4 Tabs: Notes, Calendar, 3D, Mastery */}
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
+        <header className="relative z-[60] flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
           {/* Left Breadcrumb Context & Sidebar Toggle */}
           <div className="flex min-w-0 max-w-[30%] sm:max-w-[36%] md:max-w-[44%] items-center gap-2.5 text-sm text-ink-400">
             <button
@@ -672,8 +592,10 @@ export default function Workspace({ note: initialNote }) {
             </button>
           </nav>
 
-          {/* Right Action Bar: Save Note (Full Right) + Socratic Duck Trigger */}
+          {/* Right Action Bar: Timer HUD + Save Note + Socratic Duck Triggers */}
           <div className="flex shrink-0 items-center gap-2.5">
+            <GlobalTimerHUD onNavigateCalendar={() => setActiveTab("calendar")} />
+
             {saveStatus && (
               <span className="text-xs font-semibold text-emerald-400 animate-fade-in">
                 {saveStatus}
@@ -794,6 +716,9 @@ export default function Workspace({ note: initialNote }) {
 
       {/* Global Visual & Audio Alarm Alert Overlay */}
       <AlarmOverlay />
+
+      {/* Floating Pinned Timers Screen Overlay */}
+      <PinnedTimersOverlay />
     </div>
   );
 }

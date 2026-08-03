@@ -219,9 +219,9 @@ function Shell({
   );
 }
 
-export function BohrAtomScene({ params }) {
-  const { element: symbol, speed, showShells, showLabels, highlightValence, spinNucleus } =
-    params;
+export function BohrAtomScene({ params = {} }) {
+  const { element: symbol = "carbon", speed = 1.0, showShells = true, showLabels = true, highlightValence = false, spinNucleus = true } =
+    params || {};
   const [focused, setFocused] = useState(null);
 
   const element = ELEMENTS[symbol] ?? ELEMENTS.Na;
@@ -233,7 +233,7 @@ export function BohrAtomScene({ params }) {
   return (
     <SceneCanvas
       camera={{ position: [0, 3.2, 10.5], fov: 45 }}
-      controls={{ autoRotate: true, autoRotateSpeed: 0.45, minDistance: 3.5 }}
+      controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45, minDistance: 3.5 }}
       onPointerMissed={() => setFocused(null)}
     >
       <pointLight position={[0, 0, 0]} color={PALETTE.rose} intensity={12} distance={4} />
@@ -259,6 +259,7 @@ export function BohrAtomScene({ params }) {
       </SceneLabel>
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title={element.name}
         subtitle={`Shells fill 2, then 8, then 8 — ${element.shells.join(",")}`}
         rows={[
@@ -705,8 +706,8 @@ function Molecule({ family, carbons, crackToken, spin }) {
   );
 }
 
-export function OrganicBuilderScene({ params }) {
-  const { family, carbons, crack, spin } = params;
+export function OrganicBuilderScene({ params = {} }) {
+  const { family = "alkane", carbons = 3, crack = 0, spin = true } = params || {};
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
   const crackable = family === "alkane" && carbons >= 3;
 
@@ -745,6 +746,7 @@ export function OrganicBuilderScene({ params }) {
       </SceneLabel>
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title={molecule.valid ? molecule.name : "No such molecule"}
         subtitle={`${family} · homologous series`}
         rows={[
@@ -979,6 +981,7 @@ export function DistillationScene({ params }) {
       </group>
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Fractionating column"
         subtitle="A physical separation, not a reaction"
         rows={[
@@ -1336,6 +1339,7 @@ export function CrystalLatticeScene({ params }) {
       )}
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title={facts.title}
         subtitle={structure === "nacl" ? "Giant ionic lattice" : structure === "ice" ? "Molecular crystal" : "Giant covalent lattice"}
         rows={facts.rows}
@@ -1660,6 +1664,7 @@ export function ElectrolysisScene({ params }) {
       />
 
       <SceneReadout
+        hidden={params?.hideOverlayReadout}
         title="Electrolysis of CuSO₄"
         subtitle="Copper electrodes · OIL RIG"
         rows={[

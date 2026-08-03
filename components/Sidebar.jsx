@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftClose } from "lucide-react";
+import { PanelLeftClose, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff } from "lucide-react";
+import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
+import { db } from "@/lib/db.js";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -9,13 +11,22 @@ import { PanelLeftClose } from "lucide-react";
 // ─────────────────────────────────────────────────────────────────────
 
 function formatTimeRemaining(deletedAt) {
-  if (!deletedAt) return "24h left";
-  const elapsed = Date.now() - deletedAt;
+  if (!deletedAt) return "24h 0m left";
+
+  const timestamp = typeof deletedAt === "number" ? deletedAt : new Date(deletedAt).getTime();
+  if (isNaN(timestamp) || timestamp <= 0) return "24h 0m left";
+
+  const elapsed = Date.now() - timestamp;
   const total24h = 24 * 60 * 60 * 1000;
   const remaining = total24h - elapsed;
-  if (remaining <= 0) return "Expiring...";
+
+  if (remaining <= 0) return "Expiring soon";
+
   const hours = Math.floor(remaining / (1000 * 60 * 60));
   const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (isNaN(hours) || isNaN(mins)) return "24h 0m left";
+
   return `${hours}h ${mins}m left`;
 }
 
@@ -163,11 +174,85 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
 }
 
 // ─── Settings Modal ──────────────────────────────────────────────────
-function SettingsModal({ open, onClose, theme, setTheme, onSyncSupabase, onResetData }) {
-  const [tab, setTab] = useState("general"); // "general" | "reset"
+function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
+  const [tab, setTab] = useState("ai"); // "ai" | "general" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+
+  // AI settings
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [provider, setProvider] = useState("gemini"); // "gemini" | "webllm"
+  const [webllmModel, setWebllmModel] = useState("Llama-3.8B-Instruct-q4f16_1-MLC");
+  const [aiSaved, setAiSaved] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    async function loadAISettings() {
+      try {
+        const keyItem = await db.settings.get("gemini_api_key");
+        const providerItem = await db.settings.get("ai_provider");
+        const modelItem = await db.settings.get("webllm_model");
+
+        if (keyItem?.value) setApiKey(keyItem.value);
+        if (providerItem?.value) setProvider(providerItem.value);
+        if (modelItem?.value) setWebllmModel(modelItem.value);
+      } catch (err) {
+        console.error("Failed to load AI settings:", err);
+      }
+    }
+    loadAISettings();
+  }, [open]);
+
+  const handleSaveAI = async (e) => {
+    e.preventDefault();
+    try {
+      await db.settings.put({ key: "gemini_api_key", value: apiKey.trim() });
+      await db.settings.put({ key: "ai_provider", value: provider });
+      await db.settings.put({ key: "webllm_model", value: webllmModel });
+
+      setAiSaved(true);
+      setTimeout(() => setAiSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save AI settings:", err);
+    }
+  };
 
   if (!open) return null;
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      setStatusMsg("");
+      const res = await exportWorkspaceToJSON();
+      setStatusMsg(`Successfully exported ${res.count} notes to ${res.filename}`);
+    } catch (err) {
+      alert("Backup export error: " + err.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      setStatusMsg("");
+      const res = await importWorkspaceFromJSON(file, { overwrite: true });
+      setStatusMsg(`Successfully restored ${res.imported.notes} notes & workspace data! Reloading...`);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+    } catch (err) {
+      alert("Backup import error: " + err.message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   return (
     <>
@@ -180,12 +265,12 @@ function SettingsModal({ open, onClose, theme, setTheme, onSyncSupabase, onReset
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
-        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
           <div className="flex items-center gap-2">
             <span className="text-lg">⚙️</span>
-            <h2 className="text-sm font-semibold text-ink-100">Preferences & Settings</h2>
+            <h2 className="text-sm font-semibold text-ink-100">Preferences &amp; Settings</h2>
           </div>
           <button
             type="button"
@@ -197,22 +282,47 @@ function SettingsModal({ open, onClose, theme, setTheme, onSyncSupabase, onReset
         </header>
 
         {/* Subtabs */}
-        <div className="flex border-b border-ink-800 bg-ink-950/40 px-5 pt-2">
+        <div className="flex border-b border-ink-800 bg-ink-950/40 px-5 pt-2 gap-1 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setTab("ai")}
+            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
+              tab === "ai"
+                ? "border-duck-400 text-duck-300"
+                : "border-transparent text-ink-400 hover:text-ink-200"
+            }`}
+          >
+            AI &amp; Keys 🤖
+          </button>
+
           <button
             type="button"
             onClick={() => setTab("general")}
-            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all ${
+            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
               tab === "general"
                 ? "border-duck-400 text-duck-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
-            General & Theme
+            General &amp; Theme
           </button>
+
+          <button
+            type="button"
+            onClick={() => setTab("backup")}
+            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
+              tab === "backup"
+                ? "border-sky-400 text-sky-300"
+                : "border-transparent text-ink-400 hover:text-ink-200"
+            }`}
+          >
+            Backup &amp; Restore 💾
+          </button>
+
           <button
             type="button"
             onClick={() => setTab("reset")}
-            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all ${
+            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
               tab === "reset"
                 ? "border-rose-500 text-rose-400"
                 : "border-transparent text-ink-400 hover:text-ink-200"
@@ -223,12 +333,121 @@ function SettingsModal({ open, onClose, theme, setTheme, onSyncSupabase, onReset
         </div>
 
         <div className="space-y-6 px-6 py-5">
+          {tab === "ai" && (
+            <form onSubmit={handleSaveAI} className="space-y-4">
+              <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-300">
+                <Shield className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-emerald-200">100% Local Privacy:</span> API keys are saved strictly inside IndexedDB (Dexie). They never touch our servers.
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400">
+                  Active AI Provider
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setProvider("gemini")}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
+                      provider === "gemini"
+                        ? "border-duck-500/60 bg-duck-500/10 text-ink-100 ring-1 ring-duck-500/30"
+                        : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Server className="h-3.5 w-3.5 text-duck-400" />
+                      <span>Google Gemini API</span>
+                    </div>
+                    <p className="text-[11px] text-ink-500 leading-tight">
+                      Direct from browser to Google AI Studio.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProvider("webllm")}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
+                      provider === "webllm"
+                        ? "border-duck-500/60 bg-duck-500/10 text-ink-100 ring-1 ring-duck-500/30"
+                        : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Cpu className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>Local WebLLM (Offline)</span>
+                    </div>
+                    <p className="text-[11px] text-ink-500 leading-tight">
+                      In-browser WebGPU LLM. 100% offline.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {provider !== "webllm" && (
+                <div className="space-y-1.5 animate-fade-up">
+                  <label className="block text-xs font-semibold text-ink-300">
+                    Google Gemini API Key
+                  </label>
+                  <div className="relative flex items-center">
+                    <Key className="absolute left-3 h-4 w-4 text-ink-500" />
+                    <input
+                      type={showKey ? "text" : "password"}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="AIzaSy..."
+                      className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 pl-9 pr-10 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="absolute right-3 text-ink-500 hover:text-ink-300"
+                    >
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-ink-500">
+                    Leave empty to fall back to server env var.
+                  </p>
+                </div>
+              )}
+
+              {provider === "webllm" && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-300">
+                    WebLLM Model Architecture
+                  </label>
+                  <select
+                    value={webllmModel}
+                    onChange={(e) => setWebllmModel(e.target.value)}
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                  >
+                    <option value="Llama-3.8B-Instruct-q4f16_1-MLC">Llama 3 8B Instruct</option>
+                    <option value="Phi-3.5-mini-instruct-q4f16_1-MLC">Phi-3.5 Mini Instruct</option>
+                    <option value="Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC">Qwen 2.5 Coder 7B</option>
+                    <option value="gemma-2-2b-it-q4f16_1-MLC">Gemma 2 2B IT</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="rounded-xl bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 hover:bg-duck-300 transition-colors"
+                >
+                  {aiSaved ? "Saved to Dexie!" : "Save AI Key & Settings"}
+                </button>
+              </div>
+            </form>
+          )}
+
           {tab === "general" && (
             <>
               {/* Theme Selector */}
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-ink-400">
-                  Appearance & Theme
+                  Appearance &amp; Theme
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -259,23 +478,74 @@ function SettingsModal({ open, onClose, theme, setTheme, onSyncSupabase, onReset
                 </div>
               </div>
 
-              {/* Sync from Supabase */}
+              {/* Local-First Dexie Storage Status */}
               <div className="border-t border-ink-800/80 pt-4 space-y-2">
-                <p className="text-[11px] text-ink-500 leading-relaxed">
-                  Supabase safely stores your persistent notes and models. Click below to re-sync all notes directly from your database.
+                <p className="text-[11px] text-ink-400 leading-relaxed">
+                  💾 <strong>100% Local-First Storage</strong>: Your notes, whiteboards, calendar events, and study sessions are stored privately in your browser's IndexedDB engine (Dexie.js).
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSyncSupabase?.();
-                    onClose();
-                  }}
-                  className="w-full rounded-lg border border-duck-500/30 bg-duck-500/10 px-3.5 py-2 text-xs font-semibold text-duck-300 transition-colors hover:bg-duck-500/20"
-                >
-                  🔄 Sync Notes from Supabase
-                </button>
               </div>
             </>
+          )}
+
+          {tab === "backup" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3.5 text-xs leading-relaxed text-sky-200">
+                <div className="font-bold flex items-center gap-1.5 text-sky-300">
+                  <HardDrive className="h-4 w-4" />
+                  <span>100% Offline Workspace Backups</span>
+                </div>
+                <p className="mt-1 text-[11px] text-sky-300/80">
+                  Save a complete snapshot of your workspace (notes, whiteboard drawings, calendar events, and study sessions) directly to your hard drive, or restore an existing <code>.socratic</code> / <code>.json</code> backup.
+                </p>
+              </div>
+
+              {statusMsg && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-300 flex items-center gap-2 animate-fade-in">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>{statusMsg}</span>
+                </div>
+              )}
+
+              {/* Export Button */}
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={isExporting}
+                className="flex w-full items-center justify-between rounded-xl border border-duck-500/40 bg-duck-500/10 p-3.5 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/20 disabled:opacity-50 shadow-sm"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Download className="h-4.5 w-4.5 text-duck-400" />
+                  <div className="text-left">
+                    <div className="font-bold text-duck-200">Export Workspace Backup</div>
+                    <div className="text-[10px] text-duck-400 font-normal">Save .socratic backup file to computer</div>
+                  </div>
+                </div>
+                <span className="rounded bg-duck-500/20 px-2 py-1 font-mono text-[10px] text-duck-300">
+                  {isExporting ? "Exporting..." : ".socratic"}
+                </span>
+              </button>
+
+              {/* Import File Input Button */}
+              <label className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-500/20 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <Upload className="h-4.5 w-4.5 text-emerald-400" />
+                  <div className="text-left">
+                    <div className="font-bold text-emerald-200">Import &amp; Restore Workspace</div>
+                    <div className="text-[10px] text-emerald-400 font-normal">Select .socratic or .json file to restore</div>
+                  </div>
+                </div>
+                <input
+                  type="file"
+                  accept=".socratic,.json"
+                  className="hidden"
+                  onChange={handleImportFile}
+                  disabled={isImporting}
+                />
+                <span className="rounded bg-emerald-500/20 px-2 py-1 font-mono text-[10px] text-emerald-300">
+                  {isImporting ? "Restoring..." : "Restore File"}
+                </span>
+              </label>
+            </div>
           )}
 
           {tab === "reset" && (

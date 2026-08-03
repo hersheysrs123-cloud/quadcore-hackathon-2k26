@@ -73,6 +73,8 @@ export function SceneCanvas({
         dampingFactor={0.08}
         minDistance={2}
         maxDistance={45}
+        autoRotate={controls?.autoRotate ?? false}
+        autoRotateSpeed={0.45}
         {...controls}
       />
     </Canvas>
@@ -188,7 +190,9 @@ export function SceneReadout({
   rows = [],
   note,
   noteTone = "neutral",
+  hidden = false,
 }) {
+  if (hidden) return null;
   return (
     <PinnedPanel corner={corner}>
       <div className="w-[184px] rounded-lg border border-ink-700 bg-ink-950/92 p-3 shadow-2xl backdrop-blur-md sm:w-[204px]">
