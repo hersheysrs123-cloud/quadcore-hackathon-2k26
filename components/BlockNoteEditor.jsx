@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
+import {
+  CORE_LANGUAGES,
+  normalizeLanguage,
+  TOKEN_STYLES,
+  tokenizeCode,
+} from "@/lib/syntaxHighlighter";
 
 // ─── BlockNoteEditor ────────────────────────────────────────────────
 // Full Notion-style block suite:
@@ -29,7 +35,6 @@ const BLOCK_TYPES = [
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations" },
   { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer" },
   { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line" },
-  { type: "notelink", label: "Note Link", icon: "🔗", description: "Link to another note" },
   { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card" },
   { type: "media", label: "Image / Audio / Video", icon: "🖼️", description: "Embed media file or URL" },
   { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax" },
@@ -599,7 +604,35 @@ function EditorBlock({
 
     if (e.key === "Enter" && !e.shiftKey && block.type !== "code") {
       e.preventDefault();
-      onAddAfter(block.id);
+      
+      const sel = window.getSelection();
+      let textBefore = block.content;
+      let textAfter = "";
+
+      if (sel.rangeCount > 0 && sel.focusNode) {
+        const range = sel.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(contentRef.current);
+        preCaretRange.setEnd(range.startContainer, range.startOffset);
+        const caretOffsetStart = preCaretRange.toString().length;
+        
+        const selectionLength = range.toString().length;
+        const fullText = contentRef.current.textContent || "";
+        
+        textBefore = fullText.slice(0, caretOffsetStart);
+        textAfter = fullText.slice(caretOffsetStart + selectionLength);
+        
+        onChange(block.id, textBefore);
+        if (contentRef.current) {
+          contentRef.current.textContent = textBefore;
+        }
+      }
+
+      if (["bullet", "number", "todo", "toggle"].includes(block.type) && !textBefore.trim()) {
+        onChangeType(block.id, "text");
+        return;
+      }
+      onAddAfter(block.id, textAfter, block.type);
       return;
     }
 
@@ -645,24 +678,28 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
     { label: "Matrix", math: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}" },
   ];
 
+  const handleFormulaChange = (newVal) => {
+    setFormula(newVal);
+    onUpdateBlock(block.id, { content: newVal }, true);
+  };
+
   return (
     <div
       onClick={() => {
         onSelect(block.id);
-        setIsEditing(true);
       }}
       className="group/mathblk relative my-2 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 transition-all hover:border-duck-500/50 shadow-md"
     >
       <div className="flex items-center justify-between border-b border-ink-800 pb-2 mb-3">
         <div className="flex items-center gap-2 text-xs font-bold text-duck-300">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 font-mono text-xs text-duck-400">∑</span>
-          <span>LaTeX Math Equation Container</span>
+          <span>LaTeX Math Equation</span>
         </div>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setIsEditing(!isEditing);
+            setIsEditing((prev) => !prev);
           }}
           className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-semibold text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/10 hover:text-duck-300"
         >
@@ -670,31 +707,38 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
         </button>
       </div>
 
-      {/* Rendered KaTeX Formula Viewport */}
-      <div className="flex items-center justify-center min-h-[3.5rem] py-2 px-4 overflow-x-auto text-ink-100 text-lg">
+      {/* Rendered KaTeX Formula Viewport — Click opens editing drawer */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(block.id);
+          setIsEditing(true);
+        }}
+        className="flex items-center justify-center min-h-[3.5rem] py-2 px-4 overflow-x-auto text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-duck-500/40 transition-colors"
+      >
         <KaTeXRender formula={formula || "E = mc^2"} displayMode={true} className="text-duck-300" />
       </div>
 
       {/* Interactive LaTeX Code Input & Presets */}
       {isEditing && (
         <div
-          className="mt-3 border-t border-ink-800 pt-3 space-y-2.5 animate-fade-in"
+          className="mt-3 border-t border-ink-800/80 pt-3 space-y-2.5"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="space-y-1">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-400">
-              LaTeX Code Input
-            </label>
-            <input
-              type="text"
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-duck-400">
+                LaTeX Formula Input
+              </label>
+              <span className="text-[10px] text-ink-500 font-mono">Live render enabled</span>
+            </div>
+            <textarea
+              rows={2}
               value={formula}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFormula(val);
-                onUpdateBlock(block.id, { content: val });
-              }}
+              onFocus={() => onSelect(block.id)}
+              onChange={(e) => handleFormulaChange(e.target.value)}
               placeholder="e.g. E = mc^2 or \int_{a}^{b} f(x) dx"
-              className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-xs font-mono text-duck-300 outline-none focus:border-duck-400 focus:ring-1 focus:ring-duck-400"
+              className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-xs font-mono text-duck-300 outline-none focus:border-duck-400 focus:ring-1 focus:ring-duck-400"
             />
           </div>
 
@@ -705,11 +749,11 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
               <button
                 key={p.label}
                 type="button"
-                onClick={() => {
-                  setFormula(p.math);
-                  onUpdateBlock(block.id, { content: p.math });
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFormulaChange(p.math);
                 }}
-                className="rounded-md border border-ink-700 bg-ink-850 px-2 py-0.5 text-[10px] font-medium text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/20 hover:text-duck-300"
+                className="rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/20 hover:text-duck-300 active:scale-95 cursor-pointer"
               >
                 {p.label}
               </button>
@@ -717,6 +761,182 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Code Snippet Block (10-Language Syntax Highlighting & Dropdown) ──
+function HighlightCode({ code, language }) {
+  const normLang = normalizeLanguage(language);
+  const tokens = useMemo(() => tokenizeCode(code || "", normLang), [code, normLang]);
+
+  return (
+    <code>
+      {tokens.map((token, index) => {
+        if (!token.type || token.type === "plain") {
+          return <span key={index}>{token.text}</span>;
+        }
+        return (
+          <span key={index} className={TOKEN_STYLES[token.type] || ""}>
+            {token.text}
+          </span>
+        );
+      })}
+    </code>
+  );
+}
+
+function CodeBlock({ block, onUpdateBlock, onSelect }) {
+  const [copied, setCopied] = useState(false);
+  const underlayRef = useRef(null);
+
+  const activeLangId = normalizeLanguage(block.language || block.meta?.language);
+  const activeLangObj =
+    CORE_LANGUAGES.find((l) => l.id === activeLangId) || CORE_LANGUAGES[0];
+
+  const handleCopy = async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const textToCopy = block.content || "";
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    }
+  };
+
+  const handleSelectLang = (langId) => {
+    onUpdateBlock(
+      block.id,
+      {
+        language: langId,
+        meta: { ...(block.meta || {}), language: langId },
+      },
+      true
+    );
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const target = e.target;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const val = target.value;
+      const newVal = val.substring(0, start) + "  " + val.substring(end);
+      onUpdateBlock(block.id, { content: newVal }, true);
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + 2;
+      }, 0);
+    }
+  };
+
+  const handleScroll = (e) => {
+    if (underlayRef.current) {
+      underlayRef.current.scrollTop = e.target.scrollTop;
+      underlayRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
+
+  return (
+    <div
+      onClick={() => onSelect(block.id)}
+      className="group/codeblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-950 font-mono text-sm shadow-xl transition-all hover:border-ink-700"
+    >
+      {/* Top Header Bar with Language Dropdown & Copy Controls */}
+      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-900/90 px-3.5 py-2 select-none">
+        <div className="flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/20 text-[10px] font-extrabold text-emerald-400">
+            &lt;/&gt;
+          </span>
+          <span className="text-xs font-semibold text-ink-300">Code Snippet</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Copy Button */}
+          <button
+            type="button"
+            onClick={handleCopy}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Copy code snippet"
+            className="flex items-center gap-1 rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 pointer-events-auto relative z-20"
+          >
+            {copied ? (
+              <>
+                <span className="text-emerald-400">✓</span>
+                <span className="text-emerald-400">Copied!</span>
+              </>
+            ) : (
+              <>
+                <span>📋</span>
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+
+          {/* 10-Language Selector Dropdown */}
+          <div className="relative pointer-events-auto z-20">
+            <select
+              value={activeLangId}
+              onChange={(e) => handleSelectLang(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="cursor-pointer rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 transition-all hover:border-emerald-500/50 hover:bg-ink-750 focus:outline-none pointer-events-auto"
+            >
+              {CORE_LANGUAGES.map((lang) => (
+                <option key={lang.id} value={lang.id} className="bg-ink-900 text-ink-100">
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Code Editor Body */}
+      <div className="relative min-h-[4rem] bg-ink-950 font-mono text-sm leading-relaxed overflow-hidden rounded-b-xl">
+        {/* Syntax Highlighting Underlay */}
+        <div
+          ref={underlayRef}
+          className="absolute inset-0 pointer-events-none p-4 whitespace-pre-wrap break-words overflow-hidden text-ink-100"
+          style={{ tabSize: 2 }}
+        >
+          <HighlightCode code={block.content || ""} language={activeLangId} />
+        </div>
+        
+        {/* Interactive Textarea Overlay */}
+        <textarea
+          value={block.content || ""}
+          onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, true)}
+          onKeyDown={handleKeyDown}
+          onScroll={handleScroll}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          placeholder="Write code snippet here..."
+          rows={Math.max(3, (block.content || "").split("\n").length)}
+          style={{
+            tabSize: 2,
+            color: "transparent",
+            caretColor: "#34d399", // emerald-400
+          }}
+          className="relative z-10 block w-full resize-y bg-transparent font-mono text-sm leading-relaxed outline-none placeholder:text-ink-600 focus:outline-none p-4 whitespace-pre-wrap break-words border-0 outline-0 shadow-none ring-0 selection:bg-duck-500/30 selection:text-transparent pointer-events-auto"
+          spellCheck={false}
+        />
+      </div>
     </div>
   );
 }
@@ -843,13 +1063,16 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
       {/* ─── Render Specific Block Types ─────────────────── */}
 
       {/* 1. Divider */}
-      {block.type === "action" ? null : block.type === "divider" ? (
+      {block.type === "divider" ? (
         <div className="py-2">
           <hr className="border-t border-ink-800" />
         </div>
       ) : block.type === "math" ? (
         /* Math Equation Block */
         <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
+      ) : block.type === "code" ? (
+        /* Code Snippet Block */
+        <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
       ) : block.type === "bullet" ? (
         /* 3. Bullet List */
         <div className="flex items-start gap-2.5">
@@ -999,45 +1222,6 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
             className={`min-h-[1.5em] outline-none ${typeStyles.quote} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
           />
         </div>
-      ) : block.type === "notelink" ? (
-        /* 9. Note Link Embed */
-        <div className="relative inline-block">
-          <button
-            type="button"
-            onClick={() => setShowNotePicker(!showNotePicker)}
-            className="inline-flex items-center gap-2 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1.5 text-xs font-semibold text-duck-300 transition-colors hover:bg-duck-500/20"
-          >
-            <span>🔗</span>
-            <span>{block.targetNoteTitle ? `Link: ${block.targetNoteTitle}` : "Select Note to Link..."}</span>
-          </button>
-
-          {showNotePicker && (
-            <div className="absolute left-0 top-9 z-50 w-64 max-h-56 overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl space-y-1">
-              <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-                Link Workspace Note
-              </p>
-              {allNotes.length === 0 ? (
-                <p className="px-2 py-1 text-xs text-ink-500 italic">No notes found.</p>
-              ) : (
-                allNotes.map((n) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => {
-                      onUpdateBlock(block.id, { targetNoteId: n.id, targetNoteTitle: n.title });
-                      setShowNotePicker(false);
-                      onSelectNote?.(n);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800"
-                  >
-                    <span className="truncate font-medium">{n.title || "Untitled Note"}</span>
-                    <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-500">{n.space}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
       ) : block.type === "site" ? (
         /* 10. Site Bookmark Embed */
         <div className="rounded-xl border border-ink-700 bg-ink-850 p-4 shadow-lg space-y-3">
@@ -1169,32 +1353,33 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
                 className="w-full bg-transparent text-sm font-semibold text-ink-100 outline-none placeholder:text-ink-500"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCanvasModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/40 bg-duck-500/15 px-3 py-1.5 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/25 hover:scale-105"
-            >
-              <span>🔍</span>
-              <span>Open Drawing (85% Screen)</span>
-            </button>
+
           </div>
 
           <div
-            onClick={() => setShowCanvasModal(true)}
-            className={`relative min-h-[160px] w-full cursor-pointer rounded-xl border border-dashed border-ink-700 p-4 transition-all hover:border-duck-500/50 group flex flex-col items-center justify-center ${
-              (block.bgType || "dots") === "dots"
-                ? "bg-[radial-gradient(#38bdf8_1.5px,transparent_1.5px)] [background-size:18px_18px] bg-ink-950"
-                : "bg-ink-950"
-            }`}
+            className={`relative w-full rounded-xl border border-dashed border-ink-700 overflow-hidden transition-all hover:border-duck-500/50 group flex flex-col items-center justify-center bg-ink-950`}
+            style={{ height: block.previewHeight || 240 }}
           >
+            <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => setShowCanvasModal(true)} />
+            
             {block.drawingData ? (
-              <img
-                src={block.drawingData}
-                alt="Canvas drawing preview"
-                className="max-h-60 w-auto object-contain rounded-lg shadow-md"
-              />
+              <div
+                className="w-full h-full relative"
+                style={{ 
+                  transform: `scale(${block.canvasZoom || 1})`, 
+                  transformOrigin: "top left", 
+                  width: `${100 / (block.canvasZoom || 1)}%`, 
+                  height: `${100 / (block.canvasZoom || 1)}%` 
+                }}
+              >
+                <img
+                  src={block.drawingData}
+                  alt="Canvas drawing preview"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
             ) : (
-              <div className="text-center space-y-2 p-6">
+              <div className="text-center space-y-2 p-6 pointer-events-none">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-duck-500/10 text-duck-300 text-2xl group-hover:scale-110 transition-transform">
                   🎨
                 </div>
@@ -1202,19 +1387,20 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
                 <p className="text-[11px] text-ink-500">Click to expand to 85% screen drawing workspace</p>
               </div>
             )}
-
-            <div className="absolute bottom-2 right-2 rounded bg-ink-900/80 px-2 py-0.5 text-[10px] font-semibold text-ink-400 border border-ink-700">
-              {(block.bgType || "dots") === "dots" ? "••• Dotted Grid" : "Plain Canvas"}
-            </div>
           </div>
 
           {showCanvasModal && (
             <CanvasModal
               drawingData={block.drawingData}
-              bgType={block.bgType || "dots"}
               title={block.content || "Canvas Drawing"}
-              onSave={(newData, newBg) => {
-                onUpdateBlock(block.id, { drawingData: newData, bgType: newBg }, true);
+              initialCanvasHeight={block.canvasHeight}
+              initialCanvasZoom={block.canvasZoom}
+              onSave={(newData, newCanvasHeight, newCanvasZoom) => {
+                onUpdateBlock(block.id, { 
+                  drawingData: newData, 
+                  canvasHeight: newCanvasHeight,
+                  canvasZoom: newCanvasZoom 
+                }, true);
                 setShowCanvasModal(false);
               }}
               onClose={() => setShowCanvasModal(false)}
@@ -1251,11 +1437,10 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
 }
 
 // ─── Canvas Modal (85% Screen Drawing Workspace) ────────────────────
-function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClose }) {
+function CanvasModal({ drawingData, title, initialCanvasHeight, initialCanvasZoom, onSave, onClose }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
-  const [bgType, setBgType] = useState(initialBgType || "dots");
   const [color, setColor] = useState("#3B82F6");
   const [tool, setTool] = useState("pen");
   const [lastNonRulerTool, setLastNonRulerTool] = useState("pen");
@@ -1272,6 +1457,9 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
   const [penSize, setPenSize] = useState(4);
   const [measureInfo, setMeasureInfo] = useState(null);
 
+  const [canvasHeight, setCanvasHeight] = useState(initialCanvasHeight || 700);
+  const [canvasZoom, setCanvasZoom] = useState(initialCanvasZoom || 1);
+
   const COLORS = [
     "#FFFFFF",
     "#F59E0B",
@@ -1287,36 +1475,50 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
 
   const TOOLS = [
     { id: "pen", label: "Pen", icon: "🖊️", opacity: 1 },
-    { id: "pencil", label: "Pencil", icon: "✏️", opacity: 0.65 },
     { id: "marker", label: "Marker", icon: "🖌️", opacity: 0.9 },
     { id: "highlighter", label: "Highlighter", icon: "🖍️", opacity: 0.35 },
-    { id: "fountain", label: "Fountain", icon: "✒️", opacity: 0.9 },
     { id: "eraser", label: "Eraser", icon: "🧹", opacity: 1 },
     { id: "ruler", label: "Ruler Line", icon: "📐", opacity: 1 },
   ];
 
+  const isInitialized = useRef(false);
+
+  // Ensure canvas has the correct coordinate resolution for the zoom level
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
     const container = containerRef.current;
+    if (!canvas || !container) return;
+    
+    const desiredWidth = container.clientWidth / canvasZoom;
+    const desiredHeight = canvasHeight / canvasZoom;
 
-    if (container) {
-      canvas.width = container.clientWidth || 1000;
-      canvas.height = container.clientHeight || 700;
-    }
-
-    if (drawingData) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0);
+    if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
+      const ctx = canvas.getContext("2d");
+      
+      let currentData = null;
+      // Only capture currentData if we have already initialized the canvas with drawingData
+      if (isInitialized.current && canvas.width > 0 && canvas.height > 0) {
+        currentData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }
+      
+      canvas.width = desiredWidth;
+      canvas.height = desiredHeight;
+      
+      if (currentData) {
+        ctx.putImageData(currentData, 0, 0);
+      } else if (drawingData && !isInitialized.current) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          saveState();
+        };
+        img.src = drawingData;
+      } else {
         saveState();
-      };
-      img.src = drawingData;
-    } else {
-      saveState();
+      }
+      isInitialized.current = true;
     }
-  }, []);
+  }, [canvasHeight, canvasZoom, drawingData]);
 
   // Global Ctrl+Z (Undo) and Ctrl+Y / Ctrl+Shift+Z (Redo) inside Canvas Modal
   useEffect(() => {
@@ -1411,8 +1613,8 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+      x: (clientX - rect.left) / canvasZoom,
+      y: (clientY - rect.top) / canvasZoom,
     };
   }
 
@@ -1429,14 +1631,10 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
       ctx.strokeStyle = color;
       ctx.globalAlpha = tObj.opacity;
 
-      if (tool === "pencil") {
-        ctx.lineWidth = Math.max(1, penSize * 0.5);
-      } else if (tool === "marker") {
+      if (tool === "marker") {
         ctx.lineWidth = Math.max(4, penSize * 2.2);
       } else if (tool === "highlighter") {
         ctx.lineWidth = Math.max(12, penSize * 4.5);
-      } else if (tool === "fountain") {
-        ctx.lineWidth = penSize;
       } else {
         // Standard Pen
         ctx.lineWidth = penSize;
@@ -1447,6 +1645,8 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
   function startDrawing(e) {
     e.preventDefault();
     const coords = getCanvasCoords(e);
+    
+
     setIsDrawing(true);
     setDragStart(coords);
     setCurrentPos(coords);
@@ -1483,32 +1683,7 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
         const angle = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
         setMeasureInfo({ length, angle });
       }
-    } else if (tool === "pencil") {
-      // ✏️ Graphite Pencil: Textured, grainy sub-pixel stipple strokes
-      if (lastPoint) {
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.5;
-        ctx.lineCap = "round";
-        ctx.lineWidth = Math.max(1, penSize * 0.75);
 
-        // Core graphite line
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-
-        // Secondary grainy scatter stroke for authentic pencil texture
-        const jitterX = (Math.random() - 0.5) * 1.5;
-        const jitterY = (Math.random() - 0.5) * 1.5;
-        ctx.globalAlpha = 0.3;
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x + jitterX, lastPoint.y + jitterY);
-        ctx.lineTo(coords.x + jitterX, coords.y + jitterY);
-        ctx.stroke();
-
-        setLastPoint(coords);
-      }
     } else if (tool === "marker") {
       // 🖌️ Felt-Tip Marker: Saturated felt ink with soft edge bleed
       if (lastPoint) {
@@ -1552,34 +1727,7 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
 
         setLastPoint(coords);
       }
-    } else if (tool === "fountain") {
-      // ✒️ Calligraphic Fountain Pen: 45-degree angled nib thickness dynamics
-      if (lastPoint) {
-        const dx = coords.x - lastPoint.x;
-        const dy = coords.y - lastPoint.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist > 0.5) {
-          const moveAngle = Math.atan2(dy, dx);
-          const nibAngle = Math.PI / 4; // 45 degrees
-          const angleDiff = Math.abs(Math.sin(moveAngle - nibAngle));
-          const nibWidth = Math.max(1.5, penSize * (0.25 + 1.5 * angleDiff));
-
-          ctx.globalCompositeOperation = "source-over";
-          ctx.strokeStyle = color;
-          ctx.globalAlpha = 0.95;
-          ctx.lineCap = "butt";
-          ctx.lineJoin = "miter";
-          ctx.lineWidth = nibWidth;
-
-          ctx.beginPath();
-          ctx.moveTo(lastPoint.x, lastPoint.y);
-          ctx.lineTo(coords.x, coords.y);
-          ctx.stroke();
-
-          setLastPoint(coords);
-        }
-      }
     } else if (tool === "pen") {
       // 🖊️ Gel Ballpoint Pen: Smooth velocity-sensitive ink line
       if (lastPoint) {
@@ -1640,12 +1788,12 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
       return;
     }
     const dataUrl = canvas.toDataURL("image/png");
-    onSave(dataUrl, bgType);
+    onSave(dataUrl, canvasHeight, canvasZoom);
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 animate-fade-in">
-      <div className="flex w-[85vw] h-[85vh] flex-col rounded-2xl border border-ink-700 bg-ink-950 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 animate-fade-in">
+      <div className="flex w-[85vw] h-[85vh] relative flex-col rounded-2xl border border-ink-700 bg-ink-950 shadow-2xl overflow-hidden">
         {/* Header Bar */}
         <div className="flex items-center justify-between border-b border-ink-800 bg-ink-900 px-4 py-2.5">
           <div className="flex items-center gap-3">
@@ -1657,32 +1805,6 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Dots vs Clear Toggle */}
-            <div className="flex items-center rounded-lg border border-ink-700 bg-ink-850 p-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setBgType("dots")}
-                className={`rounded px-2.5 py-1 text-xs font-semibold transition-all ${
-                  bgType === "dots"
-                    ? "bg-duck-500/20 text-duck-300 border border-duck-500/40 shadow"
-                    : "text-ink-400 hover:text-ink-200"
-                }`}
-              >
-                ••• Dots
-              </button>
-              <button
-                type="button"
-                onClick={() => setBgType("clear")}
-                className={`rounded px-2.5 py-1 text-xs font-semibold transition-all ${
-                  bgType === "clear"
-                    ? "bg-duck-500/20 text-duck-300 border border-duck-500/40 shadow"
-                    : "text-ink-400 hover:text-ink-200"
-                }`}
-              >
-                Plain Canvas
-              </button>
-            </div>
-
             <button
               type="button"
               onClick={handleUndo}
@@ -1818,13 +1940,13 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
         {/* Canvas Body (85% viewport height container) */}
         <div
           ref={containerRef}
-          className={`relative flex-1 w-full h-full cursor-crosshair overflow-hidden ${
-            bgType === "dots"
-              ? "bg-[radial-gradient(#38bdf8_1.5px,transparent_1.5px)] [background-size:20px_20px] bg-ink-950"
-              : "bg-ink-950"
-          }`}
+          className="relative flex-1 w-full h-full overflow-auto group"
         >
-          <canvas
+          <div
+            style={{ width: `${100 / canvasZoom}%`, height: canvasHeight / canvasZoom, transform: `scale(${canvasZoom})` }}
+            className={`relative origin-top-left cursor-crosshair bg-ink-950`}
+          >
+            <canvas
             ref={canvasRef}
             onMouseDown={startDrawing}
             onMouseMove={draw}
@@ -1835,6 +1957,8 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
             onTouchEnd={stopDrawing}
             className="absolute inset-0 z-10 block"
           />
+
+
 
           {/* Floating Circular Eraser Preview Cursor */}
           {tool === "eraser" && mousePos && (
@@ -1889,6 +2013,7 @@ function CanvasModal({ drawingData, bgType: initialBgType, title, onSave, onClos
               </button>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
@@ -1908,6 +2033,7 @@ export default function BlockNoteEditor({
   initialEmoji = null,
   onBlocksChange,
   onSaveNote,
+  onExportImport,
   notesBySpace = {},
   onSelectNote,
 }) {
@@ -1930,9 +2056,9 @@ export default function BlockNoteEditor({
   const marqueeStart = useRef({ x: 0, y: 0 });
   const editorContainerRef = useRef(null);
 
-  // Marquee Drag Selection Handlers
+  // Marquee Drag Selection & Empty Canvas Click Handlers
   const handleEditorMouseDown = (e) => {
-    const isInput = e.target.closest('[contenteditable="true"], input, textarea, button, a');
+    const isInput = e.target.closest('[contenteditable="true"], input, textarea, button, a, select, [role="button"]');
     if (isInput) {
       if (!e.shiftKey) {
         setSelectedBlockIds(new Set());
@@ -1995,10 +2121,34 @@ export default function BlockNoteEditor({
     setSelectedBlockIds(newSelected);
   };
 
-  const handleEditorMouseUp = () => {
+  const handleEditorMouseUp = (e) => {
     if (isDraggingMarquee.current) {
+      const startX = marqueeStart.current.x;
+      const startY = marqueeStart.current.y;
+      const currentX = e?.clientX ?? startX;
+      const currentY = e?.clientY ?? startY;
+      const dist = Math.hypot(currentX - startX, currentY - startY);
+
       isDraggingMarquee.current = false;
       setMarqueeBox(null);
+
+      // Simple click on empty canvas area -> create or focus last block
+      if (dist < 6) {
+        const lastBlock = blocksRef.current[blocksRef.current.length - 1];
+        if (!lastBlock || (lastBlock.content !== "" && lastBlock.content !== undefined)) {
+          const newBlock = createBlock("text", "");
+          setBlocks((prev) => [...prev, newBlock]);
+          setSelectedId(newBlock.id);
+          setTimeout(() => {
+            blockRefs.current[newBlock.id]?.current?.focus();
+          }, 30);
+        } else if (lastBlock) {
+          setSelectedId(lastBlock.id);
+          setTimeout(() => {
+            blockRefs.current[lastBlock.id]?.current?.focus();
+          }, 30);
+        }
+      }
     }
   };
 
@@ -2192,18 +2342,20 @@ export default function BlockNoteEditor({
 
       // Ctrl+A / Cmd+A Select All Blocks
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
-        if (!isInput || (editorContainerRef.current && editorContainerRef.current.contains(activeEl))) {
+        if (!isInput) {
           e.preventDefault();
           setSelectedBlockIds(new Set(blocksRef.current.map((b) => b.id)));
         }
         return;
       }
 
-      if (selectedBlockIds.size > 0) {
+      const effectiveIds = selectedBlockIds.size > 0 ? selectedBlockIds : null;
+
+      if (effectiveIds && effectiveIds.size > 0) {
         // Ctrl+C / Cmd+C Copy Selected Blocks as Markdown
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
           e.preventDefault();
-          const selected = blocksRef.current.filter((b) => selectedBlockIds.has(b.id));
+          const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
           const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
           navigator.clipboard.writeText(md);
           return;
@@ -2212,16 +2364,48 @@ export default function BlockNoteEditor({
         // Ctrl+X / Cmd+X Cut Selected Blocks
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
           e.preventDefault();
-          const selected = blocksRef.current.filter((b) => selectedBlockIds.has(b.id));
+          const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
           const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
           navigator.clipboard.writeText(md);
           setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
           setFutureBlocks([]);
           setBlocks((prev) => {
-            const next = prev.filter((b) => !selectedBlockIds.has(b.id));
+            const next = prev.filter((b) => !effectiveIds.has(b.id));
             return next.length > 0 ? next : [createBlock("text", "")];
           });
           setSelectedBlockIds(new Set());
+          if (selectedId) setSelectedId(null);
+          return;
+        }
+
+        // Enter on Selected Blocks
+        if (e.key === "Enter" && !isInput) {
+          e.preventDefault();
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+          setBlocks((prev) => {
+            let lastSelectedIdx = -1;
+            prev.forEach((b, i) => {
+              if (effectiveIds.has(b.id)) lastSelectedIdx = i;
+            });
+            
+            let insertIdxInNext = 0;
+            for (let i = 0; i <= lastSelectedIdx; i++) {
+              if (!effectiveIds.has(prev[i].id)) insertIdxInNext++;
+            }
+
+            const next = prev.filter((b) => !effectiveIds.has(b.id));
+            const newBlock = createBlock("text", "");
+            next.splice(insertIdxInNext, 0, newBlock);
+
+            setTimeout(() => {
+              const el = blockRefs.current[newBlock.id]?.current;
+              el?.focus();
+            }, 50);
+            return next;
+          });
+          setSelectedBlockIds(new Set());
+          if (selectedId) setSelectedId(null);
           return;
         }
 
@@ -2231,10 +2415,11 @@ export default function BlockNoteEditor({
           setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
           setFutureBlocks([]);
           setBlocks((prev) => {
-            const next = prev.filter((b) => !selectedBlockIds.has(b.id));
+            const next = prev.filter((b) => !effectiveIds.has(b.id));
             return next.length > 0 ? next : [createBlock("text", "")];
           });
           setSelectedBlockIds(new Set());
+          if (selectedId) setSelectedId(null);
           return;
         }
       }
@@ -2242,20 +2427,53 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds]);
+  }, [selectedBlockIds, selectedId]);
 
   const handleChangeType = useCallback((id, type) => {
     setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
     setFutureBlocks([]);
     setBlocks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, type } : b))
+      prev.map((b) => {
+        if (b.id !== id) return b;
+        if (type === "code") {
+          const lang = b.language || b.meta?.language || "javascript";
+          return {
+            ...b,
+            type,
+            language: lang,
+            meta: { ...(b.meta || {}), language: lang },
+          };
+        }
+        return { ...b, type };
+      })
     );
+    setSelectedId(id);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = blockRefs.current[id]?.current;
+        if (el) {
+          el.focus();
+          const sel = window.getSelection();
+          if (sel) {
+            sel.selectAllChildren(el);
+            sel.collapseToStart();
+          }
+        }
+      }, 15);
+    });
   }, []);
 
   const handleUpdateBlock = useCallback(
     (id, patch, shouldSaveNote = false) => {
       setBlocks((prev) => {
-        const next = prev.map((b) => (b.id === id ? { ...b, ...patch } : b));
+        const next = prev.map((b) => {
+          if (b.id !== id) return b;
+          const updated = { ...b, ...patch };
+          if (patch.language) {
+            updated.meta = { ...(updated.meta || {}), language: patch.language };
+          }
+          return updated;
+        });
         if (shouldSaveNote) {
           queueMicrotask(() => {
             onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
@@ -2276,10 +2494,21 @@ export default function BlockNoteEditor({
     });
   }, []);
 
-  const handleAddAfter = useCallback((afterId) => {
+  const handleAddAfter = useCallback((afterId, content = "", typeToInherit = null) => {
     setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
     setFutureBlocks([]);
-    const newBlock = createBlock("text", "");
+    
+    let newType = "text";
+    if (typeToInherit && ["bullet", "number", "todo", "toggle"].includes(typeToInherit)) {
+      newType = typeToInherit;
+    } else {
+      const currentBlock = blocksRef.current.find((b) => b.id === afterId);
+      if (currentBlock && ["bullet", "number", "todo", "toggle"].includes(currentBlock.type)) {
+        newType = currentBlock.type;
+      }
+    }
+
+    const newBlock = createBlock(newType, content);
     setBlocks((prev) => {
       const idx = prev.findIndex((b) => b.id === afterId);
       const next = [...prev];
@@ -2298,48 +2527,159 @@ export default function BlockNoteEditor({
         const block = blocks.find((b) => b.id === blockId);
         if (!block) return;
 
-        if (block.type !== "text" && block.content === "") {
-          e.preventDefault();
-          handleChangeType(blockId, "text");
-          return;
-        }
-
+        // A. If block is empty and we have more than 1 block, delete THIS block and move focus to previous block
         if (block.content === "" && blocks.length > 1) {
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
           const prevBlock = idx > 0 ? blocks[idx - 1] : null;
+          
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
           setBlocks((prev) => prev.filter((b) => b.id !== blockId));
+
           if (prevBlock) {
             setSelectedId(prevBlock.id);
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                const el = blockRefs.current[prevBlock.id]?.current;
+                if (el) {
+                  el.focus();
+                  const sel = window.getSelection();
+                  if (sel) {
+                    sel.selectAllChildren(el);
+                    sel.collapseToEnd();
+                  }
+                }
+              }, 15);
+            });
+          }
+          return;
+        }
+
+        // B. If block is a single remaining empty list item, change it to text
+        if (block.type !== "text" && block.content === "" && blocks.length === 1) {
+          e.preventDefault();
+          handleChangeType(blockId, "text");
+          requestAnimationFrame(() => {
             setTimeout(() => {
-              const el = blockRefs.current[prevBlock.id]?.current;
+              const el = blockRefs.current[blockId]?.current;
               if (el) {
                 el.focus();
-                const range = document.createRange();
-                const sel = window.getSelection();
-                range.selectNodeContents(el);
-                range.collapse(false);
-                sel.removeAllRanges();
-                sel.addRange(range);
               }
-            }, 30);
+            }, 15);
+          });
+          return;
+        }
+
+        // C. If list block is non-empty, but caret is at offset 0, convert to text block (escape list style)
+        if (block.type !== "text" && block.content !== "") {
+          const sel = window.getSelection();
+          if (sel.rangeCount > 0 && sel.focusNode) {
+            const range = sel.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            const el = blockRefs.current[blockId]?.current;
+            if (el) {
+              preCaretRange.selectNodeContents(el);
+              preCaretRange.setEnd(range.startContainer, range.startOffset);
+              if (preCaretRange.toString().length === 0) {
+                e.preventDefault();
+                handleChangeType(blockId, "text");
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    const targetEl = blockRefs.current[blockId]?.current;
+                    if (targetEl) {
+                      targetEl.focus();
+                      const newSel = window.getSelection();
+                      if (newSel) {
+                        newSel.selectAllChildren(targetEl);
+                        newSel.collapseToStart();
+                      }
+                    }
+                  }, 15);
+                });
+                return;
+              }
+            }
           }
         }
-      } else if (e.key === "ArrowUp" && e.altKey) {
-        e.preventDefault();
-        const idx = blocks.findIndex((b) => b.id === blockId);
-        if (idx > 0) {
-          const prevId = blocks[idx - 1].id;
-          setSelectedId(prevId);
-          blockRefs.current[prevId]?.current?.focus();
+
+      } else if (e.key === "ArrowUp") {
+        if (e.altKey) {
+          e.preventDefault();
+          const idx = blocks.findIndex((b) => b.id === blockId);
+          if (idx > 0) {
+            const prevId = blocks[idx - 1].id;
+            setSelectedId(prevId);
+            blockRefs.current[prevId]?.current?.focus();
+          }
+          return;
         }
-      } else if (e.key === "ArrowDown" && e.altKey) {
-        e.preventDefault();
-        const idx = blocks.findIndex((b) => b.id === blockId);
-        if (idx < blocks.length - 1) {
-          const nextId = blocks[idx + 1].id;
-          setSelectedId(nextId);
-          blockRefs.current[nextId]?.current?.focus();
+
+        const el = blockRefs.current[blockId]?.current;
+        if (el) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(el);
+            preCaretRange.setEnd(range.startContainer, range.startOffset);
+            if (preCaretRange.toString().length === 0) {
+              const idx = blocks.findIndex((b) => b.id === blockId);
+              if (idx > 0) {
+                e.preventDefault();
+                const prevId = blocks[idx - 1].id;
+                setSelectedId(prevId);
+                const prevEl = blockRefs.current[prevId]?.current;
+                if (prevEl) {
+                  prevEl.focus();
+                  const newSel = window.getSelection();
+                  if (newSel) {
+                    newSel.selectAllChildren(prevEl);
+                    newSel.collapseToEnd();
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else if (e.key === "ArrowDown") {
+        if (e.altKey) {
+          e.preventDefault();
+          const idx = blocks.findIndex((b) => b.id === blockId);
+          if (idx < blocks.length - 1) {
+            const nextId = blocks[idx + 1].id;
+            setSelectedId(nextId);
+            blockRefs.current[nextId]?.current?.focus();
+          }
+          return;
+        }
+
+        const el = blockRefs.current[blockId]?.current;
+        if (el) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const postCaretRange = range.cloneRange();
+            postCaretRange.selectNodeContents(el);
+            postCaretRange.setStart(range.endContainer, range.endOffset);
+            if (postCaretRange.toString().length === 0) {
+              const idx = blocks.findIndex((b) => b.id === blockId);
+              if (idx < blocks.length - 1) {
+                e.preventDefault();
+                const nextId = blocks[idx + 1].id;
+                setSelectedId(nextId);
+                const nextEl = blockRefs.current[nextId]?.current;
+                if (nextEl) {
+                  nextEl.focus();
+                  const newSel = window.getSelection();
+                  if (newSel) {
+                    newSel.selectAllChildren(nextEl);
+                    newSel.collapseToStart();
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -2373,7 +2713,10 @@ export default function BlockNoteEditor({
         />
       )}
       {banner && (
-        <div className={`group relative h-44 md:h-52 w-full ${activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600"} border-b border-ink-800/40 shadow-lg transition-all`} />
+        <div
+          className={`group relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all ${banner.startsWith("data:image/") ? "" : (activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600")}`}
+          style={banner.startsWith("data:image/") ? { backgroundImage: `url(${banner})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
+        />
       )}
 
       <div className={`absolute right-6 ${banner ? "top-4" : "top-3"} z-30 flex items-center gap-2`}>
@@ -2412,6 +2755,27 @@ export default function BlockNoteEditor({
                     <span>{preset.label}</span>
                   </button>
                 ))}
+                <label className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800">
+                  <span className="h-4 w-8 rounded bg-ink-700 flex items-center justify-center text-[10px]">📁</span>
+                  <span>Upload Image...</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const dataUrl = ev.target.result;
+                        setBanner(dataUrl);
+                        setShowBannerPicker(false);
+                        onSaveNote?.({ title, blocks, banner: dataUrl, isFavorite, emoji });
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
                 {banner && (
                   <button
                     type="button"
@@ -2452,7 +2816,7 @@ export default function BlockNoteEditor({
           }
         }}
       >
-        {/* Controls Bar Below Banner: Add Icon, Favorite Star & Note Stats */}
+        {/* Controls Bar Below Banner: Add Icon, Note Menu & Quick Actions */}
         <div className="mb-4 pl-8 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="relative">
@@ -2503,65 +2867,6 @@ export default function BlockNoteEditor({
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const nextFav = !isFavorite;
-                setIsFavorite(nextFav);
-                onSaveNote?.({ title, blocks, banner, isFavorite: nextFav, emoji });
-              }}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur-md transition-all ${
-                isFavorite
-                  ? "border-amber-500/50 bg-amber-500/20 text-amber-300 shadow-amber-500/10"
-                  : "border-ink-700 bg-ink-900/90 text-ink-400 hover:border-ink-600 hover:text-ink-200"
-              }`}
-            >
-              <span>{isFavorite ? "⭐" : "☆"}</span>
-              <span>{isFavorite ? "Favorited" : "Favorite"}</span>
-            </button>
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowStats(!showStats)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-3 py-1.5 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/40 hover:text-duck-300"
-              >
-                <span>📊</span>
-                <span>Stats</span>
-              </button>
-
-              {showStats && (
-                <div className="absolute left-0 top-9 z-50 w-64 rounded-xl border border-ink-700 bg-ink-900 p-3.5 shadow-2xl space-y-2.5 text-xs animate-fade-in">
-                  <p className="border-b border-ink-800 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-                    Note Statistics
-                  </p>
-
-                  <div className="flex items-center justify-between text-ink-200">
-                    <span className="flex items-center gap-1.5 text-ink-400">
-                      <span>🔤</span>
-                      <span>Total Characters</span>
-                    </span>
-                    <span className="font-mono font-bold text-ink-100">{totalCharacters.toLocaleString()}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-ink-200">
-                    <span className="flex items-center gap-1.5 text-ink-400">
-                      <span>📝</span>
-                      <span>Total Words</span>
-                    </span>
-                    <span className="font-mono font-bold text-ink-100">{totalWords.toLocaleString()}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-ink-200">
-                    <span className="flex items-center gap-1.5 text-ink-400">
-                      <span>🧱</span>
-                      <span>Block Components</span>
-                    </span>
-                    <span className="font-mono font-bold text-ink-100">{totalBlocks.toLocaleString()}</span>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 

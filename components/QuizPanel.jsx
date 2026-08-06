@@ -6,6 +6,7 @@ import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import WidgetCanvas from "@/components/WidgetCanvas";
 import ScoreRing from "@/components/ScoreRing";
 import { quizGenerate, quizGrade, socraticChat, socraticWidget, shouldUseClientAI } from "@/lib/aiService";
+import { useVoice } from "@/hooks/useVoice";
 
 /**
  * Both ways of being quizzed, in one drawer.
@@ -454,6 +455,17 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
   const [error, setError] = useState(null);
   const [widgetError, setWidgetError] = useState(null);
 
+  const {
+    ttsSupported,
+    isSpeaking,
+    speakingId,
+    autoSpeak,
+    toggleAutoSpeak,
+    speak,
+    stopSpeaking,
+    toggleSpeak,
+  } = useVoice();
+
   const visible = messages.filter((m) => !m.hidden);
   const answerCount = visible.filter((m) => m.role === "user").length;
   const scored = Boolean(diagnostic);
@@ -495,14 +507,20 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
           ? await socraticChat(payload)
           : await postJson("/api/socratic/chat", payload);
 
-        setMessages([...history, { role: "assistant", content: data.reply }]);
+        const newMsgIndex = history.length;
+        const assistantMsg = { role: "assistant", content: data.reply };
+        setMessages([...history, assistantMsg]);
+
+        if (autoSpeak && data.reply && ttsSupported) {
+          speak(data.reply, `msg-${newMsgIndex}`);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
         setThinking(false);
       }
     },
-    [concept, noteContent],
+    [concept, noteContent, autoSpeak, ttsSupported, speak],
   );
 
   const buildWidget = useCallback(
@@ -543,6 +561,7 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
   async function endSession() {
     setScoring(true);
     setError(null);
+    stopSpeaking();
     try {
       const payload = {
         noteContent,
@@ -577,9 +596,6 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
     const opening = seed();
     setMessages(opening);
     askDuck(opening);
-    // askDuck changes identity with noteContent, which changes on every
-    // keystroke behind the drawer. Depending on it here would restart the
-    // interrogation mid-sentence.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, concept]);
 
@@ -590,38 +606,88 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
     });
   }, [messages, thinking, diagnostic, widget, scrollRef]);
 
-  function handleSubmit(event) {
-    event.preventDefault();
-    const answer = input.trim();
-    if (!answer || thinking || scoring || scored) return;
+  const submitAnswer = useCallback(
+    (textToSubmit) => {
+      const answer = (textToSubmit !== undefined ? textToSubmit : input).trim();
+      if (!answer || thinking || scoring || scored) return;
 
-    const next = [...messages, { role: "user", content: answer }];
-    setMessages(next);
-    setInput("");
-    askDuck(next);
+      const next = [...messages, { role: "user", content: answer }];
+      setMessages(next);
+      setInput("");
+      askDuck(next);
+    },
+    [input, thinking, scoring, scored, messages, askDuck],
+  );
+
+  function handleSubmit(event) {
+    if (event) event.preventDefault();
+    submitAnswer();
   }
+
 
   const busy = thinking || scoring;
 
   return (
     <>
       <div className="space-y-4 px-5 py-5">
-        {visible.map((message, i) => (
-          <div
-            key={i}
-            className={message.role === "user" ? "flex justify-end" : "flex"}
-          >
-            <p
-              className={`max-w-[85%] animate-fade-up whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                message.role === "user"
-                  ? "rounded-br-md bg-ink-800 text-ink-100"
-                  : "rounded-bl-md border border-duck-500/25 bg-duck-500/5 text-ink-200"
+        {/* Voice control bar */}
+        <div className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850/60 px-3.5 py-2 text-xs">
+          <div className="flex items-center gap-2 text-ink-300">
+            <span>🔊 Text-to-Speech Mode</span>
+          </div>
+          {ttsSupported && (
+            <button
+              type="button"
+              onClick={toggleAutoSpeak}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                autoSpeak
+                  ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                  : "border border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200"
               }`}
             >
-              {message.content}
-            </p>
-          </div>
-        ))}
+              <span>{autoSpeak ? "🔊 Auto-Read Replies ON" : "🔇 Auto-Read Replies OFF"}</span>
+            </button>
+          )}
+        </div>
+
+        {visible.map((message, i) => {
+          const isAssistant = message.role === "assistant";
+          const msgId = `msg-${i}`;
+          const isThisSpeaking = isSpeaking && speakingId === msgId;
+
+          return (
+            <div
+              key={i}
+              className={message.role === "user" ? "flex justify-end" : "flex items-start gap-2"}
+            >
+              <p
+                className={`max-w-[85%] animate-fade-up whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
+                  message.role === "user"
+                    ? "rounded-br-md bg-ink-800 text-ink-100"
+                    : "rounded-bl-md border border-duck-500/25 bg-duck-500/5 text-ink-200"
+                }`}
+              >
+                {message.content}
+              </p>
+
+              {isAssistant && ttsSupported && (
+                <button
+                  type="button"
+                  onClick={() => toggleSpeak(message.content, msgId)}
+                  title={isThisSpeaking ? "Stop reading out loud" : "Read response out loud"}
+                  aria-label={isThisSpeaking ? "Stop reading out loud" : "Read response out loud"}
+                  className={`mt-1 shrink-0 rounded-full p-1.5 text-xs transition-colors ${
+                    isThisSpeaking
+                      ? "animate-pulse bg-duck-400 text-ink-950"
+                      : "text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+                  }`}
+                >
+                  {isThisSpeaking ? "🔊" : "🔈"}
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         {busy && (
           <p className="flex items-center gap-2 text-xs text-ink-500">
@@ -663,6 +729,8 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
           onSubmit={handleSubmit}
           className="sticky bottom-0 border-t border-ink-800 bg-ink-900/95 px-5 py-4 backdrop-blur"
         >
+
+
           <div className="flex items-end gap-2">
             <textarea
               rows={2}
@@ -672,9 +740,11 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
                 if (e.key === "Enter" && !e.shiftKey) handleSubmit(e);
               }}
               disabled={busy}
-              placeholder="Explain it in your own words…"
+              placeholder="Explain it in your own words..."
               className="flex-1 resize-none rounded-xl border border-ink-800 bg-ink-850 px-3.5 py-2.5 text-[13px] text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none disabled:opacity-50"
             />
+
+
             <button
               type="submit"
               disabled={busy || !input.trim()}

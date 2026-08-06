@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 // Saves directly into the "Misc" space in Supabase & LocalStorage.
 // ─────────────────────────────────────────────────────────────────────
 
-export default function InstantNoteModal({ open, onClose, onSaveInstantNote }) {
+export default function InstantNoteModal({ open, onClose, onSaveInstantNote, spaces = [] }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [space, setSpace] = useState("Misc");
@@ -67,7 +67,7 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md transition-all animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md transition-all animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -133,9 +133,9 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote }) {
               onChange={(e) => setSpace(e.target.value)}
               className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs text-ink-200 focus:border-duck-500 focus:outline-none"
             >
-              <option value="Misc">Misc (Instant Notes)</option>
-              <option value="School">School</option>
-              <option value="Personal">Personal</option>
+              {spaces.map(sp => (
+                <option key={sp.name} value={sp.name}>{sp.name} {sp.name === 'Misc' ? '(Instant Notes)' : ''}</option>
+              ))}
             </select>
           </div>
 

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html, Line, OrbitControls } from "@react-three/drei";
-import { GitBranch, ListTree, Plus, RotateCcw, Search, Shuffle } from "lucide-react";
-import { CANVAS_BG } from "@/components/visualizations/scene-kit";
+import { GitBranch, ListTree, Plus, RotateCcw, Search, Shuffle, Target, ChevronRight } from "lucide-react";
+import { CANVAS_BG, WebGLCleanup } from "@/components/visualizations/scene-kit";
 import {
   HudButton,
   HudPanel,
@@ -14,13 +14,8 @@ import {
 } from "@/components/visualizations/VisualizationHUD";
 
 // ─── IGCSE Computer Science · Binary search tree ────────────────────
-// The tree is derived from an ordered list of inserted values, so every
-// operation is a pure rebuild — no mutation, no stale node references.
-//
-// NOTE: parked, not wired into the hub. The visualization hub's three
-// categories are Physics / Chemistry / Biology, so there is no Computer
-// Science tab for this to sit under. Kept so the work is not lost — add a
-// fourth category in app/visualizations/page.jsx to bring it back.
+// Interactive 3D Binary Search Tree (BST) visualizer for node insertion,
+// searching, traversals, and tree metrics.
 // ─────────────────────────────────────────────────────────────────────
 
 const INITIAL_VALUES = [50, 30, 70, 20, 40, 60, 80];
@@ -120,36 +115,36 @@ function layoutTree(root) {
 // ─── Scene pieces ───────────────────────────────────────────────────
 
 const NODE_STYLES = {
-  idle: { color: "#242931", emissive: "#101216", intensity: 0.4, ring: "#333a45" },
+  idle: { color: "#2a3447", emissive: "#3b4963", intensity: 0.6, ring: "#475569" },
   visited: {
-    color: "#065f46",
+    color: "#059669",
     emissive: "#10b981",
-    intensity: 0.7,
-    ring: "#10b981",
-  },
-  current: {
-    color: "#d9a227",
-    emissive: "#f0c04a",
-    intensity: 2.2,
-    ring: "#f0c04a",
-  },
-  found: {
-    color: "#047857",
-    emissive: "#34d399",
-    intensity: 2.4,
+    intensity: 1.0,
     ring: "#34d399",
   },
+  current: {
+    color: "#d97706",
+    emissive: "#f59e0b",
+    intensity: 2.2,
+    ring: "#fbbf24",
+  },
+  found: {
+    color: "#059669",
+    emissive: "#34d399",
+    intensity: 2.5,
+    ring: "#6ee7b7",
+  },
   missing: {
-    color: "#9f1239",
+    color: "#e11d48",
     emissive: "#fb7185",
     intensity: 2.2,
-    ring: "#fb7185",
+    ring: "#fca5a5",
   },
   selected: {
-    color: "#1e293b",
+    color: "#0284c7",
     emissive: "#38bdf8",
-    intensity: 1.1,
-    ring: "#38bdf8",
+    intensity: 1.8,
+    ring: "#7dd3fc",
   },
 };
 
@@ -189,15 +184,18 @@ function TreeNode({ node, state, labelFactor, onSelect }) {
           color={style.color}
           emissive={style.emissive}
           emissiveIntensity={style.intensity}
-          roughness={0.3}
-          metalness={0.25}
+          roughness={0.25}
+          metalness={0.3}
         />
       </mesh>
 
-      <Html center distanceFactor={labelFactor} style={{ pointerEvents: "none" }}>
+      <Html center distanceFactor={labelFactor} style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
         <span
-          className="select-none text-[13px] font-semibold tabular-nums"
-          style={{ color: state === "idle" ? "#c9cfd8" : "#0a0b0d" }}
+          className="select-none text-[14px] font-extrabold tabular-nums text-white tracking-tight"
+          style={{
+            textShadow: "0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.9)",
+            color: "#ffffff",
+          }}
         >
           {node.value}
         </span>
@@ -253,7 +251,7 @@ function TreeScene({ layout, nodeStates, visited, onSelect }) {
 
 // ─── Viewport + HUD ─────────────────────────────────────────────────
 
-export default function BinaryTree3D() {
+export default function BinaryTree3D({ onOpenQuiz }) {
   const [values, setValues] = useState(INITIAL_VALUES);
   const [insertValue, setInsertValue] = useState("45");
   const [searchValue, setSearchValue] = useState("40");
@@ -374,7 +372,9 @@ export default function BinaryTree3D() {
         dpr={[1, 2]}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onPointerMissed={() => setSelected(null)}
+        frameloop="demand"
       >
+        <WebGLCleanup />
         <color attach="background" args={[CANVAS_BG]} />
         <TreeScene
           layout={layout}
@@ -528,6 +528,18 @@ export default function BinaryTree3D() {
             Every comparison drops one level, so a balanced tree of {layout.count}{" "}
             nodes needs about {optimalHeight} of them.
           </p>
+
+          {onOpenQuiz && (
+            <button
+              type="button"
+              onClick={onOpenQuiz}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-duck-400 px-3 py-2 text-[11px] font-medium text-ink-950 transition-colors hover:bg-duck-300"
+            >
+              <Target className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Test understanding
+              <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.25} />
+            </button>
+          )}
         </HudPanel>
       </div>
 

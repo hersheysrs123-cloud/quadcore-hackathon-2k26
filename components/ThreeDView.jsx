@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Dna,
   FlaskConical,
+  GitBranch,
   Hexagon,
   Magnet,
   Microscope,
@@ -32,7 +33,7 @@ import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/med
 
 // ─── 3D Visualizations Studio ─────────────────────────────────────────
 // Studio for rendering interactive 3D visualizations across Physics,
-// Chemistry, Biology, and custom Socratic Duck models saved to Supabase.
+// Chemistry, Biology, Computer Science, and custom Socratic Duck models.
 // ─────────────────────────────────────────────────────────────────────
 
 const viewportLoader = () => (
@@ -57,6 +58,10 @@ const CANVASES = {
     ssr: false,
     loading: viewportLoader,
   }),
+  cs: dynamic(() => import("@/components/visualizations/BinaryTree3D"), {
+    ssr: false,
+    loading: viewportLoader,
+  }),
 };
 
 const CATEGORIES = [
@@ -64,9 +69,10 @@ const CATEGORIES = [
   { id: "physics", label: "Physics", emoji: "⚛️" },
   { id: "chemistry", label: "Chemistry", emoji: "🧪" },
   { id: "biology", label: "Biology", emoji: "🧬" },
+  { id: "cs", label: "Computer Science", emoji: "💻" },
 ];
 
-const CATEGORY_EMOJI = { physics: "⚛️", chemistry: "🧪", biology: "🧬" };
+const CATEGORY_EMOJI = { physics: "⚛️", chemistry: "🧪", biology: "🧬", cs: "💻" };
 
 // ─── Topic registry ─────────────────────────────────────────────────
 
@@ -782,6 +788,41 @@ const TOPICS = [
       },
     ],
   },
+
+  // ═══ Computer Science ══════════════════════════════════════════════
+  {
+    id: "binary_tree",
+    category: "cs",
+    icon: GitBranch,
+    title: "3D Binary Search Tree & AVL Operations",
+    blurb: "Node insertion, deletion, searching & tree traversals",
+    syllabus: "Computer Science 4.1 · Data Structures",
+    keywords:
+      "binary search tree bst avl tree data structure node traversal in-order pre-order post-order balance height algorithm graph computer science",
+    defaults: {},
+    controls: [],
+    concepts: [
+      "A Binary Search Tree (BST) maintains nodes such that every left descendant is smaller and right descendant is larger.",
+      "Tree traversals visit nodes systematically: In-order (left, root, right) yields sorted order; Pre-order is used for cloning; Post-order is used for deletion.",
+      "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced.",
+    ],
+    quiz: [
+      {
+        question: "Which traversal of a Binary Search Tree produces values in sorted ascending order?",
+        options: ["In-order traversal", "Pre-order traversal", "Post-order traversal", "Level-order traversal"],
+        answer: 0,
+        explanation:
+          "In-order traversal visits left subtree, root, then right subtree. Since all left values are smaller and right values are larger, this yields sorted ascending order.",
+      },
+      {
+        question: "What is the worst-case time complexity of searching a value in an unbalanced Binary Search Tree with N nodes?",
+        options: ["O(N)", "O(log N)", "O(1)", "O(N log N)"],
+        answer: 0,
+        explanation:
+          "In a degenerate (unbalanced) BST where nodes form a single linear chain, finding a value requires visiting all N nodes, giving O(N) worst-case time.",
+      },
+    ],
+  },
 ];
 
 const TOPICS_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
@@ -794,6 +835,32 @@ export default function ThreeDView() {
   const [query, setQuery] = useState("");
   const [topicId, setTopicId] = useState(TOPICS[0].id);
   const [quizOpen, setQuizOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Hydrate from URL / LocalStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const urlVis = params.get("vis");
+    let fallback = null;
+    try { fallback = JSON.parse(localStorage.getItem("socratic_last_vis_state")); } catch(e){}
+
+    const targetVis = urlVis || fallback?.topicId || TOPICS[0].id;
+    if (TOPICS_BY_ID[targetVis]) {
+       setTopicId(targetVis);
+       setCategory(TOPICS_BY_ID[targetVis].category);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Sync state to URL and localStorage
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("vis", topicId);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+    localStorage.setItem("socratic_last_vis_state", JSON.stringify({ topicId }));
+  }, [topicId, isHydrated]);
 
   // Params live per topic, so switching away and back keeps your settings.
   const [paramsByTopic, setParamsByTopic] = useState(() =>
@@ -947,6 +1014,25 @@ export default function ThreeDView() {
         </div>
       </header>
 
+      {/* ─── Category Quick Switch Strip ─────────────────── */}
+      <div className="shrink-0 border-b border-ink-800/70 bg-ink-900/40 px-3 py-1.5 overflow-x-auto flex items-center gap-1.5 no-scrollbar">
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => setCategory(cat.id)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
+              category === cat.id
+                ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
+                : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
+            }`}
+          >
+            <span>{cat.emoji || "🌐"}</span>
+            <span>{cat.label}</span>
+          </button>
+        ))}
+      </div>
+
       {/* ─── Body ────────────────────────────────────────── */}
       <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Viewport + overlaid HUD */}
@@ -966,17 +1052,19 @@ export default function ThreeDView() {
           ) : (
             <>
               {CanvasComponent && (
-                <CanvasComponent key={topic.id} topicId={topic.id} params={params} setParam={setParam} />
+                <CanvasComponent key={topic.id} topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={() => setQuizOpen(true)} />
               )}
 
-              <VisualizationHUD
-                topic={topic}
-                params={params}
-                setParam={setParam}
-                setParams={setParams}
-                onReset={resetParams}
-                onOpenQuiz={() => setQuizOpen(true)}
-              />
+              {topic.category !== "cs" && (
+                <VisualizationHUD
+                  topic={topic}
+                  params={params}
+                  setParam={setParam}
+                  setParams={setParams}
+                  onReset={resetParams}
+                  onOpenQuiz={() => setQuizOpen(true)}
+                />
+              )}
 
               <ViewportHint>drag to orbit · scroll to zoom · right-drag to pan</ViewportHint>
             </>

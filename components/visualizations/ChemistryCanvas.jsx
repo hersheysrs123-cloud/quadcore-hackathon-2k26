@@ -877,7 +877,7 @@ export function DistillationScene({ params }) {
           args={[1.75, 1.75, COLUMN_HEIGHT, 48, 1, true, Math.PI * 0.22, Math.PI * 1.56]}
         />
         <meshStandardMaterial
-          color="#334155"
+          color="#64748b"
           roughness={0.3}
           metalness={0.7}
           side={THREE.DoubleSide}
@@ -943,7 +943,7 @@ export function DistillationScene({ params }) {
 
       {/* The temperature gradient is the mechanism, so it gets drawn rather
           than merely implied by which tray happens to be glowing. */}
-      <group position={[-2.9, 0, 0]}>
+      <group position={[-5.0, 0, 0]}>
         <Line
           points={[
             [0, COLUMN_HEIGHT / 2, 0],
@@ -964,18 +964,66 @@ export function DistillationScene({ params }) {
 
       <Vapours heat={heat} flowing={flow} />
 
-      {/* Furnace at the base. */}
-      <group position={[0, -COLUMN_HEIGHT / 2 - 0.55, 0]}>
+      {/* Base of the column */}
+      <group position={[0, -COLUMN_HEIGHT / 2 - 0.425, 0]}>
         <mesh>
-          <boxGeometry args={[3.4, 0.85, 2.4]} />
+          <boxGeometry args={[3.8, 0.85, 3.8]} />
           <meshStandardMaterial
-            color="#7c2d12"
-            emissive={PALETTE.rose}
-            emissiveIntensity={0.35 + heat * 1.5}
-            roughness={0.6}
+            color="#2563eb"
+            roughness={0.7}
+            metalness={0.2}
           />
         </mesh>
-        <SceneLabel position={[0, -0.85, 0]} tone="text-rose-300">
+      </group>
+
+      {/* External Furnace to the left */}
+      <group position={[-3.2, -COLUMN_HEIGHT / 2 + 0.25, 0]}>
+        {/* Main Furnace Body */}
+        <mesh>
+          <boxGeometry args={[1.8, 2.2, 1.8]} />
+          <meshStandardMaterial
+            color="#334155"
+            emissive={PALETTE.rose}
+            emissiveIntensity={0.1 + heat * 0.4}
+            roughness={0.6}
+            metalness={0.6}
+          />
+        </mesh>
+        {/* Glowing Fire Grate on front face */}
+        <group position={[0, -0.3, 0.91]}>
+          <mesh>
+            <planeGeometry args={[1.0, 1.0]} />
+            <meshStandardMaterial
+              color="#000000"
+              emissive="#f97316"
+              emissiveIntensity={1.0 + heat * 3.0}
+            />
+          </mesh>
+          {/* Iron Grate Bars */}
+          {[-0.3, -0.1, 0.1, 0.3].map((xOffset) => (
+            <mesh key={xOffset} position={[xOffset, 0, 0.02]}>
+              <boxGeometry args={[0.08, 1.05, 0.05]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.9} metalness={0.1} />
+            </mesh>
+          ))}
+        </group>
+        {/* Exhaust Chimney Stack */}
+        <group position={[0, 1.5, 0]}>
+          <mesh>
+            <cylinderGeometry args={[0.25, 0.35, 1.0, 16]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.28, 0.06, 8, 16]} />
+            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+          </mesh>
+        </group>
+        {/* Pipe connecting furnace to column */}
+        <mesh position={[1.175, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.25, 0.25, 0.55, 16]} />
+          <meshStandardMaterial color="#475569" roughness={0.6} metalness={0.5} />
+        </mesh>
+        <SceneLabel position={[0, -1.6, 0]} tone="text-rose-300">
           furnace · {furnace}°C · crude oil in
         </SceneLabel>
       </group>
@@ -1358,16 +1406,73 @@ export function CrystalLatticeScene({ params }) {
 
 const TANK = { w: 6, h: 3.4, d: 3 };
 
+/**
+ * 3D Tetrahedral Sulfate Anion (SO₄²⁻) — Central S (yellow) + 4 O (red) atoms
+ */
+function SulfateIon({ position, scale = 0.28 }) {
+  return (
+    <group position={position} scale={scale}>
+      {/* Central Sulfur Atom */}
+      <mesh>
+        <sphereGeometry args={[0.35, 16, 16]} />
+        <meshStandardMaterial color="#eab308" emissive="#ca8a04" emissiveIntensity={0.8} />
+      </mesh>
+      {/* 4 Oxygen Atoms in Tetrahedral geometry */}
+      {[
+        [0.35, 0.35, 0.35],
+        [-0.35, -0.35, 0.35],
+        [-0.35, 0.35, -0.35],
+        [0.35, -0.35, -0.35],
+      ].map((pos, idx) => (
+        <group key={idx}>
+          <mesh position={pos}>
+            <sphereGeometry args={[0.22, 12, 12]} />
+            <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={0.6} />
+          </mesh>
+          <lineSegments>
+            <bufferGeometry
+              attach="geometry"
+              onUpdate={(geo) =>
+                geo.setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(...pos)])
+              }
+            />
+            <lineBasicMaterial color="#fef08a" lineWidth={2} />
+          </lineSegments>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/**
+ * 3D Copper Cation (Cu²⁺) — Central Cu (cyan) + Hydration shell ring
+ */
+function CopperIon({ position, scale = 0.26 }) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh>
+        <sphereGeometry args={[0.38, 16, 16]} />
+        <meshStandardMaterial color="#0284c7" emissive="#38bdf8" emissiveIntensity={1.8} toneMapped={false} />
+      </mesh>
+      {/* Hydration halo ring */}
+      <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
+        <torusGeometry args={[0.55, 0.04, 12, 24]} />
+        <meshStandardMaterial color="#7dd3fc" emissive="#38bdf8" emissiveIntensity={1.2} transparent opacity={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
 function Ions({ current, running, resetToken, onDeposit }) {
   const ions = useMemo(
     () =>
       Array.from({ length: 26 }, (_, i) => ({
-        cation: i % 2 === 0, // Cu²⁺ heads for the cathode, SO₄²⁻ for the anode
+        cation: i % 2 === 0, // Cu²⁺ heads for cathode, SO₄²⁻ for anode
         seed: i,
       })),
     [],
   );
-  const meshes = useRef([]);
+  const refs = useRef([]);
   const state = useRef(null);
   const arrivals = useRef(0);
   const clock = useRef(0);
@@ -1393,11 +1498,10 @@ function Ions({ current, running, resetToken, onDeposit }) {
     const edge = TANK.w / 2 - 1.15;
 
     ions.forEach((ion, i) => {
-      const mesh = meshes.current[i];
+      const el = refs.current[i];
       const s = state.current[i];
-      if (!mesh || !s) return;
+      if (!el || !s) return;
 
-      // Cations migrate to the negative cathode, anions to the positive anode.
       s.x += (ion.cation ? -1 : 1) * speed * step;
       s.y += Math.sin((s.x + ion.seed) * 2) * step * 0.24;
 
@@ -1409,11 +1513,9 @@ function Ions({ current, running, resetToken, onDeposit }) {
         s.x = (hashRandom(i + 7 + Math.floor(performance.now() / 89)) - 0.5) * TANK.w * 0.55;
       }
       s.y = clamp(s.y, -TANK.h / 2 + 0.4, TANK.h / 2 - 0.5);
-      mesh.position.set(s.x, s.y, s.z);
+      el.position.set(s.x, s.y, s.z);
     });
 
-    // Batched: reporting each arrival individually would re-render the scene
-    // several times per frame.
     clock.current += step;
     if (clock.current >= 0.25) {
       if (arrivals.current > 0) onDeposit(arrivals.current);
@@ -1425,31 +1527,20 @@ function Ions({ current, running, resetToken, onDeposit }) {
   return (
     <>
       {ions.map((ion, i) => (
-        <mesh
+        <group
           key={i}
           ref={(el) => {
-            meshes.current[i] = el;
+            refs.current[i] = el;
           }}
         >
-          <sphereGeometry args={[ion.cation ? 0.2 : 0.26, 16, 16]} />
-          <meshStandardMaterial
-            color={ion.cation ? "#38bdf8" : PALETTE.gold}
-            emissive={ion.cation ? "#38bdf8" : PALETTE.gold}
-            emissiveIntensity={1.5}
-            toneMapped={false}
-          />
-        </mesh>
+          {ion.cation ? <CopperIon position={[0, 0, 0]} /> : <SulfateIon position={[0, 0, 0]} />}
+        </group>
       ))}
     </>
   );
 }
 
-/**
- * Electrons in the external circuit. They never travel through the solution —
- * ions carry the charge there — so showing the two halves of the circuit
- * moving different things is the point, not decoration.
- */
-function ElectronFlow({ path, speed, running, count = 6 }) {
+function ElectronFlow({ path, speed, running, count = 8 }) {
   const meshes = useRef([]);
   const phase = useRef(0);
 
@@ -1462,8 +1553,6 @@ function ElectronFlow({ path, speed, running, count = 6 }) {
     for (let i = 0; i < count; i += 1) {
       const mesh = meshes.current[i];
       if (!mesh) continue;
-      // Electrons leave the anode and arrive at the cathode, so they run
-      // backwards along the polyline, which is drawn cathode-first.
       const t = (1 - ((phase.current + i / count) % 1)) * legs;
       const leg = Math.min(legs - 1, Math.floor(t));
       scratch.lerpVectors(points[leg], points[leg + 1], t - leg);
@@ -1484,7 +1573,7 @@ function ElectronFlow({ path, speed, running, count = 6 }) {
           <meshStandardMaterial
             color={PALETTE.bone}
             emissive={PALETTE.bone}
-            emissiveIntensity={2.2}
+            emissiveIntensity={2.5}
             toneMapped={false}
           />
         </mesh>
@@ -1496,13 +1585,13 @@ function ElectronFlow({ path, speed, running, count = 6 }) {
 function ElectrodeBubbles({ x, running, speed, color }) {
   const meshes = useRef([]);
   const state = useRef(null);
-  const COUNT = 10;
+  const COUNT = 14;
 
   if (!state.current) {
     state.current = Array.from({ length: COUNT }, (_, i) => ({
       phase: i / COUNT,
-      rx: (hashRandom(i + 11) - 0.5) * 0.35,
-      rz: (hashRandom(i + 22) - 0.5) * 0.35,
+      rx: (hashRandom(i + 11) - 0.5) * 0.4,
+      rz: (hashRandom(i + 22) - 0.5) * 0.4,
     }));
   }
 
@@ -1513,10 +1602,10 @@ function ElectrodeBubbles({ x, running, speed, color }) {
       if (!mesh) return;
       if (running) s.phase = (s.phase + step * speed) % 1;
       const p = s.phase;
-      const y = lerp(-TANK.h / 2, TANK.h / 2 + 0.2, p);
-      const fade = Math.sin(p * Math.PI);
+      const y = lerp(-TANK.h / 2 + 0.2, TANK.h / 2 + 0.1, p);
+      const scale = 0.04 + Math.sin(p * Math.PI) * 0.14;
       mesh.position.set(x + s.rx, y, s.rz);
-      mesh.scale.setScalar(0.001 + fade * 0.12);
+      mesh.scale.setScalar(scale);
     });
   });
 
@@ -1529,13 +1618,13 @@ function ElectrodeBubbles({ x, running, speed, color }) {
             meshes.current[i] = el;
           }}
         >
-          <sphereGeometry args={[1, 8, 8]} />
+          <sphereGeometry args={[1, 12, 12]} />
           <meshStandardMaterial
             color={color}
             emissive={color}
-            emissiveIntensity={2.0}
+            emissiveIntensity={2.2}
             transparent
-            opacity={0.7}
+            opacity={0.75}
             toneMapped={false}
           />
         </mesh>
@@ -1553,8 +1642,6 @@ export function ElectrolysisScene({ params }) {
   }, [reset]);
 
   const plating = clamp(0.18 + deposit * 0.0016, 0.18, 0.52);
-  // Copper is conserved: every atom plated onto the cathode came off the
-  // anode, so the anode has to visibly waste away as the cathode thickens.
   const anodeRadius = clamp(0.44 - (plating - 0.18), 0.14, 0.44);
   const tank = useMemo(() => new THREE.BoxGeometry(TANK.w, TANK.h, TANK.d), []);
   useEffect(() => () => tank.dispose(), [tank]);
@@ -1571,7 +1658,13 @@ export function ElectrolysisScene({ params }) {
 
   return (
     <SceneCanvas camera={{ position: [0, 3, 10], fov: 45 }}>
-      {/* Glass beaker outer walls (4 sides, no top/bottom) */}
+      {/* Wooden Lab Bench Surface Base */}
+      <mesh position={[0, -TANK.h / 2 - 0.205, 0]}>
+        <boxGeometry args={[TANK.w + 4, 0.4, TANK.d + 3]} />
+        <meshStandardMaterial color="#64748b" roughness={0.8} metalness={0.1} />
+      </mesh>
+
+      {/* Glass Beaker Walls */}
       {[
         { pos: [0, 0, TANK.d / 2 + 0.02], rot: [0, 0, 0], w: TANK.w + 0.1, h: TANK.h + 0.05 },
         { pos: [0, 0, -TANK.d / 2 - 0.02], rot: [0, Math.PI, 0], w: TANK.w + 0.1, h: TANK.h + 0.05 },
@@ -1583,54 +1676,99 @@ export function ElectrolysisScene({ params }) {
           <meshStandardMaterial
             color="#e0f2fe"
             transparent
-            opacity={0.12}
+            opacity={0.15}
             roughness={0.05}
-            metalness={0.15}
+            metalness={0.2}
             emissive="#7dd3fc"
-            emissiveIntensity={0.08}
+            emissiveIntensity={0.1}
             side={THREE.DoubleSide}
             depthWrite={false}
           />
         </mesh>
       ))}
-      {/* Beaker bottom */}
+      {/* Beaker Bottom */}
       <mesh position={[0, -TANK.h / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[TANK.w + 0.04, TANK.d + 0.04]} />
-        <meshStandardMaterial color="#7dd3fc" transparent opacity={0.18} roughness={0.1} depthWrite={false} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#7dd3fc" transparent opacity={0.22} roughness={0.1} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Electrolyte solution */}
+
+
+      {/* Graduation Volume Marks on Front Glass (100ml to 500ml) */}
+      {[-1.0, -0.5, 0, 0.5, 1.0].map((yMark, idx) => (
+        <group key={idx} position={[-TANK.w / 2 + 0.05, yMark, TANK.d / 2 + 0.03]}>
+          <mesh>
+            <boxGeometry args={[0.4, 0.03, 0.01]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Electrolyte solution (Blue CuSO₄ Solution) */}
       <mesh>
         <boxGeometry args={[TANK.w, TANK.h, TANK.d]} />
         <meshStandardMaterial
-          color="#0ea5e9"
+          color="#0284c7"
           transparent
-          opacity={0.18}
+          opacity={0.22}
           depthWrite={false}
-          roughness={0.05}
+          roughness={0.04}
           emissive="#0ea5e9"
-          emissiveIntensity={0.1}
+          emissiveIntensity={0.15}
         />
       </mesh>
       <lineSegments>
         <edgesGeometry args={[tank]} />
-        <lineBasicMaterial color="#38bdf8" opacity={0.55} transparent />
+        <lineBasicMaterial color="#38bdf8" opacity={0.65} transparent />
       </lineSegments>
 
-      {/* Cathode (−) on the left, thickening as copper plates onto it. */}
-      <mesh position={[-TANK.w / 2 + 1, 0.3, 0]}>
-        <cylinderGeometry args={[plating, plating, TANK.h + 1.4, 24]} />
-        <meshStandardMaterial color="#b45309" emissive="#b45309" emissiveIntensity={0.4} metalness={0.8} roughness={0.25} />
-      </mesh>
-      {/* Anode (+) on the right, dissolving away as the cathode thickens. */}
-      <mesh position={[TANK.w / 2 - 1, 0.3, 0]}>
-        <cylinderGeometry args={[anodeRadius, anodeRadius, TANK.h + 1.4, 24]} />
-        <meshStandardMaterial color="#7c3f12" emissive={PALETTE.gold} emissiveIntensity={0.3} metalness={0.8} roughness={0.3} />
+      {/* Heavy Brass Terminal Clamps on Top Rim */}
+      {[-TANK.w / 2 + 1, TANK.w / 2 - 1].map((xPos, idx) => (
+        <group key={idx} position={[xPos, TANK.h / 2 + 0.5, 0]}>
+          <mesh>
+            <cylinderGeometry args={[0.25, 0.28, 0.4, 16]} />
+            <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.2} />
+          </mesh>
+          <mesh position={[0, 0.25, 0]}>
+            <sphereGeometry args={[0.16, 16, 16]} />
+            <meshStandardMaterial color={idx === 0 ? PALETTE.sky : PALETTE.gold} emissive={idx === 0 ? PALETTE.sky : PALETTE.gold} emissiveIntensity={0.6} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Cathode (−) on left, thickening with electroplated copper crystal clusters */}
+      <group position={[-TANK.w / 2 + 1, 0.45, 0]}>
+        <mesh>
+          <cylinderGeometry args={[plating, plating, TANK.h + 0.7, 24]} />
+          <meshStandardMaterial color="#b45309" emissive="#b45309" emissiveIntensity={0.45} metalness={0.85} roughness={0.2} />
+        </mesh>
+        {/* Plated copper crystal nodule clusters */}
+        {deposit > 0 &&
+          Array.from({ length: Math.min(12, Math.floor(deposit / 2) + 2) }).map((_, i) => (
+            <mesh
+              key={i}
+              position={[
+                (hashRandom(i + 3) - 0.5) * plating * 1.8,
+                (hashRandom(i + 13) - 0.5) * TANK.h * 0.7,
+                (hashRandom(i + 23) - 0.5) * plating * 1.8,
+              ]}
+              scale={[0.12, 0.12, 0.12]}
+            >
+              <dodecahedronGeometry args={[1, 0]} />
+              <meshStandardMaterial color="#d97706" emissive="#b45309" emissiveIntensity={0.6} metalness={0.9} roughness={0.15} />
+            </mesh>
+          ))}
+      </group>
+
+      {/* Anode (+) on right, dissolving away with eroded pitting texture */}
+      <mesh position={[TANK.w / 2 - 1, 0.45, 0]}>
+        <cylinderGeometry args={[anodeRadius, anodeRadius, TANK.h + 0.7, 24]} />
+        <meshStandardMaterial color="#7c3f12" emissive={PALETTE.gold} emissiveIntensity={0.35} metalness={0.75} roughness={0.45} />
       </mesh>
 
-      {/* Rising H₂ bubbles at cathode (−), O₂ at anode (+) */}
-      <ElectrodeBubbles x={-TANK.w / 2 + 1} running={run} speed={0.3 + current * 0.15} color={PALETTE.sky} />
-      <ElectrodeBubbles x={TANK.w / 2 - 1} running={run} speed={0.2 + current * 0.1} color={PALETTE.gold} />
+      {/* Rising H₂ gas bubbles at cathode (−), O₂ at anode (+) */}
+      <ElectrodeBubbles x={-TANK.w / 2 + 1} running={run} speed={0.35 + current * 0.15} color={PALETTE.sky} />
+      <ElectrodeBubbles x={TANK.w / 2 - 1} running={run} speed={0.25 + current * 0.1} color={PALETTE.gold} />
 
       {showLabels && (
         <>
@@ -1643,18 +1781,31 @@ export function ElectrolysisScene({ params }) {
         </>
       )}
 
-      {/* External circuit. */}
+      {/* DC Power Supply Equipment Box */}
+      <group position={[0, TANK.h / 2 + 3.0, -1.0]}>
+        <mesh>
+          <boxGeometry args={[4.2, 1.2, 1.2]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.8} />
+        </mesh>
+        {/* Digital LED Display */}
+        <mesh position={[0, 0.1, 0.61]}>
+          <planeGeometry args={[1.8, 0.5]} />
+          <meshStandardMaterial color="#0284c7" emissive="#0284c7" emissiveIntensity={1.2} />
+        </mesh>
+        <SceneLabel position={[0, 0.1, 0.62]} tone="text-cyan-200">
+          {run ? `DC SUPPLY: ${current.toFixed(1)} A` : "DC SUPPLY: OFF"}
+        </SceneLabel>
+      </group>
+
+      {/* External circuit wires */}
       <Line
         points={circuit}
         color={PALETTE.gold}
-        lineWidth={2}
+        lineWidth={2.5}
         transparent
-        opacity={0.6 + current * 0.2}
+        opacity={0.7 + current * 0.2}
       />
-      <ElectronFlow path={circuit} speed={0.12 + current * 0.16} running={run} />
-      <SceneLabel position={[0, TANK.h / 2 + 2.6, 0]} tone="text-ink-400">
-        d.c. supply · {current.toFixed(1)} A · electrons flow anode → cathode
-      </SceneLabel>
+      <ElectronFlow path={circuit} speed={0.14 + current * 0.18} running={run} />
 
       <Ions
         current={current}
@@ -1689,12 +1840,12 @@ export function ElectrolysisScene({ params }) {
         items={[
           {
             color: "#38bdf8",
-            label: "Cu²⁺ cation",
+            label: "Cu²⁺ cation (Hydrated)",
             note: "positive → travels to the negative cathode",
           },
           {
             color: PALETTE.gold,
-            label: "SO₄²⁻ anion",
+            label: "SO₄²⁻ anion (Tetrahedral)",
             note: "negative → travels to the positive anode",
           },
           {
@@ -1706,7 +1857,7 @@ export function ElectrolysisScene({ params }) {
             color: "#b45309",
             shape: "square",
             label: "Copper electrode",
-            note: "left grows, right dissolves",
+            note: "left grows crystal nodes, right dissolves",
           },
         ]}
       />

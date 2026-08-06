@@ -1,9 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftClose, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff } from "lucide-react";
+import { PanelLeftClose, ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff, Command, Search, PlusSquare, Check } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
+import { getGraphicsSettings, saveGraphicsSettings, DEFAULT_GRAPHICS_SETTINGS, detectHardwareGraphics } from "@/lib/db.js";
+import GlobalTimerHUD from "@/components/GlobalTimerHUD";
+import NoteMenu from "@/components/NoteMenu";
+import { SPACES } from "@/lib/constants";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -76,13 +80,13 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 z-[80] bg-ink-950/80 backdrop-blur-md transition-opacity"
+        className="fixed inset-0 z-[300] bg-ink-950/80 backdrop-blur-md transition-opacity"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Confirm Factory Reset"
-        className="fixed left-1/2 top-1/2 z-[90] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-rose-500/40 bg-ink-900 shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-[310] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-rose-500/40 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-rose-500/20 bg-rose-500/10 px-5 py-4">
           <div className="flex items-center gap-2">
@@ -175,43 +179,51 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
 
 // ─── Settings Modal ──────────────────────────────────────────────────
 function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
-  const [tab, setTab] = useState("ai"); // "ai" | "general" | "backup" | "reset"
+  const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [backupExportSpace, setBackupExportSpace] = useState("All");
+  const [backupImportSpace, setBackupImportSpace] = useState("Original");
   const [statusMsg, setStatusMsg] = useState("");
 
   // AI settings
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [provider, setProvider] = useState("gemini"); // "gemini" | "webllm"
-  const [webllmModel, setWebllmModel] = useState("Llama-3.8B-Instruct-q4f16_1-MLC");
+
   const [aiSaved, setAiSaved] = useState(false);
+
+  // 3D Graphics Settings
+  const [gfx, setGfx] = useState(null);
+  const [gfxSaved, setGfxSaved] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     async function loadAISettings() {
       try {
         const keyItem = await db.settings.get("gemini_api_key");
-        const providerItem = await db.settings.get("ai_provider");
-        const modelItem = await db.settings.get("webllm_model");
-
         if (keyItem?.value) setApiKey(keyItem.value);
-        if (providerItem?.value) setProvider(providerItem.value);
-        if (modelItem?.value) setWebllmModel(modelItem.value);
       } catch (err) {
         console.error("Failed to load AI settings:", err);
       }
     }
+    async function loadGfxSettings() {
+      try {
+        const loadedGfx = await getGraphicsSettings();
+        setGfx(loadedGfx);
+      } catch (err) {
+        console.error("Failed to load graphics settings:", err);
+      }
+    }
     loadAISettings();
+    loadGfxSettings();
   }, [open]);
 
   const handleSaveAI = async (e) => {
     e.preventDefault();
     try {
       await db.settings.put({ key: "gemini_api_key", value: apiKey.trim() });
-      await db.settings.put({ key: "ai_provider", value: provider });
-      await db.settings.put({ key: "webllm_model", value: webllmModel });
+
 
       setAiSaved(true);
       setTimeout(() => setAiSaved(false), 2000);
@@ -220,14 +232,45 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
     }
   };
 
+  const handleSaveGfx = async (e) => {
+    e.preventDefault();
+    try {
+      if (gfx) await saveGraphicsSettings(gfx);
+      setGfxSaved(true);
+      setTimeout(() => setGfxSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save graphics settings:", err);
+    }
+  };
+
+  const handlePresetChange = (e) => {
+    const preset = e.target.value;
+    if (preset === "high") {
+      setGfx(prev => ({ ...prev, graphicsPreset: preset, targetFps: 60, pixelRatio: 2.0, enableShadows: true, enableAntialias: true }));
+    } else if (preset === "medium") {
+      setGfx(prev => ({ ...prev, graphicsPreset: preset, targetFps: 60, pixelRatio: 1.5, enableShadows: true, enableAntialias: false }));
+    } else if (preset === "low") {
+      setGfx(prev => ({ ...prev, graphicsPreset: preset, targetFps: 30, pixelRatio: 1.0, enableShadows: false, enableAntialias: false }));
+    } else if (preset === "auto") {
+      const autoSettings = detectHardwareGraphics();
+      setGfx(prev => ({ ...prev, graphicsPreset: "auto", ...autoSettings }));
+    } else {
+      setGfx(prev => ({ ...prev, graphicsPreset: preset }));
+    }
+  };
+
+  const updateGfx = (key, value) => {
+    setGfx(prev => ({ ...prev, graphicsPreset: "custom", [key]: value }));
+  };
+
   if (!open) return null;
 
   const handleExport = async () => {
     try {
       setIsExporting(true);
       setStatusMsg("");
-      const res = await exportWorkspaceToJSON();
-      setStatusMsg(`Successfully exported ${res.count} notes to ${res.filename}`);
+      const res = await exportWorkspaceToJSON(backupExportSpace);
+      setStatusMsg(`Successfully exported ${res.count} notes from "${backupExportSpace}" space to ${res.filename}`);
     } catch (err) {
       alert("Backup export error: " + err.message);
     } finally {
@@ -242,8 +285,8 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
     try {
       setIsImporting(true);
       setStatusMsg("");
-      const res = await importWorkspaceFromJSON(file, { overwrite: true });
-      setStatusMsg(`Successfully restored ${res.imported.notes} notes & workspace data! Reloading...`);
+      const res = await importWorkspaceFromJSON(file, { targetSpace: backupImportSpace, overwrite: false });
+      setStatusMsg(`Successfully restored ${res.imported.notes} notes into "${backupImportSpace}" space! Reloading...`);
       setTimeout(() => {
         window.location.reload();
       }, 1200);
@@ -285,6 +328,18 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
         <div className="flex border-b border-ink-800 bg-ink-950/40 px-5 pt-2 gap-1 overflow-x-auto">
           <button
             type="button"
+            onClick={() => setTab("general")}
+            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
+              tab === "general"
+                ? "border-duck-400 text-duck-300"
+                : "border-transparent text-ink-400 hover:text-ink-200"
+            }`}
+          >
+            General &amp; Theme
+          </button>
+
+          <button
+            type="button"
             onClick={() => setTab("ai")}
             className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
               tab === "ai"
@@ -297,14 +352,14 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
 
           <button
             type="button"
-            onClick={() => setTab("general")}
+            onClick={() => setTab("3d")}
             className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
-              tab === "general"
-                ? "border-duck-400 text-duck-300"
+              tab === "3d"
+                ? "border-amber-400 text-amber-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
-            General &amp; Theme
+            3D &amp; Performance 🎮
           </button>
 
           <button
@@ -332,7 +387,7 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
           </button>
         </div>
 
-        <div className="space-y-6 px-6 py-5">
+        <div className="space-y-6 px-6 py-5 h-[65vh] max-h-[500px] overflow-y-auto">
           {tab === "ai" && (
             <form onSubmit={handleSaveAI} className="space-y-4">
               <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-300">
@@ -342,51 +397,7 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400">
-                  Active AI Provider
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setProvider("gemini")}
-                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
-                      provider === "gemini"
-                        ? "border-duck-500/60 bg-duck-500/10 text-ink-100 ring-1 ring-duck-500/30"
-                        : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 text-xs font-semibold">
-                      <Server className="h-3.5 w-3.5 text-duck-400" />
-                      <span>Google Gemini API</span>
-                    </div>
-                    <p className="text-[11px] text-ink-500 leading-tight">
-                      Direct from browser to Google AI Studio.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setProvider("webllm")}
-                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
-                      provider === "webllm"
-                        ? "border-duck-500/60 bg-duck-500/10 text-ink-100 ring-1 ring-duck-500/30"
-                        : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 text-xs font-semibold">
-                      <Cpu className="h-3.5 w-3.5 text-emerald-400" />
-                      <span>Local WebLLM (Offline)</span>
-                    </div>
-                    <p className="text-[11px] text-ink-500 leading-tight">
-                      In-browser WebGPU LLM. 100% offline.
-                    </p>
-                  </button>
-                </div>
-              </div>
-
-              {provider !== "webllm" && (
-                <div className="space-y-1.5 animate-fade-up">
+              <div className="space-y-1.5 animate-fade-up">
                   <label className="block text-xs font-semibold text-ink-300">
                     Google Gemini API Key
                   </label>
@@ -411,25 +422,7 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                     Leave empty to fall back to server env var.
                   </p>
                 </div>
-              )}
 
-              {provider === "webllm" && (
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-ink-300">
-                    WebLLM Model Architecture
-                  </label>
-                  <select
-                    value={webllmModel}
-                    onChange={(e) => setWebllmModel(e.target.value)}
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
-                  >
-                    <option value="Llama-3.8B-Instruct-q4f16_1-MLC">Llama 3 8B Instruct</option>
-                    <option value="Phi-3.5-mini-instruct-q4f16_1-MLC">Phi-3.5 Mini Instruct</option>
-                    <option value="Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC">Qwen 2.5 Coder 7B</option>
-                    <option value="gemma-2-2b-it-q4f16_1-MLC">Gemma 2 2B IT</option>
-                  </select>
-                </div>
-              )}
 
               <div className="flex justify-end pt-2">
                 <button
@@ -443,7 +436,49 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
           )}
 
           {tab === "general" && (
-            <>
+            <div className="space-y-6">
+              {/* Keyboard Shortcuts */}
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                  <Command className="w-4 h-4 text-duck-400" />
+                  Keyboard Shortcuts
+                </h3>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850">
+                    <div className="flex items-center gap-3">
+                      <Search className="w-4 h-4 text-ink-400" />
+                      <span className="text-xs font-medium text-ink-200">Command Palette</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl/Cmd</kbd>
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">K</kbd>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850">
+                    <div className="flex items-center gap-3">
+                      <PlusSquare className="w-4 h-4 text-ink-400" />
+                      <span className="text-xs font-medium text-ink-200">Quick Note</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl/Cmd</kbd>
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">I</kbd>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850">
+                    <div className="flex items-center gap-3">
+                      <Check className="w-4 h-4 text-ink-400" />
+                      <span className="text-xs font-medium text-ink-200">Save Note</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl/Cmd</kbd>
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">S</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Theme Selector */}
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-ink-400">
@@ -484,7 +519,7 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                   💾 <strong>100% Local-First Storage</strong>: Your notes, whiteboards, calendar events, and study sessions are stored privately in your browser's IndexedDB engine (Dexie.js).
                 </p>
               </div>
-            </>
+            </div>
           )}
 
           {tab === "backup" && (
@@ -506,45 +541,97 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                 </div>
               )}
 
-              {/* Export Button */}
-              <button
-                type="button"
-                onClick={handleExport}
-                disabled={isExporting}
-                className="flex w-full items-center justify-between rounded-xl border border-duck-500/40 bg-duck-500/10 p-3.5 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/20 disabled:opacity-50 shadow-sm"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Download className="h-4.5 w-4.5 text-duck-400" />
-                  <div className="text-left">
-                    <div className="font-bold text-duck-200">Export Workspace Backup</div>
-                    <div className="text-[10px] text-duck-400 font-normal">Save .socratic backup file to computer</div>
-                  </div>
+              {/* Export Section with Space Selector */}
+              <div className="rounded-xl border border-duck-500/30 bg-duck-500/5 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-duck-200">Export Space Backup (.socratic)</div>
+                  <span className="text-[10px] text-duck-400 font-mono">Select Space</span>
                 </div>
-                <span className="rounded bg-duck-500/20 px-2 py-1 font-mono text-[10px] text-duck-300">
-                  {isExporting ? "Exporting..." : ".socratic"}
-                </span>
-              </button>
+                <div className="flex flex-wrap gap-1.5">
+                  {[{ name: "All", icon: "🌐" }, ...SPACES].map((sp) => (
+                    <button
+                      key={sp.name}
+                      type="button"
+                      onClick={() => setBackupExportSpace(sp.name)}
+                      className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                        backupExportSpace === sp.name
+                          ? "border-duck-400 bg-duck-500/30 text-duck-200"
+                          : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
+                      }`}
+                    >
+                      <span>{sp.icon}</span>
+                      <span>{sp.name === "All" ? "All Spaces" : sp.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  className="flex w-full items-center justify-between rounded-lg border border-duck-500/40 bg-duck-500/20 p-2.5 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/30 disabled:opacity-50 shadow-sm mt-1"
+                >
+                  <div className="flex items-center gap-2">
+                    <Download className="h-4 w-4 text-duck-400" />
+                    <span>Export {backupExportSpace === "All" ? "All Spaces" : `"${backupExportSpace}" Space`} Backup</span>
+                  </div>
+                  <span className="rounded bg-duck-500/30 px-2 py-0.5 font-mono text-[10px] text-duck-200">
+                    {isExporting ? "Exporting..." : ".socratic"}
+                  </span>
+                </button>
+              </div>
 
-              {/* Import File Input Button */}
-              <label className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-500/20 shadow-sm">
-                <div className="flex items-center gap-2.5">
-                  <Upload className="h-4.5 w-4.5 text-emerald-400" />
-                  <div className="text-left">
-                    <div className="font-bold text-emerald-200">Import &amp; Restore Workspace</div>
-                    <div className="text-[10px] text-emerald-400 font-normal">Select .socratic or .json file to restore</div>
-                  </div>
+              {/* Import Section with Target Space Selector */}
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-emerald-200">Import Workspace File (.socratic)</div>
+                  <span className="text-[10px] text-emerald-400 font-mono">Target Space</span>
                 </div>
-                <input
-                  type="file"
-                  accept=".socratic,.json"
-                  className="hidden"
-                  onChange={handleImportFile}
-                  disabled={isImporting}
-                />
-                <span className="rounded bg-emerald-500/20 px-2 py-1 font-mono text-[10px] text-emerald-300">
-                  {isImporting ? "Restoring..." : "Restore File"}
-                </span>
-              </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setBackupImportSpace("Original")}
+                    className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                      backupImportSpace === "Original"
+                        ? "border-emerald-400 bg-emerald-500/30 text-emerald-200"
+                        : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
+                    }`}
+                  >
+                    <span>🔄</span>
+                    <span>Original Spaces</span>
+                  </button>
+                  {SPACES.map((sp) => (
+                    <button
+                      key={sp.name}
+                      type="button"
+                      onClick={() => setBackupImportSpace(sp.name)}
+                      className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                        backupImportSpace === sp.name
+                          ? "border-emerald-400 bg-emerald-500/30 text-emerald-200"
+                          : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
+                      }`}
+                    >
+                      <span>{sp.icon}</span>
+                      <span>{sp.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <label className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/20 p-2.5 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-500/30 shadow-sm mt-1">
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-4 w-4 text-emerald-400" />
+                    <span>Import to {backupImportSpace === "Original" ? "Original Spaces" : `"${backupImportSpace}" Space`}</span>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".socratic,.json"
+                    className="hidden"
+                    onChange={handleImportFile}
+                    disabled={isImporting}
+                  />
+                  <span className="rounded bg-emerald-500/30 px-2 py-0.5 font-mono text-[10px] text-emerald-200">
+                    {isImporting ? "Restoring..." : "Select File"}
+                  </span>
+                </label>
+              </div>
             </div>
           )}
 
@@ -579,18 +666,6 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                   <span className="text-[10px] text-rose-400 font-semibold">Clear Events</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setResetTarget("3d")}
-                  className="flex w-full items-center justify-between rounded-lg border border-ink-800 bg-ink-850 p-3 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>🧊</span>
-                    <span>Factory Reset 3D Visualizations</span>
-                  </div>
-                  <span className="text-[10px] text-rose-400 font-semibold">Clear Models</span>
-                </button>
-
                 <div className="border-t border-ink-800 pt-2">
                   <button
                     type="button"
@@ -606,6 +681,115 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {tab === "3d" && gfx && (
+            <form onSubmit={handleSaveGfx} className="space-y-6 animate-fade-up">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-ink-300">Graphics Preset</label>
+                <select 
+                  value={gfx.graphicsPreset} 
+                  onChange={handlePresetChange}
+                  className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                >
+                  <option value="auto">Auto-detect</option>
+                  <option value="high">High Quality</option>
+                  <option value="medium">Balanced</option>
+                  <option value="low">Performance (Battery Saver)</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-300">Target FPS</label>
+                  <select 
+                    value={gfx.targetFps} 
+                    onChange={(e) => updateGfx('targetFps', parseInt(e.target.value, 10))}
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                  >
+                    <option value={30}>30 FPS</option>
+                    <option value={60}>60 FPS</option>
+                    <option value={120}>120 FPS</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-300">Pixel Ratio (DPR)</label>
+                  <select 
+                    value={gfx.pixelRatio} 
+                    onChange={(e) => updateGfx('pixelRatio', parseFloat(e.target.value))}
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                  >
+                    <option value={1.0}>1.0x (Standard)</option>
+                    <option value={1.5}>1.5x (Retina)</option>
+                    <option value={2.0}>2.0x (Ultra)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex-shrink-0">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={gfx.enableShadows} 
+                      onChange={(e) => updateGfx('enableShadows', e.target.checked)} 
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${gfx.enableShadows ? 'bg-amber-500' : 'bg-ink-700'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${gfx.enableShadows ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium text-ink-200">Enable Shadows</span>
+                    <span className="text-[10px] text-ink-500">Improves realism but uses more GPU</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex-shrink-0">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={gfx.enableAntialias} 
+                      onChange={(e) => updateGfx('enableAntialias', e.target.checked)} 
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${gfx.enableAntialias ? 'bg-amber-500' : 'bg-ink-700'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${gfx.enableAntialias ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium text-ink-200">Anti-aliasing</span>
+                    <span className="text-[10px] text-ink-500">Smooths jagged edges on models (requires refresh)</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex-shrink-0">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={gfx.autoPauseHidden} 
+                      onChange={(e) => updateGfx('autoPauseHidden', e.target.checked)} 
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${gfx.autoPauseHidden ? 'bg-amber-500' : 'bg-ink-700'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${gfx.autoPauseHidden ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium text-ink-200">Auto-pause when hidden</span>
+                    <span className="text-[10px] text-ink-500">Stops rendering when the tab is out of view</span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-ink-800">
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-400 px-4 py-2 text-xs font-bold text-ink-950 hover:bg-amber-300 transition-colors"
+                >
+                  {gfxSaved ? "Saved to Dexie!" : "Save 3D Settings"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </div>
@@ -871,7 +1055,9 @@ function TrashModal({
 
 // ─── Sidebar (main export) ──────────────────────────────────────────
 export default function Sidebar({
-  spaces: initialSpaces,
+  spaces,
+  setSpaces,
+  handleDeleteSpace,
   activeSpace,
   onSelectSpace,
   activeNoteId,
@@ -879,6 +1065,9 @@ export default function Sidebar({
   notesBySpace,
   onCreateNote,
   onDeleteNote,
+  onSaveNote,
+  onToggleFavorite,
+  onOpenExportImport,
   trashNotes = [],
   onRecoverNote,
   onPermanentlyDeleteNote,
@@ -889,12 +1078,28 @@ export default function Sidebar({
   onSyncSupabase,
   onResetData,
   onOpenInstantNote,
+  onNavigateCalendar,
   onToggleSidebar,
 }) {
-  const [spaces, setSpaces] = useState(initialSpaces);
   const [modalOpen, setModalOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [spacesDropdownOpen, setSpacesDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setSpacesDropdownOpen(false);
+      }
+    }
+    if (spacesDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [spacesDropdownOpen]);
 
   useEffect(() => {
     if (!spaces.find((s) => s.name === activeSpace) && spaces.length > 0) {
@@ -911,20 +1116,21 @@ export default function Sidebar({
   );
 
   const currentNotes = (notesBySpace && notesBySpace[activeSpace]) || [];
+  const currentSpaceObj = spaces.find((s) => s.name === activeSpace) || spaces[0];
 
   return (
     <>
       <aside className="flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 h-full">
-        {/* Brand Header with Settings ⚙️ button beside SocraticOS */}
-        <div className="flex items-center justify-between border-b border-ink-800/60 px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl leading-none">🦆</span>
-            <span className="text-lg font-bold tracking-tight text-ink-100">
+        {/* Brand Header with Settings ⚙️ button */}
+        <div className="flex items-center justify-between border-b border-ink-800/60 px-3.5 py-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xl leading-none shrink-0">🦆</span>
+            <span className="text-sm font-bold tracking-tight text-ink-100 shrink-0">
               SocraticOS
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
@@ -933,21 +1139,92 @@ export default function Sidebar({
             >
               ⚙️
             </button>
-            {onToggleSidebar && (
-              <button
-                type="button"
-                onClick={onToggleSidebar}
-                title="Collapse Sidebar"
-                className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100"
-              >
-                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
-              </button>
+          </div>
+        </div>
+
+        {/* Spaces Switcher below SocraticOS logo */}
+        <div className="px-3 pt-3 pb-1">
+          <div className="relative w-full" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setSpacesDropdownOpen((prev) => !prev)}
+              title="Switch Space"
+              className="flex w-full items-center justify-between rounded-xl border border-ink-700/80 bg-ink-850/90 px-3 py-2 text-xs font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100 active:scale-98 shadow-sm"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm leading-none shrink-0">{currentSpaceObj?.icon || "📂"}</span>
+                <span className="truncate font-semibold text-ink-100 text-xs">{activeSpace}</span>
+              </div>
+              <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0 ml-1" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {spacesDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 z-[100] w-full rounded-xl border border-ink-700 bg-ink-900 shadow-2xl p-1.5 backdrop-blur-md">
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
+                  Spaces
+                </div>
+                <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                  {spaces.map((space) => {
+                    const isActive = space.name === activeSpace;
+                    return (
+                      <div key={space.name} className="group/space flex w-full items-center justify-between rounded-lg transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectSpace(space.name);
+                            setSpacesDropdownOpen(false);
+                          }}
+                          className={`flex-1 flex items-center justify-between px-2.5 py-1.5 text-xs text-left transition-colors ${
+                            isActive
+                              ? "bg-ink-800 text-duck-300 font-semibold"
+                              : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="text-sm leading-none">{space.icon}</span>
+                            <span className="truncate">{space.name}</span>
+                          </div>
+                          {isActive && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-duck-400 shrink-0" />
+                          )}
+                        </button>
+                        {spaces.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSpace(space.name);
+                            }}
+                            className="opacity-0 group-hover/space:opacity-100 p-1 mr-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all shrink-0"
+                            title="Delete space"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="my-1 border-t border-ink-800" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSpacesDropdownOpen(false);
+                    setModalOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-duck-400 transition-colors hover:bg-ink-850 hover:text-duck-300 font-medium"
+                >
+                  <span className="text-sm leading-none">＋</span>
+                  <span>Create New Space</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
 
         {/* Instant Note Big Button */}
-        <div className="px-3 pt-3 pb-1">
+        <div className="px-3 pt-1.5 pb-1">
           <button
             type="button"
             onClick={onOpenInstantNote}
@@ -963,50 +1240,13 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* ─── Spaces ─────────────────────────────────── */}
-        <nav className="px-3 pt-2">
-          <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-500">
-            Spaces
-          </p>
-          <ul className="space-y-0.5">
-            {spaces.map((space) => {
-              const isActive = space.name === activeSpace;
-              return (
-                <li key={space.name}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectSpace(space.name)}
-                    aria-current={isActive ? "true" : undefined}
-                    className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
-                      isActive
-                        ? "bg-ink-800 text-ink-100"
-                        : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
-                    }`}
-                  >
-                    <span className="text-base leading-none">{space.icon}</span>
-                    <span className="flex-1 truncate">{space.name}</span>
-                    {isActive && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-duck-400" />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Create New Space */}
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="mt-2 flex w-full items-center gap-2 rounded-md border border-dashed border-ink-700 px-2.5 py-2 text-left text-sm text-ink-500 transition-colors hover:border-duck-500/40 hover:text-duck-400"
-          >
-            <span className="text-base leading-none">＋</span>
-            <span>Create New Space</span>
-          </button>
-        </nav>
+        {/* Unified Timers Button under Instant Note */}
+        <div className="px-3 pt-1 pb-1">
+          <GlobalTimerHUD onNavigateCalendar={onNavigateCalendar} />
+        </div>
 
         {/* ─── Notes list ─────────────────────────────── */}
-        <div className="mt-6 flex-1 overflow-y-auto px-3">
+        <div className="mt-3 flex-1 overflow-y-auto px-3">
           <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-500">
             {activeSpace} · Notes
           </p>
@@ -1018,36 +1258,42 @@ export default function Sidebar({
               {currentNotes.map((n) => {
                 const isActive = activeNoteId === n.id;
                 return (
-                  <li key={n.id} className="group relative">
+                  <li
+                    key={n.id}
+                    className="group relative flex items-center justify-between gap-1 rounded-md transition-colors hover:bg-ink-850"
+                  >
                     <button
                       type="button"
                       onClick={() => onSelectNote?.(n)}
-                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
+                      className={`flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm min-w-0 transition-colors ${
                         isActive
                           ? "bg-ink-800 text-ink-100 font-medium"
-                          : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
+                          : "text-ink-400 hover:text-ink-200"
                       }`}
                     >
                       {n.isFavorite ? (
-                        <span className="text-amber-400 text-xs">⭐</span>
+                        <span className="text-amber-400 text-xs shrink-0">⭐</span>
                       ) : (
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-duck-400 opacity-60" />
                       )}
                       <span className="truncate flex-1">{n.title || "Untitled Note"}</span>
                     </button>
-                    {onDeleteNote && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteNote(n.id);
+
+                    <div className="shrink-0 pr-1 flex items-center">
+                      <NoteMenu
+                        note={n}
+                        onSaveNote={onSaveNote}
+                        onToggleFavorite={onToggleFavorite}
+                        onExportImport={(noteToExport) => {
+                          onSelectNote?.(noteToExport);
+                          onOpenExportImport?.(noteToExport);
                         }}
-                        title="Delete note"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-rose-400/90 opacity-0 transition-all hover:bg-rose-500/20 hover:text-rose-300 group-hover:opacity-100"
-                      >
-                        🗑️
-                      </button>
-                    )}
+                        onDeleteNote={onDeleteNote}
+                        variant="icon"
+                        align="left"
+                        className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                      />
+                    </div>
                   </li>
                 );
               })}

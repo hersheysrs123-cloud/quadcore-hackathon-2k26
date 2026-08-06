@@ -74,11 +74,11 @@ light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
 ### 1. Left Sidebar (`Sidebar.jsx`)
 - **Width**: Fixed `w-64 shrink-0`.
 - **Brand Header**:
-  - Duck Emoji: `text-2xl`
-  - Brand Title: `text-lg font-bold text-ink-100`
+  - Duck Emoji: `text-xl`
+  - Brand Title: `text-sm font-bold text-ink-100`
+  - **Spaces Selector Dropdown**: Compact button next to logo (`text-xs font-medium text-ink-200 border border-ink-700/70 bg-ink-850/90`) displaying current space icon and name with a dropdown popover to choose/switch spaces or create a new space.
   - Settings Button: `text-lg text-ink-400 hover:text-ink-100` (positioned top-right of brand header).
-- **Spaces Section**: Interactive list with emoji icons (`📂`, `🎓`, `🌱`), active indicator (`h-1.5 w-1.5 rounded-full bg-duck-400`), and a "Create New Space" modal trigger.
-- **Notes List**: Per-space note selection with delete icon `🗑️` on hover.
+- **Notes List**: Expanded full-height list per active space with delete icon `🗑️` on hover.
 - **Bottom Trash Tab**: Fixed tab `🗑️ Trash (24h)` showing active deleted notes count with 24-hour auto-purge timer.
 
 ### 2. Top HUD Header (`Workspace.jsx`)

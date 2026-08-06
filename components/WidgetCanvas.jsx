@@ -232,6 +232,8 @@ export default function WidgetCanvas({ widget, loading = false, error = null }) 
 
   const [paused, setPaused] = useState(false);
   const [values, setValues] = useState({});
+  const [canvasHeight, setCanvasHeight] = useState(256); // default h-64
+  const [zoomOverride, setZoomOverride] = useState(1);
 
   const controls = useMemo(
     () => widget?.interactiveControls ?? [],
@@ -294,7 +296,7 @@ export default function WidgetCanvas({ widget, loading = false, error = null }) 
       const view = {
         rotX: rotationRef.current.x,
         rotY: rotationRef.current.y,
-        zoom: widget.initialState.cameraZoom,
+        zoom: widget.initialState.cameraZoom * zoomOverride,
         width,
         height,
       };
@@ -378,9 +380,31 @@ export default function WidgetCanvas({ widget, loading = false, error = null }) 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-400">
-          {widget.widgetType.replaceAll("_", " ")}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-400">
+            {widget.widgetType.replaceAll("_", " ")}
+          </span>
+          <div className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 p-0.5">
+            <button
+              type="button"
+              onClick={() => setZoomOverride((z) => Math.max(0.2, z - 0.2))}
+              className="px-2 py-0.5 text-xs text-ink-400 hover:text-ink-200 transition-colors"
+              title="Zoom Out"
+            >-</button>
+            <button
+              type="button"
+              onClick={() => setZoomOverride(1)}
+              className="px-2 py-0.5 text-[10px] text-ink-500 hover:text-ink-300 transition-colors"
+              title="Reset Zoom"
+            >100%</button>
+            <button
+              type="button"
+              onClick={() => setZoomOverride((z) => Math.min(5, z + 0.2))}
+              className="px-2 py-0.5 text-xs text-ink-400 hover:text-ink-200 transition-colors"
+              title="Zoom In"
+            >+</button>
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => setPaused((p) => !p)}
@@ -390,12 +414,32 @@ export default function WidgetCanvas({ widget, loading = false, error = null }) 
         </button>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        onPointerDown={handlePointerDown}
-        className="h-64 w-full cursor-grab touch-none rounded-lg border border-ink-800 active:cursor-grabbing"
-        aria-label={`Interactive ${widget.widgetType} visualisation. Drag to rotate.`}
-      />
+      <div className="relative group">
+        <canvas
+          ref={canvasRef}
+          onPointerDown={handlePointerDown}
+          style={{ height: canvasHeight }}
+          className="w-full cursor-grab touch-none rounded-lg border border-ink-800 active:cursor-grabbing"
+          aria-label={`Interactive ${widget.widgetType} visualisation. Drag to rotate.`}
+        />
+        <div 
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-12 h-2 cursor-ns-resize rounded-full bg-ink-700 opacity-0 group-hover:opacity-100 transition-opacity"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            const startY = e.clientY;
+            const startH = canvasHeight;
+            function onMove(evt) {
+              setCanvasHeight(Math.max(100, Math.min(1000, startH + (evt.clientY - startY))));
+            }
+            function onUp() {
+              window.removeEventListener("pointermove", onMove);
+              window.removeEventListener("pointerup", onUp);
+            }
+            window.addEventListener("pointermove", onMove);
+            window.addEventListener("pointerup", onUp);
+          }}
+        />
+      </div>
 
       {controls.length > 0 && (
         <div className="space-y-3 rounded-lg border border-ink-800 bg-ink-850 px-3.5 py-3">

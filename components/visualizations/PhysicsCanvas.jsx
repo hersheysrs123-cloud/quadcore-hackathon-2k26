@@ -607,99 +607,180 @@ export function RefractionScene({ params = {} }) {
     </SceneCanvas>
   );
 }
+
 // ═══ 2 · Fleming's left-hand rule & the motor effect ══════════════════
 
-function MagnetPole({ position, pole }) {
-  const isNorth = pole === "N";
-  const color = isNorth ? PALETTE.rose : PALETTE.sky;
+// ═══ 2 · Fleming's left-hand rule & the motor effect ══════════════════
+
+const ROBO_PRIMARY = "#f8fafc";
+const ROBO_SECONDARY = "#cbd5e1";
+const ROBO_DARK = "#334155";
+const ROBO_GOLD = "#fbbf24";
+const ROBO_RED = "#ef4444";
+const ROBO_JOINT = "#38bdf8";
+const ROBO_GLOW = "#0ea5e9";
+const ROBO_PURPLE = "#d946ef";
+const ROBO_GREEN = "#10b981";
+
+function RoboFinger({ points, rStart, rEnd, tipColor }) {
+  const tipQuat = useMemo(() => {
+    const pPrev = new THREE.Vector3(...points[points.length - 2]);
+    const pLast = new THREE.Vector3(...points[points.length - 1]);
+    const dir = pLast.clone().sub(pPrev).normalize();
+    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  }, [points]);
+
   return (
-    <group position={position}>
-      <mesh>
-        <boxGeometry args={[1.1, 2.6, 2.6]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={0.35}
-          roughness={0.45}
-          metalness={0.3}
-        />
+    <group>
+      {points.map((p, i) => {
+        const next = points[i + 1];
+        const r = rStart + (rEnd - rStart) * (i / (points.length - 1));
+        const rNext = next ? rStart + (rEnd - rStart) * ((i + 1) / (points.length - 1)) : r;
+        
+        return (
+          <group key={i}>
+            <mesh position={p}>
+              <sphereGeometry args={[r * 1.25, 24, 24]} />
+              <meshStandardMaterial color={ROBO_DARK} metalness={0.9} roughness={0.4} />
+            </mesh>
+            {/* Floating Armor Shield over knuckle */}
+            <mesh position={p} rotation={[Math.PI/4, 0, 0]}>
+              <sphereGeometry args={[r * 1.35, 16, 16, 0, Math.PI, 0, Math.PI/2]} />
+              <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.1} />
+            </mesh>
+            {/* Joint Groove/Rings (gyroscope style) */}
+            <mesh position={p} rotation={[Math.PI/2, 0, 0]}>
+              <torusGeometry args={[r * 1.28, r * 0.1, 16, 32]} />
+              <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.2} />
+            </mesh>
+            <mesh position={p} rotation={[0, Math.PI/2, 0]}>
+              <torusGeometry args={[r * 1.28, r * 0.08, 16, 32]} />
+              <meshStandardMaterial color={ROBO_SECONDARY} metalness={0.9} roughness={0.2} />
+            </mesh>
+            {/* Side Hinges / Bolts */}
+            <mesh position={p} rotation={[0, 0, Math.PI/2]}>
+              <cylinderGeometry args={[r * 0.5, r * 0.5, r * 2.8, 16]} />
+              <meshStandardMaterial color={ROBO_DARK} metalness={0.9} roughness={0.3} />
+            </mesh>
+            {/* Glowing Bolt Caps */}
+            <mesh position={p} rotation={[0, 0, Math.PI/2]}>
+              <cylinderGeometry args={[r * 0.3, r * 0.3, r * 2.85, 16]} />
+              <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={3.0} />
+            </mesh>
+            {/* Status indicator LED on knuckles */}
+            <mesh position={p} rotation={[0, 0, Math.PI/2]}>
+              <cylinderGeometry args={[r * 0.15, r * 0.15, r * 2.88, 16]} />
+              <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={4.0} />
+            </mesh>
+            <mesh position={p}>
+              <sphereGeometry args={[r * 0.95, 16, 16]} />
+              <meshStandardMaterial color={tipColor || ROBO_GLOW} emissive={tipColor || ROBO_GLOW} emissiveIntensity={2.5} />
+            </mesh>
+            {/* Energy halo around joint */}
+            <mesh position={p} rotation={[Math.PI/4, Math.PI/4, 0]}>
+              <torusGeometry args={[r * 1.5, r * 0.02, 16, 32]} />
+              <meshStandardMaterial color={ROBO_PURPLE} emissive={ROBO_PURPLE} emissiveIntensity={3.0} transparent opacity={0.6} />
+            </mesh>
+            {next && <Segment p1={p} p2={next} r1={r} r2={rNext} tipColor={tipColor} />}
+          </group>
+        );
+      })}
+      
+      <mesh position={points[points.length - 1]} quaternion={tipQuat}>
+        <cylinderGeometry args={[rEnd * 0.7, rEnd * 1.1, 0.15, 24]} />
+        <meshStandardMaterial color={tipColor || ROBO_GLOW} emissive={tipColor || ROBO_GLOW} emissiveIntensity={4.0} />
       </mesh>
-      <SceneLabel position={[0, 1.75, 0]} tone={isNorth ? "text-rose-300" : "text-sky-300"}>
-        {isNorth ? "N pole" : "S pole"}
-      </SceneLabel>
+      <mesh position={points[points.length - 1]} quaternion={tipQuat}>
+        <cylinderGeometry args={[rEnd * 0.8, rEnd * 0.8, 0.25, 24]} />
+        <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.05} />
+      </mesh>
+      {/* Laser targeting dot on tip */}
+      {(() => {
+        const pLast = new THREE.Vector3(...points[points.length - 1]);
+        const pPrev = new THREE.Vector3(...points[points.length - 2]);
+        const tipDir = pLast.clone().sub(pPrev).normalize();
+        const laserPos = pLast.clone().add(tipDir.multiplyScalar(rEnd * 0.8));
+        return (
+          <mesh position={laserPos.toArray()} quaternion={tipQuat}>
+            <sphereGeometry args={[rEnd * 0.2, 16, 16]} />
+            <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={6.0} />
+          </mesh>
+        );
+      })()}
     </group>
   );
 }
 
-const SKIN = "#c08a6a";
-const SKIN_DEEP = "#a8724f";
-const UP_AXIS = new THREE.Vector3(0, 1, 0);
+function Segment({ p1, p2, r1, r2, tipColor }) {
+  const position = useMemo(() => {
+    const v1 = new THREE.Vector3(...p1);
+    const v2 = new THREE.Vector3(...p2);
+    return v1.clone().lerp(v2, 0.5);
+  }, [p1, p2]);
 
-/** Blend a digit's tip toward the colour of the vector leaving that fingertip. */
-function tintTip(hex, amount) {
-  return `#${new THREE.Color(SKIN)
-    .lerp(new THREE.Color(hex), amount)
-    .getHexString()}`;
-}
+  const quaternion = useMemo(() => {
+    const v1 = new THREE.Vector3(...p1);
+    const v2 = new THREE.Vector3(...p2);
+    return new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      v2.sub(v1).normalize()
+    );
+  }, [p1, p2]);
 
-/** One bone: a cone-frustum, so fingers taper the way real ones do. */
-function Phalanx({ from, to, rFrom, rTo, color }) {
-  const placement = useMemo(() => {
-    const a = new THREE.Vector3(...from);
-    const b = new THREE.Vector3(...to);
-    const delta = new THREE.Vector3().subVectors(b, a);
-    const length = delta.length();
-    if (length < 1e-5) return null;
-    return {
-      position: new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5),
-      quaternion: new THREE.Quaternion().setFromUnitVectors(
-        UP_AXIS,
-        delta.clone().normalize(),
-      ),
-      length,
-    };
-  }, [from[0], from[1], from[2], to[0], to[1], to[2]]);
-
-  if (!placement) return null;
+  const distance = useMemo(() => {
+    return new THREE.Vector3(...p1).distanceTo(new THREE.Vector3(...p2));
+  }, [p1, p2]);
 
   return (
-    <mesh position={placement.position} quaternion={placement.quaternion}>
-      {/* args are [radiusTop, radiusBottom, …] and +Y points at `to`. */}
-      <cylinderGeometry args={[rTo, rFrom, placement.length, 16]} />
-      <meshStandardMaterial color={color} roughness={0.72} metalness={0.02} />
-    </mesh>
-  );
-}
-
-/**
- * A finger as a chain of tapering bones with knuckles at the joints. The
- * knuckle spheres match the local bone radius, so they read as joints rather
- * than as beads on a stick.
- */
-function Finger({ joints, radii, tipColor }) {
-  const last = joints.length - 1;
-  return (
-    <group>
-      {joints.slice(0, -1).map((p, i) => (
-        <Phalanx
-          key={`p${i}`}
-          from={p}
-          to={joints[i + 1]}
-          rFrom={radii[i]}
-          rTo={radii[i + 1]}
-          color={i === last - 1 && tipColor ? tintTip(tipColor, 0.5) : SKIN}
-        />
+    <group position={position} quaternion={quaternion}>
+      {/* Central Bone (Glass outer shell + Glowing inner core) */}
+      <mesh>
+        <cylinderGeometry args={[r2 * 0.85, r1 * 0.85, distance, 24]} />
+        <meshStandardMaterial color="#ffffff" metalness={0.9} roughness={0.1} transparent opacity={0.3} />
+      </mesh>
+      <mesh>
+        <cylinderGeometry args={[r2 * 0.4, r1 * 0.4, distance, 24]} />
+        <meshStandardMaterial color={ROBO_PURPLE} emissive={ROBO_PURPLE} emissiveIntensity={3.0} />
+      </mesh>
+      {/* Carbon fiber struts inside the glass */}
+      {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
+        <mesh key={`strut-${angle}`} position={[Math.cos(angle) * r1 * 0.6, 0, Math.sin(angle) * r1 * 0.6]}>
+          <cylinderGeometry args={[0.04, 0.04, distance, 8]} />
+          <meshStandardMaterial color={ROBO_DARK} metalness={0.9} roughness={0.6} />
+        </mesh>
       ))}
-      {joints.map((p, i) => (
-        <mesh key={`j${i}`} position={p}>
-          <sphereGeometry args={[radii[i] * 0.99, 16, 16]} />
-          <meshStandardMaterial
-            color={i === last && tipColor ? tintTip(tipColor, 0.62) : SKIN}
-            emissive={i === last && tipColor ? tipColor : "#000000"}
-            emissiveIntensity={i === last && tipColor ? 0.5 : 0}
-            roughness={0.72}
-            metalness={0.02}
-          />
+
+      {/* Exoskeleton Cage (4 rods) */}
+      {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
+        <mesh key={angle} position={[Math.cos(angle) * r1 * 0.95, 0, Math.sin(angle) * r1 * 0.95]}>
+          <cylinderGeometry args={[0.04, 0.04, distance * 0.9, 8]} />
+          <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.1} />
+        </mesh>
+      ))}
+      <mesh position={[0, distance/2 - r2*0.2, 0]}>
+        <cylinderGeometry args={[r2 * 1.15, r2 * 1.15, r2*0.4, 24]} />
+        <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.15} />
+      </mesh>
+      <mesh position={[0, -distance/2 + r1*0.2, 0]}>
+        <cylinderGeometry args={[r1 * 1.15, r1 * 1.15, r1*0.4, 24]} />
+        <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.15} />
+      </mesh>
+      
+      {/* Side energy cables with dual colors */}
+      <mesh position={[r1 * 0.85, 0, 0]}>
+        <cylinderGeometry args={[0.03, 0.03, distance, 8]} />
+        <meshStandardMaterial color={tipColor || ROBO_GLOW} emissive={tipColor || ROBO_GLOW} emissiveIntensity={3.0} />
+      </mesh>
+      <mesh position={[-r1 * 0.85, 0, 0]}>
+        <cylinderGeometry args={[0.03, 0.03, distance, 8]} />
+        <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={3.0} />
+      </mesh>
+      
+      {/* Intense Ribbed texture / piston rings on the bone */}
+      {[-0.35, -0.15, 0.0, 0.15, 0.35].map(offset => (
+        <mesh key={offset} position={[0, distance * offset, 0]}>
+          <torusGeometry args={[r1 * 0.9, 0.04, 16, 32]} />
+          <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.2} />
         </mesh>
       ))}
     </group>
@@ -707,19 +788,7 @@ function Finger({ joints, radii, tipColor }) {
 }
 
 /**
- * The left hand in the Fleming pose — the centrepiece of this scene, not a
- * prop beside it.
- *
- * Built in a local frame where +X is the first finger (Field), +Z the second
- * finger (Current) and +Y the thumb (Force): the three axes the rule names,
- * held mutually perpendicular. Knuckles sit on an arc and the fingers taper
- * over three phalanges; only the fingertips are tinted, so the hand reads as
- * a hand while still mapping onto the three vectors leaving it.
- *
- * Reversing the current or the field turns the pose by a half turn rather
- * than mirroring it, because F = I L × B forces fSign = iSign · bSign — the
- * product of the three signs is always +1, so this stays a *left* hand in
- * all four combinations. That invariant is the rule, geometrically.
+ * Ultra-detailed Cybernetic Robotic Left Hand for Fleming's Left-Hand Rule.
  */
 function FlemingLeftHand({ bSign, iSign }) {
   const rotation =
@@ -733,89 +802,259 @@ function FlemingLeftHand({ bSign, iSign }) {
 
   return (
     <group rotation={rotation} scale={1.15}>
-      {/* Palm — rounded, and slightly domed on the back. */}
-      <RoundedBox args={[1.62, 0.48, 1.38]} radius={0.17} smoothness={4} position={[-0.6, 0, 0.06]}>
-        <meshStandardMaterial color={SKIN} roughness={0.74} metalness={0.02} />
-      </RoundedBox>
+      <ambientLight intensity={2.0} />
+      <directionalLight position={[5, 10, 5]} intensity={2.0} />
+      <directionalLight position={[-5, -10, -5]} intensity={1.0} />
+      {/* ── Hydraulic Arm Tube (Horizontal cylinder from Pole N) ── */}
+      <mesh position={[-2.4, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.35, 0.35, 2.8, 32]} />
+        <meshStandardMaterial color={ROBO_DARK} roughness={0.6} metalness={0.8} />
+      </mesh>
+      
+      {/* Armor plating over the arm */}
+      {[-1.3, -1.9, -2.5, -3.1].map((x) => (
+        <group key={x} position={[x, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.38, 0.38, 0.3, 32]} />
+          <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.1} metalness={1.0} />
+          {/* Neon Green Vent strips */}
+          {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
+            <mesh key={`vent-${angle}`} position={[Math.cos(angle)*0.38, 0, Math.sin(angle)*0.38]} rotation={[0, Math.PI/2, 0]}>
+               <planeGeometry args={[0.2, 0.05]} />
+               <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={5.0} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      
+      {/* Heavy Hydraulic cables running along the arm */}
+      {[0, Math.PI*2/3, Math.PI*4/3].map((angle, i) => (
+        <group key={`cable-${i}`}>
+          <mesh position={[-2.4, -0.02 + 0.38 * Math.sin(angle), 0.06 + 0.38 * Math.cos(angle)]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.06, 0.06, 2.8, 16]} />
+            <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.1} />
+          </mesh>
+          <mesh position={[-2.4, -0.02 + 0.38 * Math.sin(angle), 0.06 + 0.38 * Math.cos(angle)]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.03, 0.03, 2.82, 16]} />
+            <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={4.0} />
+          </mesh>
+        </group>
+      ))}
+      
+      {/* Hydraulic piston glowing rings on the arm */}
+      {[-1.6, -2.2, -2.8].map((x) => (
+        <mesh key={x} position={[x, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[0.42, 0.05, 32, 32]} />
+          <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={3.5} />
+        </mesh>
+      ))}
 
-      {/* Thenar eminence — the muscle pad at the base of the thumb. */}
-      <mesh position={[-0.72, 0.02, -0.36]} scale={[0.62, 0.34, 0.34]}>
-        <sphereGeometry args={[1, 20, 20]} />
-        <meshStandardMaterial color={SKIN} roughness={0.76} metalness={0.02} />
+      {/* ── Main Palm Body and Curled Fingers (Rotated to face FRONT) ──────── */}
+      <group rotation={[-Math.PI / 2, 0, 0]}>
+        {/* Main Palm Body */}
+        <RoundedBox
+          args={[1.72, 1.0, 1.4]}
+          radius={0.08}
+          smoothness={4}
+          position={[-0.6, -0.02, 0.06]}
+        >
+          <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.15} metalness={0.9} />
+        </RoundedBox>
+
+        {/* Dark inner layer for depth */}
+        <RoundedBox
+          args={[1.74, 0.98, 1.38]}
+          radius={0.05}
+          smoothness={4}
+          position={[-0.6, -0.02, 0.06]}
+        >
+          <meshStandardMaterial color={ROBO_DARK} roughness={0.7} metalness={0.9} />
+        </RoundedBox>
+
+        {/* Cyber Grip Pad */}
+        <RoundedBox
+          args={[1.48, 0.36, 1.28]}
+          radius={0.05}
+          smoothness={2}
+          position={[-0.55, -0.42, 0.06]}
+        >
+          <meshStandardMaterial color={ROBO_PURPLE} roughness={0.2} metalness={1.0} wireframe />
+        </RoundedBox>
+        <RoundedBox
+          args={[1.46, 0.35, 1.26]}
+          radius={0.05}
+          smoothness={2}
+          position={[-0.55, -0.4, 0.06]}
+        >
+          <meshStandardMaterial color={ROBO_DARK} roughness={0.7} metalness={0.9} />
+        </RoundedBox>
+        {/* Grip Pad Glowing nodes */}
+        {[-1.0, -0.1].map(x => 
+          [-0.4, 0.5].map(z => (
+            <mesh key={`${x}-${z}`} position={[x, -0.55, z]}>
+              <sphereGeometry args={[0.1, 16, 16]} />
+              <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={4.0} />
+            </mesh>
+          ))
+        )}
+
+        {/* Internal Palm Data Streams (particles) */}
+        {[-0.8, -0.6, -0.4].map((x, i) => (
+           <mesh key={`stream-${i}`} position={[x, -0.45, 0.06]} rotation={[0, 0, 0]}>
+             <cylinderGeometry args={[0.02, 0.02, 1.1, 8]} />
+             <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={4.0} />
+           </mesh>
+        ))}
+
+        {/* Segmented Armor Plates on Back of Hand */}
+        {[-0.3, 0.3].map((offsetZ, i) => (
+          <group key={offsetZ} position={[-0.6, 0.48, 0.06 + offsetZ]}>
+            <mesh scale={[0.8, 0.1, 0.35]}>
+              <boxGeometry args={[1.9, 1.0, 1.4]} />
+              <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.1} metalness={1.0} />
+            </mesh>
+            {/* Edge highlights */}
+            <mesh scale={[0.82, 0.11, 0.37]}>
+              <boxGeometry args={[1.9, 1.0, 1.4]} />
+              <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.2} wireframe />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Warning Stripes on Armor Plates */}
+        <mesh position={[-0.6, 0.54, -0.24]} rotation={[0, 0, Math.PI/4]}>
+           <planeGeometry args={[0.8, 0.1]} />
+           <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={2.5} />
+        </mesh>
+        
+        {/* Central Power Core on Back of Hand */}
+        <mesh position={[-0.6, 0.52, 0.06]} rotation={[Math.PI/2, 0, 0]}>
+          <torusGeometry args={[0.3, 0.08, 16, 32]} />
+          <meshStandardMaterial color={ROBO_DARK} roughness={0.6} metalness={0.9} />
+        </mesh>
+        <mesh position={[-0.6, 0.52, 0.06]} rotation={[Math.PI/2, 0, 0]}>
+          <torusGeometry args={[0.22, 0.05, 16, 32]} />
+          <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.1} metalness={1.0} />
+        </mesh>
+        <mesh position={[-0.6, 0.5, 0.06]} rotation={[Math.PI/2, 0, 0]}>
+          <cylinderGeometry args={[0.18, 0.18, 0.06, 32]} />
+          <meshStandardMaterial color={ROBO_PURPLE} emissive={ROBO_PURPLE} emissiveIntensity={5.0} />
+        </mesh>
+        {/* Wireframe Hex Grid overlaying the core */}
+        <mesh position={[-0.6, 0.55, 0.06]} rotation={[Math.PI/2, 0, 0]}>
+          <cylinderGeometry args={[0.2, 0.2, 0.02, 6]} />
+          <meshStandardMaterial color="#ffffff" wireframe emissive="#ffffff" emissiveIntensity={3.0} />
+        </mesh>
+        
+        {/* Complex Floating Holographic UI System above Core */}
+        <group position={[-0.6, 0.65, 0.06]} rotation={[Math.PI/2, 0, 0]}>
+          <mesh position={[0,0,0]}>
+            <torusGeometry args={[0.35, 0.005, 16, 64]} />
+            <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={5.0} />
+          </mesh>
+          <mesh position={[0,0,-0.08]} rotation={[0, 0, Math.PI/4]}>
+            <torusGeometry args={[0.45, 0.003, 16, 6] /* Hexagon ring */} />
+            <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={4.0} />
+          </mesh>
+          <mesh position={[0,0,-0.16]}>
+            <torusGeometry args={[0.55, 0.002, 16, 64]} />
+            <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={5.0} />
+          </mesh>
+        </group>
+        
+        {/* Holographic Datapad floating next to wrist */}
+        <group position={[-1.2, 0.8, -0.6]} rotation={[Math.PI/6, Math.PI/4, 0]}>
+          <mesh>
+             <planeGeometry args={[1.2, 0.8]} />
+             <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={1.0} transparent opacity={0.3} />
+          </mesh>
+          <mesh position={[0, 0, 0.01]}>
+             <planeGeometry args={[1.2, 0.8]} />
+             <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={4.0} wireframe />
+          </mesh>
+          {/* Data bars */}
+          {[-0.3, -0.1, 0.1, 0.3].map((y, i) => (
+             <mesh key={`bar-${i}`} position={[-0.2, y, 0.02]}>
+               <planeGeometry args={[Math.random() * 0.6 + 0.1, 0.05]} />
+               <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={5.0} />
+             </mesh>
+          ))}
+        </group>
+
+        {/* ── Ring finger: Curled into palm ──────── */}
+        <RoboFinger
+          points={[
+            [0.2, 0.0, -0.2],
+            [0.52, -0.22, -0.2],
+            [0.46, -0.62, -0.2],
+            [0.18, -0.74, -0.2],
+          ]}
+          rStart={0.128}
+          rEnd={0.082}
+        />
+
+        {/* ── Little finger: Curled into palm ─────── */}
+        <RoboFinger
+          points={[
+            [0.15, -0.01, -0.5],
+            [0.44, -0.2, -0.5],
+            [0.38, -0.52, -0.5],
+            [0.16, -0.6, -0.5],
+          ]}
+          rStart={0.112}
+          rEnd={0.072}
+        />
+      </group>
+
+      {/* Servo Motor Housing (Thumb Joint) - Left unrotated to connect Thumb */}
+      <mesh position={[-0.75, 0.04, -0.38]}>
+        <sphereGeometry args={[0.35, 32, 32]} />
+        <meshStandardMaterial color={ROBO_SECONDARY} roughness={0.3} metalness={0.9} />
       </mesh>
 
-      {/* Wrist and a stub of forearm, so the hand is attached to something. */}
-      <RoundedBox args={[0.5, 0.42, 0.98]} radius={0.15} smoothness={4} position={[-1.6, 0, 0.06]}>
-        <meshStandardMaterial color={SKIN_DEEP} roughness={0.76} metalness={0.02} />
-      </RoundedBox>
-      <mesh position={[-2.25, 0, 0.06]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.42, 0.46, 0.95, 20]} />
-        <meshStandardMaterial color={SKIN_DEEP} roughness={0.78} metalness={0.02} />
-      </mesh>
-
-      {/* Finger lengths are held to real hand ratios against palm length —
-          index 0.72, middle 0.80, ring 0.74, little 0.58, thumb 0.62. Getting
-          these wrong is what makes a modelled hand look spidery. */}
-
-      {/* First finger — Field. Three phalanges straight out along +X. */}
-      <Finger
-        joints={[
-          [0.22, 0.02, -0.4],
-          [0.745, 0.03, -0.4],
-          [1.106, 0.01, -0.4],
-          [1.386, -0.01, -0.4],
+      {/* ── Thumb — Force F (+Y) ── */}
+      {/* Chronologically next: Thumb above the base */}
+      <RoboFinger
+        points={[
+          [-0.75, 0.1, -0.46],
+          [-0.72, 0.75, -0.5],
+          [-0.7, 1.46, -0.52],
         ]}
-        radii={[0.135, 0.12, 0.105, 0.088]}
-        tipColor={PALETTE.sky}
+        rStart={0.165}
+        rEnd={0.115}
+        tipColor={PALETTE.emerald}
       />
 
-      {/* Second finger — Current. Bent 90° at the knuckle to run along +Z. */}
-      <Finger
-        joints={[
-          [0.24, 0.02, -0.06],
-          [0.3, 0.0, 0.3],
-          [0.32, -0.01, 0.72],
-          [0.32, -0.02, 1.02],
-          [0.32, -0.03, 1.222],
+      {/* ── Second finger — Current I (+Z) ── */}
+      {/* Chronologically next: Middle finger facing front */}
+      <RoboFinger
+        points={[
+          [0.22, 0.12, -0.06],
+          [0.32, 0.11, 0.45],
+          [0.32, 0.1, 1.05],
+          [0.32, 0.09, 1.68],
         ]}
-        radii={[0.14, 0.128, 0.115, 0.1, 0.085]}
+        rStart={0.14}
+        rEnd={0.086}
         tipColor={PALETTE.gold}
       />
 
-      {/* Ring and little curled into the palm — proximal phalanx forward and
-          down, then the rest tucking back toward the palm. */}
-      <Finger
-        joints={[
-          [0.21, 0.0, 0.28],
-          [0.55, -0.25, 0.28],
-          [0.48, -0.68, 0.28],
-          [0.17, -0.79, 0.28],
+      {/* ── First finger — Field B (+X) ── */}
+      {/* Chronologically last: Index finger facing S pole (+X) */}
+      <RoboFinger
+        points={[
+          [0.2, 0.4, -0.4],
+          [0.72, 0.4, -0.4],
+          [1.26, 0.39, -0.4],
+          [1.76, 0.38, -0.4],
         ]}
-        radii={[0.128, 0.115, 0.098, 0.082]}
-      />
-      <Finger
-        joints={[
-          [0.16, -0.01, 0.58],
-          [0.46, -0.22, 0.58],
-          [0.4, -0.56, 0.58],
-          [0.17, -0.63, 0.58],
-        ]}
-        radii={[0.112, 0.1, 0.086, 0.072]}
-      />
-
-      {/* Thumb — Force. Two phalanges rising from the thenar pad. */}
-      <Finger
-        joints={[
-          [-0.74, 0.1, -0.46],
-          [-0.71, 0.65, -0.5],
-          [-0.7, 1.1, -0.53],
-        ]}
-        radii={[0.165, 0.14, 0.115]}
-        tipColor={PALETTE.emerald}
+        rStart={0.135}
+        rEnd={0.088}
+        tipColor={PALETTE.sky}
       />
     </group>
   );
 }
+
 function FlowPulses({
   origin,
   dir,
@@ -840,8 +1079,7 @@ function FlowPulses({
         origin[1] + dir[1] * t * length,
         origin[2] + dir[2] * t * length,
       );
-      // Fade in and out at the ends so pulses don't pop into existence.
-      mesh.scale.setScalar(0.2 + Math.sin(t * Math.PI) * 0.8);
+      mesh.scale.setScalar(0.25 + Math.sin(t * Math.PI) * 0.75);
     }
   });
 
@@ -854,11 +1092,11 @@ function FlowPulses({
             meshes.current[i] = el;
           }}
         >
-          <sphereGeometry args={[size, 12, 12]} />
+          <sphereGeometry args={[size, 16, 16]} />
           <meshStandardMaterial
             color={color}
             emissive={color}
-            emissiveIntensity={2.4}
+            emissiveIntensity={2.8}
             toneMapped={false}
           />
         </mesh>
@@ -868,18 +1106,16 @@ function FlowPulses({
 }
 
 /**
- * The conductor actually being pushed. A wire segment lying along the current
- * direction, sliding along the force direction with ghosted copies trailing
- * behind it — the "way of motion" the thumb is predicting.
+ * Heavy metallic conductor rod sliding along lab guide rails.
  */
 function MovingConductor({ start, wireDir, moveDir, travel, speed, running }) {
   const refs = useRef([]);
   const phase = useRef(0);
   const GHOSTS = [
     { lag: 0, opacity: 1 },
-    { lag: 0.08, opacity: 0.34 },
-    { lag: 0.16, opacity: 0.2 },
-    { lag: 0.24, opacity: 0.1 },
+    { lag: 0.08, opacity: 0.4 },
+    { lag: 0.16, opacity: 0.22 },
+    { lag: 0.24, opacity: 0.12 },
   ];
 
   const quaternion = useMemo(
@@ -897,8 +1133,6 @@ function MovingConductor({ start, wireDir, moveDir, travel, speed, running }) {
       const mesh = refs.current[g];
       if (!mesh) return;
       const t = phase.current - ghost.lag;
-      // The wire itself is always there; only its motion trail comes and goes,
-      // so a stationary conductor still shows as a conductor.
       mesh.visible = g === 0 || t > 0;
       const d = Math.max(0, t) * travel;
       mesh.position.set(
@@ -911,6 +1145,26 @@ function MovingConductor({ start, wireDir, moveDir, travel, speed, running }) {
 
   return (
     <>
+      {/* Parallel Guide Rails */}
+      <group position={[start[0], start[1], start[2]]}>
+        {[-1.2, 1.2].map((z, idx) => (
+          <mesh key={idx} position={[0, -0.15, z]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.06, 0.06, 3.8, 16]} />
+            <meshStandardMaterial color="#f59e0b" metalness={0.9} roughness={0.25} />
+          </mesh>
+        ))}
+        {/* Rail Insulator Mounts */}
+        {[-1.5, 1.5].map((x, i) =>
+          [-1.2, 1.2].map((z, j) => (
+            <mesh key={`${i}-${j}`} position={[x, -0.4, z]}>
+              <cylinderGeometry args={[0.12, 0.15, 0.4, 16]} />
+              <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.7} />
+            </mesh>
+          ))
+        )}
+      </group>
+
+      {/* Moving Conductor Rod & Motion Ghosts */}
       {GHOSTS.map((ghost, g) => (
         <mesh
           key={g}
@@ -919,15 +1173,15 @@ function MovingConductor({ start, wireDir, moveDir, travel, speed, running }) {
           }}
           quaternion={quaternion}
         >
-          <cylinderGeometry args={[0.13, 0.13, 2.6, 16]} />
+          <cylinderGeometry args={[0.14, 0.14, 2.8, 24]} />
           <meshStandardMaterial
-            color="#b45309"
+            color="#d97706"
             emissive={PALETTE.gold}
-            emissiveIntensity={g === 0 ? 0.9 : 0.4}
+            emissiveIntensity={g === 0 ? 1.0 : 0.4}
             transparent={ghost.opacity < 1}
             opacity={ghost.opacity}
-            roughness={0.35}
-            metalness={0.6}
+            roughness={0.2}
+            metalness={0.85}
           />
         </mesh>
       ))}
@@ -935,24 +1189,31 @@ function MovingConductor({ start, wireDir, moveDir, travel, speed, running }) {
   );
 }
 
-/** Flat pole plate at the end of the field axis. */
+/** Realistic Magnet Pole Assembly with Steel Yoke (coils removed for clarity). */
 function PolePlate({ position, pole }) {
   const isNorth = pole === "N";
   const color = isNorth ? PALETTE.rose : PALETTE.sky;
   return (
     <group position={position}>
+      {/* Metallic Pole Block */}
       <mesh>
-        <boxGeometry args={[0.55, 3.4, 3.4]} />
+        <boxGeometry args={[0.7, 3.6, 3.6]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.4}
-          roughness={0.45}
-          metalness={0.35}
+          emissiveIntensity={0.45}
+          roughness={0.3}
+          metalness={0.7}
         />
       </mesh>
+      {/* Polished Bevel Cap */}
+      <mesh position={[isNorth ? 0.38 : -0.38, 0, 0]}>
+        <boxGeometry args={[0.06, 3.64, 3.64]} />
+        <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
+      </mesh>
+
       <SceneLabel
-        position={[0, 2.3, 0]}
+        position={[0, 2.4, 0]}
         tone={isNorth ? "text-rose-300" : "text-sky-300"}
       >
         {isNorth ? "N pole" : "S pole"}
@@ -996,9 +1257,18 @@ export function MotorEffectScene({
   // Each vector leaves just beyond its fingertip, on the same line as the
   // finger (hand local coords × the 1.15 hand scale), so it reads as that
   // finger continuing outward rather than as a separate arrow nearby.
-  const fieldStart = [bSign * 2.05, -0.01, -0.46];
-  const currentStart = [0.37, -0.03, iSign * 1.95];
-  const forceStart = [-0.8, fSign * 1.7, -0.61];
+  const fieldStart = useMemo(
+    () => [bSign * 2.05, 0.38, -0.4],
+    [bSign],
+  );
+  const currentStart = useMemo(
+    () => [0.37, 0.09, iSign * 1.95],
+    [iSign],
+  );
+  const forceStart = useMemo(
+    () => [-0.8, fSign * 1.7, -0.61],
+    [fSign],
+  );
 
   const AXIS = 4.2;
   const end = (start, dir, len) => [
@@ -1058,7 +1328,7 @@ export function MotorEffectScene({
         running={animate}
       />
 
-      {/* ── Force: thumb, plus the conductor it pushes ───────────── */}
+      {/* ── Force: thumb (moving conductor and rails removed) ──────── */}
       {hasForce ? (
         <>
           <VectorArrow
@@ -1078,32 +1348,11 @@ export function MotorEffectScene({
             count={3}
             running={animate}
           />
-          <MovingConductor
-            start={[2.6, fSign * 1.2, 0]}
-            wireDir={currentDir}
-            moveDir={forceDir}
-            travel={2.8}
-            speed={0.22 + force * 0.3}
-            running={animate}
-          />
-          <SceneLabel position={[2.6, fSign * 4.6, 0]} tone="text-emerald-300">
-            the wire moves this way
-          </SceneLabel>
         </>
       ) : (
-        <>
-          <MovingConductor
-            start={[2.6, 0, 0]}
-            wireDir={currentDir}
-            moveDir={forceDir}
-            travel={0}
-            speed={0}
-            running={false}
-          />
-          <SceneLabel position={[2.6, 1.6, 0]} tone="text-rose-300">
-            I = 0 A · no current, no force, no motion
-          </SceneLabel>
-        </>
+        <SceneLabel position={[0, 2.5, 0]} tone="text-rose-300">
+          I = 0 A · no current, no force, no motion
+        </SceneLabel>
       )}
 
       {/* ── Field lines and poles, framing the whole thing ───────── */}

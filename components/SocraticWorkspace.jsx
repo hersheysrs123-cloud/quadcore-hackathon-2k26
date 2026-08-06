@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import WidgetCanvas from "@/components/WidgetCanvas";
 import { socraticChat, socraticWidget, shouldUseClientAI } from "@/lib/aiService";
+import { useVoice } from "@/hooks/useVoice";
 
 /**
  * Drives the full Socratic loop:
@@ -29,6 +30,17 @@ export default function SocraticWorkspace({
   const [buildingWidget, setBuildingWidget] = useState(false);
   const [error, setError] = useState(null);
   const [widgetError, setWidgetError] = useState(null);
+
+  const {
+    ttsSupported,
+    isSpeaking,
+    speakingId,
+    autoSpeak,
+    toggleAutoSpeak,
+    speak,
+    stopSpeaking,
+    toggleSpeak,
+  } = useVoice();
 
   const scrollRef = useRef(null);
 
@@ -92,14 +104,20 @@ export default function SocraticWorkspace({
           ? await socraticChat(payload)
           : await postJson("/api/socratic/chat", payload);
 
-        setMessages([...history, { role: "assistant", content: data.reply }]);
+        const newMsgIndex = history.length;
+        const assistantMsg = { role: "assistant", content: data.reply };
+        setMessages([...history, assistantMsg]);
+
+        if (autoSpeak && data.reply && ttsSupported) {
+          speak(data.reply, `msg-${newMsgIndex}`);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
         setThinking(false);
       }
     },
-    [concept],
+    [concept, autoSpeak, ttsSupported, speak],
   );
 
   /** Builds the playground from whatever the diagnostic flagged. */
@@ -142,6 +160,7 @@ export default function SocraticWorkspace({
   const endSession = useCallback(async () => {
     setScoring(true);
     setError(null);
+    stopSpeaking();
     try {
       const payload = {
         noteContent: noteContentRef.current,
@@ -162,7 +181,7 @@ export default function SocraticWorkspace({
     } finally {
       setScoring(false);
     }
-  }, [buildWidget, concept, messages]);
+  }, [buildWidget, concept, messages, stopSpeaking]);
 
   // Fresh session each time the drawer opens on a concept.
   useEffect(() => {
@@ -191,16 +210,24 @@ export default function SocraticWorkspace({
     });
   }, [messages, thinking, diagnostic, widget]);
 
-  function handleSubmit(event) {
-    event.preventDefault();
-    const answer = input.trim();
-    if (!answer || thinking || scoring || scored) return;
+  const submitAnswer = useCallback(
+    (textToSubmit) => {
+      const answer = (textToSubmit !== undefined ? textToSubmit : input).trim();
+      if (!answer || thinking || scoring || scored) return;
 
-    const next = [...messages, { role: "user", content: answer }];
-    setMessages(next);
-    setInput("");
-    askDuck(next);
+      const next = [...messages, { role: "user", content: answer }];
+      setMessages(next);
+      setInput("");
+      askDuck(next);
+    },
+    [input, thinking, scoring, scored, messages, askDuck],
+  );
+
+  function handleSubmit(event) {
+    if (event) event.preventDefault();
+    submitAnswer();
   }
+
 
   const busy = thinking || scoring;
 
@@ -230,6 +257,22 @@ export default function SocraticWorkspace({
             </p>
             <p className="truncate text-xs text-ink-500">{concept}</p>
           </div>
+
+          {ttsSupported && (
+            <button
+              type="button"
+              onClick={toggleAutoSpeak}
+              title="Toggle auto-read replies"
+              className={`mr-2 shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                autoSpeak
+                  ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                  : "border border-ink-700 bg-ink-850 text-ink-400 hover:text-ink-200"
+              }`}
+            >
+              {autoSpeak ? "🔊 Auto-Read" : "🔇 Auto-Read"}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onClose}
@@ -242,22 +285,46 @@ export default function SocraticWorkspace({
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="space-y-4 px-5 py-5">
-            {visible.map((message, i) => (
-              <div
-                key={i}
-                className={message.role === "user" ? "flex justify-end" : "flex"}
-              >
-                <p
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
-                    message.role === "user"
-                      ? "bg-ink-800 text-ink-100"
-                      : "border border-duck-500/25 bg-duck-500/5 text-ink-200"
-                  }`}
+
+
+            {visible.map((message, i) => {
+              const isAssistant = message.role === "assistant";
+              const msgId = `msg-${i}`;
+              const isThisSpeaking = isSpeaking && speakingId === msgId;
+
+              return (
+                <div
+                  key={i}
+                  className={message.role === "user" ? "flex justify-end" : "flex items-start gap-2"}
                 >
-                  {message.content}
-                </p>
-              </div>
-            ))}
+                  <p
+                    className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
+                      message.role === "user"
+                        ? "bg-ink-800 text-ink-100"
+                        : "border border-duck-500/25 bg-duck-500/5 text-ink-200"
+                    }`}
+                  >
+                    {message.content}
+                  </p>
+
+                  {isAssistant && ttsSupported && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSpeak(message.content, msgId)}
+                      title={isThisSpeaking ? "Stop reading out loud" : "Read response out loud"}
+                      aria-label={isThisSpeaking ? "Stop reading out loud" : "Read response out loud"}
+                      className={`mt-1 shrink-0 rounded-full p-1.5 text-xs transition-colors ${
+                        isThisSpeaking
+                          ? "animate-pulse bg-duck-400 text-ink-950"
+                          : "text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+                      }`}
+                    >
+                      {isThisSpeaking ? "🔊" : "🔈"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
 
             {busy && (
               <p className="text-xs text-ink-500">
@@ -297,6 +364,8 @@ export default function SocraticWorkspace({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="border-t border-ink-800 px-5 py-4">
+
+
             <div className="flex items-end gap-2">
               <textarea
                 rows={2}
@@ -309,6 +378,8 @@ export default function SocraticWorkspace({
                 placeholder="Explain it in your own words..."
                 className="flex-1 resize-none rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none disabled:opacity-50"
               />
+
+
               <button
                 type="submit"
                 disabled={busy || !input.trim()}

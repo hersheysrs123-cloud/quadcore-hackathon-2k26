@@ -63,67 +63,62 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
   const activeCount = activeTimers.length;
 
   return (
-    <div className="relative inline-flex items-center" ref={popoverRef}>
-      {/* ── Unified Header "Timers" Button ── */}
+    <div className="relative flex w-full items-center" ref={popoverRef}>
+      {/* ── Unified Timers Button ── */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         title="Manage Workspace Timers"
-        className={`group relative flex items-center gap-2 rounded-lg border px-3.5 py-1.5 text-xs font-semibold transition-all shadow-sm ${
+        className={`group relative flex w-full items-center justify-between rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all shadow-sm ${
           primaryIsNearingEnd
             ? "border-rose-500/80 bg-rose-500/20 text-rose-300 ring-2 ring-rose-500/40 animate-pulse"
             : primaryIsActive
             ? "border-duck-500/60 bg-duck-500/10 text-duck-300 ring-1 ring-duck-500/30"
-            : "border-ink-800 bg-ink-950 text-ink-300 hover:border-ink-700 hover:bg-ink-900"
+            : "border-ink-700/80 bg-ink-850/90 text-ink-200 hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100"
         }`}
       >
-        <span className="relative flex h-2.5 w-2.5 items-center justify-center">
-          {primaryIsNearingEnd ? (
-            <AlertTriangle className="h-3.5 w-3.5 text-rose-400 animate-bounce" />
-          ) : primaryIsActive ? (
-            <>
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-duck-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-duck-400" />
-            </>
-          ) : (
-            <Clock className="h-3.5 w-3.5 text-duck-400" />
-          )}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
+            {primaryIsNearingEnd ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-400 animate-bounce" />
+            ) : primaryIsActive ? (
+              <>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-duck-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-duck-400" />
+              </>
+            ) : (
+              <Clock className="h-3.5 w-3.5 text-duck-400" />
+            )}
+          </span>
 
-        {/* Header Display Logic */}
-        <div className="flex items-center gap-1.5 tabular-nums">
-          {activeCount > 1 ? (
-            <>
-              <span className="font-bold text-ink-100">Timers</span>
-              <span className="rounded-full bg-duck-500/20 px-1.5 py-0.2 text-[10px] font-extrabold text-duck-300 border border-duck-500/40">
+          {/* Button Display Logic */}
+          <div className="flex items-center gap-1.5 tabular-nums min-w-0">
+            <span className="font-bold text-ink-100 shrink-0">Timers</span>
+            {activeCount > 1 ? (
+              <span className="rounded-full bg-duck-500/20 px-1.5 py-0.2 text-[10px] font-extrabold text-duck-300 border border-duck-500/40 shrink-0">
                 {activeCount} Active
               </span>
-              <span className="font-mono text-xs text-ink-400">
-                ({formatTime(primaryTimer?.secondsLeft)})
-              </span>
-            </>
-          ) : activeCount === 1 && primaryTimer ? (
-            <>
-              <span className="font-mono text-xs tracking-tight font-bold">
-                {formatTime(primaryTimer.secondsLeft)}
-              </span>
-              <span className="hidden sm:inline-block text-[11px] text-ink-400 font-normal">
+            ) : activeCount === 1 && primaryTimer ? (
+              <span className="truncate text-[11px] text-ink-300 font-normal">
                 {modeEmojis[primaryTimer.mode]} {primaryTimer.title}
               </span>
-            </>
-          ) : (
-            <>
-              <span className="font-bold text-ink-100">Timers</span>
-              {pinnedTimers.length > 0 && (
-                <span className="rounded-full bg-ink-800 px-1.5 text-[10px] text-ink-400">
+            ) : (
+              pinnedTimers.length > 0 && (
+                <span className="rounded-full bg-ink-800 px-1.5 text-[10px] text-ink-400 shrink-0">
                   📌 {pinnedTimers.length}
                 </span>
-              )}
-            </>
-          )}
+              )
+            )}
+          </div>
         </div>
 
-        {/* Progress bar on header button */}
+        {primaryTimer && (
+          <span className="font-mono text-xs tracking-tight font-bold tabular-nums shrink-0 ml-2 text-ink-300">
+            {formatTime(primaryTimer.secondsLeft)}
+          </span>
+        )}
+
+        {/* Progress bar on button */}
         {primaryIsActive && (
           <div className="absolute bottom-0 left-1 right-1 h-0.5 rounded-full bg-ink-800 overflow-hidden">
             <div
@@ -138,7 +133,7 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
 
       {/* ── Multi-Timer Dropdown Panel ── */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 z-[100] w-80 max-h-[85vh] overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-4 shadow-2xl backdrop-blur-xl animate-fade-up">
+        <div className="absolute left-0 top-full mt-1.5 z-[100] w-72 max-h-[85vh] overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-4 shadow-2xl backdrop-blur-xl animate-fade-up">
           {/* Header Bar */}
           <div className="flex items-center justify-between border-b border-ink-800 pb-3 mb-3">
             <div className="flex items-center gap-2">

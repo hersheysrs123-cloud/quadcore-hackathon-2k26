@@ -44,7 +44,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── BlockNoteEditor.jsx             # Notion-style block editor with 17+ block types, 6-dots handles, covers & stats
 │   ├── CalendarView.jsx                # Study schedule, month navigation, & Pomodoro countdown timer widget
 │   ├── InstantNoteModal.jsx            # 75% screen instant note popup triggered via Ctrl+I or UI buttons
-│   ├── Sidebar.jsx                     # Spaces navigation, 24h trash tab, Settings ⚙️ modal & Factory Reset captcha
+│   ├── Sidebar.jsx                     # Top bar logo, compact Spaces dropdown, 24h trash tab, Settings ⚙️ modal & Factory Reset captcha
 │   ├── SocraticWorkspace.jsx           # UNREFERENCED — the Socratic session now lives in QuizPanel
 │   ├── ThreeDView.jsx                  # Interactive 3D visualization studio
 │   ├── Drawer.jsx                      # Shared right-panel chrome for Explain & Quiz

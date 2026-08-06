@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
-import ThreeDView from "@/components/ThreeDView";
+import dynamic from "next/dynamic";
+const ThreeDView = dynamic(() => import("@/components/ThreeDView"), { ssr: false });
 import InstantNoteModal from "@/components/InstantNoteModal";
 import AlarmOverlay from "@/components/AlarmOverlay";
 import SocraticWorkspace from "@/components/SocraticWorkspace";
@@ -13,6 +14,9 @@ import QuizPanel from "@/components/QuizPanel";
 import MasteryDashboard from "@/components/MasteryDashboard";
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import PinnedTimersOverlay from "@/components/PinnedTimersOverlay";
+import ExportImportModal from "@/components/ExportImportModal";
+import NoteMenu from "@/components/NoteMenu";
+import CommandPalette from "@/components/CommandPalette";
 import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { demoNotesBySpace } from "@/lib/demoNotes";
@@ -44,17 +48,20 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 const SESSIONS_KEY = "socratic_study_sessions";
 
 /** Set once the seed has been planted, so clearing every note doesn't re-seed. */
-const SEEDED_KEY = "socratic_demo_seeded_v6";
+const SEEDED_KEY = "socratic_demo_seeded_v7";
 
 const isEmptyWorkspace = (bySpace) =>
   !bySpace || Object.values(bySpace).every((list) => !list || list.length === 0);
 
 export default function Workspace({ note: initialNote }) {
   const [mounted, setMounted] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
+  const [spaces, setSpaces] = useState(SPACES);
   const [activeTab, setActiveTab] = useState("notes");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
+  const [exportImportOpen, setExportImportOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
 
   // Explain / Quiz drawers. `studyTarget` survives closing so the panel does
@@ -98,11 +105,15 @@ export default function Workspace({ note: initialNote }) {
   // Factory Reset Handler
   const handleResetData = useCallback(async (target) => {
     try {
-      await factoryResetWorkspace();
-      setNotesBySpace(DEFAULT_NOTES_BY_SPACE);
-      setActiveNoteId(null);
-      setSessions([]);
-      setTrashNotes([]);
+      if (target === "notes" || target === "all" || !target) {
+        setNotesBySpace(DEFAULT_NOTES_BY_SPACE);
+        setActiveNoteId(null);
+        setTrashNotes([]);
+      }
+      if (target === "all" || !target) {
+        setSessions([]);
+      }
+      await factoryResetWorkspace(target);
       window.location.reload();
     } catch (err) {
       alert("Reset error: " + err.message);
@@ -138,14 +149,57 @@ export default function Workspace({ note: initialNote }) {
           });
 
           setNotesBySpace(spaceMap);
-          const firstInActive = (spaceMap[SPACES[0].name] || [])[0];
-          if (firstInActive) setActiveNoteId(firstInActive.id);
+
+          let savedCustomSpaces = [];
+          try { savedCustomSpaces = JSON.parse(localStorage.getItem("socratic_custom_spaces")) || []; } catch(e){}
+          
+          const merged = new Map();
+          SPACES.forEach(s => merged.set(s.name, s));
+          savedCustomSpaces.forEach(s => merged.set(s.name, s));
+          Object.keys(spaceMap).forEach(sp => {
+             if (!merged.has(sp)) merged.set(sp, { name: sp, icon: "📂" });
+          });
+          setSpaces(Array.from(merged.values()));
+
+          const params = new URLSearchParams(window.location.search);
+          const urlNoteId = params.get("noteId");
+          const urlTab = params.get("tab");
+          
+          let fallback = null;
+          try { fallback = JSON.parse(localStorage.getItem("socratic_last_workspace_state")); } catch(e){}
+
+          const targetNoteId = urlNoteId || fallback?.activeNoteId;
+          const targetTab = urlTab || fallback?.activeTab || "notes";
+
+          let foundSpace = SPACES[0].name;
+          let foundNoteId = null;
+          
+          if (targetNoteId) {
+            for (const [sp, notes] of Object.entries(spaceMap)) {
+              if (notes.find(n => n.id === targetNoteId)) {
+                foundSpace = sp;
+                foundNoteId = targetNoteId;
+                break;
+              }
+            }
+          }
+
+          if (!foundNoteId) {
+            const firstInActive = (spaceMap[foundSpace] || [])[0];
+            if (firstInActive) foundNoteId = firstInActive.id;
+          }
+
+          setActiveSpace(foundSpace);
+          setActiveNoteId(foundNoteId);
+          setActiveTab(targetTab);
 
           const trash = await getTrashNotes();
           setTrashNotes(trash);
 
           const studySess = await getStudySessions();
           setSessions(studySess);
+          
+          setIsHydrated(true);
         } catch (err) {
           console.error("Dexie hydration error:", err);
         }
@@ -154,6 +208,19 @@ export default function Workspace({ note: initialNote }) {
       loadLocalWorkspace();
     }
   }, []);
+
+  // Sync state to URL and localStorage
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (activeNoteId) params.set("noteId", activeNoteId);
+    if (activeTab) params.set("tab", activeTab);
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+    
+    localStorage.setItem("socratic_last_workspace_state", JSON.stringify({ activeNoteId, activeTab, activeSpace }));
+  }, [activeNoteId, activeTab, activeSpace, isHydrated]);
 
   // Update theme data attribute on root HTML element
   useEffect(() => {
@@ -168,18 +235,14 @@ export default function Workspace({ note: initialNote }) {
     }
   }, [theme]);
 
-  // Save notesBySpace & trashNotes to localStorage
   useEffect(() => {
     if (mounted && typeof window !== "undefined") {
-      localStorage.setItem("socratic_notes_by_space", JSON.stringify(notesBySpace));
+      const custom = spaces.filter(s => !SPACES.find(bs => bs.name === s.name));
+      localStorage.setItem("socratic_custom_spaces", JSON.stringify(custom));
     }
-  }, [notesBySpace, mounted]);
+  }, [spaces, mounted]);
 
-  useEffect(() => {
-    if (mounted && typeof window !== "undefined") {
-      localStorage.setItem("socratic_trash_notes", JSON.stringify(trashNotes));
-    }
-  }, [trashNotes, mounted]);
+  // Removed redundant localStorage saves for notesBySpace & trashNotes to prevent QuotaExceededError
 
   useEffect(() => {
     if (mounted && typeof window !== "undefined") {
@@ -304,18 +367,32 @@ export default function Workspace({ note: initialNote }) {
     [sessions],
   );
 
+  const handleDeleteSpace = useCallback(async (spaceName) => {
+    if (confirm(`Are you sure you want to delete the space "${spaceName}" and ALL notes inside it?`)) {
+       const notesToDelete = notesBySpace[spaceName] || [];
+       for (const note of notesToDelete) {
+           await handleDeleteNote(note.id); // move to trash
+       }
+       setSpaces(prev => prev.filter(s => s.name !== spaceName));
+       if (activeSpace === spaceName) {
+         setActiveSpace(SPACES[0].name);
+       }
+    }
+  }, [notesBySpace, activeSpace, handleDeleteNote]);
+
   const handleSaveNote = useCallback(
-    async ({ title, blocks, banner, isFavorite, emoji }) => {
-      const targetNoteId = activeNoteObj?.id || `n_${Date.now()}`;
-      const updatedTitle = title || activeNoteObj?.title || "Untitled Note";
-      const updatedBlocks = blocks || activeNoteObj?.blocks || [{ id: `blk_${Date.now()}`, type: "text", content: "" }];
-      const updatedBanner = banner !== undefined ? banner : activeNoteObj?.banner;
-      const updatedFav = isFavorite !== undefined ? isFavorite : activeNoteObj?.isFavorite;
-      const updatedEmoji = emoji !== undefined ? emoji : activeNoteObj?.emoji;
+    async (noteToSave) => {
+      const targetNoteId = noteToSave?.id || activeNoteObj?.id || `n_${Date.now()}`;
+      const targetSpace = noteToSave?.spaceId || noteToSave?.space || activeSpace;
+      const updatedTitle = noteToSave?.title || activeNoteObj?.title || "Untitled Note";
+      const updatedBlocks = noteToSave?.blocks || activeNoteObj?.blocks || [{ id: `blk_${Date.now()}`, type: "text", content: "" }];
+      const updatedBanner = noteToSave?.banner !== undefined ? noteToSave.banner : activeNoteObj?.banner;
+      const updatedFav = noteToSave?.isFavorite !== undefined ? noteToSave.isFavorite : activeNoteObj?.isFavorite;
+      const updatedEmoji = noteToSave?.emoji !== undefined ? noteToSave.emoji : activeNoteObj?.emoji;
 
       const noteData = {
         id: targetNoteId,
-        spaceId: activeSpace,
+        spaceId: targetSpace,
         title: updatedTitle,
         blocks: updatedBlocks,
         banner: updatedBanner,
@@ -324,7 +401,7 @@ export default function Workspace({ note: initialNote }) {
       };
 
       setNotesBySpace((prev) => {
-        const spaceNotes = prev[activeSpace] || [];
+        const spaceNotes = prev[targetSpace] || [];
         const existingIdx = spaceNotes.findIndex((n) => n.id === targetNoteId);
         let updatedNotes;
 
@@ -337,7 +414,7 @@ export default function Workspace({ note: initialNote }) {
         } else {
           updatedNotes = [...spaceNotes, noteData];
         }
-        return { ...prev, [activeSpace]: updatedNotes };
+        return { ...prev, [targetSpace]: updatedNotes };
       });
 
       if (!activeNoteObj) {
@@ -349,6 +426,30 @@ export default function Workspace({ note: initialNote }) {
       setTimeout(() => setSaveStatus(""), 3000);
     },
     [activeNoteObj, activeSpace]
+  );
+
+  // Bind global Ctrl+S shortcut to save note
+  useEffect(() => {
+    function handleSaveShortcut(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        handleSaveNote();
+      }
+    }
+    window.addEventListener("keydown", handleSaveShortcut);
+    return () => window.removeEventListener("keydown", handleSaveShortcut);
+  }, [handleSaveNote]);
+
+  const handleToggleFavoriteNote = useCallback(
+    async (targetNote) => {
+      if (!targetNote) return;
+      const nextFav = !Boolean(targetNote.isFavorite);
+      await handleSaveNote({
+        ...targetNote,
+        isFavorite: nextFav,
+      });
+    },
+    [handleSaveNote]
   );
 
   const handleSaveInstantNote = useCallback(
@@ -377,6 +478,24 @@ export default function Workspace({ note: initialNote }) {
     },
     []
   );
+
+  const handleImportSuccess = useCallback((importedNote) => {
+    if (!importedNote) return;
+    const sp = importedNote.spaceId || importedNote.space || "School";
+
+    setNotesBySpace((prev) => {
+      const spaceNotes = prev[sp] || [];
+      const existingIdx = spaceNotes.findIndex((n) => n.id === importedNote.id);
+      if (existingIdx >= 0) return prev;
+      return { ...prev, [sp]: [importedNote, ...spaceNotes] };
+    });
+
+    setActiveSpace(sp);
+    setActiveNoteId(importedNote.id);
+    setActiveTab("notes");
+    setSaveStatus("✓ Note imported");
+    setTimeout(() => setSaveStatus(""), 3500);
+  }, []);
 
   function handleCreateNote() {
     const newNote = {
@@ -476,7 +595,9 @@ export default function Workspace({ note: initialNote }) {
         }`}
       >
         <Sidebar
-          spaces={SPACES}
+          spaces={spaces}
+          setSpaces={setSpaces}
+          handleDeleteSpace={handleDeleteSpace}
           activeSpace={activeSpace}
           onSelectSpace={(spaceName) => {
             setActiveSpace(spaceName);
@@ -489,6 +610,12 @@ export default function Workspace({ note: initialNote }) {
           onSelectNote={handleSelectNote}
           onCreateNote={handleCreateNote}
           onDeleteNote={handleDeleteNote}
+          onSaveNote={handleSaveNote}
+          onToggleFavorite={handleToggleFavoriteNote}
+          onOpenExportImport={(n) => {
+            if (n) handleSelectNote(n);
+            setExportImportOpen(true);
+          }}
           trashNotes={trashNotes}
           onRecoverNote={handleRecoverNote}
           onPermanentlyDeleteNote={handlePermanentlyDeleteNote}
@@ -498,17 +625,18 @@ export default function Workspace({ note: initialNote }) {
           setTheme={setTheme}
           onResetData={handleResetData}
           onOpenInstantNote={() => setInstantNoteOpen(true)}
+          onNavigateCalendar={() => setActiveTab("calendar")}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
           note={initialNote}
         />
       </div>
 
-      {/* Main Container with Top HUD Header */}
+      {/* Main Container with Dual Top HUD Header */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top HUD Header with 4 Tabs: Notes, Calendar, 3D, Mastery */}
+        {/* Top HUD Header 1: Workspace Breadcrumb, Navigation Tabs & Socratic Triggers */}
         <header className="relative z-[60] flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
-          {/* Left Breadcrumb Context & Sidebar Toggle */}
-          <div className="flex min-w-0 max-w-[30%] sm:max-w-[36%] md:max-w-[44%] items-center gap-2.5 text-sm text-ink-400">
+          {/* Left Space Breadcrumb & Sidebar Toggle */}
+          <div className="flex items-center gap-2.5 text-sm text-ink-400">
             <button
               type="button"
               onClick={() => setSidebarOpen((prev) => !prev)}
@@ -518,26 +646,22 @@ export default function Workspace({ note: initialNote }) {
               {sidebarOpen ? (
                 <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
               ) : (
-                <PanelLeftOpen className="h-4 w-4 text-duck-400" strokeWidth={2} />
+                <PanelLeftClose className="h-4 w-4 rotate-180" strokeWidth={2} />
               )}
             </button>
 
-            <span className="shrink-0 font-semibold text-ink-300">{activeSpace}</span>
-            <span aria-hidden="true" className="shrink-0 text-ink-600">/</span>
-            <span
-              title={activeNoteObj?.title || "Untitled Note"}
-              className="min-w-0 truncate text-base font-bold text-ink-100"
-            >
-              {activeNoteObj?.title || "Untitled Note"}
-            </span>
+            <div className="flex items-center gap-1.5 font-medium">
+              <span className="shrink-0 text-ink-500">📁</span>
+              <span className="truncate text-ink-200 font-semibold">{activeSpace}</span>
+            </div>
           </div>
 
-          {/* Center: HUD Navigation Tabs */}
-          <nav className="flex shrink-0 items-center rounded-lg border border-ink-800 bg-ink-950 p-1 shadow-inner">
+          {/* Center View Navigation Tabs (Notes, Calendar, 3D Orbit, Mastery) */}
+          <nav className="flex items-center gap-1 rounded-xl bg-ink-950 p-1 border border-ink-800 shadow-inner">
             <button
               type="button"
               onClick={() => setActiveTab("notes")}
-              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
                 activeTab === "notes"
                   ? "bg-ink-800 text-ink-100 shadow-sm"
                   : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
@@ -546,11 +670,10 @@ export default function Workspace({ note: initialNote }) {
               <span>📝</span>
               <span>Notes</span>
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab("calendar")}
-              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
                 activeTab === "calendar"
                   ? "bg-ink-800 text-ink-100 shadow-sm"
                   : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
@@ -559,24 +682,22 @@ export default function Workspace({ note: initialNote }) {
               <span>📅</span>
               <span>Calendar</span>
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab("3d")}
-              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
                 activeTab === "3d"
-                  ? "border border-duck-500/30 bg-duck-500/20 text-duck-300 shadow-sm"
+                  ? "bg-ink-800 text-ink-100 shadow-sm"
                   : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
               }`}
             >
-              <span>🧊</span>
-              <span>3D</span>
+              <span>🌌</span>
+              <span>3D Orbit</span>
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab("mastery")}
-              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
                 activeTab === "mastery"
                   ? "bg-ink-800 text-ink-100 shadow-sm"
                   : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
@@ -592,24 +713,8 @@ export default function Workspace({ note: initialNote }) {
             </button>
           </nav>
 
-          {/* Right Action Bar: Timer HUD + Save Note + Socratic Duck Triggers */}
-          <div className="flex shrink-0 items-center gap-2.5">
-            <GlobalTimerHUD onNavigateCalendar={() => setActiveTab("calendar")} />
-
-            {saveStatus && (
-              <span className="text-xs font-semibold text-emerald-400 animate-fade-in">
-                {saveStatus}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => handleSaveNote({ title: activeNoteObj?.title, blocks: activeNoteObj?.blocks, banner: activeNoteObj?.banner, isFavorite: activeNoteObj?.isFavorite, emoji: activeNoteObj?.emoji })}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/40 bg-duck-500/10 px-3.5 py-1.5 text-xs font-semibold text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 shadow-sm"
-            >
-              <span>💾</span>
-              <span>Save Note</span>
-            </button>
-
+          {/* Right Action Bar: Socratic Duck Triggers */}
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => openStudy("explain", null)}
@@ -632,6 +737,59 @@ export default function Workspace({ note: initialNote }) {
           </div>
         </header>
 
+        {/* Top HUD Header 2: Note Name & Note Menu Sub-bar */}
+        <div className="relative z-50 flex h-12 shrink-0 items-center justify-between border-b border-ink-800/80 bg-ink-900/60 px-6 backdrop-blur-md transition-colors duration-200">
+          {/* Left: Active Note Emoji, Title & Favorite Badge */}
+          <div className="flex items-center gap-2.5 min-w-0 font-medium">
+            <span className="text-lg leading-none shrink-0">{activeNoteObj?.emoji || "📝"}</span>
+            <span className="truncate text-sm font-extrabold text-ink-100 tracking-tight">
+              {activeTab === "notes"
+                ? activeNoteObj?.title || "Untitled Note"
+                : activeTab === "calendar"
+                ? "Study Calendar & Timers"
+                : activeTab === "3d"
+                ? "3D Concept Visualizer"
+                : "Mastery Dashboard"}
+            </span>
+            {activeTab === "notes" && activeNoteObj?.isFavorite && (
+              <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30 shrink-0">
+                ⭐ Starred
+              </span>
+            )}
+          </div>
+
+          {/* Right: Save Status & Note Menu Dropdown */}
+          <div className="flex items-center gap-3 shrink-0">
+            {saveStatus && (
+              <span className="text-xs font-semibold text-emerald-400 animate-fade-in">
+                {saveStatus}
+              </span>
+            )}
+
+            {activeNoteObj && (
+              <NoteMenu
+                note={{
+                  id: activeNoteObj.id,
+                  title: activeNoteObj.title,
+                  blocks: editorBlocks.length > 0 ? editorBlocks : activeNoteObj.blocks,
+                  banner: activeNoteObj.banner,
+                  isFavorite: activeNoteObj.isFavorite,
+                  emoji: activeNoteObj.emoji,
+                  space: activeSpace,
+                }}
+                onSaveNote={({ title, blocks, banner, isFavorite, emoji }) =>
+                  handleSaveNote({ title, blocks, banner, isFavorite, emoji })
+                }
+                onToggleFavorite={handleToggleFavoriteNote}
+                onExportImport={() => setExportImportOpen(true)}
+                onDeleteNote={handleDeleteNote}
+                variant="button"
+                align="right"
+              />
+            )}
+          </div>
+        </div>
+
         {/* Tab Viewport Content */}
         <main className={`flex-1 ${activeTab === "3d" ? "overflow-hidden flex flex-col h-full min-h-0" : "overflow-y-auto"}`}>
           {activeTab === "notes" && (
@@ -644,6 +802,7 @@ export default function Workspace({ note: initialNote }) {
               initialEmoji={activeNoteObj?.emoji}
               onBlocksChange={setEditorBlocks}
               onSaveNote={handleSaveNote}
+              onExportImport={() => setExportImportOpen(true)}
               onExplainBlock={(text) => openStudy("explain", text)}
               onQuizBlock={(text) => openStudy("quiz", text)}
               onTriggerSocratic={(concept) => handleOpenSocratic(concept || activeNoteObj?.title)}
@@ -708,17 +867,38 @@ export default function Workspace({ note: initialNote }) {
       />
 
       {/* 75% Screen Instant Note Popup Modal */}
-      <InstantNoteModal
-        open={instantNoteOpen}
-        onClose={() => setInstantNoteOpen(false)}
-        onSaveInstantNote={handleSaveInstantNote}
-      />
+      {instantNoteOpen && (
+        <InstantNoteModal
+          open={instantNoteOpen}
+          spaces={spaces}
+          onClose={() => setInstantNoteOpen(false)}
+          onSaveInstantNote={handleSaveInstantNote}
+        />
+      )}
 
       {/* Global Visual & Audio Alarm Alert Overlay */}
       <AlarmOverlay />
 
       {/* Floating Pinned Timers Screen Overlay */}
       <PinnedTimersOverlay />
+
+      {/* Multi-Format Note Export & Import Modal (PDF, DOCX, HTML, TXT, MD) */}
+      <ExportImportModal
+        open={exportImportOpen}
+        onClose={() => setExportImportOpen(false)}
+        activeNote={activeNoteObj}
+        activeSpace={activeSpace}
+        spaces={spaces}
+        onImportSuccess={handleImportSuccess}
+      />
+
+      <CommandPalette
+        notesBySpace={notesBySpace}
+        activeSpace={activeSpace}
+        setActiveSpace={setActiveSpace}
+        setActiveTab={setActiveTab}
+        setActiveNoteId={setActiveNoteId}
+      />
     </div>
   );
 }

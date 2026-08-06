@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db, DEFAULT_GRAPHICS_SETTINGS } from "@/lib/db";
 
 // ─── Shared 3D kit ──────────────────────────────────────────────────
 // Camera rig, lighting, and the primitives (arrows, bonds, labels) that
@@ -38,10 +40,62 @@ export function StudioLights({ ambient = 0.55, keyLight = 1.5, rim = PALETTE.sky
   return (
     <>
       <ambientLight intensity={ambient} />
-      <directionalLight position={[6, 9, 6]} intensity={keyLight} />
+      <directionalLight position={[6, 9, 6]} intensity={keyLight} castShadow />
       <directionalLight position={[-7, -4, -6]} intensity={0.42} color={rim} />
     </>
   );
+}
+
+function PerformanceManager({ autoPauseHidden }) {
+  const setFrameloop = useThree((state) => state.setFrameloop);
+  
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && autoPauseHidden) {
+        setFrameloop("demand"); // "demand" is better than "never", allowing explicit renders
+      } else {
+        setFrameloop("demand");
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibility);
+    // Trigger once on mount
+    handleVisibility();
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [autoPauseHidden, setFrameloop]);
+
+  return null;
+}
+
+export function WebGLCleanup() {
+  const { gl, scene } = useThree();
+  useEffect(() => {
+    return () => {
+      if (scene) {
+        scene.traverse((object) => {
+          if (!object.isMesh) return;
+          if (object.geometry) object.geometry.dispose();
+          if (object.material) {
+            if (Array.isArray(object.material)) {
+              object.material.forEach((m) => {
+                m.dispose();
+                if (m.map) m.map.dispose();
+              });
+            } else {
+              object.material.dispose();
+              if (object.material.map) object.material.map.dispose();
+            }
+          }
+        });
+      }
+      if (gl) {
+        const extension = gl.getExtension("WEBGL_lose_context");
+        if (extension) extension.loseContext();
+        gl.dispose();
+      }
+    };
+  }, [gl, scene]);
+  return null;
 }
 
 /**
@@ -56,13 +110,31 @@ export function SceneCanvas({
   onPointerMissed,
   children,
 }) {
+  // Read graphics settings reactively
+  const gfxArray = useLiveQuery(() => db.settings.where('key').startsWith('gfx_').toArray());
+  
+  const gfx = useMemo(() => {
+    const s = { ...DEFAULT_GRAPHICS_SETTINGS };
+    if (gfxArray) {
+      for (const item of gfxArray) {
+        const key = item.key.replace("gfx_", "");
+        s[key] = item.value;
+      }
+    }
+    return s;
+  }, [gfxArray]);
+
   return (
     <Canvas
       camera={camera}
-      dpr={[1, 2]}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
+      dpr={[1, gfx.pixelRatio]}
+      shadows={gfx.enableShadows}
+      gl={{ antialias: gfx.enableAntialias, powerPreference: "high-performance" }}
       onPointerMissed={onPointerMissed}
+      frameloop="demand"
     >
+      <WebGLCleanup />
+      <PerformanceManager autoPauseHidden={gfx.autoPauseHidden} />
       <color attach="background" args={[CANVAS_BG]} />
       {fog && <fog attach="fog" args={[CANVAS_BG, fog[0], fog[1]]} />}
       <StudioLights {...lights} />
@@ -96,6 +168,7 @@ export function SceneLabel({
       center
       distanceFactor={distanceFactor}
       style={{ pointerEvents: "none" }}
+      zIndexRange={[40, 0]}
     >
       <span
         className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm ${
@@ -383,7 +456,7 @@ export function VectorArrow({
         />
       </mesh>
       {label && (
-        <Html position={labelAt} center style={{ pointerEvents: "none" }}>
+        <Html position={labelAt} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
           <span
             className="whitespace-nowrap text-[11px] font-semibold"
             style={{ color, textShadow: `0 0 8px ${CANVAS_BG}` }}

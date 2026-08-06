@@ -35,20 +35,20 @@
   --color-gap-500: #d03b3b;
 }
 
-/* Light Mode Overrides — Slightly deeper stone background with crisp white cards & clear borders */
+/* Light Mode Overrides — High contrast crisp white */
 [data-theme="light"],
 .light {
   color-scheme: light;
-  --color-ink-950: #dce2e9;
-  --color-ink-900: #eaf0f6;
+  --color-ink-950: #ffffff;
+  --color-ink-900: #f3f4f6;
   --color-ink-850: #ffffff;
-  --color-ink-800: #a0aec0;
-  --color-ink-700: #718096;
-  --color-ink-600: #4a5568;
-  --color-ink-500: #2d3748;
-  --color-ink-400: #1a202c;
-  --color-ink-200: #0f172a;
-  --color-ink-100: #020617;
+  --color-ink-800: #9ca3af;
+  --color-ink-700: #6b7280;
+  --color-ink-600: #4b5563;
+  --color-ink-500: #374151;
+  --color-ink-400: #1f2937;
+  --color-ink-200: #111827;
+  --color-ink-100: #000000;
 
   --color-duck-300: #d97706;
   --color-duck-400: #b45309;
@@ -63,24 +63,24 @@
 /* Light Mode Card, Code Block & Element Contrast Overrides */
 [data-theme="light"] .code-block,
 .light .code-block {
-  color: #047857 !important; /* Rich deep readable emerald green */
-  background-color: #f1f5f9 !important; /* Soft crisp light slate surface */
-  border-color: #94a3b8 !important;
+  color: #065f46 !important;
+  background-color: #f8fafc !important;
+  border-color: #64748b !important;
 }
 
 [data-theme="light"] code,
 .light code {
-  color: #047857;
+  color: #065f46;
 }
 
 [data-theme="light"] .border-ink-800,
 .light .border-ink-800 {
-  border-color: #cbd5e1;
+  border-color: #9ca3af;
 }
 
 [data-theme="light"] .border-ink-700,
 .light .border-ink-700 {
-  border-color: #94a3b8;
+  border-color: #6b7280;
 }
 
 /* Workspace.jsx already used `animate-fade-in` for its save toast, but nothing
@@ -180,3 +180,129 @@ body {
   background-color: var(--color-ink-700);
   border-radius: 9999px;
 }
+
+/* ─── Print Stylesheet (@media print) for Clean Full-Document PDF Export ─────────── */
+@media print {
+  @page {
+    margin: 1.2cm 1.5cm;
+    size: auto;
+  }
+
+  /* Reset layout constraints so all pages flow continuously without clipping */
+  html,
+  body,
+  #__next,
+  main,
+  div {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    position: static !important;
+    float: none !important;
+    flex: none !important;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide app navigation, sidebars, headers, modals, floating overlays & action handles */
+  aside,
+  header,
+  nav,
+  button,
+  .no-print,
+  [role="dialog"],
+  .fixed,
+  .group\/blockmenu,
+  .group\/mathblk button,
+  .group\/codeblk button,
+  [data-hud],
+  .note-menu-dropdown {
+    display: none !important;
+  }
+
+  /* Remove left padding & margins causing large gaps */
+  main,
+  .block-note-container,
+  #printable-note-area,
+  .space-y-2,
+  .pl-8 {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    overflow: visible !important;
+    color: #000000 !important;
+    background: transparent !important;
+  }
+
+  /* Page Break Optimization — Prevent awkward page splits */
+  blockquote,
+  .callout,
+  pre,
+  code,
+  .katex-display,
+  .katex-wrapper,
+  .media-embed,
+  .bookmark-card,
+  figure {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+  }
+
+  /* Force dark elements to light printable mode */
+  .bg-ink-950,
+  .bg-ink-900,
+  .bg-ink-850,
+  .bg-ink-800 {
+    background-color: transparent !important;
+    color: #000000 !important;
+    border-color: #cccccc !important;
+  }
+
+  .text-ink-100,
+  .text-ink-200,
+  .text-ink-300,
+  .text-ink-400,
+  .text-duck-300,
+  .text-duck-400 {
+    color: #000000 !important;
+  }
+
+  /* KaTeX Math Equations & Code Blocks */
+  .katex-wrapper,
+  .katex {
+    color: #000000 !important;
+  }
+
+  pre,
+  code {
+    background-color: #f8f9fa !important;
+    color: #000000 !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* Print-only clean badges for Audio/Video embeds and site bookmarks */
+  .media-embed video,
+  .media-embed audio {
+    display: none !important;
+  }
+
+  .media-embed::after {
+    content: " [Media Embed: " attr(data-url) "]";
+    font-size: 0.85em;
+    color: #475569;
+    font-family: monospace;
+  }
+}
+

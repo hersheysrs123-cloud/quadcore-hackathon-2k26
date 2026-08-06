@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -11,6 +11,7 @@ import {
   Boxes,
   Dna,
   FlaskConical,
+  GitBranch,
   Hexagon,
   Magnet,
   Microscope,
@@ -31,12 +32,9 @@ import {
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
 
 // ─── IGCSE Grade 10 · Interactive 3D Visualization Hub ──────────────
-// Thirteen scenes across three sciences. Every scene is a pure function
+// Scenes across sciences & computer science. Every scene is a pure function
 // of the params declared here, so the HUD can drive all of them from one
 // schema and the canvases stay free of UI state.
-//
-// The three category bundles are client-only: WebGL means nothing during
-// SSR, and rendering a <Canvas> on the server throws.
 // ─────────────────────────────────────────────────────────────────────
 
 const viewportLoader = () => (
@@ -61,6 +59,10 @@ const CANVASES = {
     ssr: false,
     loading: viewportLoader,
   }),
+  cs: dynamic(() => import("@/components/visualizations/BinaryTree3D"), {
+    ssr: false,
+    loading: viewportLoader,
+  }),
 };
 
 const CATEGORIES = [
@@ -68,9 +70,10 @@ const CATEGORIES = [
   { id: "physics", label: "Physics", emoji: "⚛️" },
   { id: "chemistry", label: "Chemistry", emoji: "🧪" },
   { id: "biology", label: "Biology", emoji: "🧬" },
+  { id: "cs", label: "Computer Science", emoji: "💻" },
 ];
 
-const CATEGORY_EMOJI = { physics: "⚛️", chemistry: "🧪", biology: "🧬" };
+const CATEGORY_EMOJI = { physics: "⚛️", chemistry: "🧪", biology: "🧬", cs: "💻" };
 
 // ─── Topic registry ─────────────────────────────────────────────────
 
@@ -784,6 +787,41 @@ const TOPICS = [
       },
     ],
   },
+
+  // ═══ Computer Science ══════════════════════════════════════════════
+  {
+    id: "binary_tree",
+    category: "cs",
+    icon: GitBranch,
+    title: "3D Binary Search Tree & AVL Operations",
+    blurb: "Node insertion, deletion, searching & tree traversals",
+    syllabus: "Computer Science 4.1 · Data Structures",
+    keywords:
+      "binary search tree bst avl tree data structure node traversal in-order pre-order post-order balance height algorithm graph computer science",
+    defaults: {},
+    controls: [],
+    concepts: [
+      "A Binary Search Tree (BST) maintains nodes such that every left descendant is smaller and right descendant is larger.",
+      "Tree traversals visit nodes systematically: In-order (left, root, right) yields sorted order; Pre-order is used for cloning; Post-order is used for deletion.",
+      "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced.",
+    ],
+    quiz: [
+      {
+        question: "Which traversal of a Binary Search Tree produces values in sorted ascending order?",
+        options: ["In-order traversal", "Pre-order traversal", "Post-order traversal", "Level-order traversal"],
+        answer: 0,
+        explanation:
+          "In-order traversal visits left subtree, root, then right subtree. Since all left values are smaller and right values are larger, this yields sorted ascending order.",
+      },
+      {
+        question: "What is the worst-case time complexity of searching a value in an unbalanced Binary Search Tree with N nodes?",
+        options: ["O(N)", "O(log N)", "O(1)", "O(N log N)"],
+        answer: 0,
+        explanation:
+          "In a degenerate (unbalanced) BST where nodes form a single linear chain, finding a value requires visiting all N nodes, giving O(N) worst-case time.",
+      },
+    ],
+  },
 ];
 
 const TOPICS_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
@@ -795,6 +833,32 @@ export default function VisualizationsPage() {
   const [query, setQuery] = useState("");
   const [topicId, setTopicId] = useState(TOPICS[0].id);
   const [quizOpen, setQuizOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Hydrate from URL / LocalStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const urlVis = params.get("vis");
+    let fallback = null;
+    try { fallback = JSON.parse(localStorage.getItem("socratic_last_vis_state")); } catch(e){}
+
+    const targetVis = urlVis || fallback?.topicId || TOPICS[0].id;
+    if (TOPICS_BY_ID[targetVis]) {
+       setTopicId(targetVis);
+       setCategory(TOPICS_BY_ID[targetVis].category);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Sync state to URL and localStorage
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("vis", topicId);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+    localStorage.setItem("socratic_last_vis_state", JSON.stringify({ topicId }));
+  }, [topicId, isHydrated]);
 
   // Params live per topic, so switching away and back keeps your settings.
   const [paramsByTopic, setParamsByTopic] = useState(() =>
@@ -914,27 +978,47 @@ export default function VisualizationsPage() {
         </div>
       </header>
 
-      {/* ─── Topic Quick Switch Strip ───────────────────── */}
-      <div className="shrink-0 border-b border-ink-800/70 bg-ink-900/40 px-3 py-1.5 overflow-x-auto flex items-center gap-1.5 no-scrollbar">
-        {visibleTopics.map((t) => {
-          const active = topic.id === t.id;
-          const Icon = t.icon;
-          return (
+      {/* ─── Category & Topic Quick Switch Strip ───────────────────── */}
+      <div className="shrink-0 border-b border-ink-800/70 bg-ink-900/40 px-3 py-1.5 overflow-x-auto flex items-center gap-2 no-scrollbar">
+        <div className="flex items-center gap-1 border-r border-ink-800 pr-2 shrink-0">
+          {CATEGORIES.map((cat) => (
             <button
-              key={t.id}
+              key={cat.id}
               type="button"
-              onClick={() => selectTopic(t.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
-                active
-                  ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
-                  : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
+              onClick={() => setCategory(cat.id)}
+              className={`flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${
+                category === cat.id
+                  ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
+                  : "text-ink-400 hover:text-ink-200"
               }`}
             >
-              <Icon className={`h-3.5 w-3.5 ${active ? "text-duck-300" : "text-ink-500"}`} />
-              <span>{t.title}</span>
+              <span>{cat.emoji || "🌐"}</span>
+              <span>{cat.label}</span>
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {visibleTopics.map((t) => {
+            const active = topic.id === t.id;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => selectTopic(t.id)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
+                  active
+                    ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
+                    : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
+                }`}
+              >
+                <Icon className={`h-3.5 w-3.5 ${active ? "text-duck-300" : "text-ink-500"}`} />
+                <span>{t.title}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ─── Body ────────────────────────────────────────── */}
@@ -942,16 +1026,18 @@ export default function VisualizationsPage() {
         {/* Viewport + overlaid HUD */}
         <main className="relative min-h-[600px] flex-1 lg:min-h-0">
           {/* Remounting per topic gives each scene a clean WebGL context. */}
-          <Canvas key={topic.id} topicId={topic.id} params={params} setParam={setParam} />
+          <Canvas key={topic.id} topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={() => setQuizOpen(true)} />
 
-          <VisualizationHUD
-            topic={topic}
-            params={params}
-            setParam={setParam}
-            setParams={setParams}
-            onReset={resetParams}
-            onOpenQuiz={() => setQuizOpen(true)}
-          />
+          {topic.category !== "cs" && (
+            <VisualizationHUD
+              topic={topic}
+              params={params}
+              setParam={setParam}
+              setParams={setParams}
+              onReset={resetParams}
+              onOpenQuiz={() => setQuizOpen(true)}
+            />
+          )}
 
           <ViewportHint>drag to orbit · scroll to zoom · right-drag to pan</ViewportHint>
         </main>
