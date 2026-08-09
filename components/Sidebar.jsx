@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftClose, ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff, Command, Search, PlusSquare, Check } from "lucide-react";
+import { PanelLeftClose, ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Lock, Unlock } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, DEFAULT_GRAPHICS_SETTINGS, detectHardwareGraphics } from "@/lib/db.js";
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
+import FeatureRequestModal from "@/components/FeatureRequestModal";
 import { SPACES } from "@/lib/constants";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
@@ -1080,10 +1081,14 @@ export default function Sidebar({
   onOpenInstantNote,
   onNavigateCalendar,
   onToggleSidebar,
+  spacePasswords = {},
+  onSetPasswordRequest,
+  onRemovePasswordRequest,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   const [spacesDropdownOpen, setSpacesDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -1133,6 +1138,25 @@ export default function Sidebar({
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
+              onClick={() => {
+                const donateUrl = process.env.NEXT_PUBLIC_STRIPE_DONATE_URL || '#';
+                window.open(donateUrl, '_blank', 'noopener,noreferrer');
+              }}
+              title="Donate/Support"
+              className="rounded-lg p-1.5 text-lg text-rose-400 transition-colors hover:bg-ink-850 hover:text-rose-300"
+            >
+              <HeartHandshake className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setFeatureRequestOpen(true)}
+              title="Feedback/Request"
+              className="rounded-lg p-1.5 text-lg text-duck-400 transition-colors hover:bg-ink-850 hover:text-duck-300"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
               onClick={() => setSettingsOpen(true)}
               title="Settings"
               className="rounded-lg p-1.5 text-lg text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100"
@@ -1168,40 +1192,65 @@ export default function Sidebar({
                   {spaces.map((space) => {
                     const isActive = space.name === activeSpace;
                     return (
-                      <div key={space.name} className="group/space flex w-full items-center justify-between rounded-lg transition-colors">
+                      <div 
+                        key={space.name} 
+                        className={`group/space flex w-full items-center justify-between rounded-lg transition-colors ${
+                          isActive
+                            ? "bg-ink-800 text-duck-300 font-semibold"
+                            : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
+                        }`}
+                      >
                         <button
                           type="button"
                           onClick={() => {
                             onSelectSpace(space.name);
                             setSpacesDropdownOpen(false);
                           }}
-                          className={`flex-1 flex items-center justify-between px-2.5 py-1.5 text-xs text-left transition-colors ${
-                            isActive
-                              ? "bg-ink-800 text-duck-300 font-semibold"
-                              : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
-                          }`}
+                          className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate"
                         >
                           <div className="flex items-center gap-2 truncate">
                             <span className="text-sm leading-none">{space.icon}</span>
                             <span className="truncate">{space.name}</span>
                           </div>
                           {isActive && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-duck-400 shrink-0" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-duck-400 shrink-0 mx-2" />
                           )}
                         </button>
-                        {spaces.length > 1 && (
+                        
+                        <div className="flex items-center shrink-0 pr-1">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteSpace(space.name);
+                              if (spacePasswords[space.name]) {
+                                onRemovePasswordRequest?.(space.name);
+                              } else {
+                                onSetPasswordRequest?.(space.name);
+                              }
                             }}
-                            className="opacity-0 group-hover/space:opacity-100 p-1 mr-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all shrink-0"
-                            title="Delete space"
+                            className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-ink-700/50 text-ink-500 transition-all"
+                            title={spacePasswords[space.name] ? "Remove Password" : "Set Password"}
                           >
-                            ✕
+                            {spacePasswords[space.name] ? (
+                              <Lock className="h-3 w-3 text-rose-400" />
+                            ) : (
+                              <Unlock className="h-3 w-3" />
+                            )}
                           </button>
-                        )}
+                          {spaces.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSpace(space.name);
+                              }}
+                              className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-1"
+                              title="Delete space"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1354,6 +1403,11 @@ export default function Sidebar({
         setTheme={setTheme}
         onSyncSupabase={onSyncSupabase}
         onResetData={onResetData}
+      />
+
+      <FeatureRequestModal
+        open={featureRequestOpen}
+        onClose={() => setFeatureRequestOpen(false)}
       />
     </>
   );

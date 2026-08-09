@@ -464,180 +464,7 @@ function BlockContextMenu({
   );
 }
 
-const ACTION_KINDS = [
-  { id: "socratic", label: "Rubber Duck Drill", icon: "🦆", badge: "Duck", description: "Examine understanding with Duck" },
-  { id: "quiz", label: "Fast Recall Quiz", icon: "⚡", badge: "Quiz", description: "Generate instant quiz questions" },
-  { id: "explain", label: "Explain Concept", icon: "✨", badge: "Explain", description: "Get Socratic breakdown of idea" },
-  { id: "3d", label: "3D Visualization", icon: "🧊", badge: "3D Studio", description: "Switch to 3D concept models" },
-  { id: "calendar", label: "Study Timer & Calendar", icon: "📅", badge: "Timer", description: "Open Pomodoro timer & events" },
-  { id: "mastery", label: "Mastery Dashboard", icon: "📊", badge: "Mastery", description: "View confidence & gap heatmap" },
-];
-
 // ─── Single Block Component ─────────────────────────────────────────
-function EditorBlock({
-  block,
-  blockNumber,
-  isLast,
-  isSelected,
-  onSelect,
-  onChange,
-  onChangeType,
-  onUpdateBlock,
-  onDelete,
-  onKeyDown,
-  onAddAfter,
-  onExplainBlock,
-  onQuizBlock,
-  onTriggerSocratic,
-  onSwitchTab,
-  notesBySpace = {},
-  onSelectNote,
-  registerRef,
-  onSaveNote,
-  dragHandlers,
-  isDragTarget,
-  isMultiSelected = false,
-}) {
-  const contentRef = useRef(null);
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [slashFilter, setSlashFilter] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  // The block only becomes draggable while the ⠿ handle is held. Making the
-  // whole row draggable would hijack text selection inside contentEditable.
-  const [handleHeld, setHandleHeld] = useState(false);
-  const [showIconPicker, setShowIconPicker] = useState(false);
-  const [showNotePicker, setShowNotePicker] = useState(false);
-  const [showCanvasModal, setShowCanvasModal] = useState(false);
-  const [showActionPicker, setShowActionPicker] = useState(false);
-
-  function handleExecuteAction(actBlock) {
-    const kind = actBlock.actionKind || "socratic";
-    const textTarget = actBlock.content || "Socratic Concept";
-    if (kind === "socratic") {
-      onTriggerSocratic?.(textTarget);
-    } else if (kind === "quiz") {
-      onQuizBlock?.(textTarget);
-    } else if (kind === "explain") {
-      onExplainBlock?.(textTarget);
-    } else if (kind === "3d") {
-      onSwitchTab?.("3d");
-    } else if (kind === "calendar") {
-      onSwitchTab?.("calendar");
-    } else if (kind === "mastery") {
-      onSwitchTab?.("mastery");
-    }
-  }
-
-  useEffect(() => {
-    if (registerRef) registerRef(block.id, contentRef);
-  }, [block.id, registerRef]);
-
-  useEffect(() => {
-    if (
-      contentRef.current &&
-      contentRef.current.textContent !== block.content
-    ) {
-      contentRef.current.textContent = block.content;
-    }
-  }, [block.id, block.type]);
-
-  function handleInput() {
-    const text = contentRef.current?.textContent ?? "";
-    onChange(block.id, text);
-
-    if (text.startsWith("/")) {
-      setSlashOpen(true);
-      setSlashFilter(text.slice(1));
-      return;
-    } else {
-      setSlashOpen(false);
-      setSlashFilter("");
-    }
-
-    const shortcuts = [
-      { prefix: "#### ", type: "h4" },
-      { prefix: "### ", type: "h3" },
-      { prefix: "## ", type: "h2" },
-      { prefix: "# ", type: "h1" },
-      { prefix: "- ", type: "bullet" },
-      { prefix: "* ", type: "bullet" },
-      { prefix: "1. ", type: "number" },
-      { prefix: "[ ] ", type: "todo" },
-      { prefix: "[] ", type: "todo" },
-      { prefix: "> ", type: "quote" },
-      { prefix: "💡 ", type: "callout" },
-      { prefix: ">! ", type: "callout" },
-      { prefix: "---", type: "divider" },
-      { prefix: "***", type: "divider" },
-      { prefix: "```", type: "code" },
-      { prefix: "$$", type: "math" },
-    ];
-
-    for (const sc of shortcuts) {
-      if (text.startsWith(sc.prefix)) {
-        const remaining = text.slice(sc.prefix.length);
-        onChangeType(block.id, sc.type);
-        onChange(block.id, remaining);
-        if (contentRef.current) {
-          contentRef.current.textContent = remaining;
-        }
-        return;
-      }
-    }
-  }
-
-  function handleSlashSelect(type) {
-    onChange(block.id, "");
-    if (contentRef.current) {
-      contentRef.current.textContent = "";
-    }
-    onChangeType(block.id, type);
-    setSlashOpen(false);
-    setSlashFilter("");
-    setTimeout(() => contentRef.current?.focus(), 20);
-  }
-
-  function handleKeyDown(e) {
-    if (slashOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
-      return;
-    }
-
-    if (e.key === "Enter" && !e.shiftKey && block.type !== "code") {
-      e.preventDefault();
-      
-      const sel = window.getSelection();
-      let textBefore = block.content;
-      let textAfter = "";
-
-      if (sel.rangeCount > 0 && sel.focusNode) {
-        const range = sel.getRangeAt(0);
-        const preCaretRange = range.cloneRange();
-        preCaretRange.selectNodeContents(contentRef.current);
-        preCaretRange.setEnd(range.startContainer, range.startOffset);
-        const caretOffsetStart = preCaretRange.toString().length;
-        
-        const selectionLength = range.toString().length;
-        const fullText = contentRef.current.textContent || "";
-        
-        textBefore = fullText.slice(0, caretOffsetStart);
-        textAfter = fullText.slice(caretOffsetStart + selectionLength);
-        
-        onChange(block.id, textBefore);
-        if (contentRef.current) {
-          contentRef.current.textContent = textBefore;
-        }
-      }
-
-      if (["bullet", "number", "todo", "toggle"].includes(block.type) && !textBefore.trim()) {
-        onChangeType(block.id, "text");
-        return;
-      }
-      onAddAfter(block.id, textAfter, block.type);
-      return;
-    }
-
-    onKeyDown?.(e, block.id, contentRef.current);
-  }
 function KaTeXRender({ formula, displayMode = false, className = "" }) {
   const containerRef = useRef(null);
 
@@ -691,9 +518,16 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
       className="group/mathblk relative my-2 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 transition-all hover:border-duck-500/50 shadow-md"
     >
       <div className="flex items-center justify-between border-b border-ink-800 pb-2 mb-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-duck-300">
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 font-mono text-xs text-duck-400">∑</span>
-          <span>LaTeX Math Equation</span>
+        <div className="flex items-center gap-2 text-xs font-bold text-duck-300 w-full pr-4">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 font-mono text-xs text-duck-400 shrink-0">∑</span>
+          <input
+            type="text"
+            value={block.title || "LaTeX Math Equation"}
+            onChange={(e) => onUpdateBlock(block.id, { title: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-transparent border-none outline-none text-duck-300 placeholder:text-duck-500/50 w-full"
+            placeholder="Equation Title..."
+          />
         </div>
         <button
           type="button"
@@ -941,6 +775,152 @@ function CodeBlock({ block, onUpdateBlock, onSelect }) {
   );
 }
 
+
+function EditorBlock({
+  block,
+  blockNumber,
+  isLast,
+  isSelected,
+  onSelect,
+  onChange,
+  onChangeType,
+  onUpdateBlock,
+  onDelete,
+  onKeyDown,
+  onAddAfter,
+  onExplainBlock,
+  onQuizBlock,
+  onTriggerSocratic,
+  onSwitchTab,
+  notesBySpace = {},
+  onSelectNote,
+  registerRef,
+  onSaveNote,
+  dragHandlers,
+  isDragTarget,
+  isMultiSelected = false,
+}) {
+  const contentRef = useRef(null);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashFilter, setSlashFilter] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The block only becomes draggable while the ⠿ handle is held. Making the
+  // whole row draggable would hijack text selection inside contentEditable.
+  const [handleHeld, setHandleHeld] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [showNotePicker, setShowNotePicker] = useState(false);
+  const [showCanvasModal, setShowCanvasModal] = useState(false);
+
+  useEffect(() => {
+    if (registerRef) registerRef(block.id, contentRef);
+  }, [block.id, registerRef]);
+
+  useEffect(() => {
+    if (
+      contentRef.current &&
+      contentRef.current.textContent !== block.content
+    ) {
+      contentRef.current.textContent = block.content;
+    }
+  }, [block.id, block.type]);
+
+  function handleInput() {
+    const text = contentRef.current?.textContent ?? "";
+    onChange(block.id, text);
+
+    if (text.startsWith("/")) {
+      setSlashOpen(true);
+      setSlashFilter(text.slice(1));
+      return;
+    } else {
+      setSlashOpen(false);
+      setSlashFilter("");
+    }
+
+    const shortcuts = [
+      { prefix: "#### ", type: "h4" },
+      { prefix: "### ", type: "h3" },
+      { prefix: "## ", type: "h2" },
+      { prefix: "# ", type: "h1" },
+      { prefix: "- ", type: "bullet" },
+      { prefix: "* ", type: "bullet" },
+      { prefix: "1. ", type: "number" },
+      { prefix: "[ ] ", type: "todo" },
+      { prefix: "[] ", type: "todo" },
+      { prefix: "> ", type: "quote" },
+      { prefix: "💡 ", type: "callout" },
+      { prefix: ">! ", type: "callout" },
+      { prefix: "---", type: "divider" },
+      { prefix: "***", type: "divider" },
+      { prefix: "```", type: "code" },
+      { prefix: "$$", type: "math" },
+    ];
+
+    for (const sc of shortcuts) {
+      if (text.startsWith(sc.prefix)) {
+        const remaining = text.slice(sc.prefix.length);
+        onChangeType(block.id, sc.type);
+        onChange(block.id, remaining);
+        if (contentRef.current) {
+          contentRef.current.textContent = remaining;
+        }
+        return;
+      }
+    }
+  }
+
+  function handleSlashSelect(type) {
+    onChange(block.id, "");
+    if (contentRef.current) {
+      contentRef.current.textContent = "";
+    }
+    onChangeType(block.id, type);
+    setSlashOpen(false);
+    setSlashFilter("");
+    setTimeout(() => contentRef.current?.focus(), 20);
+  }
+
+  function handleKeyDown(e) {
+    if (slashOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey && block.type !== "code") {
+      e.preventDefault();
+      
+      const sel = window.getSelection();
+      let textBefore = block.content;
+      let textAfter = "";
+
+      if (sel.rangeCount > 0 && sel.focusNode) {
+        const range = sel.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(contentRef.current);
+        preCaretRange.setEnd(range.startContainer, range.startOffset);
+        const caretOffsetStart = preCaretRange.toString().length;
+        
+        const selectionLength = range.toString().length;
+        const fullText = contentRef.current.textContent || "";
+        
+        textBefore = fullText.slice(0, caretOffsetStart);
+        textAfter = fullText.slice(caretOffsetStart + selectionLength);
+        
+        onChange(block.id, textBefore);
+        if (contentRef.current) {
+          contentRef.current.textContent = textBefore;
+        }
+      }
+
+      if (["bullet", "number", "todo", "toggle"].includes(block.type) && !textBefore.trim()) {
+        onChangeType(block.id, "text");
+        return;
+      }
+      onAddAfter(block.id, textAfter, block.type);
+      return;
+    }
+
+    onKeyDown?.(e, block.id, contentRef.current);
+  }
   const typeStyles = {
     text: "text-[15px] leading-relaxed text-ink-200",
     h1: "text-3xl font-extrabold tracking-tight leading-snug text-ink-100 pt-3 pb-1.5 my-1.5",

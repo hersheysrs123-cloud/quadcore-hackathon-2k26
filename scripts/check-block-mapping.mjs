@@ -51,7 +51,6 @@ const rows = [
   { block_type: "heading", content_json: { text: "Small", level: 3 } },
   { block_type: "bullet", content_json: { text: "a list item" } },
   { block_type: "code", content_json: { text: "const x = 1;", language: "js" } },
-  { block_type: "action", content_json: { text: "Run it", action: "run_sim" } },
   {
     block_type: "media",
     content_json: { url: "https://x/i.png", caption: "Lecture 7", kind: "image" },
@@ -83,7 +82,8 @@ for (const type of EDITOR_TYPES) {
 }
 
 console.log("\n3. retyping a flattened block drops the stale payload");
-const flattenedMedia = toEditorBlock({ id: "m", ...rows[7] });
+const mediaRow = rows.find((r) => r.block_type === "media");
+const flattenedMedia = toEditorBlock({ id: "m", ...mediaRow });
 check("media flattens to text", flattenedMedia.type, "text");
 check(
   "media retyped to h2 becomes a real heading",

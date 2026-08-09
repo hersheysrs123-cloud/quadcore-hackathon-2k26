@@ -2,7 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
+import { Html as DreiHtml, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, DEFAULT_GRAPHICS_SETTINGS } from "@/lib/db";
@@ -456,14 +456,14 @@ export function VectorArrow({
         />
       </mesh>
       {label && (
-        <Html position={labelAt} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
-          <span
-            className="whitespace-nowrap text-[11px] font-semibold"
-            style={{ color, textShadow: `0 0 8px ${CANVAS_BG}` }}
+        <DreiHtml position={labelAt} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
+          <div 
+            className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm whitespace-nowrap"
+            style={{ backgroundColor: color, opacity: 0.9 }}
           >
             {label}
-          </span>
-        </Html>
+          </div>
+        </DreiHtml>
       )}
     </group>
   );

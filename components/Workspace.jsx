@@ -21,7 +21,9 @@ import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { demoNotesBySpace } from "@/lib/demoNotes";
 import { summariseMastery } from "@/lib/mastery";
-import { initAndSeedDatabase } from "@/lib/db";
+import { initAndSeedDatabase, db } from "@/lib/db";
+import SetPasswordModal from "@/components/SetPasswordModal";
+import EnterPasswordModal from "@/components/EnterPasswordModal";
 import {
   getAllNotes,
   saveNote,
@@ -71,6 +73,11 @@ export default function Workspace({ note: initialNote }) {
   const [socraticOpen, setSocraticOpen] = useState(false);
   const [socraticConcept, setSocraticConcept] = useState("");
   const [sessions, setSessions] = useState([]);
+
+  // Password Locks State
+  const [spacePasswords, setSpacePasswords] = useState({});
+  const [setPasswordTarget, setSetPasswordTarget] = useState(null);
+  const [enterPasswordTarget, setEnterPasswordTarget] = useState(null);
 
   const handleOpenSocratic = useCallback((concept) => {
     setSocraticConcept(concept || "Socratic Workspace Concept");
@@ -198,6 +205,11 @@ export default function Workspace({ note: initialNote }) {
 
           const studySess = await getStudySessions();
           setSessions(studySess);
+          
+          const savedPasswords = await db.settings.get("socratic_space_passwords");
+          if (savedPasswords?.value) {
+            setSpacePasswords(JSON.parse(savedPasswords.value));
+          }
           
           setIsHydrated(true);
         } catch (err) {
@@ -590,7 +602,7 @@ export default function Workspace({ note: initialNote }) {
     <div className="flex h-screen overflow-hidden bg-ink-950 text-ink-100 transition-colors duration-200">
       {/* Left Sidebar */}
       <div
-        className={`transition-all duration-300 ease-in-out shrink-0 h-full ${
+        className={`no-print transition-all duration-300 ease-in-out shrink-0 h-full ${
           sidebarOpen ? "w-64 opacity-100" : "w-0 opacity-0 overflow-hidden pointer-events-none"
         }`}
       >
@@ -600,11 +612,23 @@ export default function Workspace({ note: initialNote }) {
           handleDeleteSpace={handleDeleteSpace}
           activeSpace={activeSpace}
           onSelectSpace={(spaceName) => {
+            if (spacePasswords[spaceName] && spaceName !== activeSpace) {
+              setEnterPasswordTarget({ name: spaceName, mode: "enter" });
+              return;
+            }
+            if (spaceName === "Journal" && !spacePasswords["Journal"]) {
+              setSetPasswordTarget("Journal");
+              return;
+            }
+
             setActiveSpace(spaceName);
             const firstInSpace = (notesBySpace[spaceName] || [])[0];
             if (firstInSpace) setActiveNoteId(firstInSpace.id);
             else setActiveNoteId(null);
           }}
+          spacePasswords={spacePasswords}
+          onSetPasswordRequest={setSetPasswordTarget}
+          onRemovePasswordRequest={(spaceName) => setEnterPasswordTarget({ name: spaceName, mode: "remove" })}
           activeNoteId={activeNoteObj?.id || null}
           notesBySpace={notesBySpace}
           onSelectNote={handleSelectNote}
@@ -634,7 +658,7 @@ export default function Workspace({ note: initialNote }) {
       {/* Main Container with Dual Top HUD Header */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top HUD Header 1: Workspace Breadcrumb, Navigation Tabs & Socratic Triggers */}
-        <header className="relative z-[60] flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
+        <header className="no-print relative z-[60] flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
           {/* Left Space Breadcrumb & Sidebar Toggle */}
           <div className="flex items-center gap-2.5 text-sm text-ink-400">
             <button
@@ -738,7 +762,7 @@ export default function Workspace({ note: initialNote }) {
         </header>
 
         {/* Top HUD Header 2: Note Name & Note Menu Sub-bar */}
-        <div className="relative z-50 flex h-12 shrink-0 items-center justify-between border-b border-ink-800/80 bg-ink-900/60 px-6 backdrop-blur-md transition-colors duration-200">
+        <div className="no-print relative z-50 flex h-12 shrink-0 items-center justify-between border-b border-ink-800/80 bg-ink-900/60 px-6 backdrop-blur-md transition-colors duration-200">
           {/* Left: Active Note Emoji, Title & Favorite Badge */}
           <div className="flex items-center gap-2.5 min-w-0 font-medium">
             <span className="text-lg leading-none shrink-0">{activeNoteObj?.emoji || "📝"}</span>
@@ -890,6 +914,43 @@ export default function Workspace({ note: initialNote }) {
         activeSpace={activeSpace}
         spaces={spaces}
         onImportSuccess={handleImportSuccess}
+      />
+
+      <SetPasswordModal
+        open={!!setPasswordTarget}
+        spaceName={setPasswordTarget}
+        onClose={() => setSetPasswordTarget(null)}
+        onSave={async (space, pwd) => {
+          const newMap = { ...spacePasswords, [space]: btoa(pwd) };
+          setSpacePasswords(newMap);
+          await db.settings.put({ key: "socratic_space_passwords", value: JSON.stringify(newMap) });
+          
+          setActiveSpace(space);
+          const firstInSpace = (notesBySpace[space] || [])[0];
+          if (firstInSpace) setActiveNoteId(firstInSpace.id);
+          else setActiveNoteId(null);
+        }}
+      />
+
+      <EnterPasswordModal
+        open={!!enterPasswordTarget}
+        spaceName={enterPasswordTarget?.name}
+        mode={enterPasswordTarget?.mode}
+        expectedHash={enterPasswordTarget ? spacePasswords[enterPasswordTarget.name] : null}
+        onClose={() => setEnterPasswordTarget(null)}
+        onSuccess={async (space) => {
+          if (enterPasswordTarget?.mode === "remove") {
+            const newMap = { ...spacePasswords };
+            delete newMap[space];
+            setSpacePasswords(newMap);
+            await db.settings.put({ key: "socratic_space_passwords", value: JSON.stringify(newMap) });
+          } else {
+            setActiveSpace(space);
+            const firstInSpace = (notesBySpace[space] || [])[0];
+            if (firstInSpace) setActiveNoteId(firstInSpace.id);
+            else setActiveNoteId(null);
+          }
+        }}
       />
 
       <CommandPalette

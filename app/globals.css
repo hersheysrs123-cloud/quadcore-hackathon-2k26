@@ -184,125 +184,220 @@ body {
 /* ─── Print Stylesheet (@media print) for Clean Full-Document PDF Export ─────────── */
 @media print {
   @page {
-    margin: 1.2cm 1.5cm;
-    size: auto;
+    margin: 1.5cm 2cm;
+    size: A4;
   }
 
-  /* Reset layout constraints so all pages flow continuously without clipping */
-  html,
-  body,
-  #__next,
-  main,
-  div {
-    overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-    position: static !important;
-    float: none !important;
-    flex: none !important;
-  }
-
-  body {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* Hide app navigation, sidebars, headers, modals, floating overlays & action handles */
+  /* ── 1. Hide all UI chrome ── */
   aside,
   header,
   nav,
   button,
+  input,
+  textarea,
+  select,
   .no-print,
   [role="dialog"],
+  [role="tooltip"],
   .fixed,
-  .group\/blockmenu,
-  .group\/mathblk button,
-  .group\/codeblk button,
+  .absolute,
   [data-hud],
-  .note-menu-dropdown {
+  .note-menu-dropdown,
+  /* hide drag handles, block menus, slash menu */
+  [title="Delete Block"],
+  [title="Drag to move · click for block menu"] {
     display: none !important;
   }
 
-  /* Remove left padding & margins causing large gaps */
+  /* ── 2. Reset page layout so all content flows without clipping ── */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: Georgia, 'Times New Roman', serif !important;
+    font-size: 12pt !important;
+    line-height: 1.55 !important;
+  }
+
+  /* Reset any flex / grid / sticky containers that clamp height */
+  #__next,
   main,
-  .block-note-container,
-  #printable-note-area,
-  .space-y-2,
-  .pl-8 {
+  [data-editor-root],
+  /* workspace root flex container */
+  .flex.h-screen,
+  /* main content column next to sidebar */
+  .flex.flex-1.flex-col {
     display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: transparent !important;
+    flex: none !important;
+  }
+
+  /* Strip the wide left padding the editor uses for drag handles etc. */
+  [data-editor-root] > * {
     padding-left: 0 !important;
     margin-left: 0 !important;
-    overflow: visible !important;
-    color: #000000 !important;
-    background: transparent !important;
   }
 
-  /* Page Break Optimization — Prevent awkward page splits */
+  /* The scrollable main note area — must not clip content */
+  main.overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* ── 3. Typography ── */
+  h1, h2, h3, h4 {
+    color: #000000 !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    margin-top: 1em !important;
+    margin-bottom: 0.3em !important;
+  }
+
+  p, li, blockquote, pre, code {
+    color: #000000 !important;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ── 4. Avoid breaking inside block elements ── */
   blockquote,
-  .callout,
   pre,
-  code,
-  .katex-display,
-  .katex-wrapper,
-  .media-embed,
-  .bookmark-card,
-  figure {
+  figure,
+  .callout {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+
+  /* ── 5. Colour overrides for dark-themed elements ── */
+  * {
+    background-color: transparent !important;
+    border-color: #cccccc !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* ── 6. Code blocks ── */
+  pre, code {
+    background-color: #f4f4f4 !important;
+    color: #222222 !important;
+    border: 1px solid #dddddd !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 10pt !important;
     white-space: pre-wrap !important;
-    word-break: break-word !important;
+    word-break: break-all !important;
     overflow: visible !important;
   }
 
-  /* Force dark elements to light printable mode */
-  .bg-ink-950,
-  .bg-ink-900,
-  .bg-ink-850,
-  .bg-ink-800 {
-    background-color: transparent !important;
-    color: #000000 !important;
-    border-color: #cccccc !important;
+  pre {
+    padding: 8pt !important;
+    margin: 6pt 0 !important;
+    break-inside: avoid !important;
   }
 
-  .text-ink-100,
-  .text-ink-200,
-  .text-ink-300,
-  .text-ink-400,
-  .text-duck-300,
-  .text-duck-400 {
-    color: #000000 !important;
-  }
-
-  /* KaTeX Math Equations & Code Blocks */
+  /* ── 7. KaTeX / Math ── */
   .katex-wrapper,
-  .katex {
+  .katex,
+  .katex * {
     color: #000000 !important;
   }
 
-  pre,
-  code {
-    background-color: #f8f9fa !important;
-    color: #000000 !important;
-    border: 1px solid #e2e8f0 !important;
-  }
-
-  /* Print-only clean badges for Audio/Video embeds and site bookmarks */
-  .media-embed video,
-  .media-embed audio {
+  /* ── 8. Canvas blocks – show placeholder text, hide canvas UI ──
+     Canvas blocks have a title input and a drawing canvas / preview image.
+     We hide the interactive widget and show a [Canvas] badge via ::before.
+  */
+  /* The outer canvas block wrapper rendered by EditorBlock */
+  [class*="canvas"] > *:not(input):not([class*="text"]) {
     display: none !important;
   }
 
-  .media-embed::after {
-    content: " [Media Embed: " attr(data-url) "]";
-    font-size: 0.85em;
-    color: #475569;
-    font-family: monospace;
+  /* Simpler: target canvas block wrappers by the presence of canvas element */
+  canvas {
+    display: none !important;
+  }
+
+  /* Show a print-friendly badge for media / canvas blocks */
+  .media-embed::after,
+  .canvas-block::after {
+    content: attr(data-print-label);
+    display: block;
+    font-style: italic;
+    color: #555555 !important;
+    font-size: 10pt;
+    border: 1px dashed #aaaaaa;
+    padding: 4pt 8pt;
+    border-radius: 3pt;
+    margin: 4pt 0;
+  }
+
+  /* ── 9. Media: hide player, show URL ── */
+  video, audio {
+    display: none !important;
+  }
+
+  img {
+    max-width: 100% !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* ── 10. Links ── */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #444444 !important;
+  }
+
+  /* Don't annotate icon/emoji links or local anchor links */
+  a[href^="#"]::after,
+  a[href^="javascript"]::after {
+    content: "" !important;
+  }
+
+  /* ── 11. Strip spacing from editor UI chrome wrappers ── */
+  .space-y-2,
+  .pl-8,
+  .px-10 {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* ── 12. Dividers ── */
+  hr {
+    border: none !important;
+    border-top: 1px solid #cccccc !important;
+    margin: 12pt 0 !important;
+  }
+
+  /* ── 13. Blockquote / Quote ── */
+  blockquote {
+    border-left: 3pt solid #888888 !important;
+    padding-left: 12pt !important;
+    font-style: italic !important;
+    color: #333333 !important;
+  }
+
+  /* ── 14. Callout ── */
+  .callout {
+    border-left: 3pt solid #888888 !important;
+    padding: 6pt 12pt !important;
+    background: #f9f9f9 !important;
+    border-radius: 3pt !important;
   }
 }
+
+
 

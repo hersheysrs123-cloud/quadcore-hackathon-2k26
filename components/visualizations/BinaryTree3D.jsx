@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Html, Line, OrbitControls } from "@react-three/drei";
+import { Html as DreiHtml, Line, OrbitControls } from "@react-three/drei";
 import { GitBranch, ListTree, Plus, RotateCcw, Search, Shuffle, Target, ChevronRight } from "lucide-react";
 import { CANVAS_BG, WebGLCleanup } from "@/components/visualizations/scene-kit";
 import {
@@ -189,7 +189,7 @@ function TreeNode({ node, state, labelFactor, onSelect }) {
         />
       </mesh>
 
-      <Html center distanceFactor={labelFactor} style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
+      <DreiHtml center distanceFactor={labelFactor} style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
         <span
           className="select-none text-[14px] font-extrabold tabular-nums text-white tracking-tight"
           style={{
@@ -199,7 +199,7 @@ function TreeNode({ node, state, labelFactor, onSelect }) {
         >
           {node.value}
         </span>
-      </Html>
+      </DreiHtml>
     </group>
   );
 }
