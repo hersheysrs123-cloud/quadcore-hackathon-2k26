@@ -46,6 +46,22 @@ const DEFAULT_NOTES_BY_SPACE = {
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * `btoa` throws a DOMException on any character outside Latin1 (accents,
+ * emoji, non-Latin scripts), which would otherwise make setting a space
+ * password with such a character fail silently — the modal closes as if it
+ * worked, but `spacePasswords` and Dexie are never updated. Route through
+ * UTF-8 bytes first so any password string can be encoded.
+ */
+function toBase64(input) {
+  const bytes = new TextEncoder().encode(input);
+  let binary = "";
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary);
+}
+
 /** Graded quiz and Socratic sessions, for the mastery heatmap. */
 const SESSIONS_KEY = "socratic_study_sessions";
 
@@ -383,14 +399,22 @@ export default function Workspace({ note: initialNote }) {
     if (confirm(`Are you sure you want to delete the space "${spaceName}" and ALL notes inside it?`)) {
        const notesToDelete = notesBySpace[spaceName] || [];
        for (const note of notesToDelete) {
-           await handleDeleteNote(note.id); // move to trash
+           await handleDeleteNote(note.id, spaceName); // move to trash
        }
        setSpaces(prev => prev.filter(s => s.name !== spaceName));
        if (activeSpace === spaceName) {
          setActiveSpace(SPACES[0].name);
        }
+       // Otherwise a space recreated later with the same name would silently
+       // inherit the deleted space's old password lock.
+       if (spacePasswords[spaceName]) {
+         const newMap = { ...spacePasswords };
+         delete newMap[spaceName];
+         setSpacePasswords(newMap);
+         await db.settings.put({ key: "socratic_space_passwords", value: JSON.stringify(newMap) });
+       }
     }
-  }, [notesBySpace, activeSpace, handleDeleteNote]);
+  }, [notesBySpace, activeSpace, handleDeleteNote, spacePasswords]);
 
   const handleSaveNote = useCallback(
     async (noteToSave) => {
@@ -527,19 +551,20 @@ export default function Workspace({ note: initialNote }) {
     setActiveTab("notes");
   }
 
-  async function handleDeleteNote(noteId) {
-    const spaceNotes = notesBySpace[activeSpace] || [];
+  async function handleDeleteNote(noteId, spaceOverride) {
+    const targetSpace = spaceOverride || activeSpace;
+    const spaceNotes = notesBySpace[targetSpace] || [];
     const targetNote = spaceNotes.find((n) => n.id === noteId);
     if (!targetNote) return;
 
     setNotesBySpace((prev) => ({
       ...prev,
-      [activeSpace]: (prev[activeSpace] || []).filter((n) => n.id !== noteId),
+      [targetSpace]: (prev[targetSpace] || []).filter((n) => n.id !== noteId),
     }));
 
     setTrashNotes((prev) => [
       ...prev,
-      { ...targetNote, space: activeSpace, deletedAt: new Date().toISOString() },
+      { ...targetNote, space: targetSpace, deletedAt: new Date().toISOString() },
     ]);
 
     if (activeNoteId === noteId) {
@@ -921,7 +946,7 @@ export default function Workspace({ note: initialNote }) {
         spaceName={setPasswordTarget}
         onClose={() => setSetPasswordTarget(null)}
         onSave={async (space, pwd) => {
-          const newMap = { ...spacePasswords, [space]: btoa(pwd) };
+          const newMap = { ...spacePasswords, [space]: toBase64(pwd) };
           setSpacePasswords(newMap);
           await db.settings.put({ key: "socratic_space_passwords", value: JSON.stringify(newMap) });
           

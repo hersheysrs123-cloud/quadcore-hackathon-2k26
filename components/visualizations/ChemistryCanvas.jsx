@@ -220,7 +220,7 @@ function Shell({
 }
 
 export function BohrAtomScene({ params = {} }) {
-  const { element: symbol = "carbon", speed = 1.0, showShells = true, showLabels = true, highlightValence = false, spinNucleus = true } =
+  const { element: symbol = "C", speed = 1.0, showShells = true, showLabels = true, highlightValence = false, spinNucleus = true } =
     params || {};
   const [focused, setFocused] = useState(null);
 

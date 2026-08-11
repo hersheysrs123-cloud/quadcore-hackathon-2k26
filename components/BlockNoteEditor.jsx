@@ -525,7 +525,7 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
             value={block.title || "LaTeX Math Equation"}
             onChange={(e) => onUpdateBlock(block.id, { title: e.target.value })}
             onClick={(e) => e.stopPropagation()}
-            className="bg-transparent border-none outline-none text-duck-300 placeholder:text-duck-500/50 w-full"
+            className="print-content bg-transparent border-none outline-none text-duck-300 placeholder:text-duck-500/50 w-full"
             placeholder="Equation Title..."
           />
         </div>
@@ -746,7 +746,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect }) {
         {/* Syntax Highlighting Underlay */}
         <div
           ref={underlayRef}
-          className="absolute inset-0 pointer-events-none p-4 whitespace-pre-wrap break-words overflow-hidden text-ink-100"
+          className="code-highlight-underlay absolute inset-0 pointer-events-none p-4 whitespace-pre-wrap break-words overflow-hidden text-ink-100"
           style={{ tabSize: 2 }}
         >
           <HighlightCode code={block.content || ""} language={activeLangId} />
@@ -822,7 +822,21 @@ function EditorBlock({
     ) {
       contentRef.current.textContent = block.content;
     }
-  }, [block.id, block.type]);
+    // Re-sync whenever block.content changes too (not just id/type). Content
+    // can change from outside this block's own onInput handler — e.g. Ctrl+Z
+    // /Ctrl+Shift+Z undo-redo replace the whole `blocks` array with a past
+    // snapshot while this block keeps the same id/type. Without depending on
+    // block.content here, the contentEditable DOM never reflects the reverted
+    // text, so it keeps showing the pre-undo text; the next keystroke then
+    // reads that stale DOM text via handleInput and writes it back into
+    // state, silently discarding the undo. The dirty-check above keeps this
+    // a no-op during normal typing, since state is only ever set to mirror
+    // what's already in the DOM.
+    //
+    // NOTE: this dependency array was verified NOT to be the cause of a
+    // separate, pre-existing bug also found in this area — see the comment
+    // on the shortcuts loop in handleInput below for the real one.
+  }, [block.id, block.type, block.content]);
 
   function handleInput() {
     const text = contentRef.current?.textContent ?? "";
@@ -864,6 +878,27 @@ function EditorBlock({
         if (contentRef.current) {
           contentRef.current.textContent = remaining;
         }
+        // KNOWN BUG, not fixed this session (pre-existing, unrelated to
+        // today's changes — reproduces on a clean checkout too): bullet /
+        // number / todo / toggle / callout / quote each render their
+        // contentEditable inside a different wrapper (a marker span, a
+        // checkbox...) than the plain-text branch. Converting a block's
+        // type therefore switches which JSX branch renders here, and React
+        // mounts a brand-new DOM node for it rather than patching this one
+        // in place. That node has no focus, and whatever caret the browser
+        // was tracking is gone. Root-caused by tracing the actual DOM/state
+        // sequence with logging (see conversation/PR notes); several fix
+        // attempts — restoring the caret synchronously here, deferring it a
+        // tick, moving the write into the sync effect below gated on
+        // `isSelected` — each visibly re-focused the right node but the
+        // very next keystroke still lands at the wrong offset, so something
+        // beyond this component is still involved. Net effect: typing
+        // through a markdown shortcut ("1. ", "- ", "# ", "> ", "[ ] ", ...)
+        // without pausing can scramble the first word typed afterward, at
+        // completely normal typing speed. Reproduces reliably; needs
+        // in-browser devtools stepping to finish, which wasn't available
+        // here. Left as the original behavior rather than ship a change
+        // that doesn't fix it.
         return;
       }
     }
@@ -1330,7 +1365,7 @@ function EditorBlock({
                 value={block.content || ""}
                 onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
                 placeholder="Canvas Drawing Title..."
-                className="w-full bg-transparent text-sm font-semibold text-ink-100 outline-none placeholder:text-ink-500"
+                className="print-content w-full bg-transparent text-sm font-semibold text-ink-100 outline-none placeholder:text-ink-500"
               />
             </div>
 
@@ -1359,7 +1394,7 @@ function EditorBlock({
                 />
               </div>
             ) : (
-              <div className="text-center space-y-2 p-6 pointer-events-none">
+              <div className="no-print text-center space-y-2 p-6 pointer-events-none">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-duck-500/10 text-duck-300 text-2xl group-hover:scale-110 transition-transform">
                   🎨
                 </div>
@@ -2135,6 +2170,17 @@ export default function BlockNoteEditor({
   // Smart Markdown Paste Handler
   const handleSmartPaste = useCallback(
     (e) => {
+      // This handler is bound on the outer editor container, so paste events
+      // from every nested <input>/<textarea> bubble up to it too (code block
+      // body, toggle details, math formula box, canvas title, URL fields...).
+      // It must only intervene for the plain contentEditable block-text
+      // elements it's meant for. Otherwise pasting multi-line text into,
+      // say, the code block's textarea gets hijacked: preventDefault blocks
+      // the normal paste and the code block itself is spliced out and
+      // replaced with newly parsed markdown blocks, destroying the snippet.
+      const targetTag = e.target?.tagName;
+      if (targetTag === "TEXTAREA" || targetTag === "INPUT") return;
+
       const text = e.clipboardData?.getData("text/plain");
       if (!text) return;
 
@@ -2179,6 +2225,14 @@ export default function BlockNoteEditor({
         setDragOver(null);
       },
       onDrop: () => {
+        // Record undo history for the reorder itself. Without this, dragging
+        // a block was the only editing action that bypassed the undo stack —
+        // Ctrl+Z right after a drag would skip over it and revert an earlier,
+        // unrelated edit instead, which reads as "undo silently ate my change".
+        if (dragging && dragOver && dragging !== dragOver) {
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+        }
         setBlocks((prev) => {
           if (!dragging || !dragOver || dragging === dragOver) return prev;
           const from = prev.findIndex((b) => b.id === dragging);
@@ -2186,7 +2240,13 @@ export default function BlockNoteEditor({
           if (from === -1 || to === -1) return prev;
           const next = [...prev];
           const [moved] = next.splice(from, 1);
-          next.splice(to, 0, moved);
+          // The drop indicator renders above the target block, signalling
+          // "insert before this block". When dragging forward (from < to),
+          // removing the source shifts every later index down by one, so the
+          // target's post-removal position is `to - 1`. Without this
+          // adjustment the block lands one slot too far, after the target.
+          const insertAt = from < to ? to - 1 : to;
+          next.splice(insertAt, 0, moved);
           return next;
         });
         setDragging(null);
@@ -2256,6 +2316,19 @@ export default function BlockNoteEditor({
   useEffect(() => {
     futureBlocksRef.current = futureBlocks;
   }, [futureBlocks]);
+
+  // Cancel any pending debounced title save on unmount. Workspace.jsx mounts
+  // this editor with `key={activeNoteObj.id}`, so switching notes unmounts
+  // this instance entirely. Without this cleanup, a title edit made just
+  // before switching notes still fires its setTimeout after unmount; that
+  // stale onSaveNote call carries no note id, so the parent's handleSaveNote
+  // falls back to whatever note is active *then* — silently overwriting the
+  // newly-opened note with the previous note's title/blocks.
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
 
   const handleTitleChange = useCallback(
     (newTitle) => {
@@ -2857,7 +2930,7 @@ export default function BlockNoteEditor({
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="text-5xl leading-none transition-transform hover:scale-105"
+                className="print-content text-5xl leading-none transition-transform hover:scale-105"
                 title="Change Icon"
               >
                 {emoji}
@@ -2879,7 +2952,7 @@ export default function BlockNoteEditor({
               }
             }}
             placeholder="Untitled Note"
-            className="w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem]"
+            className="print-content w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem]"
           />
         </div>
 

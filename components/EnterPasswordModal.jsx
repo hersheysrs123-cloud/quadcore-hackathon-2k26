@@ -3,6 +3,22 @@
 import { useState } from "react";
 import { Unlock, X, Eye, EyeOff, KeyRound } from "lucide-react";
 
+/**
+ * Matches Workspace.jsx's `toBase64` — plain `btoa` throws on any character
+ * outside Latin1 (accents, emoji, non-Latin scripts). Without this, entering
+ * such a password here would throw inside this async handler, silently
+ * rejecting the promise and leaving the user stuck with no error message and
+ * no way to unlock or remove the password.
+ */
+function toBase64(input) {
+  const bytes = new TextEncoder().encode(input);
+  let binary = "";
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary);
+}
+
 export default function EnterPasswordModal({ open, spaceName, expectedHash, onClose, onSuccess, mode = "enter" }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +33,13 @@ export default function EnterPasswordModal({ open, spaceName, expectedHash, onCl
     // For hackathon simplicity, we are just comparing plaintext or basic base64 as hash here,
     // or we assume expectedHash is the plaintext password itself based on how it's stored.
     // In a real app we would use crypto.subtle.digest.
-    if (password === expectedHash || btoa(password) === expectedHash) {
+    let encoded = null;
+    try {
+      encoded = toBase64(password);
+    } catch {
+      // fall through — plaintext comparison below still gets a chance
+    }
+    if (password === expectedHash || encoded === expectedHash) {
       onSuccess(spaceName);
       handleClose();
     } else {

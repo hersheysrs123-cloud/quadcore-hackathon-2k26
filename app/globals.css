@@ -209,6 +209,31 @@ body {
     display: none !important;
   }
 
+  /*
+   * ── 1b. Un-hide the handful of elements above that are actually content,
+   * not chrome.
+   *
+   * The note title and icon are a plain <input>/<button> (Notion-style
+   * inline editing), the code block's visible syntax-highlighted text is a
+   * `.absolute`-positioned overlay sitting over a transparent-text textarea,
+   * and math/canvas block titles are inputs too. Rule 1 hid every element
+   * matching those tags/classes to clear out UI chrome — which also erased
+   * the note's own title on every PDF export. `.print-content` marks the
+   * exceptions; `.code-highlight-underlay` gets its own rule since it must
+   * additionally drop out of absolute positioning to lay out normally.
+   */
+  .print-content {
+    display: block !important;
+    border: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  .code-highlight-underlay {
+    display: block !important;
+    position: static !important;
+  }
+
   /* ── 2. Reset page layout so all content flows without clipping ── */
   html, body {
     height: auto !important;
