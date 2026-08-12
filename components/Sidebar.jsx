@@ -198,12 +198,18 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
   const [gfx, setGfx] = useState(null);
   const [gfxSaved, setGfxSaved] = useState(false);
 
+  // Editor behavior
+  const [clickToAppend, setClickToAppend] = useState(true);
+
   useEffect(() => {
     if (!open) return;
     async function loadAISettings() {
       try {
         const keyItem = await db.settings.get("gemini_api_key");
         if (keyItem?.value) setApiKey(keyItem.value);
+
+        const clickItem = await db.settings.get("editor_click_to_append");
+        if (clickItem) setClickToAppend(clickItem.value !== "false");
       } catch (err) {
         console.error("Failed to load AI settings:", err);
       }
@@ -219,6 +225,15 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
     loadAISettings();
     loadGfxSettings();
   }, [open]);
+
+  const handleToggleClickToAppend = async (enabled) => {
+    setClickToAppend(enabled);
+    try {
+      await db.settings.put({ key: "editor_click_to_append", value: String(enabled) });
+    } catch (err) {
+      console.error("Failed to save editor click setting:", err);
+    }
+  };
 
   const handleSaveAI = async (e) => {
     e.preventDefault();
@@ -511,6 +526,29 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                     <span>☀️</span>
                     <span>Light Mode</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Editor Behavior */}
+              <div className="border-t border-ink-800/80 pt-4 space-y-3">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                  <PlusSquare className="w-4 h-4 text-duck-400" />
+                  Editor Behavior
+                </label>
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-ink-800 bg-ink-850">
+                  <div className="space-y-0.5 pr-4">
+                    <p className="text-xs font-semibold text-ink-100">Click anywhere to create block</p>
+                    <p className="text-[11px] text-ink-400">Clicking empty space below or between blocks appends a new block</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={clickToAppend}
+                      onChange={(e) => handleToggleClickToAppend(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-duck-500"></div>
+                  </label>
                 </div>
               </div>
 

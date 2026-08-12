@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import Sidebar from "@/components/Sidebar";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
@@ -108,6 +109,14 @@ export default function Workspace({ note: initialNote }) {
   const [trashNotes, setTrashNotes] = useState([]);
   const [activeNoteId, setActiveNoteId] = useState(null);
   const [editorBlocks, setEditorBlocks] = useState([]);
+
+  const clickToAppendSetting = useLiveQuery(
+    async () => {
+      const item = await db.settings.get("editor_click_to_append");
+      return item ? item.value !== "false" : true;
+    },
+    []
+  );
 
   // Bind global Ctrl+I shortcut to open Instant Note modal
   useEffect(() => {
@@ -858,6 +867,7 @@ export default function Workspace({ note: initialNote }) {
               onSwitchTab={setActiveTab}
               notesBySpace={notesBySpace}
               onSelectNote={handleSelectNote}
+              clickToAppend={clickToAppendSetting ?? true}
             />
           )}
 

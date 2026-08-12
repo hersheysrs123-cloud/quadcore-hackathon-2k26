@@ -15,12 +15,17 @@ export default function SettingsModal({ open, onClose }) {
   
   const [saved, setSaved] = useState(false);
 
+  const [clickToAppend, setClickToAppend] = useState(true);
+
   useEffect(() => {
     if (!open) return;
     async function loadSettings() {
       try {
         const keyItem = await db.settings.get("gemini_api_key");
         if (keyItem?.value) setApiKey(keyItem.value);
+
+        const clickItem = await db.settings.get("editor_click_to_append");
+        if (clickItem) setClickToAppend(clickItem.value !== "false");
         
         const loadedGfx = await getGraphicsSettings();
         setGfx(loadedGfx);
@@ -35,6 +40,7 @@ export default function SettingsModal({ open, onClose }) {
     e.preventDefault();
     try {
       await db.settings.put({ key: "gemini_api_key", value: apiKey.trim() });
+      await db.settings.put({ key: "editor_click_to_append", value: String(clickToAppend) });
 
       
       await saveGraphicsSettings(gfx);
@@ -168,6 +174,28 @@ export default function SettingsModal({ open, onClose }) {
                       <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">S</kbd>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-3 border-t border-ink-800">
+                <h3 className="text-sm font-semibold text-ink-100 flex items-center gap-2">
+                  <PlusSquare className="w-4 h-4 text-duck-400" />
+                  Editor Behavior
+                </h3>
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-ink-800 bg-ink-850">
+                  <div className="space-y-0.5 pr-4">
+                    <p className="text-xs font-semibold text-ink-100">Click anywhere to create block</p>
+                    <p className="text-[11px] text-ink-400">Clicking empty space below or between blocks appends a new block</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={clickToAppend}
+                      onChange={(e) => setClickToAppend(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-duck-500"></div>
+                  </label>
                 </div>
               </div>
             </div>

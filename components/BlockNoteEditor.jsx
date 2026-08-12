@@ -34,6 +34,7 @@ const BLOCK_TYPES = [
   { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame" },
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations" },
   { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer" },
+  { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Short inline LaTeX formula (KaTeX)" },
   { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line" },
   { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card" },
   { type: "media", label: "Image / Audio / Video", icon: "🖼️", description: "Embed media file or URL" },
@@ -486,6 +487,24 @@ function KaTeXRender({ formula, displayMode = false, className = "" }) {
   return <span ref={containerRef} className={`katex-wrapper inline-block ${className}`} />;
 }
 
+function formatTextWithKaTeX(text) {
+  if (!text) return "";
+  if (!text.includes("$")) return text;
+
+  return text.replace(/\$([^$]+)\$/g, (match, formula) => {
+    try {
+      const katexHtml = katex.renderToString(formula, {
+        displayMode: false,
+        throwOnError: false,
+      });
+      const escapedFormula = formula.replace(/"/g, "&quot;");
+      return `<span class="katex-inline-node inline-block px-1.5 py-0.5 mx-0.5 rounded border border-duck-500/40 bg-duck-500/10 text-duck-200 font-semibold cursor-pointer hover:bg-duck-500/25 select-none" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`;
+    } catch (e) {
+      return match;
+    }
+  });
+}
+
 // ─── Math Block Component (KaTeX LaTeX Equation Container) ───────────
 function MathBlock({ block, onUpdateBlock, onSelect }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -596,6 +615,66 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Inline Math Block Component (Notion-style Pure Inline KaTeX Equation) ──
+function InlineMathBlock({ block, onUpdateBlock, onSelect }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formula, setFormula] = useState(block.content || "f(x) = x^2");
+
+  useEffect(() => {
+    setFormula(block.content || "f(x) = x^2");
+  }, [block.content]);
+
+  return (
+    <span
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onSelect(block.id);
+        setIsEditing(true);
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+      }}
+      className="inline-block my-0.5 px-1 py-0.5 rounded cursor-pointer hover:bg-duck-500/15 transition-colors select-none"
+      title="Click to edit inline equation"
+    >
+      {isEditing ? (
+        <input
+          type="text"
+          value={formula}
+          onChange={(e) => {
+            setFormula(e.target.value);
+            onUpdateBlock(block.id, { content: e.target.value }, true);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter" || e.key === "Escape") {
+              e.preventDefault();
+              setIsEditing(false);
+            }
+          }}
+          onBlur={() => setIsEditing(false)}
+          placeholder="LaTeX equation..."
+          className="rounded-xl border-2 border-duck-400 bg-ink-950 px-4 py-2.5 font-mono text-base text-duck-200 shadow-2xl outline-none focus:ring-2 focus:ring-duck-400/60 min-w-[300px]"
+          autoFocus
+        />
+      ) : (
+        <KaTeXRender
+          formula={formula || "f(x)"}
+          displayMode={false}
+          className="text-duck-200 font-semibold inline"
+        />
+      )}
+    </span>
   );
 }
 
@@ -820,7 +899,7 @@ function EditorBlock({
       contentRef.current &&
       contentRef.current.textContent !== block.content
     ) {
-      contentRef.current.textContent = block.content;
+      contentRef.current.textContent = block.content || "";
     }
     // Re-sync whenever block.content changes too (not just id/type). Content
     // can change from outside this block's own onInput handler — e.g. Ctrl+Z
@@ -842,14 +921,17 @@ function EditorBlock({
     const text = contentRef.current?.textContent ?? "";
     onChange(block.id, text);
 
-    if (text.startsWith("/")) {
-      setSlashOpen(true);
-      setSlashFilter(text.slice(1));
-      return;
-    } else {
-      setSlashOpen(false);
-      setSlashFilter("");
+    const lastSlashIndex = text.lastIndexOf("/");
+    if (lastSlashIndex !== -1) {
+      const filterText = text.slice(lastSlashIndex + 1);
+      if (!/\s/.test(filterText)) {
+        setSlashOpen(true);
+        setSlashFilter(filterText);
+        return;
+      }
     }
+    setSlashOpen(false);
+    setSlashFilter("");
 
     const shortcuts = [
       { prefix: "#### ", type: "h4" },
@@ -868,6 +950,7 @@ function EditorBlock({
       { prefix: "***", type: "divider" },
       { prefix: "```", type: "code" },
       { prefix: "$$", type: "math" },
+      { prefix: "$ ", type: "inlinemath" },
     ];
 
     for (const sc of shortcuts) {
@@ -905,11 +988,53 @@ function EditorBlock({
   }
 
   function handleSlashSelect(type) {
-    onChange(block.id, "");
-    if (contentRef.current) {
-      contentRef.current.textContent = "";
+    const text = contentRef.current?.textContent ?? block.content ?? "";
+    const lastSlashIndex = text.lastIndexOf("/");
+
+    if (type === "inlinemath") {
+      let newText = "";
+      if (lastSlashIndex !== -1) {
+        const textBefore = text.slice(0, lastSlashIndex);
+        const textAfter = text.slice(lastSlashIndex + slashFilter.length + 1);
+        newText = textBefore + "$f(x)$" + (textAfter ? " " + textAfter : "");
+      } else {
+        newText = text + " $f(x)$";
+      }
+
+      onChange(block.id, newText);
+      if (contentRef.current) {
+        contentRef.current.textContent = newText;
+      }
+      setSlashOpen(false);
+      setSlashFilter("");
+      return;
     }
-    onChangeType(block.id, type);
+
+    if (lastSlashIndex <= 0 || text.trim().startsWith("/")) {
+      onChange(block.id, "");
+      if (contentRef.current) {
+        contentRef.current.textContent = "";
+      }
+      onChangeType(block.id, type);
+    } else {
+      const textBefore = text.slice(0, lastSlashIndex).trimEnd();
+      const textAfter = text.slice(lastSlashIndex + slashFilter.length + 1).trimStart();
+
+      onChange(block.id, textBefore);
+      if (contentRef.current) {
+        contentRef.current.textContent = textBefore;
+      }
+
+      if (onAddAfter) {
+        onAddAfter(block.id, "", type);
+        if (textAfter) {
+          setTimeout(() => {
+            onAddAfter(block.id, textAfter, "text");
+          }, 40);
+        }
+      }
+    }
+
     setSlashOpen(false);
     setSlashFilter("");
     setTimeout(() => contentRef.current?.focus(), 20);
@@ -1016,25 +1141,6 @@ function EditorBlock({
           : ""
       }`}
       onClick={() => onSelect(block.id)}
-      draggable={handleHeld}
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move";
-        dragHandlers?.onDragStart(block.id);
-      }}
-      onDragOver={(e) => {
-        if (!dragHandlers?.dragging) return;
-        e.preventDefault();
-        dragHandlers.onDragOver(block.id);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setHandleHeld(false);
-        dragHandlers?.onDrop();
-      }}
-      onDragEnd={() => {
-        setHandleHeld(false);
-        dragHandlers?.onDragEnd();
-      }}
     >
       {/* Properly Aligned Controls */}
       <div className="absolute -left-14 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1085,6 +1191,9 @@ function EditorBlock({
       ) : block.type === "math" ? (
         /* Math Equation Block */
         <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
+      ) : block.type === "inlinemath" ? (
+        /* Inline Math Equation Block */
+        <InlineMathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
       ) : block.type === "code" ? (
         /* Code Snippet Block */
         <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
@@ -2051,6 +2160,7 @@ export default function BlockNoteEditor({
   onExportImport,
   notesBySpace = {},
   onSelectNote,
+  clickToAppend = true,
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [banner, setBanner] = useState(initialBanner);
@@ -2149,6 +2259,7 @@ export default function BlockNoteEditor({
 
       // Simple click on empty canvas area -> create or focus last block
       if (dist < 6) {
+        if (!clickToAppend) return;
         const lastBlock = blocksRef.current[blocksRef.current.length - 1];
         if (!lastBlock || (lastBlock.content !== "" && lastBlock.content !== undefined)) {
           const newBlock = createBlock("text", "");
@@ -2552,7 +2663,7 @@ export default function BlockNoteEditor({
     setFutureBlocks([]);
     
     let newType = "text";
-    if (typeToInherit && ["bullet", "number", "todo", "toggle"].includes(typeToInherit)) {
+    if (typeToInherit) {
       newType = typeToInherit;
     } else {
       const currentBlock = blocksRef.current.find((b) => b.id === afterId);

@@ -236,7 +236,7 @@ export default function SocraticWorkspace({
       <div
         onClick={onClose}
         aria-hidden="true"
-        className={`fixed inset-0 z-40 bg-ink-950/70 transition-opacity duration-200 ${
+        className={`fixed inset-0 z-[60] bg-ink-950/70 backdrop-blur-[2px] transition-opacity duration-200 ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
@@ -245,7 +245,7 @@ export default function SocraticWorkspace({
         role="dialog"
         aria-modal="true"
         aria-label="Socratic Rubber Duck"
-        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-ink-800 bg-ink-900 shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed right-0 top-0 z-[70] flex h-full w-full max-w-lg flex-col border-l border-ink-800 bg-ink-900 shadow-2xl transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
