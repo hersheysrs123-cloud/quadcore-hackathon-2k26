@@ -733,7 +733,7 @@ const TOPICS = [
     blurb: "Plant vs. animal cells, with an osmosis simulation",
     syllabus: "Biology 2 · Cell structure",
     keywords: "cell organelle nucleus mitochondria chloroplast vacuole cell wall membrane osmosis turgid plasmolysis plant animal",
-    defaults: { cellType: "plant", tonicity: 0, showLabels: true, water: true },
+    defaults: { cellType: "plant", tonicity: 0, showLabels: true, water: true, cutaway: false },
     controls: [
       {
         type: "choice",
@@ -753,6 +753,7 @@ const TOPICS = [
         step: 0.05,
         format: (v) => (v > 0.05 ? "concentrated" : v < -0.05 ? "dilute" : "isotonic"),
       },
+      { type: "toggle", key: "cutaway", label: "Cutaway view" },
       { type: "toggle", key: "water", label: "Show water movement" },
       { type: "toggle", key: "showLabels", label: "Show organelle labels" },
     ],
@@ -1015,22 +1016,49 @@ export default function ThreeDView() {
       </header>
 
       {/* ─── Category Quick Switch Strip ─────────────────── */}
-      <div className="shrink-0 border-b border-ink-800/70 bg-ink-900/40 px-3 py-1.5 overflow-x-auto flex items-center gap-1.5 no-scrollbar">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => setCategory(cat.id)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
-              category === cat.id
-                ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
-                : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
-            }`}
-          >
-            <span>{cat.emoji || "🌐"}</span>
-            <span>{cat.label}</span>
-          </button>
-        ))}
+      <div className="shrink-0 border-b border-ink-800/70 bg-ink-900/40 px-3 py-1.5 overflow-x-auto flex items-center gap-2 no-scrollbar">
+        <div className="flex shrink-0 items-center gap-1.5 border-r border-ink-800 pr-2">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategory(cat.id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
+                category === cat.id
+                  ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
+                  : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
+              }`}
+            >
+              <span>{cat.emoji || "🌐"}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Filtered by the category above and the header search box — unlike
+            the dropdown selector, which always lists every topic so the
+            current selection never vanishes out from under it. */}
+        <div className="flex items-center gap-1.5">
+          {visibleTopics.map((t) => {
+            const active = !isCustomSelected && topicId === t.id;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => selectTopic(t.id)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
+                  active
+                    ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
+                    : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
+                }`}
+              >
+                <Icon className={`h-3.5 w-3.5 ${active ? "text-duck-300" : "text-ink-500"}`} />
+                <span>{t.title}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ─── Body ────────────────────────────────────────── */}
