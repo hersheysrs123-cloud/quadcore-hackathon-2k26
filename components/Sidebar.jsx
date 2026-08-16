@@ -17,22 +17,13 @@ import { SPACES } from "@/lib/constants";
 
 function formatTimeRemaining(deletedAt) {
   if (!deletedAt) return "24h 0m left";
-
-  const timestamp = typeof deletedAt === "number" ? deletedAt : new Date(deletedAt).getTime();
-  if (isNaN(timestamp) || timestamp <= 0) return "24h 0m left";
-
-  const elapsed = Date.now() - timestamp;
-  const total24h = 24 * 60 * 60 * 1000;
-  const remaining = total24h - elapsed;
-
+  const ts = typeof deletedAt === "number" ? deletedAt : new Date(deletedAt).getTime();
+  if (isNaN(ts) || ts <= 0) return "24h 0m left";
+  const remaining = 24 * 60 * 60 * 1000 - (Date.now() - ts);
   if (remaining <= 0) return "Expiring soon";
-
-  const hours = Math.floor(remaining / (1000 * 60 * 60));
-  const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-
-  if (isNaN(hours) || isNaN(mins)) return "24h 0m left";
-
-  return `${hours}h ${mins}m left`;
+  const h = Math.floor(remaining / 3600000);
+  const m = Math.floor((remaining % 3600000) / 60000);
+  return isNaN(h) || isNaN(m) ? "24h 0m left" : `${h}h ${m}m left`;
 }
 
 // ─── Reset Confirmation & Human Check Dialog ────────────────────────

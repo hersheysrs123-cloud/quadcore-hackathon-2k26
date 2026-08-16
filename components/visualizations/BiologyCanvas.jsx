@@ -92,7 +92,10 @@ function EnzymeBody({ denature, wobble }) {
     geometry.computeVertexNormals();
   });
 
-  const colour = new THREE.Color(PALETTE.emerald).lerp(new THREE.Color(PALETTE.rose), denature);
+  const colour = useMemo(
+    () => new THREE.Color(PALETTE.emerald).lerp(new THREE.Color(PALETTE.rose), denature),
+    [denature]
+  );
 
   return (
     <mesh ref={mesh} geometry={geometry}>

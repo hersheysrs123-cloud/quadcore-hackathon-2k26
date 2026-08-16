@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Search, Settings, FileText, Calendar, Box, Activity } from "lucide-react";
 
 export default function CommandPalette({
@@ -9,50 +9,57 @@ export default function CommandPalette({
   setActiveSpace,
   setActiveTab,
   setActiveNoteId,
-  onOpenSettings
+  onOpenSettings,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
-  
-  // Combine all searchable items
-  const items = [];
-  
-  // 1. Actions & Views
-  items.push({ id: "action_notes", type: "View", title: "Open Notes", icon: <FileText size={16} />, onSelect: () => setActiveTab("notes") });
-  items.push({ id: "action_calendar", type: "View", title: "Open Calendar", icon: <Calendar size={16} />, onSelect: () => setActiveTab("calendar") });
-  items.push({ id: "action_3d", type: "View", title: "Open 3D Visualizations", icon: <Box size={16} />, onSelect: () => setActiveTab("3d") });
-  items.push({ id: "action_mastery", type: "View", title: "Open Mastery Dashboard", icon: <Activity size={16} />, onSelect: () => setActiveTab("mastery") });
-  
-  if (onOpenSettings) {
-    items.push({ id: "action_settings", type: "Settings", title: "Open Settings", icon: <Settings size={16} />, onSelect: () => onOpenSettings() });
-  }
 
-  // 2. Notes
-  Object.entries(notesBySpace).forEach(([space, spaceNotes]) => {
-    (spaceNotes || []).forEach(note => {
-      items.push({
-        id: `note_${note.id}`,
-        type: "Note",
-        title: note.title || "Untitled Note",
-        subtitle: `Space: ${space}`,
-        icon: <span>{note.emoji || "📝"}</span>,
-        onSelect: () => {
-          setActiveSpace(space);
-          setActiveNoteId(note.id);
-          setActiveTab("notes");
-        }
+  // Combine all searchable items (memoized)
+  const items = useMemo(() => {
+    const list = [
+      { id: "action_notes", type: "View", title: "Open Notes", icon: <FileText size={16} />, onSelect: () => setActiveTab("notes") },
+      { id: "action_calendar", type: "View", title: "Open Calendar", icon: <Calendar size={16} />, onSelect: () => setActiveTab("calendar") },
+      { id: "action_3d", type: "View", title: "Open 3D Visualizations", icon: <Box size={16} />, onSelect: () => setActiveTab("3d") },
+      { id: "action_mastery", type: "View", title: "Open Mastery Dashboard", icon: <Activity size={16} />, onSelect: () => setActiveTab("mastery") },
+    ];
+
+    if (onOpenSettings) {
+      list.push({ id: "action_settings", type: "Settings", title: "Open Settings", icon: <Settings size={16} />, onSelect: () => onOpenSettings() });
+    }
+
+    Object.entries(notesBySpace).forEach(([space, spaceNotes]) => {
+      (spaceNotes || []).forEach((note) => {
+        list.push({
+          id: `note_${note.id}`,
+          type: "Note",
+          title: note.title || "Untitled Note",
+          subtitle: `Space: ${space}`,
+          icon: <span>{note.emoji || "📝"}</span>,
+          onSelect: () => {
+            setActiveSpace(space);
+            setActiveNoteId(note.id);
+            setActiveTab("notes");
+          },
+        });
       });
     });
-  });
 
-  // Fuzzy filter
-  const filteredItems = items.filter(item => {
-    if (!query) return true;
+    return list;
+  }, [notesBySpace, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
+
+  // Fuzzy filter (memoized)
+  const filteredItems = useMemo(() => {
+    if (!query.trim()) return items;
     const q = query.toLowerCase();
-    return item.title.toLowerCase().includes(q) || item.type.toLowerCase().includes(q) || (item.subtitle && item.subtitle.toLowerCase().includes(q));
-  });
+    return items.filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        item.type.toLowerCase().includes(q) ||
+        (item.subtitle && item.subtitle.toLowerCase().includes(q))
+    );
+  }, [items, query]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

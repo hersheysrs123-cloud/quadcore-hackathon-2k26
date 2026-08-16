@@ -240,6 +240,22 @@ A comprehensive suite of 14 real-time interactive 3D simulations across 4 scient
 
 ---
 
+### ⚡ I. Performance & Runtime Optimization Architecture
+- **$O(1)$ Block-Level Re-render Isolation**: `EditorBlock` and heavy child containers are wrapped in `React.memo` with custom comparator guards, ensuring single-character edits in one block never cause full-document re-renders across other blocks.
+- **KaTeX LRU String Memoization**: Math pills and block equations use an in-memory LRU Map cache (`renderKatexToStringMemoized`) to avoid redundant KaTeX lexing/AST rebuilds on identical LaTeX formulas.
+- **Singleton Timer Store Clock & Auto-Sleep**: Multi-timer polling is consolidated into a single external store ticker (`multiTimerStore`), running only 1 shared timer interval when active and automatically clearing intervals when all timers are idle (0% idle background CPU usage).
+- **IndexedDB Query Batching**: Settings and bulk database lookups use `db.settings.bulkGet(...)` instead of sequential single-key round-trips.
+- **Calendar & UI Memoization**: Month cell grids and timer sub-widgets in `CalendarView.jsx` are wrapped in `useMemo` and `memo` to prevent recalculations on unrelated state updates.
+- **Search Catalog & Socratic Transcript Memoization**: `CommandPalette.jsx` and `QuizPanel.jsx` wrap item catalogs and transcript filters in `useMemo` to eliminate object churn during search/dialogue.
+- **$O(1)$ Static Syntax Language Map**: `lib/syntaxHighlighter.js` normalizes code languages in constant time via static lookup Maps.
+- **Single-Pass Document Metrics**: `BlockNoteEditor.jsx` computes word and character statistics in a single linear pass.
+- **3D WebGL & Canvas Render Loop Optimizations**:
+  - `WidgetCanvas.jsx` pre-caches slider control lookups and avoids per-frame array allocations in painter's sorting.
+  - `PhysicsCanvas.jsx` and `BiologyCanvas.jsx` memoize `THREE.Color` lerp interpolations to eliminate 60 FPS object churn.
+  - `ThreeDView.jsx` debounces 3D topic switching history and localStorage persistence.
+
+---
+
 ## 🗄️ 4. Local-First Database Architecture (`lib/db.js` & `lib/storageService.js`)
 
 SocraticOS operates entirely local-first using **Dexie.js** (IndexedDB database name: `SocraticOS_LocalDB`, version 4).

@@ -113,8 +113,6 @@ export default function Workspace() {
 
   // Bind global Ctrl+I shortcut to open Instant Note modal
   useEffect(() => {
-    setMounted(true);
-
     function handleGlobalKeyDown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
         e.preventDefault();
@@ -239,17 +237,25 @@ export default function Workspace() {
     }
   }, []);
 
-  // Sync state to URL and localStorage
+  // Sync state to URL and localStorage with trailing debounce
   useEffect(() => {
     if (!isHydrated || typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (activeNoteId) params.set("noteId", activeNoteId);
-    if (activeTab) params.set("tab", activeTab);
-    
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState(null, '', newUrl);
-    
-    localStorage.setItem("socratic_last_workspace_state", JSON.stringify({ activeNoteId, activeTab, activeSpace }));
+
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      if (activeNoteId) params.set("noteId", activeNoteId);
+      if (activeTab) params.set("tab", activeTab);
+
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState(null, "", newUrl);
+
+      localStorage.setItem(
+        "socratic_last_workspace_state",
+        JSON.stringify({ activeNoteId, activeTab, activeSpace })
+      );
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, [activeNoteId, activeTab, activeSpace, isHydrated]);
 
   // Update theme data attribute on root HTML element

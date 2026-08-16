@@ -284,47 +284,57 @@ export default function WidgetCanvas({ widget, loading = false, error = null }) 
     resize();
     window.addEventListener("resize", resize);
 
+    const spinControl = controls.find((c) => c.key === "rotationSpeed");
+    const initialState = widget.initialState || {};
+    const defaultSpin = initialState.rotationSpeed ?? 0.4;
+    const initialZoom = initialState.cameraZoom ?? 1;
+    const initialBg = initialState.backgroundColor || "#090d16";
+    const rawObjects = Array.isArray(initialState.objects) ? initialState.objects : [];
+    const hasAxisLabels = Array.isArray(initialState.axisLabels);
+
     function frame(now) {
       const dt = Math.min((now - last) / 1000, 0.05); // clamp tab-restore jumps
       last = now;
 
-      const initialState = widget.initialState || {};
-      // A control keyed `rotationSpeed` takes over the spin if the model emits one.
-      const spinControl = controls.find((c) => c.key === "rotationSpeed");
       const spin = spinControl
         ? (valuesRef.current[spinControl.key] ?? spinControl.default ?? 0.4)
-        : (initialState.rotationSpeed ?? 0.4);
+        : defaultSpin;
 
       if (!pausedRef.current) rotationRef.current.y += spin * dt;
 
       const view = {
         rotX: rotationRef.current.x,
         rotY: rotationRef.current.y,
-        zoom: (initialState.cameraZoom ?? 1) * zoomOverride,
+        zoom: initialZoom * zoomOverride,
         width,
         height,
       };
 
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = initialState.backgroundColor || "#090d16";
+      ctx.fillStyle = initialBg;
       ctx.fillRect(0, 0, width, height);
 
       // Per-frame label collision scratch — see placeLabel().
       const placed = [];
-      if (Array.isArray(initialState.axisLabels)) {
+      if (hasAxisLabels) {
         drawAxes(ctx, view, initialState.axisLabels, placed);
       }
 
       // Painter's algorithm — farthest first.
-      const objects = Array.isArray(initialState.objects) ? initialState.objects : [];
-      objects
-        .map((object) => ({
+      const currentValues = valuesRef.current;
+      const sorted = [];
+      for (let i = 0; i < rawObjects.length; i++) {
+        const object = rawObjects[i];
+        sorted.push({
           object,
-          scale: scaleFor(object, controls, valuesRef.current),
+          scale: scaleFor(object, controls, currentValues),
           depth: project(object.position || [0, 0, 0], view).depth,
-        }))
-        .sort((a, b) => b.depth - a.depth)
-        .forEach((item) => drawObject(ctx, item, view, placed));
+        });
+      }
+      sorted.sort((a, b) => b.depth - a.depth);
+      for (let i = 0; i < sorted.length; i++) {
+        drawObject(ctx, sorted[i], view, placed);
+      }
 
       frameId = requestAnimationFrame(frame);
     }

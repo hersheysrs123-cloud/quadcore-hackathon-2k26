@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, memo, useRef, useState } from "react";
 import {
   getCalendarEvents,
   saveCalendarEvent,
@@ -48,8 +48,7 @@ function format24to12(timeStr) {
   return `${hour12}:${minuteStr} ${period}`;
 }
 
-// ─── Real-Time Timer Widget ──────────────────────────────────────────────────
-function StudyTimerWidget() {
+const StudyTimerWidget = memo(function StudyTimerWidget() {
   const {
     mode,
     totalSeconds,
@@ -206,7 +205,7 @@ function StudyTimerWidget() {
       </div>
     </div>
   );
-}
+});
 
 // ─── Regular Alarms Widget ──────────────────────────────────────────────────
 function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, onToggleAlarm }) {
@@ -786,17 +785,19 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
     setSelectedDate(`${today.getFullYear()}-${formattedMonth}-${formattedDay}`);
   }
 
-  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
-  const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-  const calendarCells = [];
-  for (let i = 0; i < firstDayIndex; i++) calendarCells.push(null);
-  for (let day = 1; day <= totalDays; day++) {
-    const formattedDay = String(day).padStart(2, "0");
-    const formattedMonth = String(currentMonth + 1).padStart(2, "0");
-    const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
-    calendarCells.push({ day, dateStr });
-  }
+  const calendarCells = useMemo(() => {
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+    const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDayIndex; i++) cells.push(null);
+    for (let day = 1; day <= totalDays; day++) {
+      const formattedDay = String(day).padStart(2, "0");
+      const formattedMonth = String(currentMonth + 1).padStart(2, "0");
+      const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
+      cells.push({ day, dateStr });
+    }
+    return cells;
+  }, [currentYear, currentMonth]);
 
   // Event handlers
   async function handleSaveEvent(evData) {

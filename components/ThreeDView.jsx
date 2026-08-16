@@ -854,13 +854,16 @@ export default function ThreeDView() {
     setIsHydrated(true);
   }, []);
 
-  // Sync state to URL and localStorage
+  // Sync state to URL and localStorage (debounced)
   useEffect(() => {
     if (!isHydrated || typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    params.set("vis", topicId);
-    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-    localStorage.setItem("socratic_last_vis_state", JSON.stringify({ topicId }));
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      params.set("vis", topicId);
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+      localStorage.setItem("socratic_last_vis_state", JSON.stringify({ topicId }));
+    }, 150);
+    return () => clearTimeout(timer);
   }, [topicId, isHydrated]);
 
   // Params live per topic, so switching away and back keeps your settings.

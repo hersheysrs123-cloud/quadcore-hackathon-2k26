@@ -36,18 +36,26 @@ export default function MasteryDashboard({
     const groups = new Map();
     for (const topic of mastery.topics) {
       const key = topic.noteId ?? "unfiled";
-      const group = groups.get(key) ?? {
-        noteId: topic.noteId,
-        title: topic.noteTitle || "Unfiled",
-        topics: [],
-      };
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          noteId: topic.noteId,
+          title: topic.noteTitle || "Unfiled",
+          topics: [],
+        };
+        groups.set(key, group);
+      }
       group.topics.push(topic);
-      groups.set(key, group);
     }
+
+    // Precompute averages once to make sorting O(1) per comparison
+    const groupList = Array.from(groups.values()).map((g) => ({
+      ...g,
+      avgScore: average(g.topics),
+    }));
+
     // Weakest notes first — this page exists to tell you where to go next.
-    return [...groups.values()].sort(
-      (a, b) => average(a.topics) - average(b.topics),
-    );
+    return groupList.sort((a, b) => a.avgScore - b.avgScore);
   }, [mastery.topics]);
 
   if (mastery.sessionCount === 0) {

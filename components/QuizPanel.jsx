@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import WidgetCanvas from "@/components/WidgetCanvas";
@@ -466,8 +466,11 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
     toggleSpeak,
   } = useVoice();
 
-  const visible = messages.filter((m) => !m.hidden);
-  const answerCount = visible.filter((m) => m.role === "user").length;
+  const { visible, answerCount } = useMemo(() => {
+    const vis = messages.filter((m) => !m.hidden);
+    const count = vis.filter((m) => m.role === "user").length;
+    return { visible: vis, answerCount: count };
+  }, [messages]);
   const scored = Boolean(diagnostic);
 
   const toWire = (history) => history.map(({ role, content }) => ({ role, content }));

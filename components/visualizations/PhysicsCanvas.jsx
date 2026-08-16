@@ -2257,7 +2257,10 @@ function GasParticles({ count, temperature, halfLength, onCollisionRate }) {
 
   // Cold gas reads blue, hot gas reads amber-red.
   const t = clamp((temperature - 100) / 700, 0, 1);
-  const colour = new THREE.Color(PALETTE.sky).lerp(new THREE.Color(PALETTE.rose), t);
+  const colour = useMemo(
+    () => new THREE.Color(PALETTE.sky).lerp(new THREE.Color(PALETTE.rose), t),
+    [t]
+  );
 
   return (
     <instancedMesh

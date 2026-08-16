@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {
@@ -535,27 +535,40 @@ function BlockContextMenu({
   );
 }
 
+// ─── KaTeX LRU Memoization Cache ─────────────────────────────────────
+const KATEX_STRING_CACHE = new Map();
+export function renderKatexToStringMemoized(formula, options = {}) {
+  const key = `${formula}::${Boolean(options.displayMode)}`;
+  if (KATEX_STRING_CACHE.has(key)) return KATEX_STRING_CACHE.get(key);
+  try {
+    const html = katex.renderToString(formula || "", {
+      displayMode: Boolean(options.displayMode),
+      throwOnError: false,
+      ...options,
+    });
+    if (KATEX_STRING_CACHE.size > 500) {
+      KATEX_STRING_CACHE.delete(KATEX_STRING_CACHE.keys().next().value);
+    }
+    KATEX_STRING_CACHE.set(key, html);
+    return html;
+  } catch {
+    return escapeHtml(formula || "");
+  }
+}
+
 // ─── Single Block Component ─────────────────────────────────────────
-function KaTeXRender({ formula, displayMode = false, className = "" }) {
+const KaTeXRender = memo(function KaTeXRender({ formula, displayMode = false, className = "" }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     if (containerRef.current) {
-      try {
-        katex.render(formula || "", containerRef.current, {
-          displayMode,
-          throwOnError: false,
-        });
-      } catch (err) {
-        if (containerRef.current) {
-          containerRef.current.innerText = formula;
-        }
-      }
+      const html = renderKatexToStringMemoized(formula, { displayMode });
+      containerRef.current.innerHTML = html;
     }
   }, [formula, displayMode]);
 
   return <span ref={containerRef} className={`katex-wrapper inline-block ${className}`} />;
-}
+});
 
 // ─── Inline Equation Utilities & Popover ─────────────────────────────
 function escapeHtml(str) {
@@ -580,7 +593,7 @@ function formatTextWithKaTeX(text) {
     }
     const formula = match[1];
     try {
-      const katexHtml = katex.renderToString(formula, {
+      const katexHtml = renderKatexToStringMemoized(formula, {
         displayMode: false,
         throwOnError: false,
       });
@@ -1659,7 +1672,7 @@ function CanvasBlock({ block, onUpdateBlock, onSelect, onDelete }) {
 }
 
 
-function EditorBlock({
+const EditorBlock = memo(function EditorBlock({
   block,
   index = 0,
   totalBlocks = 1,
@@ -1678,7 +1691,6 @@ function EditorBlock({
   onAddAfter,
   onExplainBlock,
   onQuizBlock,
-  onTriggerSocratic,
   onSwitchTab,
   notesBySpace = {},
   onSelectNote,
@@ -2292,7 +2304,7 @@ function EditorBlock({
       )}
     </div>
   );
-}
+});
 
 // ─── Canvas Modal (85% Screen Drawing Workspace) ────────────────────
 function CanvasModal({ drawingData, title, initialCanvasHeight, initialCanvasZoom, onSave, onClose }) {
@@ -3080,16 +3092,20 @@ export default function BlockNoteEditor({
     [dragging, dragOver],
   );
 
-  const totalCharacters = useMemo(() => {
-    return blocks.reduce((sum, b) => sum + (b.content ? b.content.length : 0), 0);
-  }, [blocks]);
-
-  const totalWords = useMemo(() => {
-    return blocks.reduce((sum, b) => {
-      if (!b.content) return sum;
-      const words = b.content.trim().split(/\s+/).filter(Boolean);
-      return sum + words.length;
-    }, 0);
+  const { totalCharacters, totalWords } = useMemo(() => {
+    let chars = 0;
+    let words = 0;
+    for (let i = 0; i < blocks.length; i++) {
+      const c = blocks[i].content;
+      if (c) {
+        chars += c.length;
+        const trimmed = c.trim();
+        if (trimmed) {
+          words += trimmed.split(/\s+/).length;
+        }
+      }
+    }
+    return { totalCharacters: chars, totalWords: words };
   }, [blocks]);
 
   const totalBlocks = blocks.length;
