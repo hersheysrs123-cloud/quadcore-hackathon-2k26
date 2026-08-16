@@ -97,9 +97,10 @@ function solveBlock(angleDeg, n1, n2, thickness) {
   const tir = sinR > 1; // only possible when the block is less dense
   const r = tir ? null : Math.asin(clamp(sinR, -1, 1));
   const e = tir ? null : i; // parallel faces ⇒ emergent angle = incident angle
-  const critical = n1 > n2 ? Math.asin(n2 / n1) / DEG : null;
-  const lateral = tir ? 0 : (thickness * Math.sin(i - r)) / Math.cos(r);
-  const run = tir ? 0 : thickness * Math.tan(r); // sideways travel inside
+  const critical = n1 > n2 ? Math.asin(clamp(n2 / n1, -1, 1)) / DEG : null;
+  const cosR = r !== null ? Math.cos(r) : 0;
+  const lateral = tir ? 0 : Math.abs(cosR) < 1e-4 ? 0 : (thickness * Math.sin(i - (r ?? 0))) / cosR;
+  const run = tir ? 0 : clamp(thickness * Math.tan(r ?? 0), -25, 25); // sideways travel inside
   const reflectance = fresnelReflectance(i, r, n1, n2);
   return { i, r, e, tir, critical, lateral, run, reflectance };
 }
@@ -1226,17 +1227,15 @@ function PolePlate({ position, pole }) {
 // numbers in the readout are a real F = BIL and not I × B with a silent unit.
 const WIRE_LENGTH = 1;
 
-export function MotorEffectScene({
-  params = {
-    current: 1.0,
-    field: 1.0,
-    reverseCurrent: false,
-    reverseField: false,
-    showFieldLines: true,
-    animate: true,
-  },
-}) {
-  const { current, field, reverseCurrent, reverseField, showFieldLines, animate } = params;
+export function MotorEffectScene({ params = {} }) {
+  const {
+    current = 1.0,
+    field = 1.0,
+    reverseCurrent = false,
+    reverseField = false,
+    showFieldLines = true,
+    animate = true,
+  } = params || {};
 
   // B runs from the N pole to the S pole; I runs along the second finger.
   const bSign = reverseField ? -1 : 1;
@@ -1499,8 +1498,13 @@ function Lens({ type }) {
   );
 }
 
-export function LensOpticsScene({ params }) {
-  const { lensType, focal, objectDistance, showConstruction } = params;
+export function LensOpticsScene({ params = {} }) {
+  const {
+    lensType = "convex",
+    focal = 3.0,
+    objectDistance = 5.0,
+    showConstruction = true,
+  } = params || {};
 
   const isConvex = lensType === "convex";
   const f = isConvex ? focal : -focal;
@@ -2032,8 +2036,14 @@ function EmfTrace({ speed, field, turns, angleRef }) {
   );
 }
 
-export function InductionScene({ params }) {
-  const { speed, field, turns, showFieldLines, showCurrent } = params;
+export function InductionScene({ params = {} }) {
+  const {
+    speed = 1.0,
+    field = 1.0,
+    turns = 10,
+    showFieldLines = true,
+    showCurrent = true,
+  } = params || {};
   // Seeded from the equation rather than from zero: on the very first render
   // the coil is at θ = 0, which is peak e.m.f., and a panel reading "0.00 V"
   // beside a note saying "the e.m.f. is at its peak" reads as a broken model.

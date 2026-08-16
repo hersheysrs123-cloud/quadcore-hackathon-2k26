@@ -45,12 +45,13 @@ export function HudPanel({ title, icon: Icon, action, children, className = "" }
 }
 
 export function Slider({ label, value, onChange, min, max, step = 1, format }) {
+  const safeValue = typeof value === "number" && !isNaN(value) ? value : (min ?? 0);
   return (
     <label className="block">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="text-[11px] text-ink-400">{label}</span>
         <span className="text-[11px] font-medium tabular-nums text-duck-300">
-          {format ? format(value) : value}
+          {format ? format(safeValue) : safeValue}
         </span>
       </div>
       <input
@@ -58,7 +59,7 @@ export function Slider({ label, value, onChange, min, max, step = 1, format }) {
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={safeValue}
         onChange={(e) => onChange(Number(e.target.value))}
         suppressHydrationWarning
         className="w-full cursor-pointer accent-duck-400"
@@ -348,16 +349,17 @@ export function QuizOverlay({ topic, onClose }) {
   const [finished, setFinished] = useState(false);
 
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const onKey = (e) => e.key === "Escape" && onClose?.();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const question = topic.quiz[index];
-  const isLast = index === topic.quiz.length - 1;
+  const quizList = topic?.quiz || [];
+  const question = quizList[index];
+  const isLast = quizList.length > 0 ? index === quizList.length - 1 : true;
 
   const choose = (option) => {
-    if (picked !== null) return;
+    if (picked !== null || !question) return;
     setPicked(option);
     if (option === question.answer) setCorrect((c) => c + 1);
   };
@@ -377,6 +379,33 @@ export function QuizOverlay({ topic, onClose }) {
     setCorrect(0);
     setFinished(false);
   };
+
+  if (quizList.length === 0 || !question) {
+    return (
+      <>
+        <div
+          onClick={onClose}
+          aria-hidden="true"
+          className="fixed inset-0 z-[200] bg-ink-950/80 backdrop-blur-sm"
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Quiz"
+          className="fixed left-1/2 top-1/2 z-[210] w-[min(480px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl text-center"
+        >
+          <p className="text-sm text-ink-200">No quiz questions available for this topic yet.</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-4 rounded-lg bg-duck-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-duck-300"
+          >
+            Back to the model
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

@@ -61,8 +61,6 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
       ? "Notes & Content Blocks"
       : target === "calendar"
       ? "Calendar Events"
-      : target === "3d"
-      ? "3D Visualizations"
       : "ALL WORKSPACE DATA";
 
   async function handleFinalReset() {
@@ -147,8 +145,15 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
                     type="number"
                     value={userAnswer}
                     onChange={(e) => setUserAnswer(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && userAnswer.trim() === expectedAnswer && !resetting) {
+                        e.preventDefault();
+                        handleFinalReset();
+                      }
+                    }}
                     placeholder="Result"
                     className="w-24 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-center font-mono text-sm font-bold text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+                    autoFocus
                   />
                 </div>
               </div>
@@ -179,7 +184,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
 }
 
 // ─── Settings Modal ──────────────────────────────────────────────────
-function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
+function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [] }) {
   const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -324,17 +329,20 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
-        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+        className="fixed left-1/2 top-1/2 z-[210] w-[94vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl flex flex-col overflow-hidden animate-fade-up"
       >
-        <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">⚙️</span>
-            <h2 className="text-sm font-semibold text-ink-100">Preferences &amp; Settings</h2>
+        <header className="flex items-center justify-between border-b border-ink-800 px-6 py-4.5 bg-ink-950/50 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">⚙️</span>
+            <div>
+              <h2 className="text-base font-bold text-ink-100">Preferences &amp; Settings</h2>
+              <p className="text-xs text-ink-400">Configure theme, AI keys, 3D graphics performance &amp; workspace backups</p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-2 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            className="rounded-lg p-1.5 text-sm text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
           >
             ✕
           </button>
@@ -403,49 +411,59 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
           </button>
         </div>
 
-        <div className="space-y-6 px-6 py-5 h-[65vh] max-h-[500px] overflow-y-auto">
+        <div className="space-y-6 px-7 py-6 h-[70vh] max-h-[560px] overflow-y-auto">
           {tab === "ai" && (
-            <form onSubmit={handleSaveAI} className="space-y-4">
-              <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-300">
-                <Shield className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+            <form onSubmit={handleSaveAI} className="space-y-5 max-w-2xl mx-auto py-2">
+              <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-emerald-300">
+                <Shield className="h-5 w-5 shrink-0 text-emerald-400 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-emerald-200">100% Local Privacy:</span> API keys are saved strictly inside IndexedDB (Dexie). They never touch our servers.
+                  <span className="font-bold text-emerald-200 text-sm">100% Local Privacy:</span>
+                  <p className="mt-0.5 leading-relaxed text-emerald-300/90">
+                    Your Gemini API key is saved strictly inside your browser's local IndexedDB (Dexie.js). It is never sent to our backend servers.
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-1.5 animate-fade-up">
-                  <label className="block text-xs font-semibold text-ink-300">
-                    Google Gemini API Key
-                  </label>
-                  <div className="relative flex items-center">
-                    <Key className="absolute left-3 h-4 w-4 text-ink-500" />
-                    <input
-                      type={showKey ? "text" : "password"}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="AIzaSy..."
-                      className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 pl-9 pr-10 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey(!showKey)}
-                      className="absolute right-3 text-ink-500 hover:text-ink-300"
-                    >
-                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-ink-500">
-                    Leave empty to fall back to server env var.
-                  </p>
+              <div className="space-y-2 animate-fade-up">
+                <label className="block text-xs font-semibold text-ink-200">
+                  Google Gemini API Key
+                </label>
+                <div className="relative flex items-center">
+                  <Key className="absolute left-3.5 h-4 w-4 text-ink-500" />
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-3 pl-10 pr-12 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3.5 text-ink-500 hover:text-ink-300"
+                  >
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+                <p className="text-xs text-ink-400">
+                  Leave empty to fall back to server env var. Get a free API key at{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-duck-400 underline hover:text-duck-300"
+                  >
+                    Google AI Studio
+                  </a>.
+                </p>
+              </div>
 
-
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-3">
                 <button
                   type="submit"
-                  className="rounded-xl bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 hover:bg-duck-300 transition-colors"
+                  className="rounded-xl bg-duck-400 px-6 py-2.5 text-xs font-bold text-ink-950 hover:bg-duck-300 transition-colors shadow-md"
                 >
-                  {aiSaved ? "Saved to Dexie!" : "Save AI Key & Settings"}
+                  {aiSaved ? "✓ Saved to Dexie!" : "Save AI Key & Settings"}
                 </button>
               </div>
             </form>
@@ -453,42 +471,42 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
 
           {tab === "general" && (
             <div className="space-y-6">
-              {/* Keyboard Shortcuts */}
+              {/* Keyboard Shortcuts - 3 Column Wide Grid */}
               <div>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
                   <Command className="w-4 h-4 text-duck-400" />
                   Keyboard Shortcuts
                 </h3>
-                <div className="grid grid-cols-1 gap-2">
-                  <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-ink-800 bg-ink-850">
                     <div className="flex items-center gap-3">
                       <Search className="w-4 h-4 text-ink-400" />
                       <span className="text-xs font-medium text-ink-200">Command Palette</span>
                     </div>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl/Cmd</kbd>
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl</kbd>
                       <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">K</kbd>
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850">
+                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-ink-800 bg-ink-850">
                     <div className="flex items-center gap-3">
                       <PlusSquare className="w-4 h-4 text-ink-400" />
                       <span className="text-xs font-medium text-ink-200">Quick Note</span>
                     </div>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl/Cmd</kbd>
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl</kbd>
                       <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">I</kbd>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850">
+                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-ink-800 bg-ink-850">
                     <div className="flex items-center gap-3">
                       <Check className="w-4 h-4 text-ink-400" />
                       <span className="text-xs font-medium text-ink-200">Save Note</span>
                     </div>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl/Cmd</kbd>
+                      <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">Ctrl</kbd>
                       <kbd className="px-2 py-1 bg-ink-950 border border-ink-700 rounded text-[10px] font-mono text-ink-300">S</kbd>
                     </div>
                   </div>
@@ -497,48 +515,54 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
 
               {/* Theme Selector */}
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-ink-400">
+                <label className="mb-3 block text-xs font-semibold uppercase tracking-wider text-ink-400">
                   Appearance &amp; Theme
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <button
                     type="button"
                     onClick={() => setTheme("dark")}
-                    className={`flex items-center justify-center gap-2 rounded-xl border p-3.5 text-xs font-semibold transition-all ${
+                    className={`flex items-center justify-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all ${
                       theme === "dark"
-                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md"
+                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
                         : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
-                    <span>🌙</span>
-                    <span>Dark Mode</span>
+                    <span className="text-xl">🌙</span>
+                    <div className="text-left">
+                      <div className="font-bold text-ink-100">Dark Mode</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Sleek Slate background for night study</div>
+                    </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setTheme("light")}
-                    className={`flex items-center justify-center gap-2 rounded-xl border p-3.5 text-xs font-semibold transition-all ${
+                    className={`flex items-center justify-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all ${
                       theme === "light"
-                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md"
+                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
                         : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
-                    <span>☀️</span>
-                    <span>Light Mode</span>
+                    <span className="text-xl">☀️</span>
+                    <div className="text-left">
+                      <div className="font-bold text-ink-100">Light Mode</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Warm Stone paper aesthetic for daytime</div>
+                    </div>
                   </button>
                 </div>
               </div>
 
               {/* Editor Behavior */}
-              <div className="border-t border-ink-800/80 pt-4 space-y-3">
+              <div className="border-t border-ink-800/80 pt-5 space-y-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
                   <PlusSquare className="w-4 h-4 text-duck-400" />
                   Editor Behavior
                 </label>
-                <div className="flex items-center justify-between p-3.5 rounded-xl border border-ink-800 bg-ink-850">
+                <div className="flex items-center justify-between p-4 rounded-xl border border-ink-800 bg-ink-850">
                   <div className="space-y-0.5 pr-4">
-                    <p className="text-xs font-semibold text-ink-100">Click anywhere to create block</p>
-                    <p className="text-[11px] text-ink-400">Clicking empty space below or between blocks appends a new block</p>
+                    <p className="text-sm font-semibold text-ink-100">Click anywhere to create block</p>
+                    <p className="text-xs text-ink-400">Clicking empty space below or between blocks automatically appends a new block</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
                     <input
@@ -547,205 +571,223 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                       onChange={(e) => handleToggleClickToAppend(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-duck-500"></div>
+                    <div className="w-11 h-6 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-duck-500"></div>
                   </label>
                 </div>
               </div>
 
               {/* Local-First Dexie Storage Status */}
-              <div className="border-t border-ink-800/80 pt-4 space-y-2">
-                <p className="text-[11px] text-ink-400 leading-relaxed">
-                  💾 <strong>100% Local-First Storage</strong>: Your notes, whiteboards, calendar events, and study sessions are stored privately in your browser's IndexedDB engine (Dexie.js).
+              <div className="border-t border-ink-800/80 pt-4">
+                <p className="text-xs text-ink-400 leading-relaxed">
+                  💾 <strong>100% Local-First Storage</strong>: Your notes, 3D scenes, calendar events, and study sessions are stored privately in your browser's IndexedDB engine (Dexie.js).
                 </p>
               </div>
             </div>
           )}
 
           {tab === "backup" && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3.5 text-xs leading-relaxed text-sky-200">
-                <div className="font-bold flex items-center gap-1.5 text-sky-300">
+            <div className="space-y-5">
+              <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-4 text-xs leading-relaxed text-sky-200">
+                <div className="font-bold flex items-center gap-2 text-sm text-sky-300">
                   <HardDrive className="h-4 w-4" />
                   <span>100% Offline Workspace Backups</span>
                 </div>
-                <p className="mt-1 text-[11px] text-sky-300/80">
+                <p className="mt-1 text-xs text-sky-300/80">
                   Save a complete snapshot of your workspace (notes, whiteboard drawings, calendar events, and study sessions) directly to your hard drive, or restore an existing <code>.socratic</code> / <code>.json</code> backup.
                 </p>
               </div>
 
               {statusMsg && (
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-300 flex items-center gap-2 animate-fade-in">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300 flex items-center gap-2 animate-fade-in">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>{statusMsg}</span>
                 </div>
               )}
 
-              {/* Export Section with Space Selector */}
-              <div className="rounded-xl border border-duck-500/30 bg-duck-500/5 p-3.5 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-duck-200">Export Space Backup (.socratic)</div>
-                  <span className="text-[10px] text-duck-400 font-mono">Select Space</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {[{ name: "All", icon: "🌐" }, ...SPACES].map((sp) => (
-                    <button
-                      key={sp.name}
-                      type="button"
-                      onClick={() => setBackupExportSpace(sp.name)}
-                      className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                        backupExportSpace === sp.name
-                          ? "border-duck-400 bg-duck-500/30 text-duck-200"
-                          : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
-                      }`}
-                    >
-                      <span>{sp.icon}</span>
-                      <span>{sp.name === "All" ? "All Spaces" : sp.name}</span>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  disabled={isExporting}
-                  className="flex w-full items-center justify-between rounded-lg border border-duck-500/40 bg-duck-500/20 p-2.5 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/30 disabled:opacity-50 shadow-sm mt-1"
-                >
-                  <div className="flex items-center gap-2">
-                    <Download className="h-4 w-4 text-duck-400" />
-                    <span>Export {backupExportSpace === "All" ? "All Spaces" : `"${backupExportSpace}" Space`} Backup</span>
+              {/* Export & Import Dual Columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Export Section */}
+                <div className="rounded-xl border border-duck-500/30 bg-duck-500/5 p-4 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-duck-200">Export Space Backup (.socratic)</div>
+                      <span className="text-[10px] text-duck-400 font-mono">Select Space</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[{ name: "All", icon: "🌐" }, ...(spaces.length > 0 ? spaces : SPACES)].map((sp) => (
+                        <button
+                          key={sp.name}
+                          type="button"
+                          onClick={() => setBackupExportSpace(sp.name)}
+                          className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                            backupExportSpace === sp.name
+                              ? "border-duck-400 bg-duck-500/30 text-duck-200 shadow-sm"
+                              : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
+                          }`}
+                        >
+                          <span>{sp.icon}</span>
+                          <span>{sp.name === "All" ? "All Spaces" : sp.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <span className="rounded bg-duck-500/30 px-2 py-0.5 font-mono text-[10px] text-duck-200">
-                    {isExporting ? "Exporting..." : ".socratic"}
-                  </span>
-                </button>
-              </div>
 
-              {/* Import Section with Target Space Selector */}
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-emerald-200">Import Workspace File (.socratic)</div>
-                  <span className="text-[10px] text-emerald-400 font-mono">Target Space</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setBackupImportSpace("Original")}
-                    className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                      backupImportSpace === "Original"
-                        ? "border-emerald-400 bg-emerald-500/30 text-emerald-200"
-                        : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
-                    }`}
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="flex w-full items-center justify-between rounded-lg border border-duck-500/40 bg-duck-500/20 p-3 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/30 disabled:opacity-50 shadow-sm mt-2"
                   >
-                    <span>🔄</span>
-                    <span>Original Spaces</span>
+                    <div className="flex items-center gap-2">
+                      <Download className="h-4 w-4 text-duck-400" />
+                      <span>Export {backupExportSpace === "All" ? "All Spaces" : `"${backupExportSpace}" Space`}</span>
+                    </div>
+                    <span className="rounded bg-duck-500/30 px-2 py-0.5 font-mono text-[10px] text-duck-200">
+                      {isExporting ? "Exporting..." : ".socratic"}
+                    </span>
                   </button>
-                  {SPACES.map((sp) => (
-                    <button
-                      key={sp.name}
-                      type="button"
-                      onClick={() => setBackupImportSpace(sp.name)}
-                      className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                        backupImportSpace === sp.name
-                          ? "border-emerald-400 bg-emerald-500/30 text-emerald-200"
-                          : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
-                      }`}
-                    >
-                      <span>{sp.icon}</span>
-                      <span>{sp.name}</span>
-                    </button>
-                  ))}
                 </div>
-                <label className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/20 p-2.5 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-500/30 shadow-sm mt-1">
-                  <div className="flex items-center gap-2">
-                    <Upload className="h-4 w-4 text-emerald-400" />
-                    <span>Import to {backupImportSpace === "Original" ? "Original Spaces" : `"${backupImportSpace}" Space`}</span>
+
+                {/* Import Section */}
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-emerald-200">Import Workspace File (.socratic)</div>
+                      <span className="text-[10px] text-emerald-400 font-mono">Target Space</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setBackupImportSpace("Original")}
+                        className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                          backupImportSpace === "Original"
+                            ? "border-emerald-400 bg-emerald-500/30 text-emerald-200 shadow-sm"
+                            : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
+                        }`}
+                      >
+                        <span>🔄</span>
+                        <span>Original Spaces</span>
+                      </button>
+                      {(spaces.length > 0 ? spaces : SPACES).map((sp) => (
+                        <button
+                          key={sp.name}
+                          type="button"
+                          onClick={() => setBackupImportSpace(sp.name)}
+                          className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                            backupImportSpace === sp.name
+                              ? "border-emerald-400 bg-emerald-500/30 text-emerald-200 shadow-sm"
+                              : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
+                          }`}
+                        >
+                          <span>{sp.icon}</span>
+                          <span>{sp.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <input
-                    type="file"
-                    accept=".socratic,.json"
-                    className="hidden"
-                    onChange={handleImportFile}
-                    disabled={isImporting}
-                  />
-                  <span className="rounded bg-emerald-500/30 px-2 py-0.5 font-mono text-[10px] text-emerald-200">
-                    {isImporting ? "Restoring..." : "Select File"}
-                  </span>
-                </label>
+
+                  <label className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/20 p-3 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-500/30 shadow-sm mt-2">
+                    <div className="flex items-center gap-2">
+                      <Upload className="h-4 w-4 text-emerald-400" />
+                      <span>Import to {backupImportSpace === "Original" ? "Original Spaces" : `"${backupImportSpace}" Space`}</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".socratic,.json"
+                      className="hidden"
+                      onChange={handleImportFile}
+                      disabled={isImporting}
+                    />
+                    <span className="rounded bg-emerald-500/30 px-2 py-0.5 font-mono text-[10px] text-emerald-200">
+                      {isImporting ? "Restoring..." : "Select File"}
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           )}
 
           {tab === "reset" && (
             <div className="space-y-4">
-              <p className="text-[11px] text-ink-400 leading-relaxed">
+              <p className="text-xs text-ink-400 leading-relaxed">
                 Factory resets permanently delete data from both local cache and Supabase. Each action requires double confirmation and human verification.
               </p>
 
-              <div className="space-y-2 pt-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                 <button
                   type="button"
                   onClick={() => setResetTarget("notes")}
-                  className="flex w-full items-center justify-between rounded-lg border border-ink-800 bg-ink-850 p-3 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
+                  className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
                 >
-                  <div className="flex items-center gap-2">
-                    <span>📝</span>
-                    <span>Factory Reset Notes</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">📝</span>
+                    <div>
+                      <div className="font-bold text-ink-100">Factory Reset Notes</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Clear all notes and trash</div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-rose-400 font-semibold">Clear Notes</span>
+                  <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Notes</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setResetTarget("calendar")}
-                  className="flex w-full items-center justify-between rounded-lg border border-ink-800 bg-ink-850 p-3 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
+                  className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
                 >
-                  <div className="flex items-center gap-2">
-                    <span>📅</span>
-                    <span>Factory Reset Calendar</span>
-                  </div>
-                  <span className="text-[10px] text-rose-400 font-semibold">Clear Events</span>
-                </button>
-
-                <div className="border-t border-ink-800 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setResetTarget("all")}
-                    className="flex w-full items-center justify-between rounded-lg border border-rose-500/40 bg-rose-500/10 p-3.5 text-xs font-bold text-rose-300 transition-all hover:bg-rose-500/20"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>💥</span>
-                      <span>Factory Reset ALL DATA</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">📅</span>
+                    <div>
+                      <div className="font-bold text-ink-100">Factory Reset Calendar</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Clear all events and alarms</div>
                     </div>
-                    <span className="text-[10px] uppercase font-bold text-rose-400">Purge Everything</span>
-                  </button>
-                </div>
+                  </div>
+                  <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Events</span>
+                </button>
+              </div>
+
+              <div className="border-t border-ink-800 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setResetTarget("all")}
+                  className="flex w-full items-center justify-between rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-xs font-bold text-rose-300 transition-all hover:bg-rose-500/20"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">💥</span>
+                    <div>
+                      <div className="font-extrabold text-sm text-rose-200">Factory Reset ALL WORKSPACE DATA</div>
+                      <div className="text-xs text-rose-300/80 font-normal">Purge notes, calendar events, mastery analytics, settings and local cache</div>
+                    </div>
+                  </div>
+                  <span className="text-[11px] uppercase font-extrabold text-rose-300 bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/40">Purge Everything</span>
+                </button>
               </div>
             </div>
           )}
 
           {tab === "3d" && gfx && (
             <form onSubmit={handleSaveGfx} className="space-y-6 animate-fade-up">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-ink-300">Graphics Preset</label>
-                <select 
-                  value={gfx.graphicsPreset} 
-                  onChange={handlePresetChange}
-                  className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
-                >
-                  <option value="auto">Auto-detect</option>
-                  <option value="high">High Quality</option>
-                  <option value="medium">Balanced</option>
-                  <option value="low">Performance (Battery Saver)</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-ink-300">Graphics Preset</label>
+                  <select 
+                    value={gfx.graphicsPreset} 
+                    onChange={handlePresetChange}
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                  >
+                    <option value="auto">Auto-detect</option>
+                    <option value="high">High Quality</option>
+                    <option value="medium">Balanced</option>
+                    <option value="low">Performance (Battery Saver)</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-ink-300">Target FPS</label>
                   <select 
                     value={gfx.targetFps} 
                     onChange={(e) => updateGfx('targetFps', parseInt(e.target.value, 10))}
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
                   >
                     <option value={30}>30 FPS</option>
                     <option value={60}>60 FPS</option>
@@ -758,7 +800,7 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                   <select 
                     value={gfx.pixelRatio} 
                     onChange={(e) => updateGfx('pixelRatio', parseFloat(e.target.value))}
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
                   >
                     <option value={1.0}>1.0x (Standard)</option>
                     <option value={1.5}>1.5x (Retina)</option>
@@ -767,8 +809,8 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                 </div>
               </div>
 
-              <div className="space-y-4 pt-2">
-                <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <label className="flex items-center gap-3 p-3.5 rounded-xl border border-ink-800 bg-ink-850 cursor-pointer group hover:border-ink-700">
                   <div className="relative flex-shrink-0">
                     <input 
                       type="checkbox" 
@@ -780,12 +822,12 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                     <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${gfx.enableShadows ? 'translate-x-4' : ''}`}></div>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-medium text-ink-200">Enable Shadows</span>
-                    <span className="text-[10px] text-ink-500">Improves realism but uses more GPU</span>
+                    <span className="text-xs font-semibold text-ink-200">Enable Shadows</span>
+                    <span className="text-[10px] text-ink-500">Improves realism</span>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 cursor-pointer group">
+                <label className="flex items-center gap-3 p-3.5 rounded-xl border border-ink-800 bg-ink-850 cursor-pointer group hover:border-ink-700">
                   <div className="relative flex-shrink-0">
                     <input 
                       type="checkbox" 
@@ -797,12 +839,12 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                     <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${gfx.enableAntialias ? 'translate-x-4' : ''}`}></div>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-medium text-ink-200">Anti-aliasing</span>
-                    <span className="text-[10px] text-ink-500">Smooths jagged edges on models (requires refresh)</span>
+                    <span className="text-xs font-semibold text-ink-200">Anti-aliasing</span>
+                    <span className="text-[10px] text-ink-500">Smooths jagged edges</span>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 cursor-pointer group">
+                <label className="flex items-center gap-3 p-3.5 rounded-xl border border-ink-800 bg-ink-850 cursor-pointer group hover:border-ink-700">
                   <div className="relative flex-shrink-0">
                     <input 
                       type="checkbox" 
@@ -814,8 +856,8 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
                     <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${gfx.autoPauseHidden ? 'translate-x-4' : ''}`}></div>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-medium text-ink-200">Auto-pause when hidden</span>
-                    <span className="text-[10px] text-ink-500">Stops rendering when the tab is out of view</span>
+                    <span className="text-xs font-semibold text-ink-200">Auto-pause Hidden</span>
+                    <span className="text-[10px] text-ink-500">Stops rendering when tab hidden</span>
                   </div>
                 </label>
               </div>
@@ -823,9 +865,9 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
               <div className="flex justify-end pt-4 border-t border-ink-800">
                 <button
                   type="submit"
-                  className="rounded-xl bg-amber-400 px-4 py-2 text-xs font-bold text-ink-950 hover:bg-amber-300 transition-colors"
+                  className="rounded-xl bg-amber-400 px-6 py-2.5 text-xs font-bold text-ink-950 hover:bg-amber-300 transition-colors shadow-md"
                 >
-                  {gfxSaved ? "Saved to Dexie!" : "Save 3D Settings"}
+                  {gfxSaved ? "✓ Saved to Dexie!" : "Save 3D Settings"}
                 </button>
               </div>
             </form>
@@ -848,15 +890,17 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData }) {
 }
 
 // ─── Create New Space Modal ─────────────────────────────────────────
-function CreateSpaceModal({ open, onClose, onCreate }) {
+function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
   const inputRef = useRef(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📂");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setName("");
       setIcon("📂");
+      setError("");
       setTimeout(() => inputRef.current?.focus(), 60);
     }
   }, [open]);
@@ -872,6 +916,10 @@ function CreateSpaceModal({ open, onClose, onCreate }) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
+    if (spaces.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`A space named "${trimmed}" already exists.`);
+      return;
+    }
     onCreate({ name: trimmed, icon, blurb: "" });
     onClose();
   }
@@ -940,11 +988,15 @@ function CreateSpaceModal({ open, onClose, onCreate }) {
               id="space-name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError("");
+              }}
               placeholder="e.g. Research"
               maxLength={32}
               className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
             />
+            {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-1">
@@ -1163,7 +1215,7 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 h-full">
+      <div className="flex w-64 shrink-0 flex-col bg-ink-900 h-full">
         {/* Brand Header with Settings ⚙️ button */}
         <div className="flex items-center justify-between border-b border-ink-800/60 px-3.5 py-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -1260,6 +1312,7 @@ export default function Sidebar({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setSpacesDropdownOpen(false);
                               if (spacePasswords[space.name]) {
                                 onRemovePasswordRequest?.(space.name);
                               } else {
@@ -1377,7 +1430,7 @@ export default function Sidebar({
                         }}
                         onDeleteNote={onDeleteNote}
                         variant="icon"
-                        align="left"
+                        align="right"
                         className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
                       />
                     </div>
@@ -1415,13 +1468,14 @@ export default function Sidebar({
           </button>
         </div>
 
-      </aside>
+      </div>
 
       {/* Modals */}
       <CreateSpaceModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreate={handleCreateSpace}
+        spaces={spaces}
       />
 
       <TrashModal
@@ -1441,6 +1495,7 @@ export default function Sidebar({
         setTheme={setTheme}
         onSyncSupabase={onSyncSupabase}
         onResetData={onResetData}
+        spaces={spaces}
       />
 
       <FeatureRequestModal

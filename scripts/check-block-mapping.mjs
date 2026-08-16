@@ -49,7 +49,14 @@ const rows = [
   { block_type: "heading", content_json: { text: "Big", level: 1 } },
   { block_type: "heading", content_json: { text: "Medium", level: 2 } },
   { block_type: "heading", content_json: { text: "Small", level: 3 } },
+  { block_type: "heading", content_json: { text: "Sub", level: 4 } },
   { block_type: "bullet", content_json: { text: "a list item" } },
+  { block_type: "number", content_json: { text: "first ordered step" } },
+  { block_type: "todo", content_json: { text: "complete task", checked: true } },
+  { block_type: "quote", content_json: { text: "famous quote" } },
+  { block_type: "callout", content_json: { text: "important note", icon: "💡" } },
+  { block_type: "divider", content_json: {} },
+  { block_type: "site", content_json: { url: "https://wikipedia.org" } },
   { block_type: "code", content_json: { text: "const x = 1;", language: "js" } },
   {
     block_type: "media",
@@ -82,13 +89,13 @@ for (const type of EDITOR_TYPES) {
 }
 
 console.log("\n3. retyping a flattened block drops the stale payload");
-const mediaRow = rows.find((r) => r.block_type === "media");
-const flattenedMedia = toEditorBlock({ id: "m", ...mediaRow });
-check("media flattens to text", flattenedMedia.type, "text");
+const socraticRow = rows.find((r) => r.block_type === "socratic");
+const flattenedSocratic = toEditorBlock({ id: "s", ...socraticRow });
+check("socratic flattens to text", flattenedSocratic.type, "text");
 check(
-  "media retyped to h2 becomes a real heading",
-  toDbBlock({ ...flattenedMedia, type: "h2" }),
-  { block_type: "heading", content_json: { text: "Lecture 7", level: 2 } },
+  "socratic retyped to h2 becomes a real heading",
+  toDbBlock({ ...flattenedSocratic, type: "h2" }),
+  { block_type: "heading", content_json: { text: "Eigenvectors — why one direction?", level: 2 } },
 );
 
 console.log("\n4. constants stay in sync with the mapping");

@@ -2,7 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Html as DreiHtml, OrbitControls } from "@react-three/drei";
+import { Html, Html as DreiHtml, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, DEFAULT_GRAPHICS_SETTINGS } from "@/lib/db";
@@ -52,9 +52,9 @@ function PerformanceManager({ autoPauseHidden }) {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden && autoPauseHidden) {
-        setFrameloop("demand"); // "demand" is better than "never", allowing explicit renders
+        setFrameloop("demand"); // "demand" pauses the continuous rAF loop while tab is hidden
       } else {
-        setFrameloop("demand");
+        setFrameloop("always");
       }
     };
     
@@ -68,33 +68,35 @@ function PerformanceManager({ autoPauseHidden }) {
 }
 
 export function WebGLCleanup() {
-  const { gl, scene } = useThree();
+  const { scene } = useThree();
   useEffect(() => {
     return () => {
-      if (scene) {
-        scene.traverse((object) => {
-          if (!object.isMesh) return;
-          if (object.geometry) object.geometry.dispose();
-          if (object.material) {
-            if (Array.isArray(object.material)) {
-              object.material.forEach((m) => {
-                m.dispose();
-                if (m.map) m.map.dispose();
-              });
-            } else {
-              object.material.dispose();
-              if (object.material.map) object.material.map.dispose();
+      try {
+        if (scene) {
+          scene.traverse((object) => {
+            try {
+              if (object.geometry) object.geometry.dispose();
+              if (object.material) {
+                if (Array.isArray(object.material)) {
+                  object.material.forEach((m) => {
+                    m?.dispose?.();
+                    if (m?.map) m.map?.dispose?.();
+                  });
+                } else {
+                  object.material?.dispose?.();
+                  if (object.material?.map) object.material.map?.dispose?.();
+                }
+              }
+            } catch (_) {
+              // Safe geometry/material disposal
             }
-          }
-        });
-      }
-      if (gl) {
-        const extension = gl.getExtension("WEBGL_lose_context");
-        if (extension) extension.loseContext();
-        gl.dispose();
+          });
+        }
+      } catch (_) {
+        // Safe scene teardown
       }
     };
-  }, [gl, scene]);
+  }, [scene]);
   return null;
 }
 
@@ -131,7 +133,7 @@ export function SceneCanvas({
       shadows={gfx.enableShadows}
       gl={{ antialias: gfx.enableAntialias, powerPreference: "high-performance" }}
       onPointerMissed={onPointerMissed}
-      frameloop="demand"
+      frameloop="always"
     >
       <WebGLCleanup />
       <PerformanceManager autoPauseHidden={gfx.autoPauseHidden} />
@@ -367,10 +369,12 @@ export function SceneLegend({ corner = "bottom-right", title = "Key", items = []
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** Orientation + midpoint for a segment, shared by Bond and VectorArrow. */
-function useSegment(from, to) {
+function useSegment(from = [0, 0, 0], to = [0, 1, 0]) {
   return useMemo(() => {
-    const a = new THREE.Vector3(...from);
-    const b = new THREE.Vector3(...to);
+    const fromArr = Array.isArray(from) ? from : [0, 0, 0];
+    const toArr = Array.isArray(to) ? to : [0, 1, 0];
+    const a = new THREE.Vector3(fromArr[0] ?? 0, fromArr[1] ?? 0, fromArr[2] ?? 0);
+    const b = new THREE.Vector3(toArr[0] ?? 0, toArr[1] ?? 0, toArr[2] ?? 0);
     const delta = new THREE.Vector3().subVectors(b, a);
     const length = delta.length();
     const direction = length > 1e-6 ? delta.clone().normalize() : UP.clone();
@@ -382,12 +386,12 @@ function useSegment(from, to) {
       midpoint: new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5),
     };
     // Arrays are fresh objects on every render, so depend on the numbers.
-  }, [from[0], from[1], from[2], to[0], to[1], to[2]]);
+  }, [from?.[0], from?.[1], from?.[2], to?.[0], to?.[1], to?.[2]]);
 }
 
 export function Bond({
-  from,
-  to,
+  from = [0, 0, 0],
+  to = [0, 1, 0],
   radius = 0.075,
   color = PALETTE.line,
   opacity = 1,
@@ -414,7 +418,7 @@ export function Bond({
 /** Shaft + head + optional floating label. The workhorse for vector fields. */
 export function VectorArrow({
   from = [0, 0, 0],
-  to,
+  to = [0, 1, 0],
   color = PALETTE.gold,
   radius = 0.05,
   headLength = 0.34,

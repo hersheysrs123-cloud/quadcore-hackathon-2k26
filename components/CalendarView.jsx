@@ -37,6 +37,9 @@ const DAY_LABELS = [
 // Helper to convert 24h "14:30" to 12h "2:30 PM"
 function format24to12(timeStr) {
   if (!timeStr) return "12:00 AM";
+  if (typeof timeStr === "string" && (timeStr.includes("AM") || timeStr.includes("PM"))) {
+    return timeStr;
+  }
   const [h, m] = timeStr.split(":").map(Number);
   if (isNaN(h)) return timeStr;
   const period = h >= 12 ? "PM" : "AM";
@@ -350,30 +353,42 @@ function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, o
 }
 
 // ─── Add/Edit Event Modal ───────────────────────────────────────────────────
-function EventModal({ open, eventData, selectedDate, onClose, onSave }) {
+function EventModal({ open, eventData, selectedDate, activeSpace = "School", spaces = [], onClose, onSave }) {
+  const todayObj = new Date();
+  const defaultDateStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
+
   const [title, setTitle] = useState("");
   const [type, setType] = useState("socratic");
-  const [time, setTime] = useState("10:00 AM");
-  const [date, setDate] = useState(selectedDate || "2026-07-31");
-  const [space, setSpace] = useState("School");
+  const [time, setTime] = useState("10:00");
+  const [date, setDate] = useState(selectedDate || defaultDateStr);
+  const [space, setSpace] = useState(activeSpace || "School");
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (open) {
       if (eventData) {
         setTitle(eventData.title || "");
         setType(eventData.type || "socratic");
-        setTime(eventData.time || "10:00 AM");
-        setDate(eventData.date || selectedDate || "2026-07-31");
-        setSpace(eventData.space || "School");
+        setTime(eventData.time || "10:00");
+        setDate(eventData.date || selectedDate || defaultDateStr);
+        setSpace(eventData.space || activeSpace || "School");
       } else {
         setTitle("");
         setType("socratic");
-        setTime("10:00 AM");
-        setDate(selectedDate || "2026-07-31");
-        setSpace("School");
+        setTime("10:00");
+        setDate(selectedDate || defaultDateStr);
+        setSpace(activeSpace || "School");
       }
     }
-  }, [open, eventData, selectedDate]);
+  }, [open, eventData, selectedDate, activeSpace, defaultDateStr]);
 
   if (!open) return null;
 
@@ -385,16 +400,22 @@ function EventModal({ open, eventData, selectedDate, onClose, onSave }) {
       id: eventData?.id || `evt_${Date.now()}`,
       title: title.trim(),
       type,
-      time: time.trim(),
+      time: time.trim() || "10:00",
       date,
-      space,
+      space: space || activeSpace || "School",
     });
     onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-fade-up">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-fade-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-ink-800 pb-3">
           <h3 className="text-sm font-semibold text-ink-100">
             {eventData ? "Edit Calendar Event" : `Add Event (${date})`}
@@ -448,23 +469,33 @@ function EventModal({ open, eventData, selectedDate, onClose, onSave }) {
             <div>
               <label className="mb-1 block text-xs font-medium text-ink-400">Time</label>
               <input
-                type="text"
+                type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                placeholder="10:00 AM"
-                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs font-mono font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none"
               />
             </div>
 
             <div>
               <label className="mb-1 block text-xs font-medium text-ink-400">Space</label>
-              <input
-                type="text"
+              <select
                 value={space}
                 onChange={(e) => setSpace(e.target.value)}
-                placeholder="School"
                 className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
-              />
+              >
+                {(spaces && spaces.length > 0
+                  ? spaces
+                  : [{ name: "School" }, { name: "Personal" }, { name: "Misc" }]
+                ).map((s) => {
+                  const sName = typeof s === "object" ? s.name : s;
+                  const sEmoji = typeof s === "object" ? s.emoji : null;
+                  return (
+                    <option key={sName} value={sName}>
+                      {sEmoji ? `${sEmoji} ` : ""}{sName}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
           </div>
 
@@ -513,6 +544,15 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
     }
   }, [open, alarmData]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   function toggleDay(dayId) {
@@ -540,8 +580,14 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-fade-up">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl animate-fade-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-ink-800 pb-3">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-duck-400" />
@@ -663,7 +709,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
 }
 
 // ─── Main CalendarView Export ───────────────────────────────────────────────
-export default function CalendarView({ activeSpace = "School", onNavigateNote }) {
+export default function CalendarView({ activeSpace = "School", spaces = [], onNavigateNote }) {
   const today = new Date();
   const initialYear = today.getFullYear();
   const initialMonth = today.getMonth();
@@ -706,21 +752,29 @@ export default function CalendarView({ activeSpace = "School", onNavigateNote })
   }, []);
 
   function prevMonth() {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((y) => y - 1);
-    } else {
-      setCurrentMonth((m) => m - 1);
+    let newY = currentYear;
+    let newM = currentMonth - 1;
+    if (newM < 0) {
+      newM = 11;
+      newY = currentYear - 1;
     }
+    setCurrentMonth(newM);
+    setCurrentYear(newY);
+    const formattedM = String(newM + 1).padStart(2, "0");
+    setSelectedDate(`${newY}-${formattedM}-01`);
   }
 
   function nextMonth() {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((y) => y + 1);
-    } else {
-      setCurrentMonth((m) => m + 1);
+    let newY = currentYear;
+    let newM = currentMonth + 1;
+    if (newM > 11) {
+      newM = 0;
+      newY = currentYear + 1;
     }
+    setCurrentMonth(newM);
+    setCurrentYear(newY);
+    const formattedM = String(newM + 1).padStart(2, "0");
+    setSelectedDate(`${newY}-${formattedM}-01`);
   }
 
   function goToday() {
@@ -988,7 +1042,9 @@ export default function CalendarView({ activeSpace = "School", onNavigateNote })
                           <span>{tObj.label}</span>
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-ink-500">{ev.time}</span>
+                          <span className="text-[11px] text-ink-500 font-mono font-medium">
+                            {format24to12(ev.time)}
+                          </span>
 
                           {/* Test Trigger */}
                           <button
@@ -1000,14 +1056,14 @@ export default function CalendarView({ activeSpace = "School", onNavigateNote })
                                     detail: {
                                       alarmType: "event",
                                       title: `Event Alert: ${ev.title}`,
-                                      message: `Scheduled ${tObj.label} event for ${ev.space || "School"} space at ${ev.time}.`,
+                                      message: `Scheduled ${tObj.label} event for ${ev.space || "School"} space at ${format24to12(ev.time)}.`,
                                     },
                                   })
                                 );
                               }
                             }}
                             title="Trigger Event Alarm"
-                            className="p-1 text-ink-500 hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 text-ink-500 hover:text-amber-400 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100"
                           >
                             <Bell className="h-3.5 w-3.5" />
                           </button>
@@ -1020,7 +1076,7 @@ export default function CalendarView({ activeSpace = "School", onNavigateNote })
                               setEventModalOpen(true);
                             }}
                             title="Edit Event"
-                            className="p-1 text-ink-500 hover:text-duck-300 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 text-ink-500 hover:text-duck-300 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100"
                           >
                             <Edit3 className="h-3.5 w-3.5" />
                           </button>
@@ -1030,7 +1086,7 @@ export default function CalendarView({ activeSpace = "School", onNavigateNote })
                             type="button"
                             onClick={() => handleDeleteEvent(ev.id)}
                             title="Delete Event"
-                            className="p-1 text-ink-500 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 text-ink-500 hover:text-rose-400 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1054,6 +1110,8 @@ export default function CalendarView({ activeSpace = "School", onNavigateNote })
         open={eventModalOpen}
         eventData={editingEvent}
         selectedDate={selectedDate}
+        activeSpace={activeSpace}
+        spaces={spaces}
         onClose={() => {
           setEventModalOpen(false);
           setEditingEvent(null);

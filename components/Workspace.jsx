@@ -9,7 +9,6 @@ import dynamic from "next/dynamic";
 const ThreeDView = dynamic(() => import("@/components/ThreeDView"), { ssr: false });
 import InstantNoteModal from "@/components/InstantNoteModal";
 import AlarmOverlay from "@/components/AlarmOverlay";
-import SocraticWorkspace from "@/components/SocraticWorkspace";
 import ExplainPanel from "@/components/ExplainPanel";
 import QuizPanel from "@/components/QuizPanel";
 import MasteryDashboard from "@/components/MasteryDashboard";
@@ -34,6 +33,7 @@ import {
   permanentlyDeleteNote,
   getStudySessions,
   recordStudySession,
+  clearStudySessions,
   factoryResetWorkspace,
   clearTrash,
 } from "@/lib/storageService";
@@ -72,7 +72,7 @@ const SEEDED_KEY = "socratic_demo_seeded_v7";
 const isEmptyWorkspace = (bySpace) =>
   !bySpace || Object.values(bySpace).every((list) => !list || list.length === 0);
 
-export default function Workspace({ note: initialNote }) {
+export default function Workspace() {
   const [mounted, setMounted] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
@@ -87,19 +87,12 @@ export default function Workspace({ note: initialNote }) {
   // not blank out mid-slide.
   const [studyTarget, setStudyTarget] = useState(null);
   const [studyKind, setStudyKind] = useState(null); // "explain" | "quiz"
-  const [socraticOpen, setSocraticOpen] = useState(false);
-  const [socraticConcept, setSocraticConcept] = useState("");
   const [sessions, setSessions] = useState([]);
 
   // Password Locks State
   const [spacePasswords, setSpacePasswords] = useState({});
   const [setPasswordTarget, setSetPasswordTarget] = useState(null);
   const [enterPasswordTarget, setEnterPasswordTarget] = useState(null);
-
-  const handleOpenSocratic = useCallback((concept) => {
-    setSocraticConcept(concept || "Socratic Workspace Concept");
-    setSocraticOpen(true);
-  }, []);
 
   // Site-wide Theme (Dark vs Light)
   const [theme, setTheme] = useState("dark");
@@ -410,10 +403,13 @@ export default function Workspace({ note: initialNote }) {
        for (const note of notesToDelete) {
            await handleDeleteNote(note.id, spaceName); // move to trash
        }
-       setSpaces(prev => prev.filter(s => s.name !== spaceName));
-       if (activeSpace === spaceName) {
-         setActiveSpace(SPACES[0].name);
-       }
+        setSpaces(prev => prev.filter(s => s.name !== spaceName));
+        if (activeSpace === spaceName) {
+          const fallbackSpace = SPACES[0].name;
+          setActiveSpace(fallbackSpace);
+          const firstInFallback = (notesBySpace[fallbackSpace] || [])[0];
+          setActiveNoteId(firstInFallback ? firstInFallback.id : null);
+        }
        // Otherwise a space recreated later with the same name would silently
        // inherit the deleted space's old password lock.
        if (spacePasswords[spaceName]) {
@@ -595,6 +591,7 @@ export default function Workspace({ note: initialNote }) {
       [targetSpace]: [...(prev[targetSpace] || []), target],
     }));
 
+    setActiveSpace(targetSpace);
     setActiveNoteId(target.id);
     await recoverNote(noteId);
   }
@@ -650,10 +647,6 @@ export default function Workspace({ note: initialNote }) {
               setEnterPasswordTarget({ name: spaceName, mode: "enter" });
               return;
             }
-            if (spaceName === "Journal" && !spacePasswords["Journal"]) {
-              setSetPasswordTarget("Journal");
-              return;
-            }
 
             setActiveSpace(spaceName);
             const firstInSpace = (notesBySpace[spaceName] || [])[0];
@@ -685,7 +678,6 @@ export default function Workspace({ note: initialNote }) {
           onOpenInstantNote={() => setInstantNoteOpen(true)}
           onNavigateCalendar={() => setActiveTab("calendar")}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-          note={initialNote}
         />
       </div>
 
@@ -775,9 +767,13 @@ export default function Workspace({ note: initialNote }) {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => openStudy("explain", null)}
-              title="Explain this note"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300"
+              disabled={!activeNoteObj}
+              onClick={() => {
+                if (activeTab !== "notes") setActiveTab("notes");
+                openStudy("explain", null);
+              }}
+              title={activeNoteObj ? "Explain this note with AI" : "Create or select a note to explain"}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:pointer-events-none"
             >
               <span>✨</span>
               <span className="hidden sm:inline">Explain</span>
@@ -785,9 +781,13 @@ export default function Workspace({ note: initialNote }) {
 
             <button
               type="button"
-              onClick={() => openStudy("quiz", null)}
-              title="Quiz me on this note"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
+              disabled={!activeNoteObj}
+              onClick={() => {
+                if (activeTab !== "notes") setActiveTab("notes");
+                openStudy("quiz", null);
+              }}
+              title={activeNoteObj ? "Quiz me on this note" : "Create or select a note to quiz"}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
             >
               <span>🦆</span>
               <span className="hidden sm:inline">Quiz me</span>
@@ -824,7 +824,7 @@ export default function Workspace({ note: initialNote }) {
               </span>
             )}
 
-            {activeNoteObj && (
+            {activeTab === "notes" && activeNoteObj && (
               <NoteMenu
                 note={{
                   id: activeNoteObj.id,
@@ -863,7 +863,6 @@ export default function Workspace({ note: initialNote }) {
               onExportImport={() => setExportImportOpen(true)}
               onExplainBlock={(text) => openStudy("explain", text)}
               onQuizBlock={(text) => openStudy("quiz", text)}
-              onTriggerSocratic={(concept) => handleOpenSocratic(concept || activeNoteObj?.title)}
               onSwitchTab={setActiveTab}
               notesBySpace={notesBySpace}
               onSelectNote={handleSelectNote}
@@ -872,7 +871,7 @@ export default function Workspace({ note: initialNote }) {
           )}
 
           {activeTab === "calendar" && (
-            <CalendarView activeSpace={activeSpace} />
+            <CalendarView activeSpace={activeSpace} spaces={spaces} />
           )}
 
           {activeTab === "3d" && <ThreeDView />}
@@ -891,19 +890,14 @@ export default function Workspace({ note: initialNote }) {
                 setActiveTab("notes");
               }}
               onStudy={handleStudyTopic}
-              onClearSessions={() => setSessions([])}
+              onClearSessions={async () => {
+                setSessions([]);
+                await clearStudySessions();
+              }}
             />
           )}
         </main>
       </div>
-
-      {/* Socratic Rubber Duck Examination Drawer */}
-      <SocraticWorkspace
-        open={socraticOpen}
-        concept={socraticConcept}
-        noteContent={editorBlocksToText(editorBlocks)}
-        onClose={() => setSocraticOpen(false)}
-      />
 
       {/* Explain — the teaching half. Stays mounted so it can animate out,
           which is also why `studyTarget` survives closing. */}

@@ -1,5 +1,4 @@
 import Workspace from "@/components/Workspace";
-import { MOCK_NOTE } from "@/lib/mockNote";
 
 export const metadata = {
   title: "Workspace · SocraticOS",
@@ -11,5 +10,5 @@ export const metadata = {
  * the landing page, which links here.
  */
 export default function WorkspacePage() {
-  return <Workspace note={MOCK_NOTE} />;
+  return <Workspace />;
 }

@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/reset
- * Body: { target: "notes" | "calendar" | "3d" | "all" }
+ * Body: { target: "notes" | "calendar" | "all" }
  * Local-first mode: Resets are handled directly in the browser via IndexedDB (Dexie.js).
  */
 export async function POST(request) {

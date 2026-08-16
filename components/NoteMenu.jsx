@@ -52,14 +52,23 @@ export default function NoteMenu({
   const isFavorite = Boolean(note?.isFavorite);
   const title = note?.title || "Untitled Note";
 
-  // Calculate note statistics
+  // Calculate note statistics across all block properties
+  const getBlockText = (b) => {
+    let text = "";
+    if (b?.content) text += b.content + " ";
+    if (b?.details) text += b.details + " ";
+    if (b?.formula) text += b.formula + " ";
+    return text.trim();
+  };
+
   const totalChars = blocks.reduce(
-    (sum, b) => sum + (b?.content ? b.content.length : 0),
+    (sum, b) => sum + getBlockText(b).length,
     0
   );
   const totalWords = blocks.reduce((sum, b) => {
-    if (!b?.content) return sum;
-    const words = b.content.trim().split(/\s+/).filter(Boolean);
+    const text = getBlockText(b);
+    if (!text) return sum;
+    const words = text.split(/\s+/).filter(Boolean);
     return sum + words.length;
   }, 0);
   const totalBlocks = blocks.length;
@@ -141,7 +150,7 @@ export default function NoteMenu({
         <div
           className={`absolute ${
             align === "left" ? "left-0" : "right-0"
-          } top-full mt-1.5 z-[90] w-64 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl backdrop-blur-xl animate-fade-in space-y-1`}
+          } top-full mt-1.5 z-[90] w-56 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl backdrop-blur-xl animate-fade-in space-y-1`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Note Info Header */}

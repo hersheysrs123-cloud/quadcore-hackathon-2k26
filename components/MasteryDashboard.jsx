@@ -69,7 +69,11 @@ export default function MasteryDashboard({
         </div>
         <button
           type="button"
-          onClick={onClearSessions}
+          onClick={() => {
+            if (typeof window !== "undefined" && window.confirm("Are you sure you want to clear your study sessions history and mastery data? This cannot be undone.")) {
+              onClearSessions?.();
+            }
+          }}
           className="rounded-lg border border-ink-800 px-3 py-1.5 text-xs text-ink-500 transition-colors hover:border-gap-500/40 hover:text-gap-500"
         >
           Clear history
@@ -130,7 +134,7 @@ export default function MasteryDashboard({
 
               <div className="flex flex-wrap gap-1.5">
                 {group.topics.map((topic) => (
-                  <Cell key={topic.subtopic} topic={topic} />
+                  <Cell key={topic.subtopic} topic={topic} onStudy={onStudy} />
                 ))}
               </div>
             </div>
@@ -298,28 +302,30 @@ function Legend() {
 }
 
 /** One heatmap cell, with the detail on hover and focus. */
-function Cell({ topic }) {
+function Cell({ topic, onStudy }) {
   const status = statusOf(topic.status);
 
   return (
     <span className="group/cell relative">
-      <span
-        tabIndex={0}
-        role="button"
-        className={`flex cursor-default items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition-colors ${status.chip} hover:brightness-125`}
+      <button
+        type="button"
+        onClick={() => onStudy?.(topic, "explain")}
+        title="Click to explain this topic with AI"
+        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition-all ${status.chip} hover:scale-[1.02] hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-duck-400`}
       >
         <span aria-hidden="true">{status.shape}</span>
-        <span className="max-w-[11rem] truncate">{topic.subtopic}</span>
+        <span className="max-w-[11rem] truncate font-medium">{topic.subtopic}</span>
         {topic.timesSeen > 1 && (
           <span className="tabular-nums opacity-60">×{topic.timesSeen}</span>
         )}
-      </span>
+      </button>
 
       <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-60 rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-[11px] leading-relaxed text-ink-300 shadow-xl group-hover/cell:block group-focus-within/cell:block">
         <span className={`block font-medium ${status.text}`}>
           {status.label} — {status.blurb}
         </span>
         <span className="mt-1 block">{topic.feedback}</span>
+        <span className="mt-1.5 block text-[9px] text-duck-400 font-medium">Click to Explain →</span>
       </span>
     </span>
   );
@@ -373,7 +379,7 @@ function EmptyState({ notes, onStudy }) {
           what you couldn’t explain.
         </p>
 
-        {suggestions.length > 0 && (
+        {suggestions.length > 0 ? (
           <div className="mt-8">
             <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-500">
               Start with a note
@@ -386,17 +392,28 @@ function EmptyState({ notes, onStudy }) {
                     onClick={() => onStudy({ noteId: note.id }, "quiz")}
                     className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-3 text-left transition-colors hover:border-duck-500/40"
                   >
-                    <span className="text-lg leading-none">{note.emoji}</span>
+                    <span className="text-lg leading-none">{note.emoji || "📝"}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-ink-200">
-                      {note.title}
+                      {note.title || "Untitled Note"}
                     </span>
-                    <span className="shrink-0 text-xs text-ink-500">
+                    <span className="shrink-0 text-xs text-ink-500 font-medium">
                       Quiz me →
                     </span>
                   </button>
                 </li>
               ))}
             </ul>
+          </div>
+        ) : (
+          <div className="mt-8">
+            <button
+              type="button"
+              onClick={() => onStudy?.({}, "quiz")}
+              className="inline-flex items-center gap-2 rounded-xl bg-duck-400 px-4 py-2.5 text-xs font-bold text-ink-950 shadow-md hover:bg-duck-300 transition-colors"
+            >
+              <span>🦆</span>
+              <span>Start a Socratic Drill</span>
+            </button>
           </div>
         )}
       </div>

@@ -283,8 +283,8 @@ function RateCurve({ temperature, ph }) {
   );
 }
 
-export function EnzymeScene({ params }) {
-  const { temperature, ph, speed } = params;
+export function EnzymeScene({ params = {} }) {
+  const { temperature = 37, ph = 7.0, speed = 1.0 } = params || {};
   const { rate, denatured } = enzymeRate(temperature, ph);
 
   // The active site gapes open as the protein loses its shape.
@@ -601,8 +601,8 @@ function Helix({ pairs, spin, unzipToken }) {
   );
 }
 
-export function DNAScene({ params }) {
-  const { spin, pairs, unzip } = params;
+export function DNAScene({ params = {} }) {
+  const { spin = true, pairs = 16, unzip = 0 } = params || {};
   const count = Math.round(pairs);
 
   const preview = useMemo(
@@ -853,8 +853,8 @@ function InteriorLights() {
   );
 }
 
-export function CellExplorerScene({ params }) {
-  const { cellType, tonicity, showLabels, water, cutaway } = params;
+export function CellExplorerScene({ params = {} }) {
+  const { cellType = "plant", tonicity = 0, showLabels = true, water = true, cutaway = true } = params || {};
   const [selected, setSelected] = useState(null);
   const isPlant = cellType === "plant";
 

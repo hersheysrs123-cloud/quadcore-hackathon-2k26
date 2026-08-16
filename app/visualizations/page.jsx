@@ -868,8 +868,8 @@ export default function VisualizationsPage() {
     Object.fromEntries(TOPICS.map((t) => [t.id, { ...t.defaults }])),
   );
 
-  const topic = TOPICS_BY_ID[topicId];
-  const params = paramsByTopic[topicId];
+  const topic = TOPICS_BY_ID[topicId] || TOPICS[0];
+  const params = (topic && paramsByTopic[topic.id]) || topic.defaults;
   const Canvas = CANVASES[topic.category];
 
   const visibleTopics = useMemo(() => {

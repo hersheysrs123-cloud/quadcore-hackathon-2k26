@@ -55,15 +55,16 @@ function project([x, y, z], { rotX, rotY, zoom, width, height }) {
  * that appears to do nothing is worse than no control.
  */
 function scaleFor(object, controls, values) {
-  if (!controls.length) return 1;
+  if (!controls || !controls.length) return 1;
 
-  const label = object.label.trim().toLowerCase();
+  const label = (object?.label || "").trim().toLowerCase();
   const exact = controls.find(
-    (c) => c.targetsSubtopic.trim().toLowerCase() === label,
+    (c) => (c?.targetsSubtopic || "").trim().toLowerCase() === label,
   );
   const control = exact ?? controls[0];
 
-  const value = values[control.key] ?? control.default;
+  if (!control) return 1;
+  const value = values[control.key] ?? control.default ?? control.min ?? 1;
   const span = control.max - control.min || 1;
   return 0.2 + ((value - control.min) / span) * 1.8;
 }
@@ -142,12 +143,14 @@ function drawArrowHead(ctx, from, to, color) {
 }
 
 function drawObject(ctx, { object, scale }, view, placed) {
-  const start = project(object.position, view);
+  const pos = object.position || [0, 0, 0];
+  const vec = object.vector || [0, 1, 0];
+  const start = project(pos, view);
   const end = project(
     [
-      object.position[0] + object.vector[0] * scale,
-      object.position[1] + object.vector[1] * scale,
-      object.position[2] + object.vector[2] * scale,
+      pos[0] + vec[0] * scale,
+      pos[1] + vec[1] * scale,
+      pos[2] + vec[2] * scale,
     ],
     view,
   );
@@ -285,36 +288,40 @@ export default function WidgetCanvas({ widget, loading = false, error = null }) 
       const dt = Math.min((now - last) / 1000, 0.05); // clamp tab-restore jumps
       last = now;
 
+      const initialState = widget.initialState || {};
       // A control keyed `rotationSpeed` takes over the spin if the model emits one.
       const spinControl = controls.find((c) => c.key === "rotationSpeed");
       const spin = spinControl
-        ? (valuesRef.current[spinControl.key] ?? spinControl.default)
-        : widget.initialState.rotationSpeed;
+        ? (valuesRef.current[spinControl.key] ?? spinControl.default ?? 0.4)
+        : (initialState.rotationSpeed ?? 0.4);
 
       if (!pausedRef.current) rotationRef.current.y += spin * dt;
 
       const view = {
         rotX: rotationRef.current.x,
         rotY: rotationRef.current.y,
-        zoom: widget.initialState.cameraZoom * zoomOverride,
+        zoom: (initialState.cameraZoom ?? 1) * zoomOverride,
         width,
         height,
       };
 
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = widget.initialState.backgroundColor;
+      ctx.fillStyle = initialState.backgroundColor || "#090d16";
       ctx.fillRect(0, 0, width, height);
 
       // Per-frame label collision scratch — see placeLabel().
       const placed = [];
-      drawAxes(ctx, view, widget.initialState.axisLabels, placed);
+      if (Array.isArray(initialState.axisLabels)) {
+        drawAxes(ctx, view, initialState.axisLabels, placed);
+      }
 
       // Painter's algorithm — farthest first.
-      widget.initialState.objects
+      const objects = Array.isArray(initialState.objects) ? initialState.objects : [];
+      objects
         .map((object) => ({
           object,
           scale: scaleFor(object, controls, valuesRef.current),
-          depth: project(object.position, view).depth,
+          depth: project(object.position || [0, 0, 0], view).depth,
         }))
         .sort((a, b) => b.depth - a.depth)
         .forEach((item) => drawObject(ctx, item, view, placed));

@@ -34,7 +34,7 @@ const BLOCK_TYPES = [
   { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame" },
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations" },
   { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer" },
-  { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Short inline LaTeX formula (KaTeX)" },
+  { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Insert inline LaTeX formula ($x$)" },
   { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line" },
   { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card" },
   { type: "media", label: "Image / Audio / Video", icon: "🖼️", description: "Embed media file or URL" },
@@ -92,6 +92,10 @@ function blockToMarkdown(block) {
       return `1. ${content}`;
     case "todo":
       return block.checked ? `[x] ${content}` : `[ ] ${content}`;
+    case "toggle": {
+      const details = block.details ?? block.toggleContent ?? "";
+      return details ? `<details>\n<summary>${content}</summary>\n${details}\n</details>` : `<details>\n<summary>${content}</summary>\n</details>`;
+    }
     case "quote":
       return `> ${content}`;
     case "callout":
@@ -216,7 +220,8 @@ function SlashMenu({ onSelect, onClose, filter }) {
     return (
       bt.label.toLowerCase().includes(q) ||
       bt.type.toLowerCase().includes(q) ||
-      (bt.type === "math" && ["math", "equation", "latex", "formula"].some((k) => k.includes(q)))
+      (bt.type === "math" && ["math", "equation", "latex", "formula"].some((k) => k.includes(q))) ||
+      (bt.type === "inlinemath" && ["inline", "inlinemath", "equation", "latex", "formula", "katex", "fx", "math"].some((k) => k.includes(q)))
     );
   });
 
@@ -307,8 +312,15 @@ function BlockContextMenu({
   onDelete,
   onExplainBlock,
   onQuizBlock,
+  onFormat,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
 }) {
   const menuRef = useRef(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const onClick = (e) => {
@@ -318,39 +330,43 @@ function BlockContextMenu({
     return () => window.removeEventListener("mousedown", onClick);
   }, [onClose]);
 
-  function applyFormat(command) {
-    document.execCommand(command, false, null);
-  }
+  const blockText = (block.content || block.formula || block.details || "").trim();
+
+  const handleCopy = () => {
+    if (!blockText) return;
+    navigator.clipboard?.writeText(blockText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div
       ref={menuRef}
-      className="absolute -left-2 top-full z-50 mt-1 w-72 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl animate-fade-in p-2 text-xs"
+      className="absolute -left-2 top-full z-[100] mt-1 w-72 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl animate-fade-in p-2.5 text-xs space-y-2"
     >
-      {/* Study this block specifically: explained, or tested. Both scope to
-          the block's text but still send the whole note as context. */}
+      {/* AI Study Buttons */}
       {(onExplainBlock || onQuizBlock) && (
-        <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
-            disabled={!block.content?.trim()}
+            disabled={!blockText}
             onClick={() => {
-              onExplainBlock?.(block.content);
+              onExplainBlock?.(blockText);
               onClose();
             }}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 px-2 py-2 font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:bg-ink-800 hover:text-duck-300 disabled:opacity-30"
           >
             <span>✨</span>
             <span>Explain</span>
           </button>
           <button
             type="button"
-            disabled={!block.content?.trim()}
+            disabled={!blockText}
             onClick={() => {
-              onQuizBlock?.(block.content);
+              onQuizBlock?.(blockText);
               onClose();
             }}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 px-2 py-2 font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-2.5 py-1.5 font-medium text-duck-300 transition-colors hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30"
           >
             <span>🦆</span>
             <span>Quiz me</span>
@@ -358,15 +374,16 @@ function BlockContextMenu({
         </div>
       )}
 
-      <div className="my-2 flex items-center justify-around rounded-lg border border-ink-800 bg-ink-850 p-1.5">
+      {/* Formatting Toolbar */}
+      <div className="flex items-center justify-around rounded-lg border border-ink-800 bg-ink-850 p-1">
         <button
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
-            applyFormat("bold");
+            onFormat?.("bold");
           }}
-          className="rounded px-2 py-1 font-bold text-ink-200 hover:bg-ink-800"
-          title="Bold"
+          className="rounded px-2.5 py-1 font-bold text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+          title="Bold (Selection or whole block)"
         >
           B
         </button>
@@ -374,10 +391,10 @@ function BlockContextMenu({
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
-            applyFormat("italic");
+            onFormat?.("italic");
           }}
-          className="rounded px-2 py-1 italic text-ink-200 hover:bg-ink-800"
-          title="Italic"
+          className="rounded px-2.5 py-1 italic text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+          title="Italic (Selection or whole block)"
         >
           I
         </button>
@@ -385,10 +402,10 @@ function BlockContextMenu({
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
-            applyFormat("underline");
+            onFormat?.("underline");
           }}
-          className="rounded px-2 py-1 underline text-ink-200 hover:bg-ink-800"
-          title="Underline"
+          className="rounded px-2.5 py-1 underline text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+          title="Underline (Selection or whole block)"
         >
           U
         </button>
@@ -396,10 +413,10 @@ function BlockContextMenu({
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
-            applyFormat("strikethrough");
+            onFormat?.("strikethrough");
           }}
-          className="rounded px-2 py-1 line-through text-ink-200 hover:bg-ink-800"
-          title="Strikethrough"
+          className="rounded px-2.5 py-1 line-through text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+          title="Strikethrough (Selection or whole block)"
         >
           S
         </button>
@@ -407,48 +424,101 @@ function BlockContextMenu({
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-              const text = sel.toString();
-              if (text) {
-                document.execCommand("insertText", false, `$${text}$`);
-              } else {
-                document.execCommand("insertText", false, "$E = mc^2$");
-              }
-            }
+            onFormat?.("math");
           }}
-          className="rounded px-2 py-1 font-mono text-xs font-bold text-duck-300 hover:bg-ink-800"
-          title="Inline Math ($x$)"
+          className="rounded px-2 py-1 font-mono text-xs font-bold text-duck-300 hover:bg-ink-800 transition-colors"
+          title="Inline Math ($formula$)"
         >
           $x$
         </button>
       </div>
 
-      <p className="px-2 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-        Turn into
-      </p>
-      <div className="max-h-48 overflow-y-auto space-y-0.5">
-        {BLOCK_TYPES.map((bt) => (
-          <button
-            key={bt.type}
-            type="button"
-            onClick={() => {
-              onChangeType(block.id, bt.type);
-              onClose();
-            }}
-            className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
-              block.type === bt.type
-                ? "bg-duck-500/20 text-duck-300 font-semibold"
-                : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
-            }`}
-          >
-            <span className="w-5 text-center font-bold text-ink-400">{bt.icon}</span>
-            <span>{bt.label}</span>
-          </button>
-        ))}
+      {/* Quick Block Actions: Duplicate, Move Up, Move Down */}
+      <div className="grid grid-cols-3 gap-1 pt-0.5">
+        <button
+          type="button"
+          onClick={() => {
+            onDuplicate?.();
+            onClose();
+          }}
+          className="flex items-center justify-center gap-1 rounded-md border border-ink-800 bg-ink-850 px-2 py-1 text-[11px] font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+          title="Duplicate Block"
+        >
+          <span>📋</span>
+          <span>Clone</span>
+        </button>
+        <button
+          type="button"
+          disabled={!canMoveUp}
+          onClick={() => {
+            onMoveUp?.();
+            onClose();
+          }}
+          className="flex items-center justify-center gap-1 rounded-md border border-ink-800 bg-ink-850 px-2 py-1 text-[11px] font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-30 transition-colors"
+          title="Move Block Up"
+        >
+          <span>⬆️</span>
+          <span>Up</span>
+        </button>
+        <button
+          type="button"
+          disabled={!canMoveDown}
+          onClick={() => {
+            onMoveDown?.();
+            onClose();
+          }}
+          className="flex items-center justify-center gap-1 rounded-md border border-ink-800 bg-ink-850 px-2 py-1 text-[11px] font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-30 transition-colors"
+          title="Move Block Down"
+        >
+          <span>⬇️</span>
+          <span>Down</span>
+        </button>
       </div>
 
-      <div className="mt-2 border-t border-ink-800/80 pt-1.5">
+      {/* Copy Text Button */}
+      {blockText && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="flex w-full items-center justify-between rounded-md border border-ink-800 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <span>📄</span>
+            <span>Copy Content</span>
+          </div>
+          {copied && <span className="text-[10px] text-emerald-400 font-bold animate-fade-in">✓ Copied</span>}
+        </button>
+      )}
+
+      {/* Turn Into Type List */}
+      <div>
+        <p className="px-1 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+          Turn into
+        </p>
+        <div className="max-h-44 overflow-y-auto space-y-0.5 pr-0.5">
+          {BLOCK_TYPES.map((bt) => (
+            <button
+              key={bt.type}
+              type="button"
+              onClick={() => {
+                onChangeType(block.id, bt.type);
+                onClose();
+              }}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors ${
+                block.type === bt.type
+                  ? "bg-duck-500/20 text-duck-300 font-semibold"
+                  : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+              }`}
+            >
+              <span className="w-5 text-center font-bold text-ink-400">{bt.icon}</span>
+              <span>{bt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Delete Block */}
+      <div className="border-t border-ink-800/80 pt-1">
         <button
           type="button"
           onClick={() => {
@@ -487,32 +557,370 @@ function KaTeXRender({ formula, displayMode = false, className = "" }) {
   return <span ref={containerRef} className={`katex-wrapper inline-block ${className}`} />;
 }
 
+// ─── Inline Equation Utilities & Popover ─────────────────────────────
+function escapeHtml(str) {
+  return (str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function formatTextWithKaTeX(text) {
   if (!text) return "";
-  if (!text.includes("$")) return text;
+  if (!text.includes("$")) return escapeHtml(text);
 
-  return text.replace(/\$([^$]+)\$/g, (match, formula) => {
+  const parts = [];
+  const regex = /\$([^$]+)\$/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(escapeHtml(text.slice(lastIndex, match.index)));
+    }
+    const formula = match[1];
     try {
       const katexHtml = katex.renderToString(formula, {
         displayMode: false,
         throwOnError: false,
       });
       const escapedFormula = formula.replace(/"/g, "&quot;");
-      return `<span class="katex-inline-node inline-block px-1.5 py-0.5 mx-0.5 rounded border border-duck-500/40 bg-duck-500/10 text-duck-200 font-semibold cursor-pointer hover:bg-duck-500/25 select-none" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`;
+      parts.push(
+        `<span class="katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-duck-500/40 bg-duck-500/10 hover:bg-duck-500/25 hover:border-duck-400 text-duck-200 font-semibold cursor-pointer transition-all select-none group/mathpill" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`
+      );
     } catch (e) {
-      return match;
+      parts.push(escapeHtml(match[0]));
     }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(escapeHtml(text.slice(lastIndex)));
+  }
+
+  return parts.join("");
+}
+
+function setBlockDOMFromText(domNode, text) {
+  if (!domNode) return;
+  if (text && text.includes("$")) {
+    domNode.innerHTML = formatTextWithKaTeX(text);
+  } else {
+    domNode.textContent = text || "";
+  }
+}
+
+function getBlockTextFromDOM(domNode) {
+  if (!domNode) return "";
+  const clone = domNode.cloneNode(true);
+  clone.querySelectorAll(".katex-inline-node").forEach((node) => {
+    const formula = node.getAttribute("data-formula") || "";
+    node.replaceWith(`$${formula}$`);
   });
+  return clone.textContent || "";
+}
+
+function getSerializedTextFromRange(container, endContainer, endOffset) {
+  if (!container || !endContainer) return "";
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    range.setEnd(endContainer, endOffset);
+    const fragment = range.cloneContents();
+    const tempDiv = document.createElement("div");
+    tempDiv.appendChild(fragment);
+    return getBlockTextFromDOM(tempDiv);
+  } catch (e) {
+    return "";
+  }
+}
+
+function InlineEquationPopover({
+  isOpen,
+  initialFormula = "",
+  onSave,
+  onDelete,
+  onClose,
+}) {
+  const [formula, setFormula] = useState(initialFormula);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const inputRef = useRef(null);
+  const popoverRef = useRef(null);
+  const presetsRef = useRef(null);
+  const presetsBtnRef = useRef(null);
+
+  useEffect(() => {
+    setFormula(initialFormula);
+    setPresetsOpen(false);
+  }, [initialFormula, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        presetsOpen &&
+        presetsRef.current &&
+        !presetsRef.current.contains(e.target) &&
+        !presetsBtnRef.current?.contains(e.target)
+      ) {
+        setPresetsOpen(false);
+        return;
+      }
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen, presetsOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const FORMULA_PRESETS = [
+    { label: "Fraction", latex: "\\frac{a}{b}", display: "a/b" },
+    { label: "Square Root", latex: "\\sqrt{x}", display: "√x" },
+    { label: "Power", latex: "x^{n}", display: "xⁿ" },
+    { label: "Derivative", latex: "\\frac{d}{dx}[f(x)]", display: "d/dx" },
+    { label: "Integral", latex: "\\int_{a}^{b} f(x)\\,dx", display: "∫ f(x)" },
+    { label: "Limit", latex: "\\lim_{x \\to 0} \\frac{\\sin x}{x}", display: "lim" },
+    { label: "Summation", latex: "\\sum_{i=1}^{n} x_i", display: "∑ x_i" },
+    { label: "Quadratic", latex: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", display: "x = ..." },
+    { label: "Einstein", latex: "E = mc^2", display: "E = mc²" },
+    { label: "Euler", latex: "e^{i\\pi} + 1 = 0", display: "e^{iπ}" },
+  ];
+
+  const QUICK_SYMBOLS = [
+    { label: "π", latex: "\\pi" },
+    { label: "θ", latex: "\\theta" },
+    { label: "α", latex: "\\alpha" },
+    { label: "β", latex: "\\beta" },
+    { label: "λ", latex: "\\lambda" },
+    { label: "σ", latex: "\\sigma" },
+    { label: "Δ", latex: "\\Delta" },
+    { label: "∇", latex: "\\nabla" },
+    { label: "±", latex: "\\pm" },
+    { label: "≤", latex: "\\le" },
+    { label: "≥", latex: "\\ge" },
+    { label: "≠", latex: "\\neq" },
+    { label: "≈", latex: "\\approx" },
+    { label: "∞", latex: "\\infty" },
+    { label: "·", latex: "\\cdot" },
+    { label: "×", latex: "\\times" },
+    { label: "→", latex: "\\to" },
+    { label: "∂", latex: "\\partial" },
+    { label: "∈", latex: "\\in" },
+    { label: "⊂", latex: "\\subset" },
+  ];
+
+  const handleInsert = (latex) => {
+    const input = inputRef.current;
+    if (input) {
+      const start = input.selectionStart ?? formula.length;
+      const end = input.selectionEnd ?? formula.length;
+      const next = formula.slice(0, start) + latex + formula.slice(end);
+      setFormula(next);
+      setTimeout(() => {
+        if (input) {
+          input.focus();
+          const pos = start + latex.length;
+          input.setSelectionRange(pos, pos);
+        }
+      }, 10);
+    } else {
+      setFormula((prev) => (prev ? prev + " " : "") + latex);
+    }
+  };
+
+  const handleCommit = () => {
+    onSave(formula);
+  };
+
+  return (
+    <div
+      ref={popoverRef}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="absolute left-0 top-full z-50 mt-1.5 w-full max-w-lg rounded-xl border border-duck-500/50 bg-ink-900/98 p-3 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto"
+      style={{
+        boxShadow: "0 20px 40px -10px rgba(0,0,0,0.7), 0 0 0 1px rgba(240, 192, 74, 0.25)",
+      }}
+    >
+      <div className="flex items-center justify-end gap-2 border-b border-ink-800 pb-2">
+        <div className="flex items-center gap-1.5 relative">
+          <button
+            ref={presetsBtnRef}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPresetsOpen((prev) => !prev);
+            }}
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-all ${
+              presetsOpen
+                ? "border-duck-400 bg-duck-500/25 text-duck-200 shadow-sm"
+                : "border-ink-700 bg-ink-850 text-ink-300 hover:border-duck-500/50 hover:bg-duck-500/10 hover:text-duck-200"
+            }`}
+            title="Open math equation & symbol presets"
+          >
+            <span>✨ Presets</span>
+            <span className="text-[9px] opacity-70">▾</span>
+          </button>
+
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-colors"
+              title="Remove equation from sentence"
+            >
+              Delete
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleCommit}
+            className="rounded bg-duck-500/20 px-2.5 py-0.5 text-xs font-semibold text-duck-200 border border-duck-400/40 hover:bg-duck-500/30 transition-colors"
+          >
+            Done ↵
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded bg-ink-800 px-2 py-0.5 text-xs font-medium text-ink-300 hover:bg-ink-700 hover:text-ink-100 transition-colors"
+          >
+            Cancel
+          </button>
+
+          {/* Presets Popup Menu */}
+          {presetsOpen && (
+            <div
+              ref={presetsRef}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute right-0 top-full mt-1.5 z-[60] w-72 rounded-xl border border-duck-500/40 bg-ink-900/98 p-2.5 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto"
+              style={{
+                boxShadow: "0 20px 40px -5px rgba(0,0,0,0.85), 0 0 0 1px rgba(240, 192, 74, 0.25)",
+              }}
+            >
+              {/* Common Formulas */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-duck-400/90 mb-1.5 px-0.5">
+                  Formulas & Structures
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {FORMULA_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        handleInsert(p.latex);
+                        setPresetsOpen(false);
+                      }}
+                      className="flex items-center justify-between rounded border border-ink-800 bg-ink-950/80 px-2 py-1 text-xs text-ink-200 hover:border-duck-500/50 hover:bg-duck-500/15 hover:text-duck-200 transition-colors group"
+                      title={p.latex}
+                    >
+                      <span className="font-medium text-[11px]">{p.label}</span>
+                      <span className="font-mono text-[10px] text-ink-500 group-hover:text-duck-300/80">{p.display}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Math Symbols */}
+              <div className="border-t border-ink-800/80 pt-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-duck-400/90 mb-1.5 px-0.5">
+                  Symbols & Greek
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {QUICK_SYMBOLS.map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => {
+                        handleInsert(s.latex);
+                        setPresetsOpen(false);
+                      }}
+                      className="flex h-7 items-center justify-center rounded border border-ink-800 bg-ink-950/80 font-mono text-xs font-medium text-ink-300 hover:border-duck-500/50 hover:bg-duck-500/20 hover:text-duck-200 transition-all"
+                      title={`Insert ${s.latex}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={formula}
+          onChange={(e) => setFormula(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleCommit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+          placeholder="LaTeX formula (e.g. f'(x) = 2x or \lim_{x \to 0}\frac{\sin x}{x})..."
+          className="w-full rounded-lg border border-duck-500/50 bg-ink-950 px-3 py-1.5 font-mono text-xs text-duck-200 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 bg-ink-950/80 px-3 py-1.5 min-h-[32px]">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 shrink-0">
+            Preview:
+          </span>
+          <div className="overflow-x-auto py-0.5">
+            {formula.trim() ? (
+              <KaTeXRender
+                formula={formula}
+                displayMode={false}
+                className="text-duck-200 font-semibold inline"
+              />
+            ) : (
+              <span className="text-xs italic text-ink-600">Empty equation</span>
+            )}
+          </div>
+        </div>
+        {formula.trim() && (
+          <span className="text-[10px] font-mono text-ink-500 shrink-0">KaTeX</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ─── Math Block Component (KaTeX LaTeX Equation Container) ───────────
-function MathBlock({ block, onUpdateBlock, onSelect }) {
+function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [formula, setFormula] = useState(block.content || "E = mc^2");
+  const [formula, setFormula] = useState(block.content ?? "");
+  const textareaRef = useRef(null);
 
   useEffect(() => {
-    setFormula(block.content || "E = mc^2");
+    setFormula(block.content ?? "");
   }, [block.content]);
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [isEditing]);
 
   const presets = [
     { label: "Quadratic", math: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" },
@@ -529,6 +937,16 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
     onUpdateBlock(block.id, { content: newVal }, true);
   };
 
+  const handleExitEdit = () => {
+    if (!formula || !formula.trim()) {
+      if (onDelete) {
+        onDelete(block.id);
+      }
+    } else {
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div
       onClick={() => {
@@ -537,7 +955,7 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
       className="group/mathblk relative my-2 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 transition-all hover:border-duck-500/50 shadow-md"
     >
       <div className="flex items-center justify-between border-b border-ink-800 pb-2 mb-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-duck-300 w-full pr-4">
+        <div className="flex items-center gap-2 text-xs font-bold text-duck-300 w-full">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 font-mono text-xs text-duck-400 shrink-0">∑</span>
           <input
             type="text"
@@ -548,16 +966,6 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
             placeholder="Equation Title..."
           />
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsEditing((prev) => !prev);
-          }}
-          className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-semibold text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/10 hover:text-duck-300"
-        >
-          {isEditing ? "Done 👁️" : "Edit Formula ✏️"}
-        </button>
       </div>
 
       {/* Rendered KaTeX Formula Viewport — Click opens editing drawer */}
@@ -583,13 +991,24 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
               <label className="block text-[10px] font-bold uppercase tracking-wider text-duck-400">
                 LaTeX Formula Input
               </label>
-              <span className="text-[10px] text-ink-500 font-mono">Live render enabled</span>
+              <span className="text-[10px] text-ink-500 font-mono">Press Enter to exit · Shift+Enter for new line</span>
             </div>
             <textarea
+              ref={textareaRef}
               rows={2}
               value={formula}
               onFocus={() => onSelect(block.id)}
               onChange={(e) => handleFormulaChange(e.target.value)}
+              onBlur={handleExitEdit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleExitEdit();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  handleExitEdit();
+                }
+              }}
               placeholder="e.g. E = mc^2 or \int_{a}^{b} f(x) dx"
               className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-xs font-mono text-duck-300 outline-none focus:border-duck-400 focus:ring-1 focus:ring-duck-400"
             />
@@ -602,6 +1021,7 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
               <button
                 key={p.label}
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleFormulaChange(p.math);
@@ -615,66 +1035,6 @@ function MathBlock({ block, onUpdateBlock, onSelect }) {
         </div>
       )}
     </div>
-  );
-}
-
-// ─── Inline Math Block Component (Notion-style Pure Inline KaTeX Equation) ──
-function InlineMathBlock({ block, onUpdateBlock, onSelect }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [formula, setFormula] = useState(block.content || "f(x) = x^2");
-
-  useEffect(() => {
-    setFormula(block.content || "f(x) = x^2");
-  }, [block.content]);
-
-  return (
-    <span
-      onClick={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        onSelect(block.id);
-        setIsEditing(true);
-      }}
-      onMouseDown={(e) => {
-        e.stopPropagation();
-      }}
-      className="inline-block my-0.5 px-1 py-0.5 rounded cursor-pointer hover:bg-duck-500/15 transition-colors select-none"
-      title="Click to edit inline equation"
-    >
-      {isEditing ? (
-        <input
-          type="text"
-          value={formula}
-          onChange={(e) => {
-            setFormula(e.target.value);
-            onUpdateBlock(block.id, { content: e.target.value }, true);
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-          }}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Enter" || e.key === "Escape") {
-              e.preventDefault();
-              setIsEditing(false);
-            }
-          }}
-          onBlur={() => setIsEditing(false)}
-          placeholder="LaTeX equation..."
-          className="rounded-xl border-2 border-duck-400 bg-ink-950 px-4 py-2.5 font-mono text-base text-duck-200 shadow-2xl outline-none focus:ring-2 focus:ring-duck-400/60 min-w-[300px]"
-          autoFocus
-        />
-      ) : (
-        <KaTeXRender
-          formula={formula || "f(x)"}
-          displayMode={false}
-          className="text-duck-200 font-semibold inline"
-        />
-      )}
-    </span>
   );
 }
 
@@ -699,7 +1059,7 @@ function HighlightCode({ code, language }) {
   );
 }
 
-function CodeBlock({ block, onUpdateBlock, onSelect }) {
+function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   const [copied, setCopied] = useState(false);
   const underlayRef = useRef(null);
 
@@ -750,11 +1110,26 @@ function CodeBlock({ block, onUpdateBlock, onSelect }) {
       const start = target.selectionStart;
       const end = target.selectionEnd;
       const val = target.value;
-      const newVal = val.substring(0, start) + "  " + val.substring(end);
-      onUpdateBlock(block.id, { content: newVal }, true);
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + 2;
-      }, 0);
+      if (e.shiftKey) {
+        // Shift+Tab: Unindent 2 spaces if present
+        if (start >= 2 && val.substring(start - 2, start) === "  ") {
+          const newVal = val.substring(0, start - 2) + val.substring(end);
+          onUpdateBlock(block.id, { content: newVal }, true);
+          setTimeout(() => {
+            target.selectionStart = target.selectionEnd = Math.max(0, start - 2);
+          }, 0);
+        }
+      } else {
+        // Tab: Insert 2 spaces
+        const newVal = val.substring(0, start) + "  " + val.substring(end);
+        onUpdateBlock(block.id, { content: newVal }, true);
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = start + 2;
+        }, 0);
+      }
+    } else if (e.key === "Backspace" && (!block.content || !block.content.trim())) {
+      e.preventDefault();
+      onDelete?.(block.id);
     }
   };
 
@@ -854,9 +1229,440 @@ function CodeBlock({ block, onUpdateBlock, onSelect }) {
   );
 }
 
+// ─── Site Bookmark Component ─────────────────────────────────────────
+function SiteBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+  const [urlInput, setUrlInput] = useState(block.url || "");
+
+  const handleEmbed = (e) => {
+    e?.preventDefault?.();
+    if (urlInput.trim()) {
+      onUpdateBlock(block.id, { url: urlInput.trim() }, true);
+    }
+  };
+
+  const formattedUrl = formatUrl(block.url);
+  let domain = "";
+  try {
+    const u = new URL(formattedUrl);
+    domain = u.hostname.replace(/^www\./, "");
+  } catch {
+    domain = block.url || "";
+  }
+
+  return (
+    <div
+      tabIndex={0}
+      onClick={() => onSelect(block.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Backspace" || e.key === "Delete") {
+          if (e.target.tagName !== "INPUT" || !urlInput) {
+            e.preventDefault();
+            onDelete?.(block.id);
+          }
+        }
+      }}
+      className="group/siteblk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-3.5 shadow-md transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
+    >
+      {!block.url ? (
+        <form onSubmit={handleEmbed} className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-duck-500/15 text-sm shrink-0">
+            🌐
+          </span>
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="Paste website URL (e.g. https://wikipedia.org) and press Enter…"
+            className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!urlInput.trim()}
+            className="rounded-lg bg-duck-500/20 border border-duck-400/40 px-3 py-1.5 text-xs font-semibold text-duck-200 transition-colors hover:bg-duck-500/30 disabled:opacity-40 cursor-pointer"
+          >
+            Embed
+          </button>
+        </form>
+      ) : (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 bg-ink-950/70 p-3 transition-all hover:border-duck-500/40">
+          <a
+            href={formattedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 min-w-0 flex-1 group/link"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink-850 border border-ink-750 overflow-hidden">
+              <img
+                src={`https://www.google.com/s2/favicons?domain=${formattedUrl}&sz=64`}
+                alt="favicon"
+                className="h-5 w-5 rounded object-contain"
+                onError={(e) => {
+                  e.target.style.display = "none";
+                  if (e.target.nextSibling) e.target.nextSibling.style.display = "block";
+                }}
+              />
+              <span className="hidden text-xs">🌐</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-ink-100 truncate group-hover/link:text-duck-300">
+                {block.title || domain}
+              </p>
+              <p className="text-[11px] text-ink-500 truncate">{formattedUrl}</p>
+            </div>
+          </a>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setUrlInput(block.url || "");
+                onUpdateBlock(block.id, { url: "" });
+              }}
+              className="rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
+              title="Edit Bookmark URL"
+            >
+              ✏️ Edit
+            </button>
+            <a
+              href={formattedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-750 bg-ink-850 text-xs font-bold text-ink-400 hover:border-duck-500/40 hover:bg-duck-500/10 hover:text-duck-300 transition-colors"
+              title="Open link in new tab"
+            >
+              ↗
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Media Block Component (URL Embed & Local File Upload) ────────────
+function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+  const [activeTab, setActiveTab] = useState("url"); // "url" | "upload"
+  const [urlInput, setUrlInput] = useState(block.url || "");
+  const [mediaError, setMediaError] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const mediaKind = block.mediaKind || "image";
+
+  const handleEmbedUrl = (e) => {
+    e?.preventDefault?.();
+    if (urlInput.trim()) {
+      setMediaError(false);
+      onUpdateBlock(block.id, { url: urlInput.trim(), mediaKind }, true);
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    let detectedKind = "image";
+    if (file.type.startsWith("audio/")) {
+      detectedKind = "audio";
+    } else if (file.type.startsWith("video/")) {
+      detectedKind = "video";
+    }
+
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      const dataUrl = loadEvt.target?.result;
+      if (dataUrl) {
+        setMediaError(false);
+        onUpdateBlock(
+          block.id,
+          {
+            url: dataUrl,
+            mediaKind: detectedKind,
+            fileName: file.name,
+            content: block.content || file.name,
+          },
+          true
+        );
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const formattedUrl = block.url ? (block.url.startsWith("data:") ? block.url : formatUrl(block.url)) : "";
+
+  return (
+    <div
+      tabIndex={0}
+      onClick={() => onSelect(block.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Backspace" || e.key === "Delete") {
+          if (e.target.tagName !== "INPUT" || !urlInput) {
+            e.preventDefault();
+            onDelete?.(block.id);
+          }
+        }
+      }}
+      className="group/mediablk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
+    >
+      {!block.url ? (
+        <div className="space-y-3">
+          {/* Header & Tabs */}
+          <div className="flex items-center justify-between border-b border-ink-800 pb-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveTab("url")}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "url"
+                    ? "bg-duck-500/20 text-duck-200 border border-duck-400/40"
+                    : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
+                }`}
+              >
+                🔗 Embed Link
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("upload")}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "upload"
+                    ? "bg-duck-500/20 text-duck-200 border border-duck-400/40"
+                    : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
+                }`}
+              >
+                📁 Upload File
+              </button>
+            </div>
+
+            {/* Media Kind Selector */}
+            <div className="flex items-center gap-1">
+              {[
+                { id: "image", label: "🖼️ Image" },
+                { id: "audio", label: "🎵 Audio" },
+                { id: "video", label: "🎬 Video" },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onUpdateBlock(block.id, { mediaKind: m.id })}
+                  className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                    mediaKind === m.id
+                      ? "bg-duck-500/25 text-duck-300 border border-duck-500/50"
+                      : "bg-ink-850 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab 1: Embed by URL */}
+          {activeTab === "url" && (
+            <form onSubmit={handleEmbedUrl} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder={`Paste ${mediaKind} URL (e.g. https://example.com/media.png)...`}
+                className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!urlInput.trim()}
+                className="rounded-lg bg-duck-500/20 border border-duck-400/40 px-3 py-1.5 text-xs font-semibold text-duck-200 transition-colors hover:bg-duck-500/30 disabled:opacity-40 cursor-pointer"
+              >
+                Embed
+              </button>
+            </form>
+          )}
+
+          {/* Tab 2: Upload File */}
+          {activeTab === "upload" && (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,audio/*,video/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-ink-700 bg-ink-950/60 p-6 transition-all hover:border-duck-500/60 hover:bg-duck-500/5 cursor-pointer group"
+              >
+                <span className="text-3xl mb-1.5 group-hover:scale-110 transition-transform">
+                  {mediaKind === "audio" ? "🎵" : mediaKind === "video" ? "🎬" : "🖼️"}
+                </span>
+                <span className="text-xs font-semibold text-ink-200 group-hover:text-duck-200">
+                  Click to select {mediaKind} from your computer
+                </span>
+                <span className="text-[10px] text-ink-500 mt-0.5">
+                  Supports PNG, JPG, GIF, WebP, MP3, WAV, MP4, WebM
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Rendered Media Viewport */
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between border-b border-ink-800/80 pb-2">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-duck-400 uppercase tracking-wider">
+              <span>{mediaKind === "audio" ? "🎵 Audio" : mediaKind === "video" ? "🎬 Video" : "🖼️ Image"}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setUrlInput(block.url.startsWith("data:") ? "" : block.url);
+                setMediaError(false);
+                onUpdateBlock(block.id, { url: "" });
+              }}
+              className="rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-xs text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
+            >
+              ✏️ Replace Media
+            </button>
+          </div>
+
+          {/* Media Player / Image */}
+          {mediaError ? (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-center text-xs text-rose-300">
+              ⚠️ Unable to load media from this URL. Please check the link or choose another file.
+            </div>
+          ) : mediaKind === "audio" ? (
+            <audio src={formattedUrl} controls onError={() => setMediaError(true)} className="w-full" />
+          ) : mediaKind === "video" ? (
+            <video
+              src={formattedUrl}
+              controls
+              onError={() => setMediaError(true)}
+              className="w-full max-h-[28rem] rounded-xl border border-ink-800 bg-ink-950 object-contain shadow"
+            />
+          ) : (
+            <img
+              src={formattedUrl}
+              alt={block.content || "Media"}
+              onError={() => setMediaError(true)}
+              className="w-full max-h-[28rem] rounded-xl object-contain bg-ink-950/80 border border-ink-800 shadow"
+            />
+          )}
+
+          {/* Editable Caption */}
+          <input
+            type="text"
+            value={block.content || ""}
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
+            placeholder="Add an optional caption (e.g. Figure 1: Circuit diagram)..."
+            className="w-full bg-transparent text-center text-xs text-ink-400 placeholder:text-ink-600 outline-none border-b border-transparent focus:border-duck-500/30 py-0.5"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Canvas Block Component (Interactive Whiteboard & Drawing) ────────
+function CanvasBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+  const [showCanvasModal, setShowCanvasModal] = useState(false);
+
+  return (
+    <div
+      tabIndex={0}
+      onClick={() => onSelect(block.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Backspace" || e.key === "Delete") {
+          if (e.target.tagName !== "INPUT") {
+            e.preventDefault();
+            onDelete?.(block.id);
+          }
+        }
+      }}
+      className="group/canvasblk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
+    >
+      <div className="flex items-center justify-between border-b border-ink-800/80 pb-2 mb-3">
+        <div className="flex items-center gap-2 flex-1 pr-3">
+          <span className="text-lg">🎨</span>
+          <input
+            type="text"
+            value={block.content || ""}
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
+            placeholder="Canvas Drawing Title..."
+            className="print-content w-full bg-transparent text-xs font-semibold text-ink-100 outline-none placeholder:text-ink-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowCanvasModal(true)}
+            className="rounded-md border border-duck-500/40 bg-duck-500/15 px-2.5 py-1 text-xs font-semibold text-duck-200 transition-colors hover:bg-duck-500/25 cursor-pointer"
+          >
+            🎨 {block.drawingData ? "Edit Drawing" : "Open Canvas"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        onClick={() => setShowCanvasModal(true)}
+        className="relative w-full rounded-xl border border-dashed border-ink-750 overflow-hidden transition-all hover:border-duck-500/60 group/view flex flex-col items-center justify-center bg-ink-950 cursor-pointer"
+        style={{ height: block.previewHeight || 240 }}
+      >
+        {block.drawingData ? (
+          <div
+            className="w-full h-full relative"
+            style={{
+              transform: `scale(${block.canvasZoom || 1})`,
+              transformOrigin: "top left",
+              width: `${100 / (block.canvasZoom || 1)}%`,
+              height: `${100 / (block.canvasZoom || 1)}%`,
+            }}
+          >
+            <img
+              src={block.drawingData}
+              alt="Canvas drawing preview"
+              className="w-full h-full object-contain object-center"
+            />
+          </div>
+        ) : (
+          <div className="no-print text-center space-y-2 p-6 pointer-events-none">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-duck-500/10 text-duck-300 text-2xl group-hover/view:scale-110 transition-transform">
+              🎨
+            </div>
+            <p className="text-xs font-semibold text-ink-200">Interactive Whiteboard & Canvas</p>
+            <p className="text-[11px] text-ink-500">Click to expand to 85% screen drawing workspace</p>
+          </div>
+        )}
+      </div>
+
+      {showCanvasModal && (
+        <CanvasModal
+          drawingData={block.drawingData}
+          title={block.content || "Canvas Drawing"}
+          initialCanvasHeight={block.canvasHeight}
+          initialCanvasZoom={block.canvasZoom}
+          onSave={(newData, newCanvasHeight, newCanvasZoom) => {
+            onUpdateBlock(
+              block.id,
+              {
+                drawingData: newData,
+                canvasHeight: newCanvasHeight,
+                canvasZoom: newCanvasZoom,
+              },
+              true
+            );
+            setShowCanvasModal(false);
+          }}
+          onClose={() => setShowCanvasModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 
 function EditorBlock({
   block,
+  index = 0,
+  totalBlocks = 1,
   blockNumber,
   isLast,
   isSelected,
@@ -865,6 +1671,9 @@ function EditorBlock({
   onChangeType,
   onUpdateBlock,
   onDelete,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
   onKeyDown,
   onAddAfter,
   onExplainBlock,
@@ -883,42 +1692,79 @@ function EditorBlock({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleFormat = (command) => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.focus();
+
+    const sel = window.getSelection();
+    let isSelectedInside = false;
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      const range = sel.getRangeAt(0);
+      if (el.contains(range.commonAncestorContainer)) {
+        isSelectedInside = true;
+      }
+    }
+
+    if (command === "math") {
+      if (isSelectedInside) {
+        const text = sel.toString();
+        document.execCommand("insertText", false, `$${text || "x"}$`);
+      } else {
+        const currentText = getBlockTextFromDOM(el);
+        if (currentText.startsWith("$") && currentText.endsWith("$")) {
+          const unmath = currentText.slice(1, -1);
+          setBlockDOMFromText(el, unmath);
+          onChange(block.id, unmath);
+        } else {
+          const mathText = `$${currentText || "E = mc^2"}$`;
+          setBlockDOMFromText(el, mathText);
+          onChange(block.id, mathText);
+        }
+      }
+      const updatedText = getBlockTextFromDOM(el);
+      onChange(block.id, updatedText);
+      return;
+    }
+
+    if (isSelectedInside) {
+      document.execCommand(command, false, null);
+    } else {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand(command, false, null);
+    }
+    const updatedText = getBlockTextFromDOM(el);
+    onChange(block.id, updatedText);
+  };
   // The block only becomes draggable while the ⠿ handle is held. Making the
   // whole row draggable would hijack text selection inside contentEditable.
   const [handleHeld, setHandleHeld] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showNotePicker, setShowNotePicker] = useState(false);
-  const [showCanvasModal, setShowCanvasModal] = useState(false);
+
+  const [selectedMathNode, setSelectedMathNode] = useState(null);
+  const [popoverFormula, setPopoverFormula] = useState("");
+  const [mathPopoverOpen, setMathPopoverOpen] = useState(false);
 
   useEffect(() => {
     if (registerRef) registerRef(block.id, contentRef);
   }, [block.id, registerRef]);
 
   useEffect(() => {
-    if (
-      contentRef.current &&
-      contentRef.current.textContent !== block.content
-    ) {
-      contentRef.current.textContent = block.content || "";
+    if (contentRef.current) {
+      const currentDomText = getBlockTextFromDOM(contentRef.current);
+      if (currentDomText !== (block.content || "")) {
+        setBlockDOMFromText(contentRef.current, block.content || "");
+      }
     }
-    // Re-sync whenever block.content changes too (not just id/type). Content
-    // can change from outside this block's own onInput handler — e.g. Ctrl+Z
-    // /Ctrl+Shift+Z undo-redo replace the whole `blocks` array with a past
-    // snapshot while this block keeps the same id/type. Without depending on
-    // block.content here, the contentEditable DOM never reflects the reverted
-    // text, so it keeps showing the pre-undo text; the next keystroke then
-    // reads that stale DOM text via handleInput and writes it back into
-    // state, silently discarding the undo. The dirty-check above keeps this
-    // a no-op during normal typing, since state is only ever set to mirror
-    // what's already in the DOM.
-    //
-    // NOTE: this dependency array was verified NOT to be the cause of a
-    // separate, pre-existing bug also found in this area — see the comment
-    // on the shortcuts loop in handleInput below for the real one.
   }, [block.id, block.type, block.content]);
 
   function handleInput() {
-    const text = contentRef.current?.textContent ?? "";
+    const text = getBlockTextFromDOM(contentRef.current);
     onChange(block.id, text);
 
     const lastSlashIndex = text.lastIndexOf("/");
@@ -950,7 +1796,6 @@ function EditorBlock({
       { prefix: "***", type: "divider" },
       { prefix: "```", type: "code" },
       { prefix: "$$", type: "math" },
-      { prefix: "$ ", type: "inlinemath" },
     ];
 
     for (const sc of shortcuts) {
@@ -959,36 +1804,15 @@ function EditorBlock({
         onChangeType(block.id, sc.type);
         onChange(block.id, remaining);
         if (contentRef.current) {
-          contentRef.current.textContent = remaining;
+          setBlockDOMFromText(contentRef.current, remaining);
         }
-        // KNOWN BUG, not fixed this session (pre-existing, unrelated to
-        // today's changes — reproduces on a clean checkout too): bullet /
-        // number / todo / toggle / callout / quote each render their
-        // contentEditable inside a different wrapper (a marker span, a
-        // checkbox...) than the plain-text branch. Converting a block's
-        // type therefore switches which JSX branch renders here, and React
-        // mounts a brand-new DOM node for it rather than patching this one
-        // in place. That node has no focus, and whatever caret the browser
-        // was tracking is gone. Root-caused by tracing the actual DOM/state
-        // sequence with logging (see conversation/PR notes); several fix
-        // attempts — restoring the caret synchronously here, deferring it a
-        // tick, moving the write into the sync effect below gated on
-        // `isSelected` — each visibly re-focused the right node but the
-        // very next keystroke still lands at the wrong offset, so something
-        // beyond this component is still involved. Net effect: typing
-        // through a markdown shortcut ("1. ", "- ", "# ", "> ", "[ ] ", ...)
-        // without pausing can scramble the first word typed afterward, at
-        // completely normal typing speed. Reproduces reliably; needs
-        // in-browser devtools stepping to finish, which wasn't available
-        // here. Left as the original behavior rather than ship a change
-        // that doesn't fix it.
         return;
       }
     }
   }
 
   function handleSlashSelect(type) {
-    const text = contentRef.current?.textContent ?? block.content ?? "";
+    const text = getBlockTextFromDOM(contentRef.current) || block.content || "";
     const lastSlashIndex = text.lastIndexOf("/");
 
     if (type === "inlinemath") {
@@ -1002,8 +1826,9 @@ function EditorBlock({
       }
 
       onChange(block.id, newText);
+      onUpdateBlock(block.id, { content: newText }, true);
       if (contentRef.current) {
-        contentRef.current.textContent = newText;
+        setBlockDOMFromText(contentRef.current, newText);
       }
       setSlashOpen(false);
       setSlashFilter("");
@@ -1022,7 +1847,7 @@ function EditorBlock({
 
       onChange(block.id, textBefore);
       if (contentRef.current) {
-        contentRef.current.textContent = textBefore;
+        setBlockDOMFromText(contentRef.current, textBefore);
       }
 
       if (onAddAfter) {
@@ -1040,6 +1865,47 @@ function EditorBlock({
     setTimeout(() => contentRef.current?.focus(), 20);
   }
 
+  const handleTagClick = (e) => {
+    const mathPill = e.target.closest(".katex-inline-node");
+    if (mathPill) {
+      e.stopPropagation();
+      e.preventDefault();
+      const formula = mathPill.getAttribute("data-formula") || "";
+      setSelectedMathNode(mathPill);
+      setPopoverFormula(formula);
+      setMathPopoverOpen(true);
+    }
+  };
+
+  const handleMathSave = (newFormula) => {
+    if (selectedMathNode && contentRef.current) {
+      if (!newFormula) {
+        selectedMathNode.remove();
+      } else {
+        const katexHtml = katex.renderToString(newFormula, { displayMode: false, throwOnError: false });
+        const escapedFormula = newFormula.replace(/"/g, "&quot;");
+        selectedMathNode.setAttribute("data-formula", newFormula);
+        selectedMathNode.innerHTML = katexHtml;
+      }
+      const updatedText = getBlockTextFromDOM(contentRef.current);
+      onChange(block.id, updatedText);
+      onUpdateBlock(block.id, { content: updatedText }, true);
+    }
+    setMathPopoverOpen(false);
+    setSelectedMathNode(null);
+  };
+
+  const handleMathDelete = () => {
+    if (selectedMathNode && contentRef.current) {
+      selectedMathNode.remove();
+      const updatedText = getBlockTextFromDOM(contentRef.current);
+      onChange(block.id, updatedText);
+      onUpdateBlock(block.id, { content: updatedText }, true);
+    }
+    setMathPopoverOpen(false);
+    setSelectedMathNode(null);
+  };
+
   function handleKeyDown(e) {
     if (slashOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
       return;
@@ -1049,33 +1915,32 @@ function EditorBlock({
       e.preventDefault();
       
       const sel = window.getSelection();
-      let textBefore = block.content;
+      let textBefore = block.content || "";
       let textAfter = "";
 
-      if (sel.rangeCount > 0 && sel.focusNode) {
+      if (sel && sel.rangeCount > 0 && sel.focusNode && contentRef.current) {
         const range = sel.getRangeAt(0);
-        const preCaretRange = range.cloneRange();
-        preCaretRange.selectNodeContents(contentRef.current);
-        preCaretRange.setEnd(range.startContainer, range.startOffset);
-        const caretOffsetStart = preCaretRange.toString().length;
-        
-        const selectionLength = range.toString().length;
-        const fullText = contentRef.current.textContent || "";
-        
-        textBefore = fullText.slice(0, caretOffsetStart);
-        textAfter = fullText.slice(caretOffsetStart + selectionLength);
+        textBefore = getSerializedTextFromRange(contentRef.current, range.startContainer, range.startOffset);
+        const textSelected = range.collapsed
+          ? ""
+          : getSerializedTextFromRange(contentRef.current, range.endContainer, range.endOffset).slice(textBefore.length);
+        const fullText = getBlockTextFromDOM(contentRef.current);
+        textAfter = fullText.slice(textBefore.length + textSelected.length);
         
         onChange(block.id, textBefore);
         if (contentRef.current) {
-          contentRef.current.textContent = textBefore;
+          setBlockDOMFromText(contentRef.current, textBefore);
         }
       }
 
-      if (["bullet", "number", "todo", "toggle"].includes(block.type) && !textBefore.trim()) {
+      if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim()) {
         onChangeType(block.id, "text");
         return;
       }
-      onAddAfter(block.id, textAfter, block.type);
+
+      // Pressing Enter in headings, callouts, and quotes spawns a standard paragraph text block below
+      const nextType = ["h1", "h2", "h3", "h4", "callout", "quote"].includes(block.type) ? "text" : block.type;
+      onAddAfter(block.id, textAfter, nextType);
       return;
     }
 
@@ -1178,6 +2043,12 @@ function EditorBlock({
           onDelete={onDelete}
           onExplainBlock={onExplainBlock}
           onQuizBlock={onQuizBlock}
+          onFormat={handleFormat}
+          onDuplicate={onDuplicate}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          canMoveUp={index > 0}
+          canMoveDown={index < totalBlocks - 1}
         />
       )}
 
@@ -1185,18 +2056,31 @@ function EditorBlock({
 
       {/* 1. Divider */}
       {block.type === "divider" ? (
-        <div className="py-2">
-          <hr className="border-t border-ink-800" />
+        <div
+          tabIndex={0}
+          onClick={() => onSelect(block.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Backspace" || e.key === "Delete") {
+              e.preventDefault();
+              onDelete(block.id);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              onAddAfter(block.id, "", "text");
+            }
+          }}
+          className={`group/divider py-3 px-2 cursor-pointer outline-none rounded-lg transition-all ${
+            isSelected ? "ring-1 ring-duck-400/40 bg-duck-500/5" : "hover:bg-ink-850/50"
+          }`}
+          title="Click to select divider. Press Backspace/Delete to remove, Enter to add block below."
+        >
+          <hr className={`border-t transition-colors ${isSelected ? "border-duck-400/70" : "border-ink-800 group-hover/divider:border-ink-700"}`} />
         </div>
       ) : block.type === "math" ? (
         /* Math Equation Block */
-        <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
-      ) : block.type === "inlinemath" ? (
-        /* Inline Math Equation Block */
-        <InlineMathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
+        <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
       ) : block.type === "code" ? (
         /* Code Snippet Block */
-        <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} />
+        <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
       ) : block.type === "bullet" ? (
         /* 3. Bullet List */
         <div className="flex items-start gap-2.5">
@@ -1205,6 +2089,7 @@ function EditorBlock({
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
+            onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
@@ -1222,6 +2107,7 @@ function EditorBlock({
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
+            onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
@@ -1242,6 +2128,7 @@ function EditorBlock({
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
+            onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
@@ -1267,6 +2154,7 @@ function EditorBlock({
               ref={contentRef}
               contentEditable
               suppressContentEditableWarning
+              onClick={handleTagClick}
               onInput={handleInput}
               onKeyDown={handleKeyDown}
               onFocus={() => onSelect(block.id)}
@@ -1303,21 +2191,27 @@ function EditorBlock({
             </button>
 
             {showIconPicker && (
-              <div className="absolute left-0 top-8 z-50 flex items-center gap-1 rounded-lg border border-ink-700 bg-ink-900 p-1.5 shadow-2xl">
-                {CALLOUT_ICONS.map((icon) => (
-                  <button
-                    key={icon}
-                    type="button"
-                    onClick={() => {
-                      onUpdateBlock(block.id, { calloutIcon: icon });
-                      setShowIconPicker(false);
-                    }}
-                    className="p-1 text-base hover:bg-ink-800 rounded"
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowIconPicker(false)}
+                />
+                <div className="absolute left-0 top-8 z-50 flex items-center gap-1 rounded-lg border border-ink-700 bg-ink-900 p-1.5 shadow-2xl">
+                  {CALLOUT_ICONS.map((icon) => (
+                    <button
+                      key={icon}
+                      type="button"
+                      onClick={() => {
+                        onUpdateBlock(block.id, { calloutIcon: icon });
+                        setShowIconPicker(false);
+                      }}
+                      className="p-1 text-base hover:bg-ink-800 rounded cursor-pointer"
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -1325,6 +2219,7 @@ function EditorBlock({
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
+            onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
@@ -1339,6 +2234,7 @@ function EditorBlock({
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
+            onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
@@ -1348,200 +2244,38 @@ function EditorBlock({
         </div>
       ) : block.type === "site" ? (
         /* 10. Site Bookmark Embed */
-        <div className="rounded-xl border border-ink-700 bg-ink-850 p-4 shadow-lg space-y-3">
-          {!block.url ? (
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🌐</span>
-              <input
-                type="url"
-                placeholder="Paste website URL (e.g. google.com or https://wikipedia.org) and press Enter…"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.target.value.trim()) {
-                    onUpdateBlock(block.id, { url: e.target.value.trim() });
-                  }
-                }}
-                className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-lg border border-ink-700 bg-ink-900 p-3.5 transition-all hover:border-duck-500/40 group">
-              <a
-                href={formatUrl(block.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 min-w-0 pr-4 flex-1"
-              >
-                <img
-                  src={`https://www.google.com/s2/favicons?domain=${formatUrl(block.url)}&sz=64`}
-                  alt="favicon"
-                  className="h-6 w-6 shrink-0 rounded"
-                  onError={(e) => (e.target.style.display = "none")}
-                />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-ink-100 truncate group-hover:text-duck-300">
-                    {block.url}
-                  </p>
-                  <p className="text-[11px] text-ink-500 truncate">{formatUrl(block.url)}</p>
-                </div>
-              </a>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onUpdateBlock(block.id, { url: "" })}
-                  className="rounded bg-ink-850 px-2 py-1 text-[11px] font-medium text-ink-400 hover:bg-ink-700 hover:text-ink-100 transition-colors"
-                  title="Change URL"
-                >
-                  ✏️ Change URL
-                </button>
-                <a
-                  href={formatUrl(block.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-ink-500 hover:text-duck-300"
-                >
-                  ↗
-                </a>
-              </div>
-            </div>
-          )}
-        </div>
+        <SiteBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
       ) : block.type === "media" ? (
         /* 11. Image / Audio / Video Embed */
-        <div className="rounded-xl border border-ink-700 bg-ink-850 p-4 shadow-lg space-y-3">
-          {!block.url ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-ink-400">
-                <span>Select media type:</span>
-                {["image", "audio", "video"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => onUpdateBlock(block.id, { mediaKind: m })}
-                    className={`rounded px-2 py-0.5 text-[10px] uppercase font-bold transition-all ${
-                      (block.mediaKind || "image") === m
-                        ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
-                        : "bg-ink-800 text-ink-400"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="url"
-                placeholder="Paste media URL and press Enter…"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.target.value.trim()) {
-                    onUpdateBlock(block.id, { url: e.target.value.trim() });
-                  }
-                }}
-                className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-ink-500 uppercase tracking-wider">
-                  {block.mediaKind || "image"} preview
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onUpdateBlock(block.id, { url: "" })}
-                  className="rounded bg-ink-800 px-2.5 py-1 text-xs text-ink-300 hover:bg-ink-700 hover:text-ink-100 transition-colors"
-                >
-                  ✏️ Change URL
-                </button>
-              </div>
-              {block.mediaKind === "audio" ? (
-                <audio src={formatUrl(block.url)} controls className="w-full" />
-              ) : block.mediaKind === "video" ? (
-                <video src={formatUrl(block.url)} controls className="w-full max-h-96 rounded-xl border border-ink-800" />
-              ) : (
-                <img src={formatUrl(block.url)} alt="media" className="w-full max-h-96 rounded-xl object-cover border border-ink-800 shadow" />
-              )}
-            </div>
-          )}
-        </div>
+        <MediaBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
       ) : block.type === "canvas" ? (
         /* 12. Canvas / Drawing Block */
-        <div className="rounded-xl border border-ink-700 bg-ink-850 p-4 shadow-lg space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 flex-1 pr-3">
-              <span className="text-lg">🎨</span>
-              <input
-                type="text"
-                value={block.content || ""}
-                onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
-                placeholder="Canvas Drawing Title..."
-                className="print-content w-full bg-transparent text-sm font-semibold text-ink-100 outline-none placeholder:text-ink-500"
-              />
-            </div>
-
-          </div>
-
-          <div
-            className={`relative w-full rounded-xl border border-dashed border-ink-700 overflow-hidden transition-all hover:border-duck-500/50 group flex flex-col items-center justify-center bg-ink-950`}
-            style={{ height: block.previewHeight || 240 }}
-          >
-            <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => setShowCanvasModal(true)} />
-            
-            {block.drawingData ? (
-              <div
-                className="w-full h-full relative"
-                style={{ 
-                  transform: `scale(${block.canvasZoom || 1})`, 
-                  transformOrigin: "top left", 
-                  width: `${100 / (block.canvasZoom || 1)}%`, 
-                  height: `${100 / (block.canvasZoom || 1)}%` 
-                }}
-              >
-                <img
-                  src={block.drawingData}
-                  alt="Canvas drawing preview"
-                  className="w-full h-full object-cover object-top"
-                />
-              </div>
-            ) : (
-              <div className="no-print text-center space-y-2 p-6 pointer-events-none">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-duck-500/10 text-duck-300 text-2xl group-hover:scale-110 transition-transform">
-                  🎨
-                </div>
-                <p className="text-xs font-semibold text-ink-200">Interactive Whiteboard & Canvas</p>
-                <p className="text-[11px] text-ink-500">Click to expand to 85% screen drawing workspace</p>
-              </div>
-            )}
-          </div>
-
-          {showCanvasModal && (
-            <CanvasModal
-              drawingData={block.drawingData}
-              title={block.content || "Canvas Drawing"}
-              initialCanvasHeight={block.canvasHeight}
-              initialCanvasZoom={block.canvasZoom}
-              onSave={(newData, newCanvasHeight, newCanvasZoom) => {
-                onUpdateBlock(block.id, { 
-                  drawingData: newData, 
-                  canvasHeight: newCanvasHeight,
-                  canvasZoom: newCanvasZoom 
-                }, true);
-                setShowCanvasModal(false);
-              }}
-              onClose={() => setShowCanvasModal(false)}
-            />
-          )}
-        </div>
+        <CanvasBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
       ) : (
-        /* Standard Paragraph & Code Blocks */
+        /* Standard Paragraph & Heading Blocks */
         <Tag
           ref={contentRef}
           contentEditable
           suppressContentEditableWarning
+          onClick={handleTagClick}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={() => onSelect(block.id)}
           data-placeholder={placeholders[block.type] ?? ""}
           className={`min-h-[1.5em] outline-none ${typeStyles[block.type] ?? typeStyles.text} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+        />
+      )}
+
+      {mathPopoverOpen && (
+        <InlineEquationPopover
+          isOpen={mathPopoverOpen}
+          initialFormula={popoverFormula}
+          onSave={handleMathSave}
+          onDelete={handleMathDelete}
+          onClose={() => {
+            setMathPopoverOpen(false);
+            setSelectedMathNode(null);
+          }}
         />
       )}
 
@@ -2180,6 +2914,29 @@ export default function BlockNoteEditor({
   const isDraggingMarquee = useRef(false);
   const marqueeStart = useRef({ x: 0, y: 0 });
   const editorContainerRef = useRef(null);
+  const blockRefs = useRef({});
+  const bannerPickerRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+
+  // Close banner and emoji pickers on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (showBannerPicker && bannerPickerRef.current && !bannerPickerRef.current.contains(e.target)) {
+        setShowBannerPicker(false);
+      }
+      if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false);
+      }
+    }
+    if (showBannerPicker || showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [showBannerPicker, showEmojiPicker]);
 
   // Marquee Drag Selection & Empty Canvas Click Handlers
   const handleEditorMouseDown = (e) => {
@@ -2277,50 +3034,6 @@ export default function BlockNoteEditor({
       }
     }
   };
-
-  // Smart Markdown Paste Handler
-  const handleSmartPaste = useCallback(
-    (e) => {
-      // This handler is bound on the outer editor container, so paste events
-      // from every nested <input>/<textarea> bubble up to it too (code block
-      // body, toggle details, math formula box, canvas title, URL fields...).
-      // It must only intervene for the plain contentEditable block-text
-      // elements it's meant for. Otherwise pasting multi-line text into,
-      // say, the code block's textarea gets hijacked: preventDefault blocks
-      // the normal paste and the code block itself is spliced out and
-      // replaced with newly parsed markdown blocks, destroying the snippet.
-      const targetTag = e.target?.tagName;
-      if (targetTag === "TEXTAREA" || targetTag === "INPUT") return;
-
-      const text = e.clipboardData?.getData("text/plain");
-      if (!text) return;
-
-      const isMarkdown =
-        text.includes("\n") ||
-        /^(#+|-|\*|\d+\.|>|```|\$\$|\[\s*\]|---)\s/m.test(text);
-
-      if (isMarkdown) {
-        e.preventDefault();
-        const parsedBlocks = parseMarkdownToBlocks(text);
-        if (parsedBlocks.length > 0) {
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
-          setBlocks((prev) => {
-            const activeIdx = prev.findIndex((b) => b.id === selectedId);
-            if (activeIdx !== -1) {
-              const next = [...prev];
-              next.splice(activeIdx, 1, ...parsedBlocks);
-              return next;
-            }
-            return [...prev, ...parsedBlocks];
-          });
-        }
-      }
-    },
-    [selectedId]
-  );
-
-  const blockRefs = useRef({});
 
   // Drag-to-reorder, driven by each block's ⠿ handle.
   const [dragging, setDragging] = useState(null);
@@ -2658,6 +3371,46 @@ export default function BlockNoteEditor({
     });
   }, []);
 
+  const handleDuplicateBlock = useCallback(
+    (id) => {
+      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+      setFutureBlocks([]);
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === id);
+        if (idx === -1) return prev;
+        const target = prev[idx];
+        const newBlock = {
+          ...target,
+          id: `blk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        };
+        const next = [...prev.slice(0, idx + 1), newBlock, ...prev.slice(idx + 1)];
+        queueMicrotask(() => {
+          onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
+        });
+        return next;
+      });
+    },
+    [title, banner, isFavorite, emoji, onSaveNote]
+  );
+
+  const handleMoveBlock = useCallback(
+    (fromIndex, toIndex) => {
+      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+      setFutureBlocks([]);
+      setBlocks((prev) => {
+        if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev;
+        const next = [...prev];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        queueMicrotask(() => {
+          onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
+        });
+        return next;
+      });
+    },
+    [title, banner, isFavorite, emoji, onSaveNote]
+  );
+
   const handleAddAfter = useCallback((afterId, content = "", typeToInherit = null) => {
     setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
     setFutureBlocks([]);
@@ -2685,16 +3438,138 @@ export default function BlockNoteEditor({
     }, 30);
   }, []);
 
+  // Smart Markdown & Plain Text Paste Handler
+  const handleSmartPaste = useCallback(
+    (e) => {
+      const targetTag = e.target?.tagName;
+      if (targetTag === "TEXTAREA" || targetTag === "INPUT") return;
+
+      const text = e.clipboardData?.getData("text/plain");
+      if (!text) return;
+
+      const isMarkdown =
+        text.includes("\n") ||
+        /^(#+|-|\*|\d+\.|>|```|\$\$|\[\s*\]|---)\s/m.test(text);
+
+      if (isMarkdown) {
+        e.preventDefault();
+        const parsedBlocks = parseMarkdownToBlocks(text);
+        if (parsedBlocks.length > 0) {
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+          setBlocks((prev) => {
+            const activeIdx = prev.findIndex((b) => b.id === selectedId);
+            if (activeIdx !== -1) {
+              const activeBlock = prev[activeIdx];
+              const el = blockRefs.current[activeBlock.id]?.current;
+              const sel = window.getSelection();
+              let textBefore = "";
+              let textAfter = "";
+              if (el && sel && sel.rangeCount > 0 && el.contains(sel.focusNode)) {
+                const range = sel.getRangeAt(0);
+                textBefore = getSerializedTextFromRange(el, range.startContainer, range.startOffset);
+                const textSelected = range.collapsed
+                  ? ""
+                  : getSerializedTextFromRange(el, range.endContainer, range.endOffset).slice(textBefore.length);
+                const fullText = getBlockTextFromDOM(el);
+                textAfter = fullText.slice(textBefore.length + textSelected.length);
+              }
+
+              const blocksToInsert = parsedBlocks.map((b) => ({ ...b }));
+              if (textBefore && blocksToInsert.length > 0) {
+                blocksToInsert[0].content = (textBefore + (blocksToInsert[0].content || ""));
+              }
+              if (textAfter && blocksToInsert.length > 0) {
+                const lastIdx = blocksToInsert.length - 1;
+                blocksToInsert[lastIdx].content = ((blocksToInsert[lastIdx].content || "") + textAfter);
+              }
+
+              const next = [...prev];
+              next.splice(activeIdx, 1, ...blocksToInsert);
+              const lastInserted = blocksToInsert[blocksToInsert.length - 1];
+              if (lastInserted) {
+                setSelectedId(lastInserted.id);
+                setTimeout(() => {
+                  blockRefs.current[lastInserted.id]?.current?.focus();
+                }, 30);
+              }
+              return next;
+            }
+            return [...prev, ...parsedBlocks];
+          });
+        }
+        return;
+      }
+
+      // If pasting single-line or non-multiline text, sanitize to plain text to avoid foreign HTML injection
+      if (e.target?.isContentEditable) {
+        e.preventDefault();
+        const plainText = e.clipboardData?.getData("text/plain") || "";
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          const textNode = document.createTextNode(plainText);
+          range.insertNode(textNode);
+          range.setStartAfter(textNode);
+          range.setEndAfter(textNode);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          
+          const activeBlockEl = e.target.closest("[contenteditable]");
+          if (activeBlockEl) {
+            const blockId = activeBlockEl.closest("[data-block-id]")?.getAttribute("data-block-id");
+            if (blockId) {
+              const updatedText = getBlockTextFromDOM(activeBlockEl);
+              handleChange(blockId, updatedText);
+            }
+          }
+        }
+      }
+    },
+    [selectedId, handleChange]
+  );
+
   const handleKeyDown = useCallback(
     (e, blockId) => {
       if (e.key === "Backspace") {
         const block = blocks.find((b) => b.id === blockId);
         if (!block) return;
+        const idx = blocks.findIndex((b) => b.id === blockId);
+
+        // Check if caret is at the start (offset 0) of the current block
+        const el = blockRefs.current[blockId]?.current;
+        let isAtStart = false;
+        if (el) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && sel.focusNode) {
+            const range = sel.getRangeAt(0);
+            if (range.collapsed) {
+              const textBefore = getSerializedTextFromRange(el, range.startContainer, range.startOffset);
+              if (textBefore.length === 0) {
+                isAtStart = true;
+              }
+            }
+          }
+        } else if (block.content === "") {
+          isAtStart = true;
+        }
+
+        // 1. Notion-style Divider, Site Bookmark, Media & Canvas Deletion:
+        // When Backspace is pressed at the start of a line after a divider, site, media or canvas block, delete it!
+        const standaloneEmbedTypes = ["divider", "site", "media", "canvas"];
+        if (isAtStart && idx > 0 && standaloneEmbedTypes.includes(blocks[idx - 1]?.type)) {
+          e.preventDefault();
+          const targetBlock = blocks[idx - 1];
+          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+          setFutureBlocks([]);
+          setBlocks((prev) => prev.filter((b) => b.id !== targetBlock.id));
+          return;
+        }
 
         // A. If block is empty and we have more than 1 block, delete THIS block and move focus to previous block
         if (block.content === "" && blocks.length > 1) {
           e.preventDefault();
-          const idx = blocks.findIndex((b) => b.id === blockId);
           const prevBlock = idx > 0 ? blocks[idx - 1] : null;
           
           setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
@@ -2735,33 +3610,116 @@ export default function BlockNoteEditor({
           return;
         }
 
-        // C. If list block is non-empty, but caret is at offset 0, convert to text block (escape list style)
-        if (block.type !== "text" && block.content !== "") {
-          const sel = window.getSelection();
-          if (sel.rangeCount > 0 && sel.focusNode) {
-            const range = sel.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            const el = blockRefs.current[blockId]?.current;
-            if (el) {
-              preCaretRange.selectNodeContents(el);
-              preCaretRange.setEnd(range.startContainer, range.startOffset);
-              if (preCaretRange.toString().length === 0) {
-                e.preventDefault();
-                handleChangeType(blockId, "text");
-                requestAnimationFrame(() => {
-                  setTimeout(() => {
-                    const targetEl = blockRefs.current[blockId]?.current;
-                    if (targetEl) {
-                      targetEl.focus();
-                      const newSel = window.getSelection();
-                      if (newSel) {
+        // C. If list block or heading is non-empty, but caret is at offset 0, convert to text block (escape list style)
+        if (el && isAtStart) {
+          if (block.type !== "text") {
+            e.preventDefault();
+            handleChangeType(blockId, "text");
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                const targetEl = blockRefs.current[blockId]?.current;
+                if (targetEl) {
+                  targetEl.focus();
+                  const newSel = window.getSelection();
+                  if (newSel) {
+                    newSel.selectAllChildren(targetEl);
+                    newSel.collapseToStart();
+                  }
+                }
+              }, 15);
+            });
+            return;
+          }
+
+          // D. Merge non-empty text block into previous block if caret is at start
+          if (idx > 0) {
+            const prevBlock = blocks[idx - 1];
+            const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
+            if (mergeableTypes.includes(prevBlock.type)) {
+              e.preventDefault();
+              const prevContent = prevBlock.content || "";
+              const currentContent = block.content || "";
+              const mergedContent = prevContent + currentContent;
+
+              setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+              setFutureBlocks([]);
+
+              setBlocks((prev) => {
+                const next = prev.filter((b) => b.id !== blockId);
+                const targetIdx = next.findIndex((b) => b.id === prevBlock.id);
+                if (targetIdx !== -1) {
+                  next[targetIdx] = { ...next[targetIdx], content: mergedContent };
+                }
+                return next;
+              });
+
+              setSelectedId(prevBlock.id);
+              requestAnimationFrame(() => {
+                setTimeout(() => {
+                  const targetEl = blockRefs.current[prevBlock.id]?.current;
+                  if (targetEl) {
+                    targetEl.focus();
+                    const newSel = window.getSelection();
+                    if (newSel) {
+                      try {
+                        let charCount = 0;
+                        let found = false;
+                        const walker = document.createTreeWalker(targetEl, NodeFilter.SHOW_TEXT, null, false);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                          const nextCount = charCount + node.length;
+                          if (prevContent.length <= nextCount) {
+                            const r = document.createRange();
+                            r.setStart(node, Math.min(node.length, Math.max(0, prevContent.length - charCount)));
+                            r.collapse(true);
+                            newSel.removeAllRanges();
+                            newSel.addRange(r);
+                            found = true;
+                            break;
+                          }
+                          charCount = nextCount;
+                        }
+                        if (!found) {
+                          newSel.selectAllChildren(targetEl);
+                          newSel.collapseToEnd();
+                        }
+                      } catch (_) {
                         newSel.selectAllChildren(targetEl);
-                        newSel.collapseToStart();
+                        newSel.collapseToEnd();
                       }
                     }
-                  }, 15);
-                });
-                return;
+                  }
+                }, 20);
+              });
+              return;
+            }
+          }
+        }
+
+      } else if (e.key === "Delete") {
+        // Notion-style Divider, Site Bookmark, Media & Canvas Deletion:
+        // When Delete is pressed at the end of a line before a divider, site, media or canvas block, delete it!
+        const standaloneEmbedTypes = ["divider", "site", "media", "canvas"];
+        const el = blockRefs.current[blockId]?.current;
+        if (el) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && sel.focusNode) {
+            const range = sel.getRangeAt(0);
+            if (range.collapsed) {
+              const textBefore = getSerializedTextFromRange(el, range.startContainer, range.startOffset);
+              const fullText = getBlockTextFromDOM(el);
+              const textAfter = fullText.slice(textBefore.length);
+              
+              if (textAfter.length === 0) {
+                const idx = blocks.findIndex((b) => b.id === blockId);
+                if (idx !== -1 && idx < blocks.length - 1 && standaloneEmbedTypes.includes(blocks[idx + 1]?.type)) {
+                  e.preventDefault();
+                  const targetBlock = blocks[idx + 1];
+                  setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+                  setFutureBlocks([]);
+                  setBlocks((prev) => prev.filter((b) => b.id !== targetBlock.id));
+                  return;
+                }
               }
             }
           }
@@ -2772,9 +3730,13 @@ export default function BlockNoteEditor({
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
           if (idx > 0) {
-            const prevId = blocks[idx - 1].id;
-            setSelectedId(prevId);
-            blockRefs.current[prevId]?.current?.focus();
+            let targetIdx = idx - 1;
+            while (targetIdx >= 0 && blocks[targetIdx].type === "divider") targetIdx--;
+            if (targetIdx >= 0) {
+              const prevId = blocks[targetIdx].id;
+              setSelectedId(prevId);
+              blockRefs.current[prevId]?.current?.focus();
+            }
           }
           return;
         }
@@ -2791,15 +3753,19 @@ export default function BlockNoteEditor({
               const idx = blocks.findIndex((b) => b.id === blockId);
               if (idx > 0) {
                 e.preventDefault();
-                const prevId = blocks[idx - 1].id;
-                setSelectedId(prevId);
-                const prevEl = blockRefs.current[prevId]?.current;
-                if (prevEl) {
-                  prevEl.focus();
-                  const newSel = window.getSelection();
-                  if (newSel) {
-                    newSel.selectAllChildren(prevEl);
-                    newSel.collapseToEnd();
+                let targetIdx = idx - 1;
+                while (targetIdx >= 0 && blocks[targetIdx].type === "divider") targetIdx--;
+                if (targetIdx >= 0) {
+                  const prevId = blocks[targetIdx].id;
+                  setSelectedId(prevId);
+                  const prevEl = blockRefs.current[prevId]?.current;
+                  if (prevEl) {
+                    prevEl.focus();
+                    const newSel = window.getSelection();
+                    if (newSel) {
+                      newSel.selectAllChildren(prevEl);
+                      newSel.collapseToEnd();
+                    }
                   }
                 }
               }
@@ -2811,9 +3777,13 @@ export default function BlockNoteEditor({
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
           if (idx < blocks.length - 1) {
-            const nextId = blocks[idx + 1].id;
-            setSelectedId(nextId);
-            blockRefs.current[nextId]?.current?.focus();
+            let targetIdx = idx + 1;
+            while (targetIdx < blocks.length && blocks[targetIdx].type === "divider") targetIdx++;
+            if (targetIdx < blocks.length) {
+              const nextId = blocks[targetIdx].id;
+              setSelectedId(nextId);
+              blockRefs.current[nextId]?.current?.focus();
+            }
           }
           return;
         }
@@ -2830,15 +3800,19 @@ export default function BlockNoteEditor({
               const idx = blocks.findIndex((b) => b.id === blockId);
               if (idx < blocks.length - 1) {
                 e.preventDefault();
-                const nextId = blocks[idx + 1].id;
-                setSelectedId(nextId);
-                const nextEl = blockRefs.current[nextId]?.current;
-                if (nextEl) {
-                  nextEl.focus();
-                  const newSel = window.getSelection();
-                  if (newSel) {
-                    newSel.selectAllChildren(nextEl);
-                    newSel.collapseToStart();
+                let targetIdx = idx + 1;
+                while (targetIdx < blocks.length && blocks[targetIdx].type === "divider") targetIdx++;
+                if (targetIdx < blocks.length) {
+                  const nextId = blocks[targetIdx].id;
+                  setSelectedId(nextId);
+                  const nextEl = blockRefs.current[nextId]?.current;
+                  if (nextEl) {
+                    nextEl.focus();
+                    const newSel = window.getSelection();
+                    if (newSel) {
+                      newSel.selectAllChildren(nextEl);
+                      newSel.collapseToStart();
+                    }
                   }
                 }
               }
@@ -2884,7 +3858,7 @@ export default function BlockNoteEditor({
       )}
 
       <div className={`absolute right-6 ${banner ? "top-4" : "top-3"} z-30 flex items-center gap-2`}>
-        <div className="relative">
+        <div className="relative" ref={bannerPickerRef}>
           <button
             type="button"
             onClick={() => setShowBannerPicker(!showBannerPicker)}
@@ -2911,7 +3885,7 @@ export default function BlockNoteEditor({
                     onClick={() => {
                       setBanner(preset.id);
                       setShowBannerPicker(false);
-                      onSaveNote?.({ title, blocks, banner: preset.id });
+                      onSaveNote?.({ title, blocks, banner: preset.id, isFavorite, emoji });
                     }}
                     className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800"
                   >
@@ -2946,7 +3920,7 @@ export default function BlockNoteEditor({
                     onClick={() => {
                       setBanner(null);
                       setShowBannerPicker(false);
-                      onSaveNote?.({ title, blocks, banner: null });
+                      onSaveNote?.({ title, blocks, banner: null, isFavorite, emoji });
                     }}
                     className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-400 hover:bg-rose-500/10"
                   >
@@ -2983,7 +3957,7 @@ export default function BlockNoteEditor({
         {/* Controls Bar Below Banner: Add Icon, Note Menu & Quick Actions */}
         <div className="mb-4 pl-8 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="relative">
+            <div className="relative" ref={emojiPickerRef}>
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -3080,6 +4054,8 @@ export default function BlockNoteEditor({
               <EditorBlock
                 key={block.id}
                 block={block}
+                index={index}
+                totalBlocks={blocks.length}
                 blockNumber={currentNumber}
                 isLast={index === blocks.length - 1}
                 isSelected={selectedId === block.id}
@@ -3088,6 +4064,9 @@ export default function BlockNoteEditor({
                 onChangeType={handleChangeType}
                 onUpdateBlock={handleUpdateBlock}
                 onDelete={handleDeleteBlock}
+                onDuplicate={() => handleDuplicateBlock(block.id)}
+                onMoveUp={() => handleMoveBlock(index, index - 1)}
+                onMoveDown={() => handleMoveBlock(index, index + 1)}
                 onKeyDown={handleKeyDown}
                 onAddAfter={handleAddAfter}
                 onExplainBlock={onExplainBlock}

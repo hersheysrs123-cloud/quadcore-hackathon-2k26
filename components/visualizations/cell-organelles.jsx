@@ -429,6 +429,12 @@ function ClippedLine(props) {
 
 /** Click / hover plumbing, shared by every organelle. */
 export function Pickable({ id, onSelect, children }) {
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = "auto";
+    };
+  }, []);
+
   return (
     <group
       onClick={(e) => {

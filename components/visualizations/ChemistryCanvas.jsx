@@ -864,8 +864,8 @@ function Vapours({ heat, flowing }) {
   );
 }
 
-export function DistillationScene({ params }) {
-  const { heat, showLabels, flow } = params;
+export function DistillationScene({ params = {} }) {
+  const { heat = 0.7, showLabels = true, flow = true } = params || {};
   const furnace = Math.round(lerp(250, 450, heat));
   const rising = FRACTIONS.filter((_, i) => heat - i * 0.14 > 0.05).length;
 
@@ -1356,8 +1356,8 @@ function SpinningLattice({ lattice, showBonds, spin }) {
   );
 }
 
-export function CrystalLatticeScene({ params }) {
-  const { structure, slide, showBonds, spin } = params;
+export function CrystalLatticeScene({ params = {} }) {
+  const { structure = "nacl", slide = 0, showBonds = true, spin = true } = params || {};
 
   const lattice = useMemo(() => {
     if (structure === "diamond") return buildDiamond();
@@ -1633,8 +1633,8 @@ function ElectrodeBubbles({ x, running, speed, color }) {
   );
 }
 
-export function ElectrolysisScene({ params }) {
-  const { current, showLabels, run, reset } = params;
+export function ElectrolysisScene({ params = {} }) {
+  const { current = 1.0, showLabels = true, run = true, reset = 0 } = params || {};
   const [deposit, setDeposit] = useState(0);
 
   useEffect(() => {

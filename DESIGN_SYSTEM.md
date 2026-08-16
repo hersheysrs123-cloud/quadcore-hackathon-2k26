@@ -32,11 +32,9 @@ SocraticOS uses a dynamic CSS variable system defined in `app/globals.css` with 
 | `--color-duck-400` | `#f0c04a` (Dark) / `#b45309` (Light) | Primary accent buttons, active space dot |
 | `--color-duck-500` | `#d9a227` (Dark) / `#92400e` (Light) | Focused borders, button hover ring |
 
-
 ### 3. Mastery Status Scale (`--color-solid-500` / `--color-shaky-500` / `--color-gap-500`)
 
-Reserved for the mastery heatmap and quiz results. **Never** reuse these as
-decoration or as a generic series colour.
+Reserved for the mastery heatmap, quiz results, and topic confidence indicators. **Never** reuse these as decoration or as a generic series colour.
 
 | Token | Dark | Light | Meaning | Glyph |
 | :--- | :--- | :--- | :--- | :--- |
@@ -44,16 +42,9 @@ decoration or as a generic series colour.
 | `--color-shaky-500` | `#ec835a` | `#ea580c` | Shaky — correct but recited, or needed leading | `◐` |
 | `--color-gap-500` | `#d03b3b` | `#b02a2a` | Gap — wrong, absent, or collapsed on a follow-up | `○` |
 
-**Colour is never the only channel.** Every place that paints a status must also
-render the glyph and the word — a good/bad scale is red-vs-green by definition,
-which collapses under deuteranopia (ΔE 0.7). The glyphs form an ordinal ramp
-(filled → half → hollow) that survives greyscale and a 12px cell.
+**Colour is never the only channel.** Every place that paints a status must also render the glyph and the word — a good/bad scale is red-vs-green by definition, which collapses under deuteranopia ($\Delta E \approx 0.7$). The glyphs form an ordinal ramp (filled → half → hollow) that survives greyscale and a 12px cell.
 
-The scale's yellow step is deliberately **unused**: it measures 1.08 contrast
-against `--color-duck-400`, so a "shaky" chip would read as a primary button.
-The light steps are re-stepped for the light surface rather than flipped, and
-light-mode shaky avoids the darker orange because it sits ΔE 0.1 from the
-light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
+The scale's yellow step is deliberately **unused**: it measures 1.08 contrast against `--color-duck-400`, so a "shaky" chip would read as a primary button. The light steps are re-stepped for the light surface rather than flipped, and light-mode shaky avoids the darker orange because it sits $\Delta E \approx 0.1$ from the light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
 
 ---
 
@@ -65,7 +56,9 @@ light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
   - **H1**: `text-3xl font-bold tracking-tight text-ink-100`
   - **H2**: `text-xl font-semibold tracking-tight text-ink-100`
   - **H3**: `text-lg font-semibold text-ink-100`
+  - **H4**: `text-base font-semibold text-ink-100`
 - **Code Snippet**: `font-mono text-sm leading-relaxed text-emerald-300 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700`
+- **LaTeX Math Formula**: `font-serif text-base text-duck-200 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700`
 
 ---
 
@@ -76,9 +69,9 @@ light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
 - **Brand Header**:
   - Duck Emoji: `text-xl`
   - Brand Title: `text-sm font-bold text-ink-100`
-  - **Spaces Selector Dropdown**: Compact button next to logo (`text-xs font-medium text-ink-200 border border-ink-700/70 bg-ink-850/90`) displaying current space icon and name with a dropdown popover to choose/switch spaces or create a new space.
+  - **Spaces Selector Dropdown**: Compact button next to logo (`text-xs font-medium text-ink-200 border border-ink-700/70 bg-ink-850/90`) displaying current space icon and name with a dropdown popover to choose/switch spaces, create custom spaces, or manage space password locks.
   - Settings Button: `text-lg text-ink-400 hover:text-ink-100` (positioned top-right of brand header).
-- **Notes List**: Expanded full-height list per active space with delete icon `🗑️` on hover.
+- **Notes List**: Full-height list per active space with star favorite indicator `⭐`, custom note emoji, and hover delete icon `🗑️`.
 - **Bottom Trash Tab**: Fixed tab `🗑️ Trash (24h)` showing active deleted notes count with 24-hour auto-purge timer.
 
 ### 2. Top HUD Header (`Workspace.jsx`)
@@ -89,21 +82,24 @@ light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
   - Active Note Title (`text-base font-bold text-ink-100`).
 - **Center Navigation Tabs**: 4 pill tabs (`📝 Notes`, `📅 Calendar`, `🧊 3D`, `📊 Mastery`). The Mastery tab carries a `gap-500` count badge when the heatmap holds unresolved gaps.
 - **Far Right Action Bar**:
-  - `💾 Save Note` button (triggers Supabase note persistence & toast notification).
+  - Multi-Timer HUD Trigger (`<GlobalTimerHUD />`).
+  - `💾 Save Note` / Note Action Menu (`<NoteMenu />`).
   - `✨ Explain` button (opens the Explain drawer for the active note).
   - `🦆 Quiz me` button (opens the graded quiz drawer; the Socratic Duck is its second tab).
 
 ### 3. BlockNoteEditor (`BlockNoteEditor.jsx`)
 - **Page Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*.
 - **Top Right Cover Button**: Positioned at top-right (`right-6 top-3/top-4`). Renders as a translucent glassmorphic button over active cover banners (`bg-ink-950/40 opacity-60 hover:opacity-100`).
-- **Slash Menu (`/`)**: Floating block-type picker menu (`text`, `h1`, `h2`, `h3`, `bullet`, `code`, `action`).
-- **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>).
-- **Block Context Menu**: `✨ Explain` / `🦆 Quiz me` for that block, then formatting, "turn into", and delete. There is deliberately no separate Duck entry — it opened the same Socratic session that is already the second tab of the Quiz drawer.
-- **6-Dots Handle is draggable**: holding `⠿` sets `draggable` on the row so blocks reorder by drag; a plain click still opens the context menu. The drop target shows a `duck-400` insertion rule.
+- **18 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Canvas Whiteboard.
+- **Slash Menu (`/`)**: Floating block-type picker menu.
+- **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>, <s>S</s>, $x$).
+- **Draggable 6-Dots Handle (`⠿`)**: Drag to reorder blocks with `duck-400` drop target; click to open the context menu.
 
 ### 4. Settings & Factory Reset (`Sidebar.jsx`)
-- **General Tab**: Theme switcher (Dark Slate vs. Warm Stone Light) and Supabase database sync button.
-- **Factory Reset Tab**: Module factory reset options (Notes, Calendar, 3D, All) requiring double confirmation and a randomized math captcha human verification check.
+- **Shortcuts Tab**: Reference for all global keyboard shortcuts (`Ctrl+K`, `Ctrl+I`, `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `/`).
+- **3D & Graphics Tab**: Performance presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
+- **API Keys Tab**: Personal Google Gemini API key configuration stored 100% privately in Dexie IndexedDB.
+- **Backup & Reset Tab**: Export/import `.socratic` JSON packages and table-targeted factory reset with math captcha verification.
 
 ---
 
@@ -111,5 +107,5 @@ light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
 
 1. **Use Theme Variable Utility Classes**: Always use Tailwind utility classes mapping to `--color-ink-*` (e.g., `bg-ink-950`, `bg-ink-900`, `border-ink-800`, `text-ink-100`, `text-ink-400`).
 2. **Never Hardcode Fixed Colors**: Avoid hardcoding raw hex codes like `#000000` or `#ffffff` in components so that Light Mode and Dark Mode render correctly.
-3. **SSR Hydration Guard**: Use a `mounted` state (`const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);`) before consuming client-only APIs (`localStorage`, `window`).
-4. **Database Persistence**: Ensure new data models sync with Supabase API routes (`/api/notes/save`, `/api/calendar/events`, `/api/visualizations`) and fallback gracefully to `localStorage`.
+3. **SSR Hydration Guard**: Use a `mounted` state (`const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);`) before consuming client-only APIs (`localStorage`, `window`, Dexie).
+4. **Local-First Database Persistence**: Ensure new data models sync with Dexie.js (`lib/db.js` & `lib/storageService.js`) and gracefully fall back during offline usage.

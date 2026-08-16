@@ -180,7 +180,7 @@ export default function AlarmOverlay() {
   const isTimer = alarm.alarmType === "timer";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-rose-950/85 backdrop-blur-xl border-8 border-rose-500 animate-pulse text-white shadow-2xl p-6 transition-all">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-rose-950/85 backdrop-blur-xl border-8 border-rose-500 animate-pulse text-white shadow-2xl p-6 transition-all">
       <div className="flex w-full max-w-lg flex-col items-center text-center space-y-5 bg-ink-950/90 p-7 rounded-3xl border border-rose-500/40 shadow-2xl">
         <div className="flex items-center justify-center gap-4 text-5xl">
           <span>🚨</span>

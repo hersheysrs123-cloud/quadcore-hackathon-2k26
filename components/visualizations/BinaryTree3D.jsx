@@ -205,6 +205,12 @@ function TreeNode({ node, state, labelFactor, onSelect }) {
 }
 
 function TreeScene({ layout, nodeStates, visited, onSelect }) {
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = "auto";
+    };
+  }, []);
+
   return (
     <>
       <ambientLight intensity={0.6} />
@@ -372,7 +378,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
         dpr={[1, 2]}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onPointerMissed={() => setSelected(null)}
-        frameloop="demand"
+        frameloop="always"
       >
         <WebGLCleanup />
         <color attach="background" args={[CANVAS_BG]} />
