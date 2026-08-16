@@ -9,7 +9,7 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "check:blocks": "node scripts/check-block-mapping.mjs",
-    "test": "node scripts/check-block-mapping.mjs && node scripts/test-inlinemath-roundtrip.mjs"
+    "test": "node --test tests/unit/*.test.mjs tests/integration/*.test.mjs tests/e2e/*.spec.mjs scripts/test-inlinemath-roundtrip.mjs scripts/check-block-mapping.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

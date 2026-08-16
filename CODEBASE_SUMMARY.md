@@ -91,6 +91,26 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   └── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
 ├── hooks/
 │   └── useVoice.js                       # Web Speech API voice recognition hook
+├── tests/
+│   ├── unit/
+│   │   ├── physics-solvers.test.mjs      # Refraction (Snell's law), thin lenses, gas laws, chemistry formulas
+│   │   ├── avl-tree-3d.test.mjs          # 3D BST & AVL auto-balancing tree math & traversals
+│   │   ├── export-import.test.mjs        # Markdown, HTML, DOCX, TXT lossless round-trips & blob generation
+│   │   ├── mastery-analytics.test.mjs    # Mastery rollup algorithms, trends, and weakest-first sorting
+│   │   ├── quiz-grading.test.mjs         # Deterministic integer MC grading & fallback heatmap normalizer
+│   │   ├── timer-store.test.mjs          # Multi-timer countdown math, duration clamping, pause/resume
+│   │   ├── syntax-highlighter.test.mjs   # 10-language tokenizer & syntax highlighting rules
+│   │   └── password-security.test.mjs    # Space UTF-8 base64 encoding & non-Latin1 DOMException protection
+│   ├── integration/
+│   │   ├── 3d-topic-schemas.test.mjs     # 14 3D scene topics, slider boundary validations & optical media
+│   │   ├── ai-widget-resilience.test.mjs # Socratic 3D AI widget normalizer & WebGL shielding
+│   │   ├── trash-24h-purge.test.mjs      # 24-hour auto-purge expiration calculations & time formatting
+│   │   └── dexie-backup-restore.test.mjs # Full .socratic workspace export/import round-trips & validation
+│   └── e2e/
+│       ├── keyboard-shortcuts.spec.mjs   # Ctrl+K (Search), Ctrl+I (Instant Note), Ctrl+S (Save), Escape
+│       ├── block-editor-flow.spec.mjs    # Slash menu (/), block reordering, undo/redo history snapshots
+│       ├── theme-toggle.spec.mjs         # Dark Slate <-> Warm Stone Light pre-paint validation
+│       └── export-print.spec.mjs         # PDF print emulation & multi-format export dispatcher
 ├── scripts/
 │   ├── check-block-mapping.mjs           # Unit test for DB <-> Editor block transformations
 │   └── test-inlinemath-roundtrip.mjs     # Unit test for in-sentence LaTeX math round-trips

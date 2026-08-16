@@ -42,7 +42,8 @@ function gradeObjectively(questions, responses) {
     const answer = response?.answer;
 
     if (question.type === "multiple_choice") {
-      const picked = Number(answer);
+      const isProvided = answer !== null && answer !== undefined && answer !== "";
+      const picked = isProvided ? Number(answer) : NaN;
       const answered = Number.isInteger(picked) && picked >= 0;
       return {
         answered,

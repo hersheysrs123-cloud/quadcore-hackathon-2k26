@@ -165,6 +165,11 @@ lib/
   demoNotes.js                  Seeded demonstration study notes
   blocks.js, blockMapping.js    BlockNote document transformation & extraction utilities
 
+tests/
+  unit/                         Physics solvers, AVL tree, export/import, mastery rollup, quiz grading, timers, syntax, passwords
+  integration/                  3D topic schemas, AI widget normalizer, 24h trash purge, Dexie backup/restore
+  e2e/                          Keyboard shortcuts (Ctrl+K/I/S), block editor flow, theme toggle, export & print
+
 scripts/
   check-block-mapping.mjs       Unit test for DB <-> Editor block transformations
   test-inlinemath-roundtrip.mjs Unit test for in-sentence LaTeX math export/import round-trips

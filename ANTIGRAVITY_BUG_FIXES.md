@@ -276,9 +276,23 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 
 ---
 
-## 18. Test Suites, DB Migrations & Build Pipeline
-* **Added `npm test` Script in `package.json`:**
-  * `scripts/check-block-mapping.mjs`: Validates all DB ↔ Editor block types losslessly.
-  * `scripts/test-inlinemath-roundtrip.mjs`: Validates in-sentence inline math across Markdown, Plain Text, HTML, and DOCX.
+* **Multiple-Choice Coercion Fix in Quiz Grading (`app/api/quiz/grade/route.js`):**
+  * **Problem:** In `gradeObjectively()`, `Number(answer)` was evaluated directly on `response?.answer`. When a question was skipped or unanswered (`answer: null` or `undefined`), JavaScript coerced `Number(null)` to `0`, which falsely treated the question as answered with Option 0 (Option A).
+  * **Fix:** Added `const isProvided = answer !== null && answer !== undefined && answer !== ""; const picked = isProvided ? Number(answer) : NaN;` ensuring unattempted questions are accurately recorded as unanswered.
+* **Comprehensive 66-Test Unit & Integration Suite (`tests/`):**
+  * Added 8 unit test suites and 3 integration test suites under `tests/unit/` and `tests/integration/` executed via native `node --test`:
+    1. `tests/unit/physics-solvers.test.mjs`: Snell's law refraction, thin lens optics, kinetic gas laws, organic chemistry homologous series.
+    2. `tests/unit/avl-tree-3d.test.mjs`: BST insertion, duplicate handling, traversals (In, Pre, Post), and 3D positioning.
+    3. `tests/unit/export-import.test.mjs`: Full 18-block lossless round-trips for Markdown, HTML grouping, DOCX binary generation, and plain text.
+    4. `tests/unit/mastery-analytics.test.mjs`: `summariseMastery` rollup engine, weakest-first sorting, and multi-session trend tracking.
+    5. `tests/unit/quiz-grading.test.mjs`: Deterministic integer evaluation and fallback heatmap synthesis.
+    6. `tests/unit/timer-store.test.mjs`: Pomodoro countdown math, duration validation, and pause/resume timestamp accuracy.
+    7. `tests/unit/syntax-highlighter.test.mjs`: Tokenizer verification across all 10 programming languages.
+    8. `tests/unit/password-security.test.mjs`: Base64 UTF-8 encoding protecting against `DOMException` on emoji and non-Latin1 passwords.
+    9. `tests/integration/3d-topic-schemas.test.mjs`: Schema integrity, slider ranges, and formatter safety for all 14 3D topics.
+    10. `tests/integration/ai-widget-resilience.test.mjs`: Three.js canvas shielding against malformed AI payloads.
+    11. `tests/integration/trash-24h-purge.test.mjs`: 24-hour auto-purge timestamp lifecycle verification.
+* **Unified Test Runner in `package.json`:**
+  * Updated `"test"` script to execute all test suites simultaneously: `npm test` runs 66 tests across 27 suites with 100% pass rate in ~550ms.
 * **Production Build Verified:**
   * Next.js 15.5 production build (`npm run build`) compiles with zero errors and optimized static/dynamic routes.
