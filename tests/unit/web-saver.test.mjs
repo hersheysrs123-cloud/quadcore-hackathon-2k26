@@ -149,4 +149,15 @@ describe("Web Saver — Netscape HTML Bookmarks Export & Import (lib/exportImpor
     const plainText = parseNetscapeBookmarksHtml("Just plain text with no bookmark tags", "School");
     assert.deepEqual(plainText, { folders: [], bookmarks: [] });
   });
+
+  it("handles replaceExisting option without throwing in Node environments", async () => {
+    const { importBookmarksFromHtml } = await import("../../lib/exportImport.js");
+    const { html } = generateNetscapeBookmarksHtml(sampleBookmarks, sampleFolders, "School");
+    
+    // In Node test environment, verify importBookmarksFromHtml parses successfully
+    const res = await importBookmarksFromHtml(html, "School", { replaceExisting: true });
+    assert.equal(res.bookmarksCount, 3);
+    assert.ok(res.foldersCount >= 3);
+  });
 });
+

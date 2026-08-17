@@ -25,6 +25,7 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 18. [Test Suites, DB Migrations & Build Pipeline](#18-test-suites-db-migrations--build-pipeline)
 19. [Demo Notes Auto-Seeding & IndexedDB Migration Guard](#19-demo-notes-auto-seeding--indexeddb-migration-guard)
 20. [Sidebar Icon Imports (`Sparkles`)](#20-sidebar-icon-imports-sparkles)
+21. [HTML Bookmarks Duplicate Prevention & Clean Replacement](#21-html-bookmarks-duplicate-prevention--clean-replacement)
 
 ---
 
@@ -316,3 +317,13 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 * **Missing `Sparkles` Component Import in `components/Sidebar.jsx`:**
   * **Problem:** Adding the "Interactive Tutorial & Feature Guide" action card into `SettingsModal` referenced `<Sparkles className="w-4 h-4 text-duck-400" />` without importing `Sparkles` from `lucide-react`, causing a runtime `ReferenceError: Sparkles is not defined` when opening the General & Theme settings tab.
   * **Fix:** Added `Sparkles` to the `lucide-react` import list on line 4 of `components/Sidebar.jsx`.
+
+---
+
+## 21. HTML Bookmarks Duplicate Prevention & Clean Replacement
+* **Accidental Duplicate Folders and Bookmarks on Import:**
+  * **Problem:** Importing Netscape HTML bookmark files repeatedly or restoring backups generated randomized IDs on every parse, causing bookmarks and folder structures to be appended alongside existing items and creating duplicate folders and links.
+  * **Fix:**
+    1. In `lib/exportImport.js`, updated `importBookmarksFromHtml(file, space, { replaceExisting = true })` to clear existing folders and bookmarks in the target space before writing imported items in a single atomic Dexie transaction.
+    2. In `components/WebSaverView.jsx`, added `ImportBookmarksConfirmModal` displaying a prominent amber duplicate prevention notice (`⚠️`) informing the user that importing will replace existing folders/bookmarks in the active space to prevent duplicates, with clear choices for *"Replace & Import"*, *"Merge / Append"*, and *"Cancel"*.
+    3. In `components/ExportImportModal.jsx`, added a dynamic alert banner when HTML bookmark files are selected.

@@ -442,6 +442,15 @@ export default function ExportImportModal({
                   </div>
                 )}
               </div>
+
+              {selectedFile && /\.(html|htm)$/i.test(selectedFile.name) && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2 animate-fade-in">
+                  <span className="text-sm shrink-0">⚠️</span>
+                  <p className="text-[11px] leading-relaxed">
+                    <strong>Note:</strong> If this is a browser bookmarks export, importing will replace existing bookmarks in the <strong>"{importSpace}"</strong> space to prevent duplicate folders and links.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -252,6 +252,8 @@ A comprehensive suite of 14 real-time interactive 3D simulations across 4 scient
 - **Instant Bookmark Capture Modal (`components/AddBookmarkModal.jsx`)**:
   - Automatic URL normalization (`https://`), domain extraction, live favicon preview, and heuristic title parsing.
   - Keyboard accessible: `Escape` closes modal, `Ctrl+Enter` / `Enter` saves bookmark.
+- **Duplicate Prevention & Clean Replacement (`ImportBookmarksConfirmModal`)**:
+  - Importing browser Netscape HTML bookmarks triggers a confirmation dialog warning that existing folders/bookmarks in the target space will be cleanly replaced to prevent duplicate links and folders (with optional merge mode).
 - **URL & Favicon Utilities (`lib/urlUtils.js`)**:
   - `normalizeUrl(url)`: Protocol normalization and dangerous scheme protection (`javascript:`, `data:`).
   - `extractDomain(url)`: Clean hostname extraction.

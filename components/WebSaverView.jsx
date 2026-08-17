@@ -28,6 +28,7 @@ import {
   X,
   FileText,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import {
@@ -38,11 +39,130 @@ import {
   updateBookmark,
   moveBookmark,
   deleteBookmark,
+  clearSpaceBookmarks,
 } from "@/lib/storageService";
 import { exportBookmarksToHtml, importBookmarksFromHtml } from "@/lib/exportImport";
 import { extractDomain, getFaviconUrl } from "@/lib/urlUtils";
 import { SPACES } from "@/lib/constants";
 import AddBookmarkModal from "@/components/AddBookmarkModal";
+
+// ─── Clear All Bookmarks Confirmation Modal ─────────────────────────
+function ClearAllBookmarksConfirmModal({ open, spaceName, bookmarksCount, foldersCount, onClose, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <>
+      <div onClick={onClose} className="fixed inset-0 z-[250] bg-ink-950/75 backdrop-blur-xs transition-opacity" />
+      <div className="fixed left-1/2 top-1/2 z-[260] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-500/40 bg-ink-900 p-6 shadow-2xl animate-fade-up">
+        <div className="flex items-center gap-3 border-b border-ink-800 pb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300">
+            <Trash2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-ink-100">Delete All Bookmarks &amp; Folders</h3>
+            <p className="text-xs text-ink-400">Target space: <span className="font-semibold text-rose-300">"{spaceName}"</span></p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-200 leading-relaxed">
+            <p className="font-semibold flex items-center gap-1.5 text-rose-300">
+              <span>⚠️</span>
+              <span>Irreversible Deletion Notice</span>
+            </p>
+            <p className="mt-1.5 text-[11px] text-rose-200/90">
+              This will permanently delete all <strong>{bookmarksCount} bookmarks</strong> and <strong>{foldersCount} folders</strong> in the <strong>"{spaceName}"</strong> space.
+            </p>
+          </div>
+
+          <p className="text-[11px] text-ink-400 leading-relaxed">
+            Tip: You can export your bookmarks first using the <strong>Export HTML</strong> button before clearing if you'd like a backup copy.
+          </p>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl px-4 py-2 text-xs font-medium text-ink-400 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-xl border border-rose-500/40 bg-rose-500/20 px-4 py-2 text-xs font-bold text-rose-200 hover:bg-rose-500/30 transition-colors shadow-sm"
+          >
+            🗑️ Delete Everything in "{spaceName}"
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Import Bookmarks Confirmation Modal ────────────────────────────
+function ImportBookmarksConfirmModal({ open, file, spaceName, onClose, onConfirm }) {
+  if (!open || !file) return null;
+
+  return (
+    <>
+      <div onClick={onClose} className="fixed inset-0 z-[250] bg-ink-950/75 backdrop-blur-xs transition-opacity" />
+      <div className="fixed left-1/2 top-1/2 z-[260] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-amber-500/40 bg-ink-900 p-6 shadow-2xl animate-fade-up">
+        <div className="flex items-center gap-3 border-b border-ink-800 pb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-ink-100">Import HTML Bookmarks</h3>
+            <p className="text-xs text-ink-400">Target space: <span className="font-semibold text-duck-300">"{spaceName}"</span></p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200 leading-relaxed">
+            <p className="font-semibold flex items-center gap-1.5 text-amber-300">
+              <span>⚠️</span>
+              <span>Duplicate Prevention Notice</span>
+            </p>
+            <p className="mt-1.5 text-[11px] text-amber-200/90">
+              Importing will <strong>replace all existing folders and bookmarks in the "{spaceName}" space</strong> with the contents of your HTML file. This ensures your folders and links are not duplicated.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-ink-800 bg-ink-850 p-3 flex items-center justify-between text-xs">
+            <span className="text-ink-400">Selected File:</span>
+            <span className="font-mono text-ink-200 font-medium truncate max-w-[200px]">{file.name}</span>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full sm:w-auto rounded-xl px-4 py-2 text-xs font-medium text-ink-400 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm({ replaceExisting: false })}
+            className="w-full sm:w-auto rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2 text-xs font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+          >
+            Merge / Append
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm({ replaceExisting: true })}
+            className="w-full sm:w-auto rounded-xl border border-amber-500/40 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 hover:bg-amber-500/30 transition-colors shadow-sm"
+          >
+            ⚠️ Replace &amp; Import
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 // ─── Inline New/Edit Folder Modal ──────────────────────────────────
 function FolderModal({ open, onClose, onSave, initialName = "", parentId = null, title = "New Folder" }) {
@@ -141,6 +261,9 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
   const [folderModalState, setFolderModalState] = useState({ open: false, mode: "create", parentId: null, folder: null });
   const [copiedId, setCopiedId] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [clearAllModalOpen, setClearAllModalOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState(null);
   const fileInputRef = useRef(null);
 
   // Space-filtered folders and bookmarks
@@ -314,20 +437,40 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
     }
   };
 
-  // HTML Import
-  const handleImportFile = async (e) => {
+  // HTML Import File Selection -> Open Confirmation Modal
+  const handleImportFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPendingImportFile(file);
+    setImportConfirmOpen(true);
+  };
 
+  // Execute Import after user confirmation
+  const handleExecuteImport = async ({ replaceExisting = true }) => {
+    if (!pendingImportFile) return;
+    setImportConfirmOpen(false);
     setImporting(true);
     try {
-      const res = await importBookmarksFromHtml(file, activeSpace);
+      const res = await importBookmarksFromHtml(pendingImportFile, activeSpace, { replaceExisting });
       alert(`✓ Successfully imported ${res.bookmarksCount} bookmarks and ${res.foldersCount} folders into "${activeSpace}" space!`);
     } catch (err) {
       alert("Import error: " + err.message);
     } finally {
       setImporting(false);
+      setPendingImportFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Clear all bookmarks and folders in active space
+  const handleClearAllBookmarks = async () => {
+    setClearAllModalOpen(false);
+    try {
+      await clearSpaceBookmarks(activeSpace);
+      setSelectedFolderId("all");
+      setSelectedTag(null);
+    } catch (err) {
+      alert("Failed to clear bookmarks: " + err.message);
     }
   };
 
@@ -464,8 +607,8 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
           </div>
         </div>
 
-        {/* HTML Import/Export Footer in Left Sidebar */}
-        <div className="border-t border-ink-800 p-2.5 space-y-1.5 bg-ink-900/90">
+        {/* HTML Import/Export & Delete All Footer in Left Sidebar */}
+        <div className="border-t border-ink-800 p-2.5 space-y-2 bg-ink-900/90">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -493,6 +636,17 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
               />
             </label>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setClearAllModalOpen(true)}
+            disabled={spaceBookmarks.length === 0 && spaceFolders.length === 0}
+            title={`Delete all bookmarks and folders in "${activeSpace}" space`}
+            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-300 transition-all hover:bg-rose-500/20 hover:border-rose-500/50 disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+            <span>Delete All in "{activeSpace}"</span>
+          </button>
         </div>
       </aside>
 
@@ -750,6 +904,29 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
             await createFolder({ name, spaceId: activeSpace, parentId });
           }
         }}
+      />
+
+      {/* Import Bookmarks Confirmation Modal with Warning */}
+      <ImportBookmarksConfirmModal
+        open={importConfirmOpen}
+        file={pendingImportFile}
+        spaceName={activeSpace}
+        onClose={() => {
+          setImportConfirmOpen(false);
+          setPendingImportFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
+        onConfirm={handleExecuteImport}
+      />
+
+      {/* Clear / Delete All Bookmarks & Folders Confirmation Modal */}
+      <ClearAllBookmarksConfirmModal
+        open={clearAllModalOpen}
+        spaceName={activeSpace}
+        bookmarksCount={spaceBookmarks.length}
+        foldersCount={spaceFolders.length}
+        onClose={() => setClearAllModalOpen(false)}
+        onConfirm={handleClearAllBookmarks}
       />
     </div>
   );
