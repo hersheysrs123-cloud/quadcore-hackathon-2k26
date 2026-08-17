@@ -79,15 +79,27 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
 - **Left Breadcrumb Context**:
   - Active Space (`text-sm font-semibold text-ink-300`)
   - Separator (`/`)
-  - Active Note Title (`text-base font-bold text-ink-100`).
-- **Center Navigation Tabs**: 4 pill tabs (`📝 Notes`, `📅 Calendar`, `🧊 3D`, `📊 Mastery`). The Mastery tab carries a `gap-500` count badge when the heatmap holds unresolved gaps.
+  - Active Note / View Title (`text-base font-bold text-ink-100`).
+- **Center Navigation Tabs**: 5 pill tabs (`📝 Notes`, `📅 Calendar`, `🔖 Web Saver`, `🌌 3D Orbit`, `📊 Mastery`). The Mastery tab carries a `gap-500` count badge when the heatmap holds unresolved gaps.
 - **Far Right Action Bar**:
   - Multi-Timer HUD Trigger (`<GlobalTimerHUD />`).
   - `💾 Save Note` / Note Action Menu (`<NoteMenu />`).
   - `✨ Explain` button (opens the Explain drawer for the active note).
   - `🦆 Quiz me` button (opens the graded quiz drawer; the Socratic Duck is its second tab).
 
-### 3. BlockNoteEditor (`BlockNoteEditor.jsx`)
+### 3. Web Saver & Folder Manager (`WebSaverView.jsx` & `AddBookmarkModal.jsx`)
+- **Dual-Pane Layout**:
+  - **Left Folder Tree**: Fixed `w-64 shrink-0` sidebar (`bg-ink-900 border-r border-ink-800`), nested folder rows with hover context menus (`+` subfolder, `✏️` rename, `🗑️` delete), and `ring-2 ring-duck-400` drag-and-drop drop targets.
+  - **Main Bookmark Studio**: Full flex viewport (`bg-ink-950`) with live debounced search, active tag filter chips, sorting menu, and view mode toggle (Grid Cards ⊞ vs Compact Rows ☰).
+- **Favicon Badging**: `h-8 w-8` rounded containers (`bg-ink-800 border border-ink-700`) with Google Favicon resolution and fallback globe glyphs.
+- **Bookmark Cards & Rows**:
+  - Glassmorphic card surfaces (`bg-ink-900/90 border border-ink-800 hover:border-duck-500/40 hover:bg-ink-850`).
+  - External link launch with animated `ExternalLink` icon (`target="_blank" rel="noopener noreferrer"`).
+  - Domain pill badge (`rounded-md bg-ink-800/80 px-2 py-0.5 text-[10px] font-mono text-ink-300`).
+  - Tag chips (`bg-duck-500/10 border border-duck-500/20 text-duck-300`).
+  - Quick action buttons with copied confirmation indicator (`Copy` $\to$ `Check`).
+
+### 4. BlockNoteEditor (`BlockNoteEditor.jsx`)
 - **Page Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*.
 - **Top Right Cover Button**: Positioned at top-right (`right-6 top-3/top-4`). Renders as a translucent glassmorphic button over active cover banners (`bg-ink-950/40 opacity-60 hover:opacity-100`).
 - **18 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Canvas Whiteboard.
@@ -95,7 +107,7 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
 - **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>, <s>S</s>, $x$).
 - **Draggable 6-Dots Handle (`⠿`)**: Drag to reorder blocks with `duck-400` drop target; click to open the context menu.
 
-### 4. Settings & Factory Reset (`Sidebar.jsx`)
+### 5. Settings & Factory Reset (`Sidebar.jsx`)
 - **Shortcuts Tab**: Reference for all global keyboard shortcuts (`Ctrl+K`, `Ctrl+I`, `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `/`).
 - **3D & Graphics Tab**: Performance presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
 - **API Keys Tab**: Personal Google Gemini API key configuration stored 100% privately in Dexie IndexedDB.

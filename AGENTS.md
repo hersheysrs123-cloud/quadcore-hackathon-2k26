@@ -15,9 +15,16 @@ Whenever you make changes to the codebase (features, components, architecture, d
 - If you add, modify, or refactor colors, typography, layout tokens, theme classes, or UI component conventions:
   - **UPDATE [`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/DESIGN_SYSTEM.md)** to keep design tokens, color scales, and component specs authoritative.
 
-### 3. Bug Fixes (`ANTIGRAVITY_BUG_FIXES.md` & `ANTIGRAVITY_BUG_FIXES`)
+### 3. Bug Fixes (`ANTIGRAVITY_BUG_FIXES.md`)
 - If you fix a bug, resolve an edge case, or solve a regression:
-  - **UPDATE [`ANTIGRAVITY_BUG_FIXES.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/ANTIGRAVITY_BUG_FIXES.md)** (and sync [`ANTIGRAVITY_BUG_FIXES`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/ANTIGRAVITY_BUG_FIXES)) documenting the root cause, problem statement, and resolution.
+  - **UPDATE [`ANTIGRAVITY_BUG_FIXES.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/ANTIGRAVITY_BUG_FIXES.md)** documenting the root cause, problem statement, and resolution.
 
-### 4. Excluded Files
+### 4. Build & Dev Server Protocol (`npm run build`)
+- When you want to run `npm run build`:
+  1. First check if a dev server on port 3000 is running.
+  2. If active, terminate/kill the dev server process to prevent Next.js lock/cache corruption.
+  3. Execute `npm run build`.
+  4. After the build finishes, restart the dev server.
+
+### 5. Excluded Files
 - **DISREGARD `BUGFIX_REPORT.md`**: Do not update or modify this file.

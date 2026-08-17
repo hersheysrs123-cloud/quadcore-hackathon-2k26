@@ -8,10 +8,13 @@ import {
   exportHtml,
   exportTxt,
   exportMarkdown,
+  exportBookmarksToHtml,
   importNoteFromFile,
+  importBookmarksFromHtml,
 } from "@/lib/exportImport";
+import { getAllBookmarks, getAllFolders } from "@/lib/storageService";
 import { exportWorkspaceToJSON } from "@/lib/backup";
-import { FileText, Download, Upload, X, Check, FileType, Sparkles, Package } from "lucide-react";
+import { FileText, Download, Upload, X, Check, FileType, Sparkles, Package, Bookmark } from "lucide-react";
 
 export default function ExportImportModal({
   open,
@@ -22,7 +25,7 @@ export default function ExportImportModal({
   onImportSuccess,
 }) {
   const [tab, setTab] = useState("export"); // "export" | "import"
-  const [exportFormat, setExportFormat] = useState("socratic"); // "socratic" | "pdf" | "docx" | "html" | "txt" | "md"
+  const [exportFormat, setExportFormat] = useState("socratic"); // "socratic" | "bookmarks" | "pdf" | "docx" | "html" | "txt" | "md"
   const [exportSpace, setExportSpace] = useState(activeSpace || "All");
   const [importSpace, setImportSpace] = useState(activeSpace || "School");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -59,6 +62,14 @@ export default function ExportImportModal({
       icon: "📦",
       description: "Space or full workspace backup file containing notes & metadata",
       badge: "Space Backup",
+    },
+    {
+      id: "bookmarks",
+      name: "Browser Bookmarks HTML (.html)",
+      ext: ".html",
+      icon: "🔖",
+      description: "Standard Netscape bookmarks file compatible with Chrome, Firefox, Safari, Edge",
+      badge: "Web Saver",
     },
     {
       id: "pdf",
@@ -112,6 +123,11 @@ export default function ExportImportModal({
       if (exportFormat === "socratic") {
         const res = await exportWorkspaceToJSON(exportSpace);
         setToastMessage(`✓ Exported ${res.count} notes from "${exportSpace}" to ${res.filename}`);
+      } else if (exportFormat === "bookmarks") {
+        const allBm = await getAllBookmarks();
+        const allFold = await getAllFolders();
+        const res = await exportBookmarksToHtml(allBm, allFold, exportSpace);
+        setToastMessage(`✓ Exported ${res.count} bookmarks to ${res.filename}`);
       } else if (exportFormat === "pdf") {
         if (!activeNote) throw new Error("No active note to export.");
         exportToPdf(title);

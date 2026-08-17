@@ -77,8 +77,8 @@ function Nav() {
             How it works
           </a>
           <Link
-            href="/workspace"
-            className="ml-2 rounded-lg bg-duck-400 px-3.5 py-1.5 text-xs font-semibold text-ink-950 transition-colors hover:bg-duck-300"
+            href="/workspace?tour=true"
+            className="ml-2 rounded-lg bg-duck-400 px-3.5 py-1.5 text-xs font-semibold text-ink-950 transition-colors hover:bg-duck-300 shadow-sm"
           >
             Open workspace
           </Link>
@@ -113,7 +113,7 @@ function Hero() {
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Link
-            href="/workspace"
+            href="/workspace?tour=true"
             className="rounded-xl bg-duck-400 px-5 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-duck-500/20 transition-all hover:bg-duck-300 hover:shadow-duck-500/30"
           >
             Start studying — it&rsquo;s loaded with demo notes
@@ -709,7 +709,7 @@ function FinalCta() {
           it apart.
         </p>
         <Link
-          href="/workspace"
+          href="/workspace?tour=true"
           className="mt-7 inline-block rounded-xl bg-duck-400 px-6 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-duck-500/20 transition-all hover:bg-duck-300"
         >
           Open the workspace →

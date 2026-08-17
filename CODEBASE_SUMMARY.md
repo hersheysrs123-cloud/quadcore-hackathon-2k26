@@ -7,16 +7,16 @@
 
 ## 📌 1. Executive Summary & Tech Stack
 
-**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes, Socratic Rubber Duck dialogue, dynamic 3D concept widgets, multi-timer HUDs, and an aggregate mastery heatmap tracking sub-topic confidence over time.
+**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes, Socratic Rubber Duck dialogue, dynamic 3D concept widgets, multi-timer HUDs, website bookmarking with folder hierarchies, and an aggregate mastery heatmap tracking sub-topic confidence over time.
 
 ### Tech Stack:
 - **Framework**: Next.js 15.0.0 (App Router, Turbopack / Webpack build engine)
 - **UI & Logic**: React 19 (Server & Client Components), Tailwind CSS v4 (`@tailwindcss/postcss`, dynamic CSS variable design tokens)
-- **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v4) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, and graphics settings
+- **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v5) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, folders, bookmarks, and graphics settings
 - **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/socratic/chat`, `app/api/socratic/widget`). `lib/aiService.js` provides isomorphic client/server AI orchestration
 - **3D Engine**: Three.js (r185), `@react-three/fiber` (v9), `@react-three/drei` (v10), custom Canvas engines with OrbitControls, procedural geometry, and WebGL lifecycle memory management
 - **Math & Equation Engine**: KaTeX (`katex`) for full block and in-sentence `$formula$` inline math rendering
-- **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, `.socratic` JSON workspace backup format
+- **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, Netscape Bookmark standard HTML import/export, `.socratic` JSON workspace backup format
 - **Timer & Audio Subsystem**: Reactive multi-timer store (`lib/timerStore.js`), Web Audio API chime synthesis for alarms, dynamic browser tab favicon (`🦆` $\leftrightarrow$ `❗️`) and title flashing
 
 ---
@@ -43,18 +43,20 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   └── workspace/
 │       └── page.js                       # Main application page (renders <Workspace />)
 ├── components/
+│   ├── AddBookmarkModal.jsx              # Quick add/edit bookmark modal with instant URL normalization & live favicon
 │   ├── AlarmOverlay.jsx                  # Global visual/audio alarm overlay & dynamic favicon swap (🦆 <-> ❗️)
 │   ├── BlockNoteEditor.jsx               # 18-block Notion-style editor with slash menu, 6-dots handles, covers & stats
 │   ├── CalendarView.jsx                  # Study schedule calendar, month navigation, agenda, Pomodoro integration & alarms
-│   ├── CommandPalette.jsx                # Ctrl+K global fuzzy search modal for notes, views, and settings
+│   ├── CommandPalette.jsx                # Ctrl+K global fuzzy search modal for notes, bookmarks, views, and settings
 │   ├── ConfidenceHeatmap.jsx             # Per-session sub-topic confidence heatmap (Solid / Shaky / Gap)
 │   ├── Drawer.jsx                        # Shared slide-over drawer container for Explain & Quiz
 │   ├── EnterPasswordModal.jsx            # Space unlock password verification modal
 │   ├── ExplainPanel.jsx                  # Structured LLM explanation drawer
-│   ├── ExportImportModal.jsx             # Multi-format export/import modal (.socratic, PDF, DOCX, HTML, TXT, MD)
+│   ├── ExportImportModal.jsx             # Multi-format export/import modal (.socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT, MD)
 │   ├── FeatureRequestModal.jsx           # User feedback & feature request submission modal
 │   ├── GlobalTimerHUD.jsx                # Unified header multi-timer dropdown with Pomodoro, breaks & custom timers
 │   ├── InstantNoteModal.jsx              # Ctrl+I 75% screen quick note capture window with space selection
+│   ├── InteractiveTutorial.jsx           # 8-step interactive onboarding & feature guide with live triggers
 │   ├── MasteryDashboard.jsx              # Aggregate topic mastery analytics dashboard & study recommendations
 │   ├── NoteMenu.jsx                      # Note action menu (Save, Favorite ⭐, Note Stats, Export/Import, Delete)
 │   ├── PinnedTimersOverlay.jsx           # Floating picture-in-picture draggable multi-timer widgets overlay
@@ -63,6 +65,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── SetPasswordModal.jsx              # Space lock password configuration modal
 │   ├── Sidebar.jsx                       # Spaces selector, note list, 24h trash drawer, Settings modal & Reset captcha
 │   ├── ThreeDView.jsx                    # 3D studio container with 14 interactive scientific simulations & HUD
+│   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
 │   ├── WidgetCanvas.jsx                  # Interactive 3D Socratic Canvas widget renderer
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
 │   └── visualizations/
@@ -76,23 +79,25 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │       └── VisualizationHUD.jsx          # HUD control overlays, parameter sliders, camera reset & quiz overlays
 ├── lib/
 │   ├── aiService.js                      # Isomorphic client-side AI service coordinating Gemini API & user keys
-│   ├── backup.js                         # .socratic JSON workspace & space backup packager
+│   ├── backup.js                         # .socratic JSON workspace & space backup packager with folder/bookmark support
 │   ├── blockMapping.js                   # Block type mapping & transformation bridge
 │   ├── blocks.js                         # Text extractors & concept mappers from blocks
 │   ├── constants.js                      # Default SPACES definition (School, Personal, Misc)
-│   ├── db.js                             # Dexie.js IndexedDB schema v4, auto-seeding & graphics detection
-│   ├── demoNotes.js                      # Six seeded demo notes (Eigenvectors, Photosynthesis, Big-O, etc.)
-│   ├── exportImport.js                   # Full export/import engine for PDF, DOCX, HTML, Markdown, Plain Text
+│   ├── db.js                             # Dexie.js IndexedDB schema v5, auto-seeding & graphics detection
+│   ├── demoNotes.js                      # Seeded demo notes (Calculus, Photosynthesis, Algorithms, etc.)
+│   ├── exportImport.js                   # Full export/import engine for Netscape HTML Bookmarks, PDF, DOCX, HTML, MD, TXT
 │   ├── gemini.js                         # Direct REST Gemini client with structured outputs & usage tracking
 │   ├── mastery.js                        # Mastery status vocabulary (Solid ● / Shaky ◐ / Gap ○) & rollup algorithms
 │   ├── schemas.js                        # OpenAPI 3.0 schemas for Gemini structured outputs
-│   ├── storageService.js                 # Dexie CRUD service for notes, trash, calendar, alarms, sessions & reset
+│   ├── storageService.js                 # Dexie CRUD service for notes, folders, bookmarks, trash, calendar, alarms, sessions & reset
 │   ├── syntaxHighlighter.js              # Tokenizer & syntax highlighter for 10 programming languages
-│   └── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
+│   ├── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
+│   └── urlUtils.js                       # URL normalization, domain extraction, Google favicon generator & title heuristics
 ├── hooks/
 │   └── useVoice.js                       # Web Speech API voice recognition hook
 ├── tests/
 │   ├── unit/
+│   │   ├── web-saver.test.mjs            # URL normalization, domain parsing, Netscape HTML export/import round-trips
 │   │   ├── physics-solvers.test.mjs      # Refraction (Snell's law), thin lenses, gas laws, chemistry formulas
 │   │   ├── avl-tree-3d.test.mjs          # 3D BST & AVL auto-balancing tree math & traversals
 │   │   ├── export-import.test.mjs        # Markdown, HTML, DOCX, TXT lossless round-trips & blob generation
@@ -223,24 +228,46 @@ A comprehensive suite of 14 real-time interactive 3D simulations across 4 scient
 
 ### 📦 G. Multi-Format Export, Import & Workspace Backup Engine
 - **Workspace & Space Backups (.socratic)** (`lib/backup.js`): Exports entire spaces or all spaces into structured JSON `.socratic` backup packages; supports drag-and-drop restoration with space reassignment and overwrite options.
-- **Multi-Format Note Export** (`lib/exportImport.js`):
+- **Multi-Format Note & Bookmark Export** (`lib/exportImport.js`):
+  - **Netscape HTML Bookmarks (`.html`)**: Standard browser bookmark format (`<!DOCTYPE NETSCAPE-Bookmark-file-1>`) preserving folder hierarchies, `<A HREF="..." ICON="..." TAGS="...">` links, and `<DD>` personal notes for import into Chrome, Firefox, Safari, Edge, Arc, and Brave.
   - **PDF**: Formatted print layout via `@media print` with `.print-content` preservation for titles, emoji, and syntax-highlighted code.
   - **Word Document (`.docx`)**: Native headings, callout boxes, styled code containers, and formatted lists.
   - **HTML (`.html`)**: Clean standalone HTML5 web page with grouped lists and inline styling.
   - **Markdown (`.md`)**: GitHub-flavored markdown with KaTeX `$formula$` preservation, `<details>` toggles, and callouts.
   - **Plain Text (`.txt`)**: Clean structured text formatting.
-- **Drag-and-Drop File Import**: Automatically imports `.socratic`, `.json`, `.docx`, `.html`, `.txt`, and `.md` files into the active space.
+- **Drag-and-Drop File Import**: Automatically imports `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, and `.md` files into the active space.
 
 ---
 
-### 🔒 H. Space Security, 24-Hour Auto-Purge Trash & Settings
+### 🔖 H. Website Saver & Folder Manager (`components/WebSaverView.jsx` & `components/AddBookmarkModal.jsx`)
+- **Dual-Pane Folder Navigation**:
+  - **Left Sidebar**: Collapsible folder tree with parent-child nesting, quick "All Bookmarks" and "Unorganized" filters, inline new folder modal, rename/delete context triggers, and drag-and-drop target support.
+  - **Main Viewport**: Live search (matches title, URL, domain, tags, notes), tag filter chips, sorting (Newest, Oldest, Title A-Z, Domain), and view toggles (Grid Cards vs Compact List).
+- **Bookmark Card & List Controls**:
+  - Automated high-res Favicon badge with fallback globe.
+  - Direct external link launch (`target="_blank" rel="noopener noreferrer"`).
+  - Quick "Copy Link" button with instant checkmark feedback.
+  - Folder move dropdown selector & drag-and-drop folder sorting.
+  - Tag chips and expandable personal study annotations.
+- **Instant Bookmark Capture Modal (`components/AddBookmarkModal.jsx`)**:
+  - Automatic URL normalization (`https://`), domain extraction, live favicon preview, and heuristic title parsing.
+  - Keyboard accessible: `Escape` closes modal, `Ctrl+Enter` / `Enter` saves bookmark.
+- **URL & Favicon Utilities (`lib/urlUtils.js`)**:
+  - `normalizeUrl(url)`: Protocol normalization and dangerous scheme protection (`javascript:`, `data:`).
+  - `extractDomain(url)`: Clean hostname extraction.
+  - `getFaviconUrl(url, size=64)`: High-resolution Google favicon resolution.
+  - `generateFallbackTitle(url)`: Human-readable title generator from URL path segments and domain names.
+
+---
+
+### 🔒 I. Space Security, 24-Hour Auto-Purge Trash & Settings
 - **Password-Protected Spaces**: Set base64 UTF-8 encrypted passwords on any space; protected spaces require verification before opening.
 - **24-Hour Auto-Purging Trash**: Deleted notes are placed in the Trash drawer with a `deletedAt` timestamp; a 1-minute interval background task automatically purges items older than 24 hours. Supports individual and batch recovery.
-- **Settings Modal & Factory Reset Captcha**: Manage graphics performance presets, personal Gemini API keys, keyboard shortcuts, and table-targeted factory resets protected by random math human captcha verification (`What is X + Y?`).
+- **Interactive Onboarding & Feature Mastery Guide** (`components/InteractiveTutorial.jsx`): 8-step comprehensive walkthrough covering the active learning philosophy, all 18 block types, slash menu, KaTeX math, Socratic Rubber Duck dialogues, Web Saver bookmarking, 3D STEM visualizers, multi-timer HUDs, mastery heatmaps, and security shortcuts. Auto-triggers on first boot or `?tour=true`, and can be replayed anytime via Settings $\to$ General.
 
 ---
 
-### ⚡ I. Performance & Runtime Optimization Architecture
+### ⚡ J. Performance & Runtime Optimization Architecture
 - **$O(1)$ Block-Level Re-render Isolation**: `EditorBlock` and heavy child containers are wrapped in `React.memo` with custom comparator guards, ensuring single-character edits in one block never cause full-document re-renders across other blocks.
 - **KaTeX LRU String Memoization**: Math pills and block equations use an in-memory LRU Map cache (`renderKatexToStringMemoized`) to avoid redundant KaTeX lexing/AST rebuilds on identical LaTeX formulas.
 - **Singleton Timer Store Clock & Auto-Sleep**: Multi-timer polling is consolidated into a single external store ticker (`multiTimerStore`), running only 1 shared timer interval when active and automatically clearing intervals when all timers are idle (0% idle background CPU usage).
@@ -258,25 +285,31 @@ A comprehensive suite of 14 real-time interactive 3D simulations across 4 scient
 
 ## 🗄️ 4. Local-First Database Architecture (`lib/db.js` & `lib/storageService.js`)
 
-SocraticOS operates entirely local-first using **Dexie.js** (IndexedDB database name: `SocraticOS_LocalDB`, version 4).
+SocraticOS operates entirely local-first using **Dexie.js** (IndexedDB database name: `SocraticOS_LocalDB`, version 5).
 
 ### IndexedDB Object Stores:
 1. `notes`: Primary note documents.
    - *Index*: `id, spaceId, title, isFavorite, emoji, updatedAt`
    - *Fields*: `id`, `spaceId`, `title`, `blocks` (Array of 18 block objects), `banner`, `emoji`, `isFavorite`, `createdAt`, `updatedAt`
-2. `trash`: Soft-deleted notes pending 24-hour auto-purge.
+2. `folders`: Web Saver folder hierarchies.
+   - *Index*: `id, parentId, spaceId, name, createdAt`
+   - *Fields*: `id`, `parentId`, `spaceId`, `name`, `createdAt`
+3. `bookmarks`: Web Saver bookmark records.
+   - *Index*: `id, folderId, spaceId, url, title, favicon, notes, tags, createdAt`
+   - *Fields*: `id`, `folderId`, `spaceId`, `url`, `title`, `favicon`, `notes`, `tags` (Array of strings), `createdAt`
+4. `trash`: Soft-deleted notes pending 24-hour auto-purge.
    - *Index*: `id, deletedAt`
    - *Fields*: Complete note document + `deletedAt` ISO timestamp
-3. `calendarEvents`: Scheduled study events.
+5. `calendarEvents`: Scheduled study events.
    - *Index*: `id, date, time`
    - *Fields*: `id`, `title`, `date`, `time`, `type`, `space`, `updatedAt`
-4. `studySessions`: Graded quiz and Socratic diagnostic session records.
+6. `studySessions`: Graded quiz and Socratic diagnostic session records.
    - *Index*: `id, noteId, timestamp, score`
    - *Fields*: `id`, `noteId`, `noteTitle`, `space`, `concept`, `mode`, `score`, `summary`, `heatmap` (Array of `{ subtopic, status, feedback }`), `createdAt`
-5. `alarms`: Custom scheduled recurring study alarms.
+7. `alarms`: Custom scheduled recurring study alarms.
    - *Index*: `id, time, enabled`
    - *Fields*: `id`, `title`, `time` (24h "HH:MM"), `days` (Array of weekday numbers 0-6), `enabled`, `sound`, `createdAt`, `updatedAt`
-6. `settings`: Key-value application settings.
+8. `settings`: Key-value application settings.
    - *Index*: `key, value`
    - *Keys*: `apiKey`, `gfx_graphicsPreset`, `gfx_targetFps`, `gfx_pixelRatio`, `gfx_enableShadows`, `gfx_enableAntialias`, `gfx_autoPauseHidden`, `editor_click_to_append`
 
@@ -309,7 +342,7 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
 2. **SSR Hydration Guard**:
    - Always wrap client-only browser storage access (`localStorage`, `window`) inside a mounted state guard (`const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);`).
 3. **Demo Note Seeding Flag**:
-   - Seeding is gated by `DEMO_SEED_KEY = "socratic_demo_seeded_v7"` in `lib/db.js`. Both `resetNotesData()` and `factoryResetWorkspace()` write this exact key to prevent demo notes from re-seeding immediately after a deliberate user reset.
+   - Seeding is gated by `DEMO_SEED_KEY = "socratic_demo_seeded_v8"` in `lib/db.js`. Both `resetNotesData()` and `factoryResetWorkspace()` write this exact key to prevent demo notes from re-seeding immediately after a deliberate user reset. `initAndSeedDatabase()` also validates that `db.notes.count() > 0` before skipping.
 4. **URL Protocol Normalization**:
    - Always wrap external URLs with `formatUrl(url)` before passing to `href` or `src` attributes to prevent relative path redirection (`http://localhost:3000/google.com`).
 5. **Next.js Dev Cache Corruption**:

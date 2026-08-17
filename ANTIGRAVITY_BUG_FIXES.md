@@ -23,6 +23,8 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 16. [Mastery Dashboard & Session History (`MasteryDashboard.jsx`)](#16-mastery-dashboard--session-history-masterydashboardjsx)
 17. [3D Visualizations & WebGL Scene Kit (`scene-kit.jsx`, Canvases, HUD)](#17-3d-visualizations--webgl-scene-kit-scene-kitjsx-canvases-hud)
 18. [Test Suites, DB Migrations & Build Pipeline](#18-test-suites-db-migrations--build-pipeline)
+19. [Demo Notes Auto-Seeding & IndexedDB Migration Guard](#19-demo-notes-auto-seeding--indexeddb-migration-guard)
+20. [Sidebar Icon Imports (`Sparkles`)](#20-sidebar-icon-imports-sparkles)
 
 ---
 
@@ -293,6 +295,24 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
     10. `tests/integration/ai-widget-resilience.test.mjs`: Three.js canvas shielding against malformed AI payloads.
     11. `tests/integration/trash-24h-purge.test.mjs`: 24-hour auto-purge timestamp lifecycle verification.
 * **Unified Test Runner in `package.json`:**
-  * Updated `"test"` script to execute all test suites simultaneously: `npm test` runs 66 tests across 27 suites with 100% pass rate in ~550ms.
+  * Updated `"test"` script to execute all test suites simultaneously: `npm test` runs 92 tests across 34 suites with 100% pass rate in ~500ms.
 * **Production Build Verified:**
   * Next.js 15.5 production build (`npm run build`) compiles with zero errors and optimized static/dynamic routes.
+
+---
+
+## 19. Demo Notes Auto-Seeding & IndexedDB Migration Guard
+* **Stale LocalStorage Flag Blocking Seed Notes on DB Migration / Empty Store:**
+  * **Problem:** If a user previously loaded the application, their browser's `localStorage` held `"socratic_demo_seeded_v7": "true"`. When upgrading schemas to version 5 or opening a fresh/empty database, `initAndSeedDatabase()` evaluated `const seeded = localStorage.getItem(DEMO_SEED_KEY)` as truthy and immediately exited without checking if `db.notes` or `db.bookmarks` contained any records. The user was left with an empty workspace and no visible demo notes.
+  * **Fix:**
+    1. In `lib/db.js`, updated `initAndSeedDatabase()` to query `const notesCount = await db.notes.count();` and `const bookmarksCount = await db.bookmarks.count();`, guaranteeing seeding runs whenever `!seeded || notesCount === 0`.
+    2. Bumped `DEMO_SEED_KEY` to `"socratic_demo_seeded_v8"` to invalidate old localStorage flags across existing browsers.
+    3. Added `seedDemoContent({ overwrite })` in `lib/storageService.js` and hooked an automatic fallback verification inside `loadLocalWorkspace()` in `components/Workspace.jsx`.
+    4. Added a manual "🌱 Restore Seed Notes" action card inside the Settings modal's Backup & Reset tab in `components/Sidebar.jsx`.
+
+---
+
+## 20. Sidebar Icon Imports (`Sparkles`)
+* **Missing `Sparkles` Component Import in `components/Sidebar.jsx`:**
+  * **Problem:** Adding the "Interactive Tutorial & Feature Guide" action card into `SettingsModal` referenced `<Sparkles className="w-4 h-4 text-duck-400" />` without importing `Sparkles` from `lucide-react`, causing a runtime `ReferenceError: Sparkles is not defined` when opening the General & Theme settings tab.
+  * **Fix:** Added `Sparkles` to the `lucide-react` import list on line 4 of `components/Sidebar.jsx`.

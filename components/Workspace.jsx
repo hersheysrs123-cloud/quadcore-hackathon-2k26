@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import Sidebar from "@/components/Sidebar";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
+import WebSaverView from "@/components/WebSaverView";
 import dynamic from "next/dynamic";
 const ThreeDView = dynamic(() => import("@/components/ThreeDView"), { ssr: false });
 import InstantNoteModal from "@/components/InstantNoteModal";
@@ -17,6 +18,7 @@ import PinnedTimersOverlay from "@/components/PinnedTimersOverlay";
 import ExportImportModal from "@/components/ExportImportModal";
 import NoteMenu from "@/components/NoteMenu";
 import CommandPalette from "@/components/CommandPalette";
+import InteractiveTutorial from "@/components/InteractiveTutorial";
 import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { demoNotesBySpace } from "@/lib/demoNotes";
@@ -36,6 +38,7 @@ import {
   clearStudySessions,
   factoryResetWorkspace,
   clearTrash,
+  seedDemoContent,
 } from "@/lib/storageService";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
@@ -81,6 +84,7 @@ export default function Workspace() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
   const [exportImportOpen, setExportImportOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
 
   // Explain / Quiz drawers. `studyTarget` survives closing so the panel does
@@ -153,7 +157,11 @@ export default function Workspace() {
       async function loadLocalWorkspace() {
         try {
           await initAndSeedDatabase();
-          const allDbNotes = await getAllNotes();
+          let allDbNotes = await getAllNotes();
+          if (!allDbNotes || allDbNotes.length === 0) {
+            await seedDemoContent({ overwrite: true });
+            allDbNotes = await getAllNotes();
+          }
 
           const spaceMap = { School: [], Personal: [], Misc: [] };
           allDbNotes.forEach((n) => {
@@ -187,6 +195,12 @@ export default function Workspace() {
           const params = new URLSearchParams(window.location.search);
           const urlNoteId = params.get("noteId");
           const urlTab = params.get("tab");
+          const urlTour = params.get("tour");
+          const tourCompleted = localStorage.getItem("socratic_tutorial_completed") === "true";
+
+          if (urlTour === "true" || !tourCompleted) {
+            setTutorialOpen(true);
+          }
           
           let fallback = null;
           try { fallback = JSON.parse(localStorage.getItem("socratic_last_workspace_state")); } catch(e){}
@@ -684,6 +698,7 @@ export default function Workspace() {
           onOpenInstantNote={() => setInstantNoteOpen(true)}
           onNavigateCalendar={() => setActiveTab("calendar")}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          onStartTutorial={() => setTutorialOpen(true)}
         />
       </div>
 
@@ -737,6 +752,18 @@ export default function Workspace() {
             >
               <span>📅</span>
               <span>Calendar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("websaver")}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                activeTab === "websaver"
+                  ? "bg-ink-800 text-ink-100 shadow-sm"
+                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+              }`}
+            >
+              <span>🔖</span>
+              <span>Web Saver</span>
             </button>
             <button
               type="button"
@@ -805,12 +832,16 @@ export default function Workspace() {
         <div className="no-print relative z-50 flex h-12 shrink-0 items-center justify-between border-b border-ink-800/80 bg-ink-900/60 px-6 backdrop-blur-md transition-colors duration-200">
           {/* Left: Active Note Emoji, Title & Favorite Badge */}
           <div className="flex items-center gap-2.5 min-w-0 font-medium">
-            <span className="text-lg leading-none shrink-0">{activeNoteObj?.emoji || "📝"}</span>
+            <span className="text-lg leading-none shrink-0">
+              {activeTab === "websaver" ? "🔖" : activeNoteObj?.emoji || "📝"}
+            </span>
             <span className="truncate text-sm font-extrabold text-ink-100 tracking-tight">
               {activeTab === "notes"
                 ? activeNoteObj?.title || "Untitled Note"
                 : activeTab === "calendar"
                 ? "Study Calendar & Timers"
+                : activeTab === "websaver"
+                ? "Website Saver & Folder Manager"
                 : activeTab === "3d"
                 ? "3D Concept Visualizer"
                 : "Mastery Dashboard"}
@@ -855,7 +886,7 @@ export default function Workspace() {
         </div>
 
         {/* Tab Viewport Content */}
-        <main className={`flex-1 ${activeTab === "3d" ? "overflow-hidden flex flex-col h-full min-h-0" : "overflow-y-auto"}`}>
+        <main className={`flex-1 ${activeTab === "3d" || activeTab === "websaver" ? "overflow-hidden flex flex-col h-full min-h-0" : "overflow-y-auto"}`}>
           {activeTab === "notes" && (
             <BlockNoteEditor
               key={activeNoteObj?.id || "empty_editor"}
@@ -878,6 +909,10 @@ export default function Workspace() {
 
           {activeTab === "calendar" && (
             <CalendarView activeSpace={activeSpace} spaces={spaces} />
+          )}
+
+          {activeTab === "websaver" && (
+            <WebSaverView activeSpace={activeSpace} spaces={spaces} />
           )}
 
           {activeTab === "3d" && <ThreeDView />}
@@ -994,6 +1029,23 @@ export default function Workspace() {
         setActiveSpace={setActiveSpace}
         setActiveTab={setActiveTab}
         setActiveNoteId={setActiveNoteId}
+      />
+
+      <InteractiveTutorial
+        isOpen={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setTutorialOpen(false);
+        }}
+        onOpenInstantNote={() => {
+          setInstantNoteOpen(true);
+          setTutorialOpen(false);
+        }}
+        onOpenCommandPalette={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+          setTutorialOpen(false);
+        }}
       />
     </div>
   );

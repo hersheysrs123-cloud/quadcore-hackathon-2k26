@@ -87,17 +87,27 @@ A suite of 14 real-time interactive 3D science simulations built using Three.js,
 - **Diagnostic Quiz Builder (`POST /api/quiz/generate` & `/grade`)**: Builds 5–6 questions from notes (mixed multiple choice and short answer). Performs deterministic integer grading for multiple choice options and LLM mechanism evaluation for short answers.
 - **Mastery Analytics Dashboard** ([`MasteryDashboard.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/MasteryDashboard.jsx)): Consolidates session scores into topic heatmaps grouped by note, tracking sub-topic mastery over time (**Solid** `●` / **Shaky** `◐` / **Gap** `○`) with weakest-first study recommendations.
 
-### 📦 7. Multi-Format Export, Import & Backup Engine
-- **Workspace & Space Backups (.socratic)** ([`ExportImportModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ExportImportModal.jsx)): Export entire spaces or individual notes into portable JSON `.socratic` packages.
-- **Multi-Format Note Export**: Export notes to styled **PDF** (with KaTeX math equation rendering and code block preservation), **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), or **Markdown** (`.md`).
-- **Drag-and-Drop Import**: Drag and drop `.socratic`, `.json`, `.docx`, `.html`, `.txt`, or `.md` files directly into target spaces.
+### 🔖 8. Local-First Website Saver & Folder Manager
+- **Website Bookmarking & Folder Trees** ([`WebSaverView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/WebSaverView.jsx)): Save study links, lecture slides, research papers, and developer tools organized into collapsible folder hierarchies per space.
+- **Dual-Pane UI**:
+  - **Left Sidebar**: Expandable folder tree with parent/child folders, "All Bookmarks" & "Unorganized" filters, inline new folder modal, rename/delete context triggers, and drag-and-drop target support.
+  - **Main Viewport**: Search bar with real-time matching across titles, URLs, domains, tags, and personal notes; tag filter chips; sorting options (Newest, Oldest, Title A-Z, Domain); and view toggles (Grid Cards vs Compact List).
+- **Favicon & URL Normalization** ([`urlUtils.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/urlUtils.js)): Automated protocol normalization (`https://`), domain extraction, high-resolution Google favicon resolution, and title heuristic extraction.
+- **Netscape HTML Bookmarks Import & Export** ([`exportImport.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/exportImport.js)): One-click import and export of standard Netscape HTML bookmarks files (`<!DOCTYPE NETSCAPE-Bookmark-file-1>`), compatible with Chrome, Firefox, Safari, Edge, Arc, and Brave.
+- **Quick Add Bookmark Modal** ([`AddBookmarkModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/AddBookmarkModal.jsx)): Instant URL paste, live favicon preview, folder selector, tag management with chip badges, and keyboard shortcuts (`Escape` closes, `Ctrl+Enter` saves).
 
-### 🗑️ 8. 24-Hour Soft-Delete Trash, Custom Spaces & Privacy Settings
+### 📦 9. Multi-Format Export, Import & Backup Engine
+- **Workspace & Space Backups (.socratic)** ([`ExportImportModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ExportImportModal.jsx)): Export entire spaces, folders, bookmarks, and individual notes into portable JSON `.socratic` packages.
+- **Netscape HTML Bookmarks (`.html`)**: Export space-filtered or complete bookmarks into browser-compliant HTML bookmark collections with tags and notes.
+- **Multi-Format Note Export**: Export notes to styled **PDF** (with KaTeX math equation rendering and code block preservation), **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), or **Markdown** (`.md`).
+- **Drag-and-Drop Import**: Drag and drop `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, or `.md` files directly into target spaces.
+
+### 🗑️ 10. 24-Hour Soft-Delete Trash, Custom Spaces & Privacy Settings
 - **24-Hour Auto-Purge Trash** ([`Sidebar.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/Sidebar.jsx)): Soft-delete notes into a Trash drawer with automatic 1-minute interval background purging for notes older than 24 hours. Features individual and batch recovery controls.
 - **Password-Protected Spaces**: Encrypt spaces with custom passwords to lock private study materials.
 - **Graphics & Privacy Settings** ([`SettingsModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/Sidebar.jsx)): Personal Gemini API Key management (100% private IndexedDB storage), 3D graphics quality presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
 - **Factory Reset Captcha**: Targeted table purging with randomized human math captcha verification.
-- **First-Run Demo Content** ([`demoNotes.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/demoNotes.js)): Ships with seeded notes covering eigenvectors, photosynthesis, Big-O notation, elasticity, memory science, and neural networks.
+- **First-Run Demo Content** ([`demoNotes.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/demoNotes.js)): Ships with seeded notes and curated study resource bookmarks (3Blue1Brown, Desmos, MDN, MIT OCW, arXiv).
 
 ---
 
@@ -124,6 +134,9 @@ components/
   Workspace.jsx                 Primary workspace layout container, HUD header & shortcuts
   Sidebar.jsx                   Spaces selector, note list, 24h trash drawer, Settings modal
   BlockNoteEditor.jsx           18 block types, slash menu (/), 6-dots handles, covers & stats
+  WebSaverView.jsx              Dual-pane Web Saver & Bookmark folder manager with Netscape HTML support
+  AddBookmarkModal.jsx          Instant bookmark capture modal with live favicon preview
+  InteractiveTutorial.jsx       8-step interactive onboarding walkthrough & feature mastery guide
   NoteMenu.jsx                  Note options dropdown (Save, Favorite ⭐, Stats, Export, Delete)
   CommandPalette.jsx            Ctrl+K global fuzzy search modal
   InstantNoteModal.jsx          Ctrl+I 75% screen quick note capture window
@@ -137,7 +150,7 @@ components/
   QuizPanel.jsx                 Graded quiz & Socratic Rubber Duck dialogue drawer
   ConfidenceHeatmap.jsx         Per-session sub-topic confidence heatmap
   MasteryDashboard.jsx          Aggregate topic mastery analytics dashboard
-  ExportImportModal.jsx         .socratic, PDF, DOCX, HTML, TXT & MD export/import modal
+  ExportImportModal.jsx         .socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT & MD export/import modal
   SetPasswordModal.jsx          Space password lock configuration modal
   EnterPasswordModal.jsx        Space password unlock challenge modal
   FeatureRequestModal.jsx       User feedback & feature request submission modal
@@ -152,7 +165,7 @@ components/
     media.js                    Refractive index presets and optical material properties
 
 lib/
-  db.js                         Dexie.js IndexedDB storage client (v4) & hardware graphics detection
+  db.js                         Dexie.js IndexedDB storage client (v5) & hardware graphics detection
   storageService.js             Dexie CRUD service for notes, trash, calendar, alarms, sessions
   aiService.js                  Client-side AI orchestrator for Gemini API & personal API keys
   gemini.js                     Direct REST Gemini client with OpenAPI 3.0 schemas

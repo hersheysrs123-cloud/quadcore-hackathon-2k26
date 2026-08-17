@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, Settings, FileText, Calendar, Box, Activity } from "lucide-react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { Search, Settings, FileText, Calendar, Box, Activity, Bookmark, Globe } from "lucide-react";
+import { db } from "@/lib/db";
 
 export default function CommandPalette({
   notesBySpace = {},
@@ -16,11 +18,21 @@ export default function CommandPalette({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
 
+  const bookmarks = useLiveQuery(
+    async () => {
+      if (!db.bookmarks) return [];
+      return await db.bookmarks.toArray();
+    },
+    [],
+    []
+  );
+
   // Combine all searchable items (memoized)
   const items = useMemo(() => {
     const list = [
       { id: "action_notes", type: "View", title: "Open Notes", icon: <FileText size={16} />, onSelect: () => setActiveTab("notes") },
       { id: "action_calendar", type: "View", title: "Open Calendar", icon: <Calendar size={16} />, onSelect: () => setActiveTab("calendar") },
+      { id: "action_websaver", type: "View", title: "Open Web Saver (Bookmarks)", icon: <Bookmark size={16} />, onSelect: () => setActiveTab("websaver") },
       { id: "action_3d", type: "View", title: "Open 3D Visualizations", icon: <Box size={16} />, onSelect: () => setActiveTab("3d") },
       { id: "action_mastery", type: "View", title: "Open Mastery Dashboard", icon: <Activity size={16} />, onSelect: () => setActiveTab("mastery") },
     ];
@@ -29,6 +41,7 @@ export default function CommandPalette({
       list.push({ id: "action_settings", type: "Settings", title: "Open Settings", icon: <Settings size={16} />, onSelect: () => onOpenSettings() });
     }
 
+    // Notes
     Object.entries(notesBySpace).forEach(([space, spaceNotes]) => {
       (spaceNotes || []).forEach((note) => {
         list.push({
@@ -46,8 +59,27 @@ export default function CommandPalette({
       });
     });
 
+    // Bookmarks
+    (bookmarks || []).forEach((bm) => {
+      list.push({
+        id: `bm_${bm.id}`,
+        type: "Bookmark",
+        title: bm.title || bm.url || "Saved Link",
+        subtitle: `${bm.spaceId || "School"} · ${bm.url}`,
+        icon: bm.favicon ? (
+          <img src={bm.favicon} alt="" className="w-4 h-4 object-contain rounded-xs" />
+        ) : (
+          <Globe size={16} className="text-duck-400" />
+        ),
+        onSelect: () => {
+          if (bm.spaceId) setActiveSpace(bm.spaceId);
+          setActiveTab("websaver");
+        },
+      });
+    });
+
     return list;
-  }, [notesBySpace, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
+  }, [notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
 
   // Fuzzy filter (memoized)
   const filteredItems = useMemo(() => {

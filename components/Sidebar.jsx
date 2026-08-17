@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftClose, ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Lock, Unlock } from "lucide-react";
+import { PanelLeftClose, ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Lock, Unlock, Sparkles } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, DEFAULT_GRAPHICS_SETTINGS, detectHardwareGraphics } from "@/lib/db.js";
+import { seedDemoContent } from "@/lib/storageService.js";
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
@@ -174,8 +175,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
   );
 }
 
-// ─── Settings Modal ──────────────────────────────────────────────────
-function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [] }) {
+function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [], onStartTutorial }) {
   const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -306,6 +306,19 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
       alert("Backup import error: " + err.message);
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleSeedDemoNotes = async () => {
+    try {
+      setStatusMsg("");
+      const res = await seedDemoContent({ overwrite: true });
+      setStatusMsg(`Successfully seeded ${res.notes} demo notes and ${res.bookmarks} bookmarks! Reloading...`);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err) {
+      alert("Error seeding demo content: " + err.message);
     }
   };
 
@@ -567,6 +580,33 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
                 </div>
               </div>
 
+              {/* Interactive Tutorial Replay */}
+              <div className="border-t border-ink-800/80 pt-5 space-y-3">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-duck-400" />
+                  Interactive Tutorial &amp; Feature Guide
+                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-duck-500/30 bg-duck-500/10">
+                  <div className="space-y-0.5 pr-2">
+                    <p className="text-sm font-semibold text-duck-200">Replay Complete Onboarding Guide</p>
+                    <p className="text-xs text-ink-300">
+                      Explore the full interactive tour covering all 18 block types, inline math, Socratic Duck quizzes, Web Saver bookmarking, 3D simulations, and study mastery.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onStartTutorial) onStartTutorial();
+                    }}
+                    className="flex items-center gap-2 rounded-lg bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-duck-300 shadow-sm shrink-0 whitespace-nowrap"
+                  >
+                    <span>🎓</span>
+                    <span>Restart Tutorial</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Local-First Dexie Storage Status */}
               <div className="border-t border-ink-800/80 pt-4">
                 <p className="text-xs text-ink-400 leading-relaxed">
@@ -694,6 +734,26 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
                     </span>
                   </label>
                 </div>
+              </div>
+
+              {/* Seed Demo Content Card */}
+              <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-duck-200">
+                    <span>🌱</span>
+                    <span>Sample Study Materials (Demo Notes &amp; Bookmarks)</span>
+                  </div>
+                  <p className="text-[11px] text-ink-300">
+                    Re-seed curated textbook-grade study notes (Calculus, Photosynthesis, Big-O, Elasticity) and study web links into your workspace.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSeedDemoNotes}
+                  className="rounded-lg border border-duck-500/40 bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-duck-300 whitespace-nowrap shadow-sm shrink-0"
+                >
+                  🌱 Restore Seed Notes
+                </button>
               </div>
             </div>
           )}
@@ -1162,6 +1222,7 @@ export default function Sidebar({
   onOpenInstantNote,
   onNavigateCalendar,
   onToggleSidebar,
+  onStartTutorial,
   spacePasswords = {},
   onSetPasswordRequest,
   onRemovePasswordRequest,
@@ -1487,6 +1548,7 @@ export default function Sidebar({
         onSyncSupabase={onSyncSupabase}
         onResetData={onResetData}
         spaces={spaces}
+        onStartTutorial={onStartTutorial}
       />
 
       <FeatureRequestModal
