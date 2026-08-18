@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
+  DEG,
   Halo,
   PALETTE,
   SceneCanvas,
@@ -15,6 +16,7 @@ import {
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
+import { STRUCTURE_META } from "@/components/visualizations/topic-options";
 import {
   BilayerPatch,
   CellWall,
@@ -1077,12 +1079,273 @@ export function CellExplorerScene({ params = {} }) {
   );
 }
 
+// ═══ 4 · Protein folding & secondary structure ═══════════════════════
+
+const MAX_RESIDUES = 64;
+/** α-helix geometry, scaled from the real 0.54 nm rise per 3.6 residues. */
+const HELIX_RADIUS = 0.95;
+const HELIX_RISE = 0.42;
+const HELIX_TURN = 100 * DEG;
+/** Denaturation window in kelvin — folded below, random coil above. */
+const DENATURE_START = 320;
+const DENATURE_END = 358;
+
+/**
+ * Which residues are hydrophobic, patterned to match the structure.
+ *
+ * A random assignment scattered them evenly and the legend's claim that they
+ * "pack into the core" was then visible nowhere. Real secondary structure is
+ * periodic, so the pattern is too: an α-helix is amphipathic, with the
+ * hydrophobic residues falling on one face because 100° per residue brings
+ * them back round every 3–4; a β-strand alternates faces residue by residue.
+ */
+function residueIsHydrophobic(i, structure) {
+  if (structure === "helix") return Math.cos(i * HELIX_TURN - 0.6) > 0.12;
+  if (structure === "sheet") return i % 2 === 0;
+  return hashRandom(i * 2.7 + 11) > 0.55;
+}
+
+/** The unfolded state — a self-avoiding-ish walk, stable across renders. */
+function coilPositions(count) {
+  const pts = [];
+  let x = -count * 0.13;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < count; i += 1) {
+    pts.push([x, y, z]);
+    x += 0.34 + hashRandom(i * 3.1 + 5) * 0.16;
+    y += (hashRandom(i * 5.3 + 17) - 0.5) * 1.5;
+    z += (hashRandom(i * 7.9 + 29) - 0.5) * 1.5;
+  }
+  return pts;
+}
+
+function helixPositions(count) {
+  const height = (count - 1) * HELIX_RISE;
+  return Array.from({ length: count }, (_, i) => [
+    Math.cos(i * HELIX_TURN) * HELIX_RADIUS,
+    i * HELIX_RISE - height / 2,
+    Math.sin(i * HELIX_TURN) * HELIX_RADIUS,
+  ]);
+}
+
+/**
+ * Antiparallel β-sheet: strands laid side by side running in opposite
+ * directions, with the backbone pleated so the classic zig-zag is visible
+ * end-on rather than only in a textbook diagram.
+ */
+const SHEET_STRANDS = 3;
+
+/** Where residue i sits in the sheet: which strand, and how far along it. */
+function sheetIndex(i, perStrand) {
+  const strand = Math.floor(i / perStrand);
+  const withinRaw = i % perStrand;
+  // Every other strand runs backwards — that is what "antiparallel" means.
+  return { strand, within: strand % 2 === 0 ? withinRaw : perStrand - 1 - withinRaw };
+}
+
+function sheetPositions(count) {
+  const perStrand = Math.ceil(count / SHEET_STRANDS);
+  const pts = [];
+  for (let i = 0; i < count; i += 1) {
+    const { strand, within } = sheetIndex(i, perStrand);
+    pts.push([
+      within * 0.62 - (perStrand - 1) * 0.31,
+      within % 2 === 0 ? 0.22 : -0.22,
+      strand * 1.25 - ((SHEET_STRANDS - 1) * 1.25) / 2,
+    ]);
+  }
+  return pts;
+}
+
+const STRUCTURES = {
+  helix: { ...STRUCTURE_META.helix, build: helixPositions, colour: PALETTE.gold, bondStep: 4 },
+  sheet: { ...STRUCTURE_META.sheet, build: sheetPositions, colour: PALETTE.sky, bondStep: 0 },
+  coil: { ...STRUCTURE_META.coil, build: coilPositions, colour: PALETTE.slate, bondStep: 0 },
+};
+
+export function ProteinFoldingScene({ params = {} }) {
+  const {
+    structure = "helix",
+    residues = 30,
+    fold = 1,
+    temperature = 300,
+    showBonds = true,
+    colourByType = true,
+    spin = true,
+  } = params || {};
+
+  const count = clamp(Math.round(residues), 8, MAX_RESIDUES);
+  const info = STRUCTURES[structure] ?? STRUCTURES.helix;
+
+  // Heat unfolds the chain whatever the fold slider says: above the
+  // denaturation window the hydrogen bonds simply cannot hold.
+  const heatFactor = 1 - clamp((temperature - DENATURE_START) / (DENATURE_END - DENATURE_START), 0, 1);
+  const folded = clamp(fold, 0, 1) * heatFactor;
+  const denatured = folded < 0.35;
+
+  const coil = useMemo(() => coilPositions(count), [count]);
+  const target = useMemo(() => info.build(count), [info, count]);
+
+  // Folding is a straight interpolation between the two conformations, which
+  // is what lets the slider be scrubbed both ways.
+  const positions = useMemo(
+    () =>
+      target.map((t, i) => [
+        lerp(coil[i][0], t[0], folded),
+        lerp(coil[i][1], t[1], folded),
+        lerp(coil[i][2], t[2], folded),
+      ]),
+    [coil, target, folded],
+  );
+
+  // The i → i+4 hydrogen bond is what defines an α-helix; they only appear
+  // once the chain is folded enough for the partners to be in reach.
+  const hydrogenBonds = useMemo(() => {
+    if (!showBonds || info.bondStep === 0 || folded < 0.55) return [];
+    const bonds = [];
+    for (let i = 0; i + info.bondStep < count; i += 1) {
+      bonds.push([positions[i], positions[i + info.bondStep]]);
+    }
+    return bonds;
+  }, [showBonds, info.bondStep, folded, count, positions]);
+
+  // β-sheets are held by bonds between neighbouring strands, not along one.
+  //
+  // Pairing residue i with i+perStrand looked right but was not: because
+  // alternate strands run backwards, i+perStrand sits at the *opposite end*
+  // of the next strand, so every bond was drawn as a long diagonal across the
+  // sheet. Partners have to be matched on how far along the strand they sit.
+  const sheetBonds = useMemo(() => {
+    if (!showBonds || structure !== "sheet" || folded < 0.55) return [];
+    const perStrand = Math.ceil(count / SHEET_STRANDS);
+    const byPlace = new Map();
+    for (let i = 0; i < count; i += 1) {
+      const { strand, within } = sheetIndex(i, perStrand);
+      byPlace.set(`${strand}:${within}`, i);
+    }
+    const bonds = [];
+    for (let strand = 0; strand + 1 < SHEET_STRANDS; strand += 1) {
+      for (let within = 0; within < perStrand; within += 2) {
+        const a = byPlace.get(`${strand}:${within}`);
+        const b = byPlace.get(`${strand + 1}:${within}`);
+        if (a !== undefined && b !== undefined) bonds.push([positions[a], positions[b]]);
+      }
+    }
+    return bonds;
+  }, [showBonds, structure, folded, count, positions]);
+
+  const backbone = useMemo(() => positions.map((p) => [p[0], p[1], p[2]]), [positions]);
+  const totalBonds = hydrogenBonds.length + sheetBonds.length;
+
+  return (
+    <SceneCanvas camera={{ position: [0, 1.5, 11] , fov: 46 }} controls={{ autoRotate: spin }}>
+      <Line points={backbone} color={denatured ? PALETTE.slate : info.colour} lineWidth={3.4} />
+
+      {positions.map((p, i) => {
+        const hydrophobic = residueIsHydrophobic(i, structure);
+        const colour = denatured
+          ? PALETTE.rose
+          : colourByType
+            ? hydrophobic
+              ? PALETTE.gold
+              : PALETTE.sky
+            : info.colour;
+        return (
+          <mesh key={i} position={p}>
+            <sphereGeometry args={[0.19, 18, 18]} />
+            <meshStandardMaterial
+              color={colour}
+              emissive={colour}
+              emissiveIntensity={denatured ? 0.9 : 0.55}
+              roughness={0.32}
+              metalness={0.15}
+            />
+          </mesh>
+        );
+      })}
+
+      {[...hydrogenBonds, ...sheetBonds].map(([a, b], i) => (
+        <Line
+          key={i}
+          points={[a, b]}
+          color={PALETTE.emerald}
+          lineWidth={1.4}
+          dashed
+          dashSize={0.12}
+          gapSize={0.09}
+          transparent
+          opacity={0.75}
+        />
+      ))}
+
+      <SceneLabel position={[0, -3.4, 0]} accent>
+        {denatured
+          ? "denatured — structure lost"
+          : structure === "coil"
+            ? "random coil — no regular structure to fold into"
+            : `${info.label} · ${Math.round(folded * 100)}% folded`}
+      </SceneLabel>
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="Protein structure"
+        subtitle={`${info.label} — secondary structure`}
+        rows={[
+          ["Residues", count],
+          ["Structure", denatured ? "random coil" : info.label, denatured ? "bad" : "gold"],
+          ["Folded", structure === "coil" ? "—" : `${Math.round(folded * 100)}%`, folded > 0.85 ? "good" : folded < 0.35 ? "bad" : "warn"],
+          ["H-bonds", totalBonds, totalBonds > 0 ? "good" : "bad"],
+          ["Temperature", `${temperature.toFixed(0)} K`, temperature > DENATURE_START ? "warn" : undefined],
+          ["…in celsius", `${(temperature - 273).toFixed(0)} °C`],
+          ...(structure === "helix" ? [["Residues per turn", "3.6"], ["Rise per turn", "0.54 nm"]] : []),
+          ["State", denatured ? "denatured" : "native", denatured ? "bad" : "good"],
+        ]}
+        note={
+          denatured
+            ? "Above about 47 °C the hydrogen bonds holding the secondary structure break, and the chain falls into a random coil. The sequence of amino acids is untouched — but the shape, and so the function, is gone."
+            : structure === "helix"
+              ? "Each hydrogen bond runs from residue i to residue i+4, four along the chain — that spacing is what forces the backbone into a spiral of 3.6 residues per turn."
+              : structure === "sheet"
+                ? "Neighbouring strands run in opposite directions and hydrogen-bond sideways to each other, so the sheet is held across the chain rather than along it."
+                : "With no regular hydrogen bonding the chain has no fixed shape. Real proteins use coil regions as the hinges between helices and sheets."
+        }
+        noteTone={denatured ? "bad" : "neutral"}
+      />
+
+      <SceneLegend
+        title="Folding"
+        items={[
+          ...(colourByType && !denatured
+            ? [
+                {
+                  color: PALETTE.gold,
+                  label: "Hydrophobic",
+                  note:
+                    structure === "helix"
+                      ? "one face of the helix — this is the side that packs into the core"
+                      : structure === "sheet"
+                        ? "every other residue, so they all point the same way"
+                        : "no pattern in an unstructured coil",
+                },
+                { color: PALETTE.sky, label: "Hydrophilic", note: "faces the water outside" },
+              ]
+            : [{ color: denatured ? PALETTE.rose : info.colour, label: "Residue", note: "one amino acid" }]),
+          { color: PALETTE.emerald, shape: "dash", label: "Hydrogen bond", note: "weak alone, decisive in numbers" },
+          { color: PALETTE.slate, shape: "line", label: "Backbone", note: "the peptide chain itself" },
+        ]}
+      />
+    </SceneCanvas>
+  );
+}
+
 // ─── Dispatcher ─────────────────────────────────────────────────────
 
 const SCENES = {
   enzyme: EnzymeScene,
   dna: DNAScene,
   cell: CellExplorerScene,
+  protein: ProteinFoldingScene,
 };
 
 export default function BiologyCanvas({ topicId, params }) {

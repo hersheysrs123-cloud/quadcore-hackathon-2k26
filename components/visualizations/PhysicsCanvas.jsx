@@ -8,6 +8,7 @@ import {
   AtomSphere,
   Bond,
   DEG,
+  Halo,
   PALETTE,
   SceneCanvas,
   SceneLabel,
@@ -2421,6 +2422,794 @@ export function GasLawsScene({ params = {} }) {
   );
 }
 
+// ═══ 6 · Projectile motion with air resistance ═══════════════════════
+
+/** Roughly how many world units wide the drawn trajectory should be. */
+const PROJECTILE_SPAN = 9;
+const SIM_DT = 0.004;
+const SIM_MAX_TIME = 60;
+
+/**
+ * Integrates the flight until it returns to the ground.
+ *
+ * Drag is quadratic (F = −k|v|v), not linear: at the speeds a thrown or
+ * launched object actually reaches, that is the regime that applies, and it
+ * is what makes the trajectory visibly asymmetric — the fall is steeper than
+ * the climb, which no textbook parabola ever shows.
+ */
+function simulateFlight(speed, angleDeg, gravity, drag, mass) {
+  const angle = angleDeg * DEG;
+  let vx = speed * Math.cos(angle);
+  let vy = speed * Math.sin(angle);
+  let x = 0;
+  let y = 0;
+  let t = 0;
+  const points = [[0, 0, 0]];
+  // Flat typed arrays rather than one object per step: a long lunar flight is
+  // 15 000 steps, this runs twice (with drag and without), and it re-runs on
+  // every frame of a slider drag. Sample i is simply t = i·SIM_DT.
+  const cap = Math.round(SIM_MAX_TIME / SIM_DT) + 2;
+  const sx = new Float32Array(cap);
+  const sy = new Float32Array(cap);
+  const svx = new Float32Array(cap);
+  const svy = new Float32Array(cap);
+  svx[0] = vx;
+  svy[0] = vy;
+  let n = 1;
+  let apex = 0;
+
+  while (t < SIM_MAX_TIME && n < cap) {
+    const v = Math.hypot(vx, vy);
+    const k = drag / Math.max(mass, 0.05);
+    const ax = -k * v * vx;
+    const ay = -gravity - k * v * vy;
+
+    vx += ax * SIM_DT;
+    vy += ay * SIM_DT;
+    const nx = x + vx * SIM_DT;
+    const ny = y + vy * SIM_DT;
+    t += SIM_DT;
+
+    if (ny < 0) {
+      // Land exactly on the ground rather than a step below it, so the range
+      // readout does not jitter with the integrator's step size.
+      const f = y / (y - ny || 1);
+      x += (nx - x) * f;
+      y = 0;
+      points.push([x, 0, 0]);
+      sx[n] = x;
+      sy[n] = 0;
+      svx[n] = vx;
+      svy[n] = vy;
+      n += 1;
+      break;
+    }
+
+    x = nx;
+    y = ny;
+    if (y > apex) apex = y;
+    // Every step would be 15 000 points for a long flight; every eighth is
+    // still smooth at this scale.
+    if (n % 8 === 0) points.push([x, y, 0]);
+    sx[n] = x;
+    sy[n] = y;
+    svx[n] = vx;
+    svy[n] = vy;
+    n += 1;
+  }
+
+  const last = n - 1;
+  return {
+    points,
+    sx,
+    sy,
+    svx,
+    svy,
+    count: n,
+    range: sx[last],
+    apex,
+    // The landing step is interpolated, so the true flight time sits a
+    // fraction of a step before the last recorded index.
+    flightTime: last * SIM_DT,
+    impactSpeed: Math.hypot(svx[last], svy[last]),
+  };
+}
+
+/** Walks the recorded samples in real time and drives the ball + vectors. */
+function Projectile({ flight, scale, running, replayKey, showVectors, onSample }) {
+  const ball = useRef(null);
+  const clock = useRef(0);
+  const [vectors, setVectors] = useState(null);
+  const sampleAcc = useRef(0);
+
+  useEffect(() => {
+    clock.current = 0;
+  }, [flight, replayKey]);
+
+  useFrame((_, delta) => {
+    if (running) clock.current += Math.min(delta, 0.05);
+    // Hold on the last frame rather than looping: the landing point is the
+    // number the scene is mostly about.
+    const t = Math.min(clock.current, flight.flightTime);
+    const i = clamp(Math.round(t / SIM_DT), 0, flight.count - 1);
+    const px = flight.sx[i];
+    const py = flight.sy[i];
+    const pvx = flight.svx[i];
+    const pvy = flight.svy[i];
+
+    if (ball.current) {
+      ball.current.position.set(px * scale, py * scale + 0.12, 0);
+    }
+
+    sampleAcc.current += delta;
+    if (sampleAcc.current >= 0.1) {
+      sampleAcc.current = 0;
+      onSample({ t: i * SIM_DT, x: px, y: py, speed: Math.hypot(pvx, pvy), vx: pvx, vy: pvy });
+      if (showVectors) {
+        setVectors({ at: [px * scale, py * scale + 0.12, 0], vx: pvx, vy: pvy });
+      } else {
+        setVectors(null);
+      }
+    }
+  });
+
+  return (
+    <group>
+      <mesh ref={ball} castShadow>
+        <sphereGeometry args={[0.16, 24, 24]} />
+        <meshStandardMaterial
+          color={PALETTE.gold}
+          emissive={PALETTE.gold}
+          emissiveIntensity={1.5}
+          roughness={0.24}
+          toneMapped={false}
+        />
+      </mesh>
+
+      {vectors && (
+        <group>
+          <VectorArrow
+            from={vectors.at}
+            to={[vectors.at[0] + vectors.vx * 0.09, vectors.at[1] + vectors.vy * 0.09, 0]}
+            color={PALETTE.sky}
+            radius={0.04}
+            headLength={0.22}
+            headRadius={0.11}
+            label="v"
+          />
+          <VectorArrow
+            from={vectors.at}
+            to={[vectors.at[0], vectors.at[1] - 0.9, 0]}
+            color={PALETTE.rose}
+            radius={0.035}
+            headLength={0.2}
+            headRadius={0.1}
+            label="W"
+          />
+        </group>
+      )}
+    </group>
+  );
+}
+
+export function ProjectileScene({ params = {} }) {
+  const {
+    speed = 22,
+    angle = 45,
+    gravity = 9.81,
+    drag = 0.04,
+    mass = 1,
+    showIdeal = true,
+    showVectors = true,
+    running = true,
+    replay = 0,
+    spin = false,
+  } = params || {};
+
+  const [live, setLive] = useState({ t: 0, x: 0, y: 0, speed, vx: 0, vy: 0 });
+
+  const flight = useMemo(
+    () => simulateFlight(speed, angle, gravity, drag, mass),
+    [speed, angle, gravity, drag, mass],
+  );
+  // The same launch with the drag term switched off — the gap between the two
+  // curves is the entire lesson.
+  const ideal = useMemo(
+    () => simulateFlight(speed, angle, gravity, 0, mass),
+    [speed, angle, gravity, mass],
+  );
+
+  const lost = ideal.range > 0 ? 1 - flight.range / ideal.range : 0;
+
+  // Fit whichever is the binding dimension: a near-vertical lob is limited by
+  // its apex, a flat one by its range.
+  const scale = clamp(
+    PROJECTILE_SPAN / Math.max(flight.range, ideal.range, flight.apex * 2.2, 1),
+    0.01,
+    0.6,
+  );
+  const path = useMemo(
+    () => flight.points.map(([x, y]) => [x * scale, y * scale, 0]),
+    [flight, scale],
+  );
+  const idealPath = useMemo(
+    () => ideal.points.map(([x, y]) => [x * scale, y * scale, 0]),
+    [ideal, scale],
+  );
+
+  return (
+    <SceneCanvas camera={{ position: [3.4, 3.2, 12], fov: 46 }} controls={{ autoRotate: spin }}>
+      <Grid
+        args={[24, 14]}
+        cellSize={0.5}
+        cellColor="#1e2531"
+        sectionSize={2.5}
+        sectionColor="#2b3442"
+        fadeDistance={34}
+        infiniteGrid={false}
+      />
+
+      {/* Launcher. */}
+      <group position={[0, 0, 0]}>
+        <mesh position={[-0.25, 0.12, 0]} rotation={[0, 0, angle * DEG]}>
+          <boxGeometry args={[0.9, 0.16, 0.3]} />
+          <meshStandardMaterial color="#5b6472" roughness={0.4} metalness={0.62} />
+        </mesh>
+        <SceneLabel position={[-0.4, -0.42, 0]} accent>
+          {angle}° launch
+        </SceneLabel>
+      </group>
+
+      {showIdeal && (
+        <Line points={idealPath} color={PALETTE.slate} lineWidth={1.8} dashed dashSize={0.16} gapSize={0.12} />
+      )}
+      <Line points={path} color={PALETTE.emerald} lineWidth={3} />
+
+      <Projectile
+        key={`${speed}-${angle}-${gravity}-${drag}-${mass}`}
+        flight={flight}
+        scale={scale}
+        running={running}
+        replayKey={replay}
+        showVectors={showVectors}
+        onSample={setLive}
+      />
+
+      {/* Landing markers, so the two ranges can be read off the ground. */}
+      <mesh position={[flight.range * scale, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.14, 0.22, 24]} />
+        <meshBasicMaterial color={PALETTE.emerald} toneMapped={false} />
+      </mesh>
+      {showIdeal && (
+        <mesh position={[ideal.range * scale, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.14, 0.22, 24]} />
+          <meshBasicMaterial color={PALETTE.slate} toneMapped={false} />
+        </mesh>
+      )}
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="Flight"
+        subtitle="quadratic drag · F = −k|v|v"
+        rows={[
+          ["Time t", `${live.t.toFixed(2)} s`],
+          ["Height y", `${live.y.toFixed(1)} m`],
+          ["Speed |v|", `${live.speed.toFixed(1)} m/s`, "gold"],
+          ["Range", `${flight.range.toFixed(1)} m`, "good"],
+          ["…without drag", `${ideal.range.toFixed(1)} m`],
+          ["Range lost", `${(lost * 100).toFixed(0)}%`, lost > 0.3 ? "bad" : lost > 0.1 ? "warn" : undefined],
+          ["Max height", `${flight.apex.toFixed(1)} m`],
+          ["Flight time", `${flight.flightTime.toFixed(2)} s`],
+          ["Impact speed", `${flight.impactSpeed.toFixed(1)} m/s`],
+        ]}
+        note={
+          drag < 0.005
+            ? "With no drag the path is a true parabola, symmetric about its apex, and 45° gives the maximum range. Add drag and both of those stop being true."
+            : `Drag has cost ${(lost * 100).toFixed(0)}% of the range. The descent is steeper than the climb because the object keeps losing horizontal speed the whole way, so the optimum launch angle drops below 45°.`
+        }
+        noteTone={lost > 0.3 ? "warn" : "neutral"}
+      />
+
+      <SceneLegend
+        title="Projectile"
+        items={[
+          { color: PALETTE.emerald, shape: "line", label: "With drag", note: "asymmetric — falls steeper than it rose" },
+          { color: PALETTE.slate, shape: "dash", label: "No drag", note: "the ideal parabola" },
+          { color: PALETTE.sky, shape: "line", label: "Velocity v", note: "tangent to the path, always" },
+          { color: PALETTE.rose, shape: "line", label: "Weight W", note: "constant, straight down" },
+        ]}
+      />
+    </SceneCanvas>
+  );
+}
+
+// ═══ 7 · Two-source wave interference ════════════════════════════════
+
+const FIELD_HALF_X = 6;
+const FIELD_NEAR_Z = -4.2;
+const FIELD_FAR_Z = 6;
+const FIELD_SEGMENTS = 60;
+const SCREEN_CELLS = 61;
+/** Where the screen strip is drawn — and so the distance the paths must use. */
+const SCREEN_Z = FIELD_FAR_Z + 0.5;
+
+/** Live sum of the source waves, displaced into the mesh each frame. */
+function InterferenceField({ sources, wavelength, amplitude, speed }) {
+  const meshRef = useRef(null);
+  const clock = useRef(0);
+
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(
+      FIELD_HALF_X * 2,
+      FIELD_FAR_Z - FIELD_NEAR_Z,
+      FIELD_SEGMENTS,
+      FIELD_SEGMENTS,
+    );
+    g.rotateX(-Math.PI / 2);
+    g.translate(0, 0, (FIELD_NEAR_Z + FIELD_FAR_Z) / 2);
+    const colours = new Float32Array(g.attributes.position.count * 3);
+    g.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+    return g;
+  }, []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  const crest = useMemo(() => new THREE.Color(PALETTE.gold), []);
+  const trough = useMemo(() => new THREE.Color(PALETTE.violet), []);
+  const flat = useMemo(() => new THREE.Color("#16202e"), []);
+
+  useFrame((_, delta) => {
+    clock.current += Math.min(delta, 0.05) * speed;
+    const t = clock.current;
+    const k = (Math.PI * 2) / wavelength;
+    const omega = k * 2.2;
+    const pos = geometry.attributes.position;
+    const col = geometry.attributes.color;
+    const scratch = new THREE.Color();
+
+    for (let i = 0; i < pos.count; i += 1) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      let sum = 0;
+      for (let s = 0; s < sources.length; s += 1) {
+        const dx = x - sources[s];
+        const dz = z - FIELD_NEAR_Z;
+        // Guarded so the 1/√r spreading term cannot blow up at the slit itself.
+        const r = Math.max(Math.hypot(dx, dz), 0.35);
+        sum += (amplitude / Math.sqrt(r)) * Math.cos(k * r - omega * t);
+      }
+      pos.setY(i, sum);
+
+      const norm = clamp(sum / (amplitude * 1.4), -1, 1);
+      scratch.copy(flat).lerp(norm > 0 ? crest : trough, Math.abs(norm));
+      col.setXYZ(i, scratch.r, scratch.g, scratch.b);
+    }
+
+    pos.needsUpdate = true;
+    col.needsUpdate = true;
+    geometry.computeVertexNormals();
+  });
+
+  return (
+    <mesh ref={meshRef} geometry={geometry}>
+      <meshStandardMaterial vertexColors roughness={0.5} metalness={0.15} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+
+/**
+ * Time-averaged intensity along the screen. Summing the complex phasors and
+ * squaring is what produces fringes; summing the instantaneous heights would
+ * just show the wave sloshing.
+ */
+function screenIntensity(sources, wavelength, amplitude) {
+  const k = (Math.PI * 2) / wavelength;
+  const cells = [];
+  let peak = 1e-9;
+  for (let c = 0; c < SCREEN_CELLS; c += 1) {
+    const x = -FIELD_HALF_X + (2 * FIELD_HALF_X * c) / (SCREEN_CELLS - 1);
+    let re = 0;
+    let im = 0;
+    for (let s = 0; s < sources.length; s += 1) {
+      const r = Math.max(Math.hypot(x - sources[s], SCREEN_Z - FIELD_NEAR_Z), 0.35);
+      const a = amplitude / Math.sqrt(r);
+      re += a * Math.cos(k * r);
+      im += a * Math.sin(k * r);
+    }
+    const intensity = re * re + im * im;
+    peak = Math.max(peak, intensity);
+    cells.push({ x, intensity });
+  }
+  return cells.map((c) => ({ ...c, level: c.intensity / peak }));
+}
+
+export function InterferenceScene({ params = {} }) {
+  const {
+    slits = 2,
+    separation = 2.2,
+    wavelength = 1.2,
+    amplitude = 0.62,
+    speed = 1,
+    showScreen = true,
+    spin = false,
+  } = params || {};
+
+  const sources = useMemo(
+    () => (slits === 1 ? [0] : [-separation / 2, separation / 2]),
+    [slits, separation],
+  );
+  const cells = useMemo(
+    () => screenIntensity(sources, wavelength, amplitude),
+    [sources, wavelength, amplitude],
+  );
+
+  const L = SCREEN_Z - FIELD_NEAR_Z;
+  // Young's λL/d is a small-angle approximation, and at the separations this
+  // scene allows the angles are not small — so the exact first-order position
+  // from d sin θ = mλ is shown beside it. Printing only the approximation put
+  // a number on screen that visibly disagreed with the fringes next to it.
+  const ratio = wavelength / separation;
+  const fringeSpacing = slits === 2 ? wavelength * L / separation : null;
+  const firstOrderX = slits === 2 && ratio <= 1 ? L * Math.tan(Math.asin(ratio)) : null;
+  const approxError = firstOrderX ? Math.abs(fringeSpacing - firstOrderX) / firstOrderX : 0;
+  const highestOrder = slits === 2 ? Math.floor(separation / wavelength) : 0;
+
+  return (
+    <SceneCanvas camera={{ position: [0, 8.5, 11.5], fov: 46 }} controls={{ autoRotate: spin }}>
+      <InterferenceField sources={sources} wavelength={wavelength} amplitude={amplitude} speed={speed} />
+
+      {/* The barrier, with a gap at each slit. */}
+      {[-1, 1].map((side) => {
+        const inner = slits === 1 ? 0.28 : separation / 2 + 0.22;
+        const outer = FIELD_HALF_X;
+        const width = Math.max(outer - inner, 0.05);
+        return (
+          <mesh key={side} position={[side * (inner + width / 2), 0.25, FIELD_NEAR_Z]}>
+            <boxGeometry args={[width, 0.6, 0.28]} />
+            <meshStandardMaterial color="#39424f" roughness={0.6} metalness={0.35} />
+          </mesh>
+        );
+      })}
+      {slits === 2 && (
+        <mesh position={[0, 0.25, FIELD_NEAR_Z]}>
+          <boxGeometry args={[Math.max(separation - 0.44, 0.05), 0.6, 0.28]} />
+          <meshStandardMaterial color="#39424f" roughness={0.6} metalness={0.35} />
+        </mesh>
+      )}
+
+      {sources.map((x, i) => (
+        <mesh key={i} position={[x, 0.15, FIELD_NEAR_Z]}>
+          <sphereGeometry args={[0.13, 18, 18]} />
+          <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={2} toneMapped={false} />
+        </mesh>
+      ))}
+
+      {showScreen &&
+        cells.map((cell, i) => (
+          <mesh key={i} position={[cell.x, 0.5, SCREEN_Z]}>
+            <boxGeometry args={[(2 * FIELD_HALF_X) / SCREEN_CELLS, 0.9, 0.12]} />
+            <meshStandardMaterial
+              color={PALETTE.gold}
+              emissive={PALETTE.gold}
+              emissiveIntensity={cell.level * 2.4}
+              // Dark fringes must read as genuinely dark, so opacity tracks
+              // intensity as well as glow.
+              transparent
+              opacity={0.22 + cell.level * 0.78}
+              toneMapped={false}
+            />
+          </mesh>
+        ))}
+
+      <SceneLabel position={[0, 1.4, FIELD_NEAR_Z - 0.7]} accent>
+        {slits === 1 ? "single source" : `two sources · d = ${separation.toFixed(1)}`}
+      </SceneLabel>
+      {showScreen && (
+        <SceneLabel position={[0, 1.4, SCREEN_Z]} tone="text-ink-400">
+          screen
+        </SceneLabel>
+      )}
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="Interference"
+        subtitle={slits === 2 ? "path difference decides it" : "one source — no fringes"}
+        rows={[
+          ["Sources", slits],
+          ["Wavelength λ", wavelength.toFixed(2)],
+          ["Separation d", slits === 2 ? separation.toFixed(2) : "—"],
+          ["Screen distance L", L.toFixed(1)],
+          ["1st max at x", firstOrderX ? firstOrderX.toFixed(2) : "—", "gold"],
+          ["…from d sin θ = λ", firstOrderX ? `${((Math.asin(ratio) * 180) / Math.PI).toFixed(0)}°` : "—"],
+          ["λL ÷ d estimate", fringeSpacing ? fringeSpacing.toFixed(2) : "—", approxError > 0.1 ? "warn" : undefined],
+          ["Highest order m", slits === 2 ? highestOrder : "—"],
+          ["d ÷ λ", slits === 2 ? (separation / wavelength).toFixed(2) : "—"],
+        ]}
+        note={
+          slits === 1
+            ? "One source spreads out as circular wavefronts and the screen is simply brightest opposite it. Switch to two sources to get fringes."
+            : approxError > 0.1
+              ? `Where the path difference is a whole number of wavelengths the crests reinforce; a half-odd number cancels. Note λL÷d is ${(approxError * 100).toFixed(0)}% out here — it assumes small angles, and with d only ${(separation / wavelength).toFixed(1)}λ wide the first order sits at ${((Math.asin(ratio) * 180) / Math.PI).toFixed(0)}°. Narrow λ or widen d to bring the two into line.`
+              : "Where the path difference is a whole number of wavelengths the crests arrive together and reinforce — a bright fringe. Where it is a half-odd number they cancel. Widening d packs the fringes closer; a longer λ spreads them out."
+        }
+        noteTone={slits === 2 && approxError > 0.1 ? "warn" : "neutral"}
+      />
+
+      <SceneLegend
+        title="Wave field"
+        items={[
+          { color: PALETTE.gold, shape: "square", label: "Crest", note: "displacement upward" },
+          { color: PALETTE.violet, shape: "square", label: "Trough", note: "displacement downward" },
+          { color: PALETTE.gold, label: "Source", note: "coherent — same λ and phase" },
+          { color: "#39424f", shape: "square", label: "Barrier", note: "the slits are the gaps in it" },
+        ]}
+      />
+    </SceneCanvas>
+  );
+}
+
+// ═══ 8 · Gravity wells & orbital motion ══════════════════════════════
+
+const WELL_HALF = 7;
+const WELL_SEGMENTS = 64;
+const ORBIT_TRAIL_MAX = 1400;
+/** Gravitational constant in scene units — chosen so a 1.0 mass looks right. */
+const G_SCENE = 6;
+
+/** Rubber-sheet analogy: depth ∝ −μ/r, floored so the singularity is finite. */
+function wellDepth(r, mu) {
+  return -mu / Math.max(r, 0.9) + mu / WELL_HALF;
+}
+
+function GravityWell({ mass }) {
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(WELL_HALF * 2, WELL_HALF * 2, WELL_SEGMENTS, WELL_SEGMENTS);
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }, []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  // Depth is the only thing the mass changes, so the vertices are rewritten
+  // in place rather than rebuilding the whole grid.
+  useEffect(() => {
+    const mu = G_SCENE * mass;
+    const pos = geometry.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      const r = Math.hypot(pos.getX(i), pos.getZ(i));
+      pos.setY(i, clamp(wellDepth(r, mu), -9, 0));
+    }
+    pos.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }, [geometry, mass]);
+
+  return (
+    <mesh geometry={geometry}>
+      <meshBasicMaterial wireframe color={PALETTE.sky} transparent opacity={0.2} />
+    </mesh>
+  );
+}
+
+/**
+ * Leapfrog (kick–drift–kick) integration. A naive Euler step bleeds energy
+ * every orbit and the ellipse visibly spirals in — leapfrog is symplectic, so
+ * a closed orbit stays closed for as long as you leave it running.
+ */
+function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTrail, onSample }) {
+  const body = useRef(null);
+  const trailLine = useRef(null);
+  const trailGeo = useRef(null);
+  const trail = useMemo(() => new Float32Array(ORBIT_TRAIL_MAX * 3), []);
+  const state = useRef({ x: 0, z: 0, vx: 0, vz: 0, count: 0, sampleAcc: 0, escaped: false });
+
+  const mu = G_SCENE * mass;
+
+  useEffect(() => {
+    state.current = {
+      x: launchRadius,
+      z: 0,
+      vx: 0,
+      vz: launchSpeed,
+      count: 0,
+      sampleAcc: 0,
+      escaped: false,
+    };
+  }, [launchRadius, launchSpeed, mass, resetKey]);
+
+  useFrame((_, delta) => {
+    const s = state.current;
+    const step = Math.min(delta, 0.033);
+
+    if (running && !s.escaped) {
+      const substeps = 4;
+      const h = step / substeps;
+      for (let n = 0; n < substeps; n += 1) {
+        let r = Math.max(Math.hypot(s.x, s.z), 0.55);
+        let a = -mu / (r * r * r);
+        s.vx += 0.5 * h * a * s.x;
+        s.vz += 0.5 * h * a * s.z;
+        s.x += h * s.vx;
+        s.z += h * s.vz;
+        r = Math.max(Math.hypot(s.x, s.z), 0.55);
+        a = -mu / (r * r * r);
+        s.vx += 0.5 * h * a * s.x;
+        s.vz += 0.5 * h * a * s.z;
+      }
+      // Classify by energy, never by distance. A bound ellipse with a wide
+      // apoapsis leaves the sheet and comes back; freezing it as "escaped"
+      // then printed "total energy is non-negative" over a plainly negative
+      // energy. Only an unbound orbit that has genuinely left is stopped.
+      const far = Math.hypot(s.x, s.z);
+      const rNow = Math.max(far, 0.55);
+      const specificEnergy = (s.vx * s.vx + s.vz * s.vz) / 2 - mu / rNow;
+      if (specificEnergy >= 0 && far > WELL_HALF * 1.6) s.escaped = true;
+
+      const r = Math.hypot(s.x, s.z);
+      // Once full the trail slides back by one point rather than wrapping:
+      // a wrapping buffer is drawn in index order, so the seam joined the
+      // newest point to the oldest with a chord straight across the orbit.
+      if (s.count >= ORBIT_TRAIL_MAX) trail.copyWithin(0, 3);
+      else s.count += 1;
+      const o = (s.count - 1) * 3;
+      trail[o] = s.x;
+      trail[o + 1] = clamp(wellDepth(r, mu), -9, 0) + 0.12;
+      trail[o + 2] = s.z;
+    }
+
+    const r = Math.max(Math.hypot(s.x, s.z), 0.001);
+    if (body.current) body.current.position.set(s.x, clamp(wellDepth(r, mu), -9, 0) + 0.22, s.z);
+    if (trailGeo.current) {
+      trailGeo.current.setDrawRange(0, s.count);
+      trailGeo.current.attributes.position.needsUpdate = true;
+      if (trailLine.current) trailLine.current.visible = showTrail && s.count > 1;
+    }
+
+    s.sampleAcc += step;
+    if (s.sampleAcc >= 0.15) {
+      s.sampleAcc = 0;
+      const v = Math.hypot(s.vx, s.vz);
+      const energy = (v * v) / 2 - mu / r;
+      // Specific angular momentum in the orbital plane; with the eccentricity
+      // formula it classifies the conic without having to fit the path.
+      const L = s.x * s.vz - s.z * s.vx;
+      const e = Math.sqrt(Math.max(0, 1 + (2 * energy * L * L) / (mu * mu)));
+      const a = energy < 0 ? -mu / (2 * energy) : null;
+      onSample({
+        r,
+        v,
+        energy,
+        e,
+        period: a ? 2 * Math.PI * Math.sqrt((a * a * a) / mu) : null,
+        escaped: s.escaped,
+        // Bound but off the edge of the sheet — worth saying, because the
+        // satellite simply vanishes from view until it swings back.
+        beyondView: energy < 0 && r > WELL_HALF,
+      });
+    }
+  });
+
+  return (
+    <group>
+      <mesh ref={body} castShadow>
+        <sphereGeometry args={[0.19, 22, 22]} />
+        <meshStandardMaterial color={PALETTE.emerald} emissive={PALETTE.emerald} emissiveIntensity={1.4} toneMapped={false} />
+      </mesh>
+      <line ref={trailLine} frustumCulled={false}>
+        <bufferGeometry ref={trailGeo}>
+          <bufferAttribute attach="attributes-position" args={[trail, 3]} />
+        </bufferGeometry>
+        <lineBasicMaterial color={PALETTE.emerald} transparent opacity={0.7} />
+      </line>
+    </group>
+  );
+}
+
+export function OrbitScene({ params = {} }) {
+  const {
+    mass = 1,
+    launchRadius = 3.4,
+    launchSpeed = 1.35,
+    running = true,
+    reset = 0,
+    showTrail = true,
+    showWell = true,
+    spin = false,
+  } = params || {};
+
+  const mu = G_SCENE * mass;
+  // The speed that would make this exact radius a circle — the reference the
+  // launch slider is really being compared against.
+  const circular = Math.sqrt(mu / launchRadius);
+  const escapeSpeed = Math.sqrt((2 * mu) / launchRadius);
+
+  // Seeded from the launch conditions rather than zero, so the panel does not
+  // read "hyperbolic" for the first fraction of a second of every orbit.
+  const [live, setLive] = useState(() => ({
+    r: launchRadius,
+    v: launchSpeed,
+    energy: (launchSpeed * launchSpeed) / 2 - mu / launchRadius,
+    e: 0,
+    period: null,
+    escaped: false,
+    beyondView: false,
+  }));
+
+  const unbound = live.energy >= 0;
+  const shape = unbound
+    ? live.e > 1.02
+      ? "hyperbolic"
+      : "escape"
+    : live.e < 0.04
+      ? "circular"
+      : "elliptical";
+
+  return (
+    <SceneCanvas camera={{ position: [0, 9.5, 11], fov: 46 }} controls={{ autoRotate: spin }}>
+      {showWell && <GravityWell mass={mass} />}
+
+      {/* Central body, sunk to the bottom of its own well. */}
+      <group position={[0, clamp(wellDepth(0.9, mu), -9, 0), 0]}>
+        <mesh>
+          <sphereGeometry args={[0.34 + mass * 0.12, 28, 28]} />
+          <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={1.8} toneMapped={false} />
+        </mesh>
+        <Halo radius={0.9 + mass * 0.3} color={PALETTE.gold} opacity={0.1} />
+      </group>
+
+      <Satellite
+        mass={mass}
+        launchRadius={launchRadius}
+        launchSpeed={launchSpeed}
+        running={running}
+        resetKey={reset}
+        showTrail={showTrail}
+        onSample={setLive}
+      />
+
+      <SceneLabel position={[0, 1.5, 0]} accent>
+        μ = GM = {mu.toFixed(1)}
+      </SceneLabel>
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="Orbit"
+        subtitle="v² = GM (2÷r − 1÷a)"
+        rows={[
+          ["Radius r", live.r.toFixed(2)],
+          ["Speed v", live.v.toFixed(2), "gold"],
+          ["Circular v at r₀", circular.toFixed(2)],
+          ["Escape v at r₀", escapeSpeed.toFixed(2)],
+          ["Eccentricity e", live.e.toFixed(3)],
+          ["Energy ε", live.energy.toFixed(2), unbound ? "bad" : "good"],
+          ["Period T", live.period ? live.period.toFixed(1) : "—"],
+          ["Orbit", shape, shape === "circular" ? "good" : unbound ? "bad" : "warn"],
+          ...(live.beyondView ? [["Note", "past the sheet edge", "warn"]] : []),
+        ]}
+        note={
+          unbound
+            ? "Total energy is non-negative, so the orbit is unbound — the satellite is on an escape trajectory and will not come back."
+            : live.beyondView
+              ? `Still bound — energy is negative, so this is a closed ellipse. It has just swung out past the edge of the sheet and will fall back in. Period is ${live.period ? live.period.toFixed(0) : "—"}.`
+              : shape === "circular"
+                ? "Launch speed matches the circular value at this radius, so gravity supplies exactly the centripetal force needed and r never changes."
+                : `Elliptical: ${launchSpeed < circular ? "too slow" : "too fast"} for a circle here, so the satellite ${launchSpeed < circular ? "falls inward, speeds up, and swings back out" : "climbs away, slows down, and falls back"}. Match the circular speed of ${circular.toFixed(2)} to round it off.`
+        }
+        noteTone={unbound ? "bad" : live.beyondView ? "warn" : shape === "circular" ? "good" : "neutral"}
+      />
+
+      <SceneLegend
+        title="Gravity well"
+        items={[
+          { color: PALETTE.gold, label: "Central mass", note: "depth of the well ∝ its mass" },
+          { color: PALETTE.emerald, label: "Satellite", note: "in free fall the whole time" },
+          { color: PALETTE.emerald, shape: "line", label: "Path", note: "an ellipse when bound" },
+          { color: PALETTE.sky, shape: "line", label: "Potential", note: "the sheet is −GM ÷ r, not real space" },
+        ]}
+      />
+    </SceneCanvas>
+  );
+}
+
 // ─── Dispatcher ─────────────────────────────────────────────────────
 
 const SCENES = {
@@ -2429,6 +3218,9 @@ const SCENES = {
   lenses: LensOpticsScene,
   induction: InductionScene,
   gas: GasLawsScene,
+  projectile: ProjectileScene,
+  interference: InterferenceScene,
+  orbits: OrbitScene,
 };
 
 export default function PhysicsCanvas({ topicId, params }) {

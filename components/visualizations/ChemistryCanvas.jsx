@@ -13,6 +13,7 @@ import {
   SceneLabel,
   SceneLegend,
   SceneReadout,
+  VectorArrow,
   circlePoints,
   clamp,
   hashRandom,
@@ -1865,6 +1866,481 @@ export function ElectrolysisScene({ params = {} }) {
   );
 }
 
+// ═══ 6 · VSEPR molecular geometry ════════════════════════════════════
+
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
+const SQ3 = Math.sqrt(3) / 2;
+
+/**
+ * Electron-domain directions, one set per steric number.
+ *
+ * Order matters and is not cosmetic: lone pairs are taken from the END of
+ * each list, which is what makes the model reproduce the real shapes. In a
+ * trigonal bipyramid the equatorial sites are last, because lone pairs always
+ * take equatorial positions; in an octahedron the ±y pair is last, because a
+ * second lone pair always goes trans to the first.
+ */
+const DOMAIN_DIRECTIONS = {
+  2: [V3(0, 1, 0), V3(0, -1, 0)],
+  3: [V3(1, 0, 0), V3(-0.5, 0, SQ3), V3(-0.5, 0, -SQ3)],
+  4: [V3(1, 1, 1), V3(1, -1, -1), V3(-1, 1, -1), V3(-1, -1, 1)],
+  5: [V3(0, 1, 0), V3(0, -1, 0), V3(1, 0, 0), V3(-0.5, 0, SQ3), V3(-0.5, 0, -SQ3)],
+  6: [V3(1, 0, 0), V3(-1, 0, 0), V3(0, 0, 1), V3(0, 0, -1), V3(0, 1, 0), V3(0, -1, 0)],
+};
+
+const ELECTRON_GEOMETRY = {
+  2: "linear",
+  3: "trigonal planar",
+  4: "tetrahedral",
+  5: "trigonal bipyramidal",
+  6: "octahedral",
+};
+
+const IDEAL_ANGLE = { 2: 180, 3: 120, 4: 109.5, 5: 90, 6: 90 };
+/** Trigonal bipyramidal has two distinct ideal angles; the rest have one. */
+const IDEAL_ANGLE_LABEL = { 2: "180°", 3: "120°", 4: "109.5°", 5: "90° & 120°", 6: "90°" };
+
+/** Keyed by `${bonding}-${lone}` — the AXₙEₘ notation, spelled out. */
+const SHAPES = {
+  // One bonding pair is a diatomic — linear by definition, however many lone
+  // pairs sit behind it. The sliders reach these, so they need naming.
+  "1-0": { name: "Linear (diatomic)", example: "H₂", polar: false },
+  "1-1": { name: "Linear (diatomic)", example: "HF", polar: true },
+  "1-2": { name: "Linear (diatomic)", example: "HCl", polar: true },
+  "1-3": { name: "Linear (diatomic)", example: "CO", polar: true },
+  "2-0": { name: "Linear", example: "BeCl₂", polar: false },
+  "3-0": { name: "Trigonal planar", example: "BF₃", polar: false },
+  "2-1": { name: "Bent", example: "SO₂", polar: true },
+  "4-0": { name: "Tetrahedral", example: "CH₄", polar: false },
+  "3-1": { name: "Trigonal pyramidal", example: "NH₃", polar: true },
+  "2-2": { name: "Bent", example: "H₂O", polar: true },
+  "5-0": { name: "Trigonal bipyramidal", example: "PCl₅", polar: false },
+  "4-1": { name: "Seesaw", example: "SF₄", polar: true },
+  "3-2": { name: "T-shaped", example: "ClF₃", polar: true },
+  "2-3": { name: "Linear", example: "XeF₂", polar: false },
+  "3-3": { name: "T-shaped", example: "—", polar: true },
+  "6-0": { name: "Octahedral", example: "SF₆", polar: false },
+  "5-1": { name: "Square pyramidal", example: "BrF₅", polar: true },
+  "4-2": { name: "Square planar", example: "XeF₄", polar: false },
+};
+
+/** Observed closing of the bond angle per lone pair: 109.5° → 107° → 104.5°. */
+const LONE_PAIR_COMPRESSION = 2.5;
+
+function smallestAngleOf(bonds) {
+  let smallest = 180;
+  for (let i = 0; i < bonds.length; i += 1) {
+    for (let j = i + 1; j < bonds.length; j += 1) {
+      smallest = Math.min(smallest, (bonds[i].angleTo(bonds[j]) * 180) / Math.PI);
+    }
+  }
+  return smallest;
+}
+
+/** Tilts every bond away from the resultant lone-pair direction. */
+function tiltBonds(directions, bonding, push, strength) {
+  const bonds = directions.slice(0, bonding).map((d) => d.clone());
+  if (push && strength > 0) {
+    bonds.forEach((b) => b.addScaledVector(push, -strength).normalize());
+  }
+  return bonds;
+}
+
+/**
+ * Lone pairs sit closer to the nucleus and so repel harder than bonding
+ * pairs, closing the bond angles by roughly 2.5° each.
+ *
+ * Rather than tilt the bonds by a fixed amount — which overshot badly on two
+ * lone pairs, putting water at 99.8° instead of its real 104.5° — the tilt is
+ * solved for: bisect on the push strength until the smallest bond angle lands
+ * on the observed value. Where the lone pairs cancel each other (the trans
+ * pair in XeF₄, the three equatorial ones in XeF₂) the resultant is zero, no
+ * tilt is possible, and the ideal angles correctly survive untouched.
+ */
+function vseprGeometry(bonding, lone) {
+  const steric = clamp(bonding + lone, 2, 6);
+  const directions = DOMAIN_DIRECTIONS[steric];
+  const lonePairs = directions.slice(bonding, bonding + lone).map((d) => d.clone());
+
+  let push = null;
+  if (lonePairs.length > 0) {
+    const resultantLone = lonePairs.reduce((acc, d) => acc.add(d), new THREE.Vector3());
+    if (resultantLone.lengthSq() > 1e-6) push = resultantLone.normalize();
+  }
+
+  let bonds = tiltBonds(directions, bonding, push, 0);
+  if (push && bonds.length > 1) {
+    const target = smallestAngleOf(bonds) - LONE_PAIR_COMPRESSION * lone;
+    let lo = 0;
+    let hi = 0.35;
+    for (let i = 0; i < 40; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (smallestAngleOf(tiltBonds(directions, bonding, push, mid)) > target) lo = mid;
+      else hi = mid;
+    }
+    bonds = tiltBonds(directions, bonding, push, lo);
+  }
+
+  // Reported from the geometry actually drawn, so the number in the panel and
+  // the shape on screen cannot drift apart.
+  const smallest = smallestAngleOf(bonds);
+
+  const resultant = bonds.reduce((acc, d) => acc.add(d), new THREE.Vector3());
+  return {
+    steric,
+    bonds,
+    lonePairs,
+    smallestAngle: bonds.length > 1 ? smallest : 0,
+    // A shape is non-polar only when the bond dipoles cancel AND no lone pair
+    // is left over to give the molecule a dipole of its own.
+    symmetric: resultant.length() < 0.08 && lone === 0,
+  };
+}
+
+export function VseprScene({ params = {} }) {
+  const {
+    bonding = 4,
+    lone = 0,
+    bondLength = 1.9,
+    showLonePairs = true,
+    showAngles = true,
+    spin = true,
+  } = params || {};
+
+  const nBonding = clamp(Math.round(bonding), 1, 6);
+  const nLone = clamp(Math.round(lone), 0, Math.max(0, 6 - nBonding));
+
+  const geometry = useMemo(() => vseprGeometry(nBonding, nLone), [nBonding, nLone]);
+  const key = `${nBonding}-${nLone}`;
+  const shape = SHAPES[key] ?? { name: "—", example: "—", polar: false };
+  const ideal = IDEAL_ANGLE[geometry.steric];
+
+  return (
+    <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin }}>
+      <AtomSphere position={[0, 0, 0]} radius={0.52} color={PALETTE.gold} emissiveIntensity={0.6} />
+      <Halo position={[0, 0, 0]} radius={0.9} color={PALETTE.gold} opacity={0.08} />
+      <SceneLabel position={[0, -0.95, 0]} accent>
+        central atom
+      </SceneLabel>
+
+      {geometry.bonds.map((dir, i) => {
+        const end = dir.clone().multiplyScalar(bondLength);
+        return (
+          <group key={`b${i}`}>
+            <Bond from={[0, 0, 0]} to={[end.x, end.y, end.z]} radius={0.085} color={PALETTE.slate} />
+            <AtomSphere position={[end.x, end.y, end.z]} radius={0.34} color={PALETTE.sky} />
+          </group>
+        );
+      })}
+
+      {showLonePairs &&
+        geometry.lonePairs.map((dir, i) => {
+          // Drawn short and fat: a lone pair is a cloud held close to the
+          // nucleus, and its bulk is exactly why it squeezes the bond angles.
+          const at = dir.clone().multiplyScalar(bondLength * 0.62);
+          return (
+            <group key={`l${i}`} position={[at.x, at.y, at.z]}>
+              <mesh scale={[1, 1, 1.5]} quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir)}>
+                <sphereGeometry args={[0.36, 20, 20]} />
+                <meshStandardMaterial
+                  color={PALETTE.violet}
+                  emissive={PALETTE.violet}
+                  emissiveIntensity={0.7}
+                  transparent
+                  opacity={0.42}
+                  roughness={0.3}
+                />
+              </mesh>
+            </group>
+          );
+        })}
+
+      {showAngles && geometry.bonds.length > 1 && (
+        <SceneLabel
+          position={[
+            geometry.bonds[0].x * bondLength * 0.62 + 0.35,
+            geometry.bonds[0].y * bondLength * 0.62 + 0.35,
+            geometry.bonds[0].z * bondLength * 0.62,
+          ]}
+          tone="text-ink-300"
+        >
+          {geometry.smallestAngle.toFixed(1)}°
+        </SceneLabel>
+      )}
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="VSEPR"
+        subtitle={`AX${sub(nBonding) || "₁"}${nLone > 0 ? `E${sub(nLone) || "₁"}` : ""}`}
+        rows={[
+          ["Bonding pairs", nBonding],
+          ["Lone pairs", nLone],
+          ["Steric number", geometry.steric],
+          ["Electron geometry", ELECTRON_GEOMETRY[geometry.steric]],
+          ["Molecular shape", shape.name, "gold"],
+          ["Ideal angle", nBonding > 1 ? IDEAL_ANGLE_LABEL[geometry.steric] : "—"],
+          ["Actual angle", nBonding > 1 ? `${geometry.smallestAngle.toFixed(1)}°` : "—", nLone > 0 ? "warn" : "good"],
+          ["Example", shape.example],
+          ["Polarity", geometry.symmetric ? "non-polar" : "polar", geometry.symmetric ? "good" : "warn"],
+        ]}
+        note={
+          nBonding < 2
+            ? "With a single bond there is no angle to compress — any diatomic is linear whatever its lone pairs do. Add a second bonding pair to see VSEPR bite."
+            : nLone === 0
+              ? "With no lone pairs the electron geometry and the molecular shape are the same thing, and the bond angles sit at their ideal values."
+              : geometry.smallestAngle >= ideal - 0.05
+                ? `The ${nLone} lone pairs sit opposite each other, so their repulsions cancel and the bond angles stay at the ideal ${ideal}°. This is why XeF₄ is a flat square rather than a squashed one.`
+                : `Lone pairs repel more strongly than bonding pairs, so the ${nBonding} bonds are squeezed from ${ideal}° down to about ${geometry.smallestAngle.toFixed(1)}°. You only name the shape from where the atoms are — the lone pairs are invisible in the name.`
+        }
+        noteTone={nBonding < 2 ? "neutral" : nLone > 0 ? "warn" : "good"}
+      />
+
+      <SceneLegend
+        title="Electron domains"
+        items={[
+          { color: PALETTE.gold, label: "Central atom", note: "counts its own valence electrons" },
+          { color: PALETTE.sky, label: "Bonded atom", note: "one bonding pair each" },
+          { color: PALETTE.violet, label: "Lone pair", note: "repels harder — closes the angles" },
+          { color: PALETTE.slate, shape: "line", label: "Bond", note: "shared pair of electrons" },
+        ]}
+      />
+    </SceneCanvas>
+  );
+}
+
+// ═══ 7 · Reaction energy profile ═════════════════════════════════════
+
+const PROFILE_SAMPLES = 160;
+const PROFILE_HALF = 5;
+/** kJ/mol → world units, so a 150 kJ/mol barrier still fits the viewport. */
+const ENERGY_SCALE = 0.028;
+const GAS_CONSTANT = 8.314;
+/** Typical Arrhenius pre-exponential factor for a unimolecular step, s⁻¹. */
+const PRE_EXPONENTIAL = 1e13;
+
+/**
+ * Energy against reaction coordinate: a sigmoid step from reactants to
+ * products, plus a Gaussian hump of height `bump` for the transition state.
+ */
+function energyAt(x, bump, deltaH) {
+  const step = 0.5 * (1 + Math.tanh(3 * x));
+  return deltaH * step + bump * Math.exp(-Math.pow(x / 0.42, 2));
+}
+
+/**
+ * Height of the Gaussian needed for the curve's true summit to sit exactly Ea
+ * above the reactants.
+ *
+ * Setting it to Ea − ΔH/2 only makes E(0) equal Ea, and E(0) is not the
+ * maximum: the sigmoid is still climbing there, so the real summit sits off
+ * to one side and overshot the Ea arrow by a visible few percent. Bisecting on
+ * the bump height puts the drawn peak where the panel says it is.
+ */
+function barrierAmplitude(activation, deltaH) {
+  const summit = (bump) => {
+    let peak = -Infinity;
+    for (let i = 0; i <= 240; i += 1) {
+      const x = -1.2 + (2.4 * i) / 240;
+      peak = Math.max(peak, energyAt(x, bump, deltaH));
+    }
+    return peak;
+  };
+  let lo = 0;
+  let hi = Math.max(activation * 2 + Math.abs(deltaH) + 20, 40);
+  for (let i = 0; i < 44; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (summit(mid) < activation) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function profilePoints(bump, deltaH, z = 0) {
+  const pts = [];
+  for (let i = 0; i <= PROFILE_SAMPLES; i += 1) {
+    const t = i / PROFILE_SAMPLES;
+    const x = -1 + 2 * t;
+    pts.push([x * PROFILE_HALF, energyAt(x, bump, deltaH) * ENERGY_SCALE, z]);
+  }
+  return pts;
+}
+
+/** Rolls a marker along the profile so the barrier reads as something to climb. */
+function ReactionMarker({ bump, deltaH, crosses, speed }) {
+  const marker = useRef(null);
+  const clock = useRef(0);
+
+  useFrame((_, delta) => {
+    clock.current += Math.min(delta, 0.05) * speed;
+    let x;
+    if (crosses) {
+      // A full pass, then a pause on the product side before resetting.
+      const cycle = clock.current % 5;
+      x = cycle < 3.4 ? -1 + (2 * cycle) / 3.4 : 1;
+    } else {
+      // Not enough energy: it rattles in the reactant well and falls back.
+      x = -0.72 + 0.28 * Math.sin(clock.current * 1.6);
+    }
+    if (marker.current) {
+      marker.current.position.set(
+        x * PROFILE_HALF,
+        energyAt(x, bump, deltaH) * ENERGY_SCALE + 0.17,
+        0,
+      );
+    }
+  });
+
+  return (
+    <mesh ref={marker}>
+      <sphereGeometry args={[0.17, 22, 22]} />
+      <meshStandardMaterial
+        color={crosses ? PALETTE.emerald : PALETTE.rose}
+        emissive={crosses ? PALETTE.emerald : PALETTE.rose}
+        emissiveIntensity={1.5}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
+export function EnergyProfileScene({ params = {} }) {
+  const {
+    activation = 90,
+    deltaH = -60,
+    catalyst = false,
+    catalystDrop = 35,
+    temperature = 350,
+    showReverse = true,
+    spin = false,
+  } = params || {};
+
+  const exothermic = deltaH < 0;
+  // The forward barrier can never be lower than ΔH: the products would then
+  // sit above the "peak", and the reverse activation energy would come out
+  // negative. The sliders can reach that combination, so it is clamped.
+  const floorEa = Math.max(deltaH + 5, 5);
+  const uncatalysed = Math.max(activation, floorEa);
+  const effectiveEa = Math.max(catalyst ? uncatalysed - catalystDrop : uncatalysed, floorEa);
+  const reverseEa = effectiveEa - deltaH;
+  const clampedByDeltaH = uncatalysed > activation;
+
+  const bump = useMemo(() => barrierAmplitude(effectiveEa, deltaH), [effectiveEa, deltaH]);
+  const baseBump = useMemo(
+    () => (catalyst ? barrierAmplitude(uncatalysed, deltaH) : null),
+    [catalyst, uncatalysed, deltaH],
+  );
+
+  const main = useMemo(() => profilePoints(bump, deltaH), [bump, deltaH]);
+  const original = useMemo(
+    () => (baseBump === null ? null : profilePoints(baseBump, deltaH, -0.01)),
+    [baseBump, deltaH],
+  );
+
+  // Arrhenius: the fraction of collisions carrying at least Ea. The ratio of
+  // the two fractions is the whole reason a catalyst speeds a reaction up.
+  const fraction = Math.exp((-effectiveEa * 1000) / (GAS_CONSTANT * temperature));
+  const baseFraction = Math.exp((-uncatalysed * 1000) / (GAS_CONSTANT * temperature));
+  const speedUp = baseFraction > 0 ? fraction / baseFraction : 1;
+  // k = A e^(−Ea/RT). The bare Boltzmann fraction is ~1e−14 for a reaction
+  // that runs perfectly briskly, so judging "does this go?" on the fraction
+  // alone said no to almost everything. A typical A of 10¹³ s⁻¹ turns it into
+  // a rate constant, which is the number that actually answers the question.
+  const rateConstant = PRE_EXPONENTIAL * fraction;
+  const proceeds = rateConstant > 1e-3;
+
+  const peakY = effectiveEa * ENERGY_SCALE;
+  const productY = deltaH * ENERGY_SCALE;
+
+  return (
+    <SceneCanvas camera={{ position: [0, 1.2, 10.5], fov: 46 }} controls={{ autoRotate: spin }}>
+      {/* Reactant and product levels, extended as guides for reading ΔH off. */}
+      <Line points={[[-PROFILE_HALF - 0.6, 0, 0], [PROFILE_HALF + 0.6, 0, 0]]} color={PALETTE.line} lineWidth={1.2} dashed dashSize={0.14} gapSize={0.12} />
+      <Line
+        points={[[-PROFILE_HALF - 0.6, productY, 0], [PROFILE_HALF + 0.6, productY, 0]]}
+        color={PALETTE.line}
+        lineWidth={1.2}
+        dashed
+        dashSize={0.14}
+        gapSize={0.12}
+      />
+
+      {original && <Line points={original} color={PALETTE.slate} lineWidth={2} dashed dashSize={0.18} gapSize={0.14} />}
+      <Line points={main} color={catalyst ? PALETTE.emerald : PALETTE.gold} lineWidth={3.4} />
+
+      <ReactionMarker bump={bump} deltaH={deltaH} crosses={proceeds} speed={1} />
+
+      {/* Activation energy, measured from the reactant level to the peak. */}
+      <VectorArrow
+        from={[-1.55, 0, 0]}
+        to={[-1.55, peakY, 0]}
+        color={PALETTE.rose}
+        radius={0.035}
+        headLength={0.22}
+        headRadius={0.1}
+        label={`Ea ${effectiveEa.toFixed(0)}`}
+      />
+      <VectorArrow
+        from={[2.4, 0, 0]}
+        to={[2.4, productY, 0]}
+        color={exothermic ? PALETTE.emerald : PALETTE.violet}
+        radius={0.035}
+        headLength={0.22}
+        headRadius={0.1}
+        label={`ΔH ${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)}`}
+      />
+
+      <SceneLabel position={[-PROFILE_HALF - 0.2, 0.42, 0]} tone="text-ink-300">
+        reactants
+      </SceneLabel>
+      <SceneLabel position={[PROFILE_HALF + 0.2, productY + 0.42, 0]} tone="text-ink-300">
+        products
+      </SceneLabel>
+      <SceneLabel position={[0, peakY + 0.5, 0]} accent>
+        transition state
+      </SceneLabel>
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="Energetics"
+        subtitle={exothermic ? "exothermic — energy released" : "endothermic — energy absorbed"}
+        rows={[
+          ["Activation Ea", `${effectiveEa.toFixed(0)} kJ/mol`, catalyst ? "good" : "gold"],
+          ["…uncatalysed", `${uncatalysed.toFixed(0)} kJ/mol`],
+          ["Reverse Ea", `${reverseEa.toFixed(0)} kJ/mol`],
+          ["ΔH", `${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)} kJ/mol`, exothermic ? "good" : "warn"],
+          ["Temperature", `${temperature.toFixed(0)} K`],
+          ["Fraction ≥ Ea", fraction.toExponential(1)],
+          ["Rate constant k", `${rateConstant.toExponential(1)} s⁻¹`, proceeds ? "good" : "bad"],
+          ["Catalyst", catalyst ? `−${(uncatalysed - effectiveEa).toFixed(0)} kJ/mol` : "none"],
+          ["Rate ×", catalyst ? `${speedUp.toExponential(1)}` : "1", catalyst ? "good" : undefined],
+        ]}
+        note={
+          clampedByDeltaH
+            ? `An endothermic reaction cannot have a forward barrier below ΔH — the products would sit above the transition state. Ea is held at ${effectiveEa.toFixed(0)} kJ/mol, just clear of ΔH.`
+            : catalyst
+              ? `The catalyst offers a different route with a lower barrier, so ${speedUp.toExponential(1)}× as many collisions succeed at this temperature. Note ΔH has not moved — a catalyst changes the rate, never the energy released.`
+              : !proceeds
+                ? `At ${temperature.toFixed(0)} K almost no collision carries ${effectiveEa.toFixed(0)} kJ/mol, so k is only ${rateConstant.toExponential(1)} s⁻¹ and the marker falls back every time. Raise the temperature or add a catalyst.`
+                : exothermic
+                  ? "The products sit below the reactants, so bond making released more energy than bond breaking absorbed. ΔH is negative and the surroundings warm up."
+                  : "The products sit above the reactants: breaking bonds cost more than making them returned. ΔH is positive and the surroundings cool."
+        }
+        noteTone={clampedByDeltaH ? "warn" : !proceeds ? "bad" : catalyst || exothermic ? "good" : "warn"}
+      />
+
+      <SceneLegend
+        title="Energy profile"
+        items={[
+          { color: catalyst ? PALETTE.emerald : PALETTE.gold, shape: "line", label: "Reaction path", note: "energy against reaction coordinate" },
+          ...(catalyst ? [{ color: PALETTE.slate, shape: "dash", label: "Uncatalysed", note: "the barrier without the catalyst" }] : []),
+          { color: PALETTE.rose, shape: "line", label: "Ea", note: "reactants → transition state" },
+          { color: exothermic ? PALETTE.emerald : PALETTE.violet, shape: "line", label: "ΔH", note: "reactants → products" },
+        ]}
+      />
+    </SceneCanvas>
+  );
+}
+
 // ─── Dispatcher ─────────────────────────────────────────────────────
 
 const SCENES = {
@@ -1873,6 +2349,8 @@ const SCENES = {
   distillation: DistillationScene,
   lattice: CrystalLatticeScene,
   electrolysis: ElectrolysisScene,
+  vsepr: VseprScene,
+  energetics: EnergyProfileScene,
 };
 
 export default function ChemistryCanvas({ topicId, params }) {
