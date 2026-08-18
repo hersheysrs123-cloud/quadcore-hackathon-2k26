@@ -258,110 +258,12 @@ const VALUE_TONES = {
  * measured pressure, instantaneous e.m.f., reaction rate — so they surface
  * them here rather than pushing state back up on every frame.
  */
-export function SceneReadout({
-  corner = "top-right",
-  title,
-  subtitle,
-  rows = [],
-  note,
-  noteTone = "neutral",
-  hidden = false,
-}) {
-  if (hidden) return null;
-  return (
-    <PinnedPanel corner={corner}>
-      <div className="w-[184px] rounded-lg border border-ink-700 bg-ink-950/92 p-3 shadow-2xl backdrop-blur-md sm:w-[204px]">
-        {title && (
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-200">
-            {title}
-          </p>
-        )}
-        {subtitle && <p className="mt-0.5 text-[10px] leading-snug text-ink-500">{subtitle}</p>}
-        {(title || subtitle) && rows.length > 0 && (
-          <div className="my-2 h-px bg-ink-800" aria-hidden="true" />
-        )}
-
-        <div className="space-y-1">
-          {/* Keyed by position, not by label: rows are a fixed-length list a
-              scene rebuilds each render, and two rows may legitimately want
-              the same label. */}
-          {rows.map(([label, value, tone], i) => (
-            <div key={i} className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0 truncate text-[10px] text-ink-500">{label}</span>
-              <span
-                className={`shrink-0 text-[11.5px] font-semibold tabular-nums ${
-                  VALUE_TONES[tone] ?? "text-ink-100"
-                }`}
-              >
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {note && (
-          <p
-            className={`mt-2 rounded border px-1.5 py-1 text-[9.5px] leading-relaxed ${NOTE_STYLES[noteTone]}`}
-          >
-            {note}
-          </p>
-        )}
-      </div>
-    </PinnedPanel>
-  );
+export function SceneReadout() {
+  return null;
 }
 
-/**
- * Colour key. Every scene codes meaning into colour — which sphere is the
- * cation, which ray is the emergent one — and until now nothing said so.
- * `shape` matches how the thing is actually drawn, so the swatch reads as a
- * miniature of the object rather than a generic bullet.
- */
-export function SceneLegend({ corner = "bottom-right", title = "Key", items = [] }) {
-  const swatch = (item) => {
-    const shape = item.shape ?? "dot";
-    if (shape === "line" || shape === "dash") {
-      return (
-        <span
-          className="mt-[5px] h-0.5 w-3 shrink-0 rounded-full"
-          style={{
-            background:
-              shape === "dash"
-                ? `repeating-linear-gradient(90deg, ${item.color} 0 3px, transparent 3px 6px)`
-                : item.color,
-          }}
-        />
-      );
-    }
-    return (
-      <span
-        className={`mt-[3px] h-2.5 w-2.5 shrink-0 ${shape === "square" ? "rounded-[3px]" : "rounded-full"}`}
-        style={{ background: item.color, boxShadow: `0 0 6px ${item.color}66` }}
-      />
-    );
-  };
-
-  return (
-    <PinnedPanel corner={corner}>
-      <div className="w-[184px] rounded-lg border border-ink-700 bg-ink-950/92 p-3 shadow-2xl backdrop-blur-md sm:w-[204px]">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-200">{title}</p>
-        <div className="my-2 h-px bg-ink-800" aria-hidden="true" />
-        <ul className="space-y-1.5">
-          {items.map((item, i) => (
-            <li key={i} className="flex gap-2">
-              {swatch(item)}
-              <span className="min-w-0 flex-1">
-                <span className="block text-[10.5px] leading-snug text-ink-200">{item.label}</span>
-                {item.note && (
-                  <span className="block text-[9.5px] leading-snug text-ink-500">{item.note}</span>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </PinnedPanel>
-  );
+export function SceneLegend() {
+  return null;
 }
 
 // ─── Geometry primitives ────────────────────────────────────────────
