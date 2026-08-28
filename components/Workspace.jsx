@@ -26,6 +26,7 @@ import { summariseMastery } from "@/lib/mastery";
 import { initAndSeedDatabase, db } from "@/lib/db";
 import SetPasswordModal from "@/components/SetPasswordModal";
 import EnterPasswordModal from "@/components/EnterPasswordModal";
+import { TOPICS_BY_ID, formatTopicStudyContext } from "@/components/visualizations/topics";
 import {
   getAllNotes,
   saveNote,
@@ -40,12 +41,13 @@ import {
   clearTrash,
   seedDemoContent,
 } from "@/lib/storageService";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown } from "lucide-react";
 
 const DEFAULT_NOTES_BY_SPACE = {
   School: [],
   Personal: [],
   Misc: [],
+  Journal: [],
 };
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -86,6 +88,25 @@ export default function Workspace() {
   const [exportImportOpen, setExportImportOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+  const [hideTopBars, setHideTopBars] = useState(false);
+
+  // Hydrate hideTopBars from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("socratic_hide_top_bars") === "true";
+      setHideTopBars(saved);
+    }
+  }, []);
+
+  const toggleTopBars = useCallback(() => {
+    setHideTopBars((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("socratic_hide_top_bars", next ? "true" : "false");
+      }
+      return next;
+    });
+  }, []);
 
   // Explain / Quiz drawers. `studyTarget` survives closing so the panel does
   // not blank out mid-slide.
@@ -163,7 +184,7 @@ export default function Workspace() {
             allDbNotes = await getAllNotes();
           }
 
-          const spaceMap = { School: [], Personal: [], Misc: [] };
+          const spaceMap = { School: [], Personal: [], Misc: [], Journal: [] };
           allDbNotes.forEach((n) => {
             const sp = n.spaceId || n.space || "School";
             if (!spaceMap[sp]) spaceMap[sp] = [];
@@ -229,6 +250,22 @@ export default function Workspace() {
           setActiveSpace(foundSpace);
           setActiveNoteId(foundNoteId);
           setActiveTab(targetTab);
+
+          const urlVis = params.get("vis");
+          const urlStudy = params.get("study");
+          if (urlStudy === "true" && urlVis && TOPICS_BY_ID[urlVis]) {
+            const visTopic = TOPICS_BY_ID[urlVis];
+            const studyCtx = formatTopicStudyContext(visTopic);
+            setStudyTarget({
+              concept: studyCtx.concept,
+              focus: studyCtx.focus,
+              content: studyCtx.content,
+              noteId: studyCtx.noteId,
+              noteTitle: studyCtx.noteTitle,
+              space: studyCtx.space || foundSpace,
+            });
+            setStudyKind("explain");
+          }
 
           const trash = await getTrashNotes();
           setTrashNotes(trash);
@@ -370,9 +407,45 @@ export default function Workspace() {
     [activeSpace, studyTarget],
   );
 
-  /** From the mastery dashboard: open that note, then reopen on that topic. */
+  const handleStudy3DTopic = useCallback(
+    (studyData, kind = "explain") => {
+      setStudyTarget({
+        concept: studyData.concept || "3D Visualization",
+        focus: studyData.focus || studyData.concept || "",
+        content: studyData.content || "",
+        noteId: studyData.noteId || `3d_${Date.now()}`,
+        noteTitle: studyData.noteTitle || studyData.concept || "3D Visualization",
+        space: studyData.space || activeSpace,
+      });
+      setStudyKind(kind);
+    },
+    [activeSpace],
+  );
+
+  /** From the mastery dashboard: open that note or 3D topic, then reopen on that topic. */
   const handleStudyTopic = useCallback(
     (topic, kind) => {
+      if (topic.noteId && String(topic.noteId).startsWith("3d_")) {
+        const visId = String(topic.noteId).replace("3d_", "");
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          params.set("vis", visId);
+          window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+          try { localStorage.setItem("socratic_last_vis_state", JSON.stringify({ topicId: visId })); } catch(e){}
+        }
+        setActiveTab("3d");
+        setStudyTarget({
+          concept: topic.subtopic || topic.noteTitle?.replace("3D: ", "") || "3D Model",
+          focus: topic.subtopic ?? "",
+          content: topic.noteTitle || topic.subtopic || "",
+          noteId: topic.noteId,
+          noteTitle: topic.noteTitle || "3D Visualization",
+          space: topic.space || activeSpace,
+        });
+        setStudyKind(kind);
+        return;
+      }
+
       let found = null;
       for (const [space, list] of Object.entries(notesBySpace)) {
         const match = (list || []).find((n) => n.id === topic.noteId);
@@ -540,22 +613,53 @@ export default function Workspace() {
     []
   );
 
-  const handleImportSuccess = useCallback((importedNote) => {
+  const handleImportSuccess = useCallback(async (importedNote) => {
     if (!importedNote) return;
     const sp = importedNote.spaceId || importedNote.space || "School";
 
-    setNotesBySpace((prev) => {
-      const spaceNotes = prev[sp] || [];
-      const existingIdx = spaceNotes.findIndex((n) => n.id === importedNote.id);
-      if (existingIdx >= 0) return prev;
-      return { ...prev, [sp]: [importedNote, ...spaceNotes] };
-    });
+    try {
+      const allDbNotes = await getAllNotes();
+      const spaceMap = { School: [], Personal: [], Misc: [] };
+      allDbNotes.forEach((n) => {
+        const noteSp = n.spaceId || n.space || "School";
+        if (!spaceMap[noteSp]) spaceMap[noteSp] = [];
+        spaceMap[noteSp].push({
+          id: n.id,
+          title: n.title || "Untitled Note",
+          space: noteSp,
+          spaceId: noteSp,
+          banner: n.banner || null,
+          emoji: n.emoji || "📝",
+          isFavorite: Boolean(n.isFavorite),
+          blocks: n.blocks || [],
+        });
+      });
 
-    setActiveSpace(sp);
-    setActiveNoteId(importedNote.id);
-    setActiveTab("notes");
-    setSaveStatus("✓ Note imported");
-    setTimeout(() => setSaveStatus(""), 3500);
+      setNotesBySpace(spaceMap);
+
+      let savedCustomSpaces = [];
+      try {
+        savedCustomSpaces = JSON.parse(localStorage.getItem("socratic_custom_spaces")) || [];
+      } catch (e) {}
+
+      const merged = new Map();
+      SPACES.forEach((s) => merged.set(s.name, s));
+      savedCustomSpaces.forEach((s) => merged.set(s.name, s));
+      Object.keys(spaceMap).forEach((noteSp) => {
+        if (!merged.has(noteSp)) merged.set(noteSp, { name: noteSp, icon: "📂" });
+      });
+      setSpaces(Array.from(merged.values()));
+
+      setActiveSpace(sp);
+      if (importedNote.id) {
+        setActiveNoteId(importedNote.id);
+      }
+      setActiveTab("notes");
+      setSaveStatus("✓ Imported successfully");
+      setTimeout(() => setSaveStatus(""), 3500);
+    } catch (err) {
+      console.error("Failed to reload workspace after import:", err);
+    }
   }, []);
 
   function handleCreateNote() {
@@ -703,187 +807,230 @@ export default function Workspace() {
       </div>
 
       {/* Main Container with Dual Top HUD Header */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top HUD Header 1: Workspace Breadcrumb, Navigation Tabs & Socratic Triggers */}
-        <header className="no-print relative z-[60] flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900/90 px-6 backdrop-blur-md transition-colors duration-200">
-          {/* Left Space Breadcrumb & Sidebar Toggle */}
-          <div className="flex items-center gap-2.5 text-sm text-ink-400">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((prev) => !prev)}
-              title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-              className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors shrink-0"
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
-              ) : (
-                <PanelLeftClose className="h-4 w-4 rotate-180" strokeWidth={2} />
-              )}
-            </button>
-
-            <div className="flex items-center gap-1.5 font-medium">
-              <span className="shrink-0 text-ink-500">📁</span>
-              <span className="truncate text-ink-200 font-semibold">{activeSpace}</span>
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        {/* Focus Mode Strip for Non-3D Tabs when Top Bars are Hidden (Clean, Non-overlapping, Opaque) */}
+        {hideTopBars && activeTab !== "3d" && (
+          <div className="no-print shrink-0 flex h-8 items-center justify-between border-b border-ink-800 bg-ink-900 px-4 shadow-sm z-40">
+            <div className="flex items-center gap-2 text-xs font-semibold text-ink-400 min-w-0">
+              <span className="text-sm shrink-0">
+                {activeTab === "notes" ? (activeNoteObj?.emoji || "📝") : activeTab === "calendar" ? "📅" : activeTab === "websaver" ? "🔖" : "📊"}
+              </span>
+              <span className="truncate max-w-[240px] sm:max-w-[450px] text-ink-200">
+                {activeTab === "notes"
+                  ? (activeNoteObj?.title || "Untitled Note")
+                  : activeTab === "calendar"
+                  ? "Study Calendar & Timers"
+                  : activeTab === "websaver"
+                  ? "Website Saver"
+                  : "Mastery Dashboard"}
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={toggleTopBars}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-duck-500/40 bg-duck-500/10 px-2.5 py-0.5 text-xs font-semibold text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 shadow-sm"
+              title="Show all top bars"
+            >
+              <ChevronDown className="h-3.5 w-3.5 text-duck-400" />
+              <span>Show top bars</span>
+            </button>
           </div>
+        )}
 
-          {/* Center View Navigation Tabs (Notes, Calendar, 3D Orbit, Mastery) */}
-          <nav className="flex items-center gap-1 rounded-xl bg-ink-950 p-1 border border-ink-800 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setActiveTab("notes")}
-              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "notes"
-                  ? "bg-ink-800 text-ink-100 shadow-sm"
-                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-              }`}
-            >
-              <span>📝</span>
-              <span>Notes</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("calendar")}
-              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "calendar"
-                  ? "bg-ink-800 text-ink-100 shadow-sm"
-                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-              }`}
-            >
-              <span>📅</span>
-              <span>Calendar</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("websaver")}
-              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "websaver"
-                  ? "bg-ink-800 text-ink-100 shadow-sm"
-                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-              }`}
-            >
-              <span>🔖</span>
-              <span>Web Saver</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("3d")}
-              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "3d"
-                  ? "bg-ink-800 text-ink-100 shadow-sm"
-                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-              }`}
-            >
-              <span>🌌</span>
-              <span>3D Orbit</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("mastery")}
-              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "mastery"
-                  ? "bg-ink-800 text-ink-100 shadow-sm"
-                  : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-              }`}
-            >
-              <span>📊</span>
-              <span>Mastery</span>
-              {gapCount > 0 && (
-                <span className="rounded-full border border-gap-500/40 bg-gap-500/10 px-1.5 text-[10px] font-semibold tabular-nums text-gap-500">
-                  {gapCount}
+        {/* Top HUD Header 1: Workspace Breadcrumb, Navigation Tabs & Socratic Triggers */}
+        {!hideTopBars && (
+          <header className="no-print relative z-[60] flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-800 bg-ink-900 px-6 transition-colors duration-200 shadow-sm">
+            {/* Left Space Breadcrumb & Sidebar Toggle */}
+            <div className="flex items-center gap-2.5 text-sm text-ink-400">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+                className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors shrink-0"
+              >
+                {sidebarOpen ? (
+                  <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4 rotate-180" strokeWidth={2} />
+                )}
+              </button>
+
+              <div className="flex items-center gap-1.5 font-medium">
+                <span className="shrink-0 text-ink-500">📁</span>
+                <span className="truncate text-ink-200 font-semibold">{activeSpace}</span>
+              </div>
+            </div>
+
+            {/* Center View Navigation Tabs (Notes, Calendar, 3D Orbit, Mastery) */}
+            <nav className="flex items-center gap-1 rounded-xl bg-ink-950 p-1 border border-ink-800 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setActiveTab("notes")}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  activeTab === "notes"
+                    ? "bg-ink-800 text-ink-100 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+                }`}
+              >
+                <span>📝</span>
+                <span>Notes</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("calendar")}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  activeTab === "calendar"
+                    ? "bg-ink-800 text-ink-100 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+                }`}
+              >
+                <span>📅</span>
+                <span>Calendar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("websaver")}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  activeTab === "websaver"
+                    ? "bg-ink-800 text-ink-100 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+                }`}
+              >
+                <span>🔖</span>
+                <span>Web Saver</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("3d")}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  activeTab === "3d"
+                    ? "bg-ink-800 text-ink-100 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+                }`}
+              >
+                <span>🌌</span>
+                <span>3D Orbit</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("mastery")}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  activeTab === "mastery"
+                    ? "bg-ink-800 text-ink-100 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
+                }`}
+              >
+                <span>📊</span>
+                <span>Mastery</span>
+                {gapCount > 0 && (
+                  <span className="rounded-full border border-gap-500/40 bg-gap-500/10 px-1.5 text-[10px] font-semibold tabular-nums text-gap-500">
+                    {gapCount}
+                  </span>
+                )}
+              </button>
+            </nav>
+
+            {/* Right Action Bar: Socratic Duck Triggers & Hide Top Bars */}
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                disabled={!activeNoteObj}
+                onClick={() => {
+                  if (activeTab !== "notes") setActiveTab("notes");
+                  openStudy("explain", null);
+                }}
+                title={activeNoteObj ? "Explain this note with AI" : "Create or select a note to explain"}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <span>✨</span>
+                <span className="hidden sm:inline">Explain</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={!activeNoteObj}
+                onClick={() => {
+                  if (activeTab !== "notes") setActiveTab("notes");
+                  openStudy("quiz", null);
+                }}
+                title={activeNoteObj ? "Quiz me on this note" : "Create or select a note to quiz"}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
+              >
+                <span>🦆</span>
+                <span className="hidden sm:inline">Quiz me</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleTopBars}
+                title="Hide all top bars (Focus Mode)"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:bg-ink-800 hover:text-duck-300 ml-1"
+              >
+                <ChevronUp className="h-3.5 w-3.5 text-ink-400" />
+                <span className="hidden sm:inline">Hide top bars</span>
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Top HUD Header 2: Note Name & Note Menu Sub-bar (Only needed for Notes tab) */}
+        {!hideTopBars && activeTab === "notes" && (
+          <div className="no-print relative z-50 flex h-12 shrink-0 items-center justify-between border-b border-ink-800 bg-ink-900 px-6 transition-colors duration-200 shadow-sm">
+            {/* Left: Active Note Emoji, Title & Favorite Badge */}
+            <div className="flex items-center gap-2.5 min-w-0 font-medium">
+              <span className="text-lg leading-none shrink-0">
+                {activeTab === "websaver" ? "🔖" : activeNoteObj?.emoji || "📝"}
+              </span>
+              <span className="truncate text-sm font-extrabold text-ink-100 tracking-tight">
+                {activeTab === "notes"
+                  ? activeNoteObj?.title || "Untitled Note"
+                  : activeTab === "calendar"
+                  ? "Study Calendar & Timers"
+                  : activeTab === "websaver"
+                  ? "Website Saver & Folder Manager"
+                  : activeTab === "3d"
+                  ? "3D Concept Visualizer"
+                  : "Mastery Dashboard"}
+              </span>
+              {activeTab === "notes" && activeNoteObj?.isFavorite && (
+                <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30 shrink-0">
+                  ⭐ Starred
                 </span>
               )}
-            </button>
-          </nav>
+            </div>
 
-          {/* Right Action Bar: Socratic Duck Triggers */}
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              disabled={!activeNoteObj}
-              onClick={() => {
-                if (activeTab !== "notes") setActiveTab("notes");
-                openStudy("explain", null);
-              }}
-              title={activeNoteObj ? "Explain this note with AI" : "Create or select a note to explain"}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <span>✨</span>
-              <span className="hidden sm:inline">Explain</span>
-            </button>
+            {/* Right: Save Status & Note Menu Dropdown */}
+            <div className="flex items-center gap-3 shrink-0">
+              {saveStatus && (
+                <span className="text-xs font-semibold text-emerald-400 animate-fade-in">
+                  {saveStatus}
+                </span>
+              )}
 
-            <button
-              type="button"
-              disabled={!activeNoteObj}
-              onClick={() => {
-                if (activeTab !== "notes") setActiveTab("notes");
-                openStudy("quiz", null);
-              }}
-              title={activeNoteObj ? "Quiz me on this note" : "Create or select a note to quiz"}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
-            >
-              <span>🦆</span>
-              <span className="hidden sm:inline">Quiz me</span>
-            </button>
+              {activeTab === "notes" && activeNoteObj && (
+                <NoteMenu
+                  note={{
+                    id: activeNoteObj.id,
+                    title: activeNoteObj.title,
+                    blocks: editorBlocks.length > 0 ? editorBlocks : activeNoteObj.blocks,
+                    banner: activeNoteObj.banner,
+                    isFavorite: activeNoteObj.isFavorite,
+                    emoji: activeNoteObj.emoji,
+                    space: activeSpace,
+                  }}
+                  onSaveNote={({ title, blocks, banner, isFavorite, emoji }) =>
+                    handleSaveNote({ title, blocks, banner, isFavorite, emoji })
+                  }
+                  onToggleFavorite={handleToggleFavoriteNote}
+                  onExportImport={() => setExportImportOpen(true)}
+                  onDeleteNote={handleDeleteNote}
+                  variant="button"
+                  align="right"
+                />
+              )}
+            </div>
           </div>
-        </header>
-
-        {/* Top HUD Header 2: Note Name & Note Menu Sub-bar */}
-        <div className="no-print relative z-50 flex h-12 shrink-0 items-center justify-between border-b border-ink-800/80 bg-ink-900/60 px-6 backdrop-blur-md transition-colors duration-200">
-          {/* Left: Active Note Emoji, Title & Favorite Badge */}
-          <div className="flex items-center gap-2.5 min-w-0 font-medium">
-            <span className="text-lg leading-none shrink-0">
-              {activeTab === "websaver" ? "🔖" : activeNoteObj?.emoji || "📝"}
-            </span>
-            <span className="truncate text-sm font-extrabold text-ink-100 tracking-tight">
-              {activeTab === "notes"
-                ? activeNoteObj?.title || "Untitled Note"
-                : activeTab === "calendar"
-                ? "Study Calendar & Timers"
-                : activeTab === "websaver"
-                ? "Website Saver & Folder Manager"
-                : activeTab === "3d"
-                ? "3D Concept Visualizer"
-                : "Mastery Dashboard"}
-            </span>
-            {activeTab === "notes" && activeNoteObj?.isFavorite && (
-              <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30 shrink-0">
-                ⭐ Starred
-              </span>
-            )}
-          </div>
-
-          {/* Right: Save Status & Note Menu Dropdown */}
-          <div className="flex items-center gap-3 shrink-0">
-            {saveStatus && (
-              <span className="text-xs font-semibold text-emerald-400 animate-fade-in">
-                {saveStatus}
-              </span>
-            )}
-
-            {activeTab === "notes" && activeNoteObj && (
-              <NoteMenu
-                note={{
-                  id: activeNoteObj.id,
-                  title: activeNoteObj.title,
-                  blocks: editorBlocks.length > 0 ? editorBlocks : activeNoteObj.blocks,
-                  banner: activeNoteObj.banner,
-                  isFavorite: activeNoteObj.isFavorite,
-                  emoji: activeNoteObj.emoji,
-                  space: activeSpace,
-                }}
-                onSaveNote={({ title, blocks, banner, isFavorite, emoji }) =>
-                  handleSaveNote({ title, blocks, banner, isFavorite, emoji })
-                }
-                onToggleFavorite={handleToggleFavoriteNote}
-                onExportImport={() => setExportImportOpen(true)}
-                onDeleteNote={handleDeleteNote}
-                variant="button"
-                align="right"
-              />
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Tab Viewport Content */}
         <main className={`flex-1 ${activeTab === "3d" || activeTab === "websaver" ? "overflow-hidden flex flex-col h-full min-h-0" : "overflow-y-auto"}`}>
@@ -915,7 +1062,13 @@ export default function Workspace() {
             <WebSaverView activeSpace={activeSpace} spaces={spaces} />
           )}
 
-          {activeTab === "3d" && <ThreeDView />}
+          {activeTab === "3d" && (
+            <ThreeDView
+              hideTopBars={hideTopBars}
+              onToggleTopBars={toggleTopBars}
+              onStudyTopic={handleStudy3DTopic}
+            />
+          )}
 
           {activeTab === "mastery" && (
             <MasteryDashboard

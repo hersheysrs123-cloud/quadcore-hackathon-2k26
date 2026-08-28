@@ -78,7 +78,7 @@ export const ELEMENTS = {
 const shellRadius = (i) => 1.7 + i * 1.15;
 const shellTilt = (i) => [i * 0.5 + 0.18, i * 0.95, i * 0.3];
 
-function Nucleus({ protons, neutrons, spin }) {
+function Nucleus({ protons, neutrons, spin, speed = 1.0 }) {
   const group = useRef(null);
   const total = protons + neutrons;
 
@@ -118,8 +118,8 @@ function Nucleus({ protons, neutrons, spin }) {
 
   useFrame((_, delta) => {
     if (spin && group.current) {
-      group.current.rotation.y += delta * 0.28;
-      group.current.rotation.x += delta * 0.11;
+      group.current.rotation.y += delta * 0.28 * speed;
+      group.current.rotation.x += delta * 0.11 * speed;
     }
   });
 
@@ -234,11 +234,11 @@ export function BohrAtomScene({ params = {} }) {
   return (
     <SceneCanvas
       camera={{ position: [0, 3.2, 10.5], fov: 45 }}
-      controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45, minDistance: 3.5 }}
+      controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed, minDistance: 3.5 }}
       onPointerMissed={() => setFocused(null)}
     >
       <pointLight position={[0, 0, 0]} color={PALETTE.rose} intensity={12} distance={4} />
-      <Nucleus protons={element.protons} neutrons={element.neutrons} spin={spinNucleus} />
+      <Nucleus protons={element.protons} neutrons={element.neutrons} spin={spinNucleus} speed={speed} />
 
       {element.shells.map((count, i) => (
         <Shell
@@ -363,8 +363,8 @@ function buildMolecule(family, carbons) {
   const isAcid         = family === "acid";
   const isEster        = family === "ester";
 
-  // Alkynes are linear (sp hybridisation) at the triple bond: place C1 and C2
-  // along X, then zig-zag the rest normally.
+  // Alkynes are linear (sp hybridisation) at the triple bond: place C0, C1 and C2
+  // along X (linear 180°), then zig-zag the rest normally.
   const rise = CC_BOND * CHAIN_Y * 0.5;
 
   let x = 0;
@@ -374,10 +374,12 @@ function buildMolecule(family, carbons) {
         isAlkeneChain && i === 1 ? CC_DOUBLE :
         isAlkyne       && i === 1 ? CC_TRIPLE :
         CC_BOND;
-      x += L * CHAIN_X;
+      // For alkynes, triple bond (i=1) and single bond from sp carbon (i=2) are colinear along X
+      const factor = (isAlkyne && (i === 1 || i === 2)) ? 1.0 : CHAIN_X;
+      x += L * factor;
     }
-    // Alkynes: first two carbons are on the same y because sp is linear.
-    const y = (isAlkyne && i < 2) ? 0 : (i % 2 === 0 ? rise : -rise);
+    // Alkynes: C0, C1, C2 are all on y = 0 because sp hybridization enforces 180° linear geometry
+    const y = (isAlkyne && i <= 2) ? 0 : ((isAlkyne ? i - 1 : i) % 2 === 0 ? rise : -rise);
     chain.push(new THREE.Vector3(x, y, 0));
   }
   // Centre the finished chain.
@@ -437,6 +439,13 @@ function buildMolecule(family, carbons) {
     const hPos = ohOxy.clone().addScaledVector(hDir, 0.96);
     atoms.push({ el: "H", position: hPos.toArray() });
     bonds.push({ from: ohOxy.toArray(), to: hPos.toArray() });
+
+    // Methanoic acid (n=1) has a formyl C-H bond attached to C1
+    if (n === 1) {
+      const formylHPos = end.clone().addScaledVector(new THREE.Vector3(1, 0, 0), CH_BOND);
+      atoms.push({ el: "H", position: formylHPos.toArray() });
+      bonds.push({ from: end.toArray(), to: formylHPos.toArray() });
+    }
   }
 
   // Ester: –COO– bridge — place an extra oxygen between C1 and a separate
@@ -636,7 +645,7 @@ function AtomsAndBonds({ atoms, bonds }) {
   );
 }
 
-function Molecule({ family, carbons, crackToken, spin }) {
+function Molecule({ family, carbons, crackToken, spin, speed = 1.0 }) {
   const group = useRef(null);
   const leftRef = useRef(null);
   const rightRef = useRef(null);
@@ -679,13 +688,13 @@ function Molecule({ family, carbons, crackToken, spin }) {
     target.current = 1;
     const id = setTimeout(() => {
       target.current = 0;
-    }, 2600);
+    }, Math.max(800, 2600 / speed));
     return () => clearTimeout(id);
-  }, [crackToken, crackable]);
+  }, [crackToken, crackable, speed]);
 
   useFrame((_, delta) => {
-    if (spin && group.current) group.current.rotation.y += delta * 0.35;
-    split.current = lerp(split.current, target.current, Math.min(1, delta * 2.4));
+    if (spin && group.current) group.current.rotation.y += delta * 0.35 * speed;
+    split.current = lerp(split.current, target.current, Math.min(1, delta * 2.4 * speed));
     const offset = crackable ? split.current * 1.7 : 0;
     if (leftRef.current) leftRef.current.position.x = -offset;
     if (rightRef.current) rightRef.current.position.x = offset;
@@ -708,7 +717,7 @@ function Molecule({ family, carbons, crackToken, spin }) {
 }
 
 export function OrganicBuilderScene({ params = {} }) {
-  const { family = "alkane", carbons = 3, crack = 0, spin = true } = params || {};
+  const { family = "alkane", carbons = 3, crack = 0, spin = true, speed = 1.0 } = params || {};
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
   const crackable = family === "alkane" && carbons >= 3;
 
@@ -740,7 +749,7 @@ export function OrganicBuilderScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [0, 2.4, carbons > 6 ? 12 : 8.5], fov: 45 }}>
-      <Molecule family={family} carbons={carbons} crackToken={crack} spin={spin} />
+      <Molecule family={family} carbons={carbons} crackToken={crack} spin={spin} speed={speed} />
 
       <SceneLabel position={[0, -2.6, 0]} accent>
         {molecule.formula} · {molecule.name}
@@ -809,7 +818,7 @@ const FRACTIONS = [
 const COLUMN_HEIGHT = 7.6;
 const levelY = (i) => COLUMN_HEIGHT / 2 - 0.6 - i * 1.25;
 
-function Vapours({ heat, flowing }) {
+function Vapours({ heat, flowing, speed = 1.0 }) {
   const group = useRef(null);
   const particles = useMemo(
     () =>
@@ -825,7 +834,7 @@ function Vapours({ heat, flowing }) {
   const meshes = useRef([]);
 
   useFrame((_, delta) => {
-    if (flowing) t.current += delta * 0.34;
+    if (flowing) t.current += delta * 0.34 * speed;
     particles.forEach((p, i) => {
       const mesh = meshes.current[i];
       if (!mesh) return;
@@ -866,7 +875,7 @@ function Vapours({ heat, flowing }) {
 }
 
 export function DistillationScene({ params = {} }) {
-  const { heat = 0.7, showLabels = true, flow = true } = params || {};
+  const { heat = 0.7, showLabels = true, flow = true, speed = 1.0 } = params || {};
   const furnace = Math.round(lerp(250, 450, heat));
   const rising = FRACTIONS.filter((_, i) => heat - i * 0.14 > 0.05).length;
 
@@ -963,7 +972,7 @@ export function DistillationScene({ params = {} }) {
         </SceneLabel>
       </group>
 
-      <Vapours heat={heat} flowing={flow} />
+      <Vapours heat={heat} flowing={flow} speed={speed} />
 
       {/* Base of the column */}
       <group position={[0, -COLUMN_HEIGHT / 2 - 0.425, 0]}>
@@ -1211,6 +1220,8 @@ function buildIce() {
   const bonds = [];
   const levels = [-1.4, 0, 1.4];
   const r = 1.3;
+  const molecules = [];
+
   levels.forEach((y, l) => {
     for (let i = 0; i < 6; i += 1) {
       const a = (i * Math.PI) / 3 + (l % 2 ? Math.PI / 6 : 0);
@@ -1218,14 +1229,31 @@ function buildIce() {
       const oz = Math.sin(a) * r;
       const oPos = [ox, y, oz];
       atoms.push({ position: oPos, radius: 0.26, color: PALETTE.rose });
-      const hPos1 = [ox + 0.35, y + 0.2, oz + 0.2];
-      const hPos2 = [ox - 0.35, y - 0.2, oz - 0.2];
+      const hPos1 = [ox + 0.35, y + (l % 2 === 0 ? 0.22 : -0.22), oz + 0.2];
+      const hPos2 = [ox - 0.35, y + (l % 2 === 0 ? 0.22 : -0.22), oz - 0.2];
       atoms.push({ position: hPos1, radius: 0.14, color: PALETTE.bone });
       atoms.push({ position: hPos2, radius: 0.14, color: PALETTE.bone });
       bonds.push({ from: oPos, to: hPos1 });
       bonds.push({ from: oPos, to: hPos2 });
+      molecules.push({ o: oPos, h: [hPos1, hPos2] });
     }
   });
+
+  // Intermolecular hydrogen bonds between H of one molecule and O of neighboring water
+  for (let m1 = 0; m1 < molecules.length; m1++) {
+    for (let hIdx = 0; hIdx < molecules[m1].h.length; hIdx++) {
+      const h = molecules[m1].h[hIdx];
+      for (let m2 = 0; m2 < molecules.length; m2++) {
+        if (m1 === m2) continue;
+        const o = molecules[m2].o;
+        const d = Math.hypot(h[0] - o[0], h[1] - o[1], h[2] - o[2]);
+        if (d > 0.4 && d < 1.35) {
+          bonds.push({ from: h, to: o, color: PALETTE.sky, radius: 0.024, opacity: 0.8 });
+        }
+      }
+    }
+  }
+
   return { atoms, bonds, layers: null };
 }
 
@@ -1331,18 +1359,25 @@ const LATTICE_KEYS = {
 };
 
 /** Lives inside the Canvas — useFrame is only legal below <Canvas>. */
-function SpinningLattice({ lattice, showBonds, spin }) {
+function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
   const group = useRef(null);
 
   useFrame((_, delta) => {
-    if (spin && group.current) group.current.rotation.y += delta * 0.25;
+    if (spin && group.current) group.current.rotation.y += delta * 0.25 * speed;
   });
 
   return (
     <group ref={group}>
       {showBonds &&
         lattice.bonds.map((b, i) => (
-          <Bond key={i} from={b.from} to={b.to} radius={0.045} color="#3f4854" />
+          <Bond
+            key={i}
+            from={b.from}
+            to={b.to}
+            radius={b.radius ?? 0.045}
+            color={b.color ?? "#3f4854"}
+            opacity={b.opacity ?? 1}
+          />
         ))}
       {lattice.atoms.map((a, i) => (
         <AtomSphere
@@ -1358,7 +1393,7 @@ function SpinningLattice({ lattice, showBonds, spin }) {
 }
 
 export function CrystalLatticeScene({ params = {} }) {
-  const { structure = "nacl", slide = 0, showBonds = true, spin = true } = params || {};
+  const { structure = "nacl", slide = 0, showBonds = true, spin = true, speed = 1.0 } = params || {};
 
   const lattice = useMemo(() => {
     if (structure === "diamond") return buildDiamond();
@@ -1372,7 +1407,7 @@ export function CrystalLatticeScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [6, 4.5, 8], fov: 45 }}>
-      <SpinningLattice lattice={lattice} showBonds={showBonds} spin={spin} />
+      <SpinningLattice lattice={lattice} showBonds={showBonds} spin={spin} speed={speed} />
 
       {structure === "nacl" && (
         <>
@@ -1464,7 +1499,7 @@ function CopperIon({ position, scale = 0.26 }) {
   );
 }
 
-function Ions({ current, running, resetToken, onDeposit }) {
+function Ions({ current, running, resetToken, onDeposit, animSpeed = 1 }) {
   const ions = useMemo(
     () =>
       Array.from({ length: 26 }, (_, i) => ({
@@ -1495,7 +1530,7 @@ function Ions({ current, running, resetToken, onDeposit }) {
 
   useFrame((_, delta) => {
     const step = Math.min(delta, 0.05);
-    const speed = running ? current * 1.15 : 0;
+    const speed = running ? current * 1.15 * animSpeed : 0;
     const edge = TANK.w / 2 - 1.15;
 
     ions.forEach((ion, i) => {
@@ -1541,7 +1576,7 @@ function Ions({ current, running, resetToken, onDeposit }) {
   );
 }
 
-function ElectronFlow({ path, speed, running, count = 8 }) {
+function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0 }) {
   const meshes = useRef([]);
   const phase = useRef(0);
 
@@ -1550,7 +1585,7 @@ function ElectronFlow({ path, speed, running, count = 8 }) {
   const scratch = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((_, delta) => {
-    if (running) phase.current = (phase.current + Math.min(delta, 0.05) * speed) % 1;
+    if (running) phase.current = (phase.current + Math.min(delta, 0.05) * speed * animSpeed) % 1;
     for (let i = 0; i < count; i += 1) {
       const mesh = meshes.current[i];
       if (!mesh) continue;
@@ -1583,7 +1618,7 @@ function ElectronFlow({ path, speed, running, count = 8 }) {
   );
 }
 
-function ElectrodeBubbles({ x, running, speed, color }) {
+function ElectrodeBubbles({ x, running, speed, color, animSpeed = 1.0 }) {
   const meshes = useRef([]);
   const state = useRef(null);
   const COUNT = 14;
@@ -1601,7 +1636,7 @@ function ElectrodeBubbles({ x, running, speed, color }) {
     state.current.forEach((s, i) => {
       const mesh = meshes.current[i];
       if (!mesh) return;
-      if (running) s.phase = (s.phase + step * speed) % 1;
+      if (running) s.phase = (s.phase + step * speed * animSpeed) % 1;
       const p = s.phase;
       const y = lerp(-TANK.h / 2 + 0.2, TANK.h / 2 + 0.1, p);
       const scale = 0.04 + Math.sin(p * Math.PI) * 0.14;
@@ -1635,7 +1670,7 @@ function ElectrodeBubbles({ x, running, speed, color }) {
 }
 
 export function ElectrolysisScene({ params = {} }) {
-  const { current = 1.0, showLabels = true, run = true, reset = 0 } = params || {};
+  const { current = 1.0, showLabels = true, run = true, reset = 0, speed = 1.0 } = params || {};
   const [deposit, setDeposit] = useState(0);
 
   useEffect(() => {
@@ -1768,8 +1803,8 @@ export function ElectrolysisScene({ params = {} }) {
       </mesh>
 
       {/* Rising H₂ gas bubbles at cathode (−), O₂ at anode (+) */}
-      <ElectrodeBubbles x={-TANK.w / 2 + 1} running={run} speed={0.35 + current * 0.15} color={PALETTE.sky} />
-      <ElectrodeBubbles x={TANK.w / 2 - 1} running={run} speed={0.25 + current * 0.1} color={PALETTE.gold} />
+      <ElectrodeBubbles x={-TANK.w / 2 + 1} running={run} speed={0.35 + current * 0.15} animSpeed={speed} color={PALETTE.sky} />
+      <ElectrodeBubbles x={TANK.w / 2 - 1} running={run} speed={0.25 + current * 0.1} animSpeed={speed} color={PALETTE.gold} />
 
       {showLabels && (
         <>
@@ -1806,12 +1841,13 @@ export function ElectrolysisScene({ params = {} }) {
         transparent
         opacity={0.7 + current * 0.2}
       />
-      <ElectronFlow path={circuit} speed={0.14 + current * 0.18} running={run} />
+      <ElectronFlow path={circuit} speed={0.14 + current * 0.18} animSpeed={speed} running={run} />
 
       <Ions
         current={current}
         running={run}
         resetToken={reset}
+        animSpeed={speed}
         onDeposit={(n) => setDeposit((d) => d + n)}
       />
 
@@ -1986,14 +2022,15 @@ function vseprGeometry(bonding, lone) {
   const smallest = smallestAngleOf(bonds);
 
   const resultant = bonds.reduce((acc, d) => acc.add(d), new THREE.Vector3());
+  const shapeInfo = SHAPES[`${bonding}-${lone}`];
+  const symmetric = shapeInfo ? !shapeInfo.polar : (resultant.length() < 0.08 && lone === 0);
   return {
     steric,
     bonds,
     lonePairs,
     smallestAngle: bonds.length > 1 ? smallest : 0,
-    // A shape is non-polar only when the bond dipoles cancel AND no lone pair
-    // is left over to give the molecule a dipole of its own.
-    symmetric: resultant.length() < 0.08 && lone === 0,
+    // A shape is non-polar when bond and lone-pair dipoles cancel (e.g. XeF₄, XeF₂)
+    symmetric,
   };
 }
 
@@ -2005,6 +2042,7 @@ export function VseprScene({ params = {} }) {
     showLonePairs = true,
     showAngles = true,
     spin = true,
+    speed = 1.0,
   } = params || {};
 
   const nBonding = clamp(Math.round(bonding), 1, 6);
@@ -2016,7 +2054,7 @@ export function VseprScene({ params = {} }) {
   const ideal = IDEAL_ANGLE[geometry.steric];
 
   return (
-    <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
       <AtomSphere position={[0, 0, 0]} radius={0.52} color={PALETTE.gold} emissiveIntensity={0.6} />
       <Halo position={[0, 0, 0]} radius={0.9} color={PALETTE.gold} opacity={0.08} />
       <SceneLabel position={[0, -0.95, 0]} accent>
@@ -2212,6 +2250,7 @@ export function EnergyProfileScene({ params = {} }) {
     temperature = 350,
     showReverse = true,
     spin = false,
+    speed = 1.0,
   } = params || {};
 
   const exothermic = deltaH < 0;
@@ -2252,7 +2291,7 @@ export function EnergyProfileScene({ params = {} }) {
   const productY = deltaH * ENERGY_SCALE;
 
   return (
-    <SceneCanvas camera={{ position: [0, 1.2, 10.5], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 1.2, 10.5], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       {/* Reactant and product levels, extended as guides for reading ΔH off. */}
       <Line points={[[-PROFILE_HALF - 0.6, 0, 0], [PROFILE_HALF + 0.6, 0, 0]]} color={PALETTE.line} lineWidth={1.2} dashed dashSize={0.14} gapSize={0.12} />
       <Line
@@ -2267,7 +2306,7 @@ export function EnergyProfileScene({ params = {} }) {
       {original && <Line points={original} color={PALETTE.slate} lineWidth={2} dashed dashSize={0.18} gapSize={0.14} />}
       <Line points={main} color={catalyst ? PALETTE.emerald : PALETTE.gold} lineWidth={3.4} />
 
-      <ReactionMarker bump={bump} deltaH={deltaH} crosses={proceeds} speed={1} />
+      <ReactionMarker bump={bump} deltaH={deltaH} crosses={proceeds} speed={params.speed ?? 1} />
 
       {/* Activation energy, measured from the reactant level to the peak. */}
       <VectorArrow
@@ -2353,8 +2392,8 @@ const SCENES = {
   energetics: EnergyProfileScene,
 };
 
-export default function ChemistryCanvas({ topicId, params }) {
+export default function ChemistryCanvas({ topicId, params, setParam, onOpenQuiz }) {
   const Scene = SCENES[topicId];
   if (!Scene) return null;
-  return <Scene params={params} />;
+  return <Scene params={params} setParam={setParam} onOpenQuiz={onOpenQuiz} />;
 }

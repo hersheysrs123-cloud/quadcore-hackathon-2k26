@@ -184,43 +184,35 @@ body {
 /* ─── Print Stylesheet (@media print) for Clean Full-Document PDF Export ─────────── */
 @media print {
   @page {
-    margin: 1.5cm 2cm;
+    margin: 1.2cm 1.5cm;
     size: A4;
   }
 
-  /* ── 1. Hide all UI chrome ── */
+  /* ── 1. Blanket-hide all interactive UI chrome ── */
   aside,
   header,
   nav,
-  button,
-  input,
-  textarea,
+  button:not(.print-content),
   select,
   .no-print,
   [role="dialog"],
   [role="tooltip"],
   .fixed,
-  .absolute,
+  .absolute:not(.code-highlight-underlay),
   [data-hud],
   .note-menu-dropdown,
-  /* hide drag handles, block menus, slash menu */
+  /* hide drag handles, block menus, slash menu, picker flyouts */
   [title="Delete Block"],
-  [title="Drag to move · click for block menu"] {
+  [title="Drag to move · click for block menu"],
+  /* Hide banner cover voids & banner pickers */
+  [class*="group relative h-44"],
+  [class*="group relative md:h-52"],
+  [class*="group/banner"] {
     display: none !important;
   }
 
   /*
-   * ── 1b. Un-hide the handful of elements above that are actually content,
-   * not chrome.
-   *
-   * The note title and icon are a plain <input>/<button> (Notion-style
-   * inline editing), the code block's visible syntax-highlighted text is a
-   * `.absolute`-positioned overlay sitting over a transparent-text textarea,
-   * and math/canvas block titles are inputs too. Rule 1 hid every element
-   * matching those tags/classes to clear out UI chrome — which also erased
-   * the note's own title on every PDF export. `.print-content` marks the
-   * exceptions; `.code-highlight-underlay` gets its own rule since it must
-   * additionally drop out of absolute positioning to lay out normally.
+   * ── 1b. Un-hide elements that carry content.
    */
   .print-content {
     display: block !important;
@@ -229,32 +221,27 @@ body {
     appearance: none !important;
   }
 
-  .code-highlight-underlay {
-    display: block !important;
-    position: static !important;
-  }
-
-  /* ── 2. Reset page layout so all content flows without clipping ── */
+  /* ── 2. Reset page layout so all content flows without clipping or top gaps ── */
   html, body {
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     background-color: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
     font-family: Georgia, 'Times New Roman', serif !important;
-    font-size: 12pt !important;
-    line-height: 1.55 !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
   }
 
-  /* Reset any flex / grid / sticky containers that clamp height */
+  /* Reset any flex / grid / sticky containers that clamp height or add voids */
   #__next,
   main,
   [data-editor-root],
-  /* workspace root flex container */
   .flex.h-screen,
-  /* main content column next to sidebar */
-  .flex.flex-1.flex-col {
+  .flex.flex-1.flex-col,
+  div[class*="min-h-full"] {
     display: block !important;
     position: static !important;
     overflow: visible !important;
@@ -269,106 +256,307 @@ body {
     flex: none !important;
   }
 
-  /* Strip the wide left padding the editor uses for drag handles etc. */
+  /* Strip the left padding the editor uses for drag handles */
   [data-editor-root] > * {
     padding-left: 0 !important;
     margin-left: 0 !important;
   }
 
-  /* The scrollable main note area — must not clip content */
   main.overflow-y-auto {
     overflow: visible !important;
     height: auto !important;
     max-height: none !important;
   }
 
-  /* ── 3. Typography ── */
+  /* ── 3. Typography & Compact Headings ── */
   h1, h2, h3, h4 {
     color: #000000 !important;
     break-after: avoid !important;
     page-break-after: avoid !important;
-    margin-top: 1em !important;
-    margin-bottom: 0.3em !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
   }
 
-  p, li, blockquote, pre, code {
+  h1 {
+    font-size: 18pt !important;
+    line-height: 1.25 !important;
+    margin-top: 0.7em !important;
+    margin-bottom: 0.25em !important;
+  }
+
+  h2 {
+    font-size: 15pt !important;
+    line-height: 1.3 !important;
+    margin-top: 0.6em !important;
+    margin-bottom: 0.2em !important;
+  }
+
+  h3 {
+    font-size: 13pt !important;
+    line-height: 1.3 !important;
+    margin-top: 0.5em !important;
+    margin-bottom: 0.2em !important;
+  }
+
+  h4 {
+    font-size: 11pt !important;
+    line-height: 1.3 !important;
+    margin-top: 0.4em !important;
+    margin-bottom: 0.15em !important;
+  }
+
+  p, li {
     color: #000000 !important;
     orphans: 3;
     widows: 3;
+    margin: 3pt 0 !important;
   }
 
-  /* ── 4. Avoid breaking inside block elements ── */
+  /* ── 4. Avoid breaking inside atomic blocks (short blocks only) ── */
   blockquote,
-  pre,
   figure,
-  .callout {
+  .callout,
+  [class*="group/mathblk"],
+  [class*="group/siteblk"],
+  [class*="group/canvasblk"] {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
-  /* ── 5. Colour overrides for dark-themed elements ── */
+  /* ── 5. Universal color and scrollbar reset ── */
   * {
-    background-color: transparent !important;
-    border-color: #cccccc !important;
     color: #000000 !important;
     box-shadow: none !important;
     text-shadow: none !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
   }
 
-  /* ── 6. Code blocks ── */
-  pre, code {
-    background-color: #f4f4f4 !important;
-    color: #222222 !important;
-    border: 1px solid #dddddd !important;
-    font-family: 'Courier New', Courier, monospace !important;
-    font-size: 10pt !important;
-    white-space: pre-wrap !important;
-    word-break: break-all !important;
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  /* ── 6. Code blocks (Clean outer card, flows immediately without giant gaps) ── */
+  [class*="group/codeblk"],
+  .code-block {
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6pt !important;
+    margin: 8pt 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  [class*="group/codeblk"] > div:first-child {
+    background-color: #f1f5f9 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 3pt 8pt !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  .code-highlight-underlay {
+    display: block !important;
+    position: static !important;
+    padding: 8pt 10pt !important;
+    background: transparent !important;
+    border: none !important;
     overflow: visible !important;
   }
 
-  pre {
-    padding: 8pt !important;
-    margin: 6pt 0 !important;
-    break-inside: avoid !important;
+  .code-highlight-underlay code,
+  code {
+    border: none !important;
+    background: transparent !important;
+    display: block !important;
+    box-shadow: none !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 9.5pt !important;
+    line-height: 1.5 !important;
+    color: #1e293b !important;
+    text-decoration: none !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
-  /* ── 7. KaTeX / Math ── */
+  .code-highlight-underlay span,
+  code span {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+  }
+
+  pre {
+    padding: 8pt 10pt !important;
+    margin: 6pt 0 !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 4pt !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 9.5pt !important;
+    white-space: pre-wrap !important;
+  }
+
+  /* ── 7. KaTeX / LaTeX Math Equation Auto-Scaling & Scrollbar Elimination ── */
+  [class*="group/mathblk"] {
+    border: 1px solid #e2e8f0 !important;
+    background-color: #fafafa !important;
+    border-radius: 6pt !important;
+    padding: 6pt 10pt !important;
+    margin: 6pt 0 !important;
+    overflow: visible !important;
+  }
+
+  [class*="group/mathblk"] input {
+    font-weight: bold !important;
+    color: #334155 !important;
+    font-size: 9pt !important;
+    border: none !important;
+    background: transparent !important;
+    margin-bottom: 2pt !important;
+  }
+
+  [class*="group/mathblk"] div,
   .katex-wrapper,
-  .katex,
-  .katex * {
+  .katex-display,
+  .katex-html,
+  .katex {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    max-width: 100% !important;
+    background: transparent !important;
     color: #000000 !important;
   }
 
-  /* ── 8. Canvas blocks – show placeholder text, hide canvas UI ──
-     Canvas blocks have a title input and a drawing canvas / preview image.
-     We hide the interactive widget and show a [Canvas] badge via ::before.
-  */
-  /* The outer canvas block wrapper rendered by EditorBlock */
-  [class*="canvas"] > *:not(input):not([class*="text"]) {
+  /* Auto-scale very long LaTeX equations so they fit neatly without horizontal clipping */
+  .katex-display {
+    font-size: clamp(8pt, 1.6vw, 11.5pt) !important;
+    margin: 4pt 0 !important;
+    text-align: center !important;
+  }
+
+  .katex-display > .katex {
+    white-space: normal !important;
+    text-align: center !important;
+  }
+
+  /* ── 8. Toggle / Collapsible Blocks (Auto-expanded, zero scrollbars, clean straight line) ── */
+  [class*="group/toggleblk"] {
+    border: 1px solid #e5e7eb !important;
+    background-color: #fafafa !important;
+    padding: 8pt 12pt !important;
+    border-radius: 6pt !important;
+    margin: 6pt 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  [class*="group/toggleblk"] > div:first-child span:first-child {
+    margin-left: 8pt !important;
+    margin-right: 2pt !important;
+  }
+
+  [class*="group/toggleblk"] .toggle-print-details,
+  [class*="group/toggleblk"] .print-content {
+    display: block !important;
+    visibility: visible !important;
+    color: #1e293b !important;
+    font-size: 9.5pt !important;
+    line-height: 1.55 !important;
+    margin-top: 6pt !important;
+    margin-left: 0 !important;
+    padding-left: 10pt !important;
+    border-left: 2.5px solid #94a3b8 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    background: transparent !important;
+  }
+
+  /* ── 9. Site Bookmarks (Clean card layout without duplicate URL overlays) ── */
+  [class*="group/siteblk"] {
+    border: 1px solid #e5e7eb !important;
+    background-color: #fafafa !important;
+    padding: 6pt 10pt !important;
+    border-radius: 6pt !important;
+    margin: 5pt 0 !important;
+  }
+
+  [class*="group/siteblk"] a::after,
+  .site-bookmark a::after,
+  button a::after,
+  [data-print-no-url]::after,
+  a[class*="group/link"]::after {
+    content: "" !important;
     display: none !important;
   }
 
-  /* Simpler: target canvas block wrappers by the presence of canvas element */
+  /* ── 10. Links (Prose links only) ── */
+  a[href]:not([class*="group/link"]):not([class*="rounded"])::after {
+    content: " (" attr(href) ")";
+    font-size: 8.5pt;
+    color: #64748b !important;
+  }
+
+  a[href^="#"]::after,
+  a[href^="javascript"]::after {
+    content: "" !important;
+  }
+
+  /* ── 11. Dividers (Compact, neat spacing) ── */
+  [class*="group/divider"] {
+    padding: 0 !important;
+    margin: 4pt 0 !important;
+  }
+
+  hr {
+    border: none !important;
+    border-top: 1px solid #d1d5db !important;
+    margin: 6pt 0 !important;
+  }
+
+  /* ── 12. Blockquotes & Callouts ── */
+  blockquote {
+    border-left: 3pt solid #94a3b8 !important;
+    padding-left: 10pt !important;
+    font-style: italic !important;
+    color: #334155 !important;
+    margin: 6pt 0 !important;
+    background: transparent !important;
+  }
+
+  .callout,
+  [class*="callout"] {
+    border: 1px solid #e2e8f0 !important;
+    border-left: 3.5pt solid #f59e0b !important;
+    padding: 6pt 10pt !important;
+    background-color: #f8fafc !important;
+    border-radius: 4pt !important;
+    margin: 6pt 0 !important;
+  }
+
+  /* ── 13. Canvas & Media Blocks ── */
   canvas {
     display: none !important;
   }
 
-  /* Show a print-friendly badge for media / canvas blocks */
-  .media-embed::after,
-  .canvas-block::after {
-    content: attr(data-print-label);
-    display: block;
-    font-style: italic;
-    color: #555555 !important;
-    font-size: 10pt;
-    border: 1px dashed #aaaaaa;
-    padding: 4pt 8pt;
-    border-radius: 3pt;
-    margin: 4pt 0;
+  [class*="group/canvasblk"] {
+    border: 1px solid #e5e7eb !important;
+    background-color: #fafafa !important;
+    padding: 6pt 10pt !important;
+    border-radius: 6pt !important;
+    margin: 5pt 0 !important;
   }
 
-  /* ── 9. Media: hide player, show URL ── */
   video, audio {
     display: none !important;
   }
@@ -379,48 +567,12 @@ body {
     page-break-inside: avoid !important;
   }
 
-  /* ── 10. Links ── */
-  a[href]::after {
-    content: " (" attr(href) ")";
-    font-size: 9pt;
-    color: #444444 !important;
-  }
-
-  /* Don't annotate icon/emoji links or local anchor links */
-  a[href^="#"]::after,
-  a[href^="javascript"]::after {
-    content: "" !important;
-  }
-
-  /* ── 11. Strip spacing from editor UI chrome wrappers ── */
+  /* ── 14. Strip UI spacing classes in print ── */
   .space-y-2,
   .pl-8,
   .px-10 {
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* ── 12. Dividers ── */
-  hr {
-    border: none !important;
-    border-top: 1px solid #cccccc !important;
-    margin: 12pt 0 !important;
-  }
-
-  /* ── 13. Blockquote / Quote ── */
-  blockquote {
-    border-left: 3pt solid #888888 !important;
-    padding-left: 12pt !important;
-    font-style: italic !important;
-    color: #333333 !important;
-  }
-
-  /* ── 14. Callout ── */
-  .callout {
-    border-left: 3pt solid #888888 !important;
-    padding: 6pt 12pt !important;
-    background: #f9f9f9 !important;
-    border-radius: 3pt !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
   }
 }
 

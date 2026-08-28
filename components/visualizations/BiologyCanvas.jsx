@@ -62,7 +62,7 @@ function enzymeRate(temperature, ph) {
 }
 
 /** Icosahedron whose vertices are pushed off their normals as it denatures. */
-function EnzymeBody({ denature, wobble }) {
+function EnzymeBody({ denature, wobble, animSpeed = 1.0 }) {
   const mesh = useRef(null);
   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1.5, 4), []);
   const original = useMemo(
@@ -74,7 +74,7 @@ function EnzymeBody({ denature, wobble }) {
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame((_, delta) => {
-    time.current += delta;
+    time.current += delta * animSpeed;
     const attr = geometry.attributes.position;
     const amount = denature * 0.55;
     for (let i = 0; i < attr.count; i += 1) {
@@ -114,14 +114,14 @@ function EnzymeBody({ denature, wobble }) {
 }
 
 /** Substrate runs approach → bound → split → products drift away → repeat. */
-function Substrate({ rate, denatured, siteOpen }) {
+function Substrate({ rate, denatured, siteOpen, animSpeed = 1 }) {
   const left = useRef(null);
   const right = useRef(null);
   const phase = useRef(0);
 
   useFrame((_, delta) => {
     if (!left.current || !right.current) return;
-    const speed = denatured ? 0.18 : 0.22 + rate * 0.5;
+    const speed = (denatured ? 0.18 : 0.22 + rate * 0.5) * animSpeed;
     phase.current = (phase.current + delta * speed) % 1;
     const p = phase.current;
 
@@ -304,7 +304,7 @@ export function EnzymeScene({ params = {} }) {
       controls={{ target: [0, -1.1, 0] }}
     >
       <group position={[-1.2, 0, 0]}>
-        <EnzymeBody denature={distortion} wobble={speed} />
+        <EnzymeBody denature={distortion} wobble={1.0} animSpeed={speed} />
         <Halo radius={2.4} color={distortion > 0.4 ? PALETTE.rose : PALETTE.emerald} opacity={0.06} />
 
         {/* Active site: upper and lower ridges forming a complementary pocket.
@@ -349,7 +349,7 @@ export function EnzymeScene({ params = {} }) {
         </SceneLabel>
       </group>
 
-      <Substrate rate={rate} denatured={denature > 0.25} siteOpen={siteOpen} />
+      <Substrate rate={rate} denatured={denature > 0.25} siteOpen={siteOpen} animSpeed={speed} />
 
       <RateCurve temperature={temperature} ph={ph} />
 
@@ -433,7 +433,6 @@ const RADIUS = 1.5;
 // full turn every 10.5 pairs.
 const RISE = RADIUS * 0.34;
 const TWIST = (Math.PI * 2) / 10.5;
-
 /**
  * Point a unit-height cylinder from `a` to `b`. Backbone and rungs both join
  * two things that are moving, so they are placed per frame rather than baked
@@ -453,7 +452,7 @@ function stretchBetween(mesh, a, b) {
   mesh.scale.set(1, length, 1);
 }
 
-function Helix({ pairs, spin, unzipToken }) {
+function Helix({ pairs, spin, unzipToken, speed = 1.0 }) {
   const group = useRef(null);
   const rungRefs = useRef([]);
   const strandA = useRef([]);
@@ -474,13 +473,13 @@ function Helix({ pairs, spin, unzipToken }) {
     target.current = 1;
     const id = setTimeout(() => {
       target.current = 0;
-    }, 3400);
+    }, Math.max(900, 3400 / speed));
     return () => clearTimeout(id);
-  }, [unzipToken]);
+  }, [unzipToken, speed]);
 
   useFrame((_, delta) => {
-    if (group.current) group.current.rotation.y += delta * spin * 0.5;
-    unzip.current = lerp(unzip.current, target.current, Math.min(1, delta * 1.1));
+    if (group.current) group.current.rotation.y += delta * spin * 0.5 * speed;
+    unzip.current = lerp(unzip.current, target.current, Math.min(1, delta * 1.1 * speed));
 
     for (let i = 0; i < pairs; i += 1) {
       // Unzipping runs from the top down, like a replication fork.
@@ -607,7 +606,7 @@ function Helix({ pairs, spin, unzipToken }) {
 }
 
 export function DNAScene({ params = {} }) {
-  const { spin = true, pairs = 16, unzip = 0 } = params || {};
+  const { spin = true, pairs = 16, unzip = 0, speed = 1.0 } = params || {};
   const count = Math.round(pairs);
 
   const preview = useMemo(
@@ -623,7 +622,7 @@ export function DNAScene({ params = {} }) {
   return (
     <SceneCanvas camera={{ position: [0, 0, 12], fov: 45 }} controls={{ minDistance: 4 }}>
       <group scale={fit}>
-        <Helix pairs={count} spin={spin} unzipToken={unzip} />
+        <Helix pairs={count} spin={spin} unzipToken={unzip} speed={speed} />
       </group>
 
       <SceneReadout
@@ -718,8 +717,8 @@ const ORGANELLES = {
   },
   lysosome: {
     label: "Lysosome",
-    info: "A bag of digestive enzymes that breaks down worn-out organelles and anything the cell engulfs.",
-    both: true,
+    info: "Membrane-bound sacs of hydrolytic enzymes that break down waste and debris. Present in animal cells; plant cells use vacuoles for degradation.",
+    both: false,
   },
   centriole: {
     label: "Centrioles",
@@ -728,7 +727,7 @@ const ORGANELLES = {
   },
 };
 
-function WaterFlow({ direction, active, reach = 4.9 }) {
+function WaterFlow({ direction, active, reach = 4.9, speed = 1.0 }) {
   const meshes = useRef([]);
   const drops = useMemo(
     () =>
@@ -742,7 +741,7 @@ function WaterFlow({ direction, active, reach = 4.9 }) {
   const t = useRef(0);
 
   useFrame((_, delta) => {
-    if (active) t.current += delta * 0.4;
+    if (active) t.current += delta * 0.4 * speed;
     drops.forEach((d, i) => {
       const mesh = meshes.current[i];
       if (!mesh) return;
@@ -812,11 +811,7 @@ const PLANT_LAYOUT = {
     [-1.5, -1.7, -0.85],
     [-2.6, -1.55, 0.85],
   ],
-  lysosomes: [
-    [-2.85, 0.95, -0.75],
-    [-0.55, -1.5, 1.15],
-    [2.45, 0.25, -1.05],
-  ],
+  lysosomes: [],
 };
 
 const ANIMAL_LAYOUT = {
@@ -859,7 +854,7 @@ function InteriorLights() {
 }
 
 export function CellExplorerScene({ params = {} }) {
-  const { cellType = "plant", tonicity = 0, showLabels = true, water = true, cutaway = true } = params || {};
+  const { cellType = "plant", tonicity = 0, showLabels = true, water = true, cutaway = true, speed = 1.0 } = params || {};
   const [selected, setSelected] = useState(null);
   const isPlant = cellType === "plant";
 
@@ -929,11 +924,12 @@ export function CellExplorerScene({ params = {} }) {
           </Pickable>
 
           <Cytoskeleton bounds={bounds} />
-          <Cytoplasm bounds={bounds} tint={isPlant ? PALETTE.emerald : PALETTE.sky} />
+          <Cytoplasm bounds={bounds} tint={isPlant ? PALETTE.emerald : PALETTE.sky} speed={speed} />
           <FreeRibosomes
             bounds={[bounds[0] * 0.92, bounds[1] * 0.85, bounds[2] * 0.85]}
             selected={selected === "ribosome"}
             onSelect={setSelected}
+            speed={speed}
           />
 
           <group position={layout.nucleus}>
@@ -952,7 +948,7 @@ export function CellExplorerScene({ params = {} }) {
           </group>
 
           <group position={layout.golgi}>
-            <Golgi selected={selected === "golgi"} onSelect={setSelected} showLabel={showLabels} />
+            <Golgi selected={selected === "golgi"} onSelect={setSelected} showLabel={showLabels} speed={speed} />
           </group>
 
           <SmoothER
@@ -996,11 +992,13 @@ export function CellExplorerScene({ params = {} }) {
               </group>
             ))}
 
-          {layout.lysosomes.map((position, i) => (
-            <group key={i} position={position}>
-              <Lysosome seed={i} selected={selected === "lysosome"} onSelect={setSelected} />
-            </group>
-          ))}
+          {!isPlant &&
+            layout.lysosomes &&
+            layout.lysosomes.map((position, i) => (
+              <group key={i} position={position}>
+                <Lysosome seed={i} selected={selected === "lysosome"} onSelect={setSelected} />
+              </group>
+            ))}
 
           {!isPlant && (
             <group position={layout.centrioles} rotation={[0.5, 0.7, 0]}>
@@ -1024,6 +1022,7 @@ export function CellExplorerScene({ params = {} }) {
           direction={-tonicity}
           active={water && Math.abs(tonicity) > 0.05}
           reach={isPlant ? 5.6 : 4.9}
+          speed={speed}
         />
       </CutawayProvider>
 
@@ -1173,6 +1172,7 @@ export function ProteinFoldingScene({ params = {} }) {
     showBonds = true,
     colourByType = true,
     spin = true,
+    speed = 1.0,
   } = params || {};
 
   const count = clamp(Math.round(residues), 8, MAX_RESIDUES);
@@ -1226,7 +1226,7 @@ export function ProteinFoldingScene({ params = {} }) {
     }
     const bonds = [];
     for (let strand = 0; strand + 1 < SHEET_STRANDS; strand += 1) {
-      for (let within = 0; within < perStrand; within += 2) {
+      for (let within = strand % 2; within < perStrand; within += 2) {
         const a = byPlace.get(`${strand}:${within}`);
         const b = byPlace.get(`${strand + 1}:${within}`);
         if (a !== undefined && b !== undefined) bonds.push([positions[a], positions[b]]);
@@ -1239,7 +1239,7 @@ export function ProteinFoldingScene({ params = {} }) {
   const totalBonds = hydrogenBonds.length + sheetBonds.length;
 
   return (
-    <SceneCanvas camera={{ position: [0, 1.5, 11] , fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 1.5, 11] , fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       <Line points={backbone} color={denatured ? PALETTE.slate : info.colour} lineWidth={3.4} />
 
       {positions.map((p, i) => {
@@ -1348,8 +1348,8 @@ const SCENES = {
   protein: ProteinFoldingScene,
 };
 
-export default function BiologyCanvas({ topicId, params }) {
+export default function BiologyCanvas({ topicId, params, setParam, onOpenQuiz }) {
   const Scene = SCENES[topicId];
   if (!Scene) return null;
-  return <Scene params={params} />;
+  return <Scene params={params} setParam={setParam} onOpenQuiz={onOpenQuiz} />;
 }

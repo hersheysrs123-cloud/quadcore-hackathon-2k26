@@ -2,7 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Html, Html as DreiHtml, OrbitControls } from "@react-three/drei";
+import { Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, DEFAULT_GRAPHICS_SETTINGS } from "@/lib/db";
@@ -148,7 +148,7 @@ export function SceneCanvas({
         minDistance={2}
         maxDistance={45}
         autoRotate={controls?.autoRotate ?? false}
-        autoRotateSpeed={0.45}
+        autoRotateSpeed={controls?.autoRotateSpeed !== undefined ? controls.autoRotateSpeed : 0.45 * (controls?.speed ?? 1.0)}
         {...controls}
       />
     </Canvas>
@@ -254,14 +254,19 @@ const VALUE_TONES = {
 };
 
 /**
- * The live numbers for a scene. Scenes own values the HUD cannot know —
- * measured pressure, instantaneous e.m.f., reaction rate — so they surface
- * them here rather than pushing state back up on every frame.
+ * Declarative placeholder component for scene-level readout specifications.
+ * Note: Live parameter and formula readouts are rendered in the unified 2D HUD
+ * overlay via `VisualizationHUD.jsx`. This component is preserved as a declarative
+ * interface marker for scenes.
  */
 export function SceneReadout() {
   return null;
 }
 
+/**
+ * Declarative placeholder component for scene-level legend specifications.
+ * Note: Visual and color keys are rendered dynamically in `VisualizationHUD.jsx`.
+ */
 export function SceneLegend() {
   return null;
 }
@@ -362,14 +367,14 @@ export function VectorArrow({
         />
       </mesh>
       {label && (
-        <DreiHtml position={labelAt} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
+        <Html position={labelAt} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
           <div 
             className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm whitespace-nowrap"
             style={{ backgroundColor: color, opacity: 0.9 }}
           >
             {label}
           </div>
-        </DreiHtml>
+        </Html>
       )}
     </group>
   );

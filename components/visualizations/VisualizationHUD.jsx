@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Check,
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   Lightbulb,
   RotateCcw,
   SlidersHorizontal,
+  Sparkles,
   Target,
   X,
 } from "lucide-react";
@@ -30,7 +31,7 @@ import {
 export function HudPanel({ title, icon: Icon, action, children, className = "" }) {
   return (
     <div
-      className={`rounded-xl border border-ink-800 bg-ink-900/85 p-3.5 shadow-2xl backdrop-blur-md ${className}`}
+      className={`rounded-xl border border-ink-800 bg-ink-900 p-3.5 shadow-2xl ${className}`}
     >
       {title && (
         <div className="mb-3 flex items-center gap-2">
@@ -259,6 +260,8 @@ function ControlField({ control, params, setParam, setParams }) {
 
 // ─── Details readout helper ─────────────────────────────────────────
 
+const num = (v, fallback) => (v !== undefined && v !== null && !isNaN(Number(v)) ? Number(v) : fallback);
+
 function renderTopicDetailsReadout(topic, params) {
   if (!topic || !params) return null;
 
@@ -266,13 +269,17 @@ function renderTopicDetailsReadout(topic, params) {
   let legend = { title: "Visual Key", items: [] };
 
   switch (topic.id) {
+    // ═════════════════════════════════════════════════════════════════════
+    // 1. PHYSICS
+    // ═════════════════════════════════════════════════════════════════════
+
     case "refraction": {
-      const n1 = Number(params.n1) || 1.0;
-      const n2 = Number(params.n2) || 1.5;
-      const iDeg = Number(params.angle) || 0;
+      const n1 = num(params.n1, 1.0);
+      const n2 = num(params.n2, 1.5);
+      const iDeg = num(params.angle, 0);
       const iRad = (iDeg * Math.PI) / 180;
       const sinR = (n1 * Math.sin(iRad)) / n2;
-      const thickness = Number(params.thickness) || 3.0;
+      const thickness = num(params.thickness, 3.0);
 
       const tir = sinR > 1.0;
       const rRad = tir ? 0 : Math.asin(sinR);
@@ -313,17 +320,18 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Ray Construction Key",
         items: [
-          { color: "#38bdf8", shape: "line", label: "Light Ray", note: `${params.wavelength || 520} nm beam` },
+          { color: "#38bdf8", shape: "line", label: "Incident / Refracted / Emergent Ray", note: `${params.wavelength || 520} nm beam` },
+          { color: "#fbbf24", shape: "line", label: "Reflected Ray", note: "Fresnel partial reflection / TIR" },
           { color: "#64748b", shape: "dash", label: "Normal Line", note: "Perpendicular (90°) boundary reference" },
-          { color: "#0ea5e9", shape: "square", label: "Optical Medium Block", note: `n = ${n2.toFixed(2)}` },
+          { color: "#0ea5e9", shape: "square", label: "Optical Medium Block", note: `Refractive index n = ${n2.toFixed(2)}` },
         ],
       };
       break;
     }
 
     case "motor": {
-      const I = Number(params.current) || 0;
-      const B = Number(params.field) || 0;
+      const I = num(params.current, 0);
+      const B = num(params.field, 0);
       const L = 0.25;
       const F = B * I * L;
       const revI = Boolean(params.reverseCurrent);
@@ -343,22 +351,20 @@ function renderTopicDetailsReadout(topic, params) {
           ["Second finger (Current)", revI ? "−z (back)" : "+z (front)"],
           ["Thumb (Motion/Force)", hasForce ? (reversed ? "downward (↓)" : "upward (↑)") : "no motion", hasForce ? "good" : "bad"],
         ],
-        note: !hasForce
-          ? "Turn up the current. With I = 0, no magnetic field is generated around the wire, so F = BIL = 0."
-          : reversed
-          ? "One input reversed: the force direction flips. A d.c. motor uses a split-ring commutator to reverse current every half turn."
-          : revI && revB
-          ? "Both inputs reversed: the two flips cancel out, keeping the force direction unchanged."
-          : "Fleming's Left-Hand Rule: First finger Field, seCond finger Current, thuMb Motion.",
-        noteTone: !hasForce ? "bad" : reversed ? "warn" : "good",
+        note: hasForce
+          ? "Fleming's Left-Hand Rule: First finger = Field (N→S), seCond finger = Current (+→−), Thumb = Force/Motion direction."
+          : "Zero current or zero field produces no magnetic Lorentz force.",
+        noteTone: hasForce ? "good" : "bad",
       };
 
       legend = {
-        title: "Fleming's Left Hand Key",
+        title: "Fleming's Left Hand & Magnetic Key",
         items: [
-          { color: "#38bdf8", shape: "line", label: "First finger — Field B", note: "N pole → S pole" },
+          { color: "#38bdf8", shape: "line", label: "First finger — Field B", note: "Magnetic flux lines (N → S)" },
           { color: "#fbbf24", shape: "line", label: "seCond finger — Current I", note: "Conventional current (+ to −)" },
-          { color: "#34d399", shape: "line", label: "Thumb — Motion / Force F", note: "Resulting force direction" },
+          { color: "#34d399", shape: "line", label: "Thumb — Motion / Force F", note: "Resulting Lorentz force vector" },
+          { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Magnetic source pole" },
+          { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Magnetic sink pole" },
         ],
       };
       break;
@@ -367,8 +373,8 @@ function renderTopicDetailsReadout(topic, params) {
     case "lenses": {
       const type = params.lensType || "convex";
       const isConvex = type === "convex";
-      const f = Number(params.focal) || 2;
-      const u = Number(params.objectDistance) || 5;
+      const f = num(params.focal, 2);
+      const u = num(params.objectDistance, 5);
 
       const atInfinity = isConvex && Math.abs(u - f) < 0.02;
       let v = 0;
@@ -422,19 +428,21 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Ray Construction Key",
         items: [
-          { color: "#fbbf24", shape: "square", label: "Object", note: "Upright arrow of fixed height" },
-          { color: "#34d399", shape: "line", label: "Ray 1 (Parallel)", note: isConvex ? "Passes through F" : "Diverges from F" },
-          { color: "#38bdf8", shape: "line", label: "Ray 2 (Center)", note: "Passes straight through optical center" },
-          { color: "#a855f7", shape: "square", label: "Formed Image", note: natureText },
+          { color: "#fbbf24", shape: "square", label: "Object Arrow", note: "Source object of fixed height" },
+          { color: "#34d399", shape: "line", label: "Ray 1 (Parallel → Focus)", note: isConvex ? "Refracts through focal point F" : "Diverges in line with focal point F" },
+          { color: "#38bdf8", shape: "line", label: "Ray 2 (Optical Center)", note: "Passes straight through undeviated" },
+          { color: "#f43f5e", shape: "square", label: "Formed Image Arrow", note: natureText || "Projected image" },
+          { color: "#f43f5e", shape: "dash", label: "Virtual Ray Extension", note: "Apparent ray back-projection" },
+          { color: "#64748b", shape: "line", label: "Principal Axis", note: "Central horizontal optical reference" },
         ],
       };
       break;
     }
 
     case "induction": {
-      const speed = Number(params.speed) || 0;
-      const B = Number(params.field) || 0;
-      const N = Number(params.turns) || 1;
+      const speed = num(params.speed, 0);
+      const B = num(params.field, 0);
+      const N = num(params.turns, 1);
       const flux = B * 0.6;
       const peak = speed * B * N * 1.5;
 
@@ -459,18 +467,21 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Generator Components Key",
         items: [
-          { color: "#f43f5e", shape: "square", label: "North Pole (N)", note: "Field flows N → S" },
-          { color: "#38bdf8", shape: "dash", label: "Magnetic Field Lines B", note: "Flux density lines" },
+          { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Magnetic field source" },
+          { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Magnetic field sink" },
+          { color: "#38bdf8", shape: "dash", label: "Magnetic Field Lines B", note: "Flux density vector lines" },
           { color: "#fbbf24", shape: "line", label: "Rotating Coil Wire", note: "Cuts field lines to induce e.m.f." },
+          { color: "#34d399", shape: "dot", label: "Induced AC Pulses", note: "Alternating electron flow" },
+          { color: "#38bdf8", shape: "line", label: "Induced EMF Waveform", note: "Sinusoidal voltage output" },
         ],
       };
       break;
     }
 
     case "gas": {
-      const T = Number(params.temperature) || 300;
-      const V = Number(params.volume) || 1;
-      const N = Number(params.particles) || 60;
+      const T = num(params.temperature, 300);
+      const V = num(params.volume, 1);
+      const N = num(params.particles, 60);
       const pressure = (N * T) / (V * 180);
       const pV_T = (pressure * V) / T;
 
@@ -496,13 +507,151 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Particle Kinetic Key",
         items: [
+          { color: "#ef4444", shape: "dot", label: "Hot Gas Particle", note: "High kinetic energy / speed" },
           { color: "#38bdf8", shape: "dot", label: "Cold Gas Particle", note: "Lower kinetic energy / speed" },
-          { color: "#f43f5e", shape: "dot", label: "Hot Gas Particle", note: "High kinetic energy / speed" },
-          { color: "#64748b", shape: "square", label: "Piston / Wall", note: "Measures collision force" },
+          { color: "#64748b", shape: "square", label: "Piston / Cylinder Wall", note: "Enclosed volume boundary" },
+          { color: "#fbbf24", shape: "dot", label: "Wall Collision Impulses", note: "Transfers momentum to generate pressure" },
         ],
       };
       break;
     }
+
+    case "projectile": {
+      const speed = num(params.launchSpeed ?? params.speed, 22);
+      const angle = num(params.angle, 45);
+      const gravity = num(params.gravity, 9.81);
+      const drag = num(params.drag, 0.04);
+      const mass = num(params.mass, 1);
+
+      const rad = (angle * Math.PI) / 180;
+      const idealRange = (speed * speed * Math.sin(2 * rad)) / gravity;
+      const idealApex = (speed * speed * Math.sin(rad) * Math.sin(rad)) / (2 * gravity);
+      const idealTime = (2 * speed * Math.sin(rad)) / gravity;
+
+      const dragLossEst = drag > 0 ? Math.min(0.65, drag * 10) : 0;
+      const estRange = idealRange * (1 - dragLossEst);
+      const estApex = idealApex * (1 - dragLossEst * 0.5);
+
+      readout = {
+        title: "2D Projectile Trajectory",
+        subtitle: "F_drag = −k|v|v · gravity = −g ĵ",
+        rows: [
+          ["Launch Speed v₀", `${speed.toFixed(1)} m/s`, "gold"],
+          ["Launch Angle θ", `${angle.toFixed(1)}°`],
+          ["Gravity g", `${gravity.toFixed(2)} m/s²`],
+          ["Drag Coefficient k", `${drag.toFixed(3)}`],
+          ["Range with Drag", `${estRange.toFixed(1)} m`, "good"],
+          ["Ideal Range (No Drag)", `${idealRange.toFixed(1)} m`],
+          ["Apex Height", `${estApex.toFixed(1)} m`],
+          ["Ideal Flight Time", `${idealTime.toFixed(2)} s`],
+        ],
+        note: drag > 0.005
+          ? `Quadratic drag causes the projectile to lose horizontal momentum throughout its flight, steepening its descent and reducing range by approx ${(dragLossEst * 100).toFixed(0)}%.`
+          : "With zero atmospheric drag, the flight path is a perfect symmetrical parabola with maximum range achieved at exactly 45°.",
+        noteTone: drag > 0.005 ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Ballistic Trajectory Key",
+        items: [
+          { color: "#34d399", shape: "line", label: "Trajectory with Drag", note: "Realistic asymmetric flight path" },
+          { color: "#64748b", shape: "dash", label: "Ideal Parabola (No Drag)", note: "Theoretical symmetric vacuum path" },
+          { color: "#38bdf8", shape: "line", label: "Velocity Vector v", note: "Instantaneous tangential velocity" },
+          { color: "#fb7185", shape: "line", label: "Weight Vector W", note: "Constant downward gravitational force" },
+          { color: "#fbbf24", shape: "dot", label: "Projectile Mass m", note: `${mass} kg launch mass` },
+        ],
+      };
+      break;
+    }
+
+    case "interference": {
+      const slits = num(params.slits, 2);
+      const separation = num(params.separation, 2.2);
+      const wavelength = num(params.wavelength, 1.2);
+      const L = 10.2;
+
+      const ratio = wavelength / separation;
+      const fringeSpacing = slits === 2 ? (wavelength * L) / separation : null;
+      const firstOrderX = slits === 2 && ratio <= 1 ? L * Math.tan(Math.asin(ratio)) : null;
+      const highestOrder = slits === 2 ? Math.floor(separation / wavelength) : 0;
+
+      readout = {
+        title: "Wave Interference & Fringes",
+        subtitle: slits === 2 ? "d sin θ = mλ (path difference decides fringes)" : "Single source diffraction",
+        rows: [
+          ["Slit Sources", slits, "gold"],
+          ["Wavelength λ", `${wavelength.toFixed(2)} m`],
+          ["Slit Separation d", slits === 2 ? `${separation.toFixed(2)} m` : "—"],
+          ["Screen Distance L", `${L.toFixed(1)} m`],
+          ["1st Max Position x", firstOrderX ? `${firstOrderX.toFixed(2)} m` : "—", "good"],
+          ["λL ÷ d Estimate", fringeSpacing ? `${fringeSpacing.toFixed(2)} m` : "—"],
+          ["Highest Order m_max", slits === 2 ? highestOrder : "—"],
+        ],
+        note: slits === 1
+          ? "A single source produces circular wavefronts with uniform radial decay. Switch to 2 slits to create interference fringes."
+          : "Constructive interference (bright fringes) occurs where path difference is an integer multiple of λ (mλ). Destructive interference occurs at half-wavelengths.",
+        noteTone: slits === 2 ? "good" : "neutral",
+      };
+
+      legend = {
+        title: "Wave Interference Key",
+        items: [
+          { color: "#fbbf24", shape: "square", label: "Wave Crest", note: "Positive displacement ripple peak" },
+          { color: "#a78bfa", shape: "square", label: "Wave Trough", note: "Negative displacement ripple valley" },
+          { color: "#fbbf24", shape: "dot", label: "Slit Source Emitter", note: "Coherent wave source in phase" },
+          { color: "#39424f", shape: "square", label: "Double Slit Barrier", note: "Opaque aperture obstacle" },
+          { color: "#fbbf24", shape: "line", label: "Screen Intensity Fringes", note: "Constructive interference maxima" },
+        ],
+      };
+      break;
+    }
+
+    case "orbits": {
+      const mass = num(params.mass, 1);
+      const launchRadius = num(params.launchRadius, 3.4);
+      const launchSpeed = num(params.launchSpeed, 1.35);
+      const mu = 6 * mass;
+
+      const circular = Math.sqrt(mu / launchRadius);
+      const escapeSpeed = Math.sqrt((2 * mu) / launchRadius);
+      const energy = (launchSpeed * launchSpeed) / 2 - mu / launchRadius;
+      const unbound = energy >= 0;
+
+      readout = {
+        title: "Keplerian Gravitational Orbits",
+        subtitle: "Specific orbital energy ε = v²/2 − GM/r",
+        rows: [
+          ["Grav Parameter μ", `${mu.toFixed(1)}`, "gold"],
+          ["Launch Radius r₀", `${launchRadius.toFixed(2)} AU`],
+          ["Launch Speed v₀", `${launchSpeed.toFixed(2)} km/s`, "gold"],
+          ["Circular Speed v_c", `${circular.toFixed(2)} km/s`],
+          ["Escape Speed v_esc", `${escapeSpeed.toFixed(2)} km/s`],
+          ["Orbital Energy ε", `${energy.toFixed(2)} J/kg`, unbound ? "bad" : "good"],
+          ["Trajectory Type", unbound ? "Hyperbolic (Escape)" : Math.abs(launchSpeed - circular) < 0.05 ? "Circular" : "Elliptical", unbound ? "bad" : "good"],
+        ],
+        note: unbound
+          ? "Launch speed exceeds escape velocity (ε ≥ 0): the satellite is on an open hyperbolic path and will permanently escape the gravitational well."
+          : Math.abs(launchSpeed - circular) < 0.05
+          ? "Launch speed matches circular velocity: centripetal force exactly balances gravitational attraction, maintaining constant orbital radius."
+          : "Launch speed is bounded (ε < 0): the satellite travels in a stable elliptical orbit around the central focus.",
+        noteTone: unbound ? "bad" : "good",
+      };
+
+      legend = {
+        title: "Gravitational Orbit Key",
+        items: [
+          { color: "#fbbf24", shape: "dot", label: "Central Mass (Star / Planet)", note: "Gravitational source creating potential well" },
+          { color: "#34d399", shape: "dot", label: "Orbiting Satellite", note: "Body in continuous gravitational free-fall" },
+          { color: "#34d399", shape: "line", label: "Orbital Path Trail", note: "Closed elliptical or open escape trajectory" },
+          { color: "#38bdf8", shape: "line", label: "Spacetime Potential Sheet", note: "Depth represents −GM/r potential energy" },
+        ],
+      };
+      break;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 2. CHEMISTRY
+    // ═════════════════════════════════════════════════════════════════════
 
     case "bohr": {
       const elemKey = params.element || "Na";
@@ -540,10 +689,11 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Subatomic Particle Key",
         items: [
-          { color: "#f43f5e", shape: "dot", label: "Proton (+1 charge)", note: `${data.z} in nucleus` },
-          { color: "#94a3b8", shape: "dot", label: "Neutron (0 charge)", note: `${data.n} in nucleus` },
-          { color: "#38bdf8", shape: "dot", label: "Inner Shell Electron", note: "Filled, stable orbits" },
-          { color: "#fbbf24", shape: "dot", label: "Valence Electron", note: "Outer shell reactive electron" },
+          { color: "#ef4444", shape: "dot", label: "Proton (+1 charge)", note: `${data.z} positive nuclear protons` },
+          { color: "#94a3b8", shape: "dot", label: "Neutron (0 charge)", note: `${data.n} neutral nuclear neutrons` },
+          { color: "#38bdf8", shape: "dot", label: "Core Electron", note: "Filled, stable inner electron shells" },
+          { color: "#fbbf24", shape: "dot", label: "Valence Electron", note: "Outer shell chemically reactive electron" },
+          { color: "#a78bfa", shape: "line", label: "Photon Wave Packet", note: "Quantized light emission during shell drop" },
         ],
       };
       break;
@@ -551,7 +701,7 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "organic": {
       const family = params.family || "alkane";
-      const n = Number(params.carbons) || 3;
+      const n = num(params.carbons, 3);
       const saturated = family === "alkane";
 
       let formula = `C${n}H${2 * n + 2}`;
@@ -579,56 +729,22 @@ function renderTopicDetailsReadout(topic, params) {
         items: [
           { color: "#475569", shape: "dot", label: "Carbon Atom (C)", note: "Forms 4 covalent bonds" },
           { color: "#f8fafc", shape: "dot", label: "Hydrogen Atom (H)", note: "Forms 1 covalent bond" },
-          { color: "#f43f5e", shape: "dot", label: "Oxygen Atom (O)", note: "Forms 2 covalent bonds" },
-          { color: "#fbbf24", shape: "line", label: "Covalent Bond", note: "Shared electron pairs" },
-        ],
-      };
-      break;
-    }
-
-    case "enzyme": {
-      const temp = Number(params.temperature) || 37;
-      const ph = Number(params.ph) || 7.0;
-
-      const denatured = temp > 55 || ph < 3 || ph > 11;
-      let rate = 0;
-      if (!denatured) {
-        rate = Math.round(Math.max(0, 1 - Math.abs(temp - 37) / 25) * Math.max(0, 1 - Math.abs(ph - 7) / 4) * 100);
-      }
-
-      readout = {
-        title: "Enzyme Kinetics",
-        subtitle: "Lock and key substrate binding",
-        rows: [
-          ["Catalytic Rate", `${rate}%`, rate > 60 ? "good" : denatured ? "bad" : "warn"],
-          ["Temperature", `${temp}°C`, temp > 50 ? "bad" : undefined],
-          ["pH", ph.toFixed(1), Math.abs(ph - 7) > 3 ? "bad" : undefined],
-          ["Optimum conditions", "37°C, pH 7.0"],
-          ["Active site state", denatured ? "Denatured (Distorted)" : "Complementary Lock", denatured ? "bad" : "good"],
-        ],
-        note: denatured
-          ? "Above ~50°C, high thermal energy breaks hydrogen/disulfide bonds holding protein tertiary structure. Active site shape changes permanently."
-          : "Near optimum (37°C, pH 7): frequent collisions with active site in correct orientation.",
-        noteTone: denatured ? "bad" : "good",
-      };
-
-      legend = {
-        title: "Enzyme Component Key",
-        items: [
-          { color: denatured ? "#f43f5e" : "#34d399", shape: "square", label: "Enzyme Protein", note: denatured ? "Denatured tertiary shape" : "Active lock shape" },
+          { color: "#ef4444", shape: "dot", label: "Oxygen Atom (O)", note: "Forms 2 covalent bonds in functional groups" },
+          { color: "#fbbf24", shape: "line", label: "Single Covalent Bond", note: "Shared electron pair (sigma bond)" },
+          { color: "#94a3b8", shape: "line", label: "Double / Triple Bond", note: "Unsaturated pi bond system" },
         ],
       };
       break;
     }
 
     case "distillation": {
-      const heat = Number(params.heat) || 0.7;
+      const heat = num(params.heat, 0.7);
       const furnace = Math.round(250 + heat * 200);
 
       const fractions = [
-        { name: "Refinery gases", chain: "C1–C4", top: 20, use: "bottled gas fuel", colour: "#f43f5e" },
+        { name: "Refinery gases", chain: "C1–C4", top: 20, use: "bottled gas fuel", colour: "#ef4444" },
         { name: "Petrol / Gasoline", chain: "C5–C9", top: 70, use: "fuel for cars", colour: "#fbbf24" },
-        { name: "Naphtha", chain: "C8–C12", top: 120, use: "chemical feedstock", colour: "#a855f7" },
+        { name: "Naphtha", chain: "C8–C12", top: 120, use: "chemical feedstock", colour: "#a78bfa" },
         { name: "Kerosene", chain: "C10–C16", top: 170, use: "jet fuel & heating", colour: "#38bdf8" },
         { name: "Diesel oil", chain: "C14–C20", top: 270, use: "diesel engines", colour: "#34d399" },
         { name: "Bitumen", chain: "C50+", top: 350, use: "roads & roofing", colour: "#64748b" },
@@ -657,6 +773,7 @@ function renderTopicDetailsReadout(topic, params) {
         title: "Fractions Key (Top to Bottom)",
         items: fractions.map((f) => ({
           color: f.colour,
+          shape: "square",
           label: `${f.name} (${f.chain})`,
           note: `≤${f.top}°C · ${f.use}`,
         })),
@@ -682,7 +799,7 @@ function renderTopicDetailsReadout(topic, params) {
           keys: [
             { color: "#fbbf24", shape: "dot", label: "Na⁺ Cation", note: "Positive sodium ion" },
             { color: "#34d399", shape: "dot", label: "Cl⁻ Anion", note: "Negative chloride ion" },
-            { color: "#38bdf8", shape: "line", label: "Ionic Attraction", note: "Electrostatic bond" },
+            { color: "#38bdf8", shape: "line", label: "Ionic Attraction", note: "Electrostatic matrix bond" },
           ],
         },
         diamond: {
@@ -696,8 +813,8 @@ function renderTopicDetailsReadout(topic, params) {
           ],
           note: "Every carbon forms 4 strong covalent bonds tetrahedrally, producing extreme hardness.",
           keys: [
-            { color: "#94a3b8", shape: "dot", label: "Carbon Atom", note: "sp³ hybridized" },
-            { color: "#38bdf8", shape: "line", label: "Covalent Bond", note: "Strong directional bond" },
+            { color: "#94a3b8", shape: "dot", label: "Carbon Atom", note: "sp³ hybridized carbon" },
+            { color: "#38bdf8", shape: "line", label: "Covalent Bond", note: "Strong directional covalent link" },
           ],
         },
         graphite: {
@@ -712,9 +829,9 @@ function renderTopicDetailsReadout(topic, params) {
           ],
           note: "Delocalised electrons move freely through hexagonal layers to conduct electricity.",
           keys: [
-            { color: "#94a3b8", shape: "dot", label: "Carbon Atom", note: "sp² hybridized" },
-            { color: "#fbbf24", shape: "dot", label: "Delocalised Electron", note: "Free charge carrier" },
-            { color: "#64748b", shape: "dash", label: "Interlayer Force", note: "Weak van der Waals" },
+            { color: "#94a3b8", shape: "dot", label: "Carbon Atom", note: "sp² hybridized carbon" },
+            { color: "#fbbf24", shape: "dot", label: "Delocalised Electron", note: "Free electrical charge carrier" },
+            { color: "#64748b", shape: "dash", label: "Interlayer Force", note: "Weak van der Waals attraction" },
           ],
         },
         quartz: {
@@ -727,8 +844,9 @@ function renderTopicDetailsReadout(topic, params) {
           ],
           note: "Each silicon bonds to 4 oxygen atoms; each oxygen bonds to 2 silicons.",
           keys: [
-            { color: "#fbbf24", shape: "dot", label: "Silicon Atom (Si)", note: "Central atom" },
-            { color: "#f43f5e", shape: "dot", label: "Oxygen Atom (O)", note: "Bridging atom" },
+            { color: "#fbbf24", shape: "dot", label: "Silicon Atom (Si)", note: "Central tetravalent silicon" },
+            { color: "#ef4444", shape: "dot", label: "Oxygen Atom (O)", note: "Bridging divalent oxygen" },
+            { color: "#38bdf8", shape: "line", label: "Si–O Bond", note: "Strong covalent silicate link" },
           ],
         },
         ice: {
@@ -741,9 +859,9 @@ function renderTopicDetailsReadout(topic, params) {
           ],
           note: "Hydrogen bonds hold H₂O molecules in an open tetrahedral lattice, making ice float.",
           keys: [
-            { color: "#f43f5e", shape: "dot", label: "Oxygen Atom", note: "Electronegative atom" },
-            { color: "#f8fafc", shape: "dot", label: "Hydrogen Atom", note: "Electropositive atom" },
-            { color: "#38bdf8", shape: "dash", label: "Hydrogen Bond", note: "Intermolecular attraction" },
+            { color: "#ef4444", shape: "dot", label: "Oxygen Atom", note: "Electronegative central atom" },
+            { color: "#f8fafc", shape: "dot", label: "Hydrogen Atom", note: "Electropositive bonded atom" },
+            { color: "#38bdf8", shape: "dash", label: "Hydrogen Bond", note: "Intermolecular dipole attraction" },
           ],
         },
       }[structure] || {};
@@ -765,18 +883,18 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "electrolysis": {
       const run = Boolean(params.run);
-      const current = Number(params.current) || 1.0;
+      const current = num(params.current, 1.0);
       const deposit = Math.round(current * 14);
 
       readout = {
-        title: "Electrolysis of CuSO₄",
+        title: "Electrolysis of Aqueous CuSO₄",
         subtitle: "Copper electrodes · OIL RIG oxidation & reduction",
         rows: [
           ["Supply Current", run ? `${current.toFixed(1)} A` : "OFF", run ? "gold" : "bad"],
           ["Cathode Deposit", run ? `${deposit} Cu atoms` : "0", run ? "good" : undefined],
           ["Cathode (−) Reaction", "Cu²⁺ + 2e⁻ → Cu (Reduction)", "good"],
           ["Anode (+) Reaction", "Cu → Cu²⁺ + 2e⁻ (Oxidation)", "warn"],
-          ["Charge Carriers", "Ions in solution"],
+          ["Charge Carriers", "Ions in solution, electrons in wire"],
         ],
         note: run
           ? "Copper dissolves from anode (oxidation) and plates onto cathode (reduction) — purifying copper."
@@ -787,45 +905,190 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Electrochemistry Key",
         items: [
-          { color: "#38bdf8", shape: "dot", label: "Cu²⁺ Cation", note: "Positive → moves to negative cathode" },
-          { color: "#fbbf24", shape: "dot", label: "SO₄²⁻ Anion", note: "Negative → moves to positive anode" },
-          { color: "#34d399", shape: "square", label: "Cathode (−)", note: "Plating copper metal" },
-          { color: "#f43f5e", shape: "square", label: "Anode (+)", note: "Dissolving copper metal" },
+          { color: "#38bdf8", shape: "dot", label: "Cu²⁺ Cation", note: "Positive ion → migrates to negative cathode" },
+          { color: "#fbbf24", shape: "dot", label: "SO₄²⁻ Anion", note: "Negative ion → migrates to positive anode" },
+          { color: "#34d399", shape: "square", label: "Cathode (−) Electrode", note: "Site of copper reduction & metal plating" },
+          { color: "#ef4444", shape: "square", label: "Anode (+) Electrode", note: "Site of copper oxidation & dissolution" },
+          { color: "#fbbf24", shape: "line", label: "External Circuit Current", note: "Electron transport through wires" },
+        ],
+      };
+      break;
+    }
+
+    case "vsepr": {
+      const bonding = num(params.bonding, 4);
+      const lone = num(params.lone, 0);
+      const steric = bonding + lone;
+
+      const electronGeom = {
+        2: "Linear",
+        3: "Trigonal Planar",
+        4: "Tetrahedral",
+        5: "Trigonal Bipyramidal",
+        6: "Octahedral",
+      }[steric] || "Tetrahedral";
+
+      const molecularShape = {
+        "2-0": "Linear (180°)",
+        "3-0": "Trigonal Planar (120°)",
+        "2-1": "Bent (~118°)",
+        "4-0": "Tetrahedral (109.5°)",
+        "3-1": "Trigonal Pyramidal (~107°)",
+        "2-2": "Bent (~104.5°)",
+        "5-0": "Trigonal Bipyramidal (90°/120°)",
+        "6-0": "Octahedral (90°)",
+      }[`${bonding}-${lone}`] || `${electronGeom} (${bonding} bonds, ${lone} lone)`;
+
+      readout = {
+        title: "VSEPR Molecular Geometry",
+        subtitle: `Steric Number = ${steric} (${bonding} bonding, ${lone} lone)`,
+        rows: [
+          ["Bonding Pairs", bonding, "gold"],
+          ["Lone Pairs", lone, lone > 0 ? "warn" : "good"],
+          ["Steric Number SN", steric],
+          ["Electron Geometry", electronGeom],
+          ["Molecular Shape", molecularShape, "good"],
+          ["Angle Compression", lone > 0 ? `${(lone * 2.5).toFixed(1)}° squeeze` : "Ideal angle", lone > 0 ? "warn" : "good"],
+        ],
+        note: lone > 0
+          ? "Lone pairs are held closer to the central nucleus and exert stronger electrostatic repulsion than bonding pairs, squeezing bond angles below ideal values."
+          : "With zero lone pairs, bonding pairs repel equally into maximum symmetry, yielding exact ideal geometric angles.",
+        noteTone: lone > 0 ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Electron Domains Key",
+        items: [
+          { color: "#fbbf24", shape: "dot", label: "Central Atom", note: "Core atom providing valence shell" },
+          { color: "#38bdf8", shape: "dot", label: "Bonded Ligand Atom", note: "Peripheral atom in covalent bond" },
+          { color: "#a78bfa", shape: "dot", label: "Non-Bonding Lone Pair", note: "Repels harder, closing bond angles" },
+          { color: "#64748b", shape: "line", label: "Covalent Bond Rod", note: "Shared bonding pair domain" },
+          { color: "#34d399", shape: "line", label: "Bond Angle Arc", note: "Measured inter-bond angle" },
+        ],
+      };
+      break;
+    }
+
+    case "energetics": {
+      const activation = num(params.activation, 90);
+      const deltaH = num(params.deltaH, -60);
+      const catalyst = Boolean(params.catalyst);
+      const catalystDrop = num(params.catalystDrop, 35);
+      const temperature = num(params.temperature, 350);
+
+      const exothermic = deltaH < 0;
+      const floorEa = Math.max(deltaH + 5, 5);
+      const uncatalysed = Math.max(activation, floorEa);
+      const effectiveEa = Math.max(catalyst ? uncatalysed - catalystDrop : uncatalysed, floorEa);
+      const reverseEa = effectiveEa - deltaH;
+
+      const fraction = Math.exp((-effectiveEa * 1000) / (8.314 * temperature));
+
+      readout = {
+        title: "Reaction Energetics & Catalysis",
+        subtitle: exothermic ? "Exothermic (ΔH < 0, energy released)" : "Endothermic (ΔH > 0, energy absorbed)",
+        rows: [
+          ["Forward Activation Ea", `${effectiveEa.toFixed(0)} kJ/mol`, catalyst ? "good" : "gold"],
+          ["Uncatalysed Barrier", `${uncatalysed.toFixed(0)} kJ/mol`],
+          ["Reverse Activation", `${reverseEa.toFixed(0)} kJ/mol`],
+          ["Enthalpy Change ΔH", `${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)} kJ/mol`, exothermic ? "good" : "warn"],
+          ["Temperature", `${temperature} K (${temperature - 273}°C)`],
+          ["Collision Fraction ≥ Ea", fraction.toExponential(1), fraction > 1e-12 ? "good" : "bad"],
+          ["Catalyst Effect", catalyst ? `Lowers barrier by ${catalystDrop} kJ/mol` : "None", catalyst ? "good" : undefined],
+        ],
+        note: catalyst
+          ? "The catalyst provides an alternative pathway with a lower activation energy (Ea), increasing successful collision frequency without changing overall ΔH."
+          : exothermic
+          ? "Exothermic: energy released during new bond formation exceeds energy absorbed in bond breaking (ΔH is negative)."
+          : "Endothermic: energy required to break bonds exceeds energy released on forming products (ΔH is positive).",
+        noteTone: catalyst || exothermic ? "good" : "neutral",
+      };
+
+      legend = {
+        title: "Energy Profile Key",
+        items: [
+          { color: catalyst ? "#34d399" : "#fbbf24", shape: "line", label: "Reaction Energy Curve", note: "Potential energy along reaction coordinate" },
+          ...(catalyst ? [{ color: "#64748b", shape: "dash", label: "Uncatalysed Barrier", note: "Original higher activation energy curve" }] : []),
+          { color: "#fb7185", shape: "line", label: "Activation Energy (Ea)", note: "Reactants → Transition state summit" },
+          { color: exothermic ? "#34d399" : "#a78bfa", shape: "line", label: "Enthalpy Change (ΔH)", note: "Net energy difference (Products − Reactants)" },
+        ],
+      };
+      break;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 3. BIOLOGY
+    // ═════════════════════════════════════════════════════════════════════
+
+    case "enzyme": {
+      const temp = num(params.temperature, 37);
+      const ph = num(params.ph, 7.0);
+
+      const denatured = temp > 55 || ph < 3 || ph > 11;
+      let rate = 0;
+      if (!denatured) {
+        rate = Math.round(Math.max(0, 1 - Math.abs(temp - 37) / 25) * Math.max(0, 1 - Math.abs(ph - 7) / 4) * 100);
+      }
+
+      readout = {
+        title: "Enzyme Kinetics & Catalysis",
+        subtitle: "Lock and key substrate binding",
+        rows: [
+          ["Catalytic Rate", `${rate}%`, rate > 60 ? "good" : denatured ? "bad" : "warn"],
+          ["Temperature", `${temp}°C`, temp > 50 ? "bad" : undefined],
+          ["pH Level", ph.toFixed(1), Math.abs(ph - 7) > 3 ? "bad" : undefined],
+          ["Optimum Conditions", "37°C, pH 7.0"],
+          ["Active Site State", denatured ? "Denatured (Distorted)" : "Complementary Lock", denatured ? "bad" : "good"],
+        ],
+        note: denatured
+          ? "Excessive temperature (>50°C) or extreme pH breaks hydrogen and ionic bonds holding tertiary protein structure, permanently destroying active site shape."
+          : "Near optimum conditions (37°C, pH 7), substrate molecules collide frequently and fit precisely into the complementary catalytic active site.",
+        noteTone: denatured ? "bad" : "good",
+      };
+
+      legend = {
+        title: "Enzyme Component Key",
+        items: [
+          { color: "#3b82f6", shape: "square", label: "Enzyme Protein Globule", note: "Folded globular tertiary catalyst" },
+          { color: denatured ? "#ef4444" : "#34d399", shape: "square", label: "Active Catalytic Site", note: denatured ? "Denatured non-functional site" : "Complementary binding cleft" },
+          { color: "#fbbf24", shape: "dot", label: "Substrate Molecule", note: "Reacting substrate key" },
+          { color: "#a78bfa", shape: "dot", label: "Catalysed Products", note: "Released reaction product fragments" },
         ],
       };
       break;
     }
 
     case "dna": {
-      const count = Number(params.pairs) || 16;
+      const count = num(params.pairs, 16);
       const bases = ["A", "T", "G", "C", "C", "A", "T", "G", "A", "T", "C", "G", "T", "A", "G", "C"];
       const strand1 = bases.slice(0, Math.min(count, bases.length)).join("−");
       const compMap = { A: "T", T: "A", G: "C", C: "G" };
       const strand2 = bases.slice(0, Math.min(count, bases.length)).map((b) => compMap[b]).join("−");
 
       readout = {
-        title: "DNA Double Helix",
-        subtitle: "Complementary base pair strands",
+        title: "DNA Double Helix Structure",
+        subtitle: "Antiparallel complementary nucleotide strands",
         rows: [
           ["Base Pairs Shown", count, "gold"],
           ["Strand 1 (5′→3′)", strand1],
           ["Strand 2 (3′→5′)", strand2],
-          ["Base Pairing Rule", "A–T (2 H-bonds), C–G (3 H-bonds)", "good"],
+          ["Base Pairing Rules", "A–T (2 H-bonds), C–G (3 H-bonds)", "good"],
           ["Helix Backbone", "Deoxyribose sugar + phosphate"],
-          ["Turn Frequency", "10.5 base pairs per turn"],
+          ["Turn Frequency", "10.5 base pairs per full 360° turn"],
         ],
-        note: "Unzipping breaks weak hydrogen bonds between strands, allowing each strand to serve as a replication template.",
+        note: "Unzipping breaks weak hydrogen bonds between strands, allowing each strand to serve as a template for semi-conservative DNA replication.",
         noteTone: "good",
       };
 
       legend = {
         title: "Nucleotide Base Key",
         items: [
-          { color: "#f43f5e", shape: "dot", label: "Adenine (A)", note: "Pairs with Thymine (T)" },
-          { color: "#38bdf8", shape: "dot", label: "Thymine (T)", note: "Pairs with Adenine (A)" },
-          { color: "#fbbf24", shape: "dot", label: "Cytosine (C)", note: "Pairs with Guanine (G)" },
-          { color: "#34d399", shape: "dot", label: "Guanine (G)", note: "Pairs with Cytosine (C)" },
-          { color: "#94a3b8", shape: "line", label: "Sugar-Phosphate Backbone", note: "Outer structural helical strands" },
+          { color: "#ef4444", shape: "dot", label: "Adenine (A)", note: "Purine base (pairs with Thymine via 2 H-bonds)" },
+          { color: "#38bdf8", shape: "dot", label: "Thymine (T)", note: "Pyrimidine base (pairs with Adenine via 2 H-bonds)" },
+          { color: "#fbbf24", shape: "dot", label: "Cytosine (C)", note: "Pyrimidine base (pairs with Guanine via 3 H-bonds)" },
+          { color: "#34d399", shape: "dot", label: "Guanine (G)", note: "Purine base (pairs with Cytosine via 3 H-bonds)" },
+          { color: "#94a3b8", shape: "line", label: "Sugar-Phosphate Backbone", note: "Antiparallel helical structural chains" },
+          { color: "#e8ebf0", shape: "dash", label: "Hydrogen Bonds", note: "Non-covalent base pairing stabilization" },
         ],
       };
       break;
@@ -834,7 +1097,7 @@ function renderTopicDetailsReadout(topic, params) {
     case "cell": {
       const cellType = params.cellType || "plant";
       const isPlant = cellType === "plant";
-      const tonicity = Number(params.tonicity) || 0;
+      const tonicity = num(params.tonicity, 0);
 
       let stateText = "Normal (Isotonic)";
       if (tonicity > 0.05) stateText = isPlant ? "Plasmolysed (Hypertonic)" : "Shrivelled (Hypertonic)";
@@ -844,33 +1107,273 @@ function renderTopicDetailsReadout(topic, params) {
         title: isPlant ? "Plant Cell Explorer" : "Animal Cell Explorer",
         subtitle: "Osmosis: dilute → concentrated water potential",
         rows: [
-          ["External Solution", tonicity > 0.05 ? "Concentrated" : tonicity < -0.05 ? "Dilute" : "Isotonic"],
+          ["External Solution", tonicity > 0.05 ? "Concentrated (Hypertonic)" : tonicity < -0.05 ? "Dilute (Hypotonic)" : "Isotonic Equilibrium"],
           ["Net Water Flow", tonicity > 0.05 ? "Out of cell" : tonicity < -0.05 ? "Into cell" : "Equilibrium"],
           ["Cell Status", stateText, tonicity < -0.05 && isPlant ? "good" : tonicity > 0.05 ? "warn" : "default"],
-          ["Cellulose Wall", isPlant ? "Yes" : "No", isPlant ? "good" : "bad"],
-          ["Chloroplasts", isPlant ? "Yes" : "No", isPlant ? "good" : "bad"],
-          ["Permanent Vacuole", isPlant ? "Yes" : "No", isPlant ? "good" : "bad"],
+          ["Cellulose Wall", isPlant ? "Yes (Rigid)" : "No", isPlant ? "good" : "bad"],
+          ["Chloroplasts", isPlant ? "Yes (Photosynthesis)" : "No", isPlant ? "good" : "bad"],
+          ["Permanent Vacuole", isPlant ? "Yes (Cell sap)" : "No", isPlant ? "good" : "bad"],
         ],
         note: isPlant
-          ? "Rigid cellulose wall withstands internal turgor pressure when water enters by osmosis."
-          : "Animal cells lack cell walls; placing in pure water causes excessive swelling and lysis (bursting).",
+          ? "Plant cells are supported by a rigid cellulose wall that withstands turgor pressure when water enters by osmosis."
+          : "Animal cells lack cell walls; placing in pure water causes excessive osmotic intake and lysis (bursting).",
         noteTone: "neutral",
       };
 
       legend = {
         title: "Cell Organelle Key",
         items: [
-          { color: "#a855f7", shape: "dot", label: "Nucleus", note: "Controls cell activities & DNA" },
-          { color: "#f43f5e", shape: "dot", label: "Mitochondria", note: "Site of aerobic respiration" },
-          { color: "#34d399", shape: "dot", label: "Chloroplast", note: "Photosynthesis (plant only)" },
-          { color: "#38bdf8", shape: "square", label: "Cell Membrane", note: "Partially permeable barrier" },
+          { color: "#a78bfa", shape: "dot", label: "Nucleus & DNA", note: "Controls cellular genetic activity" },
+          { color: "#fb7185", shape: "dot", label: "Mitochondria", note: "Site of aerobic respiration & ATP synthesis" },
+          { color: "#34d399", shape: "dot", label: "Chloroplast (Plants)", note: "Site of photosynthesis (chlorophyll)" },
+          { color: "#38bdf8", shape: "square", label: "Endoplasmic Reticulum", note: "Membrane network for protein synthesis" },
+          { color: "#f59e0b", shape: "square", label: "Golgi Apparatus", note: "Modifies and packages secretory proteins" },
+          { color: "#0ea5e9", shape: "square", label: "Permanent Vacuole", note: "Stores cell sap & maintains turgor (plants)" },
+          { color: "#38bdf8", shape: "square", label: "Cell Membrane", note: "Partially permeable lipid bilayer" },
+          { color: "#10b981", shape: "square", label: "Cellulose Cell Wall", note: "Rigid structural outer support (plants)" },
         ],
       };
       break;
     }
 
-    default:
-      return null;
+    case "protein": {
+      const structure = params.structure || "helix";
+      const residues = num(params.residues, 30);
+      const fold = num(params.fold, 1);
+      const temperature = num(params.temperature, 300);
+
+      const denatured = temperature > 320 || fold < 0.35;
+
+      readout = {
+        title: "Protein Structure & Folding",
+        subtitle: `${structure === "helix" ? "α-Helix" : structure === "sheet" ? "β-Pleated Sheet" : "Random Coil"} Secondary Structure`,
+        rows: [
+          ["Residues Count", residues, "gold"],
+          ["Conformation", denatured ? "Denatured (Random Coil)" : structure === "helix" ? "α-Helix (3.6 res/turn)" : structure === "sheet" ? "β-Sheet" : "Unstructured Coil", denatured ? "bad" : "good"],
+          ["Folded Progress", `${Math.round(fold * 100)}%`, fold > 0.8 ? "good" : "warn"],
+          ["Temperature", `${temperature} K (${temperature - 273}°C)`, temperature > 320 ? "bad" : undefined],
+          ["Stabilization", "Hydrogen bonding between N–H and C=O", "good"],
+        ],
+        note: denatured
+          ? "Elevated thermal energy breaks the weak hydrogen bonds holding the secondary structure, causing the polypeptide chain to collapse into an inactive random coil."
+          : structure === "helix"
+          ? "Alpha-helix is held by periodic hydrogen bonds between residue i and residue i+4, producing a spiral of 3.6 residues per turn."
+          : "Beta-sheets are held by hydrogen bonds between adjacent antiparallel polypeptide strands.",
+        noteTone: denatured ? "bad" : "good",
+      };
+
+      legend = {
+        title: "Protein Folding Key",
+        items: [
+          { color: "#fbbf24", shape: "dot", label: "Hydrophobic Residue", note: "Non-polar residue packing into internal core" },
+          { color: "#38bdf8", shape: "dot", label: "Hydrophilic Residue", note: "Polar residue facing surrounding solvent" },
+          { color: "#34d399", shape: "dash", label: "Hydrogen Bond", note: "Secondary structure stabilizing interaction" },
+          { color: "#64748b", shape: "line", label: "Polypeptide Backbone", note: "Covalent peptide chain link" },
+          { color: "#fbbf24", shape: "dot", label: "Denatured State", note: "Unfolded disordered conformation" },
+        ],
+      };
+      break;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 4. COMPUTER SCIENCE
+    // ═════════════════════════════════════════════════════════════════════
+
+    case "binary_tree": {
+      readout = {
+        title: "3D Binary Search Tree (BST)",
+        subtitle: "BST Invariant: Left Child < Root < Right Child",
+        rows: [
+          ["Average Search", "O(log n)", "good"],
+          ["Worst Case Search", "O(n) (unbalanced)", "warn"],
+          ["In-Order Traversal", "Yields sorted ascending array", "good"],
+          ["Insert Time", "O(log n) avg", "good"],
+          ["Tree Structure", "Hierarchical 3D level planes"],
+        ],
+        note: "In a binary search tree, every left subtree node has a value smaller than the root, and every right subtree node has a value greater. In-order traversal visits nodes in exact sorted order.",
+        noteTone: "good",
+      };
+
+      legend = {
+        title: "Binary Tree Nodes Key",
+        items: [
+          { color: "#2a3447", shape: "dot", label: "Idle / Stored Node", note: "Unvisited tree node" },
+          { color: "#f59e0b", shape: "dot", label: "Comparison Pivot", note: "Node currently compared in search" },
+          { color: "#34d399", shape: "dot", label: "Target Match Found", note: "Successful search value located" },
+          { color: "#fb7185", shape: "dot", label: "Search Miss / Missing", note: "Value not present in tree branch" },
+          { color: "#10b981", shape: "dot", label: "Visited Traversal Node", note: "Traversed in pre/in/post-order" },
+          { color: "#38bdf8", shape: "dot", label: "Selected Node", note: "User-clicked inspected node" },
+          { color: "#64748b", shape: "line", label: "Tree Branch Edge", note: "Directed pointer from parent to child" },
+        ],
+      };
+      break;
+    }
+
+    case "sorting": {
+      const algorithm = params.algorithm || "bubble";
+      const size = num(params.size, 22);
+
+      const meta = {
+        bubble: { name: "Bubble Sort", time: "O(n²)", stable: "Yes" },
+        insertion: { name: "Insertion Sort", time: "O(n²)", stable: "Yes" },
+        selection: { name: "Selection Sort", time: "O(n²)", stable: "No" },
+        quick: { name: "Quicksort", time: "O(n log n)", stable: "No" },
+        merge: { name: "Merge Sort", time: "O(n log n)", stable: "Yes" },
+      }[algorithm] || { name: "Bubble Sort", time: "O(n²)", stable: "Yes" };
+
+      readout = {
+        title: `${meta.name} Visualizer`,
+        subtitle: `Time Complexity: ${meta.time} · Stable: ${meta.stable}`,
+        rows: [
+          ["Array Size n", size, "gold"],
+          ["Algorithm", meta.name],
+          ["Time Complexity", meta.time, meta.time.includes("log") ? "good" : "warn"],
+          ["Stability", meta.stable === "Yes" ? "Stable" : "Unstable", meta.stable === "Yes" ? "good" : "warn"],
+        ],
+        note: `Watch the bar comparisons and swaps in real time. Divide-and-conquer algorithms like Quicksort and Merge Sort run in O(n log n) time, drastically outperforming O(n²) quadratic sorts on large datasets.`,
+        noteTone: meta.time.includes("log") ? "good" : "neutral",
+      };
+
+      legend = {
+        title: "Sorting Bar States Key",
+        items: [
+          { color: "#38bdf8", shape: "square", label: "Unsorted Bar", note: "Pillar height represents numerical value" },
+          { color: "#fbbf24", shape: "square", label: "Active Comparison", note: "The two elements currently being compared" },
+          { color: "#fb7185", shape: "square", label: "Active Swap / Write", note: "Array element transposition / memory write" },
+          { color: "#34d399", shape: "square", label: "Final Sorted State", note: "Confirmed in final sorted position" },
+        ],
+      };
+      break;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 5. MATHEMATICS
+    // ═════════════════════════════════════════════════════════════════════
+
+    case "gradient": {
+      const surface = params.surface || "bowl";
+      const rate = num(params.rate, 0.12);
+      const momentum = num(params.momentum, 0.6);
+
+      const surfaceNames = {
+        bowl: "Parabolic Bowl (f = x² + z²)",
+        saddle: "Saddle Surface (f = x² − z²)",
+        valley: "Rosenbrock Banana Valley",
+        wells: "4-Well Multi-Modal Landscape",
+      }[surface] || "Loss Landscape";
+
+      readout = {
+        title: "3D Gradient Descent Optimization",
+        subtitle: "x_n+1 = x_n − α ∇f(x_n) + β v_n",
+        rows: [
+          ["Landscape", surfaceNames, "gold"],
+          ["Learning Rate α", rate.toFixed(3)],
+          ["Momentum β", momentum.toFixed(2)],
+          ["Step Rule", "Steepest descent along −∇f"],
+        ],
+        note: "Gradient descent moves iteratively down the steepest slope of the loss landscape. If learning rate α is too high, the optimizer overshoots and diverges; if too low, convergence is extremely slow.",
+        noteTone: "neutral",
+      };
+
+      legend = {
+        title: "Optimization Landscape Key",
+        items: [
+          { color: "#fbbf24", shape: "dot", label: "Current Point (x, z)", note: "Model parameters being optimized" },
+          { color: "#34d399", shape: "line", label: "Negative Gradient (−∇f)", note: "Direction of steepest downhill descent" },
+          { color: "#fbbf24", shape: "line", label: "Optimization Trail", note: "History of parameter update steps" },
+          { color: "#a78bfa", shape: "square", label: "Low Loss Valley", note: "Optimal global or local minimum target" },
+          { color: "#fb7185", shape: "square", label: "High Loss Ridge", note: "Steep objective function elevation" },
+        ],
+      };
+      break;
+    }
+
+    case "revolution": {
+      const curve = params.curve || "bell";
+      const height = num(params.height, 3.6);
+      const slices = num(params.slices, 12);
+      const sweep = num(params.sweep, 300);
+
+      readout = {
+        title: "Solids of Revolution & Integration",
+        subtitle: "Disk Method Volume V = π ∫ [r(y)]² dy",
+        rows: [
+          ["Profile Curve r(y)", curve.toUpperCase(), "gold"],
+          ["Height H", `${height.toFixed(1)} units`],
+          ["Riemann Discs n", Math.round(slices)],
+          ["Cutaway Angle", sweep >= 360 ? "360° (Closed)" : `${Math.round(sweep)}° shown`],
+          ["Volume Formula", "V = π ∑ r_i² Δy", "good"],
+        ],
+        note: "The volume of a solid of revolution is calculated by slicing the continuous 3D volume into infinitesimal cylindrical discs of radius r(y) and thickness dy, summing their volumes via definite integration.",
+        noteTone: "good",
+      };
+
+      legend = {
+        title: "Revolution & Slicing Key",
+        items: [
+          { color: "#34d399", shape: "line", label: "Generating Curve r(y)", note: "2D profile curve being revolved" },
+          { color: "#fbbf24", shape: "square", label: "Approximating Disc", note: "One cylindrical slice of volume π r² Δy" },
+          { color: "#38bdf8", shape: "square", label: "True Solid Shell", note: "Exact continuous volume of revolution" },
+          { color: "#64748b", shape: "dash", label: "Axis of Revolution (y)", note: "Central vertical spindle axis" },
+        ],
+      };
+      break;
+    }
+
+    case "unitcircle": {
+      const count = num(params.harmonics, 1);
+      const amplitude = num(params.amplitude, 1.8);
+
+      readout = {
+        title: "Unit Circle & Wave Synthesis",
+        subtitle: count === 1 ? "y(t) = A sin(θ) · x(t) = A cos(θ)" : "Fourier Series Square Wave Synthesis",
+        rows: [
+          ["Amplitude A", amplitude.toFixed(2), "gold"],
+          ["Harmonics Count", count],
+          ["Coordinates (x, y)", "(cos θ, sin θ) on unit circle"],
+          ["Fourier Limit", count > 1 ? "Converges to πA/4 square wave" : "Pure fundamental sine wave", "good"],
+          ["Gibbs Phenomenon", count > 1 ? "~9% overshoot at step jumps" : "None", count > 1 ? "warn" : "good"],
+        ],
+        note: count === 1
+          ? "The sine wave is the vertical projection (y = A sin θ) of a particle moving uniformly along the unit circle, unrolled over time along the z-axis."
+          : "By adding odd Fourier harmonics (sin kθ / k), the waveform squares off, demonstrating how complex periodic signals decompose into pure sinusoidal harmonics.",
+        noteTone: "good",
+      };
+
+      legend = {
+        title: "Trigonometric Key",
+        items: [
+          { color: "#38bdf8", shape: "line", label: "Unit Circle Orbit", note: "Circle of radius A turning at angle θ" },
+          { color: "#fbbf24", shape: "dot", label: "Rotating Tip Point", note: "Position (cos θ, sin θ) on circumference" },
+          { color: "#fbbf24", shape: "line", label: "Sine Wave Trace (y)", note: "Vertical displacement unrolled over time" },
+          { color: "#a78bfa", shape: "line", label: "Cosine Wave Trace (x)", note: "Horizontal projection (90° phase shifted)" },
+          { color: "#34d399", shape: "line", label: "Target Square Wave", note: "Fourier series summation limit πA/4" },
+        ],
+      };
+      break;
+    }
+
+    default: {
+      readout = {
+        title: topic.title || "3D Visualization",
+        subtitle: topic.syllabus || "Interactive STEM Model",
+        rows: Object.entries(params || {})
+          .filter(([k]) => !k.startsWith("hide") && k !== "spin" && k !== "animate")
+          .slice(0, 6)
+          .map(([k, v]) => [k, typeof v === "number" ? v.toFixed(2) : String(v)]),
+        note: topic.blurb || "Interactive 3D simulation exploring foundational science and mathematical principles.",
+        noteTone: "neutral",
+      };
+
+      legend = {
+        title: "Visual Key",
+        items: [
+          { color: "#38bdf8", shape: "line", label: "Active 3D Elements", note: "Interactive simulation components" },
+          { color: "#fbbf24", shape: "dot", label: "Focus / Target Marker", note: "Real-time parameter indicator" },
+        ],
+      };
+      break;
+    }
   }
 
   return (
@@ -942,6 +1445,66 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
   const [activeTab, setActiveTab] = useState("controls"); // "controls" | "details"
   const [keyConceptsOpen, setKeyConceptsOpen] = useState(false); // default to false (not toggled)
 
+  // Resizable panel width state (10% to 80% screen width)
+  // Default to 300 to match SSR markup, then hydrate saved width on client mount
+  const [panelWidth, setPanelWidth] = useState(300);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("socratic_hud_panel_width");
+        if (saved) {
+          const parsed = parseInt(saved, 10);
+          if (!isNaN(parsed) && parsed >= 180 && parsed <= (window.innerWidth || 1920) * 0.85) {
+            setPanelWidth(parsed);
+          }
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const isResizingRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizePointerDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    setIsResizing(true);
+
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    const onPointerMove = (moveEvent) => {
+      if (!isResizingRef.current) return;
+      const deltaX = moveEvent.clientX - startX;
+      const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
+      const maxW = Math.floor(window.innerWidth * 0.80);
+      const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
+      setPanelWidth(clamped);
+    };
+
+    const cleanup = () => {
+      isResizingRef.current = false;
+      setIsResizing(false);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+      try {
+        if (typeof window !== "undefined") {
+          setPanelWidth((curr) => {
+            localStorage.setItem("socratic_hud_panel_width", String(curr));
+            return curr;
+          });
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  };
+
   // Reopen and reset tab states on topic switch
   useEffect(() => {
     setOpen(true);
@@ -958,17 +1521,19 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
         <HudButton icon={Info} onClick={() => { setOpen(true); setActiveTab("details"); }}>
           Details
         </HudButton>
-        <HudButton
-          icon={Lightbulb}
-          variant={keyConceptsOpen ? "primary" : "ghost"}
-          onClick={() => {
-            setOpen(true);
-            setActiveTab("details");
-            setKeyConceptsOpen(!keyConceptsOpen);
-          }}
-        >
-          Key Concepts (toggle) [{keyConceptsOpen ? "ON" : "OFF"}]
-        </HudButton>
+        {topic.concepts && topic.concepts.length > 0 && (
+          <HudButton
+            icon={Lightbulb}
+            variant={keyConceptsOpen ? "primary" : "ghost"}
+            onClick={() => {
+              setOpen(true);
+              setActiveTab("details");
+              setKeyConceptsOpen(!keyConceptsOpen);
+            }}
+          >
+            Key Concepts (toggle) [{keyConceptsOpen ? "ON" : "OFF"}]
+          </HudButton>
+        )}
       </div>
     );
   }
@@ -977,152 +1542,207 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
     <div
       onWheel={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
-      className="pointer-events-auto absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[280px] flex-col gap-3 overflow-y-auto pr-0.5"
+      style={{ width: `${panelWidth}px`, maxWidth: "80vw", minWidth: "10vw" }}
+      className={`pointer-events-auto absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] flex-col gap-3 ${
+        isResizing ? "select-none" : ""
+      }`}
     >
-      <HudPanel
-        title={topic.title}
-        icon={topic.icon}
-        action={
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Hide panel"
-            suppressHydrationWarning
-            className="shrink-0 rounded p-0.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+      <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl">
+        <div className="max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5">
+          <HudPanel
+            title={topic.title}
+            icon={topic.icon}
+            action={
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Hide panel"
+                suppressHydrationWarning
+                className="shrink-0 rounded p-0.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2} />
+              </button>
+            }
           >
-            <X className="h-3.5 w-3.5" strokeWidth={2} />
-          </button>
-        }
-      >
-        {/* ─── Controls vs Details Tab Switcher ─── */}
-        <div className="mb-3 flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-950/60 p-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab("controls")}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
-              activeTab === "controls"
-                ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
-                : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2} />
-            <span>Controls</span>
-          </button>
+            {/* ─── Controls vs Details Tab Switcher ─── */}
+            <div className="mb-3 flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-950/60 p-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("controls")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
+                  activeTab === "controls"
+                    ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2} />
+                <span>Controls</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("details")}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
-              activeTab === "details"
-                ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
-                : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
-            }`}
-          >
-            <Info className="h-3.5 w-3.5" strokeWidth={2} />
-            <span>Details</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("details")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
+                  activeTab === "details"
+                    ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
+                    : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
+                }`}
+              >
+                <Info className="h-3.5 w-3.5" strokeWidth={2} />
+                <span>Details</span>
+              </button>
+            </div>
+
+            {/* ─── Universal Animation Speed Slider (Prominently Right Below Tab Switcher) ─── */}
+            <div className="mb-3 rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 shadow-inner">
+              <Slider
+                label="⚡ Animation Speed"
+                value={typeof params?.speed === "number" ? params.speed : 1.0}
+                onChange={(val) => setParam("speed", val)}
+                min={0.1}
+                max={3.0}
+                step={0.1}
+                format={(v) => (v === 0 ? "paused" : `${Number(v).toFixed(1)}×`)}
+              />
+            </div>
+
+            {activeTab === "controls" ? (
+              <div className="space-y-3">
+                {topic.controls
+                  .filter((control) => control.key !== "speed")
+                  .map((control) => (
+                    <ControlField
+                      key={control.key}
+                      control={control}
+                      params={params}
+                      setParam={setParam}
+                      setParams={setParams}
+                    />
+                  ))}
+
+                <div className="border-t border-ink-800 pt-2.5">
+                  <HudButton icon={RotateCcw} onClick={onReset} className="w-full">
+                    Reset parameters
+                  </HudButton>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Syllabus & Overview */}
+                <div className="rounded-lg border border-ink-800 bg-ink-950/50 p-2.5 space-y-1.5">
+                  {topic.syllabus && (
+                    <span className="inline-block rounded border border-duck-500/30 bg-duck-500/10 px-2 py-0.5 text-[10px] font-mono text-duck-300">
+                      {topic.syllabus}
+                    </span>
+                  )}
+                  {topic.blurb && (
+                    <p className="text-xs font-medium leading-relaxed text-ink-200">
+                      {topic.blurb}
+                    </p>
+                  )}
+                </div>
+
+                {/* Key Concepts (toggle) Button & Content */}
+                {topic.concepts && topic.concepts.length > 0 && (
+                  <div className="rounded-lg border border-ink-800 bg-ink-900/60 p-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setKeyConceptsOpen(!keyConceptsOpen)}
+                      className="flex w-full items-center justify-between gap-2 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-duck-400" strokeWidth={2} />
+                        <span className="text-xs font-semibold text-ink-100">
+                          Key Concepts (toggle)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors ${
+                            keyConceptsOpen
+                              ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                              : "bg-ink-800 text-ink-400"
+                          }`}
+                        >
+                          {keyConceptsOpen ? "ON" : "OFF"}
+                        </span>
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 text-ink-400 transition-transform ${
+                            keyConceptsOpen ? "rotate-180" : ""
+                          }`}
+                          strokeWidth={2}
+                        />
+                      </div>
+                    </button>
+
+                    {keyConceptsOpen && topic.concepts && (
+                      <div className="mt-2.5 space-y-2 border-t border-ink-800/80 pt-2.5">
+                        {topic.concepts.map((concept, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-duck-500/20 text-[9px] font-mono font-bold text-duck-400">
+                              {i + 1}
+                            </span>
+                            <p className="text-[11px] leading-relaxed text-ink-300">
+                              {concept}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Live Mathematical / Scientific State Readout & Visual Key */}
+                {renderTopicDetailsReadout(topic, params)}
+
+                {/* AI Concept Breakdown & Quiz Action Button */}
+                {onOpenQuiz && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenQuiz(topic, params)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-duck-400 to-duck-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-duck-300 hover:to-duck-400 shadow-md hover:shadow-duck-500/20 active:scale-[0.99] cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Sparkles className="h-4 w-4 shrink-0 text-ink-950" strokeWidth={2.25} />
+                      <div className="text-left">
+                        <p className="leading-none text-xs font-bold">AI Concept Breakdown & Quiz</p>
+                        <p className="text-[10px] font-medium text-ink-900/80 leading-tight mt-0.5">Test with AI · logs to Mastery</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 opacity-70" strokeWidth={2.25} />
+                  </button>
+                )}
+              </div>
+            )}
+          </HudPanel>
         </div>
 
-        {activeTab === "controls" ? (
-          <div className="space-y-3">
-            {topic.controls.map((control) => (
-              <ControlField
-                key={control.key}
-                control={control}
-                params={params}
-                setParam={setParam}
-                setParams={setParams}
-              />
-            ))}
+        {/* ─── Right Edge Drag-To-Resize Handle (10% to 80% screen width) ─── */}
+        <div
+          onPointerDown={handleResizePointerDown}
+          className="absolute -right-1 top-0 bottom-0 z-30 flex w-3.5 cursor-ew-resize items-center justify-center select-none group"
+          title="Drag to resize panel (10% to 80% screen width)"
+        >
+          <div
+            className={`h-14 w-1 rounded-full transition-all ${
+              isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+            }`}
+          />
+        </div>
 
-            <div className="border-t border-ink-800 pt-2.5">
-              <HudButton icon={RotateCcw} onClick={onReset} className="w-full">
-                Reset parameters
-              </HudButton>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Syllabus & Overview */}
-            <div className="rounded-lg border border-ink-800 bg-ink-950/50 p-2.5 space-y-1.5">
-              {topic.syllabus && (
-                <span className="inline-block rounded border border-duck-500/30 bg-duck-500/10 px-2 py-0.5 text-[10px] font-mono text-duck-300">
-                  {topic.syllabus}
-                </span>
-              )}
-              {topic.blurb && (
-                <p className="text-xs font-medium leading-relaxed text-ink-200">
-                  {topic.blurb}
-                </p>
-              )}
-            </div>
-
-            {/* Key Concepts (toggle) Button & Content */}
-            <div className="rounded-lg border border-ink-800 bg-ink-900/60 p-2.5">
-              <button
-                type="button"
-                onClick={() => setKeyConceptsOpen(!keyConceptsOpen)}
-                className="flex w-full items-center justify-between gap-2 text-left"
-              >
-                <div className="flex items-center gap-2">
-                  <Lightbulb className="h-3.5 w-3.5 shrink-0 text-duck-400" strokeWidth={2} />
-                  <span className="text-xs font-semibold text-ink-100">
-                    Key Concepts (toggle)
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors ${
-                      keyConceptsOpen
-                        ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
-                        : "bg-ink-800 text-ink-400"
-                    }`}
-                  >
-                    {keyConceptsOpen ? "ON" : "OFF"}
-                  </span>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 text-ink-400 transition-transform duration-200 ${
-                      keyConceptsOpen ? "rotate-180 text-duck-300" : ""
-                    }`}
-                    strokeWidth={2}
-                  />
-                </div>
-              </button>
-
-              {keyConceptsOpen && (
-                <div className="mt-3 space-y-2 border-t border-ink-800/80 pt-2.5">
-                  {topic.concepts &&
-                    topic.concepts.map((concept, i) => (
-                      <div key={i} className="flex gap-2">
-                        <span
-                          className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-duck-400"
-                          aria-hidden="true"
-                        />
-                        <p className="text-[11px] leading-relaxed text-ink-200">{concept}</p>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-
-            {/* Calculated Details Readout */}
-            {renderTopicDetailsReadout(topic, params)}
-
-            {/* Quiz Button */}
-            {onOpenQuiz && (
-              <button
-                type="button"
-                onClick={onOpenQuiz}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-duck-400 px-3 py-2 text-[11px] font-semibold text-ink-950 transition-colors hover:bg-duck-300 shadow-md"
-              >
-                <Target className="h-3.5 w-3.5" strokeWidth={2.25} />
-                Test understanding
-                <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.25} />
-              </button>
-            )}
-          </div>
-        )}
-      </HudPanel>
+        {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
+        <div
+          onPointerDown={handleResizePointerDown}
+          className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+          title="Drag to resize panel width"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">
+            <circle cx="8" cy="8" r="1.2" />
+            <circle cx="8" cy="4" r="1.2" />
+            <circle cx="4" cy="8" r="1.2" />
+          </svg>
+        </div>
+      </div>
     </div>
   );
 }

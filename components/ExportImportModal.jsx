@@ -203,20 +203,20 @@ export default function ExportImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in">
       <div
         ref={modalRef}
-        className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl transition-all"
+        className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl transition-all my-auto"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-ink-800 px-6 py-4 bg-ink-950/50">
+        <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
-              <FileType className="h-5 w-5" />
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
+              <FileType className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-ink-100">Note Import & Export</h2>
-              <p className="text-xs text-ink-400">.socratic Space Backups, PDF, Word, HTML, TXT & MD</p>
+              <h2 className="text-sm sm:text-base font-bold text-ink-100">Note Import & Export</h2>
+              <p className="text-[11px] sm:text-xs text-ink-400">.socratic Space Backups, PDF, Word, HTML, TXT & MD</p>
             </div>
           </div>
           <button
@@ -224,43 +224,43 @@ export default function ExportImportModal({
             onClick={onClose}
             className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-ink-800 bg-ink-950/30 px-6 pt-3">
+        <div className="flex border-b border-ink-800 bg-ink-950/30 px-5 sm:px-6 pt-1.5 sm:pt-2.5 shrink-0">
           <button
             type="button"
             onClick={() => setTab("export")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors ${
+            className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
               tab === "export"
                 ? "border-duck-400 text-duck-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span>Export Notes & Spaces</span>
           </button>
 
           <button
             type="button"
             onClick={() => setTab("import")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors ${
+            className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
               tab === "import"
                 ? "border-duck-400 text-duck-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
-            <Upload className="h-4 w-4" />
+            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span>Import Note / Space File</span>
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-4 sm:p-5 md:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           {toastMessage && (
-            <div className="rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-3 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2">
+            <div className="rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-2.5 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2">
               <Sparkles className="h-4 w-4 shrink-0 text-duck-300" />
               <span>{toastMessage}</span>
             </div>
@@ -268,42 +268,42 @@ export default function ExportImportModal({
 
           {/* EXPORT TAB */}
           {tab === "export" && (
-            <div className="space-y-4">
+            <div className="space-y-3.5 sm:space-y-4">
               {/* Active Note Preview Card */}
-              <div className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850/60 p-3.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{activeNote?.emoji || "📝"}</span>
-                  <div>
-                    <h3 className="font-bold text-sm text-ink-100">
+              <div className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850/60 p-2.5 sm:p-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <span className="text-xl sm:text-2xl shrink-0">{activeNote?.emoji || "📝"}</span>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-xs sm:text-sm text-ink-100 truncate">
                       {activeNote?.title || "Untitled Note"}
                     </h3>
-                    <p className="text-xs text-ink-400">
+                    <p className="text-[11px] sm:text-xs text-ink-400 truncate">
                       Current Space: <span className="text-duck-300 font-medium">{activeSpace || "School"}</span> • Blocks: {(activeNote?.blocks || []).length}
                     </p>
                   </div>
                 </div>
-                <span className="rounded-md border border-ink-700 bg-ink-900 px-2.5 py-1 text-[11px] font-mono text-ink-300">
+                <span className="rounded-md border border-ink-700 bg-ink-900 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] font-mono text-ink-300 shrink-0 ml-2">
                   Ready to export
                 </span>
               </div>
 
               {/* Space Picker for .socratic Package Export */}
               {exportFormat === "socratic" && (
-                <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-4 space-y-2 animate-fade-in">
-                  <label className="text-xs font-bold uppercase tracking-wider text-duck-300 flex items-center gap-1.5">
-                    <Package className="h-4 w-4" />
+                <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-3 sm:p-3.5 space-y-2 animate-fade-in">
+                  <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-duck-300 flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5" />
                     <span>Choose Space to Export (.socratic):</span>
                   </label>
-                  <p className="text-[11px] text-duck-200/80">
+                  <p className="text-[11px] text-duck-200/80 leading-relaxed">
                     Select a single space to export its notes or choose &quot;All Spaces&quot; to export your full workspace backup.
                   </p>
-                  <div className="flex flex-wrap gap-2 pt-1">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
                     {[{ name: "All", icon: "🌐" }, ...spaces].map((sp) => (
                       <button
                         key={sp.name}
                         type="button"
                         onClick={() => setExportSpace(sp.name)}
-                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
                           exportSpace === sp.name
                             ? "border-duck-400 bg-duck-500/30 text-duck-200 shadow-sm"
                             : "border-ink-700 bg-ink-900/60 text-ink-300 hover:bg-ink-800 hover:text-ink-100"
@@ -317,31 +317,31 @@ export default function ExportImportModal({
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-ink-400">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-ink-400">
                   Select Format:
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {formats.map((fmt) => (
                     <button
                       key={fmt.id}
                       type="button"
                       onClick={() => setExportFormat(fmt.id)}
-                      className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                      className={`flex items-start gap-2.5 sm:gap-3 rounded-xl border p-2.5 sm:p-3 text-left transition-all ${
                         exportFormat === fmt.id
                           ? "border-duck-500/60 bg-duck-500/15 shadow-sm"
                           : "border-ink-800 bg-ink-950/40 hover:border-ink-700 hover:bg-ink-850/40"
                       }`}
                     >
-                      <span className="text-2xl shrink-0 mt-0.5">{fmt.icon}</span>
+                      <span className="text-xl sm:text-2xl shrink-0 mt-0.5">{fmt.icon}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
                           <span className="font-bold text-xs text-ink-100">{fmt.name}</span>
-                          <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase bg-ink-800 text-ink-300 border border-ink-700">
+                          <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase bg-ink-800 text-ink-300 border border-ink-700 shrink-0">
                             {fmt.badge}
                           </span>
                         </div>
-                        <p className="text-[11px] text-ink-400 mt-1 line-clamp-2">
+                        <p className="text-[11px] text-ink-400 mt-0.5 line-clamp-2 leading-tight">
                           {fmt.description}
                         </p>
                       </div>
@@ -354,20 +354,20 @@ export default function ExportImportModal({
 
           {/* IMPORT TAB */}
           {tab === "import" && (
-            <div className="space-y-4">
+            <div className="space-y-3.5 sm:space-y-4">
               {/* Target Space Selection */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-ink-400">
+                <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-ink-400">
                   Target Space for Import:
                 </label>
                 <p className="text-[11px] text-ink-400">
                   Select which space to assign the imported note/backup to:
                 </p>
-                <div className="flex flex-wrap gap-2 pt-1">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
                   <button
                     type="button"
                     onClick={() => setImportSpace("Original")}
-                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
                       importSpace === "Original"
                         ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
                         : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
@@ -382,7 +382,7 @@ export default function ExportImportModal({
                       key={space.name}
                       type="button"
                       onClick={() => setImportSpace(space.name)}
-                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
                         importSpace === space.name
                           ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
                           : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
@@ -400,7 +400,7 @@ export default function ExportImportModal({
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
+                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center cursor-pointer transition-all ${
                   selectedFile
                     ? "border-duck-400 bg-duck-500/10"
                     : "border-ink-700 bg-ink-950/50 hover:border-duck-500/50 hover:bg-ink-850/50"
@@ -416,26 +416,26 @@ export default function ExportImportModal({
 
                 {selectedFile ? (
                   <div className="space-y-2">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-duck-500/20 text-duck-300 text-2xl">
+                    <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-duck-500/20 text-duck-300 text-xl sm:text-2xl">
                       📄
                     </div>
                     <div>
-                      <p className="font-bold text-sm text-ink-100">{selectedFile.name}</p>
-                      <p className="text-xs text-ink-400 mt-0.5">
+                      <p className="font-bold text-xs sm:text-sm text-ink-100">{selectedFile.name}</p>
+                      <p className="text-[11px] sm:text-xs text-ink-400 mt-0.5">
                         Size: {(selectedFile.size / 1024).toFixed(1)} KB • Click to change file
                       </p>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ink-800 text-ink-300">
-                      <Upload className="h-6 w-6" />
+                    <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-ink-800 text-ink-300">
+                      <Upload className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-sm text-ink-200">
+                      <p className="font-bold text-xs sm:text-sm text-ink-200">
                         Click to browse or drop your note / space backup file here
                       </p>
-                      <p className="text-xs text-ink-400 mt-1">
+                      <p className="text-[11px] sm:text-xs text-ink-400 mt-1">
                         Supports <span className="text-duck-300 font-semibold">.socratic, .docx, .html, .txt, .md</span> files
                       </p>
                     </div>
@@ -456,7 +456,7 @@ export default function ExportImportModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-ink-800 px-6 py-4 bg-ink-950/50">
+        <div className="flex items-center justify-end gap-3 border-t border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -470,9 +470,9 @@ export default function ExportImportModal({
               type="button"
               onClick={handleExport}
               disabled={isProcessing}
-              className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
+              className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>{isProcessing ? "Exporting..." : `Export ${exportFormat === "socratic" ? `"${exportSpace}" Space` : exportFormat.toUpperCase()}`}</span>
             </button>
           ) : (
@@ -480,9 +480,9 @@ export default function ExportImportModal({
               type="button"
               onClick={handleImport}
               disabled={isProcessing || !selectedFile}
-              className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
+              className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
             >
-              <Upload className="h-4 w-4" />
+              <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>{isProcessing ? "Importing..." : "Import File to Workspace"}</span>
             </button>
           )}

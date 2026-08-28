@@ -792,16 +792,21 @@ export function Chloroplast({ selected, onSelect, showLabel, seed = 0 }) {
 // ═══ Golgi apparatus ═════════════════════════════════════════════════
 
 /** Stacked curved cisternae with vesicles budding off the rim. */
-export function Golgi({ selected, onSelect, showLabel }) {
-  const layers = 6;
+export function Golgi({ selected, onSelect, showLabel, speed = 1.0 }) {
   const budRef = useRef(null);
+  const clock = useRef(0);
 
   const geo = useGeometries(
     () => ({
-      cisternae: Array.from({ length: layers }, (_, i) =>
-        new THREE.SphereGeometry(0.62 - i * 0.058, 40, 14, 0, Math.PI * 2, 0, 0.5),
+      cisternae: Array.from({ length: 5 }, (_, i) =>
+        makeRoundedBoxGeometry({
+          size: [1.25 - i * 0.1, 0.075, 0.44 - i * 0.04],
+          exponent: 5,
+          amp: 0.012,
+          seed: 120 + i,
+        }),
       ),
-      vesicle: makeBlobGeometry({
+      bud: makeBlobGeometry({
         radius: 0.072,
         amp: 0.2,
         freq: 4,
@@ -824,10 +829,11 @@ export function Golgi({ selected, onSelect, showLabel }) {
     [],
   );
 
-  useFrame((state) => {
+  useFrame((_, delta) => {
     const group = budRef.current;
     if (!group) return;
-    const t = state.clock.elapsedTime;
+    clock.current += delta * speed;
+    const t = clock.current;
     buds.forEach((bud, i) => {
       const child = group.children[i];
       if (!child) return;
@@ -1372,9 +1378,10 @@ export function BilayerPatch({ position, normal = [0, 0, 1], visible }) {
  * InstancedMesh rather than 140 meshes: the whole point is to have enough of
  * them that the interior feels occupied.
  */
-export function Cytoplasm({ count = 140, bounds = [3, 2.2, 2.2], tint = PALETTE.sky }) {
+export function Cytoplasm({ count = 140, bounds = [3, 2.2, 2.2], tint = PALETTE.sky, speed = 1.0 }) {
   const ref = useRef(null);
   const clip = useClip();
+  const clock = useRef(0);
 
   const geometry = useGeometries(() => ({ g: new THREE.SphereGeometry(0.028, 8, 6) }), []);
 
@@ -1394,10 +1401,11 @@ export function Cytoplasm({ count = 140, bounds = [3, 2.2, 2.2], tint = PALETTE.
     [count, bounds[0], bounds[1], bounds[2]],
   );
 
-  useFrame((state) => {
+  useFrame((_, delta) => {
     const mesh = ref.current;
     if (!mesh) return;
-    const t = state.clock.elapsedTime;
+    clock.current += delta * speed;
+    const t = clock.current;
     const dummy = new THREE.Object3D();
     grains.forEach((grain, i) => {
       const drift = t * grain.speed + grain.phase;
@@ -1459,9 +1467,10 @@ export function Cytoskeleton({ bounds = [3, 2.2, 2.2], strands = 34 }) {
  * There are hundreds of thousands in a real cell; 90 is enough to read as
  * "everywhere" without another 90 draw calls.
  */
-export function FreeRibosomes({ count = 90, bounds = [2.6, 1.7, 1.7], selected, onSelect }) {
+export function FreeRibosomes({ count = 90, bounds = [2.6, 1.7, 1.7], selected, onSelect, speed = 1.0 }) {
   const ref = useRef(null);
   const clip = useClip();
+  const clock = useRef(0);
 
   const geometry = useGeometries(() => ({ g: new THREE.SphereGeometry(0.045, 10, 8) }), []);
 
@@ -1479,10 +1488,11 @@ export function FreeRibosomes({ count = 90, bounds = [2.6, 1.7, 1.7], selected, 
     [count, bounds[0], bounds[1], bounds[2]],
   );
 
-  useFrame((state) => {
+  useFrame((_, delta) => {
     const mesh = ref.current;
     if (!mesh) return;
-    const t = state.clock.elapsedTime;
+    clock.current += delta * speed;
+    const t = clock.current;
     const dummy = new THREE.Object3D();
     seeds.forEach((seed, i) => {
       dummy.position.set(

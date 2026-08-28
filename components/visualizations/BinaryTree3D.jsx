@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html as DreiHtml, Line, OrbitControls } from "@react-three/drei";
-import { ChevronDown, ChevronRight, GitBranch, Info, Lightbulb, ListTree, Plus, RotateCcw, Search, Shuffle, SlidersHorizontal, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, GitBranch, Info, Lightbulb, ListTree, Plus, RotateCcw, Search, Shuffle, SlidersHorizontal, Sparkles, Target } from "lucide-react";
 import { CANVAS_BG, WebGLCleanup } from "@/components/visualizations/scene-kit";
 import {
   HudButton,
@@ -150,15 +150,17 @@ const NODE_STYLES = {
 
 const lerp = (from, to, alpha) => from + (to - from) * alpha;
 
-function TreeNode({ node, state, labelFactor, onSelect }) {
+function TreeNode({ node, state, labelFactor, onSelect, speed = 1.0 }) {
   const mesh = useRef(null);
+  const clock = useRef(0);
   const style = NODE_STYLES[state];
   const active = state === "current" || state === "found" || state === "missing";
 
-  useFrame((frame) => {
+  useFrame((_, delta) => {
     if (!mesh.current) return;
+    clock.current += delta * speed;
     const pulse = active
-      ? 1.15 + Math.sin(frame.clock.elapsedTime * 6) * 0.08
+      ? 1.15 + Math.sin(clock.current * 6) * 0.08
       : 1;
     mesh.current.scale.setScalar(lerp(mesh.current.scale.x, pulse, 0.18));
   });
@@ -193,8 +195,7 @@ function TreeNode({ node, state, labelFactor, onSelect }) {
         <span
           className="select-none text-[14px] font-extrabold tabular-nums text-white tracking-tight"
           style={{
-            textShadow: "0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.9)",
-            color: "#ffffff",
+            textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)",
           }}
         >
           {node.value}
@@ -204,7 +205,7 @@ function TreeNode({ node, state, labelFactor, onSelect }) {
   );
 }
 
-function TreeScene({ layout, nodeStates, visited, onSelect }) {
+function TreeScene({ layout, nodeStates, visited, onSelect, speed = 1.0 }) {
   useEffect(() => {
     return () => {
       document.body.style.cursor = "auto";
@@ -240,6 +241,7 @@ function TreeScene({ layout, nodeStates, visited, onSelect }) {
             state={nodeStates.get(node.value) ?? "idle"}
             labelFactor={13 * layout.scale}
             onSelect={onSelect}
+            speed={speed}
           />
         ))}
       </group>
@@ -264,6 +266,58 @@ export default function BinaryTree3D({ onOpenQuiz }) {
   const [selected, setSelected] = useState(null);
   const [speed, setSpeed] = useState(1);
   const [anim, setAnim] = useState(null);
+
+  // Resizable panel width state (10% to 80% screen width)
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("socratic_hud_panel_width");
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 180 && parsed <= (window.innerWidth || 1920) * 0.85) {
+          return parsed;
+        }
+      }
+    }
+    return 300;
+  });
+
+  const isResizingRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizePointerDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    setIsResizing(true);
+
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    const onPointerMove = (moveEvent) => {
+      if (!isResizingRef.current) return;
+      const deltaX = moveEvent.clientX - startX;
+      const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
+      const maxW = Math.floor(window.innerWidth * 0.80);
+      const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
+      setPanelWidth(clamped);
+    };
+
+    const onPointerUp = () => {
+      isResizingRef.current = false;
+      setIsResizing(false);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      if (typeof window !== "undefined") {
+        setPanelWidth((curr) => {
+          localStorage.setItem("socratic_hud_panel_width", String(curr));
+          return curr;
+        });
+      }
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
 
   const tree = useMemo(() => buildTree(values), [values]);
   const layout = useMemo(() => layoutTree(tree), [tree]);
@@ -396,12 +450,22 @@ export default function BinaryTree3D({ onOpenQuiz }) {
           nodeStates={nodeStates}
           visited={visited}
           onSelect={setSelected}
+          speed={speed}
         />
       </Canvas>
 
-      {/* Controls & Details Overlay */}
-      <div className="absolute left-4 top-4 max-h-[calc(100%-2rem)] w-[280px] overflow-y-auto">
-        <HudPanel title="Binary Search Tree 3D" icon={GitBranch}>
+      {/* Controls & Details Resizable Overlay */}
+      <div
+        onWheel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{ width: `${panelWidth}px`, maxWidth: "80vw", minWidth: "10vw" }}
+        className={`pointer-events-auto absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] flex-col gap-3 ${
+          isResizing ? "select-none" : ""
+        }`}
+      >
+        <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl">
+          <div className="max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5">
+            <HudPanel title="Binary Search Tree 3D" icon={GitBranch}>
           {/* ─── Controls vs Details Tab Switcher ─── */}
           <div className="mb-3 flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-950/60 p-1">
             <button
@@ -429,6 +493,19 @@ export default function BinaryTree3D({ onOpenQuiz }) {
               <Info className="h-3.5 w-3.5" strokeWidth={2} />
               <span>Details</span>
             </button>
+          </div>
+
+          {/* ─── Universal Animation Speed Slider (Prominently Right Below Tab Switcher) ─── */}
+          <div className="mb-3 rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 shadow-inner">
+            <Slider
+              label="⚡ Animation Speed"
+              value={speed}
+              onChange={setSpeed}
+              min={0.2}
+              max={3.0}
+              step={0.1}
+              format={(v) => `${Number(v).toFixed(1)}×`}
+            />
           </div>
 
           {activeTab === "controls" ? (
@@ -500,16 +577,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
               </div>
 
               <div className="border-t border-ink-800 pt-3">
-                <Slider
-                  label="Step speed"
-                  value={speed}
-                  onChange={setSpeed}
-                  min={0.4}
-                  max={2.5}
-                  step={0.1}
-                  format={(v) => `${v.toFixed(1)}×`}
-                />
-                <HudButton icon={RotateCcw} onClick={handleReset} className="mt-2 w-full">
+                <HudButton icon={RotateCcw} onClick={handleReset} className="w-full">
                   Reset tree
                 </HudButton>
               </div>
@@ -631,13 +699,13 @@ export default function BinaryTree3D({ onOpenQuiz }) {
               {/* Visual Legend Key */}
               <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 space-y-2">
                 <div className="border-b border-ink-800/80 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-                  Visual Node Key
+                  Visual Tree Key
                 </div>
                 <div className="space-y-1.5 text-[11px]">
                   <div className="flex items-start gap-2">
                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#2a3447] border border-[#475569]" />
                     <div>
-                      <p className="font-semibold text-ink-200">Idle Node</p>
+                      <p className="font-semibold text-ink-200">Idle Stored Node</p>
                       <p className="text-[10px] text-ink-400">Unvisited BST node in tree structure</p>
                     </div>
                   </div>
@@ -645,14 +713,35 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#d97706] border border-[#fbbf24]" />
                     <div>
                       <p className="font-semibold text-amber-300">Active Comparison</p>
-                      <p className="text-[10px] text-ink-400">Currently walking comparison node</p>
+                      <p className="text-[10px] text-ink-400">Currently evaluated node during search/insert</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#059669] border border-[#34d399]" />
                     <div>
-                      <p className="font-semibold text-emerald-300">Matched / Visited</p>
-                      <p className="text-[10px] text-ink-400">Search hit or traversed node</p>
+                      <p className="font-semibold text-emerald-300">Target Match Found / Visited</p>
+                      <p className="text-[10px] text-ink-400">Search hit or traversed node in traversal sequence</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#e11d48] border border-[#fb7185]" />
+                    <div>
+                      <p className="font-semibold text-rose-300">Search Miss (Missing)</p>
+                      <p className="text-[10px] text-ink-400">Target value is not present in BST</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0284c7] border border-[#38bdf8]" />
+                    <div>
+                      <p className="font-semibold text-sky-300">Selected Node</p>
+                      <p className="text-[10px] text-ink-400">User-clicked inspected node</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-1.5 h-0.5 w-2.5 shrink-0 bg-[#64748b]" />
+                    <div>
+                      <p className="font-semibold text-ink-300">Tree Branch Edge</p>
+                      <p className="text-[10px] text-ink-400">Directed pointer connecting parent to child node</p>
                     </div>
                   </div>
                 </div>
@@ -661,18 +750,69 @@ export default function BinaryTree3D({ onOpenQuiz }) {
               {onOpenQuiz && (
                 <button
                   type="button"
-                  onClick={onOpenQuiz}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-md bg-duck-400 px-3 py-2 text-[11px] font-semibold text-ink-950 transition-colors hover:bg-duck-300 shadow-md"
+                  onClick={() => {
+                    const bstTopic = {
+                      id: "binary_tree",
+                      category: "cs",
+                      title: "3D Binary Search Tree (BST) & AVL Engine",
+                      syllabus: "Computer Science · Trees & Hierarchical Data Structures",
+                      blurb: "Binary Search Tree insertion, logarithmic search comparisons, and tree traversals in 3D.",
+                      concepts: BST_CONCEPTS,
+                      keywords: "BST, Binary Search Tree, AVL Tree, In-Order Traversal, Pre-Order, Post-Order, O(log n), Root, Leaf Node, Depth",
+                    };
+                    const bstParams = {
+                      nodesCount: layout.count,
+                      treeHeight: layout.height,
+                      optimalHeight,
+                      isBalanced: layout.height <= optimalHeight + 1,
+                      currentValues: values.join(", "),
+                    };
+                    onOpenQuiz(bstTopic, bstParams);
+                  }}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-duck-400 to-duck-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-duck-300 hover:to-duck-400 shadow-md hover:shadow-duck-500/20 active:scale-[0.99] cursor-pointer"
                 >
-                  <Target className="h-3.5 w-3.5" strokeWidth={2.25} />
-                  Test understanding
-                  <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Sparkles className="h-4 w-4 shrink-0 text-ink-950" strokeWidth={2.25} />
+                    <div className="text-left">
+                      <p className="leading-none text-xs font-bold">AI Concept Breakdown & Quiz</p>
+                      <p className="text-[10px] font-medium text-ink-900/80 leading-tight mt-0.5">Test with AI · logs to Mastery</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-70" strokeWidth={2.25} />
                 </button>
               )}
             </div>
           )}
         </HudPanel>
       </div>
+
+      {/* ─── Right Edge Drag-To-Resize Handle (10% to 80% screen width) ─── */}
+      <div
+        onPointerDown={handleResizePointerDown}
+        className="absolute -right-1 top-0 bottom-0 z-30 flex w-3.5 cursor-ew-resize items-center justify-center select-none group"
+        title="Drag to resize panel (10% to 80% screen width)"
+      >
+        <div
+          className={`h-14 w-1 rounded-full transition-all ${
+            isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+          }`}
+        />
+      </div>
+
+      {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
+      <div
+        onPointerDown={handleResizePointerDown}
+        className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+        title="Drag to resize panel width"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">
+          <circle cx="8" cy="8" r="1.2" />
+          <circle cx="8" cy="4" r="1.2" />
+          <circle cx="4" cy="8" r="1.2" />
+        </svg>
+      </div>
+    </div>
+  </div>
 
       <ViewportHint>
         drag to orbit · scroll to zoom · click a node to inspect it

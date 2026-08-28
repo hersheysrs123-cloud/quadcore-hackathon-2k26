@@ -31,6 +31,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── explain/route.js              # POST: Structured note explanation generator
 │   │   ├── quiz/generate/route.js        # POST: Diagnostic quiz generator with distractors
 │   │   ├── quiz/grade/route.js           # POST: Objective integer MC + LLM short answer grading
+│   │   ├── reformat/route.js             # POST: Intelligent note reformatting & block structuring generator
 │   │   ├── reset/route.js                # POST: Local-first factory reset signal route
 │   │   ├── socratic/chat/route.js        # POST: Socratic Rubber Duck chat & diagnostic scoring
 │   │   ├── socratic/widget/route.js      # POST: Interactive 3D WebGL widget generator
@@ -82,9 +83,9 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── backup.js                         # .socratic JSON workspace & space backup packager with folder/bookmark support
 │   ├── blockMapping.js                   # Block type mapping & transformation bridge
 │   ├── blocks.js                         # Text extractors & concept mappers from blocks
-│   ├── constants.js                      # Default SPACES definition (School, Personal, Misc)
+│   ├── constants.js                      # Default SPACES definition (School, Personal, Misc, Journal)
 │   ├── db.js                             # Dexie.js IndexedDB schema v5, auto-seeding & graphics detection
-│   ├── demoNotes.js                      # Seeded demo notes (Calculus, Photosynthesis, Algorithms, etc.)
+│   ├── demoNotes.js                      # 7 comprehensive seeded notes across all 4 spaces with full 17-block suites
 │   ├── exportImport.js                   # Full export/import engine for Netscape HTML Bookmarks, PDF, DOCX, HTML, MD, TXT
 │   ├── gemini.js                         # Direct REST Gemini client with structured outputs & usage tracking
 │   ├── mastery.js                        # Mastery status vocabulary (Solid ● / Shaky ◐ / Gap ○) & rollup algorithms
@@ -130,7 +131,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 ## 🧩 3. Key Features & Implementation Mechanics
 
 ### 📝 A. Notion-Style Block Editor (`components/BlockNoteEditor.jsx`)
-- **18 Block Types Supported**:
+- **19 Block Types Supported**:
   1. `text`: Plain text paragraph with inline formatting, smart paste, and backspace merge.
   2. `h1`: Large section heading (`text-3xl font-bold`).
   3. `h2`: Medium section heading (`text-xl font-semibold`).
@@ -141,14 +142,17 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
   8. `todo`: Interactive checkbox with task strikethrough and database synchronization.
   9. `toggle`: Collapsible container with toggle arrow (`▶`/`▼`) and multi-line details.
   10. `callout`: Highlighted frame with 8 icon presets (`💡`, `⚠️`, `📌`, `🔥`, `⭐`, `🎉`, `ℹ️`, `🦆`) and click-away dismissal.
-  11. `quote`: Blockquote with thick accent border.
-  12. `math`: Full-width LaTeX equation block with live KaTeX rendering, direct viewport click-to-edit, multi-line support (`Shift+Enter`), and auto-delete when emptied.
-  13. `inlinemath`: In-sentence LaTeX formula pill (`$formula$`) with click popover, 10 formula presets, and 20 math symbols.
-  14. `divider`: Horizontal divider (`hr`) with keyboard navigation (`ArrowUp`/`ArrowDown`) and backspace/delete removal.
-  15. `site`: Site bookmark card with live Google Favicon resolution and URL normalization.
-  16. `media`: Dual-mode media embed supporting direct URLs and local file uploads for Images, Audio (`<audio controls>`), and Video (`<video controls>`).
-  17. `code`: Code snippet block with 10-language syntax highlighting (JS, TS, Python, HTML, CSS, C++, Java, Rust, SQL, JSON), 2-space tab indentation, and synchronized overlay scrolling.
-  18. `canvas`: Interactive 70% whiteboard studio with 5 drawing tools (Gel Pen, Felt Marker, Chisel Highlighter, Eraser, Ruler Line Tool), 10-color palette, stroke width presets, and undo/redo (`Ctrl+Z`/`Ctrl+Y`).
+  11. `table`: Interactive grid table block with rich markdown & KaTeX cell rendering (`TableCell`), dynamic cell editing, `+ Column` / `+ Row` controls, column and row deletion (`✕`), header row toggle, and `Tab` / `Shift+Tab` keyboard cell navigation.
+
+  12. `quote`: Blockquote with thick accent border.
+  13. `math`: Full-width LaTeX equation block with live KaTeX rendering, direct viewport click-to-edit, multi-line support (`Shift+Enter`), and auto-delete when emptied.
+  14. `inlinemath`: In-sentence LaTeX formula pill (`$formula$`) with click popover, 10 formula presets, and 20 math symbols.
+  15. `divider`: Horizontal divider (`hr`) with keyboard navigation (`ArrowUp`/`ArrowDown`) and backspace/delete removal.
+  16. `site`: Site bookmark card with live Google Favicon resolution and URL normalization.
+  17. `media`: Dual-mode media embed supporting direct URLs and local file uploads for Images, Audio (`<audio controls>`), and Video (`<video controls>`).
+  18. `code`: Code snippet block with 10-language syntax highlighting (JS, TS, Python, HTML, CSS, C++, Java, Rust, SQL, JSON), 2-space tab indentation, and synchronized overlay scrolling.
+  19. `canvas`: Interactive 70% whiteboard studio with 5 drawing tools (Gel Pen, Felt Marker, Chisel Highlighter, Eraser, Ruler Line Tool), 10-color palette, stroke width presets, and undo/redo (`Ctrl+Z`/`Ctrl+Y`).
+
 
 - **In-Context Slash Menu (`/`)**: Typing `/` triggers a floating block-type selector directly beneath the active line.
 - **Draggable 6-Dots Handles (`⠿`) & Context Formatting**:
@@ -167,35 +171,52 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 
 ---
 
-### 🧪 C. Interactive 3D Visualization Studio (`components/ThreeDView.jsx`)
-A comprehensive suite of 14 real-time interactive 3D simulations across 4 scientific domains:
+### 🧪 C. Interactive 3D Visualization Studio (`components/ThreeDView.jsx`, `topics.js`, `VisualizationHUD.jsx`)
+A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM domains with dual-tab HUD (Controls & live Details readout with complete Visual Color Keys):
 
 1. **Physics Engine** (`PhysicsCanvas.jsx`):
-   - **Wave Refraction & Snell's Law** (`refraction`): Multi-medium light ray refraction, critical angle calculation, total internal reflection, and lateral displacement through air, water, glass, diamond, and perspex.
-   - **The Motor Effect & Fleming's Left-Hand Rule** (`motor`): Magnetic field vectors, current flow, Lorentz force vectors, and interactive current/flux controls.
-   - **Thin Lens Optics & Ray Diagrams** (`lenses`): Convex/concave lenses, focal point adjustments, real/virtual image formation, and real-time principal ray tracing.
-   - **Electromagnetic Induction** (`induction`): Faraday/Lenz's law, moving magnet dipole field lines, coil turns, and galvanometer deflection.
-   - **Kinetic Gas Laws ($PV=nRT$)** (`gas`): Bounded 3D container with kinetic gas particle collisions, pressure gauges, temperature sliders, and volume adjustments.
+   - **Wave Refraction & Snell's Law** (`refraction`): Multi-medium light ray refraction, critical angle calculation, total internal reflection, Fresnel reflection rays, and lateral displacement.
+   - **The Motor Effect & Fleming's Left-Hand Rule** (`motor`): Magnetic field lines ($N \to S$), current flow wire, Lorentz force vector, and Fleming's left hand orientation.
+   - **Thin Lens Optics & Ray Diagrams** (`lenses`): Convex/concave lenses, principal axis, focal points, parallel/center rays, real/virtual images, and virtual ray back-extensions.
+   - **Electromagnetic Induction** (`induction`): Faraday/Lenz's law, rotating copper coil, magnetic pole blocks, induced AC current pulses, and real-time EMF waveform trace.
+   - **Kinetic Gas Laws ($PV=nRT$)** (`gas`): Bounded cylinder with hot/cold kinetic gas particles, moveable piston, and wall collision impulses.
+   - **2D Projectile Motion** (`projectile`): Ballistic flight with quadratic drag, ideal parabolic trajectory comparison, tangent velocity $\vec{v}$, and gravity weight $\vec{W}$.
+   - **Wave Interference & Double Slits** (`interference`): Wave crests/troughs, coherent slit emitters, double-slit barrier, and screen intensity fringe maxima.
+   - **Keplerian Orbits & Gravity Wells** (`orbits`): Gravitational spacetime potential well ($-GM/r$), central massive body, orbiting satellite, and elliptical/hyperbolic orbital trails.
 
 2. **Chemistry Engine** (`ChemistryCanvas.jsx`):
-   - **Bohr Atom & Emission Spectra** (`bohr`): Quantized electron shells (C1-C12, Hydrogen to Calcium), electron transitions, photon absorption/emission, and spectral line readouts.
-   - **Organic Chemistry Builder** (`organic`): 6 homologous series (Alkanes, Alkenes, Alkynes, Alcohols, Carboxylic Acids, Esters) across carbon chain lengths **C1–C12** with tetrahedral ($109.5^\circ$), trigonal planar ($120^\circ$), and linear ($sp$) VSEPR geometries.
-   - **Fractional Distillation** (`distillation`): Multi-stage fractionating column, crude oil boiling point gradient, bubble cap trays, and kinetic hydrocarbon particle streams.
-   - **3D Crystal Lattices** (`lattice`): Giant ionic and covalent lattices: $\text{NaCl}$, Diamond ($sp^3$), Graphite ($sp^2$ layers with van der Waals bonds), Quartz ($\text{SiO}_2$), and Ice ($\text{H}_2\text{O}$ hydrogen-bonded hexagonal rings).
-   - **Electrolysis** (`electrolysis`): Beaker electrolyte bath, cathode reduction, anode oxidation, and rising $\text{H}_2$/$\text{O}_2$ gas bubble particle systems.
+   - **Bohr Atom & Emission Spectra** (`bohr`): Quantized electron shells, core/valence electrons, and photon emission spectral wave packets.
+   - **Organic Chemistry Builder** (`organic`): Homologous series (Alkanes, Alkenes, Alkynes, Alcohols) with carbon backbone, hydrogen, oxygen, single sigma, and double/triple pi bonds.
+   - **Fractional Distillation Column** (`distillation`): Multi-stage fractionating column, boiling point gradient, and color-coded petroleum fractions (Refinery gases to Bitumen).
+   - **3D Crystal Lattices** (`lattice`): Giant ionic and covalent lattices: $\text{NaCl}$ (FCC), Diamond ($sp^3$), Graphite ($sp^2$ layers with delocalised electrons and van der Waals forces), Quartz ($\text{SiO}_2$), and Ice ($\text{H}_2\text{O}$ hydrogen-bonded cages).
+   - **Electrolysis of Aqueous $\text{CuSO}_4$** (`electrolysis`): $\text{Cu}^{2+}$ cations, $\text{SO}_4^{2-}$ anions, cathode reduction plating, anode oxidation dissolution, and circuit current flow.
+   - **VSEPR Molecular Geometry** (`vsepr`): Steric numbers 2–6, central atom, bonded ligands, non-bonding lone pair electron clouds, covalent bonds, and bond angle arcs.
+   - **Reaction Energetics & Catalysis** (`energetics`): Exothermic/endothermic reaction profile curves, transition states, forward/reverse activation energy $E_a$, enthalpy change $\Delta H$, and catalysed pathway curves.
 
 3. **Biology Engine** (`BiologyCanvas.jsx` & `cell-organelles.jsx`):
-   - **Plant & Animal Cell Explorer** (`cell`): Double-layer nuclear envelope with nuclear pores, chromatin, mitochondrial cristae rings, thylakoid grana stacks, vacuoles, ER, Golgi apparatus, and cutaway cross-section modes.
-   - **Enzyme Kinetics & Lock-and-Key Model** (`enzyme`): Enzyme-substrate binding, active site conformation, thermal denaturation cliffs, and pH stress curves.
-   - **DNA Double Helix Structure** (`dna`): Major/minor grooves, antiparallel sugar-phosphate backbones, and complementary base pairing (A-T double hydrogen bonds, G-C triple hydrogen bonds).
+   - **Plant & Animal Cell Explorer** (`cell`): Nucleus, mitochondria, chloroplasts, endoplasmic reticulum, Golgi apparatus, permanent vacuole, cell membrane, and cellulose cell wall with osmotic tonicity states.
+   - **Enzyme Kinetics & Denaturation** (`enzyme`): Lock-and-key substrate binding, active catalytic cleft, thermal/pH denaturation, and released product molecules.
+   - **DNA Double Helix Structure** (`dna`): Antiparallel sugar-phosphate backbones, complementary base pairs (Adenine, Thymine, Guanine, Cytosine), and hydrogen bond rungs.
+   - **Protein Secondary Structure & Folding** (`protein`): $\alpha$-Helix ($i \to i+4$ H-bonds, 3.6 residues/turn), $\beta$-Pleated Sheet, random coils, hydrophobic core packing vs hydrophilic surface residues, and thermal denaturation.
 
-4. **Computer Science Engine** (`BinaryTree3D.jsx`):
-   - **3D Binary Search Tree / AVL Tree** (`binary_tree`): Interactive node insertion, deletion, AVL auto-balancing rotations (LL, RR, LR, RL), depth glow shading, and animated in-order, pre-order, and post-order traversals.
+4. **Computer Science Engine** (`CSCanvas.jsx` & `BinaryTree3D.jsx`):
+   - **3D Binary Search Tree / AVL Tree** (`binary_tree`): Interactive node insertion, searching, depth planes, and animated in-order, pre-order, and post-order traversals with complete Visual Tree Keys (Idle, Comparison, Found, Missing, Selected, Branch Edges).
+   - **3D Sorting Algorithm Visualizer** (`sorting`): Bubble, Insertion, Selection, Quicksort, and Merge Sort with unsorted bars, comparison highlights, swap transitions, and sorted states.
 
-5. **Hardware Graphics Adaptation & WebGL Management**:
-   - Hardware detection (`detectHardwareGraphics`) selects optimal target FPS (30/60/120), DPR pixel ratio (1.0–2.0), shadows, and antialiasing based on GPU/CPU capabilities.
-   - WebGL resource cleanup safely traverses and disposes geometries and materials across `Mesh`, `Line`, `LineSegments`, and `Points` to prevent VRAM memory leaks.
-   - frameloop dynamically switches to `"demand"` when backgrounded and `"always"` during active viewing.
+5. **Mathematics Engine** (`MathCanvas.jsx`):
+   - **3D Gradient Descent Optimization** (`gradient`): Topographic loss surfaces (Bowl, Saddle, Rosenbrock Valley, 4-Well Landscape), negative gradient $-\nabla f$ descent vectors, and optimization trails.
+   - **Solids of Revolution & Integral Calculus** (`revolution`): 2D generating curves $r(y)$, Riemann approximating cylindrical discs $\pi r^2 \Delta y$, true solid shells, and rotation axes.
+   - **Trigonometric Unit Circle & Wave Synthesis** (`unitcircle`): Unit circle orbital motion $(x, y) = (\cos\theta, \sin\theta)$, projected sinusoidal time traces, and Fourier square wave harmonic synthesis with Gibbs overshoot.
+
+6. **HUD Controls, Live Details Readout & Authoritative Visual Keys (`VisualizationHUD.jsx`)**:
+   - Universal HUD header with category filters (Physics, Chemistry, Biology, CS, Math), parameter sliders, toggles, resets, and AI Explain & Quiz drawer integrations.
+   - **Direct AI Explain, Quiz & Mastery Pipeline**: The "AI Concept Breakdown & Quiz" button in the HUD Details tab (and BST panel) triggers `formatTopicStudyContext(topic, params)` to synthesize rich 3D topic details (title, syllabus, summary, structured key concepts, and active simulation parameters) directly into the `ExplainPanel` drawer. Handover to `QuizPanel` ("🦆 Test me on this") generates dynamic AI questions and automatically logs completed study sessions, scores, and confidence heatmaps directly to the **Mastery Dashboard** (`MasteryDashboard.jsx`).
+   - **Draggable Resizable HUD Panel**: The main Controls & Details tab container is fully draggable to resize horizontally (from a compact 10% / 180px minimum up to 75%–80% maximum screen width) via an interactive right-edge grab bar and bottom-right corner grip, with persistent `localStorage` (`socratic_hud_panel_width`) across all 24 scenes. SSR hydration safe via post-mount state synchronization.
+   - **Universal Animation Speed Slider**: Prominently mounted directly below the Controls vs Details tab switcher across every 3D scene (including `BinaryTree3D.jsx` and shared `VisualizationHUD.jsx`), providing fine-grained $0.1\times$ to $3.0\times$ speed control (with paused/frozen states) across all particle simulations, wave propagation solvers, orbit integrations, step runners, `OrbitControls` camera auto-rotation, and biological organelle micro-animations (`Golgi` budding vesicles, `Cytoplasm` granules drift, and `FreeRibosomes` jitter). All canvas scenes feature standardized parameter signatures with safe fallback destructuring (`speed = 1.0`).
+   - **Safe Value Fallback & Parameter Forwarding**: Implemented `num(val, fallback)` preventing truthy short-circuiting of valid `0` parameters across all 24 topic readouts. All canvas dispatchers (`PhysicsCanvas`, `ChemistryCanvas`, `BiologyCanvas`, `CSCanvas`, `MathCanvas`) accept and forward `{ topicId, params, setParam, onOpenQuiz }`.
+   - **Details Tab**: Comprehensive live mathematical/scientific state readout, formula subtitles, instructional notes, and authoritative **Visual Keys** documenting every colored line, arrow, vector, orbital, particle, wave crest/trough, and object across all 24 3D scenes.
+   - **Hardware Graphics Adaptation**: Device capability detection (`detectHardwareGraphics`) managing DPR (1.0–2.0), shadows, antialiasing, and dynamic `"demand"` vs `"always"` frameloops.
+   - **Fullscreen Focus Mode & Top Bar Cover**: Toggle button in the header and in-tab Category strip collapses both top workspace headers (and the studio toolbar in 3D view), leaving only the Category/Topic quick switch strip and 3D canvas visible with a persistent, accessible in-tab reopen button. Non-3D tabs feature a floating glassmorphic in-tab reopen button.
 
 ---
 
@@ -207,11 +228,15 @@ A comprehensive suite of 14 real-time interactive 3D simulations across 4 scient
 
 ---
 
-### 🦆 E. Socratic AI Tutor, Explain & 3D Interactive Widgets
+### 🦆 E. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
 - **Structured Concept Explainer (`app/api/explain/route.js`)**: Generates structured breakdowns containing TL;DR summaries, mechanism steps, analogies with explicit breakdown boundaries, common misconceptions, worked examples, and check-yourself questions.
+- **Intelligent Note Reformatting (`app/api/reformat/route.js` & `lib/aiService.js`)**: Analyzes notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with emoji icons, LaTeX display/inline math, collapsible toggles, code snippets, checklists, tables, and dividers) with automatic multi-chunk segmentation for long notes (`chunkNoteBlocks`), live progress updates (`Part X/Y...`), LaTeX/KaTeX formula syntax repair, markdown symbol healing, strict underlying knowledge fidelity, instantaneous `Ctrl+Z` undo stack tracking, and offline heuristic fallback.
+
+
 - **Socratic Rubber Duck Assistant (`app/api/socratic/chat/route.js`)**: Probes understanding using the Feynman technique without providing direct answers. Evaluates sessions upon completion and emits a 0–100 score and sub-topic confidence heatmap.
 - **3D Socratic Canvas Widgets (`app/api/socratic/widget/route.js` & `components/WidgetCanvas.jsx`)**: Translates sub-topic misconceptions into interactive 3D WebGL scenes with vector arrows, camera controls, parameter sliders, and real-time gap repair guidance.
 - **Client-Side AI Orchestration (`lib/aiService.js`)**: Allows users to provide their own Gemini API key stored privately in IndexedDB, calling Gemini directly from the client or falling back to server routes.
+
 
 ---
 
@@ -227,15 +252,16 @@ A comprehensive suite of 14 real-time interactive 3D simulations across 4 scient
 ---
 
 ### 📦 G. Multi-Format Export, Import & Workspace Backup Engine
-- **Workspace & Space Backups (.socratic)** (`lib/backup.js`): Exports entire spaces or all spaces into structured JSON `.socratic` backup packages; supports drag-and-drop restoration with space reassignment and overwrite options.
+- **Workspace & Space Backups (.socratic)** (`lib/backup.js`): Exports entire spaces or all spaces into structured JSON `.socratic` backup packages; supports drag-and-drop restoration with space reassignment, overwrite options, and direct note records return.
 - **Multi-Format Note & Bookmark Export** (`lib/exportImport.js`):
   - **Netscape HTML Bookmarks (`.html`)**: Standard browser bookmark format (`<!DOCTYPE NETSCAPE-Bookmark-file-1>`) preserving folder hierarchies, `<A HREF="..." ICON="..." TAGS="...">` links, and `<DD>` personal notes for import into Chrome, Firefox, Safari, Edge, Arc, and Brave.
-  - **PDF**: Formatted print layout via `@media print` with `.print-content` preservation for titles, emoji, and syntax-highlighted code.
-  - **Word Document (`.docx`)**: Native headings, callout boxes, styled code containers, and formatted lists.
-  - **HTML (`.html`)**: Clean standalone HTML5 web page with grouped lists and inline styling.
-  - **Markdown (`.md`)**: GitHub-flavored markdown with KaTeX `$formula$` preservation, `<details>` toggles, and callouts.
-  - **Plain Text (`.txt`)**: Clean structured text formatting.
-- **Drag-and-Drop File Import**: Automatically imports `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, and `.md` files into the active space.
+  - **PDF & Print Engine**: High-fidelity A4 document print engine via `@media print` with auto-wrapping headers, zero-void page starts, auto-scaling KaTeX formulas without scrollbars, clean code block cards without double line striping, print-rendered toggle details, and normalized heading/divider typography.
+  - **Word Document (`.docx`)**: Native headings, callout boxes with emojis, toggle headers with `▶ ` and indented italic details `↳ `, styled code containers with Consolas, and formatted lists.
+  - **HTML (`.html`)**: Clean standalone HTML5 web page with grouped lists, `<details>` toggles, dark styling, and embedded KaTeX auto-render scripts for standalone offline math rendering in browsers.
+  - **Markdown (`.md`)**: GitHub/Obsidian-flavored markdown with KaTeX `$formula$` preservation, `<details>` toggles, standard task list `- [ ]` / `- [x]` syntax, and Obsidian/Unicode callouts.
+  - **Plain Text (`.txt`)**: Clean structured text formatting with `--- CODE (lang) ---` delimiters, `▶ ` toggle headers, and sequential numbering.
+- **Drag-and-Drop File Import**: Automatically imports `.socratic`, `.json` (workspace packages or raw note objects), `.docx` (via Mammoth), `.html` (notes and browser bookmarks), `.txt`, and `.md` files into the active space.
+- **Real-Time Workspace Sync**: `handleImportSuccess` in `Workspace.jsx` reloads all notes and custom spaces dynamically from IndexedDB (`getAllNotes()`).
 
 ---
 
@@ -344,7 +370,7 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
 2. **SSR Hydration Guard**:
    - Always wrap client-only browser storage access (`localStorage`, `window`) inside a mounted state guard (`const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);`).
 3. **Demo Note Seeding Flag**:
-   - Seeding is gated by `DEMO_SEED_KEY = "socratic_demo_seeded_v8"` in `lib/db.js`. Both `resetNotesData()` and `factoryResetWorkspace()` write this exact key to prevent demo notes from re-seeding immediately after a deliberate user reset. `initAndSeedDatabase()` also validates that `db.notes.count() > 0` before skipping.
+   - Seeding is gated by `DEMO_SEED_KEY = "socratic_demo_seeded_v11"` in `lib/db.js`. Both `resetNotesData()` and `factoryResetWorkspace()` write this exact key to prevent demo notes from re-seeding immediately after a deliberate user reset. `initAndSeedDatabase()` also validates that `db.notes.count() > 0` before skipping. Every seeded note contains all 17 supported block types (h1, h2, h3, h4, text, bullet, number, todo, toggle, callout, quote, divider, code, math, inlinemath, site, media) and 0 canvas blocks across School, Personal, and Misc spaces, with Journal clean for user logs.
 4. **URL Protocol Normalization**:
    - Always wrap external URLs with `formatUrl(url)` before passing to `href` or `src` attributes to prevent relative path redirection (`http://localhost:3000/google.com`).
 5. **Next.js Dev Cache Corruption**:

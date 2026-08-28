@@ -9,6 +9,10 @@ import {
   TOKEN_STYLES,
   tokenizeCode,
 } from "@/lib/syntaxHighlighter";
+import { reformatNoteContent } from "@/lib/aiService";
+import { getNormalizedTableData, parseMarkdownTableRow } from "@/lib/exportImport";
+
+
 
 // ─── BlockNoteEditor ────────────────────────────────────────────────
 // Full Notion-style block suite:
@@ -18,6 +22,7 @@ import {
 //   • Quote (accent bar), Divider (hr), Note Link (workspace note picker)
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
 //   • Math Equation Container (LaTeX & KaTeX renderer)
+//   • Interactive Table Grid Block (cell editing, add/del cols/rows, tab nav)
 //   • 6-dots (⠿) context menu: Explain / Quiz, formatting (B, I, U, S), turn-into
 // ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +37,7 @@ const BLOCK_TYPES = [
   { type: "todo", label: "To-Do List", icon: "☑", description: "Track tasks with a checkbox" },
   { type: "toggle", label: "Toggle List", icon: "▶", description: "Collapsible text container" },
   { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame" },
+  { type: "table", label: "Table", icon: "▦", description: "Insert an interactive grid table" },
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations" },
   { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer" },
   { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Insert inline LaTeX formula ($x$)" },
@@ -41,6 +47,7 @@ const BLOCK_TYPES = [
   { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax" },
   { type: "canvas", label: "Canvas / Drawing", icon: "🎨", description: "Interactive 70% whiteboard & sketching tool" },
 ];
+
 
 const BANNER_PRESETS = [
   { id: "cyber", label: "Cyberpunk", style: "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600" },
@@ -73,6 +80,25 @@ function createBlock(type = "text", content = "", extra = {}) {
   return { id: extra.id || makeId(), type, content, ...extra };
 }
 
+// Matches how blocksToMarkdown writes a callout: "> <icon> <text>" or standard emoji/icon
+const CALLOUT_QUOTE_RE = /^>\s*(\p{Extended_Pictographic}️?)\s*(.*)$/u;
+const OBSIDIAN_CALLOUT_RE = /^>\s*\[!(NOTE|INFO|TIP|WARNING|IMPORTANT|CAUTION|DANGER|QUESTION|HELP|FAQ|SUMMARY|SUCCESS)\](?:\s+(.*))?$/i;
+
+const OBSIDIAN_CALLOUT_ICONS = {
+  note: "💡",
+  info: "ℹ️",
+  tip: "⚡",
+  warning: "⚠️",
+  important: "📌",
+  caution: "🚨",
+  danger: "🔥",
+  question: "❓",
+  help: "🆘",
+  faq: "💬",
+  summary: "📋",
+  success: "✅",
+};
+
 function blockToMarkdown(block) {
   if (!block) return "";
   const content = block.content || "";
@@ -99,20 +125,37 @@ function blockToMarkdown(block) {
     case "quote":
       return `> ${content}`;
     case "callout":
-      return `💡 ${content}`;
+      return `> ${block.calloutIcon || "💡"} ${content}`;
     case "divider":
       return `---`;
     case "code":
-      return `\`\`\`${block.meta?.language || ""}\n${content}\n\`\`\``;
+      return `\`\`\`${block.language || block.meta?.language || ""}\n${content}\n\`\`\``;
     case "math":
       return `$$\n${content}\n$$`;
+    case "inlinemath":
+      return content.startsWith("$") && content.endsWith("$") ? content : `$${content}$`;
     case "canvas":
       return `[Canvas Drawing: ${content}]`;
+    case "table": {
+      const data = getNormalizedTableData(block.tableData, block.content);
+      const headers = data.headers && data.headers.length > 0 ? data.headers : ["Col 1", "Col 2"];
+      const rows = data.rows || [];
+      const colCount = Math.max(headers.length, ...rows.map((r) => (Array.isArray(r) ? r.length : 0)));
+      const formatRow = (r) => {
+        const cells = [];
+        for (let i = 0; i < colCount; i++) {
+          cells.push(r && r[i] !== undefined ? String(r[i]).replace(/\|/g, "\\|") : "");
+        }
+        return `| ${cells.join(" | ")} |`;
+      };
+      return [formatRow(headers), `| ${Array(colCount).fill("---").join(" | ")} |`, ...rows.map(formatRow)].join("\n");
+    }
     case "text":
     default:
       return content;
   }
 }
+
 
 function parseMarkdownToBlocks(rawText) {
   if (!rawText || typeof rawText !== "string") return [];
@@ -126,10 +169,16 @@ function parseMarkdownToBlocks(rawText) {
   let inMathBlock = false;
   let mathBuffer = [];
 
+  let inDetailsBlock = false;
+  let detailsSummary = "";
+  let detailsContentBuffer = [];
+  let detailsOpen = true;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
 
+    // 1. Code Block Delimiters
     if (trimmed.startsWith("```")) {
       if (!inCodeBlock) {
         inCodeBlock = true;
@@ -138,7 +187,7 @@ function parseMarkdownToBlocks(rawText) {
       } else {
         inCodeBlock = false;
         resultBlocks.push(
-          createBlock("code", codeBuffer.join("\n"), { meta: { language: codeLang } })
+          createBlock("code", codeBuffer.join("\n"), { language: codeLang, meta: { language: codeLang } })
         );
         codeBuffer = [];
         codeLang = null;
@@ -151,49 +200,222 @@ function parseMarkdownToBlocks(rawText) {
       continue;
     }
 
-    if (trimmed.startsWith("$$")) {
+    // 2. Math Block Delimiters & Jumbled Equation Lines
+    if (trimmed.startsWith("$$") || (trimmed.endsWith("$$") && /\\(text|frac|rightarrow|sum|int|sqrt|vec|alpha|beta|gamma|theta|lambda|pi|mu|sigma|omega|Delta|nabla|partial|times|cdot|approx|ne|le|ge|pm|infty|in|subset|cup|cap|to|Rightarrow|Longleftrightarrow|left|right|begin)/.test(trimmed))) {
       if (!inMathBlock) {
+        if (trimmed.endsWith("$$") && trimmed.length > 2) {
+          const cleanMath = trimmed.replace(/^\$\$+|\$\$+$/g, "").trim();
+          if (cleanMath) {
+            resultBlocks.push(createBlock("math", cleanMath));
+            continue;
+          }
+        }
         inMathBlock = true;
-        const rest = trimmed.slice(2).trim();
+        const rest = trimmed.replace(/^\$\$+/, "").trim();
         mathBuffer = rest ? [rest] : [];
       } else {
         inMathBlock = false;
+        const rest = trimmed.replace(/\$\$+$/, "").trim();
+        if (rest) mathBuffer.push(rest);
         resultBlocks.push(createBlock("math", mathBuffer.join("\n")));
         mathBuffer = [];
       }
       continue;
     }
 
+
     if (inMathBlock) {
       mathBuffer.push(line);
       continue;
     }
 
+    // 3. Single-line <details><summary>Title</summary>Details</details>
+    const singleDetailsMatch = trimmed.match(/<details[^>]*>\s*<summary>(.*?)<\/summary>(.*?)<\/details>/i);
+    if (singleDetailsMatch) {
+      resultBlocks.push(
+        createBlock("toggle", singleDetailsMatch[1].replace(/<[^>]+>/g, "").trim() || "Toggle", {
+          details: singleDetailsMatch[2].replace(/<[^>]+>/g, "").trim(),
+          open: !trimmed.includes('open="false"'),
+        })
+      );
+      continue;
+    }
+
+    // 4. Multiline <details> Block
+    if (trimmed.toLowerCase().startsWith("<details")) {
+      inDetailsBlock = true;
+      detailsOpen = !trimmed.includes('open="false"');
+      detailsSummary = "";
+      detailsContentBuffer = [];
+      const summaryMatch = trimmed.match(/<summary>(.*?)<\/summary>/i);
+      if (summaryMatch) {
+        detailsSummary = summaryMatch[1].replace(/<[^>]+>/g, "").trim();
+      }
+      continue;
+    }
+
+    if (inDetailsBlock) {
+      if (trimmed.toLowerCase().includes("</details>")) {
+        const rest = line.replace(/<\/details>/gi, "").replace(/<\/?div[^>]*>/gi, "").trim();
+        if (rest) detailsContentBuffer.push(rest);
+        inDetailsBlock = false;
+        resultBlocks.push(
+          createBlock("toggle", detailsSummary || "Toggle", {
+            details: detailsContentBuffer.join("\n").trim(),
+            open: detailsOpen,
+          })
+        );
+        detailsSummary = "";
+        detailsContentBuffer = [];
+        continue;
+      }
+
+      const summaryMatch = trimmed.match(/<summary>(.*?)<\/summary>/i);
+      if (summaryMatch) {
+        detailsSummary = summaryMatch[1].replace(/<[^>]+>/g, "").trim();
+        continue;
+      }
+
+      const cleanDetailLine = line.replace(/<\/?div[^>]*>/gi, "").replace(/<\/?p[^>]*>/gi, "").trim();
+      if (cleanDetailLine) detailsContentBuffer.push(cleanDetailLine);
+      continue;
+    }
+
     if (!trimmed) continue;
 
+    // 4.5 Markdown Tables (| Header 1 | Header 2 | \n | --- | --- |)
+    if (trimmed.startsWith("|") && trimmed.includes("|")) {
+      const nextLine = (lines[i + 1] || "").trim();
+      const isSeparator = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(nextLine);
+      if (isSeparator) {
+        const headers = parseMarkdownTableRow(trimmed);
+        const rows = [];
+        i += 1; // consume separator line
+
+        while (i + 1 < lines.length) {
+          const rowLine = lines[i + 1].trim();
+          if (rowLine.startsWith("|") && rowLine.includes("|") && !/^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(rowLine)) {
+            rows.push(parseMarkdownTableRow(rowLine));
+            i += 1;
+          } else {
+            break;
+          }
+        }
+
+
+        resultBlocks.push(
+          createBlock("table", "", {
+            tableData: {
+              headers: headers.length > 0 ? headers : ["Column 1", "Column 2"],
+              rows: rows.length > 0 ? rows : [["", ""]],
+              hasHeaderRow: true,
+            },
+          })
+        );
+        continue;
+      }
+    }
+
+    // 4.6 Tab-separated values (TSV / Excel / Sheets paste detection)
+    if (line.includes("\t")) {
+      const parseTsvRow = (str) => str.split("\t").map((c) => c.trim());
+      const headers = parseTsvRow(line);
+      if (headers.length > 1) {
+        const rows = [];
+        while (i + 1 < lines.length && lines[i + 1].includes("\t")) {
+          rows.push(parseTsvRow(lines[i + 1]));
+          i += 1;
+        }
+        if (rows.length > 0) {
+          resultBlocks.push(
+            createBlock("table", "", {
+              tableData: {
+                headers,
+                rows,
+                hasHeaderRow: true,
+              },
+            })
+          );
+          continue;
+        }
+      }
+    }
+
+    // 4.7 Standalone bold category subheadings (e.g. "* **Eye Structures:**" or "**Eye Structures:**")
+    const boldHeadingMatch = trimmed.match(/^([*•\-+]\s*)?\*\*([^*]+)\*\*[:\s]*$/);
+    if (boldHeadingMatch) {
+      const headingText = boldHeadingMatch[2].trim().replace(/[:\s]+$/, "");
+      if (headingText) {
+        resultBlocks.push(createBlock("h3", headingText));
+        continue;
+      }
+    }
+
+    // 5. Standard Markdown Tasks (Checked before generic bullets)
+    const taskMatch = line.match(/^[-*+]?\s*\[([ xX])\]\s*(.*)$/);
+
+    if (taskMatch) {
+      resultBlocks.push(
+        createBlock("todo", taskMatch[2].trim(), { checked: taskMatch[1].toLowerCase() === "x" })
+      );
+      continue;
+    }
+
+    // 6. Headings
     if (line.startsWith("#### ")) {
-      resultBlocks.push(createBlock("h4", line.slice(5)));
+      resultBlocks.push(createBlock("h4", line.slice(5).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
     } else if (line.startsWith("### ")) {
-      resultBlocks.push(createBlock("h3", line.slice(4)));
+      resultBlocks.push(createBlock("h3", line.slice(4).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
     } else if (line.startsWith("## ")) {
-      resultBlocks.push(createBlock("h2", line.slice(3)));
+      resultBlocks.push(createBlock("h2", line.slice(3).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
     } else if (line.startsWith("# ")) {
-      resultBlocks.push(createBlock("h1", line.slice(2)));
-    } else if (line.startsWith("- ") || line.startsWith("* ")) {
-      resultBlocks.push(createBlock("bullet", line.slice(2)));
-    } else if (/^\d+\.\s/.test(line)) {
-      resultBlocks.push(createBlock("number", line.replace(/^\d+\.\s/, "")));
-    } else if (line.startsWith("[ ] ") || line.startsWith("[] ")) {
-      resultBlocks.push(createBlock("todo", line.slice(line.indexOf("]") + 1).trim(), { checked: false }));
-    } else if (line.startsWith("[x] ") || line.startsWith("[X] ")) {
-      resultBlocks.push(createBlock("todo", line.slice(line.indexOf("]") + 1).trim(), { checked: true }));
-    } else if (line.startsWith("> ")) {
-      resultBlocks.push(createBlock("quote", line.slice(2)));
+      resultBlocks.push(createBlock("h1", line.slice(2).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
+    }
+    // 7. Bullets
+    else if (line.startsWith("- ") || line.startsWith("* ") || line.startsWith("+ ")) {
+      let bContent = line.slice(2).trim();
+      if (bContent.startsWith("* ") || bContent.startsWith("- ") || bContent.startsWith("+ ")) {
+        bContent = bContent.replace(/^[*•\-+]\s+/, "").trim();
+      }
+      const boldHeadingMatchInBullet = bContent.match(/^\*\*([^*]+)\*\*[:\s]*$/);
+      if (boldHeadingMatchInBullet) {
+        resultBlocks.push(createBlock("h3", boldHeadingMatchInBullet[1].trim().replace(/[:\s]+$/, "")));
+      } else {
+        resultBlocks.push(createBlock("bullet", bContent));
+      }
+    }
+
+
+
+    // 8. Numbered list items
+    else if (/^\d+\.\s/.test(line)) {
+      resultBlocks.push(createBlock("number", line.replace(/^\d+\.\s/, "").trim()));
+    }
+    // 9. Obsidian / GitHub Style Callouts
+    else if (OBSIDIAN_CALLOUT_RE.test(line)) {
+      const match = line.match(OBSIDIAN_CALLOUT_RE);
+      const calloutType = (match[1] || "note").toLowerCase();
+      const icon = OBSIDIAN_CALLOUT_ICONS[calloutType] || "💡";
+      const calloutText = (match[2] || "").trim();
+      resultBlocks.push(createBlock("callout", calloutText, { calloutIcon: icon }));
+    }
+    // 10. Unicode Emoji Callouts
+    else if (CALLOUT_QUOTE_RE.test(line)) {
+      const [, icon, content] = line.match(CALLOUT_QUOTE_RE);
+      resultBlocks.push(createBlock("callout", content.trim(), { calloutIcon: icon }));
     } else if (line.startsWith("💡 ") || line.startsWith(">! ")) {
-      resultBlocks.push(createBlock("callout", line.slice(3)));
-    } else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
+      resultBlocks.push(createBlock("callout", line.slice(3).trim(), { calloutIcon: "💡" }));
+    }
+    // 11. Quotes
+    else if (line.startsWith("> ")) {
+      resultBlocks.push(createBlock("quote", line.slice(2).trim()));
+    }
+    // 12. Dividers
+    else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
       resultBlocks.push(createBlock("divider", ""));
-    } else if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length > 2) {
+    }
+    // 13. Inline math line
+    else if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length > 2) {
       resultBlocks.push(createBlock("math", trimmed.slice(2, -2).trim()));
     } else {
       resultBlocks.push(createBlock("text", line));
@@ -201,10 +423,18 @@ function parseMarkdownToBlocks(rawText) {
   }
 
   if (codeBuffer.length > 0) {
-    resultBlocks.push(createBlock("code", codeBuffer.join("\n"), { meta: { language: codeLang } }));
+    resultBlocks.push(createBlock("code", codeBuffer.join("\n"), { language: codeLang, meta: { language: codeLang } }));
   }
   if (mathBuffer.length > 0) {
     resultBlocks.push(createBlock("math", mathBuffer.join("\n")));
+  }
+  if (inDetailsBlock && detailsSummary) {
+    resultBlocks.push(
+      createBlock("toggle", detailsSummary, {
+        details: detailsContentBuffer.join("\n").trim(),
+        open: detailsOpen,
+      })
+    );
   }
 
   return resultBlocks.length > 0 ? resultBlocks : [createBlock("text", rawText)];
@@ -570,68 +800,175 @@ const KaTeXRender = memo(function KaTeXRender({ formula, displayMode = false, cl
   return <span ref={containerRef} className={`katex-wrapper inline-block ${className}`} />;
 });
 
-// ─── Inline Equation Utilities & Popover ─────────────────────────────
-function escapeHtml(str) {
+// ─── Inline Markdown & KaTeX Utilities & Popover ─────────────────────────────
+export function escapeHtml(str) {
   return (str || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
 
-function formatTextWithKaTeX(text) {
+export function formatMarkdownInline(text) {
   if (!text) return "";
-  if (!text.includes("$")) return escapeHtml(text);
 
-  const parts = [];
-  const regex = /\$([^$]+)\$/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(escapeHtml(text.slice(lastIndex, match.index)));
-    }
-    const formula = match[1];
+  // 1. Math tokens ($formula$ or $$formula$$)
+  const mathTokens = [];
+  let processed = String(text).replace(/\$\$([^$]+)\$\$|\$([^\s$](?:[^$\n]*[^\s$])?)\$/g, (match, dFormula, sFormula) => {
+    const formula = (dFormula || sFormula || "").trim();
+    if (!formula) return match;
+    const token = `\u0000MATH_${mathTokens.length}\u0000`;
+    let katexHtml = "";
     try {
-      const katexHtml = renderKatexToStringMemoized(formula, {
+      katexHtml = renderKatexToStringMemoized(formula, {
         displayMode: false,
         throwOnError: false,
       });
-      const escapedFormula = formula.replace(/"/g, "&quot;");
-      parts.push(
-        `<span class="katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-duck-500/40 bg-duck-500/10 hover:bg-duck-500/25 hover:border-duck-400 text-duck-200 font-semibold cursor-pointer transition-all select-none group/mathpill" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`
-      );
     } catch (e) {
-      parts.push(escapeHtml(match[0]));
+      katexHtml = escapeHtml(match);
     }
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(escapeHtml(text.slice(lastIndex)));
-  }
-
-  return parts.join("");
-}
-
-function setBlockDOMFromText(domNode, text) {
-  if (!domNode) return;
-  if (text && text.includes("$")) {
-    domNode.innerHTML = formatTextWithKaTeX(text);
-  } else {
-    domNode.textContent = text || "";
-  }
-}
-
-function getBlockTextFromDOM(domNode) {
-  if (!domNode) return "";
-  const clone = domNode.cloneNode(true);
-  clone.querySelectorAll(".katex-inline-node").forEach((node) => {
-    const formula = node.getAttribute("data-formula") || "";
-    node.replaceWith(`$${formula}$`);
+    const escapedFormula = formula.replace(/"/g, "&quot;");
+    mathTokens.push(
+      `<span class="katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-duck-500/40 bg-duck-500/10 hover:bg-duck-500/25 hover:border-duck-400 text-duck-200 font-semibold cursor-pointer transition-all select-none group/mathpill" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`
+    );
+    return token;
   });
-  return clone.textContent || "";
+
+  // 2. Code tokens (`code`)
+  const codeTokens = [];
+  processed = processed.replace(/`([^`\n]+)`/g, (match, code) => {
+    const token = `\u0000CODE_${codeTokens.length}\u0000`;
+    codeTokens.push(
+      `<code class="rounded px-1.5 py-0.5 font-mono text-[13px] bg-ink-800 text-duck-300 border border-ink-700 font-normal">${escapeHtml(code)}</code>`
+    );
+    return token;
+  });
+
+  // 3. Links ([text](url))
+  const linkTokens = [];
+  processed = processed.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+|#[^\s)]+)\)/g, (match, linkText, url) => {
+    const token = `\u0000LINK_${linkTokens.length}\u0000`;
+    linkTokens.push(
+      `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="text-duck-400 underline decoration-duck-500/50 hover:text-duck-300 cursor-pointer" contenteditable="false">${escapeHtml(linkText)}</a>`
+    );
+    return token;
+  });
+
+  // 4. Escape HTML for the remaining content
+  processed = escapeHtml(processed);
+
+  // 5. Bold & Italic (***text*** or ___text___)
+  processed = processed.replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
+  processed = processed.replace(/___([^_\n]+)___/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
+
+  // 6. Bold (**text** or __text__)
+  processed = processed.replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-bold text-ink-100">$1</strong>');
+  processed = processed.replace(/__([^_\n]+)__/g, '<strong class="font-bold text-ink-100">$1</strong>');
+
+  // 7. Italic (*text* or _text_)
+  processed = processed.replace(/\*([^*\n]+)\*/g, '<em class="italic text-ink-200">$1</em>');
+  processed = processed.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,;:!?])/g, '$1<em class="italic text-ink-200">$2</em>');
+
+  // 8. Strikethrough (~~text~~)
+  processed = processed.replace(/~~([^~\n]+)~~/g, '<del class="line-through text-ink-500">$1</del>');
+
+  // 9. Highlight (==text==)
+  processed = processed.replace(/==([^=\n]+)==/g, '<mark class="bg-duck-500/25 text-duck-200 px-1 py-0.5 rounded font-medium">$1</mark>');
+
+  // 10. Restore tokens
+  linkTokens.forEach((linkHtml, idx) => {
+    processed = processed.replace(`\u0000LINK_${idx}\u0000`, linkHtml);
+  });
+  codeTokens.forEach((codeHtml, idx) => {
+    processed = processed.replace(`\u0000CODE_${idx}\u0000`, codeHtml);
+  });
+  mathTokens.forEach((mathHtml, idx) => {
+    processed = processed.replace(`\u0000MATH_${idx}\u0000`, mathHtml);
+  });
+
+  return processed;
 }
+
+export function setBlockDOMFromText(domNode, text, blockType = "text") {
+  if (!domNode) return;
+  let textToFormat = text || "";
+  if (blockType === "inlinemath" && textToFormat && !textToFormat.includes("$")) {
+    textToFormat = `$${textToFormat}$`;
+  }
+  domNode.innerHTML = formatMarkdownInline(textToFormat);
+}
+
+export function getBlockTextFromDOM(domNode) {
+  if (!domNode) return "";
+
+  function walk(node) {
+    if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+      return node.nodeValue || "";
+    }
+    if (node.nodeType !== 1 /* Node.ELEMENT_NODE */) {
+      return "";
+    }
+
+    // 1. Math Pill
+    if (node.classList && node.classList.contains("katex-inline-node")) {
+      const formula = node.getAttribute("data-formula") || "";
+      return `$${formula}$`;
+    }
+
+    // 2. KaTeX fallback
+    if (node.classList && (node.classList.contains("katex") || node.classList.contains("katex-html"))) {
+      const formula = node.closest(".katex-inline-node")?.getAttribute("data-formula");
+      if (formula) return `$${formula}$`;
+    }
+
+    const tag = node.tagName.toLowerCase();
+
+    // 3. Line break
+    if (tag === "br") {
+      return "\n";
+    }
+
+    let inner = "";
+    for (const child of node.childNodes) {
+      inner += walk(child);
+    }
+
+    // 4. Bold
+    if (tag === "strong" || tag === "b") {
+      return inner ? `**${inner}**` : "";
+    }
+
+    // 5. Italic
+    if (tag === "em" || tag === "i") {
+      return inner ? `*${inner}*` : "";
+    }
+
+    // 6. Code
+    if (tag === "code" && !node.classList.contains("code-block")) {
+      return inner ? `\`${inner}\`` : "";
+    }
+
+    // 7. Strikethrough
+    if (tag === "del" || tag === "s" || tag === "strike") {
+      return inner ? `~~${inner}~~` : "";
+    }
+
+    // 8. Highlight
+    if (tag === "mark") {
+      return inner ? `==${inner}==` : "";
+    }
+
+    // 9. Links
+    if (tag === "a") {
+      const href = node.getAttribute("href");
+      return href ? `[${inner}](${href})` : inner;
+    }
+
+    return inner;
+  }
+
+  return walk(domNode);
+}
+
 
 function getSerializedTextFromRange(container, endContainer, endOffset) {
   if (!container || !endContainer) return "";
@@ -924,6 +1261,9 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formula, setFormula] = useState(block.content ?? "");
   const textareaRef = useRef(null);
+  const viewportRef = useRef(null);
+  const formulaInnerRef = useRef(null);
+  const [scale, setScale] = useState(1);
 
   useEffect(() => {
     setFormula(block.content ?? "");
@@ -934,6 +1274,31 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
       textareaRef.current.focus();
     }
   }, [isEditing]);
+
+  // Auto-scale formula so it smoothly fits inside the container without scrollbars in the editor
+  useEffect(() => {
+    function updateScale() {
+      if (viewportRef.current && formulaInnerRef.current) {
+        const containerWidth = viewportRef.current.clientWidth - 24; // padding allowance
+        const formulaWidth = formulaInnerRef.current.scrollWidth || formulaInnerRef.current.offsetWidth;
+        if (containerWidth > 0 && formulaWidth > 0) {
+          if (formulaWidth > containerWidth) {
+            const newScale = Math.max(0.35, Math.min(1, containerWidth / formulaWidth));
+            setScale(newScale);
+          } else {
+            setScale(1);
+          }
+        }
+      }
+    }
+
+    updateScale();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScale) : null;
+    if (ro && viewportRef.current) ro.observe(viewportRef.current);
+    if (ro && formulaInnerRef.current) ro.observe(formulaInnerRef.current);
+
+    return () => ro?.disconnect();
+  }, [formula, isEditing]);
 
   const presets = [
     { label: "Quadratic", math: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" },
@@ -981,16 +1346,27 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
         </div>
       </div>
 
-      {/* Rendered KaTeX Formula Viewport — Click opens editing drawer */}
+      {/* Rendered KaTeX Formula Viewport — Auto-scales to fit without scrollbars */}
       <div
+        ref={viewportRef}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(block.id);
           setIsEditing(true);
         }}
-        className="flex items-center justify-center min-h-[3.5rem] py-2 px-4 overflow-x-auto text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-duck-500/40 transition-colors"
+        className="flex items-center justify-center min-h-[3.5rem] py-2 px-4 overflow-hidden text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-duck-500/40 transition-colors w-full"
       >
-        <KaTeXRender formula={formula || "E = mc^2"} displayMode={true} className="text-duck-300" />
+        <div
+          ref={formulaInnerRef}
+          style={{
+            transform: scale < 1 ? `scale(${scale})` : undefined,
+            transformOrigin: "center center",
+            transition: "transform 0.15s ease-out",
+          }}
+          className="flex items-center justify-center max-w-full text-duck-300"
+        >
+          <KaTeXRender formula={formula || "E = mc^2"} displayMode={true} />
+        </div>
       </div>
 
       {/* Interactive LaTeX Code Input & Presets */}
@@ -1168,13 +1544,18 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Copy Button */}
+          {/* Static Language Badge for Print */}
+          <span className="hidden print:inline-block font-mono text-[10px] font-bold uppercase tracking-wider text-ink-600 border border-ink-400/60 rounded px-1.5 py-0.5">
+            {activeLangObj.label || activeLangId}
+          </span>
+
+          {/* Copy Button (Screen Only) */}
           <button
             type="button"
             onClick={handleCopy}
             onMouseDown={(e) => e.stopPropagation()}
             title="Copy code snippet"
-            className="flex items-center gap-1 rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 pointer-events-auto relative z-20"
+            className="flex items-center gap-1 rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 pointer-events-auto relative z-20 print:hidden"
           >
             {copied ? (
               <>
@@ -1189,8 +1570,8 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
             )}
           </button>
 
-          {/* 10-Language Selector Dropdown */}
-          <div className="relative pointer-events-auto z-20">
+          {/* 10-Language Selector Dropdown (Screen Only) */}
+          <div className="relative pointer-events-auto z-20 print:hidden">
             <select
               value={activeLangId}
               onChange={(e) => handleSelectLang(e.target.value)}
@@ -1242,7 +1623,309 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   );
 }
 
+// ─── Table Cell Component (Rich Markdown & Inline KaTeX Editable Cell) ──────
+function TableCell({
+  id,
+  value = "",
+  isHeader = false,
+  placeholder = "...",
+  onChange,
+  onKeyDown,
+  onDelete,
+}) {
+  const cellRef = useRef(null);
+
+  useEffect(() => {
+    if (cellRef.current) {
+      const currentDomText = getBlockTextFromDOM(cellRef.current);
+      if (currentDomText !== value) {
+        setBlockDOMFromText(cellRef.current, value || "");
+      }
+    }
+  }, [value]);
+
+  const handleInput = () => {
+    if (cellRef.current) {
+      const newText = getBlockTextFromDOM(cellRef.current);
+      onChange(newText);
+    }
+  };
+
+  const handleBlur = () => {
+    if (cellRef.current) {
+      setBlockDOMFromText(cellRef.current, value || "");
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-1 w-full">
+      <div
+        id={id}
+        ref={cellRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onBlur={handleBlur}
+        onKeyDown={onKeyDown}
+        onClick={(e) => e.stopPropagation()}
+        data-placeholder={placeholder}
+        className={`w-full outline-none transition-colors rounded px-1.5 py-1 min-h-[1.5em] empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+          isHeader
+            ? "font-semibold text-duck-300 focus:text-duck-200 focus:bg-ink-800/80"
+            : "text-ink-100 focus:text-duck-200 focus:bg-ink-900/80"
+        }`}
+      />
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          title={isHeader ? "Delete column" : "Delete row"}
+          className={`opacity-0 ${
+            isHeader ? "group-hover/th:opacity-100" : "group-hover/tr:opacity-100"
+          } rounded px-1 text-[10px] text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-opacity print:hidden cursor-pointer shrink-0`}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Table Block Component (Interactive Matrix / Grid Table) ─────────
+function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+  const normData = useMemo(() => {
+    return getNormalizedTableData(block.tableData, block.content);
+  }, [block.tableData, block.content]);
+
+  const [tableData, setTableData] = useState(normData);
+
+  useEffect(() => {
+    setTableData(normData);
+  }, [normData]);
+
+  const updateAndSave = (newData) => {
+    setTableData(newData);
+    onUpdateBlock(block.id, { tableData: newData, content: "" }, true);
+  };
+
+  const handleCellChange = (rowIndex, colIndex, value, isHeader = false) => {
+    if (isHeader) {
+      const newHeaders = [...tableData.headers];
+      newHeaders[colIndex] = value;
+      updateAndSave({ ...tableData, headers: newHeaders });
+    } else {
+      const newRows = tableData.rows.map((r, rIdx) => {
+        if (rIdx !== rowIndex) return r;
+        const newRow = [...r];
+        newRow[colIndex] = value;
+        return newRow;
+      });
+      updateAndSave({ ...tableData, rows: newRows });
+    }
+  };
+
+  const addColumn = () => {
+    const colNumber = tableData.headers.length + 1;
+    const newHeaders = [...tableData.headers, `Column ${colNumber}`];
+    const newRows = tableData.rows.map((r) => [...r, ""]);
+    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows });
+  };
+
+  const removeColumn = (colIndex) => {
+    if (tableData.headers.length <= 1) return;
+    const newHeaders = tableData.headers.filter((_, idx) => idx !== colIndex);
+    const newRows = tableData.rows.map((r) => r.filter((_, idx) => idx !== colIndex));
+    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows });
+  };
+
+  const addRow = (insertIndex = null) => {
+    const emptyRow = Array(tableData.headers.length).fill("");
+    let newRows;
+    if (insertIndex !== null && insertIndex >= 0) {
+      newRows = [...tableData.rows];
+      newRows.splice(insertIndex + 1, 0, emptyRow);
+    } else {
+      newRows = [...tableData.rows, emptyRow];
+    }
+    updateAndSave({ ...tableData, rows: newRows });
+  };
+
+  const removeRow = (rowIndex) => {
+    if (tableData.rows.length <= 1) return;
+    const newRows = tableData.rows.filter((_, idx) => idx !== rowIndex);
+    updateAndSave({ ...tableData, rows: newRows });
+  };
+
+  const handleCellKeyDown = (e, rowIndex, colIndex, isHeader = false) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const colCount = tableData.headers.length;
+      if (!e.shiftKey) {
+        if (isHeader) {
+          if (colIndex < colCount - 1) {
+            const nextEl = document.getElementById(`tbl_${block.id}_h_${colIndex + 1}`);
+            nextEl?.focus();
+          } else {
+            const nextEl = document.getElementById(`tbl_${block.id}_r_0_c_0`);
+            nextEl?.focus();
+          }
+        } else {
+          if (colIndex < colCount - 1) {
+            const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex}_c_${colIndex + 1}`);
+            nextEl?.focus();
+          } else if (rowIndex < tableData.rows.length - 1) {
+            const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_0`);
+            nextEl?.focus();
+          } else {
+            addRow();
+            setTimeout(() => {
+              const newEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_0`);
+              newEl?.focus();
+            }, 30);
+          }
+        }
+      } else {
+        if (isHeader) {
+          if (colIndex > 0) {
+            const prevEl = document.getElementById(`tbl_${block.id}_h_${colIndex - 1}`);
+            prevEl?.focus();
+          }
+        } else {
+          if (colIndex > 0) {
+            const prevEl = document.getElementById(`tbl_${block.id}_r_${rowIndex}_c_${colIndex - 1}`);
+            prevEl?.focus();
+          } else if (rowIndex > 0) {
+            const prevEl = document.getElementById(`tbl_${block.id}_r_${rowIndex - 1}_c_${colCount - 1}`);
+            prevEl?.focus();
+          } else {
+            const prevEl = document.getElementById(`tbl_${block.id}_h_${colCount - 1}`);
+            prevEl?.focus();
+          }
+        }
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (isHeader) {
+        const nextEl = document.getElementById(`tbl_${block.id}_r_0_c_${colIndex}`);
+        nextEl?.focus();
+      } else if (rowIndex < tableData.rows.length - 1) {
+        const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_${colIndex}`);
+        nextEl?.focus();
+      } else {
+        addRow();
+        setTimeout(() => {
+          const newEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_${colIndex}`);
+          newEl?.focus();
+        }, 30);
+      }
+    }
+  };
+
+  return (
+    <div
+      onClick={() => onSelect(block.id)}
+      className="group/tableblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40"
+    >
+      {/* Table Top Toolbar */}
+      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none">
+        <div className="flex items-center gap-2 flex-1 mr-4">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 text-xs font-bold text-duck-400 shrink-0">
+            ▦
+          </span>
+          <input
+            type="text"
+            value={block.title || ""}
+            onChange={(e) => onUpdateBlock(block.id, { title: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            className="print-content bg-transparent border-none outline-none text-xs font-semibold text-duck-300 placeholder:text-ink-500 w-full"
+            placeholder="Table title or caption (optional)..."
+          />
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 print:hidden">
+          <span className="text-[10px] font-mono font-medium text-ink-400 bg-ink-900 border border-ink-800 px-2 py-0.5 rounded">
+            {tableData.rows.length} × {tableData.headers.length}
+          </span>
+          <button
+            type="button"
+            onClick={addColumn}
+            title="Add Column to the right"
+            className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
+          >
+            <span>+</span> Column
+          </button>
+          <button
+            type="button"
+            onClick={() => addRow()}
+            title="Add Row to bottom"
+            className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
+          >
+            <span>+</span> Row
+          </button>
+        </div>
+      </div>
+
+      {/* Interactive Table Grid Container */}
+      <div className="overflow-x-auto p-3">
+        <table className="w-full border-collapse rounded-lg overflow-hidden border border-ink-800 bg-ink-950/60 text-xs">
+          {tableData.hasHeaderRow !== false && (
+            <thead>
+              <tr className="border-b border-ink-700 bg-ink-900">
+                {tableData.headers.map((head, colIdx) => (
+                  <th
+                    key={`h-${colIdx}`}
+                    className="group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 last:border-r-0"
+                  >
+                    <TableCell
+                      id={`tbl_${block.id}_h_${colIdx}`}
+                      value={head}
+                      isHeader={true}
+                      placeholder={`Header ${colIdx + 1}`}
+                      onChange={(val) => handleCellChange(0, colIdx, val, true)}
+                      onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
+                      onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
+                    />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {tableData.rows.map((row, rowIdx) => (
+              <tr
+                key={`r-${rowIdx}`}
+                className="group/tr border-b border-ink-800/70 transition-colors hover:bg-ink-900/40 last:border-b-0"
+              >
+                {tableData.headers.map((_, colIdx) => (
+                  <td
+                    key={`c-${colIdx}`}
+                    className="group/td relative border-r border-ink-800/70 px-3 py-1.5 text-ink-100 last:border-r-0"
+                  >
+                    <TableCell
+                      id={`tbl_${block.id}_r_${rowIdx}_c_${colIdx}`}
+                      value={row[colIdx] || ""}
+                      isHeader={false}
+                      placeholder="..."
+                      onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
+                      onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
+                      onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── Site Bookmark Component ─────────────────────────────────────────
+
 function SiteBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   const [urlInput, setUrlInput] = useState(block.url || "");
 
@@ -1324,7 +2007,7 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete }) {
             </div>
           </a>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 print:hidden">
             <button
               type="button"
               onClick={() => {
@@ -1770,7 +2453,7 @@ const EditorBlock = memo(function EditorBlock({
     if (contentRef.current) {
       const currentDomText = getBlockTextFromDOM(contentRef.current);
       if (currentDomText !== (block.content || "")) {
-        setBlockDOMFromText(contentRef.current, block.content || "");
+        setBlockDOMFromText(contentRef.current, block.content || "", block.type);
       }
     }
   }, [block.id, block.type, block.content]);
@@ -1808,7 +2491,9 @@ const EditorBlock = memo(function EditorBlock({
       { prefix: "***", type: "divider" },
       { prefix: "```", type: "code" },
       { prefix: "$$", type: "math" },
+      { prefix: "|| ", type: "table" },
     ];
+
 
     for (const sc of shortcuts) {
       if (text.startsWith(sc.prefix)) {
@@ -1960,6 +2645,7 @@ const EditorBlock = memo(function EditorBlock({
   }
   const typeStyles = {
     text: "text-[15px] leading-relaxed text-ink-200",
+    inlinemath: "text-[15px] leading-relaxed text-ink-200 my-0.5",
     h1: "text-3xl font-extrabold tracking-tight leading-snug text-ink-100 pt-3 pb-1.5 my-1.5",
     h2: "text-2xl font-bold tracking-tight leading-snug text-ink-100 pt-2.5 pb-1 my-1",
     h3: "text-xl font-semibold leading-snug text-ink-100 pt-2 pb-0.5 my-0.5",
@@ -1973,6 +2659,7 @@ const EditorBlock = memo(function EditorBlock({
 
   const placeholders = {
     text: isLast ? "Type something, or press '/' for commands…" : "",
+    inlinemath: "Inline equation $formula$…",
     h1: "Heading 1",
     h2: "Heading 2",
     h3: "Heading 3",
@@ -1985,6 +2672,7 @@ const EditorBlock = memo(function EditorBlock({
     quote: "Quote or citation…",
     code: "Write code…",
     math: "LaTeX formula…",
+    table: "Table…",
   };
 
   const Tag =
@@ -2093,7 +2781,11 @@ const EditorBlock = memo(function EditorBlock({
       ) : block.type === "code" ? (
         /* Code Snippet Block */
         <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
+      ) : block.type === "table" ? (
+        /* Interactive Grid Table Block */
+        <TableBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
       ) : block.type === "bullet" ? (
+
         /* 3. Bullet List */
         <div className="flex items-start gap-2.5">
           <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-400" />
@@ -2152,12 +2844,13 @@ const EditorBlock = memo(function EditorBlock({
         </div>
       ) : block.type === "toggle" ? (
         /* 6. Toggle / Collapsible Dropdown Block */
-        <div className="my-1 rounded-xl border border-ink-800 bg-ink-900/60 p-2.5 shadow-sm space-y-2 transition-all">
-          <div className="flex items-center gap-2">
+        <div className="group/toggleblk my-1 rounded-xl border border-ink-800 bg-ink-900/60 p-2.5 shadow-sm space-y-2 transition-all">
+          <div className="flex items-center gap-2 print:gap-1">
+            <span className="hidden print:inline-block font-bold text-xs text-ink-600 shrink-0 ml-3 mr-1.5">▶</span>
             <button
               type="button"
               onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden"
               title="Toggle Dropdown Section"
             >
               {block.open === false ? "▶" : "▼"}
@@ -2173,13 +2866,14 @@ const EditorBlock = memo(function EditorBlock({
               data-placeholder={placeholders.toggle}
               className={`min-h-[1.5em] flex-1 font-semibold text-ink-100 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
             />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 px-2 py-0.5 rounded border border-ink-800 bg-ink-950">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 px-2 py-0.5 rounded border border-ink-800 bg-ink-950 print:hidden">
               {block.open === false ? "Collapsed" : "Expanded"}
             </span>
           </div>
 
+          {/* 1. Screen Interactive Textarea: Shown only when open on screen */}
           {block.open !== false && (
-            <div className="ml-7 rounded-lg border-l-2 border-duck-500/40 bg-ink-850/70 p-3 text-xs leading-relaxed text-ink-200 animate-fade-in">
+            <div className="ml-7 rounded-lg border-l-2 border-duck-500/40 bg-ink-850/70 p-3 text-xs leading-relaxed text-ink-200 animate-fade-in print:hidden">
               <textarea
                 value={block.details ?? block.toggleContent ?? ""}
                 onChange={(e) => onUpdateBlock(block.id, { details: e.target.value })}
@@ -2187,6 +2881,13 @@ const EditorBlock = memo(function EditorBlock({
                 rows={3}
                 className="w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-y min-h-[3rem]"
               />
+            </div>
+          )}
+
+          {/* 2. Print-Only Details Container: ALWAYS rendered in DOM for every toggle block, unconditionally visible in print/PDF */}
+          {(Boolean(block.details) || Boolean(block.toggleContent)) && (
+            <div className="toggle-print-details hidden print:block text-xs text-ink-900 whitespace-pre-wrap leading-relaxed font-sans">
+              {block.details ?? block.toggleContent ?? ""}
             </div>
           )}
         </div>
@@ -2915,7 +3616,12 @@ export default function BlockNoteEditor({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showBannerPicker, setShowBannerPicker] = useState(false);
+  const [isReformatting, setIsReformatting] = useState(false);
+  const [reformatProgress, setReformatProgress] = useState(null);
+  const [reformatToast, setReformatToast] = useState(null);
+
   const [blocks, setBlocks] = useState(() =>
+
     initialBlocks && initialBlocks.length > 0
       ? initialBlocks
       : [{ id: "blk_default_init_0", type: "text", content: "" }]
@@ -3546,7 +4252,85 @@ export default function BlockNoteEditor({
     [selectedId, handleChange]
   );
 
+  const handleIntelligentReformat = useCallback(async () => {
+    if (isReformatting) return;
+
+    const currentBlocks = blocksRef.current || [];
+    const hasContent = currentBlocks.some(
+      (b) => (b.content && b.content.trim().length > 0) || (b.details && b.details.trim().length > 0)
+    );
+
+    if (!hasContent && !title.trim()) {
+      setReformatToast({ message: "Note is empty — write some notes first!", type: "error" });
+      setTimeout(() => setReformatToast(null), 3500);
+      return;
+    }
+
+    setIsReformatting(true);
+    setReformatProgress(null);
+    setReformatToast(null);
+
+    try {
+      setPastBlocks((p) => [...p.slice(-30), currentBlocks]);
+      setFutureBlocks([]);
+
+      const res = await reformatNoteContent({
+        title,
+        blocks: currentBlocks,
+        onProgress: (prog) => {
+          setReformatProgress(prog);
+        },
+      });
+
+      if (res?.reformatted) {
+        const { title: newTitle, emoji: newEmoji, blocks: newBlocks } = res.reformatted;
+
+        if (newBlocks && newBlocks.length > 0) {
+          setBlocks(newBlocks);
+        }
+        if (newTitle) {
+          setTitle(newTitle);
+        }
+        if (newEmoji && !emoji) {
+          setEmoji(newEmoji);
+        }
+
+        const effectiveTitle = newTitle || title;
+        const effectiveEmoji = emoji || newEmoji || null;
+        const effectiveBlocks = newBlocks && newBlocks.length > 0 ? newBlocks : currentBlocks;
+
+        onSaveNote?.({
+          title: effectiveTitle,
+          blocks: effectiveBlocks,
+          banner,
+          isFavorite,
+          emoji: effectiveEmoji,
+        });
+
+        setReformatToast({
+          message: res.isHeuristic
+            ? "✨ Note structured & reformatted! (Ctrl+Z to undo)"
+            : "✨ AI reformatted note into structured blocks! (Ctrl+Z to undo)",
+          type: "success",
+        });
+        setTimeout(() => setReformatToast(null), 4000);
+      }
+    } catch (err) {
+      console.error("Failed to reformat note:", err);
+      setReformatToast({
+        message: err?.message || "Failed to reformat note.",
+        type: "error",
+      });
+      setTimeout(() => setReformatToast(null), 4000);
+    } finally {
+      setIsReformatting(false);
+      setReformatProgress(null);
+    }
+  }, [isReformatting, title, emoji, banner, isFavorite, onSaveNote]);
+
+
   const handleKeyDown = useCallback(
+
     (e, blockId) => {
       if (e.key === "Backspace") {
         const block = blocks.find((b) => b.id === blockId);
@@ -3868,12 +4652,12 @@ export default function BlockNoteEditor({
       )}
       {banner && (
         <div
-          className={`group relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all ${banner.startsWith("data:image/") ? "" : (activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600")}`}
+          className={`group relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all print:hidden ${banner.startsWith("data:image/") ? "" : (activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600")}`}
           style={banner.startsWith("data:image/") ? { backgroundImage: `url(${banner})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
         />
       )}
 
-      <div className={`absolute right-6 ${banner ? "top-4" : "top-3"} z-30 flex items-center gap-2`}>
+      <div className={`absolute right-6 ${banner ? "top-4" : "top-3"} z-30 flex flex-col items-end gap-2 print:hidden`}>
         <div className="relative" ref={bannerPickerRef}>
           <button
             type="button"
@@ -3947,12 +4731,59 @@ export default function BlockNoteEditor({
             </div>
           )}
         </div>
+
+        {/* Intelligent AI Note Reformat Button — placed directly below Change Cover button */}
+        <div className="flex items-center gap-2">
+          {reformatToast && (
+            <span
+              className={`animate-fade-in inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium border shadow-md backdrop-blur-md ${
+                reformatToast.type === "error"
+                  ? "border-rose-500/30 bg-rose-500/20 text-rose-300"
+                  : "border-duck-500/30 bg-duck-500/20 text-duck-300"
+              }`}
+            >
+              {reformatToast.message}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleIntelligentReformat}
+            disabled={isReformatting}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur-md transition-all ${
+              banner
+                ? "border-white/30 bg-ink-950/40 text-white opacity-60 hover:opacity-100 hover:bg-ink-950/80 hover:border-white/50"
+                : "border-ink-700 bg-ink-900/90 text-ink-300 hover:border-duck-500/40 hover:text-duck-300 hover:bg-duck-500/5 active:scale-95"
+            } ${
+              isReformatting ? "border-duck-500/60 bg-duck-500/10 text-duck-300 cursor-wait animate-pulse" : ""
+            }`}
+            title="Intelligently read whole note and reformat into structured headings, callouts, math formulas, toggles, tables & checklists"
+          >
+            {isReformatting ? (
+              <>
+                <span className="inline-block animate-spin">🪄</span>
+                <span>
+                  {reformatProgress && reformatProgress.total > 1
+                    ? `Part ${reformatProgress.current}/${reformatProgress.total}...`
+                    : "Reformatting..."}
+                </span>
+              </>
+            ) : (
+              <>
+                <span>✨</span>
+                <span>Reformat Note</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+
 
       {/* Main Note Content Container */}
       <div
         data-editor-root
-        className="relative mx-auto max-w-3xl px-10 pt-4 pb-20 cursor-text"
+        className="relative mx-auto max-w-3xl px-10 pt-4 pb-20 cursor-text print:px-0 print:pt-0 print:pb-0"
         onClick={(e) => {
           if (e.target === e.currentTarget && blocks.length > 0) {
             const lastBlock = blocks[blocks.length - 1];
@@ -3970,9 +4801,17 @@ export default function BlockNoteEditor({
           }
         }}
       >
-        {/* Controls Bar Below Banner: Add Icon, Note Menu & Quick Actions */}
-        <div className="mb-4 pl-8 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        {/* Print-Only Clean Document Title & Icon Header (Auto-wraps, never cut off) */}
+        <div className="hidden print:block mb-4 pt-0">
+          {emoji && <div className="text-4xl mb-1 leading-none">{emoji}</div>}
+          <h1 className="text-3xl font-extrabold tracking-tight text-black leading-tight break-words">
+            {title || "Untitled Note"}
+          </h1>
+        </div>
+
+        {/* Controls Bar Below Banner: Add Icon, AI Reformat & Quick Actions */}
+        <div className="mb-4 pl-8 flex items-center justify-between print:hidden">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <div className="relative" ref={emojiPickerRef}>
               <button
                 type="button"
@@ -4020,18 +4859,19 @@ export default function BlockNoteEditor({
                 </div>
               )}
             </div>
-
           </div>
         </div>
 
-        {/* Notion Large Note Icon & Title Input */}
-        <div className="mb-6 pl-8">
+
+
+        {/* Notion Large Note Icon & Title Input (Interactive Screen Mode Only) */}
+        <div className="mb-6 pl-8 print:hidden">
           {emoji && (
             <div className="mb-2">
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="print-content text-5xl leading-none transition-transform hover:scale-105"
+                className="text-5xl leading-none transition-transform hover:scale-105"
                 title="Change Icon"
               >
                 {emoji}
@@ -4053,7 +4893,7 @@ export default function BlockNoteEditor({
               }
             }}
             placeholder="Untitled Note"
-            className="print-content w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem]"
+            className="w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem]"
           />
         </div>
 

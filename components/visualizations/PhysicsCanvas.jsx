@@ -127,7 +127,7 @@ const along = (origin, dir, d) => [origin[0] + dir[0] * d, origin[1] + dir[1] * 
  * Photon following the whole polyline. Its speed on each leg is c/n, so it
  * visibly slows inside the block and speeds back up on the way out.
  */
-function PhotonPulse({ path, speeds, color, running }) {
+function PhotonPulse({ path, speeds, color, running, animSpeed = 1 }) {
   const mesh = useRef(null);
   const light = useRef(null);
   const progress = useRef(0);
@@ -135,13 +135,23 @@ function PhotonPulse({ path, speeds, color, running }) {
 
   const points = useMemo(() => path.map((p) => new THREE.Vector3(...p)), [path]);
   const legs = points.length - 1;
+  const legLengths = useMemo(() => {
+    const lens = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      lens.push(Math.max(0.01, points[i].distanceTo(points[i + 1])));
+    }
+    return lens;
+  }, [points]);
 
   useFrame((_, delta) => {
     if (!mesh.current || legs < 1) return;
     const step = Math.min(delta, 0.05);
     if (running) {
       const leg = Math.min(legs - 1, Math.floor(progress.current));
-      progress.current = (progress.current + step * (speeds[leg] ?? 1)) % legs;
+      const legLen = legLengths[leg] || 1;
+      const speedUnitsPerSec = 4.2 * (speeds[leg] ?? 1) * animSpeed;
+      const fracDelta = (step * speedUnitsPerSec) / legLen;
+      progress.current = (progress.current + fracDelta) % legs;
     }
     const leg = Math.min(legs - 1, Math.floor(progress.current));
     scratch.lerpVectors(points[leg], points[leg + 1], progress.current - leg);
@@ -220,6 +230,7 @@ export function RefractionScene({ params = {} }) {
     showReflection = true,
     showLabels = true,
     animate = true,
+    speed = 1.0,
   } = params || {};
 
   const { i, r, e, tir, critical, lateral, run, reflectance } = solveBlock(
@@ -277,7 +288,7 @@ export function RefractionScene({ params = {} }) {
   const name2 = mediumName(medium2, n2);
 
   return (
-    <SceneCanvas camera={{ position: [1.5, 1.5, 13], fov: 45 }} controls={{ autoRotate: params.spin !== false }} fog={[22, 44]}>
+    <SceneCanvas camera={{ position: [1.5, 1.5, 13], fov: 45 }} controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed }} fog={[22, 44]}>
      <group scale={fit}>
       {/* ── Medium 1: everything outside the block ───────────────── */}
       <mesh position={[0, halfT + 5, 0]} renderOrder={-3}>
@@ -530,7 +541,13 @@ export function RefractionScene({ params = {} }) {
         />
       ))}
 
-      <PhotonPulse path={photonPath} speeds={photonSpeeds} color={beam} running={animate} />
+      <PhotonPulse
+        path={photonPath}
+        speeds={photonSpeeds}
+        color={beam}
+        running={animate}
+        animSpeed={params.speed ?? 1}
+      />
 
       {/* ── Medium captions ──────────────────────────────────────── */}
       <SceneLabel position={[-halfW + 1.4, halfT + 1.5, 0]} tone="text-ink-200">
@@ -1236,6 +1253,7 @@ export function MotorEffectScene({ params = {} }) {
     reverseField = false,
     showFieldLines = true,
     animate = true,
+    speed = 1.0,
   } = params || {};
 
   // B runs from the N pole to the S pole; I runs along the second finger.
@@ -1254,20 +1272,26 @@ export function MotorEffectScene({ params = {} }) {
   const currentDir = [0, 0, iSign];
   const forceDir = [0, fSign, 0];
 
-  // Each vector leaves just beyond its fingertip, on the same line as the
-  // finger (hand local coords × the 1.15 hand scale), so it reads as that
-  // finger continuing outward rather than as a separate arrow nearby.
+  // Apply robotic hand rotation matrix to base fingertip local positions so vector arrows
+  // remain firmly anchored to the fingers under all polarity configurations.
+  const transformHandPoint = ([x, y, z], b, i) => {
+    if (b > 0 && i > 0) return [x, y, z];
+    if (b < 0 && i > 0) return [-x, -y, z];  // rot [0, 0, PI]
+    if (b > 0 && i < 0) return [x, -y, -z];  // rot [PI, 0, 0]
+    return [-x, y, -z];                      // rot [0, PI, 0]
+  };
+
   const fieldStart = useMemo(
-    () => [bSign * 2.05, 0.38, -0.4],
-    [bSign],
+    () => transformHandPoint([2.05, 0.38, -0.4], bSign, iSign),
+    [bSign, iSign],
   );
   const currentStart = useMemo(
-    () => [0.37, 0.09, iSign * 1.95],
-    [iSign],
+    () => transformHandPoint([0.37, 0.09, 1.95], bSign, iSign),
+    [bSign, iSign],
   );
   const forceStart = useMemo(
-    () => [-0.8, fSign * 1.7, -0.61],
-    [fSign],
+    () => transformHandPoint([-0.8, 1.7, -0.61], bSign, iSign),
+    [bSign, iSign],
   );
 
   const AXIS = 4.2;
@@ -1304,7 +1328,7 @@ export function MotorEffectScene({ params = {} }) {
         dir={fieldDir}
         length={AXIS}
         color={PALETTE.sky}
-        speed={0.22 + field * 0.34}
+        speed={(0.22 + field * 0.34) * (params.speed ?? 1)}
         count={4}
         running={animate}
       />
@@ -1323,7 +1347,7 @@ export function MotorEffectScene({ params = {} }) {
         dir={currentDir}
         length={AXIS}
         color={PALETTE.gold}
-        speed={0.24 + current * 0.42}
+        speed={(0.24 + current * 0.42) * (params.speed ?? 1)}
         count={5}
         running={animate}
       />
@@ -1344,7 +1368,7 @@ export function MotorEffectScene({ params = {} }) {
             dir={forceDir}
             length={clamp(1.6 + force * 1.3, 1.6, AXIS)}
             color={PALETTE.emerald}
-            speed={0.2 + force * 0.4}
+            speed={(0.2 + force * 0.4) * (params.speed ?? 1)}
             count={3}
             running={animate}
           />
@@ -1505,6 +1529,7 @@ export function LensOpticsScene({ params = {} }) {
     focal = 3.0,
     objectDistance = 5.0,
     showConstruction = true,
+    speed = 1.0,
   } = params || {};
 
   const isConvex = lensType === "convex";
@@ -2168,7 +2193,7 @@ const MAX_PARTICLES = 140;
 // Fixed cross-section; only the piston travel changes, so volume ∝ length.
 const BORE = 2.1;
 
-function GasParticles({ count, temperature, halfLength, onCollisionRate }) {
+function GasParticles({ count, temperature, halfLength, onCollisionRate, animSpeed = 1 }) {
   const mesh = useRef(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const collisions = useRef(0);
@@ -2193,13 +2218,13 @@ function GasParticles({ count, temperature, halfLength, onCollisionRate }) {
 
   useFrame((_, delta) => {
     if (!mesh.current) return;
-    const step = Math.min(delta, 0.04);
+    const step = Math.min(delta, 0.04) * animSpeed;
     // Mean speed rises with √T — the kinetic-theory result behind Charles's law.
     const target = 1.35 * Math.sqrt(temperature / 300);
     const radius = 0.13;
     // The piston face is the only wall that moves; the bore is fixed.
-    const wallX = halfLength - radius;
-    const wallYZ = BORE - radius;
+    const wallX = Math.max(0.12, halfLength - radius);
+    const wallYZ = Math.max(0.12, BORE - radius);
     const { pos, vel, share } = bodies;
 
     for (let i = 0; i < count; i += 1) {
@@ -2286,6 +2311,7 @@ export function GasLawsScene({ params = {} }) {
     temperature = 300,
     volume = 1.0,
     particles = 60,
+    speed = 1.0,
   } = params || {};
   const [rate, setRate] = useState(0);
 
@@ -2310,7 +2336,7 @@ export function GasLawsScene({ params = {} }) {
   const pV = pressure * volume;
 
   return (
-    <SceneCanvas camera={{ position: [4, 3.5, 11], fov: 45 }} controls={{ autoRotate: params.spin !== false }}>
+    <SceneCanvas camera={{ position: [4, 3.5, 11], fov: 45 }} controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed }}>
       {/* Translucent glass container chamber */}
       <mesh>
         <boxGeometry args={[bodyLength, BORE * 2, BORE * 2]} />
@@ -2366,6 +2392,7 @@ export function GasLawsScene({ params = {} }) {
         temperature={temperature}
         halfLength={halfLength}
         onCollisionRate={setRate}
+        animSpeed={params.speed ?? 1}
       />
 
       <SceneReadout
@@ -2516,7 +2543,7 @@ function simulateFlight(speed, angleDeg, gravity, drag, mass) {
 }
 
 /** Walks the recorded samples in real time and drives the ball + vectors. */
-function Projectile({ flight, scale, running, replayKey, showVectors, onSample }) {
+function Projectile({ flight, scale, running, replayKey, showVectors, onSample, animSpeed = 1 }) {
   const ball = useRef(null);
   const clock = useRef(0);
   const [vectors, setVectors] = useState(null);
@@ -2527,7 +2554,7 @@ function Projectile({ flight, scale, running, replayKey, showVectors, onSample }
   }, [flight, replayKey]);
 
   useFrame((_, delta) => {
-    if (running) clock.current += Math.min(delta, 0.05);
+    if (running) clock.current += Math.min(delta, 0.05) * animSpeed;
     // Hold on the last frame rather than looping: the landing point is the
     // number the scene is mostly about.
     const t = Math.min(clock.current, flight.flightTime);
@@ -2593,8 +2620,10 @@ function Projectile({ flight, scale, running, replayKey, showVectors, onSample }
 }
 
 export function ProjectileScene({ params = {} }) {
+  const launchSpeed = params.launchSpeed ?? 22;
+  const animSpeed = params.speed ?? 1.0;
+  const speed = launchSpeed;
   const {
-    speed = 22,
     angle = 45,
     gravity = 9.81,
     drag = 0.04,
@@ -2638,7 +2667,7 @@ export function ProjectileScene({ params = {} }) {
   );
 
   return (
-    <SceneCanvas camera={{ position: [3.4, 3.2, 12], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [3.4, 3.2, 12], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * animSpeed }}>
       <Grid
         args={[24, 14]}
         cellSize={0.5}
@@ -2673,6 +2702,7 @@ export function ProjectileScene({ params = {} }) {
         replayKey={replay}
         showVectors={showVectors}
         onSample={setLive}
+        animSpeed={animSpeed}
       />
 
       {/* Landing markers, so the two ranges can be read off the ground. */}
@@ -2757,6 +2787,7 @@ function InterferenceField({ sources, wavelength, amplitude, speed }) {
   const crest = useMemo(() => new THREE.Color(PALETTE.gold), []);
   const trough = useMemo(() => new THREE.Color(PALETTE.violet), []);
   const flat = useMemo(() => new THREE.Color("#16202e"), []);
+  const scratch = useMemo(() => new THREE.Color(), []);
 
   useFrame((_, delta) => {
     clock.current += Math.min(delta, 0.05) * speed;
@@ -2765,7 +2796,6 @@ function InterferenceField({ sources, wavelength, amplitude, speed }) {
     const omega = k * 2.2;
     const pos = geometry.attributes.position;
     const col = geometry.attributes.color;
-    const scratch = new THREE.Color();
 
     for (let i = 0; i < pos.count; i += 1) {
       const x = pos.getX(i);
@@ -2855,7 +2885,7 @@ export function InterferenceScene({ params = {} }) {
   const highestOrder = slits === 2 ? Math.floor(separation / wavelength) : 0;
 
   return (
-    <SceneCanvas camera={{ position: [0, 8.5, 11.5], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 8.5, 11.5], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       <InterferenceField sources={sources} wavelength={wavelength} amplitude={amplitude} speed={speed} />
 
       {/* The barrier, with a gap at each slit. */}
@@ -2995,7 +3025,7 @@ function GravityWell({ mass }) {
  * every orbit and the ellipse visibly spirals in — leapfrog is symplectic, so
  * a closed orbit stays closed for as long as you leave it running.
  */
-function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTrail, onSample }) {
+function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTrail, onSample, speed = 1 }) {
   const body = useRef(null);
   const trailLine = useRef(null);
   const trailGeo = useRef(null);
@@ -3018,7 +3048,7 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
 
   useFrame((_, delta) => {
     const s = state.current;
-    const step = Math.min(delta, 0.033);
+    const step = Math.min(delta, 0.033) * speed;
 
     if (running && !s.escaped) {
       const substeps = 4;
@@ -3109,6 +3139,7 @@ export function OrbitScene({ params = {} }) {
     mass = 1,
     launchRadius = 3.4,
     launchSpeed = 1.35,
+    speed = 1.0,
     running = true,
     reset = 0,
     showTrail = true,
@@ -3144,7 +3175,7 @@ export function OrbitScene({ params = {} }) {
       : "elliptical";
 
   return (
-    <SceneCanvas camera={{ position: [0, 9.5, 11], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 9.5, 11], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       {showWell && <GravityWell mass={mass} />}
 
       {/* Central body, sunk to the bottom of its own well. */}
@@ -3164,6 +3195,7 @@ export function OrbitScene({ params = {} }) {
         resetKey={reset}
         showTrail={showTrail}
         onSample={setLive}
+        speed={speed}
       />
 
       <SceneLabel position={[0, 1.5, 0]} accent>
@@ -3223,8 +3255,8 @@ const SCENES = {
   orbits: OrbitScene,
 };
 
-export default function PhysicsCanvas({ topicId, params }) {
+export default function PhysicsCanvas({ topicId, params, setParam, onOpenQuiz }) {
   const Scene = SCENES[topicId];
   if (!Scene) return null;
-  return <Scene params={params} />;
+  return <Scene params={params} setParam={setParam} onOpenQuiz={onOpenQuiz} />;
 }

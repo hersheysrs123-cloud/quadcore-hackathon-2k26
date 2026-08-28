@@ -101,17 +101,44 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
 
 ### 4. BlockNoteEditor (`BlockNoteEditor.jsx`)
 - **Page Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*.
-- **Top Right Cover Button**: Positioned at top-right (`right-6 top-3/top-4`). Renders as a translucent glassmorphic button over active cover banners (`bg-ink-950/40 opacity-60 hover:opacity-100`).
-- **18 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Canvas Whiteboard.
+- **Top Right Banner Controls**: Positioned at top-right (`right-6 top-3/top-4`) as a stacked column (`flex flex-col items-end gap-2 print:hidden`):
+  - **Cover Button**: Renders as a translucent glassmorphic button (`bg-ink-950/40 opacity-60 hover:opacity-100`) to `Add Cover Banner` or `Change Cover`.
+  - **Intelligent Reformat Button**: Positioned directly beneath the Change Cover button with `✨ Reformat Note` (and `🪄 Reformatting Note...` processing state) and contextual animated toast badges.
+- **Left Controls Bar Below Banner**: Aligned with note content (`mb-4 pl-8 flex items-center gap-2.5 flex-wrap print:hidden`), housing the Note Icon picker (`Add Icon` / `Change Icon`).
+
+- **19 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Table Grid Block, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Canvas Whiteboard.
+- **Table Grid Block Design Specs**:
+  - Container: `group/tableblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40`.
+  - Header Toolbar: `flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none`, with `▦` icon badge (`bg-duck-500/20 text-duck-400`), editable table caption, dimension badge (`{rows} × {cols}`), and `+ Column` / `+ Row` action buttons.
+  - Table Grid: `border-collapse rounded-lg overflow-hidden border border-ink-800 bg-ink-950/60 text-xs`.
+  - Headers (`th`): `border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 bg-ink-900` with hover delete column button (`text-rose-400 hover:bg-rose-500/20`).
+  - Cells (`td`): `border-r border-ink-800/70 px-3 py-1.5 text-ink-100` hosting rich `TableCell` `contentEditable` elements with live Markdown (bold, italic, code, strikethrough, highlight) and KaTeX equation formatting, focus highlights (`focus:text-duck-200 focus:bg-ink-900/80`), and hover row deletion controls (`text-rose-400 hover:bg-rose-500/20`).
+
+  - Keyboard Navigation: `Tab` / `Shift+Tab` across cells/rows with automatic row creation on bottom right cell; `Enter` to step down columns.
 - **Slash Menu (`/`)**: Floating block-type picker menu.
 - **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>, <s>S</s>, $x$).
 - **Draggable 6-Dots Handle (`⠿`)**: Drag to reorder blocks with `duck-400` drop target; click to open the context menu.
+
+
 
 ### 5. Settings & Factory Reset (`Sidebar.jsx`)
 - **Shortcuts Tab**: Reference for all global keyboard shortcuts (`Ctrl+K`, `Ctrl+I`, `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `/`).
 - **3D & Graphics Tab**: Performance presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
 - **API Keys Tab**: Personal Google Gemini API key configuration stored 100% privately in Dexie IndexedDB.
 - **Backup & Reset Tab**: Export/import `.socratic` JSON packages and table-targeted factory reset with math captcha verification.
+
+### 6. Modal Dialogs & Overlay Layouts
+- **Backdrop**: `fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in`.
+- **Dialog Container**: `relative w-full max-w-2xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl transition-all my-auto`.
+- **Header & Footer**: Always attach `shrink-0` to modal header and footer components (`bg-ink-950/60 border-ink-800`) to guarantee they never compress or push off-screen.
+- **Scrollable Body**: Container body must declare `overflow-y-auto flex-1 min-h-0` to isolate scrolling to the modal content area without expanding the dialog beyond the viewport.
+
+### 7. Print Stylesheet & PDF Export (`@media print`)
+- **Page Layout**: Set to A4 with `margin: 1.2cm 1.5cm` and all interactive chrome (`aside`, `header`, `nav`, `button:not(.print-content)`, modals, timer HUDs, drag handles) blanket-hidden.
+- **Print Header**: Note icon and note title auto-wrap cleanly via print-rendered `<h1>` without `<input>` truncation or banner whitespace voids.
+- **Code Block Formatting**: Light card background (`#f8fafc border border-ink-200`) with no inline `<code>` double-border striping.
+- **LaTeX Math Scaling**: Equations auto-scale via `clamp(8pt, 1.6vw, 11.5pt)` with complete suppression of horizontal scrollbars.
+- **Toggles & Site Bookmarks**: Details text renders as clean pre-wrapped text; interactive status badges and duplicate link URLs are suppressed.
 
 ---
 
@@ -121,3 +148,6 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
 2. **Never Hardcode Fixed Colors**: Avoid hardcoding raw hex codes like `#000000` or `#ffffff` in components so that Light Mode and Dark Mode render correctly.
 3. **SSR Hydration Guard**: Use a `mounted` state (`const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);`) before consuming client-only APIs (`localStorage`, `window`, Dexie).
 4. **Local-First Database Persistence**: Ensure new data models sync with Dexie.js (`lib/db.js` & `lib/storageService.js`) and gracefully fall back during offline usage.
+5. **Modal Viewport Bounds**: Modal dialogs must use `max-h-[calc(100vh-2rem)] flex flex-col` and `shrink-0` on headers/footers to prevent clipping on compact displays.
+6. **Print & PDF Content Guarantees**: Any user-created note content (titles, toggle details, LaTeX formulas, code snippets) must render cleanly in `@media print` without reliance on interactive form controls or fixed-height containers.
+

@@ -89,6 +89,8 @@ function buildFrames(values, algorithm) {
       push([i], "pick");
       while (j >= 0) {
         comparisons += 1;
+        // Temporarily put key in the current insertion hole j+1 so the comparison frame shows key vs a[j]
+        a[j + 1] = key;
         push([j, j + 1], "compare");
         if (a[j] <= key) break;
         a[j + 1] = a[j];
@@ -161,7 +163,15 @@ function buildFrames(values, algorithm) {
           l += 1;
         } else {
           comparisons += 1;
-          push([l, r], "compare");
+          // In the visualization snapshot, ensure unmerged items in [k..hi] reflect buffer elements
+          // so comparing l and r highlights the actual candidate values
+          const prevArr = [...a];
+          let fillIdx = k;
+          for (let p = l; p <= mid; p += 1) a[fillIdx++] = buffer[p];
+          for (let p = r; p <= hi; p += 1) a[fillIdx++] = buffer[p];
+          push([k, k + (mid - l + 1)], "compare");
+          for (let p = lo; p <= hi; p += 1) a[p] = prevArr[p];
+
           if (buffer[l] <= buffer[r]) {
             a[k] = buffer[l];
             l += 1;
@@ -281,7 +291,7 @@ export function SortingScene({ params = {} }) {
   const info = ALGORITHM_META[algorithm] ?? ALGORITHM_META.bubble;
 
   return (
-    <SceneCanvas camera={{ position: [0, 4.6, 12.5], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 4.6, 12.5], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       <Grid
         args={[count * BAR_SPACING + 2, 6]}
         cellSize={0.46}
@@ -348,10 +358,10 @@ export function SortingScene({ params = {} }) {
 
 // ─── Dispatcher ─────────────────────────────────────────────────────
 
-export default function CSCanvas({ topicId, params, onOpenQuiz }) {
+export default function CSCanvas({ topicId, params, setParam, onOpenQuiz }) {
   // The tree ships its own controls, so it takes the whole viewport; the
   // sorting scene is driven by the shared HUD like every other topic.
   if (topicId === "binary_tree") return <BinaryTree3D onOpenQuiz={onOpenQuiz} />;
-  if (topicId === "sorting") return <SortingScene params={params} />;
+  if (topicId === "sorting") return <SortingScene params={params} setParam={setParam} onOpenQuiz={onOpenQuiz} />;
   return null;
 }

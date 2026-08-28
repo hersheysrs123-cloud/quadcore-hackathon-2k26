@@ -30,17 +30,18 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 ## ✨ Key Features & Capabilities
 
 ### 📝 1. Notion-Style Block Note Editor
-- **18 Block Types Supported**: Text, Heading 1 (`h1`), Heading 2 (`h2`), Heading 3 (`h3`), Heading 4 (`h4`), Bullet List, Numbered List (dynamic sequential indexing `1.`, `2.`), To-Do List (interactive checkboxes with strikethrough), Toggle List (collapsible arrow `▶`/`▼`), Callout Box (with 8 icon presets), Quote (thick accent border), LaTeX Math Equation block (live KaTeX rendering), Inline LaTeX Equation (`inlinemath` pills `$formula$`), Divider (`hr`), Site Bookmark Embed (clickable card with live favicon), Media Embed (Image, Audio `<audio controls>`, Video `<video controls>` with local file upload & URL support), Code Snippet (10-language syntax highlighting), and Canvas Whiteboard (`canvas` with 5 drawing tools & undo/redo).
+- **19 Block Types Supported**: Text, Heading 1 (`h1`), Heading 2 (`h2`), Heading 3 (`h3`), Heading 4 (`h4`), Bullet List, Numbered List (dynamic sequential indexing `1.`, `2.`), To-Do List (interactive checkboxes with strikethrough), Toggle List (collapsible arrow `▶`/`▼`), Callout Box (with 8 icon presets), Table (interactive grid table with dynamic cell editing, `+ Column`/`+ Row`, delete row/col, and `Tab` navigation), Quote (thick accent border), LaTeX Math Equation block (live KaTeX rendering), Inline LaTeX Equation (`inlinemath` pills `$formula$`), Divider (`hr`), Site Bookmark Embed (clickable card with live favicon), Media Embed (Image, Audio `<audio controls>`, Video `<video controls>` with local file upload & URL support), Code Snippet (10-language syntax highlighting), and Canvas Whiteboard (`canvas` with 5 drawing tools & undo/redo).
 - **In-Context Slash Menu (`/`)**: Typing `/` triggers a block-type selector directly underneath the active line.
 - **Draggable 6-Dots Handles (`⠿`) & Context Formatting**: Hovering blocks displays aligned delete (`🗑️`) and draggable `⠿` handles. Context popovers feature:
   - ✨ **Explain** / 🦆 **Quiz me** for that specific block.
   - **Inline Text Formatting**: Bold (`B`), Italic (`I`), Underline (`U`), Strikethrough (`S`), LaTeX Math ($x$).
-  - 🔄 **Turn Into Submenu**: Convert block into any of the 18 block types.
+  - 🔄 **Turn Into Submenu**: Convert block into any of the 19 block types.
   - 📋 **Duplicate Block**, ⬆️/⬇️ **Move Up/Down**, 📄 **Copy Content**.
 - **Cover Banners**: Full horizontal width note headers with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*).
 - **Custom Emoji Picker & Star Favorites (`⭐`)**: Assign note emojis and toggle star favorites to pin notes in the sidebar.
 - **Real-Time Note Stats**: Live character count, word count, total block count, and estimated reading time aggregated across block text, toggle details, and LaTeX formulas.
 - **Auto-Note Instantiation & Click-to-Append**: Typing inside an empty space automatically instantiates a new note; clicking blank space below blocks appends a new paragraph.
+
 
 ### 🔍 2. Universal Navigation & Instant Capture
 - **Command Palette (`Ctrl+K` / `Cmd+K`)**: Fuzzy-search notes across all spaces, open workspace tabs (Notes, Calendar, 3D Studio, Mastery Dashboard), or open settings.
@@ -48,29 +49,46 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 - **Quick Save (`Ctrl+S`)**: Explicit keyboard shortcut to instantly save notes.
 
 ### 🧪 3. Interactive 3D Visualization Studio
-A suite of 14 real-time interactive 3D science simulations built using Three.js, `@react-three/fiber`, and custom WebGL Canvas engines:
+A comprehensive suite of 24 real-time interactive 3D STEM simulations built using Three.js, `@react-three/fiber`, and custom WebGL Canvas engines with live calculated Details and complete Visual Color Keys:
 
-- ⚡ **Physics Engine** ([`PhysicsCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/PhysicsCanvas.jsx)):
-  - **Wave Refraction & Snell's Law**: Multi-medium ray tracing (Air, Water, Glass, Diamond, Perspex), critical angle calculations, and total internal reflection.
-  - **Motor Effect & Fleming's Left-Hand Rule**: Magnetic field flux lines, current conductors, and Lorentz force vectors.
+- ⚛️ **Physics Engine** ([`PhysicsCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/PhysicsCanvas.jsx)):
+  - **Wave Refraction & Snell's Law**: Multi-medium ray tracing (Air, Water, Glass, Diamond, Perspex), critical angle, total internal reflection, and Fresnel reflection rays.
+  - **Motor Effect & Fleming's Left-Hand Rule**: Magnetic flux lines, current conductors, Lorentz force vectors, and Fleming's left-hand rule.
   - **Thin Lens Optics & Ray Diagrams**: Convex/concave lenses, focal length controls, real/virtual images, and principal ray tracing.
-  - **Electromagnetic Induction**: Faraday/Lenz's law, moving dipole magnets, field lines, and galvanometer deflection.
+  - **Electromagnetic Induction**: Faraday/Lenz's law, rotating copper coils, magnetic pole blocks, induced AC current pulses, and real-time EMF waveform trace.
   - **Kinetic Gas Laws ($PV=nRT$)**: Kinetic particle container with collision vectors, temperature/volume controls, and pressure gauge readouts.
+  - **2D Projectile Motion**: Ballistic trajectory with quadratic air resistance, ideal parabola comparison, and velocity/weight vectors.
+  - **Wave Interference & Double Slits**: Two-source wave interference ripples, coherent slit emitters, double-slit barrier, and screen intensity fringe maxima.
+  - **Keplerian Orbits & Gravity Wells**: Gravitational spacetime potential well ($-GM/r$), central massive body, and orbiting satellites.
 
 - 🧪 **Chemistry Engine** ([`ChemistryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ChemistryCanvas.jsx)):
-  - **Bohr Atom & Emission Spectra**: Quantized electron shells (C1–C12, H to Ca), orbital transitions, and photon emission spectral lines.
-  - **Organic Chemistry Builder**: 6 homologous series (Alkanes, Alkenes, Alkynes, Alcohols, Carboxylic Acids, Esters) across carbon chain lengths **C1–C12** with VSEPR 3D geometries.
-  - **Fractional Distillation**: Multi-stage column with translucent glass sheath, fraction boiling point gradient, and kinetic vapour particle flow.
-  - **3D Crystal Lattices**: Giant lattices: Sodium Chloride ($\text{NaCl}$), Diamond ($sp^3$), Graphite ($sp^2$), Quartz ($\text{SiO}_2$), and Ice ($\text{H}_2\text{O}$).
-  - **Electrolysis**: Beaker electrolyte bath, cathode reduction, anode oxidation, and rising $\text{H}_2$ / $\text{O}_2$ gas bubble particle streams.
+  - **Bohr Atom & Emission Spectra**: Quantized electron shells, core/valence electrons, and photon emission spectral wave packets.
+  - **Organic Chemistry Builder**: 6 homologous series (Alkanes, Alkenes, Alkynes, Alcohols) with carbon backbone, hydrogen, oxygen, single sigma, and double/triple pi bonds.
+  - **Fractional Distillation**: Multi-stage fractionating column, crude oil boiling point gradient, and color-coded petroleum fractions.
+  - **3D Crystal Lattices**: Giant lattices: Sodium Chloride ($\text{NaCl}$), Diamond ($sp^3$), Graphite ($sp^2$ layers with delocalised electrons), Quartz ($\text{SiO}_2$), and Ice ($\text{H}_2\text{O}$).
+  - **Electrolysis**: Beaker electrolyte bath, cathode reduction plating, anode oxidation dissolution, and rising gas bubble particle streams.
+  - **VSEPR Molecular Geometry**: Steric numbers 2–6, central atom, bonded ligands, non-bonding lone pair electron clouds, and bond angle arcs.
+  - **Reaction Energetics & Catalysis**: Exothermic/endothermic energy profile curves, transition states, forward/reverse activation energy $E_a$, enthalpy change $\Delta H$, and catalysed pathways.
 
-- 🌿 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx)):
-  - **Cell Explorer**: High-detail plant and animal cells featuring nuclear pores, mitochondrial cristae rings, thylakoid grana stacks, vacuoles, ER, Golgi, and cutaway cross-section modes.
-  - **Enzyme Dynamics & Lock-and-Key Model**: Substrate binding, active site conformation, wobble animations, thermal denaturation cliffs, and pH stress curves.
+- 🧬 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx)):
+  - **Plant & Animal Cell Explorer**: High-detail organelles (nucleus, mitochondria, chloroplasts, ER, Golgi, vacuoles, membrane, cell wall) with osmotic tonicity states.
+  - **Enzyme Kinetics & Lock-and-Key Model**: Substrate binding, active catalytic cleft, thermal denaturation cliffs, and pH stress curves.
   - **DNA Double Helix**: Antiparallel sugar-phosphate backbones, major/minor grooves, and A-T / G-C complementary base pairing.
+  - **Protein Secondary Structure & Folding**: $\alpha$-Helix (3.6 res/turn), $\beta$-Pleated Sheet, random coils, hydrophobic core packing vs hydrophilic surface residues, and thermal denaturation.
 
-- 💻 **Computer Science 3D** ([`BinaryTree3D.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BinaryTree3D.jsx)):
-  - Interactive 3D Binary Search Tree / AVL tree with node insertion, deletion, AVL balancing rotations, depth glow shading, and traversal animations.
+- 💻 **Computer Science 3D Engine** ([`CSCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/CSCanvas.jsx) & [`BinaryTree3D.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BinaryTree3D.jsx)):
+  - **3D Binary Search Tree / AVL Tree**: Interactive node insertion, searching, depth planes, traversal animations, and complete Visual Tree Keys.
+  - **3D Sorting Algorithm Visualizer**: Bubble, Insertion, Selection, Quicksort, and Merge Sort with unsorted bars, comparison highlights, swap transitions, and sorted states.
+
+- 📐 **Mathematics 3D Engine** ([`MathCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/MathCanvas.jsx)):
+  - **3D Gradient Descent Optimization**: Topographic loss surfaces (Bowl, Saddle, Rosenbrock Valley, 4-Well Landscape), negative gradient $-\nabla f$ descent vectors, and optimization trails.
+  - **Solids of Revolution & Integral Calculus**: 2D generating curves $r(y)$, Riemann approximating cylindrical discs $\pi r^2 \Delta y$, true solid shells, and rotation axes.
+  - **Trigonometric Unit Circle & Wave Synthesis**: Unit circle orbital motion $(x, y) = (\cos\theta, \sin\theta)$, projected sinusoidal time traces, and Fourier square wave harmonic synthesis with Gibbs overshoot.
+
+- 🧭 **Dual-Tab HUD, Speed Control & Authoritative Visual Keys** ([`VisualizationHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/VisualizationHUD.jsx)):
+  - **Universal Animation Speed Slider**: Placed prominently directly below the Controls vs Details tab switcher on all 24 scenes (including Binary Search Trees) for instant $0.1\times$ to $3.0\times$ pacing control.
+  - Parameter controls, camera resets, category filters, and Socratic Quiz drawer.
+  - Live **Details** tab with live calculated scientific state metrics, formula subtitles, and complete **Visual Keys** (color legends) documenting every line, ray, vector, and object in the scene.
 
 ### ⏱️ 4. Unified Multi-Timer HUD, Floating Overlay & Alarms
 - **Unified Global Timer HUD** ([`GlobalTimerHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/GlobalTimerHUD.jsx)): Header dropdown managing Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom duration timers simultaneously.
@@ -78,10 +96,12 @@ A suite of 14 real-time interactive 3D science simulations built using Three.js,
 - **Study Calendar & Schedule** ([`CalendarView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/CalendarView.jsx)): Event scheduling, month navigation, space tagging, 24-hour time picker, and custom recurring alarm integration.
 - **Global Visual & Audio Alarm** ([`AlarmOverlay.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/AlarmOverlay.jsx)): Full-screen flashing modal alert (`🚨 ⏰ ❗️`) at `z-[9999]` with Web Audio chime synthesis and dynamic browser tab favicon/title swap (`🦆` $\leftrightarrow$ `❗️`).
 
-### 🦆 5. Socratic AI Tutor, Explain & 3D Interactive Widgets
+### 🦆 5. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
+- **Intelligent Note Reformatting (`POST /api/reformat`)**: Analyzes whole notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with contextual emojis, LaTeX math formulas, collapsible toggles, checklists, code blocks, and dividers) with instantaneous `Ctrl+Z` undo and offline fallback.
 - **Socratic Rubber Duck Assistant (`POST /api/socratic/chat`)**: Guided dialogue tutor that probes understanding using the Feynman technique without spoiling answers.
 - **3D Socratic Canvas Widgets (`POST /api/socratic/widget` & [`WidgetCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/WidgetCanvas.jsx)): Generates interactive 3D concept widgets with drag-orbit controls, custom sliders, camera zoom, and sub-topic gap repair hints.
+
 
 ### 📊 6. Graded Quizzes & Sub-Topic Mastery Heatmap
 - **Diagnostic Quiz Builder (`POST /api/quiz/generate` & `/grade`)**: Builds 5–6 questions from notes (mixed multiple choice and short answer). Performs deterministic integer grading for multiple choice options and LLM mechanism evaluation for short answers.

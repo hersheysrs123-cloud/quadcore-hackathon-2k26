@@ -363,7 +363,8 @@ export const TOPICS = [
     keywords:
       "projectile motion trajectory parabola air resistance drag range maximum height launch angle terminal velocity gravity moon mars jupiter horizontal vertical components suvat",
     defaults: {
-      speed: 22,
+      launchSpeed: 22,
+      speed: 1.0,
       angle: 45,
       gravity: 9.81,
       drag: 0.04,
@@ -376,7 +377,7 @@ export const TOPICS = [
     },
     controls: [
       { type: "slider", key: "angle", label: "Launch angle θ", min: 5, max: 85, step: 1, format: (v) => `${v}°` },
-      { type: "slider", key: "speed", label: "Launch speed u", min: 5, max: 40, step: 1, format: (v) => `${v} m/s` },
+      { type: "slider", key: "launchSpeed", label: "Launch speed u", min: 5, max: 40, step: 1, format: (v) => `${v} m/s` },
       { type: "choice", key: "gravity", label: "Gravitational field g", columns: 4, options: GRAVITY_OPTIONS },
       { type: "slider", key: "drag", label: "Drag coefficient k", min: 0, max: 0.25, step: 0.005, format: (v) => (v === 0 ? "vacuum" : v.toFixed(3)) },
       { type: "slider", key: "mass", label: "Mass m", min: 0.2, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)} kg` },
@@ -1270,7 +1271,6 @@ export const TOPICS = [
   },
 
   // ═══ Mathematics ═══════════════════════════════════════════════════
-  // ═══ Mathematics ═══════════════════════════════════════════════════
   {
     id: "gradient",
     category: "math",
@@ -1455,3 +1455,76 @@ export const TOPICS = [
 ];
 
 export const TOPICS_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
+
+/**
+ * Builds rich, structured markdown content from an active 3D visualization
+ * for feeding into the AI Explain and Quiz generation pipeline.
+ */
+export function formatTopicStudyContext(topic, params = {}) {
+  if (!topic) {
+    return {
+      concept: "3D Visualization",
+      focus: "",
+      content: "Interactive 3D scientific model simulation.",
+      noteId: "3d_vis",
+      noteTitle: "3D Visualization",
+      space: "Sciences",
+    };
+  }
+
+  const categoryName = {
+    physics: "Physics",
+    chemistry: "Chemistry",
+    biology: "Biology",
+    cs: "Computer Science",
+    math: "Mathematics",
+  }[topic.category] || "Sciences";
+
+  const paramEntries = Object.entries(params || {})
+    .filter(
+      ([k]) =>
+        ![
+          "spin",
+          "hideOverlayReadout",
+          "replay",
+          "restart",
+          "shuffle",
+          "crack",
+          "unzip",
+        ].includes(k),
+    )
+    .map(
+      ([k, v]) =>
+        `- **${k}**: ${typeof v === "boolean" ? (v ? "Enabled" : "Disabled") : v}`,
+    )
+    .join("\n");
+
+  const conceptsList =
+    Array.isArray(topic.concepts) && topic.concepts.length > 0
+      ? topic.concepts.map((c, i) => `${i + 1}. ${c}`).join("\n\n")
+      : "Comprehensive interactive 3D scientific model simulation.";
+
+  const content = `# ${topic.title}
+**Subject**: ${categoryName}
+**Curriculum**: ${topic.syllabus || "IGCSE / Secondary STEM"}
+**Overview**: ${topic.blurb || ""}
+
+## Key Theoretical Concepts & Mechanisms
+${conceptsList}
+
+## Interactive 3D Model Parameters & State
+${paramEntries || "Default scientific parameters loaded."}
+
+## Keywords & Core Principles
+${topic.keywords || topic.title}
+`;
+
+  return {
+    concept: topic.title,
+    focus: topic.title,
+    content,
+    noteId: `3d_${topic.id}`,
+    noteTitle: `3D: ${topic.title}`,
+    space: categoryName,
+  };
+}

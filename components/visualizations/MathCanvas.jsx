@@ -136,7 +136,7 @@ function LossSurface({ surface }) {
  * the ball's transform, so the 14-steps-per-second simulation never costs a
  * React render; `onSample` lifts the numbers out at 6 Hz for the readout.
  */
-function DescentRunner({ surface, rate, momentum, startX, startZ, running, resetKey, showGradient, onSample }) {
+function DescentRunner({ surface, rate, momentum, startX, startZ, running, resetKey, showGradient, onSample, speed = 1 }) {
   const ball = useRef(null);
   const trailLine = useRef(null);
   const trailGeo = useRef(null);
@@ -170,7 +170,7 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
     const step = Math.min(delta, 0.05);
 
     if (running && !w.dead) {
-      w.stepAcc += step;
+      w.stepAcc += step * speed;
       const interval = 1 / STEP_RATE;
       // A catch-up cap: after a stall (tab hidden, slow frame) we would
       // otherwise run hundreds of steps in one frame and "teleport".
@@ -316,13 +316,14 @@ export function GradientDescentScene({ params = {} }) {
     reset = 0,
     showGradient = true,
     spin = false,
+    speed = 1.0,
   } = params || {};
 
   const [sample, setSample] = useState({ x: startX, z: startZ, loss: 0, slope: 0, steps: 0, status: null });
   const info = SURFACES[surface] ?? SURFACES.bowl;
 
   return (
-    <SceneCanvas camera={{ position: [6.5, 6.2, 8.4], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [6.5, 6.2, 8.4], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       <Grid
         position={[0, HEIGHT_CLAMP[0] - 0.4, 0]}
         args={[DOMAIN * 2.6, DOMAIN * 2.6]}
@@ -349,6 +350,7 @@ export function GradientDescentScene({ params = {} }) {
         resetKey={reset}
         showGradient={showGradient}
         onSample={setSample}
+        speed={params.speed ?? 1}
       />
 
       <SceneLabel position={[0, HEIGHT_CLAMP[1] + 0.5, 0]} accent>
@@ -473,6 +475,7 @@ export function SolidOfRevolutionScene({ params = {} }) {
     showDiscs = true,
     showSolid = true,
     spin = true,
+    speed = 1.0,
   } = params || {};
 
   const info = CURVES[curve] ?? CURVES.bell;
@@ -523,7 +526,7 @@ export function SolidOfRevolutionScene({ params = {} }) {
   const error = exact > 0 ? Math.abs(estimate - exact) / exact : 0;
 
   return (
-    <SceneCanvas camera={{ position: [5.4, 2.6, 6.6], fov: 46 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [5.4, 2.6, 6.6], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       <Grid
         position={[0, -half - 0.35, 0]}
         args={[9, 9]}
@@ -838,7 +841,7 @@ export function UnitCircleWaveScene({ params = {} }) {
   const count = Math.round(harmonics);
 
   return (
-    <SceneCanvas camera={{ position: [0, 0.6, 12.5], fov: 48 }} controls={{ autoRotate: spin }}>
+    <SceneCanvas camera={{ position: [0, 0.6, 12.5], fov: 48 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       {/* Axes for the wave half of the scene. */}
       <Line points={[[CIRCLE_X, 0, 0], [WAVE_END + 0.4, 0, 0]]} color={PALETTE.line} lineWidth={1.4} />
       <Line points={[[CIRCLE_X, -2.6, 0], [CIRCLE_X, 2.6, 0]]} color={PALETTE.line} lineWidth={1.4} />
@@ -923,8 +926,8 @@ const SCENES = {
   unitcircle: UnitCircleWaveScene,
 };
 
-export default function MathCanvas({ topicId, params }) {
+export default function MathCanvas({ topicId, params, setParam, onOpenQuiz }) {
   const Scene = SCENES[topicId];
   if (!Scene) return null;
-  return <Scene params={params} />;
+  return <Scene params={params} setParam={setParam} onOpenQuiz={onOpenQuiz} />;
 }
