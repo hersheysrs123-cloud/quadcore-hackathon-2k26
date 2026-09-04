@@ -52,6 +52,65 @@ function gradeObjectively(questions, responses) {
       };
     }
 
+    if (question.type === "multi_select") {
+      const pickedArr = Array.isArray(answer)
+        ? answer.map(Number).filter((n) => Number.isInteger(n) && n >= 0)
+        : [];
+      const answered = pickedArr.length > 0;
+      const correctSet = new Set(question.correctIndices || []);
+      const pickedSet = new Set(pickedArr);
+      const isExactMatch =
+        correctSet.size > 0 &&
+        correctSet.size === pickedSet.size &&
+        [...pickedSet].every((v) => correctSet.has(v));
+      const display = pickedArr
+        .map((idx) => question.options?.[idx] ?? `Option ${idx + 1}`)
+        .join(", ");
+      return {
+        answered,
+        objective: isExactMatch,
+        display: answered ? display : "",
+      };
+    }
+
+    if (question.type === "step_ordering") {
+      const studentSteps = Array.isArray(answer)
+        ? answer.map((s) => String(s ?? "").trim()).filter(Boolean)
+        : [];
+      const answered = studentSteps.length >= 2;
+      const expectedSteps = (question.steps || []).map((s) => String(s ?? "").trim());
+      const isExactMatch =
+        answered &&
+        expectedSteps.length > 0 &&
+        studentSteps.length === expectedSteps.length &&
+        studentSteps.every((s, idx) => s === expectedSteps[idx]);
+      const display = studentSteps.map((s, idx) => `${idx + 1}. ${s}`).join(" ➔ ");
+      return {
+        answered,
+        objective: isExactMatch,
+        display: answered ? display : "",
+      };
+    }
+
+    if (question.type === "value_input") {
+      const text = String(answer ?? "").trim();
+      const answered = text.length > 0;
+      const clean = text.replace(/^\$|\$$/g, "").trim().toLowerCase();
+      const expectedClean = String(question.expectedAnswer ?? "").replace(/^\$|\$$/g, "").trim().toLowerCase();
+      let isMatch = clean.length > 0 && clean === expectedClean;
+      const numStudent = parseFloat(clean);
+      const numExpected = parseFloat(expectedClean);
+      if (!isMatch && !isNaN(numStudent) && !isNaN(numExpected)) {
+        const tol = typeof question.tolerance === "number" ? Math.max(0, question.tolerance) : 0.01;
+        isMatch = Math.abs(numStudent - numExpected) <= tol;
+      }
+      return {
+        answered,
+        objective: isMatch ? true : null,
+        display: text,
+      };
+    }
+
     const text = String(answer ?? "").trim();
     return { answered: text.length > 0, objective: null, display: text };
   });
@@ -75,6 +134,35 @@ function buildTranscript(questions, graded) {
           `Learner picked: ${answered ? display : "— left blank —"}`,
           `ESTABLISHED FACT: this answer is ${objective ? "CORRECT" : "INCORRECT"}.`,
         );
+      } else if (question.type === "multi_select") {
+        const correctSet = new Set(question.correctIndices || []);
+        lines.push(
+          question.options
+            .map((option, oi) => `  ${correctSet.has(oi) ? "*" : " "} [${oi}] ${option}`)
+            .join("\n"),
+          `(* marks the correct options.)`,
+          `Learner selected: ${answered ? display : "— left blank —"}`,
+          `ESTABLISHED FACT: this selection is ${objective ? "CORRECT" : "INCORRECT"}.`,
+        );
+      } else if (question.type === "step_ordering") {
+        lines.push(
+          `Correct step sequence:\n${(question.steps || []).map((s, idx) => `  ${idx + 1}. ${s}`).join("\n")}`,
+          `Learner step sequence: ${answered ? display : "— left blank —"}`,
+          `ESTABLISHED FACT: this sequence is ${objective ? "CORRECT" : "INCORRECT"}.`,
+        );
+      } else if (question.type === "value_input") {
+        lines.push(
+          `Expected answer: ${question.expectedAnswer || "(none)"}${question.tolerance ? ` (tolerance: ±${question.tolerance})` : ""}`,
+          `Learner calculated: ${answered ? display : "— left blank —"}`,
+          objective === true ? "ESTABLISHED FACT: this calculation is mathematically verified as CORRECT." : "",
+        );
+      } else if (question.type === "code_input") {
+        lines.push(
+          `Language: ${question.language || "code"}`,
+          question.starterCode ? `Starter Code:\n\`\`\`\n${question.starterCode}\n\`\`\`` : "",
+          `Model solution / rubric: ${question.expectedAnswer || "(none)"}`,
+          `Learner submitted code:\n\`\`\`\n${answered ? display : "# left blank"}\n\`\`\``,
+        );
       } else {
         lines.push(
           `Model answer for reference: ${question.expectedAnswer || "(none supplied)"}`,
@@ -82,16 +170,13 @@ function buildTranscript(questions, graded) {
         );
       }
 
-      return lines.join("\n");
+      return lines.filter(Boolean).join("\n");
     })
     .join("\n\n---\n\n");
 }
 
 /**
  * Merges the model's grading with the objective results.
- *
- * The objective verdict always wins for multiple choice; the model only
- * contributes feedback prose there.
  */
 function normalizeResult(raw, questions, graded) {
   const byIndex = new Map(
@@ -106,8 +191,12 @@ function normalizeResult(raw, questions, graded) {
     const { answered, objective, display } = graded[i];
 
     const correct =
-      question.type === "multiple_choice"
+      question.type === "multiple_choice" ||
+      question.type === "multi_select" ||
+      question.type === "step_ordering"
         ? objective
+        : objective === true
+        ? true
         : answered && Boolean(fromModel?.correct);
 
     return {
@@ -117,6 +206,11 @@ function normalizeResult(raw, questions, graded) {
       prompt: question.prompt,
       options: question.options,
       correctIndex: question.correctIndex,
+      correctIndices: question.correctIndices,
+      steps: question.steps,
+      starterCode: question.starterCode,
+      language: question.language,
+      tolerance: question.tolerance,
       expectedAnswer: question.expectedAnswer,
       yourAnswer: display,
       answered,

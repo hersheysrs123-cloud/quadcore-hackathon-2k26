@@ -372,26 +372,57 @@ A comprehensive suite of 25 real-time interactive 3D simulations across 5 STEM d
   - **Multi-Source AI Prompt Feeding**: Formats all selected notes with clear section delimiters (`=== Source Note: "<Title>" ===`), prompting the AI model to synthesize cross-topic connections, comparisons, and mechanisms across all selected notes.
   - **Cross-Note Heading Aggregation**: When selecting specific sections (`scope === "heading"`), headings (H1–H4) from all selected notes are compiled with note source attribution (`[Note Title] Heading Text`) preventing heading name collisions.
   - Configurable difficulty tiers (Easy, Medium, Hard, Mastery) and custom note scoping (All Selected Notes, H1–H4 Heading Checkboxes, or Custom Prompt).
-  - Proportional question type sliders (MCQ, Short Answer, Long Essay) with custom gold gradient track fills and direct number inputs.
-  - Full context serialization (`editorBlocksToText`) including tables, collapsible toggles, and LaTeX math formulas.
-  - **Active Syllabus Badge**: Displays a green badge when a syllabus boundary is active, and injects the syllabus into the generation payload to scope questions to the student's curriculum level.
-  - **Zero-Lag Question Sliders & Component Memoization**: Range sliders (`QuestionCountSlider`) and heading items (`HeadingCheckboxItem`) are isolated with `React.memo` and `useCallback`. CSS transitions on `quiz-slider` are restricted to `opacity`, eliminating 150ms gradient transition jank during continuous pointer drags.
-  - **O(1) Heading Selection Index**: Heading selections are indexed in a memoized `Set` (`selectedHeadingsSet`), reducing per-render lookups from $O(N \times M)$ linear scans to $O(1)$ constant time.
-  - **Conditional Mounting & Closed-State Guards**: `QuizStudioView` mounts `CreateQuizModal` strictly when `isCreateOpen === true`, and all internal memoized hooks exit immediately if closed, preventing background block extraction or list filtering.
-  - **Debounced Exam Progress Auto-Save**: In `QuizStudioView.jsx`, option picks debounce IndexedDB persistence by 250ms while immediately updating runner state, and short-circuit `filteredQuizzes` recomputation while an exam is actively running.
-  - **Outline Scroll Spy RAF Throttle (`BlockNoteEditor.jsx`)**: Table of contents heading scroll spy throttles `getBoundingClientRect()` via `requestAnimationFrame` (`ticking` flag) and guards active heading state updates, eliminating layout thrashing during document scrolling.
-  - **Lazy Command Palette Evaluation (`CommandPalette.jsx`)**: Search item compilation across all spaces and bookmarks is bypassed with early return when `isOpen === false`, eliminating background indexing while editing notes.
-  - **Default Question Distribution**: 5 MCQ + 3 Short Answer (8 questions total) for Quick Quiz; configurable via modal sliders.
-- **Objective & Semantic Hybrid Grading (`lib/aiService.js` & `app/api/quiz/grade/route.js`)**:
-  - Deterministic integer comparison for multiple-choice options with strict blank-answer guards preventing skipped questions from matching option A.
-  - LLM semantic evaluation for short answers and essays with positional fallback resilience and subtopic heatmap fallback synthesis (`fallbackHeatmap`).
-  - **Curriculum Boundary Enforcement**: When a syllabus is active, grading routes inject strict instructions to award full marks for correct IGCSE/GCSE/MYP answers without requiring higher-grade knowledge.
-- **Reactive Mastery Dashboard Sync (`components/Workspace.jsx` & `lib/mastery.js`)**:
-  - `useLiveQuery` reactive binding synchronizing study sessions from both drawer quizzes and Quizzes Studio directly into `MasteryDashboard.jsx` and header `gapCount` badge without requiring page reload.
-  - Sub-topic confidence matrix (Solid ● / Shaky ◐ / Gap ○) with weakest-first study queues and progress trends.
-- **Quick Quiz Panel (`components/QuizPanel.jsx`)**:
-  - Dual-tab study sidebar with Graded Quiz + Socratic Rubber Duck modes.
-  - Syllabus injected into both `generate` (question creation) and `submit` (grading), plus Socratic Duck `askDuck` and `endSession` calls.
+  - **Question Types (7 Supported)**:
+    1. `multiple_choice`: 4 options (A-D / 1-4) with deterministic integer grading and hotkey selection.
+    2. `multi_select`: Checkbox-style ("Select all that apply", 2+ correct options) with objective array set matching.
+    3. `value_input`: Exact numerical or algebraic formula input with virtual math symbol keyboard (`\frac{a}{b}`, `\sqrt{x}`, `x^2`, `x^n`, `\pi`, `\pm`, `\theta`, `\le`, `\ge`, `\approx`, `\infty`, `\times`, `\div`, `^\circ`) and live KaTeX preview card. Deterministic match with numerical tolerance ($\pm \delta$), falling back to LLM for algebraic equivalence.
+    4. `step_ordering`: Parsons problem scrambled derivations/proofs where students arrange mathematical or algorithmic steps into logical order using ▲/▼ controls. Scrambled automatically if generated in solved order.
+    5. `code_input`: Algorithm/programming task with built-in code editor featuring 2-space `Tab` key indentation interception, monospace styling, language tags, and optional starter code.
+    6. `short_answer`: Concise mechanistic free response graded via LLM rubric.
+    7. `long_answer`: In-depth essay/derivation evaluated across structured criteria.
+  - **Custom AI Quiz Generator Modal (`components/CreateQuizModal.jsx`)**:
+    - **1-Click STEM Presets**:
+      - 🎓 **IGCSE Gr.10 STEM**: Balanced distribution (3 MCQ, 1 Multi-Select, 2 Value Input, 1 Step Order, 1 Code, 2 Short Answer).
+      - 🧮 **Pure Math & Derivations**: Focused on mathematical rigor (2 MCQ, 3 Value Input, 2 Step Order, 1 Multi-Select).
+      - 💻 **Computer Science**: Algorithm design & logic (2 MCQ, 3 Code Input, 1 Step Order, 1 Multi-Select).
+      - ⚡ **Quick 5 MCQ**: Rapid 5-question multiple choice diagnostic.
+    - **Categorized Question Sliders**: Grouped cleanly into *Mathematics & Science Reasoning* (Value Input, Step Ordering, Code Input), *Objective Assessment* (Multiple Choice, Multi-Select), and *Applied Analysis* (Short Answer, Long Essay).
+    - **Multi-Note Selection**: Interactive source note combobox with live search filtering, "Select All" / "Clear" buttons, per-note checkboxes, selection count badge (`X of Y selected`), and removable chip badges for rapid note curation.
+    - **Multi-Source AI Prompt Feeding**: Formats all selected notes with clear section delimiters (`=== Source Note: "<Title>" ===`), prompting the AI model to synthesize cross-topic connections, comparisons, and mechanisms across all selected notes.
+    - **Cross-Note Heading Aggregation**: When selecting specific sections (`scope === "heading"`), headings (H1–H4) from all selected notes are compiled with note source attribution (`[Note Title] Heading Text`) preventing heading name collisions.
+    - Configurable difficulty tiers (Easy, Medium, Hard, Mastery) and custom note scoping (All Selected Notes, H1–H4 Heading Checkboxes, or Custom Prompt).
+    - Proportional question type sliders with custom gold gradient track fills and direct number inputs.
+    - Full context serialization (`editorBlocksToText`) including tables, collapsible toggles, and LaTeX math formulas.
+    - **Active Syllabus Badge**: Displays a green badge when a syllabus boundary is active, and injects the syllabus into the generation payload to scope questions to the student's curriculum level.
+    - **Zero-Lag Question Sliders & Component Memoization**: Range sliders (`QuestionCountSlider`) and heading items (`HeadingCheckboxItem`) are isolated with `React.memo` and `useCallback`. CSS transitions on `quiz-slider` are restricted to `opacity`, eliminating 150ms gradient transition jank during continuous pointer drags.
+    - **O(1) Heading Selection Index**: Heading selections are indexed in a memoized `Set` (`selectedHeadingsSet`), reducing per-render lookups from $O(N \times M)$ linear scans to $O(1)$ constant time.
+    - **Conditional Mounting & Closed-State Guards**: `QuizStudioView` mounts `CreateQuizModal` strictly when `isCreateOpen === true`, and all internal memoized hooks exit immediately if closed, preventing background block extraction or list filtering.
+    - **Spacious Wide Modal Architecture**: Upgraded modal shell to `w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh]` with expanded padding (`px-6 sm:px-8 py-5 sm:py-6`) and a 2-column responsive grid for section headings (`grid grid-cols-1 md:grid-cols-2 gap-2`), providing generous horizontal room for multi-note chips, 4 STEM presets, and 7 question type sliders.
+    - **Outline Scroll Spy RAF Throttle (`BlockNoteEditor.jsx`)**: Table of contents heading scroll spy throttles `getBoundingClientRect()` via `requestAnimationFrame` (`ticking` flag) and guards active heading state updates, eliminating layout thrashing during document scrolling.
+    - **Lazy Command Palette Evaluation (`CommandPalette.jsx`)**: Search item compilation across all spaces and bookmarks is bypassed with early return when `isOpen === false`, eliminating background indexing while editing notes.
+  - **Objective & Semantic Hybrid Grading (`lib/aiService.js` & `app/api/quiz/grade/route.js`)**:
+    - Deterministic evaluation:
+      - `multiple_choice`: integer index comparison with strict blank guards.
+      - `multi_select`: exact set equality across selected index arrays.
+      - `step_ordering`: exact string sequence comparison against expected step order.
+      - `value_input`: string normalization (stripping `$`), direct text equality, or float comparison within `tolerance` ($\pm \delta$). If non-matching float, passes `objective = null` to model for algebraic evaluation.
+    - LLM semantic evaluation for short answers, essays, code solutions, and algebraic derivations with positional fallback resilience and subtopic heatmap fallback synthesis (`fallbackHeatmap`).
+    - **Curriculum Boundary Enforcement**: When a syllabus is active, grading routes inject strict instructions to award full marks for correct IGCSE/GCSE/MYP answers without requiring higher-grade knowledge.
+  - **Diagnostic Review Reports (`QuizStudioView.jsx` & `QuizPanel.jsx`)**:
+    - Tailored diagnostic diff cards for all question types:
+      - `multiple_choice`: student answer vs correct option.
+      - `multi_select`: student tags vs expected correct selections chip list.
+      - `step_ordering`: student sequence vs numbered correct logical sequence.
+      - `value_input`: student expression in `<MathText>` vs expected value with tolerance badge.
+      - `code_input`: student code in formatted `<pre><code>` alongside model solution / rubric code.
+      - `short_answer` / `long_answer`: student text alongside model rubric and examiner feedback.
+  - **Reactive Mastery Dashboard Sync (`components/Workspace.jsx` & `lib/mastery.js`)**:
+    - `useLiveQuery` reactive binding synchronizing study sessions from both drawer quizzes and Quizzes Studio directly into `MasteryDashboard.jsx` and header `gapCount` badge without requiring page reload.
+    - Sub-topic confidence matrix (Solid ● / Shaky ◐ / Gap ○) with weakest-first study queues and progress trends.
+  - **Quick Quiz Panel (`components/QuizPanel.jsx`)**:
+    - Dual-tab study sidebar with Graded Quiz + Socratic Rubber Duck modes.
+    - Full runner and review support for all 7 question types including math symbol keyboard and code editor.
+    - Syllabus injected into both `generate` (question creation) and `submit` (grading), plus Socratic Duck `askDuck` and `endSession` calls.
 
 ---
 

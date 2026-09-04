@@ -15,6 +15,12 @@ import {
   Eraser,
   X,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  CheckSquare,
+  Square,
+  Code,
+  Calculator,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import {
@@ -36,6 +42,23 @@ import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import CreateQuizModal from "@/components/CreateQuizModal";
 import MathText from "@/components/MathText";
 import "katex/dist/katex.min.css";
+
+const MATH_SYMBOLS = [
+  { label: "a/b", snippet: "\\frac{a}{b}", desc: "Fraction" },
+  { label: "√x", snippet: "\\sqrt{x}", desc: "Square Root" },
+  { label: "x²", snippet: "^2", desc: "Power of 2" },
+  { label: "xⁿ", snippet: "^{n}", desc: "Power of n" },
+  { label: "π", snippet: "\\pi", desc: "Pi" },
+  { label: "±", snippet: "\\pm", desc: "Plus-Minus" },
+  { label: "θ", snippet: "\\theta", desc: "Theta" },
+  { label: "≤", snippet: "\\le", desc: "Less or equal" },
+  { label: "≥", snippet: "\\ge", desc: "Greater or equal" },
+  { label: "≈", snippet: "\\approx", desc: "Approximately" },
+  { label: "∞", snippet: "\\infty", desc: "Infinity" },
+  { label: "×", snippet: "\\times", desc: "Multiplication" },
+  { label: "÷", snippet: "\\div", desc: "Division" },
+  { label: "°", snippet: "^\\circ", desc: "Degree" },
+];
 
 function DeleteQuizConfirmModal({ open, mode = "trash", quiz = null, count = 0, onClose, onConfirm }) {
   if (!open) return null;
@@ -334,8 +357,67 @@ export default function QuizStudioView({
     }
   }, []);
 
+  const mathInputRef = useRef(null);
+
+  const insertMathSymbol = (snippet) => {
+    const input = mathInputRef.current;
+    const current = String(quizAnswers[quizIndex] ?? "");
+    if (!input) {
+      handleAnswerTextChange(quizIndex, current + snippet);
+      return;
+    }
+    const start = input.selectionStart ?? current.length;
+    const end = input.selectionEnd ?? current.length;
+    const next = current.substring(0, start) + snippet + current.substring(end);
+    handleAnswerTextChange(quizIndex, next);
+    setTimeout(() => {
+      input.focus();
+      const pos = start + snippet.length;
+      input.setSelectionRange(pos, pos);
+    }, 10);
+  };
+
   const handlePickOption = (qIdx, oi) => {
     const nextAnswers = { ...quizAnswers, [qIdx]: oi };
+    setQuizAnswers(nextAnswers);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      persistQuizProgress(nextAnswers, qIdx);
+    }, 250);
+  };
+
+  const handleToggleMultiOption = (qIdx, oi) => {
+    const current = Array.isArray(quizAnswers[qIdx]) ? quizAnswers[qIdx] : [];
+    const next = current.includes(oi)
+      ? current.filter((item) => item !== oi)
+      : [...current, oi].sort((a, b) => a - b);
+    const nextAnswers = { ...quizAnswers, [qIdx]: next };
+    setQuizAnswers(nextAnswers);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      persistQuizProgress(nextAnswers, qIdx);
+    }, 250);
+  };
+
+  const handleMoveStep = (qIdx, fromIdx, toIdx) => {
+    const defaultSteps = takingQuiz?.questions?.[qIdx]?.options || takingQuiz?.questions?.[qIdx]?.steps || [];
+    const current = Array.isArray(quizAnswers[qIdx]) && quizAnswers[qIdx].length > 0
+      ? [...quizAnswers[qIdx]]
+      : [...defaultSteps];
+    if (toIdx < 0 || toIdx >= current.length) return;
+    const [moved] = current.splice(fromIdx, 1);
+    current.splice(toIdx, 0, moved);
+    const nextAnswers = { ...quizAnswers, [qIdx]: current };
+    setQuizAnswers(nextAnswers);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      persistQuizProgress(nextAnswers, qIdx);
+    }, 250);
+  };
+
+  const handleResetSteps = (qIdx) => {
+    const defaultSteps = takingQuiz?.questions?.[qIdx]?.options || takingQuiz?.questions?.[qIdx]?.steps || [];
+    const nextAnswers = { ...quizAnswers, [qIdx]: [...defaultSteps] };
     setQuizAnswers(nextAnswers);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
@@ -411,6 +493,21 @@ export default function QuizStudioView({
         if (selectedIndex !== -1) {
           e.preventDefault();
           handlePickOption(quizIndex, selectedIndex);
+        }
+      } else if (currentQ?.type === "multi_select") {
+        const key = e.key.toUpperCase();
+        const optionsCount = currentQ.options?.length || 0;
+        let selectedIndex = -1;
+
+        if ((key === "A" || key === "1") && optionsCount > 0) selectedIndex = 0;
+        else if ((key === "B" || key === "2") && optionsCount > 1) selectedIndex = 1;
+        else if ((key === "C" || key === "3") && optionsCount > 2) selectedIndex = 2;
+        else if ((key === "D" || key === "4") && optionsCount > 3) selectedIndex = 3;
+        else if ((key === "E" || key === "5") && optionsCount > 4) selectedIndex = 4;
+
+        if (selectedIndex !== -1) {
+          e.preventDefault();
+          handleToggleMultiOption(quizIndex, selectedIndex);
         }
       }
     };
@@ -659,10 +756,13 @@ export default function QuizStudioView({
     const total = takingQuiz.questions.length;
     const currentQ = takingQuiz.questions[quizIndex];
     const isLast = quizIndex === total - 1;
-    const answeredCount = takingQuiz.questions.filter(
-      (_, i) => quizAnswers[i] !== undefined && quizAnswers[i] !== ""
-    ).length;
-    const currentIsAnswered = quizAnswers[quizIndex] !== undefined && quizAnswers[quizIndex] !== "";
+    const isAnswerFilled = (val) => {
+      if (val === undefined || val === null || val === "") return false;
+      if (Array.isArray(val)) return val.length > 0;
+      return true;
+    };
+    const answeredCount = takingQuiz.questions.filter((_, i) => isAnswerFilled(quizAnswers[i])).length;
+    const currentIsAnswered = isAnswerFilled(quizAnswers[quizIndex]);
     const progressPercent = total > 0 ? Math.round((answeredCount / total) * 100) : 0;
 
     return (
@@ -790,6 +890,242 @@ export default function QuizStudioView({
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Multi-Select Options */}
+                {currentQ.type === "multi_select" && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between text-xs text-ink-400 pb-1">
+                      <span className="flex items-center gap-1.5 font-medium text-duck-300">
+                        <CheckSquare size={14} />
+                        <span>Select all options that apply:</span>
+                      </span>
+                      <span className="text-[11px] font-semibold bg-ink-850 px-2.5 py-0.5 rounded-full border border-ink-800 text-ink-300">
+                        {(Array.isArray(quizAnswers[quizIndex]) ? quizAnswers[quizIndex].length : 0)} selected
+                      </span>
+                    </div>
+                    {(currentQ.options || []).map((option, oi) => {
+                      const selectedList = Array.isArray(quizAnswers[quizIndex]) ? quizAnswers[quizIndex] : [];
+                      const isSelected = selectedList.includes(oi);
+                      const letter = String.fromCharCode(65 + oi);
+                      return (
+                        <button
+                          key={oi}
+                          type="button"
+                          onClick={() => handleToggleMultiOption(quizIndex, oi)}
+                          className={`group flex w-full items-start gap-4 p-4 md:p-4.5 rounded-xl border text-left text-sm leading-relaxed transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-duck-400/90 bg-duck-400/10 text-ink-100 shadow-[0_0_20px_rgba(240,192,74,0.12)]"
+                              : "border-ink-800 bg-ink-850/70 text-ink-300 hover:border-ink-700 hover:bg-ink-800/80 hover:text-ink-100"
+                          }`}
+                        >
+                          <span
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold mt-0.5 transition-colors ${
+                              isSelected
+                                ? "border-duck-400 bg-duck-400 text-ink-950 shadow-xs"
+                                : "border-ink-700 text-ink-400 bg-ink-800 group-hover:border-ink-600 group-hover:text-ink-200"
+                            }`}
+                          >
+                            {isSelected ? "✓" : letter}
+                          </span>
+                          <span className="flex-1 font-medium pt-0.5">
+                            <MathText text={option} />
+                          </span>
+                          <span className="text-[10px] font-mono text-ink-600 uppercase pt-1 hidden sm:inline-block opacity-0 group-hover:opacity-100 transition-opacity">
+                            Key {letter}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Value Input (Math / Number / Formula with Virtual Symbol Keyboard & Live KaTeX Preview) */}
+                {currentQ.type === "value_input" && (
+                  <div className="space-y-4 pt-2">
+                    {/* Virtual Symbol Keyboard Tray */}
+                    <div className="p-3.5 rounded-xl bg-ink-850/90 border border-ink-750 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-duck-400 flex items-center gap-1.5">
+                          <Calculator size={13} />
+                          <span>Virtual Math Symbols & Functions</span>
+                        </span>
+                        <span className="text-[10px] text-ink-500">Tap to insert at cursor</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {MATH_SYMBOLS.map((sym, si) => (
+                          <button
+                            key={si}
+                            type="button"
+                            onClick={() => insertMathSymbol(sym.snippet)}
+                            title={sym.desc}
+                            className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-ink-900 border border-ink-700 hover:border-duck-400/60 hover:bg-duck-500/15 text-duck-300 hover:text-duck-200 transition-colors cursor-pointer shadow-xs active:scale-95"
+                          >
+                            {sym.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Primary Input Field */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-ink-300">
+                        Enter Exact Numerical Value or Algebraic Formula:
+                      </label>
+                      <input
+                        ref={mathInputRef}
+                        type="text"
+                        value={quizAnswers[quizIndex] ?? ""}
+                        onChange={(e) => handleAnswerTextChange(quizIndex, e.target.value)}
+                        placeholder="e.g. 12.5, 3/4, 2x + 5, or \frac{-b \pm \sqrt{D}}{2a}"
+                        className="w-full px-4 py-3.5 rounded-xl bg-ink-850/90 border border-ink-700 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
+                      />
+                    </div>
+
+                    {/* Live KaTeX Preview Card */}
+                    <div className="p-4 rounded-xl bg-ink-900/90 border border-ink-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-ink-400 font-medium">
+                        <span className="flex items-center gap-1.5 text-duck-400 font-semibold">
+                          <span>✨</span>
+                          <span>Live Formatted Math Preview</span>
+                        </span>
+                        {currentQ.tolerance ? (
+                          <span className="text-[10px] text-ink-500 bg-ink-850 px-2 py-0.5 rounded border border-ink-800">
+                            Tolerance: ±{currentQ.tolerance}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="min-h-[3rem] flex items-center justify-center p-3 rounded-lg bg-ink-950/60 border border-ink-800/80 text-center text-sm md:text-base text-ink-100">
+                        {(quizAnswers[quizIndex] || "").trim() ? (
+                          <MathText text={`$${quizAnswers[quizIndex]}$`} />
+                        ) : (
+                          <span className="text-xs text-ink-600 italic">Formula preview will render here in real-time as you type...</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step Ordering (Proof / Derivation Reordering) */}
+                {currentQ.type === "step_ordering" && (() => {
+                  const defaultSteps = currentQ.options || currentQ.steps || [];
+                  const currentSteps = Array.isArray(quizAnswers[quizIndex]) && quizAnswers[quizIndex].length > 0
+                    ? quizAnswers[quizIndex]
+                    : defaultSteps;
+
+                  return (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between text-xs text-ink-400 pb-1">
+                        <span className="flex items-center gap-1.5 text-duck-300 font-medium">
+                          <span>🧩</span>
+                          <span>Use the ▲ / ▼ arrows to arrange the steps into the correct logical derivation order:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleResetSteps(quizIndex)}
+                          className="text-[11px] text-ink-400 hover:text-duck-300 hover:underline flex items-center gap-1"
+                        >
+                          <RotateCcw size={11} />
+                          <span>Reset Order</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {currentSteps.map((stepText, si) => (
+                          <div
+                            key={si}
+                            className="flex items-center gap-3 p-3.5 rounded-xl border border-ink-800 bg-ink-850/80 hover:border-ink-700 transition-colors"
+                          >
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-duck-500/10 border border-duck-500/30 text-xs font-bold text-duck-300">
+                              {si + 1}
+                            </span>
+                            <div className="flex-1 text-sm font-medium text-ink-100">
+                              <MathText text={stepText} />
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveStep(quizIndex, si, si - 1)}
+                                disabled={si === 0}
+                                className="p-1.5 rounded-lg border border-ink-700 text-ink-400 hover:text-duck-300 hover:bg-ink-800 hover:border-duck-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Move Up"
+                              >
+                                <ChevronUp size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveStep(quizIndex, si, si + 1)}
+                                disabled={si === currentSteps.length - 1}
+                                className="p-1.5 rounded-lg border border-ink-700 text-ink-400 hover:text-duck-300 hover:bg-ink-800 hover:border-duck-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Move Down"
+                              >
+                                <ChevronDown size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Built-in Code Editor */}
+                {currentQ.type === "code_input" && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-duck-300 bg-duck-500/10 border border-duck-500/30 px-2.5 py-1 rounded-lg">
+                          <Code size={13} />
+                          <span>{currentQ.language || "python"}</span>
+                        </span>
+                        <span className="text-[11px] text-ink-500 hidden sm:inline">Press Tab for 2-space indentation</span>
+                      </div>
+                      {currentQ.starterCode && (
+                        <button
+                          type="button"
+                          onClick={() => handleAnswerTextChange(quizIndex, currentQ.starterCode)}
+                          className="text-[11px] text-ink-400 hover:text-duck-300 hover:underline flex items-center gap-1"
+                        >
+                          <RotateCcw size={11} />
+                          <span>Reset Starter Code</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative rounded-xl border border-ink-750 bg-ink-950 overflow-hidden shadow-inner focus-within:border-duck-400 focus-within:ring-1 focus-within:ring-duck-400/50">
+                      <textarea
+                        rows={12}
+                        value={
+                          quizAnswers[quizIndex] !== undefined
+                            ? quizAnswers[quizIndex]
+                            : currentQ.starterCode || ""
+                        }
+                        onChange={(e) => handleAnswerTextChange(quizIndex, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Tab") {
+                            e.preventDefault();
+                            const start = e.target.selectionStart;
+                            const end = e.target.selectionEnd;
+                            const val = e.target.value;
+                            const next = val.substring(0, start) + "  " + val.substring(end);
+                            handleAnswerTextChange(quizIndex, next);
+                            setTimeout(() => {
+                              e.target.selectionStart = e.target.selectionEnd = start + 2;
+                            }, 0);
+                          }
+                        }}
+                        placeholder="# Write your algorithm or code solution here..."
+                        spellCheck={false}
+                        className="w-full p-4 bg-transparent text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:outline-none resize-y leading-relaxed selection:bg-duck-500/30"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-ink-400 px-1">
+                      <span>💡 Graded on logic, algorithm accuracy, and edge-case handling.</span>
+                      <span className="font-mono text-[11px] bg-ink-850 px-2 py-0.5 rounded border border-ink-800">
+                        Lines: {((quizAnswers[quizIndex] !== undefined ? quizAnswers[quizIndex] : currentQ.starterCode || "").split("\n")).length}
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1140,19 +1476,31 @@ export default function QuizStudioView({
                       <span className="text-ink-400 shrink-0 font-medium pt-0.5">Your Answer:</span>
                       <div className="flex-1 font-medium">
                         {ans.answered ? (
-                          <span
-                            className={`inline-block px-2.5 py-1 rounded-lg border text-xs ${
-                              ans.correct
-                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-200"
-                                : "bg-rose-500/15 border-rose-500/30 text-rose-200"
-                            }`}
-                          >
-                            {typeof ans.yourAnswer === "string" ? (
-                              <MathText text={ans.yourAnswer} />
-                            ) : (
-                              ans.yourAnswer
-                            )}
-                          </span>
+                          ans.type === "code_input" ? (
+                            <pre
+                              className={`p-2.5 rounded-xl border font-mono text-[11px] overflow-x-auto whitespace-pre ${
+                                ans.correct
+                                  ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-200"
+                                  : "bg-rose-950/40 border-rose-500/40 text-rose-200"
+                              }`}
+                            >
+                              <code>{ans.yourAnswer}</code>
+                            </pre>
+                          ) : (
+                            <span
+                              className={`inline-block px-2.5 py-1 rounded-lg border text-xs ${
+                                ans.correct
+                                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-200"
+                                  : "bg-rose-500/15 border-rose-500/30 text-rose-200"
+                              }`}
+                            >
+                              {typeof ans.yourAnswer === "string" ? (
+                                <MathText text={ans.yourAnswer} />
+                              ) : (
+                                ans.yourAnswer
+                              )}
+                            </span>
+                          )
                         ) : (
                           <span className="inline-block px-2.5 py-1 rounded-lg border border-ink-800 bg-ink-850 text-ink-500 italic">
                             Left blank
@@ -1170,7 +1518,59 @@ export default function QuizStudioView({
                       </div>
                     )}
 
-                    {ans.expectedAnswer && ans.type !== "multiple_choice" && (
+                    {!ans.correct && ans.type === "multi_select" && ans.options && Array.isArray(ans.correctIndices) && (
+                      <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex flex-col gap-1.5">
+                        <span className="text-emerald-400 font-bold">Correct Selections:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ans.correctIndices.map((idx) => (
+                            <span
+                              key={idx}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 text-xs font-medium"
+                            >
+                              <MathText text={ans.options[idx] ?? `Option ${idx + 1}`} />
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!ans.correct && ans.type === "step_ordering" && Array.isArray(ans.steps) && (
+                      <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex flex-col gap-1.5">
+                        <span className="text-emerald-400 font-bold">Correct Logical Sequence:</span>
+                        <ol className="space-y-1 text-emerald-200 text-xs list-decimal list-inside font-medium">
+                          {ans.steps.map((step, sIdx) => (
+                            <li key={sIdx} className="leading-relaxed">
+                              <MathText text={step} />
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+
+                    {ans.type === "value_input" && (
+                      <div className="p-3 rounded-lg bg-duck-500/10 border border-duck-500/30 flex items-start gap-2">
+                        <span className="text-duck-400 shrink-0 font-bold">Expected Value:</span>
+                        <span className="text-duck-200 font-medium">
+                          <MathText text={ans.expectedAnswer || "—"} />
+                          {ans.tolerance ? (
+                            <span className="text-ink-400 ml-1 font-mono text-[11px]">(±{ans.tolerance})</span>
+                          ) : null}
+                        </span>
+                      </div>
+                    )}
+
+                    {ans.type === "code_input" && (
+                      <div className="p-3 rounded-lg bg-duck-500/10 border border-duck-500/30 flex flex-col gap-1.5">
+                        <span className="text-duck-400 font-bold">
+                          Model Solution / Rubric {ans.language ? `(${ans.language})` : ""}:
+                        </span>
+                        <pre className="p-2.5 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-duck-200 overflow-x-auto whitespace-pre">
+                          <code>{ans.expectedAnswer || "# No reference code"}</code>
+                        </pre>
+                      </div>
+                    )}
+
+                    {ans.expectedAnswer && !["multiple_choice", "multi_select", "step_ordering", "value_input", "code_input"].includes(ans.type) && (
                       <div className="p-3 rounded-lg bg-duck-500/10 border border-duck-500/30 flex items-start gap-2">
                         <span className="text-duck-400 shrink-0 font-bold">Model Rubric:</span>
                         <span className="text-duck-200 font-medium">

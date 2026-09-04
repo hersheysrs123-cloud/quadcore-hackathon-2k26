@@ -72,8 +72,12 @@ export default function CreateQuizModal({
   const [scope, setScope] = useState("whole"); // whole | heading | custom
   const [selectedHeadings, setSelectedHeadings] = useState([]);
   const [customFocus, setCustomFocus] = useState("");
-  const [mcqCount, setMcqCount] = useState(5);
-  const [shortAnswerCount, setShortAnswerCount] = useState(3);
+  const [mcqCount, setMcqCount] = useState(3);
+  const [multiSelectCount, setMultiSelectCount] = useState(1);
+  const [valueInputCount, setValueInputCount] = useState(2);
+  const [stepOrderingCount, setStepOrderingCount] = useState(1);
+  const [codeInputCount, setCodeInputCount] = useState(0);
+  const [shortAnswerCount, setShortAnswerCount] = useState(1);
   const [longAnswerCount, setLongAnswerCount] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
@@ -254,7 +258,50 @@ export default function CreateQuizModal({
     );
   }, []);
 
-  const totalQuestions = mcqCount + shortAnswerCount + longAnswerCount;
+  const totalQuestions =
+    mcqCount +
+    multiSelectCount +
+    valueInputCount +
+    stepOrderingCount +
+    codeInputCount +
+    shortAnswerCount +
+    longAnswerCount;
+
+  const applyDistributionPreset = useCallback((preset) => {
+    if (preset === "igcse") {
+      setMcqCount(3);
+      setMultiSelectCount(1);
+      setValueInputCount(2);
+      setStepOrderingCount(1);
+      setCodeInputCount(0);
+      setShortAnswerCount(1);
+      setLongAnswerCount(0);
+    } else if (preset === "math") {
+      setMcqCount(2);
+      setMultiSelectCount(0);
+      setValueInputCount(3);
+      setStepOrderingCount(2);
+      setCodeInputCount(0);
+      setShortAnswerCount(1);
+      setLongAnswerCount(0);
+    } else if (preset === "cs") {
+      setMcqCount(2);
+      setMultiSelectCount(2);
+      setValueInputCount(0);
+      setStepOrderingCount(1);
+      setCodeInputCount(2);
+      setShortAnswerCount(1);
+      setLongAnswerCount(0);
+    } else if (preset === "quick") {
+      setMcqCount(5);
+      setMultiSelectCount(0);
+      setValueInputCount(0);
+      setStepOrderingCount(0);
+      setCodeInputCount(0);
+      setShortAnswerCount(0);
+      setLongAnswerCount(0);
+    }
+  }, []);
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -331,6 +378,10 @@ export default function CreateQuizModal({
         focus: focusText,
         difficulty,
         mcqCount,
+        multiSelectCount,
+        valueInputCount,
+        stepOrderingCount,
+        codeInputCount,
         shortAnswerCount,
         longAnswerCount,
         title,
@@ -338,7 +389,7 @@ export default function CreateQuizModal({
         spaceId: selectedSpace,
         aiPersona: spaceConfig?.aiPersona || "examiner",
         strictness: spaceConfig?.strictness || "standard",
-        academicLevel: spaceConfig?.academicLevel || "general",
+        academicLevel: spaceConfig?.academicLevel || "igcse_grade_10",
       };
 
       const isClient = await shouldUseClientAI();
@@ -375,6 +426,10 @@ export default function CreateQuizModal({
         focusText,
         questionCounts: {
           mcq: mcqCount,
+          multiSelect: multiSelectCount,
+          valueInput: valueInputCount,
+          stepOrdering: stepOrderingCount,
+          codeInput: codeInputCount,
           shortAnswer: shortAnswerCount,
           longAnswer: longAnswerCount,
         },
@@ -401,10 +456,10 @@ export default function CreateQuizModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-quiz-title"
-        className="flex flex-col w-full max-w-2xl max-h-[90vh] bg-ink-900 border border-ink-800 rounded-2xl shadow-2xl overflow-hidden"
+        className="flex flex-col w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] bg-ink-900 border border-ink-800 rounded-2xl shadow-2xl overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-ink-800 bg-ink-900/90">
+        <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-ink-800 bg-ink-900/90">
           <div className="flex items-center gap-2.5">
             <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-duck-500/10 text-duck-400 border border-duck-500/20 text-lg">
               🎯
@@ -429,7 +484,7 @@ export default function CreateQuizModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleGenerate} className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <form onSubmit={handleGenerate} className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 sm:py-6 space-y-6">
           {syllabusEnabled && syllabusStatement && (
             <div className="p-3 text-xs bg-duck-500/10 border border-duck-500/30 rounded-xl flex items-center justify-between gap-3 text-duck-200">
               <div className="flex items-center gap-2 truncate">
@@ -701,17 +756,19 @@ export default function CreateQuizModal({
                     </div>
 
                     {/* Scrollable Checkbox Menu */}
-                    <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
-                      {headings.map((h, i) => (
-                        <HeadingCheckboxItem
-                          key={`${h.id || i}_${h.displayLabel}`}
-                          heading={h}
-                          isChecked={selectedHeadingsSet.has(h.displayLabel)}
-                          onToggle={toggleHeading}
-                          showNoteTitle={selectedNotes.length > 1}
-                          disabled={generating}
-                        />
-                      ))}
+                    <div className="max-h-60 overflow-y-auto pr-1">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {headings.map((h, i) => (
+                          <HeadingCheckboxItem
+                            key={`${h.id || i}_${h.displayLabel}`}
+                            heading={h}
+                            isChecked={selectedHeadingsSet.has(h.displayLabel)}
+                            onToggle={toggleHeading}
+                            showNoteTitle={selectedNotes.length > 1}
+                            disabled={generating}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -780,52 +837,143 @@ export default function CreateQuizModal({
           </div>
 
           {/* Question Breakdown */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-ink-300">
-                Question Type Distribution
-              </label>
-              <span className="text-xs font-bold text-duck-400 bg-duck-500/10 px-2 py-0.5 rounded-full border border-duck-500/20">
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label className="text-xs font-semibold text-ink-200">
+                  Question Type Distribution
+                </label>
+                <p className="text-[10px] text-ink-400">
+                  Tailor question formats for math derivations, coding, or objective recall
+                </p>
+              </div>
+              <span className="self-start sm:self-auto text-xs font-bold text-duck-300 bg-duck-500/15 px-2.5 py-0.5 rounded-full border border-duck-500/30">
                 {totalQuestions} Total Questions
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* MCQ */}
-              <QuestionCountSlider
-                label="Multiple Choice"
-                desc="Objective 4-choice questions"
-                value={mcqCount}
-                onChange={setMcqCount}
-                max={60}
-                disabled={generating}
-              />
+            {/* Quick Presets */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-ink-500 mr-1">
+                Presets:
+              </span>
+              <button
+                type="button"
+                onClick={() => applyDistributionPreset("igcse")}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+              >
+                🎓 IGCSE Gr.10 STEM (8 Qs)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyDistributionPreset("math")}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+              >
+                🧮 Pure Math & Derivations (8 Qs)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyDistributionPreset("cs")}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+              >
+                💻 Computer Science (8 Qs)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyDistributionPreset("quick")}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+              >
+                ⚡ Quick 5 MCQ
+              </button>
+            </div>
 
-              {/* Short Answer */}
-              <QuestionCountSlider
-                label="Short Answer"
-                desc="Concise reasoning & mechanisms"
-                value={shortAnswerCount}
-                onChange={setShortAnswerCount}
-                max={30}
-                disabled={generating}
-              />
+            {/* 1. Mathematics & Science Reasoning */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] font-bold text-duck-400 uppercase tracking-wider">
+                🧮 Mathematics & Science Reasoning
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <QuestionCountSlider
+                  label="Math / Value Input"
+                  desc="Exact calculation, fraction or formula with LaTeX keyboard"
+                  value={valueInputCount}
+                  onChange={setValueInputCount}
+                  max={30}
+                  disabled={generating}
+                />
+                <QuestionCountSlider
+                  label="Step Ordering (Parsons)"
+                  desc="Derivations, proofs, or algorithm steps to rearrange"
+                  value={stepOrderingCount}
+                  onChange={setStepOrderingCount}
+                  max={20}
+                  disabled={generating}
+                />
+              </div>
+            </div>
 
-              {/* Long Answer */}
-              <QuestionCountSlider
-                label="Long Answer"
-                desc="Comprehensive essays & proofs"
-                value={longAnswerCount}
-                onChange={setLongAnswerCount}
-                max={20}
-                disabled={generating}
-              />
+            {/* 2. Objective & Multi-Select */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] font-bold text-ink-400 uppercase tracking-wider">
+                🎯 Objective Questions
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <QuestionCountSlider
+                  label="Multiple Choice"
+                  desc="Standard 4-choice single option"
+                  value={mcqCount}
+                  onChange={setMcqCount}
+                  max={60}
+                  disabled={generating}
+                />
+                <QuestionCountSlider
+                  label="Multi-Select (Check All)"
+                  desc="2+ correct choices out of 4 options"
+                  value={multiSelectCount}
+                  onChange={setMultiSelectCount}
+                  max={30}
+                  disabled={generating}
+                />
+              </div>
+            </div>
+
+            {/* 3. Applied Analysis & Coding */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] font-bold text-ink-400 uppercase tracking-wider">
+                💻 Applied & Written Analysis
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <QuestionCountSlider
+                  label="Code Input"
+                  desc="Inbuilt code editor problem (Python / CS)"
+                  value={codeInputCount}
+                  onChange={setCodeInputCount}
+                  max={20}
+                  disabled={generating}
+                />
+                <QuestionCountSlider
+                  label="Short Answer"
+                  desc="Concise mechanism explanations"
+                  value={shortAnswerCount}
+                  onChange={setShortAnswerCount}
+                  max={30}
+                  disabled={generating}
+                />
+                <QuestionCountSlider
+                  label="Long Answer"
+                  desc="Full essay reasoning & proofs"
+                  value={longAnswerCount}
+                  onChange={setLongAnswerCount}
+                  max={20}
+                  disabled={generating}
+                />
+              </div>
             </div>
           </div>
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-ink-800 bg-ink-900/90">
+        <div className="flex items-center justify-end gap-3 px-6 sm:px-8 py-4 border-t border-ink-800 bg-ink-900/90">
           <button
             type="button"
             onClick={onClose}

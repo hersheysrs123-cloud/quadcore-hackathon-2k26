@@ -39,33 +39,98 @@ Rules:
 
 /** Enforces the invariants the schema cannot express conditionally. */
 function normalizeQuiz(raw, fallbackTopic) {
+  const validTypes = [
+    "multiple_choice",
+    "multi_select",
+    "short_answer",
+    "long_answer",
+    "value_input",
+    "code_input",
+    "step_ordering",
+  ];
+
   const questions = (Array.isArray(raw?.questions) ? raw.questions : [])
     .map((q, i) => {
       let type = q?.type;
-      if (type !== "multiple_choice" && type !== "short_answer" && type !== "long_answer") {
+      if (!validTypes.includes(type)) {
         type = "multiple_choice";
       }
       const options = (Array.isArray(q?.options) ? q.options : [])
         .map((o) => String(o ?? "").trim())
         .filter(Boolean);
 
-      // A multiple-choice question that lost its options to a malformed
-      // generation is unanswerable, so it degrades to short answer rather than
-      // rendering as an empty radio group.
+      let steps = (Array.isArray(q?.steps) ? q.steps : [])
+        .map((s) => String(s ?? "").trim())
+        .filter(Boolean);
+
+      // If step_ordering doesn't have steps, or has options instead
+      if (type === "step_ordering") {
+        if (steps.length < 2 && options.length >= 2) {
+          steps = [...options];
+        }
+        if (steps.length < 2) {
+          type = "short_answer";
+        }
+      }
+
+      // For step_ordering, generate scrambled options if empty or matching steps
+      let scrambledOptions = options;
+      if (type === "step_ordering" && steps.length >= 2) {
+        if (scrambledOptions.length !== steps.length || scrambledOptions.every((s, idx) => s === steps[idx])) {
+          scrambledOptions = [...steps].reverse();
+        }
+      }
+
+      // For multi_select, normalize correctIndices
+      let correctIndices = [];
+      if (type === "multi_select") {
+        if (Array.isArray(q?.correctIndices)) {
+          correctIndices = q.correctIndices
+            .map(Number)
+            .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < options.length);
+        }
+        if (correctIndices.length === 0 && Number.isInteger(Number(q?.correctIndex)) && Number(q.correctIndex) >= 0) {
+          correctIndices = [Number(q.correctIndex)];
+        }
+        if (options.length < 2 || correctIndices.length === 0) {
+          type = options.length >= 2 ? "multiple_choice" : "short_answer";
+        }
+      }
+
+      // A multiple-choice question that lost its options degrades to short answer
       const usable = type === "multiple_choice" && options.length >= 2;
       const finalType = type === "multiple_choice" ? (usable ? "multiple_choice" : "short_answer") : type;
       const index = Number(q?.correctIndex);
+
+      const tolerance =
+        finalType === "value_input" && !isNaN(Number(q?.tolerance))
+          ? Math.max(0, Number(q.tolerance))
+          : 0;
+
+      const starterCode = finalType === "code_input" ? String(q?.starterCode ?? "").trim() : "";
+      const language =
+        finalType === "code_input" ? String(q?.language ?? "python").trim().toLowerCase() : "";
 
       return {
         id: `q${i}`,
         subtopic: String(q?.subtopic ?? "").trim() || "General",
         type: finalType,
         prompt: String(q?.prompt ?? "").trim(),
-        options: finalType === "multiple_choice" ? options : [],
+        options:
+          finalType === "multiple_choice" || finalType === "multi_select"
+            ? options
+            : finalType === "step_ordering"
+            ? scrambledOptions
+            : [],
         correctIndex:
           finalType === "multiple_choice" && Number.isInteger(index) && index >= 0 && index < options.length
             ? index
             : -1,
+        correctIndices: finalType === "multi_select" ? correctIndices : [],
+        steps: finalType === "step_ordering" ? steps : [],
+        starterCode,
+        language,
+        tolerance,
         expectedAnswer: String(q?.expectedAnswer ?? "").trim(),
       };
     })
@@ -80,7 +145,7 @@ function normalizeQuiz(raw, fallbackTopic) {
 /**
  * POST /api/quiz/generate
  *
- * Body: { concept, noteContent, focus, difficulty, mcqCount, shortAnswerCount, longAnswerCount, title }
+ * Body: { concept, noteContent, focus, difficulty, mcqCount, multiSelectCount, valueInputCount, stepOrderingCount, codeInputCount, shortAnswerCount, longAnswerCount, title, syllabus, aiPersona, strictness, academicLevel }
  * 200 -> { quiz: { topic, questions: [...] }, usage }
  */
 export async function POST(request) {
@@ -97,6 +162,10 @@ export async function POST(request) {
     focus,
     difficulty = "medium",
     mcqCount,
+    multiSelectCount,
+    valueInputCount,
+    stepOrderingCount,
+    codeInputCount,
     shortAnswerCount,
     longAnswerCount,
     title,
@@ -148,20 +217,40 @@ export async function POST(request) {
     standard: "DISTRACTOR TOUGHNESS & RIGOR: STANDARD. Balanced distractors representing realistic student errors without trick phrasing.",
   }[strictness] || "";
 
-  const academicLevelPrompt = academicLevel && academicLevel !== "general"
-    ? `ACADEMIC GRADE LEVEL: ${academicLevel.toUpperCase()}. Calibrate question depth, expected prior knowledge, and terminology strictly to this academic standard.`
-    : "";
+  const effectiveAcademicLevel = academicLevel || "igcse_grade_10";
+  const academicLevelPrompt = `ACADEMIC STANDARD: ${effectiveAcademicLevel.toUpperCase()}.
+Calibrate question depth, expected mathematical precision (e.g. 3 significant figures for IGCSE), and terminology strictly to Cambridge IGCSE Grade 10 standards (Mathematics 0580/0607, Computer Science 0478, Sciences).`;
 
-  const countsSpecified = mcqCount !== undefined || shortAnswerCount !== undefined || longAnswerCount !== undefined;
-  const numMCQ = Number.isInteger(Number(mcqCount)) ? Math.max(0, Number(mcqCount)) : 5;
-  const numShort = Number.isInteger(Number(shortAnswerCount)) ? Math.max(0, Number(shortAnswerCount)) : 3;
+  const countsSpecified =
+    mcqCount !== undefined ||
+    multiSelectCount !== undefined ||
+    valueInputCount !== undefined ||
+    stepOrderingCount !== undefined ||
+    codeInputCount !== undefined ||
+    shortAnswerCount !== undefined ||
+    longAnswerCount !== undefined;
+
+  const numMCQ = Number.isInteger(Number(mcqCount)) ? Math.max(0, Number(mcqCount)) : 3;
+  const numMulti = Number.isInteger(Number(multiSelectCount)) ? Math.max(0, Number(multiSelectCount)) : 1;
+  const numValue = Number.isInteger(Number(valueInputCount)) ? Math.max(0, Number(valueInputCount)) : 2;
+  const numStep = Number.isInteger(Number(stepOrderingCount)) ? Math.max(0, Number(stepOrderingCount)) : 1;
+  const numCode = Number.isInteger(Number(codeInputCount)) ? Math.max(0, Number(codeInputCount)) : 0;
+  const numShort = Number.isInteger(Number(shortAnswerCount)) ? Math.max(0, Number(shortAnswerCount)) : 1;
   const numLong = Number.isInteger(Number(longAnswerCount)) ? Math.max(0, Number(longAnswerCount)) : 0;
+  const totalCount = numMCQ + numMulti + numValue + numStep + numCode + numShort + numLong;
 
   const distributionPrompt = countsSpecified
     ? `EXACT QUESTION DISTRIBUTION REQUIREMENT:
-Generate exactly ${numMCQ} 'multiple_choice' question(s), ${numShort} 'short_answer' question(s), and ${numLong} 'long_answer' question(s). Total questions = ${numMCQ + numShort + numLong}.`
+Generate exactly ${totalCount} question(s) with the following distribution:
+- ${numMCQ} 'multiple_choice' question(s) (Single correct option out of 4)
+- ${numMulti} 'multi_select' question(s) (Check-all-that-apply; 2 or 3 correct options out of 4, with 0-based indices in 'correctIndices')
+- ${numValue} 'value_input' question(s) (Exact numerical calculation or algebraic formula; render in LaTeX, expectedAnswer contains exact solution, set 'tolerance' e.g. 0.05 or 0)
+- ${numStep} 'step_ordering' question(s) (Logical derivation, proof, or procedure; 'steps' contains 3-6 lines in CORRECT order, 'options' contains scrambled order)
+- ${numCode} 'code_input' question(s) (Computer science or math algorithm; provide 'starterCode' skeleton and 'language' like 'python' or 'pseudocode')
+- ${numShort} 'short_answer' question(s)
+- ${numLong} 'long_answer' question(s)`
     : `EXACT QUESTION DISTRIBUTION REQUIREMENT:
-Generate exactly 5 'multiple_choice' question(s) and 3 'short_answer' question(s). Total 8 questions.`;
+Generate exactly 5 'multiple_choice', 1 'multi_select', and 2 'short_answer' questions. Total 8 questions.`;
 
   const focusPrompt = focus && String(focus).trim()
     ? `SPECIFIC FOCUS / SECTION:

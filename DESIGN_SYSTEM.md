@@ -259,6 +259,16 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
   - Correct: `bg-emerald-950/25 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.06)]` with `bg-emerald-500/20 text-emerald-400 border-emerald-500/50` icon box and `bg-emerald-500/15 border-emerald-500/30 text-emerald-200` answer chip.
   - Incorrect: `bg-rose-950/25 border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.06)]` with `bg-rose-500/20 text-rose-400 border-rose-500/50` icon box, `bg-rose-500/15 border-rose-500/30 text-rose-200` answer chip, and `bg-emerald-950/40 border-emerald-500/40` correct answer callout.
 
+### 17. Custom AI Quiz Creator Modal (`CreateQuizModal.jsx`) Layout Tokens
+- **Wide Modal Shell**: `w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] bg-ink-900 border border-ink-800 rounded-2xl shadow-2xl overflow-hidden`.
+- **Responsive Padding**: Header `px-6 sm:px-8 py-4`, Form Body `px-6 sm:px-8 py-5 sm:py-6 space-y-6`, Footer `px-6 sm:px-8 py-4`.
+- **2-Column Section Heading Selector**: When scoping by section, headings render inside `grid grid-cols-1 md:grid-cols-2 gap-2` within a `max-h-60 overflow-y-auto` scroll area, doubling visible items and eliminating vertical bloat.
+- **Categorized Slider Grids**:
+  - Mathematics & Science Reasoning: `grid grid-cols-1 sm:grid-cols-2 gap-3.5`.
+  - Objective Assessment: `grid grid-cols-1 sm:grid-cols-2 gap-3.5`.
+  - Applied & Written Analysis: `grid grid-cols-1 sm:grid-cols-3 gap-3.5` (Code Input, Short Answer, Long Essay).
+- **Difficulty Grid**: `grid grid-cols-2 sm:grid-cols-4 gap-2.5`.
+
 ### 18. Zero-Lag Range Sliders & UI Performance Standards (`quiz-slider`)
 - **Track Transition Discipline**: Range sliders with dynamic inline gradient tracks (such as `QuestionCountSlider`) must NEVER use `transition: all` or transition the CSS `background` property. Background gradient interpolation cannot be hardware accelerated and induces 150ms frame drops during pointer events.
 - **Track CSS Specification**:
@@ -323,7 +333,33 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **3D Kinematic Motion Arrows**:
   - Ribcage displacement vectors: `PALETTE.rose` (elevation & bucket-handle expansion) vs `PALETTE.sky` (recoil depression).
   - Sternal pump-handle vector: `PALETTE.gold` anteroposterior lift.
-  - Diaphragm central tendon vector: vertical displacement arrow tracking flattening vs recoil.
+### 22. Cambridge IGCSE Math & STEM Question Component Tokens
+- **Virtual Math Symbol Tray & Keyboard**:
+  - Palette Container: `flex flex-wrap gap-1 p-2 rounded-xl bg-ink-850 border border-ink-800`.
+  - Symbol Key Buttons: `px-2 py-1 rounded-lg border border-ink-750 bg-ink-900 hover:border-duck-500/50 hover:bg-duck-500/10 text-ink-200 text-xs font-mono transition-colors cursor-pointer`.
+  - Tooltip: `title={sym.desc}` providing immediate guidance for learners unfamiliar with LaTeX syntax.
+- **Live KaTeX Preview Card**:
+  - Surface: `p-3 rounded-xl border border-ink-800 bg-ink-900/60 min-h-[2.5rem] flex items-center`.
+  - Header Tag: `text-[10px] font-semibold text-ink-500 uppercase tracking-wider mb-1`.
+  - Compiled Math: `text-sm text-duck-300 font-medium`.
+- **Inbuilt Monospace Code Editor (`code_input`)**:
+  - Header Bar: `flex items-center justify-between text-[11px] text-ink-500 pb-1`.
+  - Language Tag: `font-mono text-duck-400 uppercase font-semibold`.
+  - Editor Container: `w-full resize-none rounded-xl border border-ink-800 bg-ink-900 px-3.5 py-3 font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none`.
+  - Tab Key Interaction: Intercepts `e.key === "Tab"` to insert 2 spaces without losing focus or causing focus traversal.
+- **Multi-Select Checkbox Cards (`multi_select`)**:
+  - Unselected Card: `flex w-full items-start gap-3 rounded-xl border border-ink-800 bg-ink-850 text-ink-300 hover:border-ink-700 hover:text-ink-200 px-3.5 py-3 text-left text-[13px] transition-colors`.
+  - Selected Card: `border-duck-500/60 bg-duck-500/10 text-ink-100`.
+  - Checkbox Pill: `mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors`. Selected: `border-duck-400 bg-duck-400 text-ink-950`; Unselected: `border-ink-600 text-transparent`.
+- **Step Ordering Parsons Cards (`step_ordering`)**:
+  - Step Card: `flex items-center gap-2 p-2.5 rounded-xl border border-ink-800 bg-ink-850 text-[13px] text-ink-200`.
+  - Index Badge: `w-5 h-5 rounded-full bg-ink-800 border border-ink-700 text-ink-400 text-[10px] font-bold flex items-center justify-center shrink-0`.
+  - Directional Action Buttons: `p-1 rounded bg-ink-800 text-ink-400 hover:text-ink-100 disabled:opacity-20 cursor-pointer`.
+- **Question Review Diagnostic Diffs**:
+  - Correct Answer Card: `bg-emerald-950/25 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.06)]`.
+  - Incorrect Answer Card: `bg-rose-950/25 border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.06)]`.
+  - Expected Sequence / Chip List: `bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 text-xs font-medium px-2.5 py-1 rounded-lg`.
+  - Model Code Solution: `p-2.5 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-duck-200 overflow-x-auto whitespace-pre`.
 
 ---
 

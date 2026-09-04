@@ -69,6 +69,9 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 62. [UI Decluttering: Dual-Level Space/Global Navigation, Ghost Action Icons & Progressive Disclosure Headers](#62-ui-decluttering-dual-level-spaceglobal-navigation-ghost-action-icons--progressive-disclosure-headers)
 63. [AI Tutor Rich Markdown, Code Syntax Highlighting & KaTeX Integration](#63-ai-tutor-rich-markdown-code-syntax-highlighting--katex-integration)
 64. [Photorealistic 3D Human Respiratory Mechanics & Model Alignment Overhaul](#64-photorealistic-3d-human-respiratory-mechanics--model-alignment-overhaul)
+65. [Complete Legacy Procedural Component Removal & Realistic Diaphragm and Intercostal Integration](#65-complete-legacy-procedural-component-removal--realistic-diaphragm-and-intercostal-integration)
+66. [Quiz Making Interface Lag Elimination & Cambridge IGCSE Grade 10 Math & STEM Question Engine Integration](#66-quiz-making-interface-lag-elimination--cambridge-igcse-grade-10-math--stem-question-engine-integration)
+67. [Performance-Optimized Rendering Pipeline for Complex 3D Anatomical Structures](#67-performance-optimized-rendering-pipeline-for-complex-3d-anatomical-structures)
 
 ---
 
@@ -3306,3 +3309,58 @@ The newly introduced AI Tutor chat interface rendered model responses exclusivel
 5. **Verification & Build Protocol**:
    - Executed full unit test suite: all 360 unit tests pass (`npm test`).
    - Cleared port 3000, executed production build with 30s timer protocol (`npm run build`), restarted daemon on port 3000 (`npm run start`), and verified HTTP 200 OK.
+
+---
+
+## 67. Quiz Making Interface Lag Elimination & Cambridge IGCSE Grade 10 Math & STEM Question Engine Integration
+
+### Problem Statement
+1. **Quiz Creator Modal Interface Lag**:
+   - In `CreateQuizModal.jsx`, dragging question count sliders exhibited perceptible frame drops and stutter (up to 120ms frame delays).
+   - **Root Cause**: Range sliders lacked component isolation, causing every pointer drag tick to re-render the entire modal tree, including hundreds of parsed note headings, checkboxes, combobox lists, and multi-note tokens. Furthermore, `.quiz-slider` had `transition: all 0.15s ease`, causing continuous recalculation of the background gradient during rapid slider drag movements.
+   - Note heading lookup in `CreateQuizModal` used $O(N \times M)$ array linear scans (`selectedHeadings.includes(...)`) on every render cycle for each checkbox item.
+2. **Background Component Re-renders & Layout Thrashing**:
+   - In `QuizStudioView.jsx`, `CreateQuizModal` was rendered in the DOM even when closed, causing block extraction and search filtering to execute in the background.
+   - Table of contents scroll spy in `BlockNoteEditor.jsx` invoked `getBoundingClientRect()` synchronously on every raw scroll event without requestAnimationFrame throttling, triggering layout thrashing during fast document scrolling.
+   - `CommandPalette.jsx` performed search index compilation across all spaces and bookmarks even when closed (`isOpen === false`).
+3. **Inadequate Math & STEM Question Type Support for Cambridge IGCSE Grade 10**:
+   - Quizzes were previously limited to standard multiple-choice and free-text short answers, failing to support core Grade 10 Math (0580/0607), Computer Science (0478), and Sciences curriculum standards.
+   - Missing exact numerical/formula value input with virtual math keyboard for students who do not know LaTeX.
+   - Missing code input with built-in code editor for computer science algorithms.
+   - Missing multi-select checkboxes for multi-concept problems.
+   - Missing step-ordering (Parsons problems) for logical derivations, proofs, and algorithmic steps.
+
+### Resolution & Architectural Enhancements
+1. **Zero-Lag Quiz Modal Optimization**:
+   - **Isolated Slider & Checkbox Components**: Extracted `QuestionCountSlider` and `HeadingCheckboxItem` as pure, `React.memo`-wrapped components with stable `useCallback` handlers.
+   - **Restricted CSS Transitions**: Constrained `.quiz-slider` transitions strictly to `opacity 0.15s ease`, preventing CSS background gradient recalculation overhead during dragging.
+   - **O(1) Heading Selection Indexing**: Indexed active headings into a memoized `Set` (`selectedHeadingsSet`), reducing per-item selection checks from $O(N \times M)$ to $O(1)$ constant time.
+   - **Conditional Modal Mounting**: Guarded `CreateQuizModal` mounting in `QuizStudioView.jsx` with `isCreateOpen === true`, completely bypassing background DOM instantiation and computation when the modal is closed.
+2. **Workspace-Wide Lag Elimination**:
+   - **RAF Scroll Spy Throttling (`BlockNoteEditor.jsx`)**: Enclosed outline heading position tracking within `requestAnimationFrame` with a boolean `ticking` lock and memoized state comparison, eliminating scroll layout thrashing.
+   - **Lazy Command Palette Compilation (`CommandPalette.jsx`)**: Added early-exit guard returning empty items when `isOpen === false`.
+3. **Cambridge IGCSE Grade 10 Math & STEM Question Suite**:
+   - **Schema Extensions (`lib/schemas.js`)**:
+     - Extended `QUESTION_TYPES` to 7 types: `["multiple_choice", "multi_select", "short_answer", "long_answer", "value_input", "code_input", "step_ordering"]`.
+     - Added schema fields: `correctIndices` (array of integers), `steps` (array of strings), `starterCode` (string), `language` (string), `tolerance` (number).
+   - **AI Generation Route (`app/api/quiz/generate/route.js`) & Service (`lib/aiService.js`)**:
+     - Updated prompt generation to inject Cambridge IGCSE Grade 10 curriculum standards (algebraic manipulation, quadratic derivations, trigonometry, algorithms, set theory).
+     - Enhanced `normalizeQuiz` to validate multi-select indices, auto-scramble step-ordering options (reversing if generated in solved order), and enforce numerical tolerances.
+   - **Objective & Semantic Hybrid Grading (`lib/aiService.js` & `app/api/quiz/grade/route.js`)**:
+     - `multi_select`: exact array set match comparison.
+     - `step_ordering`: exact string sequence verification against expected steps.
+     - `value_input`: deterministic exact match, dollar sign stripping, and float tolerance match ($\pm \delta$). Falls back to LLM semantic evaluation for algebraic equivalence.
+     - `code_input`: validates code submission and formats into markdown code blocks for model semantic grading.
+   - **Interactive Runner & Answering Interfaces (`QuizStudioView.jsx` & `QuizPanel.jsx`)**:
+     - `value_input`: virtual math symbol keyboard (`\frac{a}{b}`, `\sqrt{x}`, `x^2`, `x^n`, `\pi`, `\pm`, `\theta`, `\le`, `\ge`, `\approx`, `\infty`, `\times`, `\div`, `^\circ`) with caret insertion and live KaTeX preview card.
+     - `code_input`: inbuilt monospace code editor with Tab key 2-space indentation interception, language badge, and starter code.
+     - `multi_select`: checkbox cards with letter/number keyboard shortcuts and multi-option toggling.
+     - `step_ordering`: reorderable Parsons cards with ▲/▼ position movement buttons and reset trigger.
+   - **Diagnostic Review Reports (`QuizStudioView.jsx` & `QuizPanel.jsx`)**:
+     - Rich diagnostic diffs displaying student submissions vs expected correct answers (correct selection chips, ordered step sequence, formatted code blocks in `<pre><code>`, and LaTeX MathText formulas with tolerance bounds).
+   - **1-Click STEM Presets in Modal (`CreateQuizModal.jsx`)**:
+     - 🎓 *IGCSE Gr.10 STEM*, 🧮 *Pure Math & Derivations*, 💻 *Computer Science*, ⚡ *Quick 5 MCQ*.
+4. **Verification**:
+   - Created dedicated unit test suite `tests/unit/math-question-types.test.mjs` covering schema integrity, normalization, and objective grading engine (10/10 tests pass).
+   - Full test suite passing (370/370 tests).
+
