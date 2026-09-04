@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 // ─────────────────────────────────────────────────────────────────────
 
 const DUCK_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦆</text></svg>";
-const EXCLAMATION_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❗️</text></svg>";
+const CHIME_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>";
 
 function setFavicon(url) {
   if (typeof document === "undefined") return;
@@ -29,20 +29,22 @@ function playAlarmChime() {
   if (typeof window === "undefined") return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "square";
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.setValueAtTime(1046.5, ctx.currentTime + 0.15);
-    osc.frequency.setValueAtTime(1318.5, ctx.currentTime + 0.3);
-    gain.gain.setValueAtTime(0.4, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.6);
+    const now = ctx.currentTime;
+    // Pleasant C-major triad gentle bell chime
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.08);
+      gain.gain.setValueAtTime(0.12, now + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.7);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.75);
+    });
   } catch {
-    // Fallback
+    // Audio context fallback
   }
 }
 
@@ -91,8 +93,8 @@ export default function AlarmOverlay() {
                 new CustomEvent("socratic_alarm_triggered", {
                   detail: {
                     alarmType: "regular_alarm",
-                    title: `Alarm: ${a.title || "Scheduled Alarm"}`,
-                    message: `Regular alarm set for ${a.time} is triggering!`,
+                    title: `Alarm: ${a.title || "Scheduled Study Session"}`,
+                    message: `Scheduled alert for ${a.time}. Take a breath and review!`,
                   },
                 })
               );
@@ -116,17 +118,17 @@ export default function AlarmOverlay() {
       const { title, message, alarmType } = e.detail || {};
       setAlarm({
         alarmType: alarmType || "timer",
-        title: title || "Timer Complete!",
-        message: message || "Timer or scheduled event alert has occurred.",
+        title: title || "Study Interval Complete!",
+        message: message || "Great focus session! Time to take a breather or review.",
       });
 
-      // Swap tab favicon to Exclamation ❗️
-      setFavicon(EXCLAMATION_FAVICON);
+      // Swap tab favicon to gentle chime ☕
+      setFavicon(CHIME_FAVICON);
 
-      // Update browser title
-      document.title = "🚨 ALARM TRIGGERED! — SocraticOS";
+      // Update browser title calmly
+      document.title = "⏰ Study Break / Timer Complete — SocraticOS";
 
-      // Play chime
+      // Play soft chime
       playAlarmChime();
     }
 
@@ -164,7 +166,7 @@ export default function AlarmOverlay() {
           new CustomEvent("socratic_alarm_triggered", {
             detail: {
               alarmType: "event",
-              title: currentAlarm?.title || "Snoozed Event Alert!",
+              title: currentAlarm?.title || "Snoozed Event Alert",
               message: `Snoozed alert (${minutes} mins) for scheduled event.`,
             },
           })
@@ -180,57 +182,57 @@ export default function AlarmOverlay() {
   const isTimer = alarm.alarmType === "timer";
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-rose-950/85 backdrop-blur-xl border-8 border-rose-500 animate-pulse text-white shadow-2xl p-6 transition-all">
-      <div className="flex w-full max-w-lg flex-col items-center text-center space-y-5 bg-ink-950/90 p-7 rounded-3xl border border-rose-500/40 shadow-2xl">
-        <div className="flex items-center justify-center gap-4 text-5xl">
-          <span>🚨</span>
-          <span className="animate-bounce">⏰</span>
-          <span>❗️</span>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-ink-950/75 backdrop-blur-md p-4 animate-fade-in">
+      <div className="flex w-full max-w-md flex-col items-center text-center space-y-4 bg-ink-900 p-6 rounded-2xl border border-duck-500/30 shadow-2xl">
+        <div className="flex items-center justify-center gap-3 text-3xl">
+          <span>✨</span>
+          <span className="text-4xl">☕</span>
+          <span>🌱</span>
         </div>
 
         <div>
-          <span className="rounded-full bg-rose-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-rose-300 border border-rose-500/40">
-            {isTimer ? "Timer Alert" : "Event Alarm"}
+          <span className="rounded-full bg-duck-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-duck-300 border border-duck-500/40">
+            {isTimer ? "Session Interval Complete" : "Scheduled Study Event"}
           </span>
-          <h1 className="mt-2.5 text-2xl font-extrabold tracking-tight text-white">
+          <h2 className="mt-2.5 text-xl font-bold tracking-tight text-ink-100">
             {alarm.title}
-          </h1>
-          <p className="mt-1.5 text-xs text-rose-200 leading-relaxed">
+          </h2>
+          <p className="mt-1 text-xs text-ink-400 leading-relaxed max-w-sm mx-auto">
             {alarm.message}
           </p>
         </div>
 
-        {/* Dynamic Action Buttons based on alarm type */}
+        {/* Dynamic Action Buttons */}
         {isTimer ? (
-          <div className="w-full space-y-2 rounded-2xl border border-rose-500/30 bg-rose-900/20 p-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300">
-              Add Extra Time:
+          <div className="w-full space-y-2 rounded-xl border border-ink-800 bg-ink-950/60 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+              Add Extra Study Minutes:
             </p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {[1, 2, 5, 10].map((mins) => (
                 <button
                   key={mins}
                   type="button"
                   onClick={() => handleExtendTimer(mins)}
-                  className="rounded-xl border border-rose-400/40 bg-rose-500/20 py-2 text-xs font-bold text-white transition-all hover:bg-rose-500/30 hover:scale-105 active:scale-95 shadow-sm"
+                  className="rounded-lg border border-ink-700 bg-ink-850 py-1.5 text-xs font-semibold text-duck-300 hover:bg-ink-800 hover:border-duck-500/40 transition-all active:scale-95"
                 >
-                  +{mins} Min{mins > 1 ? "s" : ""}
+                  +{mins}m
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="w-full space-y-2 rounded-2xl border border-amber-500/30 bg-amber-900/20 p-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">
-              Snooze Event Alert:
+          <div className="w-full space-y-2 rounded-xl border border-ink-800 bg-ink-950/60 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+              Snooze Event:
             </p>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-5 gap-1">
               {[5, 10, 15, 20, 30].map((mins) => (
                 <button
                   key={mins}
                   type="button"
                   onClick={() => handleSnoozeEvent(mins)}
-                  className="rounded-xl border border-amber-500/40 bg-amber-500/20 py-2 text-[11px] font-bold text-amber-200 transition-all hover:bg-amber-500/30 hover:scale-105 active:scale-95 shadow-sm"
+                  className="rounded-lg border border-ink-700 bg-ink-850 py-1.5 text-[11px] font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-all active:scale-95"
                 >
                   {mins}m
                 </button>
@@ -242,9 +244,9 @@ export default function AlarmOverlay() {
         <button
           type="button"
           onClick={handleDismiss}
-          className="w-full rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 py-3.5 text-sm font-extrabold text-white shadow-xl transition-all hover:scale-[1.02] hover:brightness-110 active:scale-95"
+          className="w-full rounded-xl bg-duck-500 hover:bg-duck-400 py-2.5 text-xs font-bold text-ink-950 shadow-md transition-all hover:brightness-105 active:scale-95"
         >
-          Dismiss Alarm
+          {isTimer ? "Dismiss & Continue" : "Got It"}
         </button>
       </div>
     </div>

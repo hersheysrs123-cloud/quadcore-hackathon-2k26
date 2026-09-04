@@ -6,7 +6,9 @@ import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import WidgetCanvas from "@/components/WidgetCanvas";
 import ScoreRing from "@/components/ScoreRing";
 import { quizGenerate, quizGrade, socraticChat, socraticWidget, shouldUseClientAI } from "@/lib/aiService";
-import { useVoice } from "@/hooks/useVoice";
+import { getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
+import MathText from "@/components/MathText";
+import "katex/dist/katex.min.css";
 
 /**
  * Both ways of being quizzed, in one drawer.
@@ -23,6 +25,7 @@ export default function QuizPanel({
   open,
   concept,
   noteContent,
+  spaceId = null,
   onClose,
   onComplete,
 }) {
@@ -54,34 +57,33 @@ export default function QuizPanel({
             active={mode === "quiz"}
             onClick={() => setMode("quiz")}
             label="Quick quiz"
-            hint="5 questions, graded"
+            hint="8 questions, graded"
           />
           <ModeTab
             active={mode === "socratic"}
             onClick={() => setMode("socratic")}
-            label="Socratic"
-            hint="Explain it to the Duck"
+            label="Socratic duck"
+            hint="Feynman-style probe"
           />
         </div>
       </div>
 
-      {/* Keying on the mode throws away the other mode's half-finished state
-          rather than leaving a stale transcript behind the tab. */}
+      {/* Keying on the mode preserves the active quiz session during edits */}
       {mode === "quiz" ? (
         <QuizRunner
-          key={`quiz-${concept}`}
           open={open}
           concept={concept}
           noteContent={noteContent}
+          spaceId={spaceId}
           onComplete={onComplete}
           scrollRef={scrollRef}
         />
       ) : (
         <SocraticSession
-          key={`socratic-${concept}`}
           open={open}
           concept={concept}
           noteContent={noteContent}
+          spaceId={spaceId}
           onComplete={onComplete}
           scrollRef={scrollRef}
         />
@@ -119,7 +121,7 @@ async function postJson(url, payload) {
 }
 
 // ─── Quick quiz ─────────────────────────────────────────────────────
-function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
+function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, scrollRef }) {
   const [quiz, setQuiz] = useState(null);
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -127,32 +129,63 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
   const [phase, setPhase] = useState("idle"); // idle | generating | answering | grading | review
   const [error, setError] = useState(null);
 
-  const generate = useCallback(async () => {
-    setPhase("generating");
-    setError(null);
-    setQuiz(null);
-    setResult(null);
-    setAnswers({});
-    setIndex(0);
+  const lastConceptRef = useRef(null);
+  const genSeqRef = useRef(0);
 
-    try {
-      const payload = { concept, noteContent };
-      const isClient = await shouldUseClientAI();
-      const data = isClient
-        ? await quizGenerate(payload)
-        : await postJson("/api/quiz/generate", payload);
+  const generate = useCallback(
+    async (force = false) => {
+      if (!concept) return;
+      if (!force && phase === "generating") return;
 
-      setQuiz(data.quiz);
-      setPhase("answering");
-    } catch (err) {
-      setError(err.message);
-      setPhase("idle");
-    }
-  }, [concept, noteContent]);
+      const seq = ++genSeqRef.current;
+      lastConceptRef.current = concept;
+
+      setPhase("generating");
+      setError(null);
+      setQuiz(null);
+      setResult(null);
+      setAnswers({});
+      setIndex(0);
+
+      try {
+        const { statement: syllabus, enabled } = await getSyllabusStatement(spaceId);
+        const spaceConfig = spaceId ? await getSpaceSettings(spaceId) : null;
+        const payload = {
+          concept,
+          noteContent,
+          mcqCount: 5,
+          shortAnswerCount: 3,
+          longAnswerCount: 0,
+          syllabus: enabled ? syllabus : "",
+          spaceId,
+          aiPersona: spaceConfig?.aiPersona || "examiner",
+          strictness: spaceConfig?.strictness || "standard",
+          academicLevel: spaceConfig?.academicLevel || "general",
+        };
+        const isClient = await shouldUseClientAI();
+        const data = isClient
+          ? await quizGenerate(payload)
+          : await postJson("/api/quiz/generate", payload);
+
+        // Discard out-of-order responses or superseded requests
+        if (genSeqRef.current !== seq) return;
+
+        setQuiz(data.quiz);
+        setPhase("answering");
+      } catch (err) {
+        if (genSeqRef.current !== seq) return;
+        setError(err.message ?? "Failed to generate quiz.");
+        setPhase("idle");
+      }
+    },
+    [concept, noteContent, spaceId, quiz, phase]
+  );
 
   useEffect(() => {
-    if (open && concept) generate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!open || !concept) return;
+    if (lastConceptRef.current !== concept || !quiz) {
+      generate();
+    }
   }, [open, concept]);
 
   useEffect(() => {
@@ -164,11 +197,18 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
     setError(null);
 
     try {
+      const { statement: syllabus, enabled } = await getSyllabusStatement(spaceId);
+      const spaceConfig = spaceId ? await getSpaceSettings(spaceId) : null;
       const payload = {
         concept,
         noteContent,
         questions: quiz.questions,
         responses: quiz.questions.map((_, i) => ({ answer: answers[i] })),
+        syllabus: enabled ? syllabus : "",
+        spaceId,
+        aiPersona: spaceConfig?.aiPersona || "examiner",
+        strictness: spaceConfig?.strictness || "standard",
+        academicLevel: spaceConfig?.academicLevel || "general",
       };
 
       const isClient = await shouldUseClientAI();
@@ -216,7 +256,7 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
 
   if (phase === "review" && result) {
     return (
-      <QuizReview result={result} concept={concept} onRetake={generate} />
+      <QuizReview result={result} concept={concept} onRetake={() => generate(true)} />
     );
   }
 
@@ -240,7 +280,7 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
             Question {index + 1} of {total}
           </span>
           <span className="rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-[10px] text-ink-400">
-            {question.subtopic}
+            <MathText text={question.subtopic} />
           </span>
         </div>
         <div className="flex gap-1" aria-hidden="true">
@@ -260,9 +300,9 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
       </div>
 
       {/* Question */}
-      <p className="mb-4 text-[15px] font-medium leading-relaxed text-ink-100">
-        {question.prompt}
-      </p>
+      <div className="mb-4 text-[15px] font-medium leading-relaxed text-ink-100">
+        <MathText text={question.prompt} />
+      </div>
 
       {question.type === "multiple_choice" ? (
         <ul className="space-y-2">
@@ -289,7 +329,9 @@ function QuizRunner({ open, concept, noteContent, onComplete, scrollRef }) {
                   >
                     {String.fromCharCode(65 + oi)}
                   </span>
-                  <span>{option}</span>
+                  <span className="flex-1">
+                    <MathText text={option} />
+                  </span>
                 </button>
               </li>
             );
@@ -392,48 +434,79 @@ function QuizReview({ result, concept, onRetake }) {
           {result.gradedAnswers.map((answer) => (
             <li
               key={answer.questionIndex}
-              className={`rounded-xl border px-4 py-3 ${
+              className={`rounded-xl border px-4 py-3.5 transition-all ${
                 answer.correct
-                  ? "border-solid-500/25 bg-solid-500/5"
-                  : "border-gap-500/25 bg-gap-500/5"
+                  ? "border-emerald-500/40 bg-emerald-950/25"
+                  : "border-rose-500/40 bg-rose-950/25"
               }`}
             >
-              <p className="flex items-start gap-2 text-[13px] font-medium leading-relaxed text-ink-100">
-                <span
-                  aria-hidden="true"
-                  className={answer.correct ? "text-solid-500" : "text-gap-500"}
-                >
-                  {answer.correct ? "✓" : "✗"}
-                </span>
-                <span>
-                  <span className="sr-only">
-                    {answer.correct ? "Correct. " : "Incorrect. "}
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-ink-100 flex-1">
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold mt-0.5 ${
+                      answer.correct
+                        ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
+                        : "border-rose-500/50 bg-rose-500/20 text-rose-400"
+                    }`}
+                  >
+                    {answer.correct ? "✓" : "✗"}
                   </span>
-                  {answer.prompt}
+                  <span>
+                    <span className="sr-only">
+                      {answer.correct ? "Correct. " : "Incorrect. "}
+                    </span>
+                    <MathText text={answer.prompt} />
+                  </span>
+                </p>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                    answer.correct
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      : "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                  }`}
+                >
+                  {answer.correct ? "Correct" : "Incorrect"}
                 </span>
-              </p>
+              </div>
 
-              <dl className="mt-2.5 space-y-1.5 pl-5 text-[12px] leading-relaxed">
-                <div className="flex gap-2">
-                  <dt className="shrink-0 text-ink-600">You said</dt>
-                  <dd className="text-ink-300">
-                    {answer.answered ? answer.yourAnswer : <em>left blank</em>}
+              <dl className="mt-3 space-y-2 pl-7 text-[12px] leading-relaxed">
+                <div className="flex items-start gap-2">
+                  <dt className="shrink-0 text-ink-400 font-medium pt-0.5">Your Answer:</dt>
+                  <dd className="text-ink-200">
+                    {answer.answered ? (
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded border text-xs ${
+                          answer.correct
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-200"
+                            : "bg-rose-500/15 border-rose-500/30 text-rose-200"
+                        }`}
+                      >
+                        {typeof answer.yourAnswer === "string" ? (
+                          <MathText text={answer.yourAnswer} />
+                        ) : (
+                          answer.yourAnswer
+                        )}
+                      </span>
+                    ) : (
+                      <span className="italic text-ink-500">left blank</span>
+                    )}
                   </dd>
                 </div>
                 {!answer.correct && answer.type === "multiple_choice" && (
-                  <div className="flex gap-2">
-                    <dt className="shrink-0 text-ink-600">Answer</dt>
-                    <dd className="text-solid-500">
-                      {answer.options[answer.correctIndex]}
+                  <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex items-start gap-2">
+                    <dt className="shrink-0 text-emerald-400 font-bold">Correct Answer:</dt>
+                    <dd className="text-emerald-200 font-medium">
+                      <MathText text={answer.options[answer.correctIndex]} />
                     </dd>
                   </div>
                 )}
               </dl>
 
               {answer.feedback && (
-                <p className="mt-2 border-t border-ink-800 pt-2 pl-5 text-[12px] leading-relaxed text-ink-400">
-                  {answer.feedback}
-                </p>
+                <div className="mt-2 border-t border-ink-800 pt-2 pl-5 text-[12px] leading-relaxed text-ink-400">
+                  <MathText text={answer.feedback} />
+                </div>
               )}
             </li>
           ))}
@@ -444,7 +517,7 @@ function QuizReview({ result, concept, onRetake }) {
 }
 
 // ─── Socratic session ───────────────────────────────────────────────
-function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) {
+function SocraticSession({ open, concept, noteContent, spaceId = null, onComplete, scrollRef }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [diagnostic, setDiagnostic] = useState(null);
@@ -454,17 +527,7 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
   const [buildingWidget, setBuildingWidget] = useState(false);
   const [error, setError] = useState(null);
   const [widgetError, setWidgetError] = useState(null);
-
-  const {
-    ttsSupported,
-    isSpeaking,
-    speakingId,
-    autoSpeak,
-    toggleAutoSpeak,
-    speak,
-    stopSpeaking,
-    toggleSpeak,
-  } = useVoice();
+  const lastConceptRef = useRef(null);
 
   const { visible, answerCount } = useMemo(() => {
     const vis = messages.filter((m) => !m.hidden);
@@ -498,11 +561,14 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
       setThinking(true);
       setError(null);
       try {
+        const { statement: syllabus, enabled } = await getSyllabusStatement(spaceId);
         const payload = {
           noteContent,
           concept,
           conversationHistory: toWire(history),
           isFinalTurn: false,
+          syllabus: enabled ? syllabus : "",
+          spaceId,
         };
 
         const isClient = await shouldUseClientAI();
@@ -523,7 +589,7 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
         setThinking(false);
       }
     },
-    [concept, noteContent, autoSpeak, ttsSupported, speak],
+    [concept, noteContent, autoSpeak, ttsSupported, speak, spaceId],
   );
 
   const buildWidget = useCallback(
@@ -566,11 +632,14 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
     setError(null);
     stopSpeaking();
     try {
+      const { statement: syllabus, enabled } = await getSyllabusStatement(spaceId);
       const payload = {
         noteContent,
         concept,
         conversationHistory: toWire(messages),
         isFinalTurn: true,
+        syllabus: enabled ? syllabus : "",
+        spaceId,
       };
 
       const isClient = await shouldUseClientAI();
@@ -596,6 +665,8 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
 
   useEffect(() => {
     if (!open || !concept) return;
+    if (lastConceptRef.current === concept && messages.length > 0) return;
+    lastConceptRef.current = concept;
     const opening = seed();
     setMessages(opening);
     askDuck(opening);
@@ -633,31 +704,7 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
   return (
     <>
       <div className="space-y-4 px-5 py-5">
-        {/* Voice control bar */}
-        <div className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850/60 px-3.5 py-2 text-xs">
-          <div className="flex items-center gap-2 text-ink-300">
-            <span>🔊 Text-to-Speech Mode</span>
-          </div>
-          {ttsSupported && (
-            <button
-              type="button"
-              onClick={toggleAutoSpeak}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                autoSpeak
-                  ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
-                  : "border border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200"
-              }`}
-            >
-              <span>{autoSpeak ? "🔊 Auto-Read Replies ON" : "🔇 Auto-Read Replies OFF"}</span>
-            </button>
-          )}
-        </div>
-
         {visible.map((message, i) => {
-          const isAssistant = message.role === "assistant";
-          const msgId = `msg-${i}`;
-          const isThisSpeaking = isSpeaking && speakingId === msgId;
-
           return (
             <div
               key={i}
@@ -672,22 +719,6 @@ function SocraticSession({ open, concept, noteContent, onComplete, scrollRef }) 
               >
                 {message.content}
               </p>
-
-              {isAssistant && ttsSupported && (
-                <button
-                  type="button"
-                  onClick={() => toggleSpeak(message.content, msgId)}
-                  title={isThisSpeaking ? "Stop reading out loud" : "Read response out loud"}
-                  aria-label={isThisSpeaking ? "Stop reading out loud" : "Read response out loud"}
-                  className={`mt-1 shrink-0 rounded-full p-1.5 text-xs transition-colors ${
-                    isThisSpeaking
-                      ? "animate-pulse bg-duck-400 text-ink-950"
-                      : "text-ink-500 hover:bg-ink-800 hover:text-ink-200"
-                  }`}
-                >
-                  {isThisSpeaking ? "🔊" : "🔈"}
-                </button>
-              )}
             </div>
           );
         })}

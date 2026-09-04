@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { SPACES } from "@/lib/constants";
 import {
   exportToPdf,
   exportDocx,
@@ -10,11 +9,10 @@ import {
   exportMarkdown,
   exportBookmarksToHtml,
   importNoteFromFile,
-  importBookmarksFromHtml,
 } from "@/lib/exportImport";
 import { getAllBookmarks, getAllFolders } from "@/lib/storageService";
 import { exportWorkspaceToJSON } from "@/lib/backup";
-import { FileText, Download, Upload, X, Check, FileType, Sparkles, Package, Bookmark } from "lucide-react";
+import { Download, Upload, X, FileType, Sparkles, Package } from "lucide-react";
 
 export default function ExportImportModal({
   open,

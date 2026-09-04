@@ -636,7 +636,6 @@ const ROBO_SECONDARY = "#cbd5e1";
 const ROBO_DARK = "#334155";
 const ROBO_GOLD = "#fbbf24";
 const ROBO_RED = "#ef4444";
-const ROBO_JOINT = "#38bdf8";
 const ROBO_GLOW = "#0ea5e9";
 const ROBO_PURPLE = "#d946ef";
 const ROBO_GREEN = "#10b981";
@@ -1124,90 +1123,6 @@ function FlowPulses({
   );
 }
 
-/**
- * Heavy metallic conductor rod sliding along lab guide rails.
- */
-function MovingConductor({ start, wireDir, moveDir, travel, speed, running }) {
-  const refs = useRef([]);
-  const phase = useRef(0);
-  const GHOSTS = [
-    { lag: 0, opacity: 1 },
-    { lag: 0.08, opacity: 0.4 },
-    { lag: 0.16, opacity: 0.22 },
-    { lag: 0.24, opacity: 0.12 },
-  ];
-
-  const quaternion = useMemo(
-    () =>
-      new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        new THREE.Vector3(...wireDir).normalize(),
-      ),
-    [wireDir[0], wireDir[1], wireDir[2]],
-  );
-
-  useFrame((_, delta) => {
-    if (running) phase.current = (phase.current + Math.min(delta, 0.05) * speed) % 1;
-    GHOSTS.forEach((ghost, g) => {
-      const mesh = refs.current[g];
-      if (!mesh) return;
-      const t = phase.current - ghost.lag;
-      mesh.visible = g === 0 || t > 0;
-      const d = Math.max(0, t) * travel;
-      mesh.position.set(
-        start[0] + moveDir[0] * d,
-        start[1] + moveDir[1] * d,
-        start[2] + moveDir[2] * d,
-      );
-    });
-  });
-
-  return (
-    <>
-      {/* Parallel Guide Rails */}
-      <group position={[start[0], start[1], start[2]]}>
-        {[-1.2, 1.2].map((z, idx) => (
-          <mesh key={idx} position={[0, -0.15, z]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.06, 0.06, 3.8, 16]} />
-            <meshStandardMaterial color="#f59e0b" metalness={0.9} roughness={0.25} />
-          </mesh>
-        ))}
-        {/* Rail Insulator Mounts */}
-        {[-1.5, 1.5].map((x, i) =>
-          [-1.2, 1.2].map((z, j) => (
-            <mesh key={`${i}-${j}`} position={[x, -0.4, z]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.4, 16]} />
-              <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.7} />
-            </mesh>
-          ))
-        )}
-      </group>
-
-      {/* Moving Conductor Rod & Motion Ghosts */}
-      {GHOSTS.map((ghost, g) => (
-        <mesh
-          key={g}
-          ref={(el) => {
-            refs.current[g] = el;
-          }}
-          quaternion={quaternion}
-        >
-          <cylinderGeometry args={[0.14, 0.14, 2.8, 24]} />
-          <meshStandardMaterial
-            color="#d97706"
-            emissive={PALETTE.gold}
-            emissiveIntensity={g === 0 ? 1.0 : 0.4}
-            transparent={ghost.opacity < 1}
-            opacity={ghost.opacity}
-            roughness={0.2}
-            metalness={0.85}
-          />
-        </mesh>
-      ))}
-    </>
-  );
-}
-
 /** Realistic Magnet Pole Assembly with Steel Yoke (coils removed for clarity). */
 function PolePlate({ position, pole }) {
   const isNorth = pole === "N";
@@ -1253,7 +1168,6 @@ export function MotorEffectScene({ params = {} }) {
     reverseField = false,
     showFieldLines = true,
     animate = true,
-    speed = 1.0,
   } = params || {};
 
   // B runs from the N pole to the S pole; I runs along the second finger.
@@ -1529,7 +1443,6 @@ export function LensOpticsScene({ params = {} }) {
     focal = 3.0,
     objectDistance = 5.0,
     showConstruction = true,
-    speed = 1.0,
   } = params || {};
 
   const isConvex = lensType === "convex";

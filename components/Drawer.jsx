@@ -18,6 +18,7 @@ export default function Drawer({
   actions,
   footer,
   scrollRef,
+  className = "",
   children,
 }) {
   useEffect(() => {
@@ -28,49 +29,35 @@ export default function Drawer({
   }, [open, onClose]);
 
   return (
-    <>
-      <div
-        onClick={onClose}
-        aria-hidden="true"
-        className={`fixed inset-0 z-[60] bg-ink-950/70 backdrop-blur-[2px] transition-opacity duration-200 ${
-          open ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-      />
-
-      {/* A closed drawer stays mounted so it can slide out, which means it is
-          still in the accessibility tree and still in the tab order. `inert`
-          takes it out of both — without it a screen reader finds two dialogs
-          and Tab walks into the panel that isn't on screen. */}
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        aria-hidden={!open}
-        inert={!open}
-        className={`fixed right-0 top-0 z-[70] flex h-full w-full max-w-xl flex-col border-l border-ink-800 bg-ink-900 shadow-2xl shadow-ink-950/80 transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <header className="flex shrink-0 items-start gap-3 border-b border-ink-800 px-5 py-4">
-          <span className="text-xl leading-none">{icon}</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-ink-100">{title}</p>
-            {subtitle && (
-              <p className="truncate text-xs text-ink-500" title={subtitle}>
-                {subtitle}
-              </p>
-            )}
-          </div>
-          {actions}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-md px-2 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
-          >
-            ✕
-          </button>
-        </header>
+    <aside
+      role="region"
+      aria-label={title}
+      aria-hidden={!open}
+      inert={!open}
+      className={`fixed right-0 top-13 bottom-0 z-[55] flex h-[calc(100vh-3.25rem)] w-full sm:w-[440px] md:w-[480px] lg:w-[500px] xl:w-[520px] flex-col border-l border-ink-800 bg-ink-900 shadow-2xl shadow-ink-950/80 transition-transform duration-300 ease-out ${
+        open ? "translate-x-0 pointer-events-auto" : "translate-x-full pointer-events-none"
+      } ${className}`}
+    >
+      <header className="flex shrink-0 items-start gap-3 border-b border-ink-800 px-5 py-4">
+        <span className="text-xl leading-none">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink-100">{title}</p>
+          {subtitle && (
+            <p className="truncate text-xs text-ink-500" title={subtitle}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {actions}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="shrink-0 rounded-md px-2 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+        >
+          ✕
+        </button>
+      </header>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
           {children}
@@ -80,7 +67,6 @@ export default function Drawer({
           <div className="shrink-0 border-t border-ink-800">{footer}</div>
         )}
       </aside>
-    </>
   );
 }
 

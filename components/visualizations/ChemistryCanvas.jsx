@@ -419,7 +419,6 @@ function buildMolecule(family, carbons) {
 
   // –COOH group: terminal carbon already in chain; add =O (carbonyl) and –OH.
   let acidCarbonyl = null;
-  let acidHydroxyl = null;
   if (isAcid) {
     const end = chain[0]; // attach to first carbon
     // Carbonyl oxygen — double bond, in-plane, pointing left-up
@@ -431,7 +430,6 @@ function buildMolecule(family, carbons) {
     // Hydroxyl oxygen — single bond, opposite side
     const ohDir = new THREE.Vector3(-0.62, end.y > 0 ? -0.95 : 0.95, 0).normalize();
     const ohOxy = end.clone().addScaledVector(ohDir, CO_BOND);
-    acidHydroxyl = ohOxy;
     atoms.push({ el: "O", position: ohOxy.toArray() });
     bonds.push({ from: end.toArray(), to: ohOxy.toArray() });
 
@@ -2248,7 +2246,6 @@ export function EnergyProfileScene({ params = {} }) {
     catalyst = false,
     catalystDrop = 35,
     temperature = 350,
-    showReverse = true,
     spin = false,
     speed = 1.0,
   } = params || {};

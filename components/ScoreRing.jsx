@@ -17,8 +17,9 @@ const SIZES = {
  * never the only one: the number is always legible on its own.
  */
 export default function ScoreRing({ score, size = "md", label }) {
+  const safeScore = Number.isFinite(Number(score)) ? Number(score) : 0;
   const { box, stroke, text } = SIZES[size] ?? SIZES.md;
-  const status = scoreStatus(score);
+  const status = scoreStatus(safeScore);
 
   const radius = (box - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -26,9 +27,9 @@ export default function ScoreRing({ score, size = "md", label }) {
   // Sweep up from zero on mount so the result lands rather than appears.
   const [shown, setShown] = useState(0);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setShown(score));
+    const id = requestAnimationFrame(() => setShown(safeScore));
     return () => cancelAnimationFrame(id);
-  }, [score]);
+  }, [safeScore]);
 
   const offset = circumference * (1 - Math.max(0, Math.min(100, shown)) / 100);
 
@@ -37,7 +38,7 @@ export default function ScoreRing({ score, size = "md", label }) {
       className="relative shrink-0"
       style={{ width: box, height: box }}
       role="img"
-      aria-label={`${score} out of 100 — ${status.label}`}
+      aria-label={`${safeScore} out of 100 — ${status.label}`}
     >
       <svg width={box} height={box} className="-rotate-90">
         <circle

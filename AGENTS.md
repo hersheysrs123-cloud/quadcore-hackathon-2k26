@@ -19,12 +19,14 @@ Whenever you make changes to the codebase (features, components, architecture, d
 - If you fix a bug, resolve an edge case, or solve a regression:
   - **UPDATE [`ANTIGRAVITY_BUG_FIXES.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/ANTIGRAVITY_BUG_FIXES.md)** documenting the root cause, problem statement, and resolution.
 
-### 4. Build & Dev Server Protocol (`npm run build`)
+### 4. Build & Production Server Protocol (`npm run build` & `npm run start`)
 - When you want to run `npm run build`:
-  1. First check if a dev server on port 3000 is running.
-  2. If active, terminate/kill the dev server process to prevent Next.js lock/cache corruption.
-  3. Execute `npm run build`.
-  4. After the build finishes, restart the dev server.
+  1. First check if a server on port 3000 is running.
+  2. If active, terminate/kill the server process on port 3000 to prevent Next.js lock/cache corruption.
+  3. Execute `npm run build` as a background task.
+  4. **After launching the build, set a 30-second timer before checking the build status. Do NOT poll or call `manage_task status` repeatedly in a tight loop — wait the full 30 seconds first, then check once.**
+  5. After the build finishes successfully, start the production server via `npm run start`.
 
-### 5. Excluded Files
+### 5. Excluded Files & Artifacts
 - **DISREGARD `BUGFIX_REPORT.md`**: Do not update or modify this file.
+- **NEVER GENERATE WALKTHROUGHS**: Do not create, write, or update `walkthrough.md` or any walkthrough artifacts under any circumstances.

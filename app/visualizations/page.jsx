@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Search, X } from "lucide-react";
 import {
   ViewportHint,
   VisualizationHUD,
@@ -60,7 +60,6 @@ export default function VisualizationsPage() {
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
   const [topicId, setTopicId] = useState(TOPICS[0].id);
-  const [quizOpen, setQuizOpen] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [hideTopBars, setHideTopBars] = useState(false);
 
@@ -146,7 +145,6 @@ export default function VisualizationsPage() {
 
   const selectTopic = useCallback((id) => {
     setTopicId(id);
-    setQuizOpen(false);
   }, []);
 
   return (

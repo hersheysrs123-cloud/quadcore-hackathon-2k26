@@ -1,5 +1,41 @@
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
+
+:root {
+  --font-note-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-note-serif: "Lora", "Charter", Georgia, "Times New Roman", serif;
+  --font-note-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-note-handwriting: "Caveat", "Patrick Hand", "Comic Sans MS", cursive;
+  --font-note-geometric: "Plus Jakarta Sans", "Outfit", "Space Grotesk", system-ui, sans-serif;
+}
+
+.font-note-sans {
+  font-family: var(--font-note-sans);
+}
+
+.font-note-serif {
+  font-family: var(--font-note-serif);
+}
+
+.font-note-mono {
+  font-family: var(--font-note-mono);
+}
+
+.font-note-handwriting {
+  font-family: var(--font-note-handwriting);
+}
+
+.font-note-handwriting [contenteditable="true"],
+.font-note-handwriting input,
+.font-note-handwriting textarea {
+  font-size: 1.08em;
+  letter-spacing: 0.015em;
+}
+
+.font-note-geometric {
+  font-family: var(--font-note-geometric);
+}
 
 @theme {
   /* Default Neutral Ramp (Dark Mode) — lighter & warmer slate tones */
@@ -30,6 +66,8 @@
    * yellow step is deliberately unused: it is indistinguishable from
    * --color-duck-400, so a "shaky" chip would read as a primary button.
    */
+  --color-solid-300: #4ade80;
+  --color-solid-400: #22c55e;
   --color-solid-500: #0ca30c;
   --color-shaky-500: #ec835a;
   --color-gap-500: #d03b3b;
@@ -55,6 +93,8 @@
   --color-duck-500: #92400e;
 
   /* Re-stepped for the light surface, not an automatic flip. */
+  --color-solid-300: #16a34a;
+  --color-solid-400: #15803d;
   --color-solid-500: #0a7d0a;
   --color-shaky-500: #ea580c;
   --color-gap-500: #b02a2a;
@@ -574,6 +614,72 @@ body {
     padding-left: 0 !important;
     margin-left: 0 !important;
   }
+}
+
+/* ── Custom Styled Range Sliders ── */
+input[type="range"].quiz-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--color-ink-800, #282d3f);
+  border-radius: 9999px;
+  outline: none;
+  transition: opacity 0.15s ease;
+}
+
+input[type="range"].quiz-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+input[type="range"].quiz-slider::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+input[type="range"].quiz-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f0c04a;
+  border: 2px solid #181c27;
+  box-shadow: 0 0 8px rgba(240, 192, 74, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  margin-top: -6px;
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+}
+
+input[type="range"].quiz-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(240, 192, 74, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+input[type="range"].quiz-slider::-webkit-slider-thumb:active {
+  transform: scale(1.05);
+  background: #f7d67c;
+}
+
+input[type="range"].quiz-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f0c04a;
+  border: 2px solid #181c27;
+  box-shadow: 0 0 8px rgba(240, 192, 74, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+}
+
+input[type="range"].quiz-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(240, 192, 74, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 

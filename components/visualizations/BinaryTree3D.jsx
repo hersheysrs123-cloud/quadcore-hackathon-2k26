@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html as DreiHtml, Line, OrbitControls } from "@react-three/drei";
-import { ChevronDown, ChevronRight, GitBranch, Info, Lightbulb, ListTree, Plus, RotateCcw, Search, Shuffle, SlidersHorizontal, Sparkles, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, GitBranch, Info, Lightbulb, ListTree, Plus, RotateCcw, Search, Shuffle, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CANVAS_BG, WebGLCleanup } from "@/components/visualizations/scene-kit";
 import {
   HudButton,

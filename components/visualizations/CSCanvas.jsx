@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Grid } from "@react-three/drei";
 import BinaryTree3D from "@/components/visualizations/BinaryTree3D";
 import { ALGORITHM_META } from "@/components/visualizations/topic-options";

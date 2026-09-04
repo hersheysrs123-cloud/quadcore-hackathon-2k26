@@ -45,14 +45,14 @@ export function fallbackHeatmap(gradedAnswers) {
 export function normalizeQuizResult(raw, questions, graded) {
   const clampScore = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
   const byIndex = new Map(
-    (Array.isArray(raw.gradedAnswers) ? raw.gradedAnswers : []).map((entry) => [
+    (Array.isArray(raw?.gradedAnswers) ? raw.gradedAnswers : []).map((entry) => [
       Number(entry?.questionIndex),
       entry,
     ])
   );
 
   const gradedAnswers = questions.map((question, i) => {
-    const fromModel = byIndex.get(i);
+    const fromModel = byIndex.get(i) ?? (Array.isArray(raw?.gradedAnswers) ? raw.gradedAnswers[i] : null);
     const { answered, objective, display } = graded[i];
 
     const correct =
@@ -82,7 +82,7 @@ export function normalizeQuizResult(raw, questions, graded) {
     correctCount,
     totalCount: gradedAnswers.length,
     gradedAnswers,
-    heatmap: Array.isArray(raw.heatmap) && raw.heatmap.length ? raw.heatmap : fallbackHeatmap(gradedAnswers),
+    heatmap: Array.isArray(raw?.heatmap) && raw.heatmap.length ? raw.heatmap : fallbackHeatmap(gradedAnswers),
   };
 }
 
@@ -190,5 +190,57 @@ describe("Deterministic Quiz Grading Engine", () => {
     assert.strictEqual(result.score, 0);
     const opticsHeatmap = result.heatmap.find((h) => h.subtopic === "Optics");
     assert.strictEqual(opticsHeatmap.status, "red");
+  });
+
+  it("never marks skipped/empty MCQ questions as Option A (0) correct", () => {
+    // Question with correctIndex 0
+    const mcqWithCorrectZero = [
+      {
+        id: "q0",
+        subtopic: "Biology",
+        type: "multiple_choice",
+        prompt: "What is the basic unit of life?",
+        options: ["Cell", "Tissue", "Organ", "Organism"],
+        correctIndex: 0, // Option 0 is correct
+      },
+    ];
+
+    // Learner left answer blank
+    const blankResponse = [{ answer: "" }];
+    const graded = gradeObjectively(mcqWithCorrectZero, blankResponse);
+
+    assert.strictEqual(graded[0].answered, false);
+    assert.strictEqual(graded[0].objective, false); // Must NOT be marked true even though correctIndex is 0
+
+    const normalized = normalizeQuizResult({}, mcqWithCorrectZero, graded);
+    assert.strictEqual(normalized.score, 0);
+    assert.strictEqual(normalized.correctCount, 0);
+  });
+
+  it("safely handles null or undefined raw model payloads without crashing", () => {
+    const graded = gradeObjectively(mockQuestions, [{ answer: 1 }, { answer: 2 }, { answer: "test" }]);
+    const result = normalizeQuizResult({}, mockQuestions, graded);
+
+    assert.ok(result);
+    assert.strictEqual(result.score, 67); // 2/3 correct
+    assert.strictEqual(result.correctCount, 2);
+    assert.strictEqual(result.totalCount, 3);
+    assert.ok(Array.isArray(result.heatmap));
+  });
+
+  it("uses positional fallback when model omits questionIndex", () => {
+    const graded = gradeObjectively(mockQuestions, [{ answer: 1 }, { answer: 2 }, { answer: "good explanation" }]);
+    const mockModelPayload = {
+      gradedAnswers: [
+        { feedback: "Option B is correct" },
+        { feedback: "Option C is correct" },
+        { correct: true, feedback: "Excellent answer" },
+      ],
+    };
+
+    const result = normalizeQuizResult(mockModelPayload, mockQuestions, graded);
+    assert.strictEqual(result.score, 100);
+    assert.strictEqual(result.gradedAnswers[2].correct, true);
+    assert.strictEqual(result.gradedAnswers[2].feedback, "Excellent answer");
   });
 });

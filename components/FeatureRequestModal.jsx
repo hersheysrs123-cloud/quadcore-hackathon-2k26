@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, X, Send, HeartHandshake, CheckCircle2 } from "lucide-react";
+import { MessageSquare, X, Send } from "lucide-react";
 
 export default function FeatureRequestModal({ open, onClose }) {
   const [email, setEmail] = useState("");

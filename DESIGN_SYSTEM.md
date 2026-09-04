@@ -50,7 +50,16 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
 
 ## 📐 Typography & Layout Guidelines
 
-- **Font Family**: System UI sans-serif with `-webkit-font-smoothing: antialiased`.
+### Note Typography Palette (3 Academic Font Options)
+
+SocraticOS features 3 per-note typography font families configured in `app/globals.css` and selectable via the Notion-style typography picker in `NoteMenu`:
+
+| Font ID | Family Name | CSS Class | Font Stack | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| `sans` | **Default Sans** | `.font-note-sans` | `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` | Clean, modern UI default, structured outlines |
+| `serif` | **Classic Serif** | `.font-note-serif` | `'Lora', 'Charter', Georgia, 'Times New Roman', serif` | Academic essays, history, literature, long-form reading |
+| `mono` | **Developer Mono** | `.font-note-mono` | `'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace` | STEM derivations, computer science, math matrices |
+
 - **Note Title**: `text-4xl font-extrabold tracking-tight text-ink-100` (substantially larger than H1).
 - **Headings**:
   - **H1**: `text-3xl font-bold tracking-tight text-ink-100`
@@ -58,36 +67,49 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
   - **H3**: `text-lg font-semibold text-ink-100`
   - **H4**: `text-base font-semibold text-ink-100`
 - **Code Snippet**: `font-mono text-sm leading-relaxed text-emerald-300 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700`
-- **LaTeX Math Formula**: `font-serif text-base text-duck-200 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700`
+- **LaTeX Math Formula**: Live KaTeX math pills (`.katex-inline-node`) and standalone blocks (`.katex-display`) with preserved KaTeX font metrics.
 
 ---
 
 ## 🧩 Component Architecture
 
 ### 1. Left Sidebar (`Sidebar.jsx`)
-- **Width**: Fixed `w-64 shrink-0`.
-- **Brand Header**:
+- **Width**: `w-64 shrink-0`.
+- **Top Brand Row**:
   - Duck Emoji: `text-xl`
   - Brand Title: `text-sm font-bold text-ink-100`
-  - **Spaces Selector Dropdown**: Compact button next to logo (`text-xs font-medium text-ink-200 border border-ink-700/70 bg-ink-850/90`) displaying current space icon and name with a dropdown popover to choose/switch spaces, create custom spaces, or manage space password locks.
-  - Settings Button: `text-lg text-ink-400 hover:text-ink-100` (positioned top-right of brand header).
-- **Notes List**: Full-height list per active space with star favorite indicator `⭐`, custom note emoji, and hover delete icon `🗑️`.
+  - Quick utility buttons: Donate/Support (`HeartHandshake`), Feedback (`MessageSquare`), and Settings (`⚙️`).
+- **Global Tools Section**:
+  - Group Header: `text-[10px] font-bold uppercase tracking-wider text-ink-500`
+  - Compact 4-Column Icon Grid: `grid grid-cols-4 gap-1 p-1 bg-ink-950/60 rounded-xl border border-ink-800/80`.
+    - Instant Note (`⚡`)
+    - 3D Simulations (`🌌`)
+    - Calendar (`📅`)
+    - Web Saver (`🔖`)
+  - Active state: `bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold`.
+  - Integrated `GlobalTimerHUD` compact card.
+- **Spaces Section**:
+  - **Spaces Selector Dropdown**: Compact button (`text-xs font-medium text-ink-200 border border-ink-700/80 bg-ink-850/90`) displaying current space icon and name with a dropdown popover to choose/switch spaces, create custom spaces, or manage space password locks.
+- **Notes List**: Full-height list per active space.
+  - **Ghost Action Icons**: Drag handle (`GripVertical` `⠿`) and Note Menu (`NoteMenu` `...`) are ghosted (`opacity-0`), seamlessly fading in on row hover (`group-hover:opacity-100 focus-within:opacity-100`) without layout shift.
+  - Star favorite indicator `⭐` visible on favorited notes.
 - **Bottom Trash Tab**: Fixed tab `🗑️ Trash (24h)` showing active deleted notes count with 24-hour auto-purge timer.
 
 ### 2. Top HUD Header (`Workspace.jsx`)
-- **Height**: `h-14 shrink-0`.
+- **Height**: Single slim unified header (`h-13 shrink-0` / 52px).
 - **Left Breadcrumb Context**:
-  - Active Space (`text-sm font-semibold text-ink-300`)
-  - Separator (`/`)
-  - Active Note / View Title (`text-base font-bold text-ink-100`).
-- **Center Navigation Tabs**: 5 pill tabs (`📝 Notes`, `📅 Calendar`, `🔖 Web Saver`, `🌌 3D Orbit`, `📊 Mastery`). The Mastery tab carries a `gap-500` count badge when the heatmap holds unresolved gaps.
+  - Sidebar Toggle (`PanelLeftClose` / `PanelLeftOpen`)
+  - Space / View Breadcrumb (`📁 Space Name / 📝 Note Title` with favorite star indicator `⭐`, or `🌌 3D Simulations Studio` / `📅 Study Calendar & Timers` / `🔖 Web Saver & Bookmarks`).
+- **Center Navigation Tabs**: 3 space-specific study tabs (`📝 Notes`, `🎯 Quizzes`, `📊 Mastery`). The Mastery tab carries a `gap-500` count badge when the heatmap holds unresolved gaps.
 - **Far Right Action Bar**:
-  - Multi-Timer HUD Trigger (`<GlobalTimerHUD />`).
-  - `💾 Save Note` / Note Action Menu (`<NoteMenu />`).
-  - `✨ Explain` button (opens the Explain drawer for the active note).
-  - `🦆 Quiz me` button (opens the graded quiz drawer; the Socratic Duck is its second tab).
+  - Auto-save status indicator (`saveStatus` with pulsating green dot).
+  - `✨ Explain` button (opens the AI Explain drawer for the active note).
+  - `🦆 Quiz me` button (opens the graded quiz drawer).
+  - `NoteMenu` icon button: clean 3-dots (`...` / `MoreHorizontal`) trigger without text, opening dropdown for `Save Note`, `Favorites ⭐`, `Note Stats`, `✨ Reformat Note (AI)`, `Export / Import`, and `Delete Note`.
+  - Zen Focus Mode toggle (`Maximize2` / `Minimize2` icon, shortcut `Ctrl+Shift+F`), providing an edge-to-edge distraction-free view with a floating exit pill (`Esc`).
 
 ### 3. Web Saver & Folder Manager (`WebSaverView.jsx` & `AddBookmarkModal.jsx`)
+- **Global Library Vault**: All folders and bookmarks are stored and queried globally across the workspace, accessible regardless of active space.
 - **Dual-Pane Layout**:
   - **Left Folder Tree**: Fixed `w-64 shrink-0` sidebar (`bg-ink-900 border-r border-ink-800`), nested folder rows with hover context menus (`+` subfolder, `✏️` rename, `🗑️` delete), and `ring-2 ring-duck-400` drag-and-drop drop targets.
   - **Main Bookmark Studio**: Full flex viewport (`bg-ink-950`) with live debounced search, active tag filter chips, sorting menu, and view mode toggle (Grid Cards ⊞ vs Compact Rows ☰).
@@ -100,20 +122,24 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
   - Quick action buttons with copied confirmation indicator (`Copy` $\to$ `Check`).
 
 ### 4. BlockNoteEditor (`BlockNoteEditor.jsx`)
-- **Page Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*.
-- **Top Right Banner Controls**: Positioned at top-right (`right-6 top-3/top-4`) as a stacked column (`flex flex-col items-end gap-2 print:hidden`):
-  - **Cover Button**: Renders as a translucent glassmorphic button (`bg-ink-950/40 opacity-60 hover:opacity-100`) to `Add Cover Banner` or `Change Cover`.
-  - **Intelligent Reformat Button**: Positioned directly beneath the Change Cover button with `✨ Reformat Note` (and `🪄 Reformatting Note...` processing state) and contextual animated toast badges.
-- **Left Controls Bar Below Banner**: Aligned with note content (`mb-4 pl-8 flex items-center gap-2.5 flex-wrap print:hidden`), housing the Note Icon picker (`Add Icon` / `Change Icon`).
+- **Progressive Disclosure Header Architecture**:
+  - **Clean State (No Banner / No Icon)**: Document presents a distraction-free typing canvas. Hovering over the top title area (`group/header`) progressively reveals action pills: `[ 😀 Add Icon ]` and `[ 🖼️ Add Cover ]`. Note reformatting is accessible cleanly via `NoteMenu` (`✨ Reformat Note (AI)`).
+  - **Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*. Hovering the banner reveals `[ 🖼️ Change Cover ]` pill in the top-right.
+  - **Note Icon**: Large `text-5xl` emoji above title; clicking triggers the emoji selector, while hovering allows changing or removing the icon.
 
 - **19 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Table Grid Block, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Canvas Whiteboard.
+- **Full Width & Standard Layout Variants**:
+  - Standard Reading Column (Default): `max-w-3xl px-10 mx-auto`.
+  - Full Width Viewport: `w-full max-w-none px-6 md:px-12 mx-auto`.
+- **Lock Page Read-Only Indicator Specs**:
+  - Top-Right Lock Icon Button: `absolute top-3 right-6 z-30 flex items-center justify-center p-1.5 rounded-lg border border-ink-800/70 bg-ink-900/80 text-ink-400 hover:text-amber-300 hover:border-amber-500/40 hover:bg-ink-850/90 backdrop-blur-md shadow-sm`.
+  - Icon: `h-4 w-4 text-amber-400/80 group-hover:text-amber-300 transition-colors`.
 - **Table Grid Block Design Specs**:
   - Container: `group/tableblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40`.
   - Header Toolbar: `flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none`, with `▦` icon badge (`bg-duck-500/20 text-duck-400`), editable table caption, dimension badge (`{rows} × {cols}`), and `+ Column` / `+ Row` action buttons.
   - Table Grid: `border-collapse rounded-lg overflow-hidden border border-ink-800 bg-ink-950/60 text-xs`.
   - Headers (`th`): `border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 bg-ink-900` with hover delete column button (`text-rose-400 hover:bg-rose-500/20`).
   - Cells (`td`): `border-r border-ink-800/70 px-3 py-1.5 text-ink-100` hosting rich `TableCell` `contentEditable` elements with live Markdown (bold, italic, code, strikethrough, highlight) and KaTeX equation formatting, focus highlights (`focus:text-duck-200 focus:bg-ink-900/80`), and hover row deletion controls (`text-rose-400 hover:bg-rose-500/20`).
-
   - Keyboard Navigation: `Tab` / `Shift+Tab` across cells/rows with automatic row creation on bottom right cell; `Enter` to step down columns.
 - **Slash Menu (`/`)**: Floating block-type picker menu.
 - **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>, <s>S</s>, $x$).
@@ -139,6 +165,165 @@ The scale's yellow step is deliberately **unused**: it measures 1.08 contrast ag
 - **Code Block Formatting**: Light card background (`#f8fafc border border-ink-200`) with no inline `<code>` double-border striping.
 - **LaTeX Math Scaling**: Equations auto-scale via `clamp(8pt, 1.6vw, 11.5pt)` with complete suppression of horizontal scrollbars.
 - **Toggles & Site Bookmarks**: Details text renders as clean pre-wrapped text; interactive status badges and duplicate link URLs are suppressed.
+
+### 8. Standalone HTML Export Styling (`blocksToHTMLLossy`)
+- **Theme Palette**: Self-contained dark theme with `#12151e` background, `#f1f3fa` high-contrast typography, `#f8fafc` headings, and `#334155` card borders.
+- **LaTeX Auto-Render Engine**: Embedded KaTeX CDN stylesheet (`katex@0.18.1`) and `auto-render.min.js` script with display `$$` and inline `$` delimiters. Equations render in gold (`#f7d67c`).
+- **Code Blocks**: Dedicated syntax highlighter emitting 10 token color classes (pink `#f472b6` keywords, cyan `#67e8f9` types/functions, emerald `#6ee7b7` strings, amber `#fbbf24` numbers, and slate `#64748b` comments) with language badge headers.
+- **Rich Media & Bookmarks**:
+  - Site Bookmark Cards: `#181c27` background, 🌐 icon, cyan hyperlink (`#38bdf8`), and muted URL subtitle (`#94a3b8`).
+  - Media Embeds: Responsive `<img />`, native `<audio controls>`, `<video controls>`, and 16:9 aspect-ratio responsive YouTube `<iframe>` embeds (`media-youtube` container with 56.25% padding-bottom or `aspect-video`) with editable captions and `25%` / `50%` / `100%` width preset styling.
+  - Canvas Whiteboard: Dashed card container (`#181c27`, border `#475569`) with 🎨 icon and `[Canvas Drawing]` label.
+  - Checkboxes & Toggles: Custom check boxes (`.todo-check.checked` `#0284c7` with checkmark, `.todo-check.unchecked` `#181c27`) and native collapsible `<details><summary>`.
+  - Tables: Responsive dark container (`#181c27`) with gold headers (`#f7d67c`) and subtle row borders (`#232938`).
+
+### 9. Notion-Style Right-Side Outline (Table of Contents)
+- **Minimap Dash Strip (Collapsed State)**: Minimalist vertical column of horizontal tick bars (`fixed top-24 right-2 sm:right-3.5 z-40`) on the right margin. Bar widths reflect heading hierarchy (`H1`: `w-5`, `H2`: `w-4`, `H3`: `w-3`, `H4`: `w-2`). Active section glows in solid white (`bg-white h-[2.5px] shadow-[0_0_8px_rgba(255,255,255,0.7)]`), inactive bars are subtle dark grey (`bg-[#4e515d]`).
+- **Floating Outline Card (Expanded State)**: Border-clean dark popover (`w-64 sm:w-72 max-h-[calc(100vh-8rem)] rounded-2xl border border-[#2b2e37] bg-[#16181f]/95 p-3.5 shadow-2xl backdrop-blur-2xl`) revealed on hover or click-to-pin.
+- **Hierarchy Tokens**:
+  - `H1`: `pl-0 text-sky-400 font-medium text-xs` (Top level)
+  - `H2`: `pl-3.5 text-[#9ca0ab] text-xs`
+  - `H3`: `pl-6 text-[#9ca0ab] text-xs`
+  - `H4`: `pl-8 text-[#9ca0ab] text-xs`
+- **Active Section Highlight**: Rounded dark pill (`bg-[#282b34] text-white font-medium shadow-sm ring-1 ring-white/10 rounded-lg px-2.5 py-1`).
+- **Target Jump Pulse**: `ring-2 ring-duck-400 bg-duck-500/10` temporary visual ring on clicked headings.
+
+### 10. Multi-Column Layout Block (`columns` 2–5 Columns Split)
+- **Container Structure**: Clean, borderless responsive grid directly embedded in note flow (`w-full my-2 select-text`).
+- **Slash Menu Triggers**: Dedicated `/2 columns`, `/3 columns`, `/4 columns`, `/5 columns`, `/split`, `/compare` selector entries.
+- **Responsive Grid Breakpoints**:
+  - 2 Cols: `grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4`
+  - 3 Cols: `grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4`
+  - 4 Cols: `grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4`
+  - 5 Cols: `grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4`
+- **Column Card Tokens**:
+  - Card Box: `flex flex-col rounded-xl border border-ink-800/80 bg-ink-900/80 p-3.5 shadow-sm hover:border-duck-500/30 hover:bg-ink-900/95`.
+  - Column Header Input: Rich `contentEditable` container (`text-xs font-semibold text-ink-100 placeholder:text-ink-600 border-b border-ink-800/60 pb-1.5 mb-2 focus:border-duck-400`).
+  - Column Body Content: Rich `contentEditable` multi-line area supporting live KaTeX formulas (`$formula$`) and inline code (`` `code` ``) formatting (`text-xs leading-relaxed text-ink-200 min-h-[5.5rem] focus:outline-none whitespace-pre-wrap`).
+
+### 11. Multi-Select Note Combobox & Chip Badges (Quiz Creator)
+- **Trigger Button**: `w-full flex items-center justify-between px-3 py-2 text-xs font-medium bg-ink-850 text-ink-100 border border-ink-700 rounded-xl hover:border-ink-600 focus:border-duck-500/60`.
+- **Selection Count Pill**: `text-[10px] font-bold text-duck-300 bg-duck-500/15 border border-duck-500/30 px-1.5 py-0.5 rounded-full`.
+- **Dropdown Popover Surface**: `absolute z-30 left-0 right-0 mt-1 p-2 bg-ink-900 border border-ink-700 rounded-xl shadow-2xl space-y-2 animate-fade-in`.
+- **Filter Search Input**: `w-full pl-7 pr-2.5 py-1 text-[11px] text-ink-100 bg-ink-850 border border-ink-750 rounded-lg placeholder:text-ink-500 focus:border-duck-500/60`.
+- **Selected Item Chip Badges**: `inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-ink-850 border border-ink-750 text-[11px] font-medium text-ink-200 shadow-xs`.
+- **Dismiss Button**: `text-ink-500 hover:text-gap-400 p-0.5 rounded-xs transition-colors`.
+- **Multi-Note Quiz Card Badges**: `text-[10px] font-bold text-duck-400 bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 rounded-md shrink-0`.
+
+### 12. Hierarchical Sub-Bullet Lists & Glyphs
+- **Indentation Scale**: `style={{ paddingLeft: level * 1.5rem }}` (Level 0 = `0rem`, Level 1 = `1.5rem`, Level 2 = `3.0rem`, Level 3+ = `4.5rem+`).
+- **Glyph Token Progression**:
+  - `Level 0`: `mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-400` (Solid Circle `●`).
+  - `Level 1`: `mt-2 h-1.5 w-1.5 shrink-0 rounded-full border border-ink-400 bg-transparent` (Hollow Ring `○`).
+  - `Level 2`: `mt-2.5 h-1.25 w-1.25 shrink-0 rounded-none bg-ink-400` (Solid Square `■`).
+  - `Level 3+`: `mt-2.5 h-1.25 w-1.25 shrink-0 rounded-none border border-ink-400 bg-transparent` (Hollow Square).
+- **Keyboard Transitions**:
+  - `Tab`: Indents bullet to sub-bullet (`level = min(4, level + 1)`).
+  - `Shift+Tab`: Outdents sub-bullet (`level = level - 1`). If unindented at `level 0` when empty, converts to standard paragraph text.
+  - `Enter`: Empty sub-bullet unindents by 1 level; populated sub-bullet inherits parent level on new line.
+  - `Backspace`: Caret at offset 0 unindents sub-bullet by 1 level before unformatting.
+
+### 13. Quiz Deletion Confirmation Modal & In-Progress Badges
+- **Modal Backdrop**: `fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-950/80 backdrop-blur-xs animate-fade-in`.
+- **Modal Dialog Surface**: `w-full max-w-md rounded-2xl bg-ink-900 border border-ink-800 shadow-2xl p-6 space-y-4 animate-scale-in text-left`.
+- **Modal Danger Action**: `px-4 py-2 rounded-xl bg-gap-500 hover:bg-gap-400 text-white text-xs font-bold shadow-md transition-colors flex items-center gap-1.5`.
+- **In-Progress Quiz Card Badge**: `text-xs font-semibold text-amber-400 flex items-center gap-1.5` with animated amber pulse (`w-2 h-2 rounded-full bg-amber-400 animate-pulse`).
+- **Resume Quiz Button**: `px-4 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-xs font-bold text-ink-950 shadow-sm transition-colors`.
+- **Runner Auto-Save Indicator**: `flex items-center gap-1.5 text-[11px] font-medium text-ink-400 bg-ink-850 px-2 py-0.5 rounded-full border border-ink-800` (shows `Check` with "Progress saved" or spinner with "Saving...").
+
+### 14. AI Note Reformatter Visual Feedback
+- **Floating Banner Position**: `fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-fade-in select-none`.
+- **Banner Surface**: `flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-ink-900/95 border border-duck-500/50 shadow-2xl backdrop-blur-md text-xs font-semibold text-duck-200 ring-4 ring-duck-400/20`.
+- **Active Trigger Button State (`NoteMenu.jsx`)**: `bg-duck-500/15 border border-duck-500/30 text-duck-200 cursor-wait pointer-events-none` with spinning sparkle and pulsing `"AI"` tag.
+
+### 15. KaTeX LaTeX & Chemical Formula Rendering (`MathText`)
+- **Display Math Container**: `block my-2 overflow-x-auto overflow-y-hidden text-center py-1 select-text` (with responsive horizontal scroll preservation for wide equations).
+- **Inline Math Container**: `inline-block align-baseline mx-0.5 select-text` (seamlessly aligned with paragraph font baseline).
+- **KaTeX Styling Guarantees**: Relies on bundled `katex/dist/katex.min.css` across all runners and review reports, guaranteeing standard Computer Modern math typography for physics vectors, calculus integrals, and chemistry arrows.
+
+### 16. Redesigned Decluttered Quiz Runner Layout & Question Palette
+- **Split Workspace Layout**: `flex-1 flex flex-col lg:flex-row h-full overflow-hidden bg-ink-950`.
+- **Spacious Q&A Canvas**: `flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center` wrapping a max-width container (`w-full max-w-4xl space-y-6`).
+- **Prompt & Answer Card**: `p-6 md:p-8 rounded-2xl bg-ink-900 border border-ink-800 shadow-xl space-y-6`.
+- **Multiple Choice Options**:
+  - Default: `group flex w-full items-start gap-4 p-4 md:p-4.5 rounded-xl border border-ink-800 bg-ink-850/70 text-ink-300 hover:border-ink-700 hover:bg-ink-800/80 hover:text-ink-100 transition-all cursor-pointer`.
+  - Selected State: `border-duck-400/90 bg-duck-400/10 text-ink-100 shadow-[0_0_20px_rgba(240,192,74,0.12)]`.
+  - Letter Badge: `flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold mt-0.5` (`border-duck-400 bg-duck-400 text-ink-950` when picked, `border-ink-700 text-ink-400 bg-ink-800` unpicked).
+- **Right Control & Navigation Station**: `w-full lg:w-80 xl:w-88 shrink-0 border-t lg:border-t-0 lg:border-l border-ink-800 bg-ink-900/60 backdrop-blur-xs p-6 flex flex-col justify-between overflow-y-auto space-y-6`.
+- **Questions Navigator Matrix**:
+  - Grid: `grid grid-cols-5 gap-2`.
+  - Current Question Button: `bg-duck-400 text-ink-950 font-black ring-2 ring-duck-300 ring-offset-2 ring-offset-ink-900 shadow-md scale-105 z-1`.
+  - Answered Button: `bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30` with `w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]` indicator dot.
+  - Unanswered Button: `bg-ink-850 border border-ink-800 text-ink-400 hover:bg-ink-800 hover:text-ink-200 hover:border-ink-700`.
+- **High-Contrast Review Diagnostic Cards**:
+  - Correct: `bg-emerald-950/25 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.06)]` with `bg-emerald-500/20 text-emerald-400 border-emerald-500/50` icon box and `bg-emerald-500/15 border-emerald-500/30 text-emerald-200` answer chip.
+  - Incorrect: `bg-rose-950/25 border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.06)]` with `bg-rose-500/20 text-rose-400 border-rose-500/50` icon box, `bg-rose-500/15 border-rose-500/30 text-rose-200` answer chip, and `bg-emerald-950/40 border-emerald-500/40` correct answer callout.
+
+### 18. Zero-Lag Range Sliders & UI Performance Standards (`quiz-slider`)
+- **Track Transition Discipline**: Range sliders with dynamic inline gradient tracks (such as `QuestionCountSlider`) must NEVER use `transition: all` or transition the CSS `background` property. Background gradient interpolation cannot be hardware accelerated and induces 150ms frame drops during pointer events.
+- **Track CSS Specification**:
+  ```css
+  input[type="range"].quiz-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--color-ink-800, #282d3f);
+    border-radius: 9999px;
+    outline: none;
+    transition: opacity 0.15s ease; /* Strictly opacity, never background or all */
+  }
+  ```
+- **Component Memoization (`React.memo`)**: Interactive slider cards (`QuestionCountSlider`) and checkbox items (`HeadingCheckboxItem`) must be isolated with `React.memo` to guarantee that dragging one control does not cascade re-renders into sibling sliders, headings, or dialog containers.
+- **$O(1)$ Membership Lookup**: High-cardinality multi-select elements (e.g. document headings) must index selected keys into a memoized `Set` (`selectedHeadingsSet`), reducing per-item selection checks from $O(N \times M)$ linear scans to constant time $O(1)$.
+- **Transition Scope**: Use `transition-colors` instead of `transition-all` on dynamically mapped lists to eliminate layout and composite recomputations.
+
+### 19. Space Hub & Per-Space Curriculum Document Tokens
+- **Space Hub Viewport**: `flex-1 flex flex-col h-full bg-ink-950 text-ink-100 overflow-y-auto`.
+- **Space Hub Top Banner**: `shrink-0 border-b border-ink-800 bg-ink-900/90 px-6 py-4 backdrop-blur-md sticky top-0 z-20`.
+- **Curriculum Document Cards**:
+  - Active: `border-emerald-500/40 bg-emerald-950/10 shadow-sm` with `bg-emerald-500/20 text-emerald-300` icon container and emerald status pill.
+  - Inactive / Excluded: `border-ink-800 bg-ink-850/40 opacity-70` with `bg-ink-800 text-ink-400` icon container.
+  - Active Toggle Input: Custom styled checkbox `h-4 w-4 rounded border-ink-600 bg-ink-800 text-emerald-500 focus:ring-emerald-500/40 cursor-pointer`.
+- **Pedagogy Option Cards (Academic Level & AI Persona)**:
+  - Selected State: `border-emerald-500/50 bg-emerald-500/10 text-emerald-200 shadow-sm` (Academic Level) or `border-duck-500/50 bg-duck-500/10 text-duck-200 shadow-sm` (AI Persona).
+  - Unselected State: `border-ink-800 bg-ink-850/60 text-ink-300 hover:bg-ink-800 hover:text-ink-100`.
+- **Space Hub Sidebar Entry Point**:
+  - Button placed directly below the Spaces switcher dropdown with `⚙️ Space Hub` icon and `Syllabus` badge. Active state: `border-duck-500/60 bg-duck-500/15 text-duck-300 shadow-duck-500/5 ring-1 ring-duck-500/30`.
+
+### 20. AI Tutor Doubt-Clearing Drawer Tokens
+- **Header Badge**: `border border-ink-800 bg-ink-850/60 p-3 rounded-xl` with space initial chip, academic level pill (`text-emerald-400`), and live syllabus status indicator.
+- **Message Bubbles**:
+  - User: `rounded-2xl rounded-br-xs bg-ink-800 border border-ink-700 text-ink-100`.
+  - AI Tutor: `rounded-2xl rounded-bl-xs bg-ink-900 border border-ink-800 text-ink-200`.
+- **Rich Markdown Elements (`components/MarkdownRenderer.jsx`)**:
+  - Headings (H1–H4): Crisp colored headings with border dividers.
+  - Fenced Code Blocks: 10-language syntax highlighting, copy-to-clipboard button, and dark terminal container (`border border-ink-800 bg-ink-950`).
+  - KaTeX Display & Inline Math: Embedded KaTeX equations (`$formula$` and `$$formula$$`).
+  - Markdown Tables: Rounded borders, highlighted headers (`border-b border-ink-800 bg-ink-900`), and hover rows.
+  - Blockquotes: Left border accents (`border-l-2 border-duck-400/80 bg-ink-950/60 pl-3 py-1`).
+- **Quick Doubt Starters**: `rounded-full border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100`.
+
+### 21. 3D Respiratory Mechanics & Thoracic Physics Tokens
+- **Antagonistic Intercostal Tension Shaders**:
+  - Active Contraction: Glowing scarlet crimson (`#ef4444` / `#f43f5e`, emissive intensity `1.7`–`1.8`) with active myofibril swelling signaling energetic recruitment (+35° external on inspiration; -45° internal on forced expiration).
+  - Passive Relaxation: Rich oxygenated muscle crimson (`#881337` / `#9f1239`, emissive intensity `0.08`–`0.10`) preserving distinct muscular visibility against dark backgrounds.
+  - Multi-Layer Isolation: HUD selector supporting "Both Layers", "External (Insp)", and "Internal (Exp)".
+- **Diaphragm Dome Architecture**:
+  - Muscular Rim: Deep crimson (`#881337`) with PBR striated myofibril texture, morphing downwards dynamically during active contraction ($Y = 1.05 \to 0.63$), recoiling into an elevated high dome.
+  - Central Tendon (*Centrum Tendineum*): Pearly glistening collagen aponeurosis disc (`#f8fafc`) with trifoliate cloverleaf anatomy (anterior, right, and left leaflets).
+  - Anatomical Apertures: Caval foramen (T8), esophageal hiatus (T10), and aortic hiatus (T12) with bilateral lumbar crura anchoring into L1–L3.
+- **Dynamic Airway Particle Vectors**:
+  - Inflow Stream: Crisp sky blue (`#38bdf8`, emissive `1.8`) representing fresh ambient oxygenated air streaming down trachea into bronchi.
+  - Outflow Stream: Warm amber gold (`#fbbf24`, emissive `1.8`) representing expired carbon dioxide streams moving upward and out.
+- **Real-Time Synchronized SVG Physics Gauges**:
+  - Thorax Volume (L): Gradient fill `from-duck-500 via-emerald-400 to-sky-400` with vertical resting FRC marker line (`2.8 L`).
+  - Intra-Thoracic Pressure $\Delta P$ (kPa): Bi-directional bar centered at atmospheric zero ($0\text{ kPa}$). Sub-atmospheric vacuum spans left in sky blue (`bg-sky-500`); positive compression spans right in rose (`bg-rose-500`).
+  - Air Flow Rate $\dot{V}$ (L/s): Real-time vector meter displaying instantaneous volumetric flow velocity into or out of the lungs.
+- **3D Kinematic Motion Arrows**:
+  - Ribcage displacement vectors: `PALETTE.rose` (elevation & bucket-handle expansion) vs `PALETTE.sky` (recoil depression).
+  - Sternal pump-handle vector: `PALETTE.gold` anteroposterior lift.
+  - Diaphragm central tendon vector: vertical displacement arrow tracking flattening vs recoil.
 
 ---
 

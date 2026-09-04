@@ -35,6 +35,7 @@ import {
   Thermometer,
   TrendingDown,
   Waves,
+  Wind,
   Zap,
 } from "lucide-react";
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
@@ -1166,6 +1167,90 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "The i to i+4 hydrogen bond is what defines the α-helix. That spacing sets the pitch of the spiral at 3.6 residues per turn and a rise of 0.54 nm. Bonds between neighbouring strands are what hold a β-sheet together instead.",
+      },
+    ],
+  },
+  {
+    id: "respiratory",
+    category: "biology",
+    icon: Wind,
+    title: "Respiratory Mechanics & Thoracic Physics",
+    blurb: "Thoracic volume expansion, Boyle's law pressure gradients, antagonistic intercostals, and diaphragm mechanics in 3D",
+    syllabus: "Biology 11 · Gas Exchange & Respiration",
+    keywords:
+      "respiratory system lungs diaphragm external intercostal internal intercostal ribcage sternum inspiration expiration forced expiration Boyle's law tidal volume FRC thoracic cavity mechanics pressure volume airflow",
+    ownHud: true,
+    defaults: {
+      phase: "inspiration",
+      autoLoop: true,
+      bpm: 14,
+      cutaway: 0.25,
+      showMuscles: true,
+      showAirflow: true,
+      showVectors: true,
+      showLabels: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "phase",
+        label: "Breathing Phase",
+        columns: 3,
+        options: [
+          { value: "inspiration", label: "Inspiration" },
+          { value: "quiet_expiration", label: "Quiet Exp." },
+          { value: "forced_expiration", label: "Forced Exp." },
+        ],
+      },
+      { type: "toggle", key: "autoLoop", label: "Auto breathing cycle" },
+      { type: "slider", key: "bpm", label: "Breathing rate", min: 6, max: 30, step: 1, format: (v) => `${v} BPM` },
+      { type: "slider", key: "cutaway", label: "Cutaway view", min: 0, max: 1, step: 0.05, format: (v) => `${Math.round(v * 100)}%` },
+      { type: "toggle", key: "showMuscles", label: "Intercostal muscles" },
+      { type: "toggle", key: "showAirflow", label: "Airway particle flow" },
+      { type: "toggle", key: "showVectors", label: "3D motion vectors" },
+      { type: "toggle", key: "showLabels", label: "Anatomical labels" },
+    ],
+    concepts: [
+      "Inspiration is an active process: External intercostal muscles contract (pulling ribcage up and out) and the diaphragm contracts and flattens downward, expanding thoracic cavity volume.",
+      "Boyle's Law ($P_1 V_1 = P_2 V_2$) governs pulmonary ventilation: Thoracic expansion decreases intra-alveolar pressure below atmospheric pressure (negative relative pressure), drawing ambient air into the lungs along the pressure gradient.",
+      "Quiet expiration is passive due to elastic recoil of the lungs and chest wall. Forced expiration actively contracts internal intercostals (depressing ribs) and abdominal muscles (forcing diaphragm upward), generating high positive expulsion pressure.",
+    ],
+    quiz: [
+      {
+        question: "During inspiration, what are the physiological actions of the external intercostal muscles and diaphragm?",
+        options: [
+          "External intercostals contract to elevate ribs; diaphragm contracts and flattens downward",
+          "External intercostals relax; diaphragm relaxes and arches upward into a dome",
+          "Internal intercostals contract; diaphragm relaxes and moves downward",
+          "External intercostals contract; diaphragm relaxes and pushes upward",
+        ],
+        answer: 0,
+        explanation:
+          "Inspiration is driven by active contraction: external intercostals pull the ribcage upwards and outwards ('bucket-handle' and 'pump-handle' mechanics) while the diaphragm contracts, flattening its dome downward to expand thoracic volume.",
+      },
+      {
+        question: "How does Boyle's Law explain the movement of air into the lungs during inspiration?",
+        options: [
+          "Thoracic volume increases, causing internal pressure to fall below atmospheric pressure, drawing air inward down the pressure gradient",
+          "Thoracic volume decreases, raising internal pressure to push air inward",
+          "Lung temperature increases, causing gas molecules to expand into the alveoli",
+          "Atmospheric pressure increases while lung pressure remains completely constant",
+        ],
+        answer: 0,
+        explanation:
+          "Boyle's Law states that for a fixed mass of gas at constant temperature, pressure is inversely proportional to volume ($P \\propto 1/V$). Expanding thoracic volume drops intra-alveolar pressure below atmospheric pressure (creating a relative vacuum), causing air to rush inward down the pressure gradient.",
+      },
+      {
+        question: "Which muscle group actively contracts during FORCED expiration (such as blowing out candles or coughing)?",
+        options: [
+          "Internal intercostals and abdominal muscles",
+          "External intercostals and diaphragm",
+          "Pectoralis major and sternocleidomastoid",
+          "Only the elastic recoil fibers of the alveoli, with no muscle contraction",
+        ],
+        answer: 0,
+        explanation:
+          "While quiet expiration is passive elastic recoil, forced expiration is an active muscular process where internal intercostals actively depress the ribcage down and inwards, paired with abdominal muscle compression driving the diaphragm upward.",
       },
     ],
   },

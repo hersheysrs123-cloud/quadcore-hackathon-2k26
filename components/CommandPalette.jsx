@@ -29,11 +29,13 @@ export default function CommandPalette({
 
   // Combine all searchable items (memoized)
   const items = useMemo(() => {
+    if (!isOpen) return [];
     const list = [
       { id: "action_notes", type: "View", title: "Open Notes", icon: <FileText size={16} />, onSelect: () => setActiveTab("notes") },
       { id: "action_calendar", type: "View", title: "Open Calendar", icon: <Calendar size={16} />, onSelect: () => setActiveTab("calendar") },
       { id: "action_websaver", type: "View", title: "Open Web Saver (Bookmarks)", icon: <Bookmark size={16} />, onSelect: () => setActiveTab("websaver") },
       { id: "action_3d", type: "View", title: "Open 3D Visualizations", icon: <Box size={16} />, onSelect: () => setActiveTab("3d") },
+      { id: "action_quizzes", type: "View", title: "Open Quizzes Studio", icon: <span>🎯</span>, onSelect: () => setActiveTab("quizzes") },
       { id: "action_mastery", type: "View", title: "Open Mastery Dashboard", icon: <Activity size={16} />, onSelect: () => setActiveTab("mastery") },
     ];
 
@@ -79,10 +81,11 @@ export default function CommandPalette({
     });
 
     return list;
-  }, [notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
+  }, [isOpen, notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
 
   // Fuzzy filter (memoized)
   const filteredItems = useMemo(() => {
+    if (!isOpen) return [];
     if (!query.trim()) return items;
     const q = query.toLowerCase();
     return items.filter(
@@ -91,7 +94,7 @@ export default function CommandPalette({
         item.type.toLowerCase().includes(q) ||
         (item.subtitle && item.subtitle.toLowerCase().includes(q))
     );
-  }, [items, query]);
+  }, [isOpen, items, query]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

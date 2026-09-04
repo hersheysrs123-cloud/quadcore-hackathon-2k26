@@ -14,20 +14,14 @@ import {
   ExternalLink,
   Copy,
   Check,
-  MoreVertical,
   Edit2,
   Trash2,
-  Tag,
   Globe,
   Upload,
   Download,
   ChevronRight,
   ChevronDown,
-  ArrowUpDown,
-  MoveRight,
   X,
-  FileText,
-  Sparkles,
   AlertTriangle,
 } from "lucide-react";
 import { db } from "@/lib/db";
@@ -42,12 +36,12 @@ import {
   clearSpaceBookmarks,
 } from "@/lib/storageService";
 import { exportBookmarksToHtml, importBookmarksFromHtml } from "@/lib/exportImport";
-import { extractDomain, getFaviconUrl } from "@/lib/urlUtils";
+import { extractDomain } from "@/lib/urlUtils";
 import { SPACES } from "@/lib/constants";
 import AddBookmarkModal from "@/components/AddBookmarkModal";
 
 // ─── Clear All Bookmarks Confirmation Modal ─────────────────────────
-function ClearAllBookmarksConfirmModal({ open, spaceName, bookmarksCount, foldersCount, onClose, onConfirm }) {
+function ClearAllBookmarksConfirmModal({ open, bookmarksCount, foldersCount, onClose, onConfirm }) {
   if (!open) return null;
 
   return (
@@ -60,7 +54,7 @@ function ClearAllBookmarksConfirmModal({ open, spaceName, bookmarksCount, folder
           </div>
           <div>
             <h3 className="text-sm font-bold text-ink-100">Delete All Bookmarks &amp; Folders</h3>
-            <p className="text-xs text-ink-400">Target space: <span className="font-semibold text-rose-300">"{spaceName}"</span></p>
+            <p className="text-xs text-ink-400">Target: <span className="font-semibold text-rose-300">Global Vault</span></p>
           </div>
         </div>
 
@@ -71,7 +65,7 @@ function ClearAllBookmarksConfirmModal({ open, spaceName, bookmarksCount, folder
               <span>Irreversible Deletion Notice</span>
             </p>
             <p className="mt-1.5 text-[11px] text-rose-200/90">
-              This will permanently delete all <strong>{bookmarksCount} bookmarks</strong> and <strong>{foldersCount} folders</strong> in the <strong>"{spaceName}"</strong> space.
+              This will permanently delete all <strong>{bookmarksCount} bookmarks</strong> and <strong>{foldersCount} folders</strong> across the entire workspace.
             </p>
           </div>
 
@@ -93,7 +87,7 @@ function ClearAllBookmarksConfirmModal({ open, spaceName, bookmarksCount, folder
             onClick={onConfirm}
             className="rounded-xl border border-rose-500/40 bg-rose-500/20 px-4 py-2 text-xs font-bold text-rose-200 hover:bg-rose-500/30 transition-colors shadow-sm"
           >
-            🗑️ Delete Everything in "{spaceName}"
+            🗑️ Delete All Bookmarks
           </button>
         </div>
       </div>
@@ -102,7 +96,7 @@ function ClearAllBookmarksConfirmModal({ open, spaceName, bookmarksCount, folder
 }
 
 // ─── Import Bookmarks Confirmation Modal ────────────────────────────
-function ImportBookmarksConfirmModal({ open, file, spaceName, onClose, onConfirm }) {
+function ImportBookmarksConfirmModal({ open, file, onClose, onConfirm }) {
   if (!open || !file) return null;
 
   return (
@@ -115,7 +109,7 @@ function ImportBookmarksConfirmModal({ open, file, spaceName, onClose, onConfirm
           </div>
           <div>
             <h3 className="text-sm font-bold text-ink-100">Import HTML Bookmarks</h3>
-            <p className="text-xs text-ink-400">Target space: <span className="font-semibold text-duck-300">"{spaceName}"</span></p>
+            <p className="text-xs text-ink-400">Target: <span className="font-semibold text-duck-300">Global Vault</span></p>
           </div>
         </div>
 
@@ -126,7 +120,7 @@ function ImportBookmarksConfirmModal({ open, file, spaceName, onClose, onConfirm
               <span>Duplicate Prevention Notice</span>
             </p>
             <p className="mt-1.5 text-[11px] text-amber-200/90">
-              Importing will <strong>replace all existing folders and bookmarks in the "{spaceName}" space</strong> with the contents of your HTML file. This ensures your folders and links are not duplicated.
+              Importing with <strong>Replace &amp; Import</strong> will replace all existing folders and bookmarks with the contents of your HTML file. Choose <strong>Merge / Append</strong> to keep existing bookmarks.
             </p>
           </div>
 
@@ -249,7 +243,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
   // State
   const [selectedFolderId, setSelectedFolderId] = useState("all"); // "all" | "unorganized" | folderId
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState(null);
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const [sortBy, setSortBy] = useState("newest"); // "newest" | "oldest" | "title" | "domain"
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -266,41 +259,48 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Space-filtered folders and bookmarks
+  // Global folders and bookmarks across entire workspace with fallback arrays
   const spaceFolders = useMemo(() => {
-    return folders.filter((f) => (f.spaceId || "School") === activeSpace);
-  }, [folders, activeSpace]);
+    return Array.isArray(folders) ? folders.filter(Boolean) : [];
+  }, [folders]);
 
   const spaceBookmarks = useMemo(() => {
-    return bookmarks.filter((b) => (b.spaceId || "School") === activeSpace);
-  }, [bookmarks, activeSpace]);
+    return Array.isArray(bookmarks) ? bookmarks.filter(Boolean) : [];
+  }, [bookmarks]);
 
-  // Folder Tree Structure Builder
+  // Folder Tree Structure Builder with robust null & circular safety
   const folderTree = useMemo(() => {
     const map = {};
     const roots = [];
 
     spaceFolders.forEach((f) => {
-      map[f.id] = { ...f, children: [] };
+      if (f && f.id) {
+        map[f.id] = { ...f, children: [] };
+      }
     });
 
     spaceFolders.forEach((f) => {
-      if (f.parentId && map[f.parentId]) {
-        map[f.parentId].children.push(map[f.id]);
-      } else {
-        roots.push(map[f.id]);
+      if (f && f.id && map[f.id]) {
+        if (f.parentId && map[f.parentId] && f.parentId !== f.id) {
+          map[f.parentId].children.push(map[f.id]);
+        } else {
+          roots.push(map[f.id]);
+        }
       }
     });
 
     return roots;
   }, [spaceFolders]);
 
-  // Count bookmarks per folder
+  // Count bookmarks per folder safely
   const bookmarkCounts = useMemo(() => {
     const counts = { all: spaceBookmarks.length, unorganized: 0 };
-    spaceFolders.forEach((f) => (counts[f.id] = 0));
+    spaceFolders.forEach((f) => {
+      if (f && f.id) counts[f.id] = 0;
+    });
 
     spaceBookmarks.forEach((bm) => {
+      if (!bm) return;
       if (!bm.folderId) {
         counts.unorganized += 1;
       } else if (counts[bm.folderId] !== undefined) {
@@ -311,32 +311,22 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
     return counts;
   }, [spaceFolders, spaceBookmarks]);
 
-  // Extract all unique tags in active space
-  const allTags = useMemo(() => {
-    const tagSet = new Set();
-    spaceBookmarks.forEach((b) => {
-      if (Array.isArray(b.tags)) {
-        b.tags.forEach((t) => tagSet.add(t));
-      }
-    });
-    return Array.from(tagSet).sort();
-  }, [spaceBookmarks]);
-
-  // Filtered & Sorted Bookmarks
+  // Filtered & Sorted Bookmarks with defensive property access
   const displayedBookmarks = useMemo(() => {
-    let list = spaceBookmarks;
+    let list = spaceBookmarks.filter(Boolean);
 
     // Folder Filter
     if (selectedFolderId === "unorganized") {
       list = list.filter((b) => !b.folderId);
     } else if (selectedFolderId !== "all") {
-      // Show bookmarks in this folder or any child folder
       const childFolderIds = new Set([selectedFolderId]);
       let added = true;
-      while (added) {
+      let iterations = 0;
+      while (added && iterations < 50) {
         added = false;
+        iterations += 1;
         spaceFolders.forEach((f) => {
-          if (f.parentId && childFolderIds.has(f.parentId) && !childFolderIds.has(f.id)) {
+          if (f && f.id && f.parentId && childFolderIds.has(f.parentId) && !childFolderIds.has(f.id)) {
             childFolderIds.add(f.id);
             added = true;
           }
@@ -345,20 +335,15 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
       list = list.filter((b) => b.folderId && childFolderIds.has(b.folderId));
     }
 
-    // Tag Filter
-    if (selectedTag) {
-      list = list.filter((b) => Array.isArray(b.tags) && b.tags.includes(selectedTag));
-    }
-
     // Search Query Filter
-    if (searchQuery.trim()) {
+    if (searchQuery && searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter((b) => {
         const titleMatch = (b.title || "").toLowerCase().includes(q);
         const urlMatch = (b.url || "").toLowerCase().includes(q);
-        const domainMatch = extractDomain(b.url).toLowerCase().includes(q);
+        const domainMatch = extractDomain(b.url || "").toLowerCase().includes(q);
         const notesMatch = (b.notes || "").toLowerCase().includes(q);
-        const tagsMatch = Array.isArray(b.tags) && b.tags.some((t) => t.toLowerCase().includes(q));
+        const tagsMatch = Array.isArray(b.tags) && b.tags.some((t) => typeof t === "string" && t.toLowerCase().includes(q));
         return titleMatch || urlMatch || domainMatch || notesMatch || tagsMatch;
       });
     }
@@ -375,11 +360,11 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
         return (a.title || "").localeCompare(b.title || "");
       }
       if (sortBy === "domain") {
-        return extractDomain(a.url).localeCompare(extractDomain(b.url));
+        return extractDomain(a.url || "").localeCompare(extractDomain(b.url || ""));
       }
       return 0;
     });
-  }, [spaceBookmarks, selectedFolderId, spaceFolders, selectedTag, searchQuery, sortBy]);
+  }, [spaceBookmarks, selectedFolderId, spaceFolders, searchQuery, sortBy]);
 
   // Toggle Folder Collapse
   const toggleFolderExpand = (folderId, e) => {
@@ -431,7 +416,7 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
   // HTML Export
   const handleExportHtml = async () => {
     try {
-      await exportBookmarksToHtml(spaceBookmarks, spaceFolders, activeSpace);
+      await exportBookmarksToHtml(spaceBookmarks, spaceFolders, "Global Vault");
     } catch (err) {
       alert("Failed to export HTML bookmarks: " + err.message);
     }
@@ -451,8 +436,8 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
     setImportConfirmOpen(false);
     setImporting(true);
     try {
-      const res = await importBookmarksFromHtml(pendingImportFile, activeSpace, { replaceExisting });
-      alert(`✓ Successfully imported ${res.bookmarksCount} bookmarks and ${res.foldersCount} folders into "${activeSpace}" space!`);
+      const res = await importBookmarksFromHtml(pendingImportFile, "Global", { replaceExisting });
+      alert(`✓ Successfully imported ${res.bookmarksCount} bookmarks and ${res.foldersCount} folders!`);
     } catch (err) {
       alert("Import error: " + err.message);
     } finally {
@@ -462,13 +447,12 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
     }
   };
 
-  // Clear all bookmarks and folders in active space
+  // Clear all bookmarks and folders globally
   const handleClearAllBookmarks = async () => {
     setClearAllModalOpen(false);
     try {
-      await clearSpaceBookmarks(activeSpace);
+      await clearSpaceBookmarks();
       setSelectedFolderId("all");
-      setSelectedTag(null);
     } catch (err) {
       alert("Failed to clear bookmarks: " + err.message);
     }
@@ -478,7 +462,7 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
   const currentFolderLabel = useMemo(() => {
     if (selectedFolderId === "all") return "All Saved Links";
     if (selectedFolderId === "unorganized") return "Unorganized Links";
-    const found = spaceFolders.find((f) => f.id === selectedFolderId);
+    const found = spaceFolders.find((f) => f && f.id === selectedFolderId);
     return found ? found.name : "Bookmarks";
   }, [selectedFolderId, spaceFolders]);
 
@@ -512,7 +496,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
             type="button"
             onClick={() => {
               setSelectedFolderId("all");
-              setSelectedTag(null);
             }}
             onDragOver={(e) => handleDragOver(e, "all")}
             onDragLeave={handleDragLeave}
@@ -537,7 +520,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
             type="button"
             onClick={() => {
               setSelectedFolderId("unorganized");
-              setSelectedTag(null);
             }}
             onDragOver={(e) => handleDragOver(e, "unorganized")}
             onDragLeave={handleDragLeave}
@@ -562,7 +544,7 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
           {/* Folders Tree */}
           <div className="px-1 pb-1">
             <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
-              {activeSpace} · Folders
+              Folders
             </p>
 
             {spaceFolders.length === 0 ? (
@@ -582,7 +564,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
                     bookmarkCounts={bookmarkCounts}
                     onSelectFolder={(id) => {
                       setSelectedFolderId(id);
-                      setSelectedTag(null);
                     }}
                     onToggleExpand={toggleFolderExpand}
                     onDragOver={handleDragOver}
@@ -641,18 +622,18 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
             type="button"
             onClick={() => setClearAllModalOpen(true)}
             disabled={spaceBookmarks.length === 0 && spaceFolders.length === 0}
-            title={`Delete all bookmarks and folders in "${activeSpace}" space`}
+            title="Delete all bookmarks and folders"
             className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-300 transition-all hover:bg-rose-500/20 hover:border-rose-500/50 disabled:opacity-30 disabled:pointer-events-none"
           >
             <Trash2 className="h-3.5 w-3.5 text-rose-400" />
-            <span>Delete All in "{activeSpace}"</span>
+            <span>Delete All Bookmarks</span>
           </button>
         </div>
       </aside>
 
       {/* ─── Main Content Pane ───────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Control Bar: Search, Tags Filter, View Mode, Sort, Add Button */}
+        {/* Top Control Bar: Search, View Mode, Sort, Add Button */}
         <div className="flex flex-col gap-2.5 border-b border-ink-800 bg-ink-900/60 p-4 backdrop-blur-md shrink-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {/* Live Search Input */}
@@ -662,7 +643,7 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search bookmarks by title, URL, tag, or notes..."
+                placeholder="Search bookmarks by title, URL, or notes..."
                 className="w-full rounded-xl border border-ink-700 bg-ink-850 pl-9 pr-8 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
               />
               {searchQuery && (
@@ -735,7 +716,7 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
             </div>
           </div>
 
-          {/* Breadcrumb Context & Tags Bar */}
+          {/* Breadcrumb Context Bar */}
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-ink-800/50 text-xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-bold text-ink-200 truncate">{currentFolderLabel}</span>
@@ -744,34 +725,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
                 {displayedBookmarks.length} link{displayedBookmarks.length === 1 ? "" : "s"}
               </span>
             </div>
-
-            {/* Quick Tag Filter Chips */}
-            {allTags.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-                {selectedTag && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTag(null)}
-                    className="inline-flex items-center gap-1 rounded-md bg-duck-500/20 border border-duck-400 px-2 py-0.5 text-[11px] font-bold text-duck-200"
-                  >
-                    <span>#{selectedTag}</span>
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-                {allTags
-                  .filter((t) => t !== selectedTag)
-                  .map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setSelectedTag(tag)}
-                      className="rounded-md border border-ink-700 bg-ink-850/80 px-2 py-0.5 text-[11px] text-ink-400 hover:border-duck-500/50 hover:text-duck-300 transition-colors"
-                    >
-                      #{tag}
-                    </button>
-                  ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -784,11 +737,11 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
                 🔖
               </div>
               <h3 className="mt-4 text-base font-bold text-ink-100">
-                {searchQuery || selectedTag ? "No bookmarks match your search" : "No bookmarks in this folder yet"}
+                {searchQuery ? "No bookmarks match your search" : "No bookmarks in this folder yet"}
               </h3>
               <p className="mt-1.5 text-xs text-ink-400 leading-relaxed">
-                {searchQuery || selectedTag
-                  ? "Try searching for a different keyword, URL, or removing tag filters."
+                {searchQuery
+                  ? "Try searching for a different keyword or URL."
                   : "Save articles, lecture notes, GitHub repos, and study tools organized locally into folders."}
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -836,7 +789,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
                       await deleteBookmark(bm.id);
                     }
                   }}
-                  onSelectTag={(t) => setSelectedTag(t)}
                 />
               ))}
             </div>
@@ -861,7 +813,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
                       await deleteBookmark(bm.id);
                     }
                   }}
-                  onSelectTag={(t) => setSelectedTag(t)}
                 />
               ))}
             </div>
@@ -884,8 +835,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
           }
         }}
         initialBookmark={editBookmark}
-        activeSpace={activeSpace}
-        spaces={spaces}
         folders={spaceFolders}
         selectedFolderId={selectedFolderId === "all" || selectedFolderId === "unorganized" ? null : selectedFolderId}
       />
@@ -901,7 +850,7 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
           if (folderModalState.mode === "rename" && folderModalState.folder) {
             await renameFolder(folderModalState.folder.id, name);
           } else {
-            await createFolder({ name, spaceId: activeSpace, parentId });
+            await createFolder({ name, spaceId: "Global", parentId });
           }
         }}
       />
@@ -910,7 +859,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
       <ImportBookmarksConfirmModal
         open={importConfirmOpen}
         file={pendingImportFile}
-        spaceName={activeSpace}
         onClose={() => {
           setImportConfirmOpen(false);
           setPendingImportFile(null);
@@ -922,7 +870,6 @@ export default function WebSaverView({ activeSpace = "School", spaces = SPACES }
       {/* Clear / Delete All Bookmarks & Folders Confirmation Modal */}
       <ClearAllBookmarksConfirmModal
         open={clearAllModalOpen}
-        spaceName={activeSpace}
         bookmarksCount={spaceBookmarks.length}
         foldersCount={spaceFolders.length}
         onClose={() => setClearAllModalOpen(false)}
@@ -937,9 +884,9 @@ function FolderTreeItem({
   folder,
   depth = 0,
   selectedFolderId,
-  expandedFolders,
+  expandedFolders = {},
   dragOverFolderId,
-  bookmarkCounts,
+  bookmarkCounts = {},
   onSelectFolder,
   onToggleExpand,
   onDragOver,
@@ -949,11 +896,12 @@ function FolderTreeItem({
   onRenameFolder,
   onDeleteFolder,
 }) {
+  if (!folder || !folder.id) return null;
   const isSelected = selectedFolderId === folder.id;
-  const isExpanded = Boolean(expandedFolders[folder.id]);
+  const isExpanded = Boolean(expandedFolders?.[folder.id]);
   const isDragOver = dragOverFolderId === folder.id;
   const hasChildren = Array.isArray(folder.children) && folder.children.length > 0;
-  const count = bookmarkCounts[folder.id] || 0;
+  const count = bookmarkCounts?.[folder.id] || 0;
 
   return (
     <div>
@@ -988,7 +936,7 @@ function FolderTreeItem({
             <Folder className="h-4 w-4 text-ink-400 shrink-0" />
           )}
 
-          <span className="truncate flex-1">{folder.name}</span>
+          <span className="truncate flex-1">{folder.name || "Untitled Folder"}</span>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
@@ -1038,7 +986,7 @@ function FolderTreeItem({
       {/* Child Subfolders */}
       {hasChildren && isExpanded && (
         <div className="space-y-0.5">
-          {folder.children.map((child) => (
+          {folder.children.filter(Boolean).map((child) => (
             <FolderTreeItem
               key={child.id}
               folder={child}
@@ -1073,10 +1021,10 @@ function BookmarkGridCard({
   onMoveFolder,
   onEdit,
   onDelete,
-  onSelectTag,
 }) {
   const [imgError, setImgError] = useState(false);
-  const domain = extractDomain(bookmark.url);
+  if (!bookmark || !bookmark.id) return null;
+  const domain = extractDomain(bookmark.url || "");
   const isCopied = copiedId === bookmark.id;
 
   return (
@@ -1125,7 +1073,7 @@ function BookmarkGridCard({
               type="button"
               onClick={onEdit}
               title="Edit Bookmark"
-              className="p-1.5 rounded-lg border border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200 transition-colors"
+              className="p-1.5 rounded-lg border border-ink-700 bg-ink-850 text-ink-400 hover:text-ink-200 transition-colors"
             >
               <Edit2 className="h-3.5 w-3.5" />
             </button>
@@ -1133,7 +1081,7 @@ function BookmarkGridCard({
               type="button"
               onClick={onDelete}
               title="Delete Bookmark"
-              className="p-1.5 rounded-lg border border-ink-700 bg-ink-800 text-ink-400 hover:text-rose-300 hover:border-rose-500/40 transition-colors"
+              className="p-1.5 rounded-lg border border-ink-700 bg-ink-850 text-ink-400 hover:text-rose-300 hover:border-rose-500/40 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -1158,18 +1106,16 @@ function BookmarkGridCard({
           </p>
         )}
 
-        {/* Tags */}
+        {/* Aesthetic Hashtags */}
         {Array.isArray(bookmark.tags) && bookmark.tags.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1">
             {bookmark.tags.map((t) => (
-              <button
+              <span
                 key={t}
-                type="button"
-                onClick={() => onSelectTag(t)}
-                className="rounded-md bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 text-[10px] font-medium text-duck-300 hover:bg-duck-500/20 transition-colors"
+                className="inline-flex items-center rounded-md bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 text-[10px] font-medium text-duck-300 select-none"
               >
                 #{t}
-              </button>
+              </span>
             ))}
           </div>
         )}
@@ -1207,10 +1153,10 @@ function BookmarkListItem({
   onMoveFolder,
   onEdit,
   onDelete,
-  onSelectTag,
 }) {
   const [imgError, setImgError] = useState(false);
-  const domain = extractDomain(bookmark.url);
+  if (!bookmark || !bookmark.id) return null;
+  const domain = extractDomain(bookmark.url || "");
   const isCopied = copiedId === bookmark.id;
 
   return (
@@ -1258,18 +1204,16 @@ function BookmarkListItem({
           )}
         </div>
 
-        {/* Tags */}
+        {/* Aesthetic Hashtags */}
         {Array.isArray(bookmark.tags) && bookmark.tags.length > 0 && (
           <div className="hidden md:flex items-center gap-1 shrink-0">
             {bookmark.tags.slice(0, 3).map((t) => (
-              <button
+              <span
                 key={t}
-                type="button"
-                onClick={() => onSelectTag(t)}
-                className="rounded-md bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 text-[10px] font-medium text-duck-300 hover:bg-duck-500/20"
+                className="inline-flex items-center rounded-md bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 text-[10px] font-medium text-duck-300 select-none"
               >
                 #{t}
-              </button>
+              </span>
             ))}
           </div>
         )}

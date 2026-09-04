@@ -17,6 +17,7 @@ export default function ExplainPanel({
   concept,
   focus,
   noteContent,
+  spaceId = null,
   onClose,
   onQuiz,
 }) {
@@ -24,14 +25,20 @@ export default function ExplainPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
+  const lastConceptFocusRef = useRef(null);
+  const seqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const key = `${concept}::${focus || ""}`;
+    const seq = ++seqRef.current;
+    lastConceptFocusRef.current = key;
+
     setLoading(true);
     setError(null);
     setExplanation(null);
 
     try {
-      const payload = { concept, focus, noteContent };
+      const payload = { concept, focus, noteContent, spaceId };
       const isClient = await shouldUseClientAI();
 
       let data;
@@ -47,11 +54,15 @@ export default function ExplainPanel({
         if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status}).`);
       }
 
+      if (seqRef.current !== seq) return;
       setExplanation(data.explanation);
     } catch (err) {
+      if (seqRef.current !== seq) return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (seqRef.current === seq) {
+        setLoading(false);
+      }
     }
   }, [concept, focus, noteContent]);
 
@@ -60,6 +71,8 @@ export default function ExplainPanel({
   // drawer, and re-explaining mid-read would be maddening.
   useEffect(() => {
     if (!open || !concept) return;
+    const key = `${concept}::${focus || ""}`;
+    if (lastConceptFocusRef.current === key && explanation) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, concept, focus]);
@@ -171,22 +184,50 @@ export default function ExplainPanel({
             )}
 
             {/* Worked example */}
-            {explanation.workedExample?.steps?.length > 0 && (
+            {(explanation.workedExample?.steps?.length > 0 ||
+              explanation.workedExample?.title ||
+              explanation.workedExample?.problem) && (
               <Section label="Worked through">
-                <div className="rounded-xl border border-ink-800 bg-ink-850 px-4 py-3.5">
-                  <p className="text-sm font-semibold text-ink-100">
-                    {explanation.workedExample.title}
-                  </p>
-                  <ol className="mt-2.5 space-y-2">
-                    {explanation.workedExample.steps.map((step, i) => (
-                      <li key={i} className="flex gap-2.5 text-[13px] leading-relaxed">
-                        <span className="shrink-0 font-mono text-[11px] tabular-nums text-ink-600">
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <span className="text-ink-300">{step}</span>
-                      </li>
-                    ))}
-                  </ol>
+                <div className="rounded-xl border border-ink-800 bg-ink-850 px-4 py-3.5 space-y-3">
+                  {(explanation.workedExample.title || explanation.workedExample.problem) && (
+                    <p className="text-xs font-bold text-ink-100 leading-snug">
+                      {explanation.workedExample.title || explanation.workedExample.problem}
+                    </p>
+                  )}
+                  {explanation.workedExample.steps?.length > 0 && (
+                    <ol className="space-y-2.5">
+                      {explanation.workedExample.steps.map((item, i) => {
+                        const stepTitle = typeof item === "string" ? item : item.step;
+                        const stepExplanation = typeof item === "object" ? item.explanation : "";
+
+                        return (
+                          <li key={i} className="flex gap-2.5 text-[13px] leading-relaxed">
+                            <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-duck-400 mt-0.5">
+                              {String(i + 1).padStart(2, "0")}
+                            </span>
+                            <div className="flex-1 space-y-0.5 min-w-0">
+                              {stepTitle && (
+                                <p className="font-semibold text-ink-200">
+                                  {stepTitle}
+                                </p>
+                              )}
+                              {stepExplanation && (
+                                <p className="text-ink-300 text-xs leading-relaxed">
+                                  {stepExplanation}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                  {explanation.workedExample.takeaway && (
+                    <div className="mt-3 pt-2.5 border-t border-ink-800 flex items-start gap-2 text-xs text-duck-300 bg-duck-500/5 rounded-lg p-2.5 border border-duck-500/20">
+                      <span className="shrink-0 font-bold">💡 Takeaway:</span>
+                      <span className="text-ink-200">{explanation.workedExample.takeaway}</span>
+                    </div>
+                  )}
                 </div>
               </Section>
             )}

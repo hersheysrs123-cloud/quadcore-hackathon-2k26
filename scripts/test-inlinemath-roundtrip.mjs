@@ -2,7 +2,6 @@ import {
   blocksToMarkdownLossy,
   tryParseMarkdownToBlocks,
   blocksToHTMLLossy,
-  tryParseHTMLToBlocks,
   blocksToPlainText,
   tryParsePlainTextToBlocks,
   blocksToDocxBlob,

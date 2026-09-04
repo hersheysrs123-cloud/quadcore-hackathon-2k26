@@ -2,7 +2,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   STATUS,
-  STATUS_ORDER,
   statusOf,
   scoreStatus,
   relativeTime,

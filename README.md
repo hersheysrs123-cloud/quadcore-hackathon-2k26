@@ -30,12 +30,22 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 ## ✨ Key Features & Capabilities
 
 ### 📝 1. Notion-Style Block Note Editor
-- **19 Block Types Supported**: Text, Heading 1 (`h1`), Heading 2 (`h2`), Heading 3 (`h3`), Heading 4 (`h4`), Bullet List, Numbered List (dynamic sequential indexing `1.`, `2.`), To-Do List (interactive checkboxes with strikethrough), Toggle List (collapsible arrow `▶`/`▼`), Callout Box (with 8 icon presets), Table (interactive grid table with dynamic cell editing, `+ Column`/`+ Row`, delete row/col, and `Tab` navigation), Quote (thick accent border), LaTeX Math Equation block (live KaTeX rendering), Inline LaTeX Equation (`inlinemath` pills `$formula$`), Divider (`hr`), Site Bookmark Embed (clickable card with live favicon), Media Embed (Image, Audio `<audio controls>`, Video `<video controls>` with local file upload & URL support), Code Snippet (10-language syntax highlighting), and Canvas Whiteboard (`canvas` with 5 drawing tools & undo/redo).
-- **In-Context Slash Menu (`/`)**: Typing `/` triggers a block-type selector directly underneath the active line.
+- **19 Block Types Supported**: Text, Heading 1 (`h1`), Heading 2 (`h2`), Heading 3 (`h3`), Heading 4 (`h4`), Bullet List (with multi-level sub-bullet nesting), Numbered List (dynamic sequential indexing `1.`, `2.`), To-Do List (interactive checkboxes with strikethrough), Toggle List (collapsible arrow `▶`/`▼`), Callout Box (with 8 icon presets), Multi-Column Layout Block (`columns` 2 to 5 columns split layout with dynamic column count selector pills), Table (interactive grid table with streamlined Notion header, dynamic cell editing, `+ Column`/`+ Row`, delete row/col, and `Tab` navigation), Quote (thick accent border), LaTeX Math Equation block (live KaTeX rendering, quick Presets toggle & symbols tray), Inline LaTeX Equation (`inlinemath` pills `$formula$`), Divider (`hr`), Site Bookmark Embed (clickable card with live favicon), Media & YouTube Video Embed (Images and YouTube video players with 16:9 responsive embeds, timestamp support & **`25%` / `50%` / `100%` width resize presets**), and Code Snippet (10-language syntax highlighting).
+- **Hierarchical Sub-Bullets & Multi-Level Lists**:
+  - `Tab`: Indent active bullet (empty or with content) to a sub-bullet (`level = level + 1`, up to level 4).
+  - `Shift+Tab`: Outdent sub-bullet (`level = level - 1`). If unindented at level 0 while empty, converts into a normal paragraph text block.
+  - `Enter`: Pressing Enter on an empty sub-bullet unindents by 1 level before exiting; pressing Enter on a populated sub-bullet inherits the current level.
+  - `Backspace`: Pressing Backspace at offset 0 unindents sub-bullets by 1 level.
+  - **Hierarchical Visual Glyphs**: Level 0 renders a solid filled circle (`●`), Level 1 renders a hollow ring (`○`) with `1.5rem` indent, Level 2 renders a solid square (`■`) with `3.0rem` indent, and Level 3+ renders a hollow square with `4.5rem+` indent.
+- **Multi-Column Layout Block (`/2 columns` - `/5 columns`, `/split`, `/compare`)**: Dynamic 2 to 5 column split container for side-by-side concept comparisons (e.g. Mitosis vs Meiosis, Conductors vs Insulators, Cornell notes) with segmented column switcher pills (`[ 2 Cols ]` - `[ 5 Cols ]`), responsive grid cards, header titles, and auto-growing multi-line body.
+- **Notion-Style Right-Side Outline (Minimap Ticks & Floating Card)**: Floating right-side outline panel with live `h1`–`h4` heading scanning, minimap dash strip with real-time scroll spy active-section tracking, and one-click smooth jumping with highlight ring pulse.
+- **Inline Image & Video Resize Presets**: Width toggle pills (`25%`, `50%`, `100%`) for balanced diagram and video embedding into text flow.
+- **External Smart Paste & Google Docs Sanitizer**: Automatically converts pasted rich HTML from lecture slides, Google Docs, Notion, and web pages into structured blocks (preserving bold, italics, headings, lists, tables, and embeds) without DOM corruption or foreign style pollution.
+- **In-Context Slash Menu (`/`)**: Typing `/` triggers a block-type selector directly underneath the active line, supporting quick filters like `/columns`, `/2 columns`, `/3 columns`, `/4 columns`, `/5 columns`, `/split`, `/compare`, `/youtube`, `/video`, `/math`, `/table`.
 - **Draggable 6-Dots Handles (`⠿`) & Context Formatting**: Hovering blocks displays aligned delete (`🗑️`) and draggable `⠿` handles. Context popovers feature:
   - ✨ **Explain** / 🦆 **Quiz me** for that specific block.
   - **Inline Text Formatting**: Bold (`B`), Italic (`I`), Underline (`U`), Strikethrough (`S`), LaTeX Math ($x$).
-  - 🔄 **Turn Into Submenu**: Convert block into any of the 19 block types.
+  - 🔄 **Turn Into Submenu**: Convert block into any of the 20 block types.
   - 📋 **Duplicate Block**, ⬆️/⬇️ **Move Up/Down**, 📄 **Copy Content**.
 - **Cover Banners**: Full horizontal width note headers with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*).
 - **Custom Emoji Picker & Star Favorites (`⭐`)**: Assign note emojis and toggle star favorites to pin notes in the sidebar.
@@ -43,13 +53,34 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 - **Auto-Note Instantiation & Click-to-Append**: Typing inside an empty space automatically instantiates a new note; clicking blank space below blocks appends a new paragraph.
 
 
-### 🔍 2. Universal Navigation & Instant Capture
+### 🔍 2. Universal Navigation, History & Instant Capture
+- **In-Memory Keyboard Navigation History (`Alt + ←` / `Alt + →`)**: Instant back-and-forth traversal between recently visited notes across spaces, with visual `◀` / `▶` breadcrumb controls in the top bar.
 - **Command Palette (`Ctrl+K` / `Cmd+K`)**: Fuzzy-search notes across all spaces, open workspace tabs (Notes, Calendar, 3D Studio, Mastery Dashboard), or open settings.
 - **Instant Note Capture (`Ctrl+I` / `Cmd+I`)**: 75% screen glassmorphic modal overlay for instant note drafting from anywhere in the app with `Ctrl+Enter` quick save into the **"Misc"** space.
 - **Quick Save (`Ctrl+S`)**: Explicit keyboard shortcut to instantly save notes.
 
-### 🧪 3. Interactive 3D Visualization Studio
-A comprehensive suite of 24 real-time interactive 3D STEM simulations built using Three.js, `@react-three/fiber`, and custom WebGL Canvas engines with live calculated Details and complete Visual Color Keys:
+### ⚙️ 3. Space Hub & Per-Space Curriculum Management
+- **Dedicated Full-Page Dashboard**: Accessible via the prominent `⚙️ Space Hub` button directly below the Spaces selector in the sidebar.
+- **Multiple Documents per Space**: Upload multiple curriculum documents (`.pdf`, `.docx`, `.txt`, `.md`) such as official syllabus specifications, exam boundaries, lecture schedules, and formula sheets.
+- **Active for AI Toggles**: Toggle switches per document control exactly which curriculum files are active and injected into the AI context for quiz generation, grading, and Socratic dialogues.
+- **Per-Space AI Pedagogy Settings**:
+  - **Academic Standard / Grade Level**: General, IGCSE / O-Level, IB Diploma (HL/SL), AP / College Board, University, Olympiad.
+  - **AI Examiner Persona**: Standard Examiner, Strict Examiner, Socratic Guide, Friendly Coach, Olympiad Mentor.
+  - **Distractor Toughness & Rigor**: Relaxed, Standard, High Rigor.
+  - **Custom Space Identity**: Space icon emoji and descriptive tagline.
+- **1-Click Subject Presets**: Rapidly load Cambridge IGCSE Gr.10, IB Diploma HL, AP College Board, or Foundational mastery presets.
+
+### 🧑‍🏫 4. Interactive AI Tutor Doubt-Clearing Suite
+- **Omnipresent Doubt Clearing**: Access anytime via the `🧑‍🏫 AI Tutor` top header button, the sidebar launcher, or keyboard shortcut `Ctrl+Shift+T` / `Cmd+Shift+T`.
+- **Full Space Curriculum Feeding**: Fed with all active curriculum documents (`Fed to AI`) from the active space.
+- **Syllabus & Standard Calibrated**: Injects the active space's academic standard (IGCSE, IB HL, AP, College, Olympiad) and selected persona (Strict, Socratic, Coach, Mentor).
+- **Active Note Context Awareness**: Grounds answers in the active note's text to explain what the student is currently writing or reading.
+- **Rich Markdown, Tables & Syntax Highlighting**: Full Markdown decomposition (`MarkdownRenderer.jsx`) supporting structured headings, numbered/bullet lists, markdown tables, blockquotes, and fenced code blocks with 10-language syntax highlighting and 1-click code copying.
+- **Native LaTeX Math Formatting**: Real-time KaTeX rendering for complex chemical formulas, physics integrals, and step-by-step mathematical derivations.
+- **Quick Doubt Starters**: 1-click query pills for step-by-step derivations, common exam traps, and real-world intuition.
+
+### 🧪 5. Interactive 3D Visualization Studio
+A comprehensive suite of 25 real-time interactive 3D STEM simulations built using Three.js, `@react-three/fiber`, and custom WebGL Canvas engines with live calculated Details and complete Visual Color Keys:
 
 - ⚛️ **Physics Engine** ([`PhysicsCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/PhysicsCanvas.jsx)):
   - **Wave Refraction & Snell's Law**: Multi-medium ray tracing (Air, Water, Glass, Diamond, Perspex), critical angle, total internal reflection, and Fresnel reflection rays.
@@ -70,7 +101,8 @@ A comprehensive suite of 24 real-time interactive 3D STEM simulations built usin
   - **VSEPR Molecular Geometry**: Steric numbers 2–6, central atom, bonded ligands, non-bonding lone pair electron clouds, and bond angle arcs.
   - **Reaction Energetics & Catalysis**: Exothermic/endothermic energy profile curves, transition states, forward/reverse activation energy $E_a$, enthalpy change $\Delta H$, and catalysed pathways.
 
-- 🧬 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx)):
+- 🧬 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx) & [`RespiratoryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/RespiratoryCanvas.jsx)):
+  - **Respiratory Mechanics & Thoracic Physics**: Genuine clinical CT-derived thoracic skeleton (`skeleton_ct.glb`; isolated 24 ribs, T1–T12 vertebrae, L1–L3 crura anchors, sternum, and clavicles) with bucket-handle and pump-handle breathing kinematics, photorealistic medical lungs scan (`lung.glb`), multi-layer antagonistic intercostal muscle bands spanning all 11 intercostal spaces (superficial external $+35^\circ$ vs deep internal $-45^\circ$ layers with layer isolation) with active scarlet vs relaxed deep crimson tension shaders, muscular diaphragm dome flattening dynamically ($Y = 1.05 \to 0.63$) with trifoliate central tendon (*centrum tendineum*), 3 anatomical apertures (Caval T8, Esophageal T10, Aortic T12), bilateral vertebral crura, Boyle's Law pressure gradients, dynamic airway particle vectors, 3-state phase selector, collapsible HUD, and live SVG gauges.
   - **Plant & Animal Cell Explorer**: High-detail organelles (nucleus, mitochondria, chloroplasts, ER, Golgi, vacuoles, membrane, cell wall) with osmotic tonicity states.
   - **Enzyme Kinetics & Lock-and-Key Model**: Substrate binding, active catalytic cleft, thermal denaturation cliffs, and pH stress curves.
   - **DNA Double Helix**: Antiparallel sugar-phosphate backbones, major/minor grooves, and A-T / G-C complementary base pairing.
@@ -90,21 +122,31 @@ A comprehensive suite of 24 real-time interactive 3D STEM simulations built usin
   - Parameter controls, camera resets, category filters, and Socratic Quiz drawer.
   - Live **Details** tab with live calculated scientific state metrics, formula subtitles, and complete **Visual Keys** (color legends) documenting every line, ray, vector, and object in the scene.
 
-### ⏱️ 4. Unified Multi-Timer HUD, Floating Overlay & Alarms
-- **Unified Global Timer HUD** ([`GlobalTimerHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/GlobalTimerHUD.jsx)): Header dropdown managing Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom duration timers simultaneously.
-- **Pinned Floating Timers Overlay** ([`PinnedTimersOverlay.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/PinnedTimersOverlay.jsx)): Pin any timer to float as a picture-in-picture draggable widget anywhere across the application.
+### ⏱️ 4. Unified Multi-Timer HUD & Calming Study Break Alerts
+- **Unified Global Timer HUD** ([`GlobalTimerHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/GlobalTimerHUD.jsx)): Header dropdown managing Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom duration timers simultaneously with live countdown rings and play/pause controls.
 - **Study Calendar & Schedule** ([`CalendarView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/CalendarView.jsx)): Event scheduling, month navigation, space tagging, 24-hour time picker, and custom recurring alarm integration.
-- **Global Visual & Audio Alarm** ([`AlarmOverlay.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/AlarmOverlay.jsx)): Full-screen flashing modal alert (`🚨 ⏰ ❗️`) at `z-[9999]` with Web Audio chime synthesis and dynamic browser tab favicon/title swap (`🦆` $\leftrightarrow$ `❗️`).
+- **Calming Study Break & Timer Alert** ([`AlarmOverlay.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/AlarmOverlay.jsx)): Glassmorphic modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (`🦆` $\leftrightarrow$ `☕`), and friendly snooze/extend controls.
 
 ### 🦆 5. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
-- **Intelligent Note Reformatting (`POST /api/reformat`)**: Analyzes whole notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with contextual emojis, LaTeX math formulas, collapsible toggles, checklists, code blocks, and dividers) with instantaneous `Ctrl+Z` undo and offline fallback.
+- **Intelligent Note Reformatting (`POST /api/reformat`)**: Analyzes whole notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with contextual emojis, hierarchical sub-bullets with multi-level nesting, LaTeX math formulas, collapsible toggles, checklists, code blocks, and dividers) with instantaneous `Ctrl+Z` undo and offline fallback.
 - **Socratic Rubber Duck Assistant (`POST /api/socratic/chat`)**: Guided dialogue tutor that probes understanding using the Feynman technique without spoiling answers.
 - **3D Socratic Canvas Widgets (`POST /api/socratic/widget` & [`WidgetCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/WidgetCanvas.jsx)): Generates interactive 3D concept widgets with drag-orbit controls, custom sliders, camera zoom, and sub-topic gap repair hints.
 
 
-### 📊 6. Graded Quizzes & Sub-Topic Mastery Heatmap
-- **Diagnostic Quiz Builder (`POST /api/quiz/generate` & `/grade`)**: Builds 5–6 questions from notes (mixed multiple choice and short answer). Performs deterministic integer grading for multiple choice options and LLM mechanism evaluation for short answers.
+### 📊 6. Graded Quizzes, Quizzes Studio & Sub-Topic Mastery Heatmap
+- **Dedicated Quizzes Studio & Custom AI Quiz Creator** ([`QuizStudioView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/QuizStudioView.jsx) & [`CreateQuizModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/CreateQuizModal.jsx)):
+  - **Multi-Note Selection**: Interactive combobox with live search filtering, "Select All" / "Clear" buttons, per-note checkboxes, selection count badges, and removable chips.
+  - **Multi-Source AI Synthesis**: Feeds multiple notes into Gemini with structured section demarcations (`=== Source Note: "<Title>" ===`), creating diagnostic exams that synthesize cross-note relationships, comparisons, and mechanisms.
+  - **Cross-Note Heading Scope**: Automatically extracts and scopes questions to specific headings (H1–H4) across multiple selected notes with note source attribution.
+  - **Multi-Note Quiz Cards & Interactive Navigation**: Interactive quiz cards show multi-source badge indicators (`📚 X notes`) with quick-jump navigation links into each source note.
+  - **Deletion Confirmation Modal**: Accessible confirmation dialog (`DeleteQuizConfirmModal`) guarding against accidental deletion when trashing quizzes, permanently deleting items, or emptying the 24-hour trash bin.
+  - **Redesigned Decluttered Quiz Runner**: Split-screen 2-column layout offering an expansive, distraction-free Q&A canvas (`max-w-4xl`) on the left and a dedicated Control & Navigation Station on the right (`w-80 lg:w-88`), equipped with an interactive 5-column question palette matrix, prominent next/skip/submit buttons, instant answer clearing (`Eraser`), and keyboard hotkey navigation (`ArrowLeft`/`ArrowRight`, `A`-`D`/`1`-`4`).
+  - **Live Quiz Progress Auto-Saving & Resumption**: Continuous real-time auto-saving of answers and question index to IndexedDB on every option click, debounced text answer, and question navigation. In-progress quizzes display a `⏳ In Progress (X/Y)` badge and one-click "Resume Quiz" action, while the runner header features a live `✓ Progress saved` indicator.
+  - **Zero-Lag Quiz Creator Interface**: Isolated slider components (`React.memo`), throttled pointer event tracking, $O(1)$ heading selection index, and non-blocking background evaluation ensure fluid 60/120fps quiz configuration even with hundreds of notes and section headings.
+  - **LaTeX & Chemical Formula Typesetting**: Full inline and block KaTeX rendering (`MathText.jsx`) for physics/chemistry equations (`$E = mc^2$`, `\frac{a}{b}`) and chemical formulas (`\text{H}_2\text{SO}_4`, `\rightarrow`) across question prompts, options, rubrics, and review diagnostics.
+- **Diagnostic Quiz Builder (`POST /api/quiz/generate` & `/grade`)**: Builds customizable quizzes from notes (mixed multiple choice, short answer, and long essay). Performs deterministic integer grading for multiple choice options and LLM mechanism evaluation for short answers with full multi-note rubric context.
+- **AI Note Reformatter Visual Feedback**: Triggering "Reformat Note (AI)" displays active button loading states and a prominent top-center floating glassmorphic status banner with animated sparkles and live progress text.
 - **Mastery Analytics Dashboard** ([`MasteryDashboard.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/MasteryDashboard.jsx)): Consolidates session scores into topic heatmaps grouped by note, tracking sub-topic mastery over time (**Solid** `●` / **Shaky** `◐` / **Gap** `○`) with weakest-first study recommendations.
 
 ### 🔖 8. Local-First Website Saver & Folder Manager
@@ -124,9 +166,8 @@ A comprehensive suite of 24 real-time interactive 3D STEM simulations built usin
 
 ### 🗑️ 10. 24-Hour Soft-Delete Trash, Custom Spaces & Privacy Settings
 - **24-Hour Auto-Purge Trash** ([`Sidebar.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/Sidebar.jsx)): Soft-delete notes into a Trash drawer with automatic 1-minute interval background purging for notes older than 24 hours. Features individual and batch recovery controls.
-- **Password-Protected Spaces**: Encrypt spaces with custom passwords to lock private study materials.
 - **Graphics & Privacy Settings** ([`SettingsModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/Sidebar.jsx)): Personal Gemini API Key management (100% private IndexedDB storage), 3D graphics quality presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
-- **Factory Reset Captcha**: Targeted table purging with randomized human math captcha verification.
+- **Factory Reset Verification**: Targeted table purging with typed `RESET` double-confirmation safety verification.
 - **First-Run Demo Content** ([`demoNotes.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/demoNotes.js)): Ships with seeded notes and curated study resource bookmarks (3Blue1Brown, Desmos, MDN, MIT OCW, arXiv).
 
 ---
@@ -153,17 +194,15 @@ app/
 components/
   Workspace.jsx                 Primary workspace layout container, HUD header & shortcuts
   Sidebar.jsx                   Spaces selector, note list, 24h trash drawer, Settings modal
-  BlockNoteEditor.jsx           18 block types, slash menu (/), 6-dots handles, covers & stats
+  BlockNoteEditor.jsx           19 block types, slash menu (/), 6-dots handles, covers & stats
   WebSaverView.jsx              Dual-pane Web Saver & Bookmark folder manager with Netscape HTML support
   AddBookmarkModal.jsx          Instant bookmark capture modal with live favicon preview
-  InteractiveTutorial.jsx       8-step interactive onboarding walkthrough & feature mastery guide
-  NoteMenu.jsx                  Note options dropdown (Save, Favorite ⭐, Stats, Export, Delete)
+  NoteMenu.jsx                  Note options dropdown (Favorite ⭐, 3-Font Typography, Stats, Export, Delete)
   CommandPalette.jsx            Ctrl+K global fuzzy search modal
   InstantNoteModal.jsx          Ctrl+I 75% screen quick note capture window
   CalendarView.jsx              Study schedule calendar & recurring alarm scheduler
   GlobalTimerHUD.jsx            Unified top HUD multi-timer manager
-  PinnedTimersOverlay.jsx       Floating picture-in-picture timers overlay
-  AlarmOverlay.jsx              Fullscreen alarm modal & dynamic browser tab favicon/title swap
+  AlarmOverlay.jsx              Calming study break alert modal with gentle chime
   ThreeDView.jsx                3D visualization studio container & control HUD
   WidgetCanvas.jsx              Interactive Socratic 3D canvas widget renderer
   ExplainPanel.jsx              Structured LLM explanation drawer
@@ -171,8 +210,6 @@ components/
   ConfidenceHeatmap.jsx         Per-session sub-topic confidence heatmap
   MasteryDashboard.jsx          Aggregate topic mastery analytics dashboard
   ExportImportModal.jsx         .socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT & MD export/import modal
-  SetPasswordModal.jsx          Space password lock configuration modal
-  EnterPasswordModal.jsx        Space password unlock challenge modal
   FeatureRequestModal.jsx       User feedback & feature request submission modal
   visualizations/
     PhysicsCanvas.jsx           Gas laws, optics, induction, refraction, motor effect engines
@@ -196,15 +233,14 @@ lib/
   mastery.js                    Mastery scoring & sub-topic rollup algorithms
   syntaxHighlighter.js          Tokenization & syntax highlighting for 10 programming languages
   demoNotes.js                  Seeded demonstration study notes
-  blocks.js, blockMapping.js    BlockNote document transformation & extraction utilities
+  blocks.js                     BlockNote document transformation & extraction utilities
 
 tests/
-  unit/                         Physics solvers, AVL tree, export/import, mastery rollup, quiz grading, timers, syntax, passwords
+  unit/                         Physics solvers, AVL tree, export/import, mastery rollup, quiz grading, timers, syntax, tables
   integration/                  3D topic schemas, AI widget normalizer, 24h trash purge, Dexie backup/restore
   e2e/                          Keyboard shortcuts (Ctrl+K/I/S), block editor flow, theme toggle, export & print
 
 scripts/
-  check-block-mapping.mjs       Unit test for DB <-> Editor block transformations
   test-inlinemath-roundtrip.mjs Unit test for in-sentence LaTeX math export/import round-trips
 ```
 

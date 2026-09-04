@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, memo, useRef, useState } from "react";
+import { useEffect, useMemo, memo, useState } from "react";
 import {
   getCalendarEvents,
   saveCalendarEvent,
@@ -10,7 +10,7 @@ import {
   deleteAlarm,
   toggleAlarm,
 } from "@/lib/storageService";
-import { Edit3, Trash2, Bell, Plus, Clock, Calendar as CalendarIcon, Check, Volume2 } from "lucide-react";
+import { Edit3, Trash2, Bell, Plus, Calendar as CalendarIcon, Volume2 } from "lucide-react";
 import { useGlobalTimer } from "@/lib/timerStore";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -51,7 +51,6 @@ function format24to12(timeStr) {
 const StudyTimerWidget = memo(function StudyTimerWidget() {
   const {
     mode,
-    totalSeconds,
     secondsLeft,
     isActive,
     isNearingEnd,
@@ -59,7 +58,6 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
     customMins,
     togglePlayPause,
     resetTimer,
-    extendTimer,
     startTimer,
     pausedSecondsLeft,
   } = useGlobalTimer();

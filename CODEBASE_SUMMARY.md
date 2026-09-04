@@ -35,6 +35,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── reset/route.js                # POST: Local-first factory reset signal route
 │   │   ├── socratic/chat/route.js        # POST: Socratic Rubber Duck chat & diagnostic scoring
 │   │   ├── socratic/widget/route.js      # POST: Interactive 3D WebGL widget generator
+│   │   ├── tutor/chat/route.js           # POST: Interactive AI Tutor chat with space syllabus and academic pedagogy
 │   │   └── visualizations/route.js       # Local-first 3D visualizations persistence route
 │   ├── globals.css                       # Tailwind v4 tokens, light/dark themes, print stylesheet, KaTeX styles
 │   ├── layout.js                         # Root layout, metadata & pre-paint theme bootstrap script
@@ -44,27 +45,29 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   └── workspace/
 │       └── page.js                       # Main application page (renders <Workspace />)
 ├── components/
+│   ├── AITutorPanel.jsx                  # Interactive AI Tutor drawer: real-time doubts, LaTeX math, quick prompts & space context
 │   ├── AddBookmarkModal.jsx              # Quick add/edit bookmark modal with instant URL normalization & live favicon
-│   ├── AlarmOverlay.jsx                  # Global visual/audio alarm overlay & dynamic favicon swap (🦆 <-> ❗️)
-│   ├── BlockNoteEditor.jsx               # 18-block Notion-style editor with slash menu, 6-dots handles, covers & stats
+│   ├── AlarmOverlay.jsx                  # Calming glassmorphic study break modal with gentle chime & snooze controls
+│   ├── BlockNoteEditor.jsx               # 17-block Notion-style editor with slash menu, 6-dots handles, covers & stats
 │   ├── CalendarView.jsx                  # Study schedule calendar, month navigation, agenda, Pomodoro integration & alarms
 │   ├── CommandPalette.jsx                # Ctrl+K global fuzzy search modal for notes, bookmarks, views, and settings
 │   ├── ConfidenceHeatmap.jsx             # Per-session sub-topic confidence heatmap (Solid / Shaky / Gap)
-│   ├── Drawer.jsx                        # Shared slide-over drawer container for Explain & Quiz
-│   ├── EnterPasswordModal.jsx            # Space unlock password verification modal
-│   ├── ExplainPanel.jsx                  # Structured LLM explanation drawer
+│   ├── CreateQuizModal.jsx               # Custom AI Quiz creator modal (difficulty, question type counts, note scope)
+│   ├── Drawer.jsx                        # Non-blocking persistent side-by-side study sidebar container for Explain & Quiz
+│   ├── ExplainPanel.jsx                  # Structured LLM explanation sidebar (TL;DR, mechanism, analogies, misconceptions)
 │   ├── ExportImportModal.jsx             # Multi-format export/import modal (.socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT, MD)
 │   ├── FeatureRequestModal.jsx           # User feedback & feature request submission modal
 │   ├── GlobalTimerHUD.jsx                # Unified header multi-timer dropdown with Pomodoro, breaks & custom timers
 │   ├── InstantNoteModal.jsx              # Ctrl+I 75% screen quick note capture window with space selection
-│   ├── InteractiveTutorial.jsx           # 8-step interactive onboarding & feature guide with live triggers
+│   ├── MarkdownRenderer.jsx              # Universal rich Markdown renderer (headings, syntax-highlighted code, KaTeX math, tables, lists)
 │   ├── MasteryDashboard.jsx              # Aggregate topic mastery analytics dashboard & study recommendations
-│   ├── NoteMenu.jsx                      # Note action menu (Save, Favorite ⭐, Note Stats, Export/Import, Delete)
-│   ├── PinnedTimersOverlay.jsx           # Floating picture-in-picture draggable multi-timer widgets overlay
-│   ├── QuizPanel.jsx                     # Dual-tab drawer: Graded Quiz + Socratic Rubber Duck dialogue
+│   ├── MathText.jsx                      # Universal KaTeX LaTeX & chemical formula renderer for quiz prompts, options & rubrics
+│   ├── NoteMenu.jsx                      # Note action menu (Favorite ⭐, 3-Font Typography, Note Stats, Export/Import, Delete)
+│   ├── QuizPanel.jsx                     # Dual-tab study sidebar: Graded Quiz + Socratic Rubber Duck dialogue
+│   ├── QuizStudioView.jsx                # Dedicated Quizzes Studio tab: exam runner, review reports, trash management
 │   ├── ScoreRing.jsx                     # Animated SVG score dial with status coloring
-│   ├── SetPasswordModal.jsx              # Space lock password configuration modal
-│   ├── Sidebar.jsx                       # Spaces selector, note list, 24h trash drawer, Settings modal & Reset captcha
+│   ├── Sidebar.jsx                       # Spaces selector, note list, 24h trash drawer, Settings modal & Typed RESET modal
+│   ├── SpaceHubView.jsx                  # Dedicated Space Hub dashboard: per-space syllabus docs with active toggles & AI settings
 │   ├── ThreeDView.jsx                    # 3D studio container with 14 interactive scientific simulations & HUD
 │   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
 │   ├── WidgetCanvas.jsx                  # Interactive 3D Socratic Canvas widget renderer
@@ -81,23 +84,23 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 ├── lib/
 │   ├── aiService.js                      # Isomorphic client-side AI service coordinating Gemini API & user keys
 │   ├── backup.js                         # .socratic JSON workspace & space backup packager with folder/bookmark support
-│   ├── blockMapping.js                   # Block type mapping & transformation bridge
 │   ├── blocks.js                         # Text extractors & concept mappers from blocks
 │   ├── constants.js                      # Default SPACES definition (School, Personal, Misc, Journal)
 │   ├── db.js                             # Dexie.js IndexedDB schema v5, auto-seeding & graphics detection
 │   ├── demoNotes.js                      # 7 comprehensive seeded notes across all 4 spaces with full 17-block suites
+│   ├── editorCaret.js                    # Notion-grade caret navigation, visual line calculations, inline math compilation & boundary traversal
 │   ├── exportImport.js                   # Full export/import engine for Netscape HTML Bookmarks, PDF, DOCX, HTML, MD, TXT
 │   ├── gemini.js                         # Direct REST Gemini client with structured outputs & usage tracking
 │   ├── mastery.js                        # Mastery status vocabulary (Solid ● / Shaky ◐ / Gap ○) & rollup algorithms
+│   ├── mathUtils.js                      # LaTeX delimiter parsing & regex segmentation for MathText
 │   ├── schemas.js                        # OpenAPI 3.0 schemas for Gemini structured outputs
 │   ├── storageService.js                 # Dexie CRUD service for notes, folders, bookmarks, trash, calendar, alarms, sessions & reset
 │   ├── syntaxHighlighter.js              # Tokenizer & syntax highlighter for 10 programming languages
 │   ├── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
 │   └── urlUtils.js                       # URL normalization, domain extraction, Google favicon generator & title heuristics
-├── hooks/
-│   └── useVoice.js                       # Web Speech API voice recognition hook
 ├── tests/
 │   ├── unit/
+│   │   ├── inline-math-navigation.test.mjs # Milestone 1: Seamless block navigation, math pill boundary traversal & auto-compilation
 │   │   ├── web-saver.test.mjs            # URL normalization, domain parsing, Netscape HTML export/import round-trips
 │   │   ├── physics-solvers.test.mjs      # Refraction (Snell's law), thin lenses, gas laws, chemistry formulas
 │   │   ├── avl-tree-3d.test.mjs          # 3D BST & AVL auto-balancing tree math & traversals
@@ -106,7 +109,8 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── quiz-grading.test.mjs         # Deterministic integer MC grading & fallback heatmap normalizer
 │   │   ├── timer-store.test.mjs          # Multi-timer countdown math, duration clamping, pause/resume
 │   │   ├── syntax-highlighter.test.mjs   # 10-language tokenizer & syntax highlighting rules
-│   │   └── password-security.test.mjs    # Space UTF-8 base64 encoding & non-Latin1 DOMException protection
+│   │   ├── password-security.test.mjs    # Space UTF-8 base64 encoding & non-Latin1 DOMException protection
+│   │   └── table-block.test.mjs          # Interactive Table block parsing, HTML/plain-text conversion & serialization
 │   ├── integration/
 │   │   ├── 3d-topic-schemas.test.mjs     # 14 3D scene topics, slider boundary validations & optical media
 │   │   ├── ai-widget-resilience.test.mjs # Socratic 3D AI widget normalizer & WebGL shielding
@@ -118,7 +122,6 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │       ├── theme-toggle.spec.mjs         # Dark Slate <-> Warm Stone Light pre-paint validation
 │       └── export-print.spec.mjs         # PDF print emulation & multi-format export dispatcher
 ├── scripts/
-│   ├── check-block-mapping.mjs           # Unit test for DB <-> Editor block transformations
 │   └── test-inlinemath-roundtrip.mjs     # Unit test for in-sentence LaTeX math round-trips
 ├── DESIGN_SYSTEM.md                      # Official UI design system & CSS color tokens spec
 ├── ANTIGRAVITY_BUG_FIXES.md              # Exhaustive summary of architectural fixes & test suites
@@ -137,42 +140,144 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
   3. `h2`: Medium section heading (`text-xl font-semibold`).
   4. `h3`: Small section heading (`text-lg font-semibold`).
   5. `h4`: Sub-heading (`text-base font-semibold`).
-  6. `bullet`: Unordered list item with auto-continuation and escape on empty Enter.
-  7. `number`: Ordered list item with dynamic sequential counting (`1.`, `2.`, `3.`).
-  8. `todo`: Interactive checkbox with task strikethrough and database synchronization.
-  9. `toggle`: Collapsible container with toggle arrow (`▶`/`▼`) and multi-line details.
+  6. `bullet`: Unordered list item with auto-continuation, unified Backspace un-listing to text before deletion/merging, and escape on empty Enter.
+  7. `number`: Ordered list item with dynamic sequential counting (`1.`, `2.`, `3.`) and Backspace un-listing.
+  8. `todo`: Interactive checkbox with task strikethrough, `[x]` / `[X]` checked markdown shortcuts, clean split marker stripping, and database synchronization.
+  9. `toggle`: Collapsible container with toggle arrow (`▶`/`▼`), dual-zone editing with seamless vertical arrow navigation (summary header `ArrowDown` steps into open details `<textarea>`; details `ArrowUp` at offset 0 returns to summary header), multi-line details with boundary `ArrowLeft`/`ArrowRight`, and Backspace un-listing.
   10. `callout`: Highlighted frame with 8 icon presets (`💡`, `⚠️`, `📌`, `🔥`, `⭐`, `🎉`, `ℹ️`, `🦆`) and click-away dismissal.
-  11. `table`: Interactive grid table block with rich markdown & KaTeX cell rendering (`TableCell`), dynamic cell editing, `+ Column` / `+ Row` controls, column and row deletion (`✕`), header row toggle, and `Tab` / `Shift+Tab` keyboard cell navigation.
-
+  11. `table`: Interactive grid table block with streamlined Notion styling (no title input clutter; compact header with `▦ Table` label and dimension badge `Rows × Cols`), rich markdown & KaTeX cell rendering (`TableCell`), interactive inline LaTeX editing via click popover with presets and deletion, clean `$formula$` typing, dynamic cell editing, `+ Column` / `+ Row` controls, column and row deletion (`✕`) with complete Undo/Redo (`Ctrl+Z`/`Ctrl+Y`), header row toggle, vertical arrow navigation across all intermediate rows (`Header` ↔ `Row 0` ↔ `Row 1`... ↔ `Exit`), horizontal arrow cell hopping (`ArrowLeft`/`ArrowRight`), headerless table `ArrowUp` exit, bottom-right cell upward entry, container card `Backspace`/`Delete` removal, and `Tab` / `Shift+Tab` keyboard cell navigation.
   12. `quote`: Blockquote with thick accent border.
-  13. `math`: Full-width LaTeX equation block with live KaTeX rendering, direct viewport click-to-edit, multi-line support (`Shift+Enter`), and auto-delete when emptied.
+  13. `math`: Full-width LaTeX equation block with live KaTeX rendering, intelligent visibility check with comfortable font scaling floor (`MIN_SCALE = 0.75`), dynamic horizontal scroll container with mouse wheel horizontal panning (`overflow-x-auto`), direct viewport click-to-edit, streamlined single `✨ Presets ▾` toggle button with expandable template & symbol tray, multi-line LaTeX traversal (`Shift+Enter` with line-by-line arrow navigation before boundary exit), horizontal arrow exit (`ArrowLeft`/`ArrowRight`), container card `Backspace`/`Delete` removal, and auto-save on arrow navigation.
   14. `inlinemath`: In-sentence LaTeX formula pill (`$formula$`) with click popover, 10 formula presets, and 20 math symbols.
   15. `divider`: Horizontal divider (`hr`) with keyboard navigation (`ArrowUp`/`ArrowDown`) and backspace/delete removal.
   16. `site`: Site bookmark card with live Google Favicon resolution and URL normalization.
-  17. `media`: Dual-mode media embed supporting direct URLs and local file uploads for Images, Audio (`<audio controls>`), and Video (`<video controls>`).
-  18. `code`: Code snippet block with 10-language syntax highlighting (JS, TS, Python, HTML, CSS, C++, Java, Rust, SQL, JSON), 2-space tab indentation, and synchronized overlay scrolling.
-  19. `canvas`: Interactive 70% whiteboard studio with 5 drawing tools (Gel Pen, Felt Marker, Chisel Highlighter, Eraser, Ruler Line Tool), 10-color palette, stroke width presets, and undo/redo (`Ctrl+Z`/`Ctrl+Y`).
+  17. `media`: Visual media embed supporting direct URLs and local file uploads for Images (PNG, JPG, GIF, WebP, SVG) and **YouTube Video Embeds** (`https://www.youtube-nocookie.com/embed/...` responsive 16:9 aspect-ratio iframe player, timestamp support `?t=120`, automatic YouTube URL detection, editable captions, and **width resize presets** `25%` / `50%` / `100%` for compact text flow).
+  18. `code`: Code snippet block with 10-language syntax highlighting (JS, TS, Python, HTML, CSS, C++, Java, Rust, SQL, JSON), synchronized line numbers gutter (`1, 2, 3...`), 2-space `Tab` and `Shift+Tab` indentation, auto-indent on `Enter`, 1-click Copy with feedback tooltip, seamless inline backtick code (`` `x` ``) boundary caret navigation, non-premature last line vertical exit (only exiting when caret reaches snippet end), horizontal arrow boundary exit (`ArrowLeft` at 0 / `ArrowRight` at end), card `Backspace`/`Delete` removal, and upward entry caret placement at snippet end.
+  19. `columns`: Multi-column split layout block supporting 2 to 5 columns with borderless Notion styling, dedicated `/2 columns` - `/5 columns` slash menu items, responsive grid cards (`grid-cols-1 md:grid-cols-2` up to `grid-cols-5`), individual column header titles with `Enter` advancing to column content (avoiding newline breaks), bidirectional vertical traversal (`content` first-line `ArrowUp` ↔ `title`), cross-column `ArrowLeft`/`ArrowRight` and `Tab`/`Shift+Tab` navigation, container card `Backspace`/`Delete` removal, rich editable multi-line bodies with live KaTeX `$formula$` and `` `code` `` rendering, and `ArrowDown` boundary exit.
+- **Universal Cross-Block Focus Engine & Natural Arrow Navigation (`focusBlock`)**:
+  - Centralized `focusBlock(targetBlock, position = "start" | "end")` dispatcher ensuring deterministic focus and caret placement across all 19 block types (`text`, `h1`–`h4`, `bullet`, `number`, `todo`, `toggle`, `quote`, `callout`, `divider`, `code`, `math`, `inlinemath`, `table`, `columns`, `site`, `media`).
+  - **Ref Registration Protection**: `EditorBlock` guards ref registration with `if (registerRef && contentRef.current)`, preventing child refs (e.g. `CodeBlock`'s `textareaRef`) from being overwritten by `null`.
+  - **Bidirectional Vertical Traversal (`handleExitDown` / `handleExitUp`)**: Moving downward smoothly places caret at the logical start of any block (including `MathBlock`, `ColumnsBlock`, and embed cards). Moving upward lands at the true end of the previous block (bottom-right cell of `TableBlock`, end of snippet in `CodeBlock`, last column content in `ColumnsBlock`).
+  - **Seamless Horizontal Transitions (`ArrowRight` at block end)**: Steps seamlessly from text blocks into complex and embed blocks without trapping the cursor.
+  - **Safe Block Deletion & Slash Transformation**: Deleting empty blocks below complex blocks cleanly returns focus to the preceding block; converting blocks via `/math` or `/columns` smoothly retains focus without mouse interaction.
+  - **Document Boundaries & Note Title Integration**: Pressing `ArrowDown` or `Enter` in the Note Title focuses Block 0 across any complex block type via `focusBlock(blocks[0], "start")`. Pressing `ArrowUp` or `ArrowLeft` from the top of Block 0 steps cleanly up into the Note Title input at the end of the title text (`noteTitleInputRef`).
+  - **Native Keyboard Divider Navigation**: Removed divider bypass loops; `divider` blocks are directly selectable with arrow keys, with `Backspace`/`Delete` removal and `ArrowUp`/`ArrowDown` traversal.
+  - **Dynamic Multi-Scale Visual Line Calculations**: `isCaretOnFirstVisualLine` and `isCaretOnLastVisualLine` compare caret coordinates against rendered character start/end ranges backed by dynamic computed style line-height (`Math.max(28, padding + lineHeight * 0.6)`), ensuring accurate vertical line exits across all heading sizes (`h1`–`h4`) and zoomed viewports.
+  - Interactive insertion dropzones directly beneath every block card allow single-click cursor placement right below the block without modifier keys.
+- **Notion-Grade Line Splitting & Backspace Merging (`splitBlockDOMAtRange` & `getDOMCaretLength`)**:
+  - **Clean Enter Splitting**: Pressing `Enter` anywhere in a text, list, heading, quote, or callout block cleanly splits text into two blocks. Preserves inline math pills (`$formula$`) and code spans (`` `code` ``) without text corruption, strips redundant leading list markers (`- `, `1. `, `[ ]`), resets new todo block state (`checked: false`), and automatically spawns plain text paragraphs below headings and quotes.
+  - **Exact Caret Placement on Backspace Merge**: Merging at offset 0 measures the true TreeWalker DOM offset via `getDOMCaretLength(prevEl)` (ignoring internal KaTeX rendered subtrees), synchronously applies merged content via `setBlockDOMFromText`, and places the cursor at the exact merge point via `setCaretAtOffset(targetEl, domCaretOffset)`.
+  - **Forward Delete Pull & Merge (`Delete` at block end)**: Pressing `Delete` at the end of a block cleanly pulls up and merges the next text block into the current block maintaining caret position, removes subsequent empty blocks or standalone embeds (divider, site, media, canvas), or steps into complex cards without dropping focus.
+  - **Ghost-Free Empty Block Deletion**: Deleting empty blocks with `Backspace` between complex blocks reliably returns focus to the preceding block with double-tick rAF protection.
+  - **Bottom Whitespace Focus**: Clicking empty whitespace below the document root focuses the last block at the end of text via `setCaretToEnd(el)` without spawning duplicate empty blocks.
+  - **Clean Persistence & Zero-Width Sanitization (`cleanZeroWidth`)**: Strips zero-width unicode artifacts (`\u200B`, `\u200C`, `\u200D`, `\u2060`, `\uFEFF`, `\u0000`) across DOM deserialization (`getBlockTextFromDOM`), database persistence (`storageService.saveNote`), AI context extraction (`editorBlocksToText`, `extractHeadingsFromBlocks`), and document exports (`filterBlocksForExport`).
 
-
-- **In-Context Slash Menu (`/`)**: Typing `/` triggers a floating block-type selector directly beneath the active line.
-- **Draggable 6-Dots Handles (`⠿`) & Context Formatting**:
-  - Drag-and-drop block reordering with animated drop indicator and undo history tracking.
-  - Context menu featuring ✨ **Explain**, 🦆 **Quiz me**, text formatting (Bold, Italic, Underline, Strikethrough, Math $x$), Duplicate (📋), Move Up/Down (⬆️/⬇️), Copy Text (📄), and Turn Into Submenu.
+- **Notion-Style Right-Side Outline (Table of Contents)**:
+  - Dynamically scans `h1`, `h2`, `h3`, `h4` headings across the document.
+  - Sits on the right margin with a collapsible floating pill toggle `📑 Outline (N)` and expanded outline drawer.
+  - Active scroll spy: Automatically highlights the heading currently in reading focus (`border-l-2 border-duck-400 bg-duck-500/15`).
+  - Smooth in-page jumping: Clicking any outline item scrolls directly to that heading, focuses it, and triggers a pulse highlight ring.
+- **Inline Image & Video Resize Presets (`25%` / `50%` / `100%`)**:
+  - Segmented width toggle pills embedded directly in the media block header.
+  - Automatically constraints Image, Video, and YouTube viewport widths (`w-1/4 min-w-[220px] mx-auto`, `w-1/2 min-w-[320px] mx-auto`, `w-full`) for balanced layout with text flow.
+  - Sizing preferences persist per-block and export seamlessly to HTML and Markdown.
+- **In-Memory Keyboard Navigation History (`Alt + ←` / `Alt + →`)**:
+  - Centralized navigation history stack (`navHistoryRef`) in `components/Workspace.jsx` tracking note transitions across all spaces.
+  - Global `Alt + ArrowLeft` and `Alt + ArrowRight` shortcuts for lightning-fast back-and-forth switching between recent notes.
+  - Visual `◀` and `▶` breadcrumb controls in the top navigation bar with disabled state reflection and shortcut tooltips.
+- **Google Docs & Web Rich HTML Smart Paste Sanitizer (`parseHtmlToBlocks` & `handleSmartPaste`)**:
+  - Automatically parses clipboard `text/html` from Google Docs, Notion, Word, Canvas LMS, and web pages directly into structured, sanitized SocraticOS block trees.
+  - Strips Google Docs boilerplate (`docs-internal-guid`, foreign inline font-family / font-size styles) preventing DOM corruption or theme leakage.
+  - Converts semantic HTML elements (`<h1>`-`<h6>`, `<ul>`, `<ol>`, `<table>`, `<blockquote>`, `<pre>`, `<code>`, `<hr>`, `<iframe>`, `<video>`, `<img>`) into native blocks.
+  - Converts inline tags and Google Docs span styling (`<b>`, `<strong>`, `font-weight: 700`, `<i>`, `<em>`, `font-style: italic`, `<code>`, `<a>`, `<mark>`, `<s>`) into clean inline Markdown tokens (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`, `==highlight==`, `~~strike~~`).
+  - Seamlessly falls back to `parseMarkdownToBlocks` when pasting pure Markdown, plain text, or Excel / Sheets TSV tables.
+- **Floating Text Selection Popover Toolbar (`TextSelectionToolbar`)**:
+  - Automatically appears above any highlighted text across any editable block, list, heading, quote, callout, or table cell.
+  - Action buttons: **Bold** (`B`), **Italic** (`I`), **Underline** (`U`), **Cross / Strikethrough** (`S`), **Convert to Code** (`</>`), **Convert to Formula** (`$x$`), ✨ **Explain with Socratic AI**, and 🦆 **Quiz me on Selection**.
+  - **Focus & Caret Retention**: Converting text to math or code synchronously compiles into rich elements, re-focuses `contentEditable`, and advances the caret without losing document focus (`BUG-FMT-18`).
+  - **Underline Persistence (`BUG-FMT-29`)**: Underline `<u>` elements are preserved losslessly across DOM serialization (`getBlockTextFromDOM`), markdown inline formatting (`formatMarkdownInline`), and editor state updates.
+  - **Formatting Boundary Caret Escaping (`BUG-FMT-02`)**: Setting the caret at the boundary end of formatted spans (`**bold**`, `*italic*`, `<u>underline</u>`) places the caret in a trailing text node outside the formatting element, preventing subsequent typing from being inadvertently styled.
+  - **Punctuation-Aware Auto-Formatting (`BUG-AUTO-25`)**: Typing closing backticks (`` `code` ``) or dollar signs (`$formula$`) immediately before punctuation marks (`.`, `,`, `!`, `?`, `:`, `;`, `)`, `]`, `}`) suppresses unwanted extraneous space insertion.
+  - **Popover & Slash Menu Blur Focus Restoration (`BUG-MATH-28` & `BUG-SLASH-19`)**: Saving, deleting, or closing `InlineEquationPopover` and `SlashMenu` cleanly returns active focus to the host block's `contentRef` or table cell without dropping to `document.body`.
+  - **Soft Tab Indentation & Outdent (`BUG-TAB-01`)**: Pressing `Tab` inside paragraphs, lists, quotes, and callouts inserts 2 soft spaces at cursor position rather than losing focus to the browser window; `Shift+Tab` cleanly outdents leading indentation.
+  - **Pasting Caret Landing Position (`BUG-PASTE-01`)**: Pasting multi-block markdown or HTML places the caret at the true end of the pasted content across all block targets.
+  - **Undo/Redo & Multi-Block Selection Focus Retention (`BUG-UNDO-01` & `BUG-SEL-01`)**: Global undo/redo and deleting multi-block marquee selections seamlessly retains focus on the target or adjacent remaining block instead of dropping focus to `document.body`.
+  - **Code Snippet Multi-Line Boundary Traversal (`BUG-CODE-07`)**: Full isolation of textarea arrow navigation from parent container listeners via event bubbling guards and `stopPropagation`, ensuring natural multi-line editing, left/right character hopping, and clean boundary exits on first/last lines.
+  - **Title-to-Block Seamless Arrow Navigation (`BUG-TITLE-20`, `21`, `22`, `23`)**: Bi-directional vertical and horizontal arrow keys step seamlessly between Note Title and Block 0.
+  - **Document Boundary Caret Safety (`BUG-DOWN-01`)**: Pressing `ArrowDown` on the final block (empty or filled) stays gracefully at document boundary without creating unwanted ghost blocks.
+  - **Special Block Backspace Caret Transfer (`BUG-DEL-26`)**: Pressing `Backspace` on an empty line following special blocks (`code`, `table`, `math`, `columns`, `divider`, `site`, `media`, `canvas`) removes the empty line and places caret cleanly in the special block above, rather than deleting the preceding block.
+  - **Columns Split Block Deletion & Keyboard Navigation (`BUG-COL-14`)**: Unconditional deletion of multi-column blocks on `Backspace` or `Delete` when selected via marquee, 6-dots grip handle, card margin click, or `Escape` key, plus clean deletion when empty, bidirectional caret hopping between column titles and contents, and activeElement blur coordination.
+  - **Table Enter Key Behavior (`BUG-TBL-15`)**: Pressing `Enter` inside a table cell never automatically adds new rows or columns; pressing `Enter` at the last row and last column smoothly advances to the next block (or appends a text block at the document bottom) and places the caret there.
+  - **Window Keydown Isolation (`BUG-DEL-27`)**: Global multi-block keydown listeners immediately yield when any text input or contentEditable element is active, ensuring Backspace on empty lines never inadvertently deletes preceding special blocks.
+  - **Container Backspace Isolation & Editable Child Focus (`BUG-DEL-28`)**: Special block card containers (`table`, `math`, `code`, `columns`, `divider`, `site`, `media`, `canvas`) strictly ignore `Backspace` and only accept `Delete` (Forward Delete), preventing accidental deletion of special blocks when caret steps backward from below. Math blocks focus their editable title inputs on reverse step.
+  - **Math Block Title Bidirectional Navigation (`BUG-MATH-08`)**: Math equation titles support comprehensive keyboard traversal: `ArrowUp` exits upward to previous block, `ArrowDown` steps into formula editor (or exits downward), `ArrowLeft` at start exits upward, `ArrowRight` at end steps downward, and `Enter` smoothly toggles formula editing.
+  - **Multi-Selection Isolation & Divider Reverse Step (`BUG-DEL-29`)**: Window multi-block keydown handler strictly activates when `selectedBlockIds.size > 0`, completely preventing single active blocks (`selectedId`) like dividers, media, sites, or canvases from accidental deletion on Backspace. Divider blocks now step upward to the preceding block on Backspace.
+  - Non-blurring action triggers via `onMouseDown` event prevention and auto-adjusting viewport boundary positioning.
+  - **Instant Markdown & KaTeX Compilation**: Formula and code conversions compile synchronously into interactive KaTeX pills and styled code tags on click without requiring Enter/blur.
+  - **Hierarchical Sub-Bullets & Keyboard State Machine**:
+    - Full multi-level nesting for bullet blocks (`level: 0` to `level: 4`).
+    - **Tab**: Indents active bullet (empty or with text) to a sub-bullet (`level = level + 1`).
+    - **Shift+Tab**: Unindents active sub-bullet (`level = level - 1`). If unindented at `level: 0` while empty, converts the block to a plain text paragraph.
+    - **Enter**: Pressing Enter on an empty sub-bullet unindents by 1 level before exiting to text; pressing Enter on a non-empty sub-bullet inherits the current level onto the newly created bullet below.
+    - **Backspace**: Pressing Backspace at offset 0 of a sub-bullet unindents by 1 level before converting to plain text.
+    - **Hierarchical Glyphs & Indentation**: Level 0 renders a solid filled circle (`●`), Level 1 renders a hollow ring (`○`) with `1.5rem` indent, Level 2 renders a solid square (`■`) with `3.0rem` indent, and Level 3+ renders a hollow square with `4.5rem+` indent.
+  - **Complete Table & Block Undo/Redo Integration**: Captures immutable pre-format state snapshots (`recordHistorySnapshot`), allowing seamless `Ctrl+Z` / `Ctrl+Y` across all block types, sub-bullet indentations, and matrix cells.
+- **In-Context Slash Menu (`/`)**: Typing `/` triggers a floating block-type selector directly beneath the active line, supporting quick filters for `/columns`, `/2 columns`, `/3 columns`, `/4 columns`, `/5 columns`, `/split`, `/compare`, `/youtube`, `/video`, `/media`, `/table`, `/math`, etc. Dismissing via `Escape` or outside click immediately returns focus to the block.
+- **Notion 6-Dots & Right-Click Context Menu**:
+  - Accessible via hovering the `⠿` grip handle or **right-clicking anywhere on the block**.
+  - Clean block-level actions: ✨ **Explain Block**, 🦆 **Quiz on Block**, Duplicate (📋), Move Up/Down (⬆️/⬇️), Copy Text (📄), and Turn Into Submenu. Dismissible via click-outside or `Escape`.
 - **Cover Banners & Custom Icons**: 100% full-width cover banners with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*) and custom emoji picker (`NOTE_EMOJIS`).
+- **5 Custom Typography Font Options & Note Menu Selector**:
+  - 5 academic & creative font options: **Default Sans** (`font-note-sans`), **Classic Serif** (`font-note-serif`), **Developer Mono** (`font-note-mono`), **Script / Handwritten** (`font-note-handwriting`), and **Geometric Grotesk** (`font-note-geometric`).
+  - Notion-style segmented font selector at the top of `NoteMenu` (`⋯`), allowing instant one-click switching with live preview glyphs (`Ag`).
+  - **Per-Note Isolation & Persistence**: Font choices persist independently in IndexedDB via `saveNote({ ...note, fontStyle })` without altering other notes in the workspace.
+- **Full Width & Lock Page Toggles (`components/NoteMenu.jsx` & `components/BlockNoteEditor.jsx`)**:
+  - **Full Width**: Notion-style toggle switch row under "Move to Space" in NoteMenu switching the document layout between standard reading column (`max-w-3xl px-10`) and edge-to-edge canvas (`w-full max-w-none px-6 md:px-12`). Persists per-note via `fullWidth: boolean`.
+  - **Lock Page**: Notion-style toggle switch row under "Full width" making the document strictly read-only (`isLocked: boolean`). When active: renders a subtle top-right lock icon button (under top bar) with an instant "Unlock" action and tooltip, sets title input to `readOnly`, hides header action strips and banner controls, disables icon changes, sets `contentEditable={false}` across all blocks and table cells, hides gutter drag/delete buttons, and disables right-click and slash menus.
 - **Real-Time Note Stats**: NoteMenu calculates total characters, total words, total blocks, and estimated reading time across all block contents, toggle details, and math formulas.
 - **Auto-Instantiation & Click-to-Append**: Typing inside an empty space automatically instantiates a note. Clicking blank space below the editor appends a new block.
+- **Debounced Auto-Save & Unmount Flush Engine**:
+  - All block mutations (`handleChange`, `handleSmartPaste`, `handleAddAfter`, `handleDeleteBlock`, `handleMoveBlock`, `handleDuplicateBlock`, `handleChangeType`, table cell edits, math updates, banner, font style, fullWidth, isLocked, and emoji adjustments) automatically trigger a 400ms debounced save (`triggerDebouncedSave`).
+  - `performSave` packages complete note payloads (`id`, `spaceId`, `title`, `blocks`, `banner`, `fontStyle`, `fullWidth`, `isLocked`, `isFavorite`, `emoji`).
+  - `BlockNoteEditor` maintains an unmount cleanup effect that immediately flushes dirty state with explicit note and space IDs upon space switching or navigation, preventing data loss.
+  - `Workspace.jsx` maintains an active `editorBlocksRef` to guarantee that manual saves (`Ctrl+S`, `NoteMenu`, favorite toggles) never overwrite live editor content with stale initial state.
+- **High-Performance Lasso / Marquee Multi-Block Selection**:
+  - Document-anchored selection box (`absolute` coordinate space) with 60/120fps `requestAnimationFrame` loop.
+  - Continuous edge proximity auto-scrolling (up to 35px/frame) allowing seamless selection across long notes far beyond the viewport.
+  - Batch intersection calculations and set equality state caching for zero-lag drag performance.
 
 ---
 
-### 🔍 B. Universal Navigation, Command Palette & Instant Capture
+### 🔍 B. Universal Navigation, Command Palette, Sidebar & Instant Capture
+- **Streamlined Dual-Level Navigation Architecture** (`components/Workspace.jsx` & `components/Sidebar.jsx`):
+  - **Top Header (Space-Specific Study Suite)**: Dedicated strictly to the space-filtered views: 📝 **Notes**, 🎯 **Quizzes Studio**, and 📊 **Mastery Dashboard** (with active gap count badge). Clean breadcrumb indicating current space and open note title (or `Space Hub · {activeSpace}`).
+  - **Sidebar (Global Workspace Tools, Space Switcher & Space Hub)**: Houses system-wide tools in a compact 4-column icon grid (Instant Note `⚡`, 🌌 3D Simulations, 📅 Calendar with `GlobalTimerHUD`, and 🔖 Web Saver & Bookmarks), followed by the Spaces dropdown switcher and the prominent **Space Hub** button (`⚙️ Space Hub · Syllabus`) navigating to the full-page dashboard.
+- **Space Hub Dashboard & Curriculum Management Engine (`components/SpaceHubView.jsx`)**:
+  - Full-page dedicated hub for managing per-space curriculum boundaries and AI examiner behaviors.
+  - **Multiple Documents per Space**: Upload and store multiple syllabus documents (`.pdf`, `.docx`, `.txt`, `.md`) directly within each space.
+  - **Active AI Toggles**: Each document features an instant toggle switch (`active` / `inactive`), controlling exactly which curriculum files are concatenated and fed into the AI during quiz generation, grading, and Socratic dialogues.
+  - **AI Pedagogy & Examiner Settings**:
+    - **Academic Standard / Grade Level**: General, IGCSE / O-Level, IB Diploma (HL/SL), AP / College Board, University, Olympiad / Competition.
+    - **AI Persona & Tone**: Standard Examiner, Strict Examiner, Socratic Guide, Friendly Coach, Olympiad Mentor.
+    - **Distractor Toughness & Rigor**: Relaxed, Standard, High Rigor.
+  - **Space Customization**: Custom icon emoji, descriptive tagline/blurb, and space accent color tint.
+  - **Quick 1-Click Presets**: Instant load presets for Cambridge IGCSE, IB Diploma HL, AP Prep, and Foundational mastery.
+- **Interactive AI Tutor Doubt-Clearing Suite (`components/AITutorPanel.jsx` & `app/api/tutor/chat/route.js`)**:
+  - Accessible via the **🧑‍🏫 AI Tutor** button in the top action bar (or the quick doubt launcher in the sidebar, or `Ctrl+Shift+T` / `Cmd+Shift+T`).
+  - **Full Space Curriculum Feeding**: Dynamically resolves and feeds all uploaded documents marked as *"Fed to AI"* for the active space.
+  - **Pedagogy Alignment**: Injects the active space's Academic Standard / Grade Level (IGCSE, IB HL, AP, College, Olympiad), AI Persona & Tone, and Strictness / Rigor level into the tutor prompt.
+  - **Active Note Context**: Injects the active note's full text content so the learner can highlight doubts directly from their notes.
+  - **KaTeX & LaTeX Math**: Real-time rendering of mathematical formulas, equations, matrices, and chemical notations using `MathText`.
+  - **Quick Doubt Starters**: 1-click query pills (*"Explain this step-by-step with intuition"*, *"What are common exam traps here?"*, *"Give me a concrete real-world example"*, *"Derive the formula"*).
+  - Clear history, copy responses, and unconstrained doubt dialogue.
 - **Command Palette (`Ctrl+K` / `Cmd+K`)** (`components/CommandPalette.jsx`): Global fuzzy search for notes across all spaces, navigation views (Notes, Calendar, 3D Studio, Mastery Dashboard), and settings.
-- **Instant Note Capture (`Ctrl+I` / `Cmd+I`)** (`components/InstantNoteModal.jsx`): 75% screen glassmorphic modal overlay for immediate drafting with `Ctrl+Enter` quick save to the **"Misc"** space (or user-selected space).
+- **Compact Instant Note Capture (`Ctrl+I` / `Cmd+I`)** (`components/InstantNoteModal.jsx` & `components/Sidebar.jsx`): Integrated directly into the Global Tools icon grid (`⚡`) for immediate drafting with `Ctrl+Enter` quick save to the **"Misc"** space (or user-selected space).
 - **Quick Save (`Ctrl+S`)**: Explicit keyboard shortcut to instantly save the active note.
 
 ---
 
 ### 🧪 C. Interactive 3D Visualization Studio (`components/ThreeDView.jsx`, `topics.js`, `VisualizationHUD.jsx`)
-A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM domains with dual-tab HUD (Controls & live Details readout with complete Visual Color Keys):
+A comprehensive suite of 25 real-time interactive 3D simulations across 5 STEM domains with dual-tab HUD (Controls & live Details readout with complete Visual Color Keys):
 
 1. **Physics Engine** (`PhysicsCanvas.jsx`):
    - **Wave Refraction & Snell's Law** (`refraction`): Multi-medium light ray refraction, critical angle calculation, total internal reflection, Fresnel reflection rays, and lateral displacement.
@@ -193,11 +298,12 @@ A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM d
    - **VSEPR Molecular Geometry** (`vsepr`): Steric numbers 2–6, central atom, bonded ligands, non-bonding lone pair electron clouds, covalent bonds, and bond angle arcs.
    - **Reaction Energetics & Catalysis** (`energetics`): Exothermic/endothermic reaction profile curves, transition states, forward/reverse activation energy $E_a$, enthalpy change $\Delta H$, and catalysed pathway curves.
 
-3. **Biology Engine** (`BiologyCanvas.jsx` & `cell-organelles.jsx`):
+3. **Biology Engine** (`BiologyCanvas.jsx`, `RespiratoryCanvas.jsx` & `cell-organelles.jsx`):
    - **Plant & Animal Cell Explorer** (`cell`): Nucleus, mitochondria, chloroplasts, endoplasmic reticulum, Golgi apparatus, permanent vacuole, cell membrane, and cellulose cell wall with osmotic tonicity states.
    - **Enzyme Kinetics & Denaturation** (`enzyme`): Lock-and-key substrate binding, active catalytic cleft, thermal/pH denaturation, and released product molecules.
    - **DNA Double Helix Structure** (`dna`): Antiparallel sugar-phosphate backbones, complementary base pairs (Adenine, Thymine, Guanine, Cytosine), and hydrogen bond rungs.
    - **Protein Secondary Structure & Folding** (`protein`): $\alpha$-Helix ($i \to i+4$ H-bonds, 3.6 residues/turn), $\beta$-Pleated Sheet, random coils, hydrophobic core packing vs hydrophilic surface residues, and thermal denaturation.
+   - **Respiratory Mechanics & Thoracic Physics** (`respiratory`): Photorealistic 3D anatomical and physiological thoracic simulation completely devoid of legacy procedural placeholders, powered purely by genuine clinical CT-derived thoracic skeleton (`skeleton_ct.glb`, 16.3 MB; isolated 24 ribs, T1–T12 thoracic vertebrae, L1–L3 lumbar crura anchors, sternum, xiphoid, and clavicles) with active bucket-handle lateral elevation and pump-handle AP sternal elevation, photorealistic medical lungs scan (`lung.glb`, 17.1 MB; scale 11.2, upright orientation, volume-scaled), multi-layer antagonistic intercostal muscle bands spanning all 11 intercostal spaces with 6 discrete fascicle pairs per side for both superficial external $+35^\circ$ (inspiratory) and deep internal $-45^\circ$ (forced expiratory) layers with rich crimson (`#881337`) resting state and scarlet emissive glow (`#ef4444`) with layer isolation selectors, muscular diaphragm dome morphing (parametric 32-segment radial dome dynamically flattening on contraction $Y = 1.05 \to 0.63$ vs high-dome elastic recoil) with trifoliate pearly central tendon (*centrum tendineum*), 3 anatomical apertures (Caval T8, Esophageal T10, Aortic T12), liver asymmetry elevation, and bilateral vertebral crura, dynamic airway particle stream vectors driven by Boyle's Law pressure gradients ($P_1 V_1 = P_2 V_2$), 3-state phase selector (`[Inspiration]`, `[Quiet Expiration]`, `[Forced Expiration]`), auto-loop breathing cycle with adjustable BPM, cross-section cutaway slider, 3D kinematic motion arrows, eye-level camera framing, collapsible HUD panel with maximize/minimize toggle, and live SVG physics gauges (Thorax Volume L, Intra-thoracic Pressure $\Delta P$ kPa, Air Flow Rate $\dot{V}$ L/s).
 
 4. **Computer Science Engine** (`CSCanvas.jsx` & `BinaryTree3D.jsx`):
    - **3D Binary Search Tree / AVL Tree** (`binary_tree`): Interactive node insertion, searching, depth planes, and animated in-order, pre-order, and post-order traversals with complete Visual Tree Keys (Idle, Comparison, Found, Missing, Selected, Branch Edges).
@@ -216,21 +322,21 @@ A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM d
    - **Safe Value Fallback & Parameter Forwarding**: Implemented `num(val, fallback)` preventing truthy short-circuiting of valid `0` parameters across all 24 topic readouts. All canvas dispatchers (`PhysicsCanvas`, `ChemistryCanvas`, `BiologyCanvas`, `CSCanvas`, `MathCanvas`) accept and forward `{ topicId, params, setParam, onOpenQuiz }`.
    - **Details Tab**: Comprehensive live mathematical/scientific state readout, formula subtitles, instructional notes, and authoritative **Visual Keys** documenting every colored line, arrow, vector, orbital, particle, wave crest/trough, and object across all 24 3D scenes.
    - **Hardware Graphics Adaptation**: Device capability detection (`detectHardwareGraphics`) managing DPR (1.0–2.0), shadows, antialiasing, and dynamic `"demand"` vs `"always"` frameloops.
-   - **Fullscreen Focus Mode & Top Bar Cover**: Toggle button in the header and in-tab Category strip collapses both top workspace headers (and the studio toolbar in 3D view), leaving only the Category/Topic quick switch strip and 3D canvas visible with a persistent, accessible in-tab reopen button. Non-3D tabs feature a floating glassmorphic in-tab reopen button.
+   - **Zen Focus Mode & Minimalist View**: 1-click toggle button (`Maximize2` / `Minimize2` icon, shortcut `Ctrl+Shift+F`) collapses the sidebar and hides top bars, leaving only an edge-to-edge canvas with a floating glassmorphic exit pill (`Esc` or `Ctrl+Shift+F`).
+   - **Unified Single Top Bar (52px / `h-13`)**: Eliminated redundant stacked headers into a single modern navbar with breadcrumbs, space study tabs (`Notes`, `Quizzes`, `Mastery`), save status feedback, `Explain`, `Quiz me`, and a textless 3-dots (`...`) Note Menu.
 
 ---
 
-### ⏱️ D. Multi-Timer HUD, Pinned Floating Widgets & Alarms
-- **Unified Global Timer HUD** (`components/GlobalTimerHUD.jsx`): Header dropdown managing concurrent timers: Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom timers with live progress rings.
-- **Pinned Picture-in-Picture Floating Timers** (`components/PinnedTimersOverlay.jsx`): Float active timers as draggable, translucent HUD widgets anywhere across the application.
+### ⏱️ D. Multi-Timer HUD & Calming Study Break Alerts
+- **Unified Global Timer HUD** (`components/GlobalTimerHUD.jsx`): Header dropdown managing concurrent timers: Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom timers with live countdown rings and play/pause controls.
 - **Study Calendar & Schedule** (`components/CalendarView.jsx`): Month navigation, agenda lists, space tagging, 24-hour time pickers, and custom recurring alarm scheduling.
-- **Global Visual & Audio Alarm** (`components/AlarmOverlay.jsx`): Full-screen flashing modal alert (`🚨 ⏰ ❗️`) at `z-[9999]`, Web Audio chime synthesis, dynamic browser tab swap (`🦆` $\leftrightarrow$ `❗️`), and document title alerts.
+- **Calming Study Break & Timer Alert** (`components/AlarmOverlay.jsx`): Glassmorphic break modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (`🦆` $\leftrightarrow$ `☕`), calming title notices, and friendly snooze/extend buttons.
 
 ---
 
 ### 🦆 E. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
 - **Structured Concept Explainer (`app/api/explain/route.js`)**: Generates structured breakdowns containing TL;DR summaries, mechanism steps, analogies with explicit breakdown boundaries, common misconceptions, worked examples, and check-yourself questions.
-- **Intelligent Note Reformatting (`app/api/reformat/route.js` & `lib/aiService.js`)**: Analyzes notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with emoji icons, LaTeX display/inline math, collapsible toggles, code snippets, checklists, tables, and dividers) with automatic multi-chunk segmentation for long notes (`chunkNoteBlocks`), live progress updates (`Part X/Y...`), LaTeX/KaTeX formula syntax repair, markdown symbol healing, strict underlying knowledge fidelity, instantaneous `Ctrl+Z` undo stack tracking, and offline heuristic fallback.
+- **Intelligent Note Reformatting (`app/api/reformat/route.js` & `lib/aiService.js`)**: Analyzes notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with emoji icons, hierarchical sub-bullets with multi-level nesting via `level` schema, LaTeX display/inline math, collapsible toggles, code snippets, checklists, tables, and dividers) with automatic multi-chunk segmentation for long notes (`chunkNoteBlocks`), live progress updates (`Part X/Y...`), LaTeX/KaTeX formula syntax repair, markdown symbol healing, strict underlying knowledge fidelity, instantaneous `Ctrl+Z` undo stack tracking, offline heuristic fallback recognizing indented markdown sub-bullets, active visual feedback on trigger buttons (`components/NoteMenu.jsx`), and a top-center floating glassmorphic status banner (`components/BlockNoteEditor.jsx`) with animated sparkles and live progress indicator.
 
 
 - **Socratic Rubber Duck Assistant (`app/api/socratic/chat/route.js`)**: Probes understanding using the Feynman technique without providing direct answers. Evaluates sessions upon completion and emits a 0–100 score and sub-topic confidence heatmap.
@@ -240,14 +346,70 @@ A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM d
 
 ---
 
-### 📊 F. Graded Quizzes & Aggregate Mastery Analytics
-- **Diagnostic Quiz Builder (`app/api/quiz/generate/route.js`)**: Generates 5–6 questions from notes with realistic distractors, balancing multiple choice and short answer.
-- **Objective & LLM Hybrid Grading (`app/api/quiz/grade/route.js`)**: Performs deterministic integer comparison for multiple-choice options and LLM semantic evaluation for short answers, emitting `{ score, summary, gradedAnswers, heatmap }`.
-- **Mastery Dashboard (`components/MasteryDashboard.jsx` & `lib/mastery.js`)**: Aggregates all study sessions into a sub-topic confidence matrix:
-  - **Solid** (`●` `text-solid-500` / `#0ca30c`): Mechanism explained unprompted.
-  - **Shaky** (`◐` `text-shaky-500` / `#ec835a`): Correct but recited or required prompting.
-  - **Gap** (`○` `text-gap-500` / `#d03b3b`): Incorrect, missing, or failed follow-up.
-  - Features weakest-first study queues, topic trend tracking (improving vs degrading), and history management.
+### 🎯 F. Dedicated Quizzes Studio, AI Generator & Mastery Rollup
+- **Quizzes Studio Tab (`components/QuizStudioView.jsx`)**:
+  - Full diagnostic quiz hub organizing quizzes across spaces with pending, completed, and trash sub-tabs.
+  - **Redesigned Decluttered Exam Runner Layout**: Split-screen 2-column workspace removing all navigation, submission, question jumper, and auxiliary buttons from the question canvas into a dedicated, high-productivity right-hand Control & Navigation Sidebar.
+    - **Spacious Left/Center Q&A Canvas (`max-w-4xl`)**: Generous, distraction-free reading area featuring question metadata pills (number, subtopic with LaTeX MathText, question type), an open prompt card with rich KaTeX math typography, and expansive answer options (full-width MCQ cards with hover key hints, or spacious short/long answer textareas with mechanistic tips and live word counts).
+    - **Dedicated Right-Hand Navigation & Control Station (`w-80 lg:w-88`)**:
+      - Primary Action: Prominent "Next Question" / "Skip Question" button, transitioning automatically to "Finish & Submit Exam" on the last question.
+      - Secondary Actions: "Previous Question" and instantaneous "Clear Answer" button (resetting selection without manual backspacing).
+      - Interactive Questions Matrix: 5-column numbered matrix showing real-time question states (Current glowing ring, Answered emerald pill with dot, Unanswered subtle badge) with single-click jumping to any question.
+      - Progress & Real-Time Auto-Save: Continuous progress percentage bar, answered question counter, and local storage auto-save indicator.
+      - Standalone Submit & Exit: Instant "Submit Exam" button accessible at any point without cycling through questions, plus "Save Progress & Exit" to safely pause and return.
+    - **Keyboard Hotkey Engine**: Global keyboard listeners for lightning-fast test taking: `ArrowRight` (next/skip), `ArrowLeft` (previous), and `A`/`B`/`C`/`D` or `1`/`2`/`3`/`4` to select multiple choice options (safely ignored when typing in textareas).
+  - **Progress Auto-Saving**: Real-time auto-saving of answers (`draftAnswers`) and active question position (`draftIndex`) to IndexedDB on option clicks, debounced textarea inputs, and question navigation. Includes header auto-save indicator (`✓ Progress saved` / `Saving...`) and `<ArrowLeft>` auto-save exit.
+  - **Full LaTeX & Chemical Formula Rendering (`components/MathText.jsx` & `lib/mathUtils.js`)**: All quiz prompts, subtopics, multiple choice options, diagnostic rubrics, student answers, and feedback render formatted mathematical equations (`$E = mc^2$`, `\frac{a}{b}`) and chemical formulas (`\text{H}_2\text{SO}_4`, reaction arrows `\rightarrow`) via memoized KaTeX compilation with safe crash-proof fallbacks.
+  - **Resume & In-Progress Flows**: In-progress quizzes display a `⏳ In Progress (X/Y)` card badge and `"Resume Quiz"` button restoring answers and current question index; retake cleanly resets draft state.
+  - **Delete Confirmation Modal (`DeleteQuizConfirmModal`)**: Modal dialog with accessible semantics, metadata preview, and escape/backdrop dismiss preventing accidental loss when trashing quizzes, permanently deleting items, or emptying the 24-hour trash bin.
+  - **Diagnostic Review Report**: High-contrast question breakdown cards (emerald for correct, rose for incorrect) with dedicated icon boxes, status badges, answer chips, and model corrections, accompanied by overall score (`ScoreRing.jsx`), subtopic confidence heatmap breakdown (`ConfidenceHeatmap.jsx`), and rubric feedback.
+  - **Decluttered Multi-Note Quiz Cards & SourceNotesModal**: Multi-note quizzes render a single-line compact pill (`📚 X notes • View notes →`) preventing wrapping clutter and uniformizing card grid heights. Clicking opens `SourceNotesModal` with live search and 1-click note navigation into the editor.
+  - 24-hour auto-purge trash management for deleted quizzes.
+  - **Multi-Source Note Grading**: `handleSubmitQuiz` dynamically resolves full text across all source notes (`noteIds`) with structured boundaries, providing the AI grading model complete cross-note rubric context.
+  - **Syllabus-Aware Grading**: `handleSubmitQuiz` reads the active `getSyllabusStatement()` from IndexedDB and injects it into the grading payload, preventing the AI from penalizing students for missing higher-grade or out-of-syllabus content.
+- **Custom AI Quiz Generator Modal (`components/CreateQuizModal.jsx`)**:
+  - **Multi-Note Selection**: Interactive source note combobox with live search filtering, "Select All" / "Clear" buttons, per-note checkboxes, selection count badge (`X of Y selected`), and removable chip badges for rapid note curation.
+  - **Multi-Source AI Prompt Feeding**: Formats all selected notes with clear section delimiters (`=== Source Note: "<Title>" ===`), prompting the AI model to synthesize cross-topic connections, comparisons, and mechanisms across all selected notes.
+  - **Cross-Note Heading Aggregation**: When selecting specific sections (`scope === "heading"`), headings (H1–H4) from all selected notes are compiled with note source attribution (`[Note Title] Heading Text`) preventing heading name collisions.
+  - Configurable difficulty tiers (Easy, Medium, Hard, Mastery) and custom note scoping (All Selected Notes, H1–H4 Heading Checkboxes, or Custom Prompt).
+  - Proportional question type sliders (MCQ, Short Answer, Long Essay) with custom gold gradient track fills and direct number inputs.
+  - Full context serialization (`editorBlocksToText`) including tables, collapsible toggles, and LaTeX math formulas.
+  - **Active Syllabus Badge**: Displays a green badge when a syllabus boundary is active, and injects the syllabus into the generation payload to scope questions to the student's curriculum level.
+  - **Zero-Lag Question Sliders & Component Memoization**: Range sliders (`QuestionCountSlider`) and heading items (`HeadingCheckboxItem`) are isolated with `React.memo` and `useCallback`. CSS transitions on `quiz-slider` are restricted to `opacity`, eliminating 150ms gradient transition jank during continuous pointer drags.
+  - **O(1) Heading Selection Index**: Heading selections are indexed in a memoized `Set` (`selectedHeadingsSet`), reducing per-render lookups from $O(N \times M)$ linear scans to $O(1)$ constant time.
+  - **Conditional Mounting & Closed-State Guards**: `QuizStudioView` mounts `CreateQuizModal` strictly when `isCreateOpen === true`, and all internal memoized hooks exit immediately if closed, preventing background block extraction or list filtering.
+  - **Debounced Exam Progress Auto-Save**: In `QuizStudioView.jsx`, option picks debounce IndexedDB persistence by 250ms while immediately updating runner state, and short-circuit `filteredQuizzes` recomputation while an exam is actively running.
+  - **Outline Scroll Spy RAF Throttle (`BlockNoteEditor.jsx`)**: Table of contents heading scroll spy throttles `getBoundingClientRect()` via `requestAnimationFrame` (`ticking` flag) and guards active heading state updates, eliminating layout thrashing during document scrolling.
+  - **Lazy Command Palette Evaluation (`CommandPalette.jsx`)**: Search item compilation across all spaces and bookmarks is bypassed with early return when `isOpen === false`, eliminating background indexing while editing notes.
+  - **Default Question Distribution**: 5 MCQ + 3 Short Answer (8 questions total) for Quick Quiz; configurable via modal sliders.
+- **Objective & Semantic Hybrid Grading (`lib/aiService.js` & `app/api/quiz/grade/route.js`)**:
+  - Deterministic integer comparison for multiple-choice options with strict blank-answer guards preventing skipped questions from matching option A.
+  - LLM semantic evaluation for short answers and essays with positional fallback resilience and subtopic heatmap fallback synthesis (`fallbackHeatmap`).
+  - **Curriculum Boundary Enforcement**: When a syllabus is active, grading routes inject strict instructions to award full marks for correct IGCSE/GCSE/MYP answers without requiring higher-grade knowledge.
+- **Reactive Mastery Dashboard Sync (`components/Workspace.jsx` & `lib/mastery.js`)**:
+  - `useLiveQuery` reactive binding synchronizing study sessions from both drawer quizzes and Quizzes Studio directly into `MasteryDashboard.jsx` and header `gapCount` badge without requiring page reload.
+  - Sub-topic confidence matrix (Solid ● / Shaky ◐ / Gap ○) with weakest-first study queues and progress trends.
+- **Quick Quiz Panel (`components/QuizPanel.jsx`)**:
+  - Dual-tab study sidebar with Graded Quiz + Socratic Rubber Duck modes.
+  - Syllabus injected into both `generate` (question creation) and `submit` (grading), plus Socratic Duck `askDuck` and `endSession` calls.
+
+---
+
+### 🔐 I. Academic Syllabus & Curriculum Boundaries (Settings > General)
+- **Settings Modal > General Tab (`components/Sidebar.jsx`)**:
+  - **Syllabus Toggle**: Enable/disable the curriculum boundary system with a live toggle switch (`socratic_syllabus_enabled`).
+  - **Quick Preset Chips**: One-click curriculum preset buttons — *🎓 IGCSE Gr.10 (Cambridge)*, *📚 GCSE / O-Level*, *🏛️ IB MYP 4-5*, *🧬 AP / A-Level Gr.11-12*, *🔬 Middle School Gr.6-8*, *🔄 Clear*.
+  - **Syllabus Textarea**: Multi-line text editor (max 8000 chars) for custom syllabus statements with live character counter.
+  - **File Upload**: Upload `.txt`, `.md`, or `.docx` files to auto-populate the textarea (DOCX parsed via Mammoth).
+  - **Active Status Banner**: Green success badge when syllabus is active; grey muted badge when disabled.
+  - Persisted to `db.settings` via `saveSyllabusStatement(statement, enabled)` (`socratic_syllabus_statement` + `socratic_syllabus_enabled` keys).
+- **Storage Layer (`lib/storageService.js`)**: `getSyllabusStatement()` and `saveSyllabusStatement()` using Dexie IndexedDB `db.settings`.
+- **AI Prompt Injection (`lib/aiService.js`)**: `getEffectiveSyllabus()` reads from IndexedDB; `quizGenerate`, `quizGrade`, and `explainConcept` enforce syllabus constraints.
+- **Server Route Enforcement**:
+  - `app/api/quiz/generate/route.js` — injects `<syllabus_statement>` into generation prompts; restricts questions to stated curriculum scope.
+  - `app/api/quiz/grade/route.js` — instructs grader to award full marks for correct syllabus-level answers; never penalises omission of higher-grade content.
+  - `app/api/explain/route.js` — calibrates explanation vocabulary and depth to the stated syllabus level.
+  - `app/api/socratic/chat/route.js` — calibrates Socratic probing questions to the student's curriculum level.
 
 ---
 
@@ -256,11 +418,12 @@ A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM d
 - **Multi-Format Note & Bookmark Export** (`lib/exportImport.js`):
   - **Netscape HTML Bookmarks (`.html`)**: Standard browser bookmark format (`<!DOCTYPE NETSCAPE-Bookmark-file-1>`) preserving folder hierarchies, `<A HREF="..." ICON="..." TAGS="...">` links, and `<DD>` personal notes for import into Chrome, Firefox, Safari, Edge, Arc, and Brave.
   - **PDF & Print Engine**: High-fidelity A4 document print engine via `@media print` with auto-wrapping headers, zero-void page starts, auto-scaling KaTeX formulas without scrollbars, clean code block cards without double line striping, print-rendered toggle details, and normalized heading/divider typography.
-  - **Word Document (`.docx`)**: Native headings, callout boxes with emojis, toggle headers with `▶ ` and indented italic details `↳ `, styled code containers with Consolas, and formatted lists.
-  - **HTML (`.html`)**: Clean standalone HTML5 web page with grouped lists, `<details>` toggles, dark styling, and embedded KaTeX auto-render scripts for standalone offline math rendering in browsers.
-  - **Markdown (`.md`)**: GitHub/Obsidian-flavored markdown with KaTeX `$formula$` preservation, `<details>` toggles, standard task list `- [ ]` / `- [x]` syntax, and Obsidian/Unicode callouts.
-  - **Plain Text (`.txt`)**: Clean structured text formatting with `--- CODE (lang) ---` delimiters, `▶ ` toggle headers, and sequential numbering.
-- **Drag-and-Drop File Import**: Automatically imports `.socratic`, `.json` (workspace packages or raw note objects), `.docx` (via Mammoth), `.html` (notes and browser bookmarks), `.txt`, and `.md` files into the active space.
+  - **Word Document (`.docx`)**: Native headings, callout boxes with emojis, toggle headers with `▶ ` and indented italic details `↳ `, styled code containers with Consolas, formatted lists, blue hyperlink runs with 🌐 icons, media badges (🖼️/🎵/🎬), and canvas drawings (`🎨 [Canvas Drawing]`).
+  - **HTML (`.html`)**: Clean standalone HTML5 web page with grouped lists, `<details>` toggles, dark theme styling matching SocraticOS aesthetic, embedded KaTeX CDN with auto-render script, interactive 🌐 bookmark cards, responsive media tags (images, audio, video), and canvas badge containers (`🎨 [Canvas Drawing]`).
+  - **Markdown (`.md`)**: GitHub/Obsidian-flavored markdown with KaTeX `$formula$` preservation, `<details>` toggles, standard task list `- [ ]` / `- [x]` syntax, `[title](url)` bookmark links, `![caption](url)` images, and Obsidian/Unicode callouts.
+  - **Plain Text (`.txt`)**: Clean structured text formatting with `--- CODE (lang) ---` delimiters, `▶ ` toggle headers, sequential numbering, `[LINK: title] url`, and `[IMAGE]` / `[CANVAS]` tags.
+- **Automated DevTools Protocol (CDP) Visual Accuracy Suite** (`scripts/cdp_visual_tester.mjs` & `scripts/test_exports_visual.mjs`): Generates and parses all 6 export formats for a 29-block comprehensive demo note across all 19 block types, and uses headless Chrome over WebSocket CDP to capture full-page high-resolution visual screenshots (`html_visual_render.png`) and print PDFs (`quantum_note.pdf`), validating KaTeX math rendering, syntax highlighting, and table layouts.
+- **Drag-and-Drop File Import**: Automatically imports `.socratic`, `.json` (workspace packages or raw note objects), `.docx` (via Mammoth with Buffer/ArrayBuffer environment normalization), `.html` (notes and browser bookmarks), `.txt`, and `.md` files into the active space.
 - **Real-Time Workspace Sync**: `handleImportSuccess` in `Workspace.jsx` reloads all notes and custom spaces dynamically from IndexedDB (`getAllNotes()`).
 
 ---
@@ -268,13 +431,13 @@ A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM d
 ### 🔖 H. Website Saver & Folder Manager (`components/WebSaverView.jsx` & `components/AddBookmarkModal.jsx`)
 - **Dual-Pane Folder Navigation**:
   - **Left Sidebar**: Collapsible folder tree with parent-child nesting, quick "All Bookmarks" and "Unorganized" filters, inline new folder modal, rename/delete context triggers, and drag-and-drop target support.
-  - **Main Viewport**: Live search (matches title, URL, domain, tags, notes), tag filter chips, sorting (Newest, Oldest, Title A-Z, Domain), and view toggles (Grid Cards vs Compact List).
+  - **Main Viewport**: Live search (matches title, URL, domain, tags, notes), sorting (Newest, Oldest, Title A-Z, Domain), and view toggles (Grid Cards vs Compact List).
 - **Bookmark Card & List Controls**:
   - Automated high-res Favicon badge with fallback globe.
   - Direct external link launch (`target="_blank" rel="noopener noreferrer"`).
   - Quick "Copy Link" button with instant checkmark feedback.
   - Folder move dropdown selector & drag-and-drop folder sorting.
-  - Tag chips and expandable personal study annotations.
+  - Aesthetic hashtag badges (`#tag`) and expandable personal study annotations.
 - **Instant Bookmark Capture Modal (`components/AddBookmarkModal.jsx`)**:
   - Automatic URL normalization (`https://`), domain extraction, live favicon preview, and heuristic title parsing.
   - Keyboard accessible: `Escape` closes modal, `Ctrl+Enter` / `Enter` saves bookmark.
@@ -288,10 +451,9 @@ A comprehensive suite of 24 real-time interactive 3D simulations across 5 STEM d
 
 ---
 
-### 🔒 I. Space Security, 24-Hour Auto-Purge Trash & Settings
-- **Password-Protected Spaces**: Set base64 UTF-8 encrypted passwords on any space; protected spaces require verification before opening.
+### 🗄️ I. 24-Hour Auto-Purge Trash, Factory Reset & Settings
 - **24-Hour Auto-Purging Trash**: Deleted notes are placed in the Trash drawer with a `deletedAt` timestamp; a 1-minute interval background task automatically purges items older than 24 hours. Supports individual and batch recovery.
-- **Interactive Onboarding & Feature Mastery Guide** (`components/InteractiveTutorial.jsx`): 8-step comprehensive walkthrough covering the active learning philosophy, all 18 block types, slash menu, KaTeX math, Socratic Rubber Duck dialogues, Web Saver bookmarking, 3D STEM visualizers, multi-timer HUDs, mastery heatmaps, and security shortcuts. Auto-triggers on first boot or `?tour=true`, and can be replayed anytime via Settings $\to$ General.
+- **Factory Reset Safety Verification**: Targeted table purging in Settings featuring typed `"RESET"` double-confirmation safety checks instead of arbitrary math captchas.
 
 ---
 

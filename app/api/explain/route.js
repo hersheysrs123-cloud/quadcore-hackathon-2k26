@@ -38,8 +38,18 @@ How to write:
   congratulating them on a good question.
 - Do not include internal or system XML tags in your response.`;
 
-function buildPrompt({ concept, noteContent, focus }) {
+function buildPrompt({ concept, noteContent, focus, syllabus }) {
   const sections = [PERSONA, `Concept to explain: ${concept}`];
+
+  if (syllabus?.trim()) {
+    sections.push(
+      `ACADEMIC SYLLABUS & CURRICULUM BOUNDARIES:
+<syllabus_statement>
+${syllabus.trim()}
+</syllabus_statement>
+Calibrate all explanations, analogies, and vocabulary strictly to this syllabus level.`,
+    );
+  }
 
   if (focus?.trim()) {
     sections.push(
@@ -86,8 +96,21 @@ function normalizeExplanation(raw) {
       .filter((m) => m?.claim)
       .map((m) => ({ claim: str(m.claim), correction: str(m.correction) })),
     workedExample: {
-      title: str(raw.workedExample?.title),
-      steps: list(raw.workedExample?.steps).map(str).filter(Boolean),
+      title: str(raw.workedExample?.title || raw.workedExample?.problem),
+      problem: str(raw.workedExample?.problem || raw.workedExample?.title),
+      takeaway: str(raw.workedExample?.takeaway),
+      steps: list(raw.workedExample?.steps)
+        .map((s) => {
+          if (typeof s === "string") return { step: s.trim(), explanation: "" };
+          if (s && typeof s === "object") {
+            return {
+              step: str(s.step || s.title || s.heading),
+              explanation: str(s.explanation || s.body || s.detail || s.text),
+            };
+          }
+          return { step: "", explanation: "" };
+        })
+        .filter((s) => s.step || s.explanation),
     },
     checkYourself: list(raw.checkYourself).map(str).filter(Boolean),
   };
@@ -107,7 +130,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const { concept, noteContent, focus } = body ?? {};
+  const { concept, noteContent, focus, syllabus } = body ?? {};
 
   if (!concept || typeof concept !== "string" || !concept.trim()) {
     return NextResponse.json({ error: "`concept` is required." }, { status: 400 });
@@ -123,7 +146,7 @@ export async function POST(request) {
     );
   }
 
-  const system = buildPrompt({ concept: concept.trim(), noteContent, focus });
+  const system = buildPrompt({ concept: concept.trim(), noteContent, focus, syllabus });
 
   try {
     const payload = await generate({

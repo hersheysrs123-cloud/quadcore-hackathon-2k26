@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import WidgetCanvas from "@/components/WidgetCanvas";
 import {
   ViewportHint,

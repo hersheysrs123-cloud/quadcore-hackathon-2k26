@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useGlobalTimer } from "@/lib/timerStore";
-import { Play, Pause, RotateCcw, Plus, Calendar, AlertTriangle, Clock, Pin, PinOff, Trash2, Check } from "lucide-react";
+import { Play, Pause, RotateCcw, Plus, Calendar, AlertTriangle, Clock, Trash2 } from "lucide-react";
 
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60);
@@ -14,12 +14,10 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
   const {
     timers,
     activeTimers,
-    pinnedTimers,
     primaryTimer,
     addTimer,
     togglePlayPause,
     resetTimer,
-    togglePin,
     deleteTimer,
   } = useGlobalTimer();
 
@@ -102,13 +100,7 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
               <span className="truncate text-[11px] text-ink-300 font-normal">
                 {modeEmojis[primaryTimer.mode]} {primaryTimer.title}
               </span>
-            ) : (
-              pinnedTimers.length > 0 && (
-                <span className="rounded-full bg-ink-800 px-1.5 text-[10px] text-ink-400 shrink-0">
-                  📌 {pinnedTimers.length}
-                </span>
-              )
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -223,21 +215,8 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => togglePin(timer.id)}
-                      title={timer.isPinned ? "Unpin from screen" : "Pin floating timer on screen"}
-                      className={`rounded p-1 transition-colors ${
-                        timer.isPinned
-                          ? "text-duck-300 bg-duck-500/20 border border-duck-500/40"
-                          : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
-                      }`}
-                    >
-                      <Pin className="h-3.5 w-3.5" />
-                    </button>
-
-                    {!timer.isDefault && (
+                  {!timer.isDefault && (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => deleteTimer(timer.id)}
@@ -246,8 +225,8 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Countdown & Play/Pause/Reset Controls */}

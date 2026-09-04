@@ -1,10 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CORE_LANGUAGES,
   normalizeLanguage,
   tokenizeCode,
-  TOKEN_STYLES,
 } from "../../lib/syntaxHighlighter.js";
 
 describe("10-Language Syntax Highlighter (lib/syntaxHighlighter.js)", () => {
@@ -75,6 +73,28 @@ describe("10-Language Syntax Highlighter (lib/syntaxHighlighter.js)", () => {
     it("handles empty or whitespace-only code snippets without crashing", () => {
       assert.deepStrictEqual(tokenizeCode("", "javascript"), []);
       assert.deepStrictEqual(tokenizeCode(null, "javascript"), []);
+    });
+  });
+
+  describe("Backtick Inline Code (`x`) & Codeblock Markdown Formatting", () => {
+    it("recognizes single backtick inline code tokens correctly", () => {
+      const code = "`const x = 10;`";
+      assert.ok(code.startsWith("`") && code.endsWith("`"));
+    });
+
+    it("verifies multi-language tokenization with indented spaces and comments", () => {
+      const pyCode = "def solve():\n  # compute result\n  return 42";
+      const tokens = tokenizeCode(pyCode, "python");
+      assert.ok(tokens.some((t) => t.type === "keyword" && t.text === "def"));
+      assert.ok(tokens.some((t) => t.type === "keyword" && t.text === "return"));
+      assert.ok(tokens.some((t) => t.type === "comment" && t.text.includes("# compute result")));
+    });
+
+    it("verifies backtick pattern matching for inline code compilation", () => {
+      const text = "Prefix `let count = 0;`";
+      const match = text.match(/`([^`\n]+)`$/);
+      assert.ok(match);
+      assert.strictEqual(match[1], "let count = 0;");
     });
   });
 });

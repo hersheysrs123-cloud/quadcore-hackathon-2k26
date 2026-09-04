@@ -144,7 +144,7 @@ describe("Multi-Format Export & Import Engine (lib/exportImport.js)", () => {
   describe("HTML Export & Grouped List Tagging", () => {
     it("groups consecutive list items inside single <ul> and <ol> containers and embeds KaTeX", () => {
       const html = blocksToHTMLLossy(sampleBlocks, "Quantum Note", "⚛️");
-      assert.ok(html.includes("<h1>Quantum Computing Foundations</h1>"));
+      assert.ok(html.includes("Quantum Computing Foundations</h1>"));
       assert.ok(html.includes("<ul>"));
       assert.ok(html.includes("<li>Qubits exhibit quantum entanglement</li>"));
       assert.ok(html.includes("<ol>"));

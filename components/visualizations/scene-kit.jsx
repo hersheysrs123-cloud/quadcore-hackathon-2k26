@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -186,72 +186,6 @@ export function SceneLabel({
 }
 
 // ─── Corner-pinned panels ───────────────────────────────────────────
-
-const PANEL_PAD = 14;
-
-/**
- * Panels pinned to a corner of the viewport rather than to a point in the
- * scene.
- *
- * These used to sit at world coordinates, which meant that the moment you
- * orbited — exactly when you most want to read the numbers — the panel swung
- * behind the model or off the edge of the canvas. `calculatePosition` hands
- * back pixels, so the corner is resolved against the live canvas size every
- * frame and the panel simply stays where you left it.
- */
-const CORNERS = {
-  "top-left": { at: () => [PANEL_PAD, PANEL_PAD], shift: "none" },
-  "top-right": { at: (s) => [s.width - PANEL_PAD, PANEL_PAD], shift: "translateX(-100%)" },
-  "bottom-left": { at: (s) => [PANEL_PAD, s.height - PANEL_PAD], shift: "translateY(-100%)" },
-  "bottom-right": {
-    at: (s) => [s.width - PANEL_PAD, s.height - PANEL_PAD],
-    shift: "translate(-100%, -100%)",
-  },
-};
-
-function PinnedPanel({ corner = "top-right", children }) {
-  const { at, shift } = CORNERS[corner] ?? CORNERS["top-right"];
-  // Two panels share the right-hand edge. Capping each at a little under half
-  // the canvas is what makes the overlap impossible rather than merely
-  // unlikely — a short viewport used to let a long readout run into the
-  // legend below it.
-  const height = useThree((state) => state.size.height);
-  const maxHeight = Math.max(120, height / 2 - PANEL_PAD * 1.5);
-
-  return (
-    <Html
-      calculatePosition={(_el, _camera, size) => at(size)}
-      style={{ pointerEvents: "none" }}
-      zIndexRange={[30, 0]}
-    >
-      <div style={{ transform: shift, display: "inline-block" }}>
-        {/* Pointer events come back on so a capped panel can be scrolled;
-            that also stops a drag inside a panel from spinning the model, and stops wheel events zooming the canvas. */}
-        <div
-          onWheel={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          style={{ maxHeight, overflowY: "auto", pointerEvents: "auto" }}
-        >
-          {children}
-        </div>
-      </div>
-    </Html>
-  );
-}
-
-const NOTE_STYLES = {
-  neutral: "border-ink-700 bg-ink-850 text-ink-400",
-  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
-  warn: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
-};
-
-const VALUE_TONES = {
-  good: "text-emerald-400",
-  bad: "text-rose-400",
-  warn: "text-amber-400",
-  gold: "text-duck-300",
-};
 
 /**
  * Declarative placeholder component for scene-level readout specifications.

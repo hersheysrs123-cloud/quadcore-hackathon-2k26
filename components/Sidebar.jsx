@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftClose, ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Cpu, Shield, Server, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Lock, Unlock, Sparkles } from "lucide-react";
+import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
-import { getGraphicsSettings, saveGraphicsSettings, DEFAULT_GRAPHICS_SETTINGS, detectHardwareGraphics } from "@/lib/db.js";
-import { seedDemoContent } from "@/lib/storageService.js";
+import { getGraphicsSettings, saveGraphicsSettings, detectHardwareGraphics } from "@/lib/db.js";
+import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement } from "@/lib/storageService.js";
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
@@ -13,33 +13,28 @@ import { SPACES } from "@/lib/constants";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
-// Settings ⚙️ button, and Factory Reset with Double Confirmation & Human Verification.
+// Settings ⚙️ button, and Factory Reset with Double Confirmation & Typed RESET.
 // ─────────────────────────────────────────────────────────────────────
 
 function formatTimeRemaining(deletedAt) {
   if (!deletedAt) return "24h 0m left";
-  const ts = typeof deletedAt === "number" ? deletedAt : new Date(deletedAt).getTime();
-  if (isNaN(ts) || ts <= 0) return "24h 0m left";
-  const remaining = 24 * 60 * 60 * 1000 - (Date.now() - ts);
-  if (remaining <= 0) return "Expiring soon";
-  const h = Math.floor(remaining / 3600000);
-  const m = Math.floor((remaining % 3600000) / 60000);
-  return isNaN(h) || isNaN(m) ? "24h 0m left" : `${h}h ${m}m left`;
+  const expiresAt = new Date(deletedAt).getTime() + 24 * 60 * 60 * 1000;
+  const remainingMs = Math.max(0, expiresAt - Date.now());
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours === 0 && minutes === 0) return "Purging soon";
+  return `${hours}h ${minutes}m left`;
 }
 
-// ─── Reset Confirmation & Human Check Dialog ────────────────────────
+// ─── Reset Confirmation Dialog with Typed RESET ───────────────────────
 function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
-  const [step, setStep] = useState(1); // 1 = warning, 2 = human verification
-  const [numA, setNumA] = useState(7);
-  const [numB, setNumB] = useState(5);
+  const [step, setStep] = useState(1); // 1 = warning, 2 = typed verification
   const [userAnswer, setUserAnswer] = useState("");
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     if (open) {
       setStep(1);
-      setNumA(Math.floor(Math.random() * 12) + 5);
-      setNumB(Math.floor(Math.random() * 12) + 3);
       setUserAnswer("");
       setResetting(false);
     }
@@ -47,7 +42,6 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
 
   if (!open || !target) return null;
 
-  const expectedAnswer = String(numA + numB);
   const targetLabel =
     target === "notes"
       ? "Notes & Content Blocks"
@@ -55,8 +49,10 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
       ? "Calendar Events"
       : "ALL WORKSPACE DATA";
 
+  const isConfirmed = userAnswer.trim() === "RESET";
+
   async function handleFinalReset() {
-    if (userAnswer.trim() !== expectedAnswer) return;
+    if (!isConfirmed || resetting) return;
     setResetting(true);
     try {
       await onConfirm(target);
@@ -125,26 +121,23 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
           ) : (
             <>
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-xs">
-                <p className="font-semibold text-amber-300">🤖 Are You Human Verification</p>
+                <p className="font-semibold text-amber-300">⚠️ Confirmation Required</p>
                 <p className="mt-1 text-ink-300">
-                  Solve this quick math puzzle to confirm you want to wipe <strong>{targetLabel}</strong>:
+                  To permanently wipe <strong>{targetLabel}</strong>, please type <strong className="text-amber-300 font-mono">RESET</strong> below:
                 </p>
-                <div className="mt-3 flex items-center gap-3">
-                  <span className="rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 font-mono text-sm font-bold text-duck-300">
-                    {numA} + {numB} = ?
-                  </span>
+                <div className="mt-3">
                   <input
-                    type="number"
+                    type="text"
                     value={userAnswer}
                     onChange={(e) => setUserAnswer(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && userAnswer.trim() === expectedAnswer && !resetting) {
+                      if (e.key === "Enter" && isConfirmed && !resetting) {
                         e.preventDefault();
                         handleFinalReset();
                       }
                     }}
-                    placeholder="Result"
-                    className="w-24 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-center font-mono text-sm font-bold text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+                    placeholder="Type RESET"
+                    className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 font-mono text-sm font-bold text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
                     autoFocus
                   />
                 </div>
@@ -160,7 +153,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
                 </button>
                 <button
                   type="button"
-                  disabled={userAnswer.trim() !== expectedAnswer || resetting}
+                  disabled={!isConfirmed || resetting}
                   onClick={handleFinalReset}
                   className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow transition-all disabled:opacity-30 hover:bg-rose-500"
                 >
@@ -175,7 +168,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
   );
 }
 
-function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [], onStartTutorial }) {
+function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [] }) {
   const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -196,6 +189,13 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
 
   // Editor behavior
   const [clickToAppend, setClickToAppend] = useState(true);
+
+  // Syllabus / Curriculum Boundaries
+  const [syllabusText, setSyllabusText] = useState("");
+  const [syllabusEnabled, setSyllabusEnabled] = useState(true);
+  const [syllabusSaved, setSyllabusSaved] = useState(false);
+  const [syllabusFileLoading, setSyllabusFileLoading] = useState(false);
+  const [syllabusFileName, setSyllabusFileName] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -218,9 +218,71 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
         console.error("Failed to load graphics settings:", err);
       }
     }
+    async function loadSyllabusSettings() {
+      try {
+        const { statement, enabled } = await getSyllabusStatement();
+        setSyllabusText(statement || "");
+        setSyllabusEnabled(Boolean(enabled));
+        if (statement) setSyllabusFileName("📄 Syllabus loaded from storage");
+      } catch (err) {
+        console.error("Failed to load syllabus settings:", err);
+      }
+    }
     loadAISettings();
     loadGfxSettings();
+    loadSyllabusSettings();
   }, [open]);
+
+  const handleSyllabusFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyllabusFileLoading(true);
+    try {
+      let text = "";
+      if (file.name.endsWith(".docx")) {
+        const mammoth = (await import("mammoth")).default;
+        const arrayBuffer = await file.arrayBuffer();
+        const res = await mammoth.extractRawText({ arrayBuffer });
+        text = res.value || "";
+      } else if (file.name.endsWith(".pdf")) {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.mjs";
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pageTexts = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageStr = content.items
+            .map((item) => ("str" in item ? item.str : ""))
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (pageStr) pageTexts.push(pageStr);
+        }
+        text = pageTexts.join("\n\n");
+      } else {
+        text = await file.text();
+      }
+      const cleaned = text.replace(/\r\n/g, "\n").trim();
+      if (!cleaned) {
+        setSyllabusFileName("⚠️ No readable text found in file");
+        return;
+      }
+      setSyllabusText(cleaned);
+      setSyllabusFileName(file.name);
+      // Auto-save immediately after loading
+      await saveSyllabusStatement(cleaned, syllabusEnabled);
+      setSyllabusSaved(true);
+      setTimeout(() => setSyllabusSaved(false), 2500);
+    } catch (err) {
+      console.error("Failed to read syllabus file:", err);
+      setSyllabusFileName("⚠️ Failed to parse — try a different file");
+    } finally {
+      setSyllabusFileLoading(false);
+      e.target.value = "";
+    }
+  };
 
   const handleToggleClickToAppend = async (enabled) => {
     setClickToAppend(enabled);
@@ -580,37 +642,130 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
                 </div>
               </div>
 
-              {/* Interactive Tutorial Replay */}
+
+              {/* Academic Syllabus & Curriculum Boundaries */}
               <div className="border-t border-ink-800/80 pt-5 space-y-3">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-duck-400" />
-                  Interactive Tutorial &amp; Feature Guide
-                </label>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-duck-500/30 bg-duck-500/10">
-                  <div className="space-y-0.5 pr-2">
-                    <p className="text-sm font-semibold text-duck-200">Replay Complete Onboarding Guide</p>
-                    <p className="text-xs text-ink-300">
-                      Explore the full interactive tour covering all 18 block types, inline math, Socratic Duck quizzes, Web Saver bookmarking, 3D simulations, and study mastery.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      if (onStartTutorial) onStartTutorial();
-                    }}
-                    className="flex items-center gap-2 rounded-lg bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-duck-300 shadow-sm shrink-0 whitespace-nowrap"
-                  >
-                    <span>🎓</span>
-                    <span>Restart Tutorial</span>
-                  </button>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                    <span className="text-base">🎓</span>
+                    Academic Syllabus &amp; Curriculum Boundaries
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={syllabusEnabled}
+                      onChange={(e) => {
+                        setSyllabusEnabled(e.target.checked);
+                        saveSyllabusStatement(syllabusText, e.target.checked).catch(console.error);
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-duck-500"></div>
+                  </label>
                 </div>
+
+                <p className="text-xs text-ink-400 leading-relaxed">
+                  Upload your full syllabus document and the AI will <strong>stay strictly within your curriculum</strong> — no more being penalised for missing Grade 12 content when you&apos;re in Grade 10.
+                </p>
+
+                {/* Upload zone */}
+                <label className={`group relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${syllabusEnabled ? "border-ink-700 hover:border-duck-500/70 hover:bg-duck-500/5" : "border-ink-800 opacity-40 pointer-events-none"} ${syllabusFileLoading ? "animate-pulse" : ""}`}>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.docx,.pdf"
+                    onChange={handleSyllabusFile}
+                    disabled={!syllabusEnabled || syllabusFileLoading}
+                    className="sr-only"
+                  />
+                  {syllabusFileLoading ? (
+                    <>
+                      <span className="text-3xl animate-spin inline-block">⏳</span>
+                      <p className="text-sm font-semibold text-duck-300">Extracting text from document…</p>
+                      <p className="text-xs text-ink-500">Large PDFs may take a few seconds</p>
+                    </>
+                  ) : syllabusText ? (
+                    <>
+                      <span className="text-3xl">✅</span>
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-semibold text-emerald-300">Syllabus loaded!</p>
+                        <p className="text-xs text-ink-400 font-mono break-all">{syllabusFileName}</p>
+                        <p className="text-xs text-ink-500">{(syllabusText.length / 1000).toFixed(1)}k chars extracted · Click to replace</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-3xl group-hover:scale-110 transition-transform">📄</span>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-ink-200">Drop your syllabus document here</p>
+                        <p className="text-xs text-ink-500">Supports .pdf, .docx, .txt, .md — full document, any size</p>
+                      </div>
+                    </>
+                  )}
+                </label>
+
+                {/* Quick preset chips */}
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-ink-600 font-semibold">Or pick a quick preset</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "🎓 IGCSE Gr.10", text: "IGCSE Cambridge Grade 10 (Year 10-11). Curriculum covers Cambridge IGCSE syllabus only. Do not include A-Level, IB HL, AP, or university-level content. Grade strictly within IGCSE scope." },
+                      { label: "📚 GCSE / O-Level", text: "GCSE / O-Level (UK/Singapore). Curriculum covers GCSE or O-Level syllabus only. Do not include A-Level or university content." },
+                      { label: "🏛️ IB MYP 4-5", text: "IB Middle Years Programme (MYP Year 4-5). Curriculum covers MYP scope only. Do not include IB Diploma HL/SL or university-level content." },
+                      { label: "🧬 AP / A-Level", text: "AP or A-Level (Grade 11-12). Curriculum is at AP or A-Level standard. Do not require university/postgraduate knowledge." },
+                      { label: "🔬 Middle School", text: "Middle School (Grade 6-8). Curriculum covers middle school scope only. Do not include high school or university concepts." },
+                    ].map(({ label, text }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled={!syllabusEnabled}
+                        onClick={async () => {
+                          setSyllabusText(text);
+                          setSyllabusFileName(`Quick preset: ${label}`);
+                          await saveSyllabusStatement(text, syllabusEnabled);
+                          setSyllabusSaved(true);
+                          setTimeout(() => setSyllabusSaved(false), 2000);
+                        }}
+                        className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-1 text-[11px] font-semibold text-ink-400 hover:text-ink-200 hover:border-duck-500/50 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    {syllabusText && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setSyllabusText("");
+                          setSyllabusFileName("");
+                          await saveSyllabusStatement("", syllabusEnabled);
+                        }}
+                        className="flex items-center gap-1 rounded-md border border-red-800/60 bg-red-950/30 px-2.5 py-1 text-[11px] font-semibold text-red-400 hover:text-red-200 hover:border-red-500/50 transition-all"
+                      >
+                        🗑️ Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status bar */}
+                {syllabusSaved && (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                    <Check className="w-3.5 h-3.5 shrink-0" />
+                    <span>Syllabus saved to IndexedDB — AI will stay within your curriculum scope.</span>
+                  </div>
+                )}
+                {!syllabusEnabled && (
+                  <div className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-500">
+                    <span>⏸️</span>
+                    <span>Syllabus boundaries disabled — toggle on to activate.</span>
+                  </div>
+                )}
               </div>
+
 
               {/* Local-First Dexie Storage Status */}
               <div className="border-t border-ink-800/80 pt-4">
                 <p className="text-xs text-ink-400 leading-relaxed">
-                  💾 <strong>100% Local-First Storage</strong>: Your notes, 3D scenes, calendar events, and study sessions are stored privately in your browser's IndexedDB engine (Dexie.js).
+                  💾 <strong>100% Local-First Storage</strong>: Your notes, 3D scenes, calendar events, and study sessions are stored privately in your browser&apos;s IndexedDB engine (Dexie.js).
                 </p>
               </div>
             </div>
@@ -1155,6 +1310,7 @@ function TrashModal({
                 >
                   <div className="min-w-0 flex-1 pr-4">
                     <div className="flex items-center gap-2">
+                      <span className="text-sm shrink-0 leading-none">{note.emoji || "📝"}</span>
                       <span className="truncate text-xs font-semibold text-ink-100">
                         {note.title || "Untitled Note"}
                       </span>
@@ -1208,6 +1364,7 @@ export default function Sidebar({
   onCreateNote,
   onDeleteNote,
   onSaveNote,
+  onReorderNotes,
   onToggleFavorite,
   onOpenExportImport,
   trashNotes = [],
@@ -1219,19 +1376,24 @@ export default function Sidebar({
   setTheme,
   onSyncSupabase,
   onResetData,
+  activeTab = "notes",
+  onNavigateTab,
   onOpenInstantNote,
+  onOpenTutor,
+  onReformatNote,
   onNavigateCalendar,
   onToggleSidebar,
-  onStartTutorial,
-  spacePasswords = {},
-  onSetPasswordRequest,
-  onRemovePasswordRequest,
+  onDuplicateNote,
+  onMoveNote,
+  onRenameNote,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   const [spacesDropdownOpen, setSpacesDropdownOpen] = useState(false);
+  const [draggingNoteId, setDraggingNoteId] = useState(null);
+  const [dragOverInfo, setDragOverInfo] = useState(null); // { id: string, position: 'top' | 'bottom' }
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -1268,8 +1430,8 @@ export default function Sidebar({
   return (
     <>
       <div className="flex w-64 shrink-0 flex-col bg-ink-900 h-full">
-        {/* Brand Header with Settings ⚙️ button */}
-        <div className="flex items-center justify-between border-b border-ink-800/60 px-3.5 py-3">
+        {/* Brand Header with Support, Feedback & Settings */}
+        <div className="flex h-13 shrink-0 items-center justify-between border-b border-ink-800/80 px-4 py-2.5">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-xl leading-none shrink-0">🦆</span>
             <span className="text-sm font-bold tracking-tight text-ink-100 shrink-0">
@@ -1285,31 +1447,107 @@ export default function Sidebar({
                 window.open(donateUrl, '_blank', 'noopener,noreferrer');
               }}
               title="Donate/Support"
-              className="rounded-lg p-1.5 text-lg text-rose-400 transition-colors hover:bg-ink-850 hover:text-rose-300"
+              className="rounded-lg p-1.5 text-rose-400/90 transition-colors hover:bg-ink-850 hover:text-rose-300"
             >
-              <HeartHandshake className="w-5 h-5" />
+              <HeartHandshake className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
               title="Feedback/Request"
-              className="rounded-lg p-1.5 text-lg text-duck-400 transition-colors hover:bg-ink-850 hover:text-duck-300"
+              className="rounded-lg p-1.5 text-duck-400/90 transition-colors hover:bg-ink-850 hover:text-duck-300"
             >
-              <MessageSquare className="w-5 h-5" />
+              <MessageSquare className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
               title="Settings"
-              className="rounded-lg p-1.5 text-lg text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100"
+              className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-ink-850 hover:text-ink-100 text-sm leading-none"
             >
               ⚙️
             </button>
           </div>
         </div>
 
-        {/* Spaces Switcher below SocraticOS logo */}
-        <div className="px-3 pt-3 pb-1">
+        {/* Global Workspace Tools Section (Global Apps) */}
+        <div className="px-3 pt-3 pb-1 space-y-1.5">
+          <div className="px-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
+            Global Tools
+          </div>
+
+          {/* Compact Icon Grid for Global Tools & Instant Note */}
+          <div className="grid grid-cols-4 gap-1 p-1 bg-ink-950/60 rounded-xl border border-ink-800/80">
+            {/* Instant Note ⚡ */}
+            <button
+              type="button"
+              onClick={onOpenInstantNote}
+              title="Instant Note (Ctrl+I)"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-amber-400 transition-all hover:bg-ink-850 hover:text-amber-300 active:scale-95 group/tool"
+            >
+              <span className="text-base leading-none">⚡</span>
+              <span className="text-[9px] font-medium text-ink-400 group-hover/tool:text-ink-200">Note</span>
+            </button>
+
+            {/* 3D Simulations 🌌 */}
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.("3d")}
+              title="3D Simulations & Visualizations"
+              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-all active:scale-95 group/tool ${
+                activeTab === "3d"
+                  ? "bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold"
+                  : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
+              }`}
+            >
+              <span className="text-base leading-none">🌌</span>
+              <span className="text-[9px] font-medium text-ink-400 group-hover/tool:text-ink-200">3D</span>
+            </button>
+
+            {/* Calendar 📅 */}
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.("calendar")}
+              title="Calendar & Timers"
+              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-all active:scale-95 group/tool ${
+                activeTab === "calendar"
+                  ? "bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold"
+                  : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
+              }`}
+            >
+              <span className="text-base leading-none">📅</span>
+              <span className="text-[9px] font-medium text-ink-400 group-hover/tool:text-ink-200">Calendar</span>
+            </button>
+
+            {/* Web Saver 🔖 */}
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.("websaver")}
+              title="Web Saver (Bookmarks)"
+              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-all active:scale-95 group/tool ${
+                activeTab === "websaver"
+                  ? "bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold"
+                  : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
+              }`}
+            >
+              <span className="text-base leading-none">🔖</span>
+              <span className="text-[9px] font-medium text-ink-400 group-hover/tool:text-ink-200">Saver</span>
+            </button>
+          </div>
+
+          {/* Unified Timers HUD */}
+          <div className="pt-0.5">
+            <GlobalTimerHUD onNavigateCalendar={() => onNavigateTab?.("calendar")} />
+          </div>
+        </div>
+
+        <div className="my-1.5 border-t border-ink-800/80 mx-3" />
+
+        {/* Space Switcher */}
+        <div className="px-3 pt-1 pb-1">
+          <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
+            Spaces
+          </div>
           <div className="relative w-full" ref={dropdownRef}>
             <button
               type="button"
@@ -1359,28 +1597,8 @@ export default function Sidebar({
                           )}
                         </button>
                         
-                        <div className="flex items-center shrink-0 pr-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSpacesDropdownOpen(false);
-                              if (spacePasswords[space.name]) {
-                                onRemovePasswordRequest?.(space.name);
-                              } else {
-                                onSetPasswordRequest?.(space.name);
-                              }
-                            }}
-                            className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-ink-700/50 text-ink-500 transition-all"
-                            title={spacePasswords[space.name] ? "Remove Password" : "Set Password"}
-                          >
-                            {spacePasswords[space.name] ? (
-                              <Lock className="h-3 w-3 text-rose-400" />
-                            ) : (
-                              <Unlock className="h-3 w-3" />
-                            )}
-                          </button>
-                          {spaces.length > 1 && (
+                        {spaces.length > 1 && (
+                          <div className="flex items-center shrink-0 pr-1">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1392,8 +1610,8 @@ export default function Sidebar({
                             >
                               ✕
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1413,73 +1631,219 @@ export default function Sidebar({
               </div>
             )}
           </div>
-        </div>
 
-        {/* Instant Note Big Button */}
-        <div className="px-3 pt-1.5 pb-1">
+          {/* Space Hub Navigation Button Right Below Spaces Switcher */}
           <button
             type="button"
-            onClick={onOpenInstantNote}
-            className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-duck-400 px-3.5 py-2.5 text-xs font-bold text-ink-950 shadow-md shadow-amber-500/10 transition-all hover:scale-[1.01] hover:brightness-105 active:scale-[0.98]"
+            onClick={() => onNavigateTab?.("spacehub")}
+            className={`mt-2 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition-all group shadow-sm ${
+              activeTab === "spacehub"
+                ? "border-duck-500/60 bg-duck-500/15 text-duck-300 shadow-duck-500/5 ring-1 ring-duck-500/30"
+                : "border-ink-750 bg-ink-850/80 text-ink-200 hover:border-duck-500/40 hover:bg-ink-800 hover:text-ink-100"
+            }`}
+            title={`Open ${activeSpace} Space Hub: Syllabus documents & subject settings`}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-base leading-none">⚡</span>
-              <span>Instant Note</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm leading-none group-hover:scale-110 transition-transform">⚙️</span>
+              <div className="text-left truncate">
+                <div className="text-[11px] font-bold leading-tight truncate flex items-center gap-1.5">
+                  <span>Space Hub</span>
+                  <span className="rounded bg-duck-500/20 px-1 py-0.2 text-[9px] font-bold text-duck-300">
+                    Syllabus
+                  </span>
+                </div>
+                <div className="text-[9px] text-ink-400 font-normal leading-tight truncate mt-0.5">
+                  Curriculum &amp; AI settings
+                </div>
+              </div>
             </div>
-            <kbd className="rounded bg-ink-950/20 px-1.5 py-0.5 text-[10px] font-mono text-ink-950">
-              Ctrl+I
-            </kbd>
+            <span className="text-xs text-ink-400 group-hover:text-duck-300 transition-colors shrink-0">→</span>
           </button>
-        </div>
 
-        {/* Unified Timers Button under Instant Note */}
-        <div className="px-3 pt-1 pb-1">
-          <GlobalTimerHUD onNavigateCalendar={onNavigateCalendar} />
+          {/* AI Tutor Quick Access Button */}
+          <button
+            type="button"
+            onClick={() => onOpenTutor?.()}
+            className="mt-1.5 flex w-full items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 text-xs font-semibold transition-all group shadow-sm hover:border-emerald-500/60 hover:bg-emerald-900/30 text-emerald-200"
+            title={`Ask doubts to your AI Tutor in ${activeSpace} with active curriculum documents`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm leading-none group-hover:scale-110 transition-transform">🧑‍🏫</span>
+              <div className="text-left truncate">
+                <div className="text-[11px] font-bold leading-tight truncate flex items-center gap-1.5 text-emerald-300">
+                  <span>AI Tutor</span>
+                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-bold text-emerald-400">
+                    Doubts
+                  </span>
+                </div>
+                <div className="text-[9px] text-ink-400 font-normal leading-tight truncate mt-0.5">
+                  Ask questions &amp; solve problems
+                </div>
+              </div>
+            </div>
+            <span className="text-xs text-emerald-400/80 group-hover:text-emerald-300 transition-colors shrink-0">💬</span>
+          </button>
         </div>
 
         {/* ─── Notes list ─────────────────────────────── */}
         <div className="mt-3 flex-1 overflow-y-auto px-3">
-          <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-500">
+          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">
             {activeSpace} · Notes
           </p>
 
           {currentNotes.length === 0 ? (
-            <p className="px-2.5 py-2 text-xs text-ink-600 italic">No notes in this space yet.</p>
+            <p className="px-2.5 py-2 text-sm text-ink-500 italic">No notes in this space yet.</p>
           ) : (
-            <ul className="space-y-0.5">
+            <ul
+              className="space-y-1"
+              onDragOver={(e) => {
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }
+              }}
+              onDrop={(e) => {
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                  const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+                  if (!sourceId) return;
+                  const fromIdx = currentNotes.findIndex((item) => item.id === sourceId);
+                  if (fromIdx !== -1 && fromIdx !== currentNotes.length - 1) {
+                    const updated = [...currentNotes];
+                    const [movedNote] = updated.splice(fromIdx, 1);
+                    updated.push(movedNote);
+                    setDraggingNoteId(null);
+                    setDragOverInfo(null);
+                    onReorderNotes?.(activeSpace, updated);
+                  }
+                }
+              }}
+            >
               {currentNotes.map((n) => {
                 const isActive = activeNoteId === n.id;
+                const isDragging = draggingNoteId === n.id;
+                const isDragOver = dragOverInfo?.id === n.id;
+
                 return (
                   <li
                     key={n.id}
-                    className="group relative flex items-center justify-between gap-1 rounded-md transition-colors hover:bg-ink-850"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+                      if (!sourceId || sourceId === n.id) return;
+                      e.dataTransfer.dropEffect = "move";
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const midY = rect.top + rect.height / 2;
+                      const position = e.clientY < midY ? "top" : "bottom";
+                      setDragOverInfo((prev) => {
+                        if (prev?.id === n.id && prev?.position === position) return prev;
+                        return { id: n.id, position };
+                      });
+                    }}
+                    onDragLeave={(e) => {
+                      e.stopPropagation();
+                      if (!e.currentTarget.contains(e.relatedTarget)) {
+                        if (dragOverInfo?.id === n.id) {
+                          setDragOverInfo(null);
+                        }
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+                      if (!sourceId || sourceId === n.id) {
+                        setDraggingNoteId(null);
+                        setDragOverInfo(null);
+                        return;
+                      }
+
+                      const fromIdx = currentNotes.findIndex((item) => item.id === sourceId);
+                      if (fromIdx === -1) {
+                        setDraggingNoteId(null);
+                        setDragOverInfo(null);
+                        return;
+                      }
+
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const midY = rect.top + rect.height / 2;
+                      const isBottom = e.clientY >= midY;
+
+                      const updated = [...currentNotes];
+                      const [movedNote] = updated.splice(fromIdx, 1);
+                      let toIdx = updated.findIndex((item) => item.id === n.id);
+                      if (toIdx === -1) {
+                        updated.push(movedNote);
+                      } else {
+                        if (isBottom) {
+                          toIdx += 1;
+                        }
+                        updated.splice(toIdx, 0, movedNote);
+                      }
+
+                      setDraggingNoteId(null);
+                      setDragOverInfo(null);
+                      onReorderNotes?.(activeSpace, updated);
+                    }}
+                    className={`group relative flex items-center justify-between gap-0.5 rounded-lg transition-all ${
+                      isDragging ? "opacity-30 bg-ink-800/50" : "hover:bg-ink-850"
+                    }`}
                   >
+                    {/* Visual Placement Indicator */}
+                    {isDragOver && (
+                      <div
+                        className={`absolute left-0 right-0 h-0.5 z-20 bg-duck-400 rounded-full shadow-[0_0_8px_rgba(240,192,74,0.9)] pointer-events-none ${
+                          dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
+                        }`}
+                      />
+                    )}
+
+                    {/* Drag Handle Grip */}
+                    <div
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        setDraggingNoteId(n.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", n.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingNoteId(null);
+                        setDragOverInfo(null);
+                      }}
+                      title="Drag to reorder note"
+                      className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-duck-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => onSelectNote?.(n)}
-                      className={`flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm min-w-0 transition-colors ${
+                      className={`flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm min-w-0 transition-colors ${
                         isActive
-                          ? "bg-ink-800 text-ink-100 font-medium"
-                          : "text-ink-400 hover:text-ink-200"
+                          ? "bg-ink-800 text-ink-100 font-semibold shadow-xs"
+                          : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/40 font-medium"
                       }`}
                     >
-                      {n.isFavorite ? (
-                        <span className="text-amber-400 text-xs shrink-0">⭐</span>
-                      ) : (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-duck-400 opacity-60" />
+                      <span className="text-sm shrink-0 leading-none">{n.emoji || "📝"}</span>
+                      <span className="truncate flex-1 text-sm">{n.title || "Untitled Note"}</span>
+                      {n.isFavorite && (
+                        <span className="text-amber-400 text-xs shrink-0" title="Starred">⭐</span>
                       )}
-                      <span className="truncate flex-1">{n.title || "Untitled Note"}</span>
                     </button>
 
                     <div className="shrink-0 pr-1 flex items-center">
                       <NoteMenu
+                        mode="sidebar"
                         note={n}
+                        spaces={spaces}
                         onSaveNote={onSaveNote}
                         onToggleFavorite={onToggleFavorite}
-                        onExportImport={(noteToExport) => {
-                          onSelectNote?.(noteToExport);
-                          onOpenExportImport?.(noteToExport);
-                        }}
+                        onDuplicateNote={onDuplicateNote}
+                        onMoveNote={onMoveNote}
+                        onRenameNote={onRenameNote}
                         onDeleteNote={onDeleteNote}
                         variant="icon"
                         align="right"
@@ -1495,7 +1859,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onCreateNote}
-            className="mt-2 w-full rounded-md border border-dashed border-ink-700 px-2.5 py-2 text-left text-sm text-ink-500 transition-colors hover:border-ink-600 hover:text-ink-400"
+            className="mt-2 w-full rounded-lg border border-dashed border-ink-700/80 px-3 py-2 text-left text-sm font-medium text-ink-400 transition-colors hover:border-duck-500/50 hover:bg-ink-850/50 hover:text-duck-300"
           >
             + New note
           </button>
@@ -1548,7 +1912,6 @@ export default function Sidebar({
         onSyncSupabase={onSyncSupabase}
         onResetData={onResetData}
         spaces={spaces}
-        onStartTutorial={onStartTutorial}
       />
 
       <FeatureRequestModal

@@ -95,14 +95,14 @@ function buildTranscript(questions, graded) {
  */
 function normalizeResult(raw, questions, graded) {
   const byIndex = new Map(
-    (Array.isArray(raw.gradedAnswers) ? raw.gradedAnswers : []).map((entry) => [
+    (Array.isArray(raw?.gradedAnswers) ? raw.gradedAnswers : []).map((entry) => [
       Number(entry?.questionIndex),
       entry,
     ]),
   );
 
   const gradedAnswers = questions.map((question, i) => {
-    const fromModel = byIndex.get(i);
+    const fromModel = byIndex.get(i) ?? (Array.isArray(raw?.gradedAnswers) ? raw.gradedAnswers[i] : null);
     const { answered, objective, display } = graded[i];
 
     const correct =
@@ -125,7 +125,7 @@ function normalizeResult(raw, questions, graded) {
     };
   });
 
-  const heatmap = (Array.isArray(raw.heatmap) ? raw.heatmap : [])
+  const heatmap = (Array.isArray(raw?.heatmap) ? raw.heatmap : [])
     .filter((entry) => entry?.subtopic)
     .map((entry) => ({
       subtopic: String(entry.subtopic).trim(),
@@ -139,8 +139,8 @@ function normalizeResult(raw, questions, graded) {
     // Percentage correct is the honest headline; the model's own score reads
     // as arbitrary next to a visible tally of right and wrong answers.
     score: clampScore((correctCount / Math.max(1, gradedAnswers.length)) * 100),
-    modelScore: clampScore(raw.score),
-    summary: String(raw.summary ?? "").trim(),
+    modelScore: clampScore(raw?.score),
+    summary: String(raw?.summary ?? "").trim(),
     correctCount,
     totalCount: gradedAnswers.length,
     gradedAnswers,
@@ -183,7 +183,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const { concept, noteContent, questions, responses } = body ?? {};
+  const { concept, noteContent, questions, responses, syllabus, aiPersona, strictness, academicLevel } = body ?? {};
 
   if (!Array.isArray(questions) || questions.length === 0) {
     return NextResponse.json(
@@ -211,9 +211,35 @@ export async function POST(request) {
 
   const graded = gradeObjectively(questions, responses);
 
+  const personaPrompt = {
+    strict: "GRADING PERSONA: Strict Examiner. Hold high standards for precise academic terms, logical necessity, and exact conceptual boundaries.",
+    coach: "GRADING PERSONA: Friendly Coach. Emphasize positive reinforcement and explain missed nuances gently in constructive terms.",
+    olympiad: "GRADING PERSONA: Olympiad Mentor. Scrutinize mathematical/scientific rigor, generalization, and edge case thinking.",
+  }[aiPersona] || "";
+
+  const strictnessPrompt = {
+    rigorous: "GRADING STRICTNESS: HIGH RIGOR. Do not give the benefit of the doubt on ambiguous answers; deduct whenever a crucial link in the causal chain is omitted.",
+    relaxed: "GRADING STRICTNESS: RELAXED. Award credit if the learner demonstrates the core intuitive idea, even with imperfect phrasing.",
+  }[strictness] || "";
+
+  const syllabusPrompt = syllabus && String(syllabus).trim()
+    ? `ACADEMIC SYLLABUS & CURRICULUM BOUNDARIES (STRICT GRADING DIRECTIVE):
+<syllabus_statement>
+${String(syllabus).trim()}
+</syllabus_statement>
+CRITICAL GRADING RULES:
+- Grade the learner strictly according to the syllabus standard above${academicLevel && academicLevel !== "general" ? ` (Level: ${academicLevel.toUpperCase()})` : ""}.
+- DO NOT penalize the learner or deduct marks for omitting concepts, theories, or mechanisms that belong to higher grades or out-of-syllabus curriculums (e.g. NEVER demand Grade 12 or university level concepts from a Grade 10 student).
+- Give full marks when their reasoning accurately satisfies this syllabus standard.
+- Keep all feedback and suggested improvements strictly appropriate and relevant to this syllabus level.`
+    : null;
+
   const system = [
     PERSONA,
     `Topic: ${String(concept ?? "").trim() || "this note"}`,
+    personaPrompt || null,
+    strictnessPrompt || null,
+    syllabusPrompt,
     noteContent?.trim()
       ? `<learner_notes>\n${String(noteContent).trim()}\n</learner_notes>`
       : null,

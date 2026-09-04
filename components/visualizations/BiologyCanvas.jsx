@@ -38,6 +38,7 @@ import {
   makeBlobGeometry,
   makeRoundedBoxGeometry,
 } from "@/components/visualizations/cell-organelles";
+import RespiratoryCanvas from "@/components/visualizations/RespiratoryCanvas";
 
 // ─── IGCSE Biology · three scenes ───────────────────────────────────
 // Enzyme action, DNA base pairing, and the plant/animal cell explorer.
@@ -1346,6 +1347,7 @@ const SCENES = {
   dna: DNAScene,
   cell: CellExplorerScene,
   protein: ProteinFoldingScene,
+  respiratory: RespiratoryCanvas,
 };
 
 export default function BiologyCanvas({ topicId, params, setParam, onOpenQuiz }) {

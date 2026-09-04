@@ -23,6 +23,9 @@ Rules:
   notes state verbatim.
 - Where the notes admit confusion about something, write a question on it. That
   is the highest-value thing you can test.
+- If multiple notes are provided (demarcated by "=== Source Note: ... ==="), synthesize
+  concepts across them. Construct questions testing intersections, comparisons, distinctions,
+  and cross-concept mechanisms between the notes, while maintaining balanced coverage across all notes.
 - Distractors must be real mistakes: a plausible confusion, an inverted
   relationship, a right answer to a neighbouring question. Never joke options,
   never "all of the above", never one obviously silly choice.
@@ -36,9 +39,12 @@ Rules:
 
 /** Enforces the invariants the schema cannot express conditionally. */
 function normalizeQuiz(raw, fallbackTopic) {
-  const questions = (Array.isArray(raw.questions) ? raw.questions : [])
+  const questions = (Array.isArray(raw?.questions) ? raw.questions : [])
     .map((q, i) => {
-      const type = q?.type === "short_answer" ? "short_answer" : "multiple_choice";
+      let type = q?.type;
+      if (type !== "multiple_choice" && type !== "short_answer" && type !== "long_answer") {
+        type = "multiple_choice";
+      }
       const options = (Array.isArray(q?.options) ? q.options : [])
         .map((o) => String(o ?? "").trim())
         .filter(Boolean);
@@ -47,16 +53,17 @@ function normalizeQuiz(raw, fallbackTopic) {
       // generation is unanswerable, so it degrades to short answer rather than
       // rendering as an empty radio group.
       const usable = type === "multiple_choice" && options.length >= 2;
+      const finalType = type === "multiple_choice" ? (usable ? "multiple_choice" : "short_answer") : type;
       const index = Number(q?.correctIndex);
 
       return {
         id: `q${i}`,
         subtopic: String(q?.subtopic ?? "").trim() || "General",
-        type: usable ? "multiple_choice" : "short_answer",
+        type: finalType,
         prompt: String(q?.prompt ?? "").trim(),
-        options: usable ? options : [],
+        options: finalType === "multiple_choice" ? options : [],
         correctIndex:
-          usable && Number.isInteger(index) && index >= 0 && index < options.length
+          finalType === "multiple_choice" && Number.isInteger(index) && index >= 0 && index < options.length
             ? index
             : -1,
         expectedAnswer: String(q?.expectedAnswer ?? "").trim(),
@@ -65,7 +72,7 @@ function normalizeQuiz(raw, fallbackTopic) {
     .filter((q) => q.prompt);
 
   return {
-    topic: String(raw.topic ?? "").trim() || fallbackTopic,
+    topic: String(raw?.topic ?? "").trim() || fallbackTopic,
     questions,
   };
 }
@@ -73,15 +80,8 @@ function normalizeQuiz(raw, fallbackTopic) {
 /**
  * POST /api/quiz/generate
  *
- * Body: { concept, noteContent }
+ * Body: { concept, noteContent, focus, difficulty, mcqCount, shortAnswerCount, longAnswerCount, title }
  * 200 -> { quiz: { topic, questions: [...] }, usage }
- *
- * The response carries correctIndex and expectedAnswer. The client holds them
- * and posts them back to /api/quiz/grade, which is what keeps grading stateless
- * — there is no server-side quiz to look up. It also means a determined learner
- * could read the answers out of the network tab, which is a trade this app is
- * happy to make: the only person they would be cheating is themselves, and the
- * alternative is a session store that buys nothing else.
  */
 export async function POST(request) {
   let body;
@@ -91,7 +91,20 @@ export async function POST(request) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const { concept, noteContent } = body ?? {};
+  const {
+    concept,
+    noteContent,
+    focus,
+    difficulty = "medium",
+    mcqCount,
+    shortAnswerCount,
+    longAnswerCount,
+    title,
+    syllabus,
+    aiPersona,
+    strictness,
+    academicLevel,
+  } = body ?? {};
 
   if (!concept || typeof concept !== "string" || !concept.trim()) {
     return NextResponse.json({ error: "`concept` is required." }, { status: 400 });
@@ -114,9 +127,66 @@ export async function POST(request) {
     );
   }
 
+  const difficultyPrompt = {
+    easy: "Difficulty Level: EASY / FOUNDATIONAL. Test core definitions, clear fundamental relationships, and direct applications. Avoid tricky distractors.",
+    medium: "Difficulty Level: MEDIUM / STANDARD. Test mechanisms, analytical problems, and standard exam-style questions.",
+    hard: "Difficulty Level: HARD / ADVANCED. Test edge cases, subtle distinctions, plausible distractors, and multi-step synthesis.",
+    mastery: "Difficulty Level: MASTERY / EXPERT. Test deep conceptual derivations, structural evaluation, and counter-intuitive scenarios.",
+  }[difficulty] || "Difficulty Level: MEDIUM.";
+
+  const personaPrompt = {
+    strict: "PEDAGOGICAL PERSONA: Strict Examiner. Hold rigorous standards for precise scientific/academic terminology and zero ambiguity.",
+    socratic: "PEDAGOGICAL PERSONA: Socratic Guide. Probe the foundational mechanics, counterfactual reasoning, and underlying 'why'.",
+    coach: "PEDAGOGICAL PERSONA: Friendly Coach. Emphasize constructive application, approachable phrasing, and conceptual intuition.",
+    olympiad: "PEDAGOGICAL PERSONA: Olympiad Mentor. Challenge with non-routine problem solving, multi-variable logic, and synthesis across topics.",
+    examiner: "PEDAGOGICAL PERSONA: Standard Examiner. Produce balanced, high-fidelity diagnostic assessment questions.",
+  }[aiPersona] || "";
+
+  const strictnessPrompt = {
+    rigorous: "DISTRACTOR TOUGHNESS & RIGOR: HIGH RIGOR. Craft deceptively plausible distractors targeting common student misconceptions and inverse relationships.",
+    relaxed: "DISTRACTOR TOUGHNESS & RIGOR: RELAXED / FOUNDATIONAL. Make correct answers distinctly verifiable with straightforward distractors.",
+    standard: "DISTRACTOR TOUGHNESS & RIGOR: STANDARD. Balanced distractors representing realistic student errors without trick phrasing.",
+  }[strictness] || "";
+
+  const academicLevelPrompt = academicLevel && academicLevel !== "general"
+    ? `ACADEMIC GRADE LEVEL: ${academicLevel.toUpperCase()}. Calibrate question depth, expected prior knowledge, and terminology strictly to this academic standard.`
+    : "";
+
+  const countsSpecified = mcqCount !== undefined || shortAnswerCount !== undefined || longAnswerCount !== undefined;
+  const numMCQ = Number.isInteger(Number(mcqCount)) ? Math.max(0, Number(mcqCount)) : 5;
+  const numShort = Number.isInteger(Number(shortAnswerCount)) ? Math.max(0, Number(shortAnswerCount)) : 3;
+  const numLong = Number.isInteger(Number(longAnswerCount)) ? Math.max(0, Number(longAnswerCount)) : 0;
+
+  const distributionPrompt = countsSpecified
+    ? `EXACT QUESTION DISTRIBUTION REQUIREMENT:
+Generate exactly ${numMCQ} 'multiple_choice' question(s), ${numShort} 'short_answer' question(s), and ${numLong} 'long_answer' question(s). Total questions = ${numMCQ + numShort + numLong}.`
+    : `EXACT QUESTION DISTRIBUTION REQUIREMENT:
+Generate exactly 5 'multiple_choice' question(s) and 3 'short_answer' question(s). Total 8 questions.`;
+
+  const focusPrompt = focus && String(focus).trim()
+    ? `SPECIFIC FOCUS / SECTION:
+Generate questions specifically targeted at this sub-section / focus area from the note: "${String(focus).trim()}".`
+    : "";
+
+  const syllabusPrompt = syllabus && String(syllabus).trim()
+    ? `ACADEMIC SYLLABUS & CURRICULUM BOUNDARIES (STRICT CONSTRAINT):
+<syllabus_statement>
+${String(syllabus).trim()}
+</syllabus_statement>
+CRITICAL REQUIREMENT: Confine all question concepts, definitions, difficulty depth, and expected answers strictly within the learner's syllabus statement above. DO NOT generate questions requiring out-of-syllabus mechanisms, higher-grade concepts, or college-level depth.`
+    : "";
+
   const system = `${PERSONA}
 
 Topic: ${concept.trim()}
+${title ? `Quiz Title: ${title.trim()}` : ""}
+${personaPrompt}
+${strictnessPrompt}
+${academicLevelPrompt}
+${difficultyPrompt}
+${distributionPrompt}
+${focusPrompt}
+${syllabusPrompt}
 
 <learner_notes>
 ${String(noteContent).trim()}
@@ -129,15 +199,15 @@ ${String(noteContent).trim()}
         {
           role: "user",
           content:
-            "Write the quiz on my notes. Order the questions easiest to hardest.",
+            "Write the quiz on my notes following the exact difficulty and question type distribution requested. Order the questions logically.",
         },
       ],
-      // Enough variation that re-quizzing the same note is not the same quiz.
       temperature: 0.8,
       schema: QUIZ_SCHEMA,
     });
 
-    const quiz = normalizeQuiz(readJson(payload), concept.trim());
+    const fallbackTopic = title || concept.trim();
+    const quiz = normalizeQuiz(readJson(payload), fallbackTopic);
 
     if (!quiz.questions.length) {
       return NextResponse.json(

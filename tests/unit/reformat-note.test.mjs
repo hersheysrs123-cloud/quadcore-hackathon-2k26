@@ -1,9 +1,12 @@
-import test, { describe, it } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   chunkNoteBlocks,
   heuristicReformatBlocks,
+  normalizeReformattedNote,
 } from "../../lib/aiService.js";
+import { editorBlocksToText } from "../../lib/blocks.js";
+import { blocksToMarkdownLossy, tryParseMarkdownToBlocks } from "../../lib/exportImport.js";
 import {
   REFORMAT_BLOCK_TYPES,
   REFORMAT_SCHEMA,
@@ -31,6 +34,11 @@ describe("Intelligent Note Reformatting Engine", () => {
       assert.ok(REFORMAT_SCHEMA.properties.emoji);
       assert.ok(REFORMAT_SCHEMA.properties.blocks);
       assert.deepEqual(REFORMAT_SCHEMA.required, ["title", "emoji", "blocks"]);
+
+      const itemProps = REFORMAT_SCHEMA.properties.blocks.items.properties;
+      assert.ok(itemProps.level, "Schema should declare level property for sub-bullets");
+      assert.equal(itemProps.level.type, "INTEGER");
+      assert.ok(REFORMAT_SCHEMA.properties.blocks.items.propertyOrdering.includes("level"));
     });
   });
 
@@ -217,6 +225,123 @@ describe("Intelligent Note Reformatting Engine", () => {
       const corneaBullet = result.blocks.find((b) => b.type === "bullet" && b.content.includes("Cornea"));
       assert.ok(corneaBullet, "Should convert cornea entry to clean bullet");
       assert.equal(corneaBullet.content, "**Cornea:** Refracts light rays entering the eye.");
+    });
+  });
+
+  describe("Sub-Bullets & Hierarchical List Reformatting", () => {
+    it("normalizes AI reformatted payload preserving bullet level and clamping appropriately", () => {
+      const payload = {
+        title: "Cell Organelles",
+        emoji: "🔬",
+        blocks: [
+          { type: "h2", content: "Mitochondria" },
+          { type: "bullet", content: "Double-membrane organelle", level: 0 },
+          { type: "bullet", content: "Outer membrane is smooth and permeable", level: 1 },
+          { type: "bullet", content: "Inner membrane folds into cristae", level: 1 },
+          { type: "bullet", content: "Houses ATP synthase complexes", level: 2 },
+          { type: "bullet", content: "Extreme nesting clamped to 4", level: 99 },
+          { type: "bullet", content: "Invalid negative clamped to 0", level: -5 },
+        ],
+      };
+
+      const normalized = normalizeReformattedNote(payload);
+      assert.equal(normalized.title, "Cell Organelles");
+      assert.equal(normalized.blocks[1].level, 0);
+      assert.equal(normalized.blocks[2].level, 1);
+      assert.equal(normalized.blocks[3].level, 1);
+      assert.equal(normalized.blocks[4].level, 2);
+      assert.equal(normalized.blocks[5].level, 4);
+      assert.equal(normalized.blocks[6].level, 0);
+    });
+
+    it("heuristic reformatter extracts indented markdown lines into sub-bullets", () => {
+      const rawMarkdown = `# Nervous System
+- Central Nervous System (CNS)
+  - Brain (cerebrum, cerebellum, brainstem)
+  - Spinal cord
+- Peripheral Nervous System (PNS)
+  - Somatic nervous system
+    - Voluntary muscle control
+  - Autonomic nervous system`;
+
+      const result = heuristicReformatBlocks(rawMarkdown, "Nervous System");
+      const bullets = result.blocks.filter((b) => b.type === "bullet");
+
+      assert.equal(bullets.length, 7);
+      assert.equal(bullets[0].content, "Central Nervous System (CNS)");
+      assert.equal(bullets[0].level || 0, 0);
+
+      assert.equal(bullets[1].content, "Brain (cerebrum, cerebellum, brainstem)");
+      assert.equal(bullets[1].level, 1);
+
+      assert.equal(bullets[2].content, "Spinal cord");
+      assert.equal(bullets[2].level, 1);
+
+      assert.equal(bullets[3].content, "Peripheral Nervous System (PNS)");
+      assert.equal(bullets[3].level || 0, 0);
+
+      assert.equal(bullets[4].content, "Somatic nervous system");
+      assert.equal(bullets[4].level, 1);
+
+      assert.equal(bullets[5].content, "Voluntary muscle control");
+      assert.equal(bullets[5].level, 2);
+
+      assert.equal(bullets[6].content, "Autonomic nervous system");
+      assert.equal(bullets[6].level, 1);
+    });
+
+    it("editorBlocksToText serializes sub-bullets with hierarchical indentation for AI context", () => {
+      const blocks = [
+        { id: "b1", type: "h1", content: "Optics Overview" },
+        { id: "b2", type: "bullet", content: "Wave Optics", level: 0 },
+        { id: "b3", type: "bullet", content: "Interference", level: 1 },
+        { id: "b4", type: "bullet", content: "Young's Double Slit Experiment", level: 2 },
+        { id: "b5", type: "bullet", content: "Diffraction", level: 1 },
+      ];
+
+      const serialized = editorBlocksToText(blocks);
+      assert.ok(serialized.includes("- Wave Optics"));
+      assert.ok(serialized.includes("  - Interference"));
+      assert.ok(serialized.includes("    - Young's Double Slit Experiment"));
+      assert.ok(serialized.includes("  - Diffraction"));
+    });
+
+    it("roundtrips sub-bullets losslessly between blocksToMarkdownLossy and tryParseMarkdownToBlocks", () => {
+      const originalBlocks = [
+        { id: "b1", type: "bullet", content: "Top Level Item", level: 0 },
+        { id: "b2", type: "bullet", content: "Sub Item Alpha", level: 1 },
+        { id: "b3", type: "bullet", content: "Nested Sub Item Beta", level: 2 },
+        { id: "b4", type: "bullet", content: "Sub Item Gamma", level: 1 },
+      ];
+
+      const md = blocksToMarkdownLossy(originalBlocks);
+      assert.equal(
+        md,
+        "- Top Level Item\n\n  - Sub Item Alpha\n\n    - Nested Sub Item Beta\n\n  - Sub Item Gamma"
+      );
+
+      const parsed = tryParseMarkdownToBlocks(md);
+      assert.equal(parsed.length, 4);
+      assert.equal(parsed[0].level || 0, 0);
+      assert.equal(parsed[1].level, 1);
+      assert.equal(parsed[2].level, 2);
+      assert.equal(parsed[3].level, 1);
+    });
+  });
+
+  describe("AI Reformat Progress Formatting", () => {
+    function formatProgressLabel(prog) {
+      if (!prog) return null;
+      if (typeof prog === "string") return prog;
+      return prog.message || (prog.total > 1 ? `Part ${prog.current} of ${prog.total}...` : null);
+    }
+
+    it("extracts text label correctly from progress object without throwing React child errors", () => {
+      assert.equal(formatProgressLabel({ current: 1, total: 1, message: "Reformatting note..." }), "Reformatting note...");
+      assert.equal(formatProgressLabel({ current: 2, total: 4, message: "Reformatting part 2 of 4..." }), "Reformatting part 2 of 4...");
+      assert.equal(formatProgressLabel({ current: 3, total: 5 }), "Part 3 of 5...");
+      assert.equal(formatProgressLabel("Simple string progress"), "Simple string progress");
+      assert.equal(formatProgressLabel(null), null);
     });
   });
 });

@@ -10,7 +10,6 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Sparkles,
-  Target,
   X,
 } from "lucide-react";
 
@@ -1170,6 +1169,46 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#34d399", shape: "dash", label: "Hydrogen Bond", note: "Secondary structure stabilizing interaction" },
           { color: "#64748b", shape: "line", label: "Polypeptide Backbone", note: "Covalent peptide chain link" },
           { color: "#fbbf24", shape: "dot", label: "Denatured State", note: "Unfolded disordered conformation" },
+        ],
+      };
+      break;
+    }
+
+    case "respiratory": {
+      const phase = params?.phase || "inspiration";
+      const vol = params?.thoraxVolumeL ? `${params.thoraxVolumeL} L` : (phase === "forced_expiration" ? "1.95 L" : phase === "quiet_expiration" ? "2.80 L" : "3.50 L");
+      const pres = params?.intraThoracicPressureKPa ? `${params.intraThoracicPressureKPa} kPa` : (phase === "forced_expiration" ? "+1.15 kPa" : phase === "quiet_expiration" ? "+0.18 kPa" : "-0.28 kPa");
+      const flow = params?.airFlowRateLps ? `${params.airFlowRateLps} L/s` : (phase === "forced_expiration" ? "+3.85 L/s" : phase === "quiet_expiration" ? "+0.45 L/s" : "-0.65 L/s");
+      const bpmVal = params?.bpm || 14;
+
+      readout = {
+        title: "Respiratory Mechanics & Thoracic Physics",
+        subtitle: "Boyle's Law: P · V = constant (ΔP relative to Patm = 101.3 kPa)",
+        rows: [
+          ["Current Phase", phase === "inspiration" ? "Inspiration (Active)" : phase === "quiet_expiration" ? "Quiet Expiration (Passive)" : "Forced Expiration (Active)", phase === "inspiration" ? "good" : phase === "forced_expiration" ? "warn" : "gold"],
+          ["Thorax Volume", vol, "good"],
+          ["Intra-thoracic ΔP", pres, pres.startsWith("-") ? "sky" : "warn"],
+          ["Air Flow Rate (V̇)", flow, flow.startsWith("-") ? "sky" : "gold"],
+          ["Breathing Rate", `${bpmVal} BPM`],
+          ["External Intercostals", phase === "inspiration" ? "Active Contraction (Elevating)" : "Passive Relaxation", phase === "inspiration" ? "good" : "neutral"],
+          ["Internal Intercostals", phase === "forced_expiration" ? "Active Contraction (Depressing)" : "Passive Relaxation", phase === "forced_expiration" ? "warn" : "neutral"],
+          ["Diaphragm Action", phase === "inspiration" ? "Contracts & Flattens Downward" : phase === "forced_expiration" ? "Pushed Upward (Abdominal Push)" : "Passively Recoils into Dome", phase === "inspiration" ? "good" : "neutral"],
+        ],
+        note: "Inspiration expands thoracic volume, causing intra-alveolar pressure to fall below atmospheric pressure (-0.3 kPa) and drawing air inward. Quiet expiration relies on elastic recoil; forced expiration actively recruits internal intercostals and abdominal muscles.",
+        noteTone: phase === "forced_expiration" ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Thoracic Anatomy & Physics Key",
+        items: [
+          { color: "#ef4444", shape: "dot", label: "Active Muscle Contraction", note: "Glowing crimson tension shader" },
+          { color: "#475569", shape: "dot", label: "Passive Muscle Relaxation", note: "Muted slate blue resting tone" },
+          { color: "#38bdf8", shape: "dot", label: "Inflow Airway Particles", note: "Fresh ambient oxygen intake" },
+          { color: "#fbbf24", shape: "dot", label: "Outflow Airway Particles", note: "Expired CO2-rich air streams" },
+          { color: "#f1f5f9", shape: "dot", label: "Bony Ribcage & Sternum", note: "Pump-handle & bucket-handle mechanics" },
+          { color: "#93c5fd", shape: "dot", label: "Costal Cartilage & C-Rings", note: "Flexible cartilaginous airway support" },
+          { color: "#fb7185", shape: "dot", label: "Lung Parenchyma", note: "Volumetric lobes expanding synchronously" },
+          { color: "#dc2626", shape: "dot", label: "Diaphragm Dome", note: "Muscular floor flattening down during contraction" },
         ],
       };
       break;

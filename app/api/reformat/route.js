@@ -7,6 +7,7 @@ import {
   readUsage,
 } from "@/lib/gemini";
 import { REFORMAT_BLOCK_TYPES, REFORMAT_SCHEMA } from "@/lib/schemas";
+import { getNormalizedTableData } from "@/lib/exportImport";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ CRITICAL DIRECTIVES:
    - 'h2': Primary concept sections (e.g. "Chapter 15: Drugs").
    - 'h3' / 'h4': Sub-topics and analytical components (e.g. "14.2 Sense Organs: The Eye", "Eye Structures", "Pupil Reflex").
    - 'text': Standard conceptual explanations and paragraphs.
-   - 'bullet': Key takeaways, properties, characteristics, bullet lists.
+   - 'bullet': Key takeaways, properties, characteristics, bullet lists. For nested sub-points, examples, or secondary details under a parent bullet, specify 'level' (0 for root bullet, 1 for sub-bullet, 2 for sub-sub-bullet).
    - 'number': Sequential steps, proofs, mechanisms, chronological processes.
    - 'callout': Core axioms, key takeaways, critical warnings, golden rules (assign appropriate calloutIcon: 💡, ⚠️, 📌, 🎯, ✨, 🧠, ⚡, 🔬).
    - 'quote': Notable definitions, historical quotes, or philosophical axioms.
@@ -119,6 +120,11 @@ export function normalizeReformattedNote(raw, fallbackTitle = "Untitled Note") {
 
       const block = { id, type, content };
 
+      if (type === "bullet") {
+        const rawLvl = b.level !== undefined ? parseInt(b.level, 10) : 0;
+        block.level = Number.isInteger(rawLvl) && rawLvl > 0 ? Math.min(rawLvl, 4) : 0;
+      }
+
       if (type === "callout") {
         block.calloutIcon = str(b.calloutIcon) || "💡";
       } else if (type === "toggle") {
@@ -134,19 +140,10 @@ export function normalizeReformattedNote(raw, fallbackTitle = "Untitled Note") {
       } else if (type === "table") {
         let headers = Array.isArray(b.tableHeaders) ? b.tableHeaders.map(str) : [];
         let rows = Array.isArray(b.tableRows) ? b.tableRows.map((r) => (Array.isArray(r) ? r.map(str) : [])) : [];
-        if (headers.length === 0 && content.includes("|")) {
-          const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-          const tableLines = lines.filter((l) => l.startsWith("|") || l.endsWith("|") || l.includes(" | "));
-          if (tableLines.length >= 2) {
-            const parseCells = (line) =>
-              line.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim().replace(/\\\|/g, "|"));
-            headers = parseCells(tableLines[0]);
-            let sIdx = 1;
-            if (tableLines.length > 1 && /^\|?[\s\-:|]+\|?$/.test(tableLines[1])) sIdx = 2;
-            for (let k = sIdx; k < tableLines.length; k++) {
-              rows.push(parseCells(tableLines[k]));
-            }
-          }
+        if (headers.length === 0 && (content.includes("|") || (b.tableData && (b.tableData.headers || b.tableData.rows)))) {
+          const norm = getNormalizedTableData(b.tableData, content);
+          headers = norm.headers;
+          rows = norm.rows;
         }
         block.tableData = {
           headers: headers.length > 0 ? headers : ["Column 1", "Column 2", "Column 3"],

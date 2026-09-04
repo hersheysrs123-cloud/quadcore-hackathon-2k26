@@ -1,23 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Globe, Plus, Tag, Folder, Sparkles, ExternalLink, Bookmark } from "lucide-react";
+import { X, Globe, Tag, Folder, Bookmark } from "lucide-react";
 import { normalizeUrl, extractDomain, getFaviconUrl, generateFallbackTitle } from "@/lib/urlUtils";
-import { SPACES } from "@/lib/constants";
 
 export default function AddBookmarkModal({
   open,
   onClose,
   onSave,
   initialBookmark = null,
-  activeSpace = "School",
-  spaces = SPACES,
   folders = [],
   selectedFolderId = null,
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
-  const [spaceId, setSpaceId] = useState(activeSpace || "School");
   const [folderId, setFolderId] = useState(selectedFolderId || "");
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState([]);
@@ -34,7 +30,6 @@ export default function AddBookmarkModal({
       if (initialBookmark) {
         setUrl(initialBookmark.url || "");
         setTitle(initialBookmark.title || "");
-        setSpaceId(initialBookmark.spaceId || activeSpace || "School");
         setFolderId(initialBookmark.folderId || "");
         setNotes(initialBookmark.notes || "");
         setTags(Array.isArray(initialBookmark.tags) ? initialBookmark.tags : []);
@@ -42,7 +37,6 @@ export default function AddBookmarkModal({
       } else {
         setUrl("");
         setTitle("");
-        setSpaceId(activeSpace || "School");
         setFolderId(selectedFolderId || "");
         setNotes("");
         setTags([]);
@@ -53,7 +47,7 @@ export default function AddBookmarkModal({
       setIsSaving(false);
       setTimeout(() => urlInputRef.current?.focus(), 50);
     }
-  }, [open, initialBookmark, activeSpace, selectedFolderId]);
+  }, [open, initialBookmark, selectedFolderId]);
 
   // Update favicon and auto-generate title when URL changes (if title is empty or user is adding new)
   const handleUrlBlur = () => {
@@ -98,7 +92,7 @@ export default function AddBookmarkModal({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, url, title, spaceId, folderId, notes, tags]);
+  }, [open, url, title, folderId, notes, tags]);
 
   const handleAddTag = () => {
     const trimmed = tagInput.trim().toLowerCase().replace(/^[#,]+/, "");
@@ -130,7 +124,6 @@ export default function AddBookmarkModal({
       return;
     }
 
-    const domain = extractDomain(normalized);
     const finalTitle = title.trim() || generateFallbackTitle(normalized);
     const finalFavicon = faviconPreview || getFaviconUrl(normalized);
 
@@ -141,7 +134,7 @@ export default function AddBookmarkModal({
         url: normalized,
         title: finalTitle,
         folderId: folderId || null,
-        spaceId: spaceId || "School",
+        spaceId: "Global",
         favicon: finalFavicon,
         notes: notes.trim(),
         tags,
@@ -156,9 +149,6 @@ export default function AddBookmarkModal({
   };
 
   if (!open) return null;
-
-  // Filter folders by selected space
-  const currentSpaceFolders = folders.filter((f) => (f.spaceId || "School") === spaceId);
 
   return (
     <>
@@ -187,7 +177,7 @@ export default function AddBookmarkModal({
                 {initialBookmark ? "Edit Saved Bookmark" : "Save Website Bookmark"}
               </h2>
               <p className="text-[11px] text-ink-500">
-                Organized locally in SocraticOS spaces &amp; folders
+                Organized locally in your Web Saver library &amp; folders
               </p>
             </div>
           </div>
@@ -252,48 +242,25 @@ export default function AddBookmarkModal({
             />
           </div>
 
-          {/* Space & Folder Selector Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Space Targeting */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink-300">
-                Target Space
-              </label>
-              <select
-                value={spaceId}
-                onChange={(e) => {
-                  setSpaceId(e.target.value);
-                  setFolderId(""); // reset folder selection when space switches
-                }}
-                className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-200 focus:border-duck-500 focus:outline-none"
-              >
-                {(spaces.length > 0 ? spaces : SPACES).map((sp) => (
-                  <option key={sp.name} value={sp.name}>
-                    {sp.icon || "📂"} {sp.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Folder Assignment */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink-300">
-                Folder
-              </label>
-              <select
-                value={folderId}
-                onChange={(e) => setFolderId(e.target.value)}
-                className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-200 focus:border-duck-500 focus:outline-none"
-              >
-                <option value="">📁 (Unorganized / Root)</option>
-                {currentSpaceFolders.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.parentId ? "  └ 📁 " : "📁 "}
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Folder Assignment */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-ink-300 flex items-center gap-1.5">
+              <Folder className="h-3.5 w-3.5 text-duck-400" />
+              <span>Folder</span>
+            </label>
+            <select
+              value={folderId}
+              onChange={(e) => setFolderId(e.target.value)}
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-200 focus:border-duck-500 focus:outline-none"
+            >
+              <option value="">📁 (Unorganized / Root)</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.parentId ? "  └ 📁 " : "📁 "}
+                  {f.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Tags Input */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { Lock, Sparkles, AlertCircle } from "lucide-react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {
@@ -10,7 +11,7 @@ import {
   tokenizeCode,
 } from "@/lib/syntaxHighlighter";
 import { reformatNoteContent } from "@/lib/aiService";
-import { getNormalizedTableData, parseMarkdownTableRow } from "@/lib/exportImport";
+import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow } from "@/lib/exportImport";
 
 
 
@@ -23,6 +24,7 @@ import { getNormalizedTableData, parseMarkdownTableRow } from "@/lib/exportImpor
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
 //   • Math Equation Container (LaTeX & KaTeX renderer)
 //   • Interactive Table Grid Block (cell editing, add/del cols/rows, tab nav)
+//   • 2–5 Columns Split Layout Block (comparative dual/multi-column cards)
 //   • 6-dots (⠿) context menu: Explain / Quiz, formatting (B, I, U, S), turn-into
 // ─────────────────────────────────────────────────────────────────────
 
@@ -37,15 +39,15 @@ const BLOCK_TYPES = [
   { type: "todo", label: "To-Do List", icon: "☑", description: "Track tasks with a checkbox" },
   { type: "toggle", label: "Toggle List", icon: "▶", description: "Collapsible text container" },
   { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame" },
+  { type: "columns", label: "2–5 Columns Split", icon: "⫽", description: "Side-by-side comparative column layout" },
   { type: "table", label: "Table", icon: "▦", description: "Insert an interactive grid table" },
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations" },
   { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer" },
   { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Insert inline LaTeX formula ($x$)" },
   { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line" },
   { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card" },
-  { type: "media", label: "Image / Audio / Video", icon: "🖼️", description: "Embed media file or URL" },
+  { type: "media", label: "Image / Video / YouTube", icon: "🎬", description: "Embed YouTube, video, audio or image" },
   { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax" },
-  { type: "canvas", label: "Canvas / Drawing", icon: "🎨", description: "Interactive 70% whiteboard & sketching tool" },
 ];
 
 
@@ -64,6 +66,44 @@ const NOTE_EMOJIS = [
   "🦆", "🔥", "⭐", "🎯", "📌", "✨", "🧪", "🧠",
   "🏆", "🌱", "💬", "🌐", "⚙️", "🔮", "💎", "📜"
 ];
+
+export function getYouTubeEmbedInfo(url) {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  // Match youtube.com/watch?v=..., youtu.be/..., youtube.com/embed/..., youtube.com/shorts/..., m.youtube.com/watch?v=...
+  const regExp = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([\w-]{11})(?:[?&](?:t|start)=([\w\d]+))?/i;
+  const match = trimmed.match(regExp);
+  if (!match) return null;
+
+  const videoId = match[1];
+  let startTime = 0;
+  if (match[2]) {
+    const rawTime = match[2];
+    if (/^\d+$/.test(rawTime)) {
+      startTime = parseInt(rawTime, 10);
+    } else {
+      const hours = rawTime.match(/(\d+)h/i)?.[1] || 0;
+      const mins = rawTime.match(/(\d+)m/i)?.[1] || 0;
+      const secs = rawTime.match(/(\d+)s/i)?.[1] || 0;
+      startTime = parseInt(hours, 10) * 3600 + parseInt(mins, 10) * 60 + parseInt(secs, 10);
+    }
+  }
+
+  const queryParams = new URLSearchParams({
+    rel: "0",
+    modestbranding: "1",
+  });
+  if (startTime > 0) {
+    queryParams.set("start", String(startTime));
+  }
+
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?${queryParams.toString()}`;
+  return {
+    videoId,
+    startTime,
+    embedUrl,
+  };
+}
 
 function formatUrl(url) {
   if (!url) return "";
@@ -112,8 +152,10 @@ function blockToMarkdown(block) {
       return `### ${content}`;
     case "h4":
       return `#### ${content}`;
-    case "bullet":
-      return `- ${content}`;
+    case "bullet": {
+      const indent = "  ".repeat(Math.max(0, Math.min(4, Number(block.level) || 0)));
+      return `${indent}- ${content}`;
+    }
     case "number":
       return `1. ${content}`;
     case "todo":
@@ -134,8 +176,28 @@ function blockToMarkdown(block) {
       return `$$\n${content}\n$$`;
     case "inlinemath":
       return content.startsWith("$") && content.endsWith("$") ? content : `$${content}$`;
-    case "canvas":
-      return `[Canvas Drawing: ${content}]`;
+    case "site": {
+      const url = block.url || block.content || "";
+      const title = block.title || block.content || url || "Bookmark";
+      return url ? `[${title}](${url})` : title;
+    }
+    case "media": {
+      const mediaUrl = block.url || block.content || "";
+      const ytInfo = getYouTubeEmbedInfo(mediaUrl);
+      const kind = ytInfo ? "youtube" : (block.mediaKind || "image");
+      const caption = block.content || (kind === "youtube" ? "YouTube Video" : kind);
+      if (kind === "youtube") {
+        return `[![YouTube Video: ${caption}](${mediaUrl})](${mediaUrl})`;
+      }
+      return mediaUrl ? `![${caption}](${mediaUrl})` : `[${kind}]`;
+    }
+    case "columns": {
+      const count = Math.max(2, Math.min(5, Number(block.columnCount) || 2));
+      const cols = getNormalizedColumnsData(block.columnsData, block.content, count);
+      return cols
+        .map((c, i) => `### ${c.title || `Column ${i + 1}`}\n${c.content || ""}`)
+        .join("\n\n");
+    }
     case "table": {
       const data = getNormalizedTableData(block.tableData, block.content);
       const headers = data.headers && data.headers.length > 0 ? data.headers : ["Col 1", "Col 2"];
@@ -153,6 +215,262 @@ function blockToMarkdown(block) {
     case "text":
     default:
       return content;
+  }
+}
+
+function htmlNodeToInlineMarkdown(node) {
+  if (!node) return "";
+  if (node.nodeType === 3) {
+    // TEXT_NODE
+    return node.textContent || "";
+  }
+  if (node.nodeType !== 1) return ""; // ELEMENT_NODE
+
+  const tag = node.tagName.toLowerCase();
+  if (tag === "script" || tag === "style" || tag === "noscript" || tag === "head" || tag === "meta" || tag === "link") return "";
+
+  const childText = Array.from(node.childNodes)
+    .map(htmlNodeToInlineMarkdown)
+    .join("");
+
+  if (tag === "br") return "\n";
+  if (!childText && tag !== "img") return "";
+
+  const style = node.getAttribute("style") || "";
+  const isBoldStyle = /font-weight\s*:\s*(?:700|800|900|bold)/i.test(style);
+  const isItalicStyle = /font-style\s*:\s*italic/i.test(style);
+  const isStrikeStyle = /text-decoration(?:-line)?\s*:\s*line-through/i.test(style);
+  const isCodeStyle = /font-family\s*:\s*(?:monospace|courier|consolas|source code pro)/i.test(style);
+
+  let formatted = childText;
+
+  // Inline code / monospace
+  if (tag === "code" || tag === "tt" || tag === "kbd" || isCodeStyle) {
+    const trimmed = formatted.trim();
+    if (trimmed && !trimmed.startsWith("`") && !trimmed.endsWith("`")) {
+      formatted = formatted.replace(trimmed, `\`${trimmed}\``);
+    }
+  }
+
+  // Bold / Strong / Google Docs 700 weight
+  if (tag === "strong" || tag === "b" || isBoldStyle) {
+    const isDocGuid = node.id && node.id.startsWith("docs-internal-guid") && /font-weight\s*:\s*normal/i.test(style);
+    if (!isDocGuid) {
+      const trimmed = formatted.trim();
+      if (trimmed && !trimmed.startsWith("**") && !trimmed.endsWith("**")) {
+        formatted = formatted.replace(trimmed, `**${trimmed}**`);
+      }
+    }
+  }
+
+  // Italic / Em / Google Docs italic
+  if (tag === "em" || tag === "i" || isItalicStyle) {
+    const trimmed = formatted.trim();
+    if (trimmed && !trimmed.startsWith("*") && !trimmed.endsWith("*")) {
+      formatted = formatted.replace(trimmed, `*${trimmed}*`);
+    }
+  }
+
+  // Strikethrough
+  if (tag === "s" || tag === "strike" || tag === "del" || isStrikeStyle) {
+    const trimmed = formatted.trim();
+    if (trimmed && !trimmed.startsWith("~~") && !trimmed.endsWith("~~")) {
+      formatted = formatted.replace(trimmed, `~~${trimmed}~~`);
+    }
+  }
+
+  // Highlight
+  if (tag === "mark") {
+    const trimmed = formatted.trim();
+    if (trimmed && !trimmed.startsWith("==") && !trimmed.endsWith("==")) {
+      formatted = formatted.replace(trimmed, `==${trimmed}==`);
+    }
+  }
+
+  // Hyperlink
+  if (tag === "a") {
+    const href = node.getAttribute("href");
+    const trimmed = formatted.trim();
+    if (href && trimmed && !trimmed.startsWith("[")) {
+      formatted = formatted.replace(trimmed, `[${trimmed}](${href})`);
+    }
+  }
+
+  // Inline Image
+  if (tag === "img") {
+    const src = node.getAttribute("src");
+    const alt = node.getAttribute("alt") || "";
+    if (src) {
+      formatted = `![${alt}](${src})`;
+    }
+  }
+
+  return formatted;
+}
+
+export function parseHtmlToBlocks(htmlString) {
+  if (!htmlString || typeof htmlString !== "string" || typeof DOMParser === "undefined") return [];
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, "text/html");
+    if (!doc || !doc.body) return [];
+
+    const blocks = [];
+
+    // Helper to unwrap Google Docs container wrapper if present
+    let container = doc.body;
+    if (
+      container.children.length === 1 &&
+      container.firstElementChild.id &&
+      container.firstElementChild.id.startsWith("docs-internal-guid")
+    ) {
+      container = container.firstElementChild;
+    }
+
+    function processChildNodes(parent) {
+      Array.from(parent.children).forEach((node) => {
+        const tag = node.tagName.toLowerCase();
+
+        if (tag === "h1") {
+          const content = htmlNodeToInlineMarkdown(node).trim();
+          if (content) blocks.push(createBlock("h1", content));
+        } else if (tag === "h2") {
+          const content = htmlNodeToInlineMarkdown(node).trim();
+          if (content) blocks.push(createBlock("h2", content));
+        } else if (tag === "h3") {
+          const content = htmlNodeToInlineMarkdown(node).trim();
+          if (content) blocks.push(createBlock("h3", content));
+        } else if (tag === "h4" || tag === "h5" || tag === "h6") {
+          const content = htmlNodeToInlineMarkdown(node).trim();
+          if (content) blocks.push(createBlock("h4", content));
+        } else if (tag === "hr") {
+          blocks.push(createBlock("divider", ""));
+        } else if (tag === "pre") {
+          const codeEl = node.querySelector("code") || node;
+          const langMatch = (codeEl.className || "").match(/language-([a-zA-Z0-9_-]+)/);
+          const lang = langMatch ? langMatch[1] : null;
+          blocks.push(createBlock("code", codeEl.textContent || "", { language: lang, meta: { language: lang } }));
+        } else if (tag === "blockquote") {
+          const content = htmlNodeToInlineMarkdown(node).trim();
+          if (content.startsWith("💡 ") || content.startsWith(">! ") || OBSIDIAN_CALLOUT_RE.test(`> ${content}`)) {
+            blocks.push(createBlock("callout", content.replace(/^(💡|>!)\s*/, ""), { calloutIcon: "💡" }));
+          } else {
+            blocks.push(createBlock("quote", content));
+          }
+        } else if (tag === "ul" || tag === "ol") {
+          function parseListChildren(listNode, level = 0) {
+            const isOrdered = listNode.tagName.toLowerCase() === "ol";
+            Array.from(listNode.children).forEach((li) => {
+              if (li.tagName.toLowerCase() === "li") {
+                const checkbox = li.querySelector("input[type=checkbox]");
+                const isTodo = !!checkbox || li.getAttribute("data-list-type") === "checked" || li.getAttribute("role") === "checkbox";
+                const nestedList = li.querySelector("ul, ol");
+                const liClone = li.cloneNode(true);
+                liClone.querySelectorAll("ul, ol").forEach((n) => n.remove());
+                const content = htmlNodeToInlineMarkdown(liClone).trim().replace(/^[•*\-\d+.]\s*/, "");
+                if (content) {
+                  if (isTodo) {
+                    blocks.push(createBlock("todo", content, { checked: checkbox ? checkbox.checked : false }));
+                  } else if (isOrdered) {
+                    blocks.push(createBlock("number", content));
+                  } else {
+                    blocks.push(createBlock("bullet", content, level > 0 ? { level } : {}));
+                  }
+                }
+                if (nestedList) {
+                  parseListChildren(nestedList, Math.min(4, level + 1));
+                }
+              }
+            });
+          }
+          parseListChildren(node, 0);
+        } else if (tag === "table") {
+          let headers = [];
+          const ths = Array.from(node.querySelectorAll("th"));
+          if (ths.length > 0) {
+            headers = ths.map((th) => htmlNodeToInlineMarkdown(th).trim());
+          }
+          const rows = [];
+          const trs = Array.from(node.querySelectorAll("tr"));
+          trs.forEach((tr, trIdx) => {
+            const tds = Array.from(tr.querySelectorAll("td"));
+            if (tds.length > 0) {
+              rows.push(tds.map((td) => htmlNodeToInlineMarkdown(td).trim()));
+            } else if (headers.length === 0 && trIdx === 0) {
+              const firstThs = Array.from(tr.querySelectorAll("th"));
+              if (firstThs.length > 0) {
+                headers = firstThs.map((th) => htmlNodeToInlineMarkdown(th).trim());
+              }
+            }
+          });
+
+          if (headers.length === 0 && rows.length > 0) {
+            headers = rows.shift();
+          }
+
+          if (headers.length > 0 || rows.length > 0) {
+            blocks.push(
+              createBlock("table", "", {
+                tableData: {
+                  headers: headers.length > 0 ? headers : ["Column 1", "Column 2"],
+                  rows: rows.length > 0 ? rows : [["", ""]],
+                  hasHeaderRow: true,
+                },
+              })
+            );
+          }
+        } else if (tag === "iframe") {
+          const src = node.getAttribute("src") || "";
+          const ytInfo = getYouTubeEmbedInfo(src);
+          if (ytInfo) {
+            blocks.push(createBlock("media", "", { url: src, mediaKind: "youtube" }));
+          }
+        } else if (tag === "video") {
+          const src = node.getAttribute("src") || node.querySelector("source")?.getAttribute("src") || "";
+          if (src) {
+            blocks.push(createBlock("media", "", { url: src, mediaKind: "video" }));
+          }
+        } else if (tag === "img" && node.parentElement === container) {
+          const src = node.getAttribute("src") || "";
+          const alt = node.getAttribute("alt") || "";
+          if (src) {
+            blocks.push(createBlock("media", alt, { url: src, mediaKind: "image" }));
+          }
+        } else if (tag === "details") {
+          const summaryEl = node.querySelector("summary");
+          const summaryText = summaryEl ? htmlNodeToInlineMarkdown(summaryEl).trim() : "Toggle";
+          const clone = node.cloneNode(true);
+          const cloneSummary = clone.querySelector("summary");
+          if (cloneSummary) cloneSummary.remove();
+          const detailsText = htmlNodeToInlineMarkdown(clone).trim();
+          blocks.push(createBlock("toggle", summaryText, { details: detailsText, open: node.hasAttribute("open") }));
+        } else {
+          // Check if this container has block-level children
+          const hasBlockChildren = Array.from(node.children).some((c) =>
+            /^(p|div|h[1-6]|ul|ol|table|blockquote|pre|details|section|article)$/i.test(c.tagName)
+          );
+          if (hasBlockChildren) {
+            processChildNodes(node);
+          } else {
+            const content = htmlNodeToInlineMarkdown(node).trim();
+            if (content) {
+              const ytInfo = getYouTubeEmbedInfo(content);
+              if (ytInfo && /^https?:\/\//i.test(content)) {
+                blocks.push(createBlock("media", "", { url: content, mediaKind: "youtube" }));
+              } else {
+                blocks.push(createBlock("text", content));
+              }
+            }
+          }
+        }
+      });
+    }
+
+    processChildNodes(container);
+    return blocks;
+  } catch {
+    return [];
   }
 }
 
@@ -283,8 +601,8 @@ function parseMarkdownToBlocks(rawText) {
 
     if (!trimmed) continue;
 
-    // 4.5 Markdown Tables (| Header 1 | Header 2 | \n | --- | --- |)
-    if (trimmed.startsWith("|") && trimmed.includes("|")) {
+    // 4.5 Markdown Tables (| Header 1 | Header 2 | \n | --- | --- | or Header 1 | Header 2 \n --- | ---)
+    if (trimmed.includes("|")) {
       const nextLine = (lines[i + 1] || "").trim();
       const isSeparator = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(nextLine);
       if (isSeparator) {
@@ -294,7 +612,7 @@ function parseMarkdownToBlocks(rawText) {
 
         while (i + 1 < lines.length) {
           const rowLine = lines[i + 1].trim();
-          if (rowLine.startsWith("|") && rowLine.includes("|") && !/^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(rowLine)) {
+          if (rowLine.includes("|") && !/^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(rowLine)) {
             rows.push(parseMarkdownTableRow(rowLine));
             i += 1;
           } else {
@@ -352,7 +670,7 @@ function parseMarkdownToBlocks(rawText) {
     }
 
     // 5. Standard Markdown Tasks (Checked before generic bullets)
-    const taskMatch = line.match(/^[-*+]?\s*\[([ xX])\]\s*(.*)$/);
+    const taskMatch = trimmed.match(/^[-*+]?\s*\[([ xX])\]\s*(.*)$/);
 
     if (taskMatch) {
       resultBlocks.push(
@@ -362,34 +680,36 @@ function parseMarkdownToBlocks(rawText) {
     }
 
     // 6. Headings
-    if (line.startsWith("#### ")) {
-      resultBlocks.push(createBlock("h4", line.slice(5).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
-    } else if (line.startsWith("### ")) {
-      resultBlocks.push(createBlock("h3", line.slice(4).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
-    } else if (line.startsWith("## ")) {
-      resultBlocks.push(createBlock("h2", line.slice(3).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
-    } else if (line.startsWith("# ")) {
-      resultBlocks.push(createBlock("h1", line.slice(2).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
+    if (trimmed.startsWith("#### ")) {
+      resultBlocks.push(createBlock("h4", trimmed.slice(5).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
+    } else if (trimmed.startsWith("### ")) {
+      resultBlocks.push(createBlock("h3", trimmed.slice(4).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
+    } else if (trimmed.startsWith("## ")) {
+      resultBlocks.push(createBlock("h2", trimmed.slice(3).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
+    } else if (trimmed.startsWith("# ")) {
+      resultBlocks.push(createBlock("h1", trimmed.slice(2).replace(/^(\*+|\#+|\s*)+/, "").replace(/(\*+|\s*)+$/, "").replace(/[:\s]+$/, "").trim()));
     }
     // 7. Bullets
-    else if (line.startsWith("- ") || line.startsWith("* ") || line.startsWith("+ ")) {
-      let bContent = line.slice(2).trim();
+    else if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("+ ")) {
+      let bContent = trimmed.slice(2).trim();
       if (bContent.startsWith("* ") || bContent.startsWith("- ") || bContent.startsWith("+ ")) {
         bContent = bContent.replace(/^[*•\-+]\s+/, "").trim();
       }
+      const indentSpaces = (line.match(/^(\s*)/)[1] || "").replace(/\t/g, "  ").length;
+      const level = Math.min(4, Math.floor(indentSpaces / 2));
       const boldHeadingMatchInBullet = bContent.match(/^\*\*([^*]+)\*\*[:\s]*$/);
       if (boldHeadingMatchInBullet) {
         resultBlocks.push(createBlock("h3", boldHeadingMatchInBullet[1].trim().replace(/[:\s]+$/, "")));
       } else {
-        resultBlocks.push(createBlock("bullet", bContent));
+        resultBlocks.push(createBlock("bullet", bContent, level > 0 ? { level } : {}));
       }
     }
 
 
 
     // 8. Numbered list items
-    else if (/^\d+\.\s/.test(line)) {
-      resultBlocks.push(createBlock("number", line.replace(/^\d+\.\s/, "").trim()));
+    else if (/^\d+\.\s/.test(trimmed)) {
+      resultBlocks.push(createBlock("number", trimmed.replace(/^\d+\.\s/, "").trim()));
     }
     // 9. Obsidian / GitHub Style Callouts
     else if (OBSIDIAN_CALLOUT_RE.test(line)) {
@@ -417,6 +737,37 @@ function parseMarkdownToBlocks(rawText) {
     // 13. Inline math line
     else if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length > 2) {
       resultBlocks.push(createBlock("math", trimmed.slice(2, -2).trim()));
+    }
+    // 14. Media / YouTube / Image markdown: ![caption](url)
+    else if (/^!\[(.*?)\]\((.*?)\)$/.test(trimmed)) {
+      const match = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+      const url = match[2];
+      const ytInfo = getYouTubeEmbedInfo(url);
+      resultBlocks.push(
+        createBlock("media", match[1], {
+          url,
+          mediaKind: ytInfo ? "youtube" : "image",
+        })
+      );
+    }
+    // 14.5 Standalone YouTube URL
+    else if (getYouTubeEmbedInfo(trimmed) && /^https?:\/\//i.test(trimmed)) {
+      resultBlocks.push(
+        createBlock("media", "", {
+          url: trimmed,
+          mediaKind: "youtube",
+        })
+      );
+    }
+    // 15. Site Bookmark link: [title](url)
+    else if (/^\[(.*?)\]\((https?:\/\/.*?)\)$/.test(trimmed)) {
+      const match = trimmed.match(/^\[(.*?)\]\((https?:\/\/.*?)\)$/);
+      resultBlocks.push(
+        createBlock("site", match[1], {
+          url: match[2],
+          title: match[1],
+        })
+      );
     } else {
       resultBlocks.push(createBlock("text", line));
     }
@@ -440,18 +791,43 @@ function parseMarkdownToBlocks(rawText) {
   return resultBlocks.length > 0 ? resultBlocks : [createBlock("text", rawText)];
 }
 
+const SLASH_COMMAND_ITEMS = [
+  { type: "text", label: "Text", icon: "Aa", description: "Plain text paragraph", keywords: ["text", "paragraph", "p"] },
+  { type: "h1", label: "Heading 1", icon: "H1", description: "Large section heading", keywords: ["h1", "heading1", "title", "header1"] },
+  { type: "h2", label: "Heading 2", icon: "H2", description: "Medium section heading", keywords: ["h2", "heading2", "header2"] },
+  { type: "h3", label: "Heading 3", icon: "H3", description: "Small section heading", keywords: ["h3", "heading3", "header3"] },
+  { type: "h4", label: "Heading 4", icon: "H4", description: "Sub-heading", keywords: ["h4", "heading4", "header4"] },
+  { type: "columns", columnCount: 2, label: "2 Columns", icon: "⫽2", description: "2 side-by-side equal columns", keywords: ["2", "2 columns", "2 cols", "two", "column", "columns", "split", "compare", "dual", "grid", "col"] },
+  { type: "columns", columnCount: 3, label: "3 Columns", icon: "⫽3", description: "3 side-by-side equal columns", keywords: ["3", "3 columns", "3 cols", "three", "column", "columns", "split", "compare", "grid", "col"] },
+  { type: "columns", columnCount: 4, label: "4 Columns", icon: "⫽4", description: "4 side-by-side equal columns", keywords: ["4", "4 columns", "4 cols", "four", "column", "columns", "split", "compare", "grid", "col"] },
+  { type: "columns", columnCount: 5, label: "5 Columns", icon: "⫽5", description: "5 side-by-side equal columns", keywords: ["5", "5 columns", "5 cols", "five", "column", "columns", "split", "compare", "grid", "col"] },
+  { type: "bullet", label: "Bullet List", icon: "•", description: "Bulleted list item", keywords: ["bullet", "list", "ul"] },
+  { type: "number", label: "Numbered List", icon: "1.", description: "Numbered list item", keywords: ["number", "numbered", "list", "ol"] },
+  { type: "todo", label: "To-Do List", icon: "☑", description: "Track tasks with a checkbox", keywords: ["todo", "task", "checkbox", "check"] },
+  { type: "toggle", label: "Toggle List", icon: "▶", description: "Collapsible text container", keywords: ["toggle", "collapse", "dropdown", "details"] },
+  { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame", keywords: ["callout", "note", "box", "alert", "tip"] },
+  { type: "table", label: "Table", icon: "▦", description: "Insert an interactive grid table", keywords: ["table", "grid", "matrix", "rows", "cols"] },
+  { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations", keywords: ["quote", "blockquote", "citation"] },
+  { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer", keywords: ["math", "latex", "equation", "formula", "katex"] },
+  { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Insert inline LaTeX formula ($x$)", keywords: ["inline", "inlinemath", "fx", "math", "formula"] },
+  { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line", keywords: ["divider", "hr", "line", "separator"] },
+  { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card", keywords: ["site", "bookmark", "link", "url", "web", "website"] },
+  { type: "media", label: "Image / YouTube Video", icon: "🎬", description: "Embed YouTube video or upload image", keywords: ["media", "image", "photo", "picture", "youtube", "yt", "video", "embed"] },
+  { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax", keywords: ["code", "snippet", "javascript", "python", "syntax"] },
+];
+
 // ─── Slash-Command Menu ─────────────────────────────────────────────
 function SlashMenu({ onSelect, onClose, filter }) {
   const menuRef = useRef(null);
   const [activeIdx, setActiveIdx] = useState(0);
 
-  const filtered = BLOCK_TYPES.filter((bt) => {
-    const q = filter.toLowerCase();
+  const filtered = SLASH_COMMAND_ITEMS.filter((bt) => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return true;
     return (
       bt.label.toLowerCase().includes(q) ||
       bt.type.toLowerCase().includes(q) ||
-      (bt.type === "math" && ["math", "equation", "latex", "formula"].some((k) => k.includes(q))) ||
-      (bt.type === "inlinemath" && ["inline", "inlinemath", "equation", "latex", "formula", "katex", "fx", "math"].some((k) => k.includes(q)))
+      (bt.keywords && bt.keywords.some((k) => k.includes(q) || q.includes(k)))
     );
   });
 
@@ -472,7 +848,10 @@ function SlashMenu({ onSelect, onClose, filter }) {
         setActiveIdx((i) => (i - 1 + filtered.length) % filtered.length);
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (filtered[activeIdx]) onSelect(filtered[activeIdx].type);
+        if (filtered[activeIdx]) {
+          const item = filtered[activeIdx];
+          onSelect(item.type, { columnCount: item.columnCount });
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -499,15 +878,15 @@ function SlashMenu({ onSelect, onClose, filter }) {
       </p>
       <ul className="max-h-56 overflow-y-auto py-1">
         {filtered.map((bt, i) => (
-          <li key={bt.type}>
+          <li key={`${bt.type}_${bt.columnCount || 0}_${i}`}>
             <button
               type="button"
               onMouseDown={(e) => {
                 e.preventDefault();
-                onSelect(bt.type);
+                onSelect(bt.type, { columnCount: bt.columnCount });
               }}
               onMouseEnter={() => setActiveIdx(i)}
-              className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
+              className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors cursor-pointer ${
                 i === activeIdx
                   ? "bg-ink-800 text-ink-100"
                   : "text-ink-400 hover:bg-ink-850"
@@ -537,6 +916,7 @@ function SlashMenu({ onSelect, onClose, filter }) {
 // ─── Notion 6-Dots Block Context Menu ───────────────────────────────
 function BlockContextMenu({
   block,
+  position = null,
   onClose,
   onChangeType,
   onDelete,
@@ -556,11 +936,22 @@ function BlockContextMenu({
     const onClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
     };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("mousedown", onClick);
-    return () => window.removeEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [onClose]);
 
-  const blockText = (block.content || block.formula || block.details || "").trim();
+  const blockText = (
+    block.type === "table" || block.type === "columns"
+      ? blockToMarkdown(block)
+      : block.content || block.formula || block.details || blockToMarkdown(block) || ""
+  ).trim();
 
   const handleCopy = () => {
     if (!blockText) return;
@@ -572,7 +963,18 @@ function BlockContextMenu({
   return (
     <div
       ref={menuRef}
-      className="absolute -left-2 top-full z-[100] mt-1 w-72 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl animate-fade-in p-2.5 text-xs space-y-2"
+      style={
+        position
+          ? {
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+            }
+          : undefined
+      }
+      className={`${
+        position ? "absolute" : "absolute -left-2 top-full mt-1"
+      } z-[100] w-72 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl animate-fade-in p-2.5 text-xs space-y-2`}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* AI Study Buttons */}
       {(onExplainBlock || onQuizBlock) && (
@@ -603,65 +1005,6 @@ function BlockContextMenu({
           </button>
         </div>
       )}
-
-      {/* Formatting Toolbar */}
-      <div className="flex items-center justify-around rounded-lg border border-ink-800 bg-ink-850 p-1">
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onFormat?.("bold");
-          }}
-          className="rounded px-2.5 py-1 font-bold text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-          title="Bold (Selection or whole block)"
-        >
-          B
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onFormat?.("italic");
-          }}
-          className="rounded px-2.5 py-1 italic text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-          title="Italic (Selection or whole block)"
-        >
-          I
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onFormat?.("underline");
-          }}
-          className="rounded px-2.5 py-1 underline text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-          title="Underline (Selection or whole block)"
-        >
-          U
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onFormat?.("strikethrough");
-          }}
-          className="rounded px-2.5 py-1 line-through text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-          title="Strikethrough (Selection or whole block)"
-        >
-          S
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onFormat?.("math");
-          }}
-          className="rounded px-2 py-1 font-mono text-xs font-bold text-duck-300 hover:bg-ink-800 transition-colors"
-          title="Inline Math ($formula$)"
-        >
-          $x$
-        </button>
-      </div>
 
       {/* Quick Block Actions: Duplicate, Move Up, Move Down */}
       <div className="grid grid-cols-3 gap-1 pt-0.5">
@@ -765,26 +1108,53 @@ function BlockContextMenu({
   );
 }
 
-// ─── KaTeX LRU Memoization Cache ─────────────────────────────────────
-const KATEX_STRING_CACHE = new Map();
-export function renderKatexToStringMemoized(formula, options = {}) {
-  const key = `${formula}::${Boolean(options.displayMode)}`;
-  if (KATEX_STRING_CACHE.has(key)) return KATEX_STRING_CACHE.get(key);
-  try {
-    const html = katex.renderToString(formula || "", {
-      displayMode: Boolean(options.displayMode),
-      throwOnError: false,
-      ...options,
-    });
-    if (KATEX_STRING_CACHE.size > 500) {
-      KATEX_STRING_CACHE.delete(KATEX_STRING_CACHE.keys().next().value);
-    }
-    KATEX_STRING_CACHE.set(key, html);
-    return html;
-  } catch {
-    return escapeHtml(formula || "");
-  }
-}
+export {
+  renderKatexToStringMemoized,
+  escapeHtml,
+  cleanZeroWidth,
+  formatMarkdownInline,
+  setBlockDOMFromText,
+  tryAutoFormatInlineCode,
+  tryAutoFormatInlineMath,
+  handleInlineBoundaryKeyDown,
+  setCaretToEnd,
+  setCaretToStart,
+  getDOMCaretLength,
+  setCaretAtOffset,
+  isCaretAtLogicalStart,
+  isCaretAtBlockStart,
+  isCaretAtLogicalEnd,
+  isCaretAtBlockEnd,
+  isCaretOnFirstVisualLine,
+  isCaretOnLastVisualLine,
+  getBlockTextFromDOM,
+  splitBlockDOMAtRange,
+  getSerializedTextFromRange,
+} from "../lib/editorCaret.js";
+
+import {
+  renderKatexToStringMemoized,
+  escapeHtml,
+  cleanZeroWidth,
+  formatMarkdownInline,
+  setBlockDOMFromText,
+  tryAutoFormatInlineCode,
+  tryAutoFormatInlineMath,
+  handleInlineBoundaryKeyDown,
+  setCaretToEnd,
+  setCaretToStart,
+  getDOMCaretLength,
+  setCaretAtOffset,
+  isCaretAtLogicalStart,
+  isCaretAtBlockStart,
+  isCaretAtLogicalEnd,
+  isCaretAtBlockEnd,
+  isCaretOnFirstVisualLine,
+  isCaretOnLastVisualLine,
+  getBlockTextFromDOM,
+  splitBlockDOMAtRange,
+  getSerializedTextFromRange,
+} from "../lib/editorCaret.js";
 
 // ─── Single Block Component ─────────────────────────────────────────
 const KaTeXRender = memo(function KaTeXRender({ formula, displayMode = false, className = "" }) {
@@ -800,194 +1170,10 @@ const KaTeXRender = memo(function KaTeXRender({ formula, displayMode = false, cl
   return <span ref={containerRef} className={`katex-wrapper inline-block ${className}`} />;
 });
 
-// ─── Inline Markdown & KaTeX Utilities & Popover ─────────────────────────────
-export function escapeHtml(str) {
-  return (str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-export function formatMarkdownInline(text) {
-  if (!text) return "";
-
-  // 1. Math tokens ($formula$ or $$formula$$)
-  const mathTokens = [];
-  let processed = String(text).replace(/\$\$([^$]+)\$\$|\$([^\s$](?:[^$\n]*[^\s$])?)\$/g, (match, dFormula, sFormula) => {
-    const formula = (dFormula || sFormula || "").trim();
-    if (!formula) return match;
-    const token = `\u0000MATH_${mathTokens.length}\u0000`;
-    let katexHtml = "";
-    try {
-      katexHtml = renderKatexToStringMemoized(formula, {
-        displayMode: false,
-        throwOnError: false,
-      });
-    } catch (e) {
-      katexHtml = escapeHtml(match);
-    }
-    const escapedFormula = formula.replace(/"/g, "&quot;");
-    mathTokens.push(
-      `<span class="katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-duck-500/40 bg-duck-500/10 hover:bg-duck-500/25 hover:border-duck-400 text-duck-200 font-semibold cursor-pointer transition-all select-none group/mathpill" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`
-    );
-    return token;
-  });
-
-  // 2. Code tokens (`code`)
-  const codeTokens = [];
-  processed = processed.replace(/`([^`\n]+)`/g, (match, code) => {
-    const token = `\u0000CODE_${codeTokens.length}\u0000`;
-    codeTokens.push(
-      `<code class="rounded px-1.5 py-0.5 font-mono text-[13px] bg-ink-800 text-duck-300 border border-ink-700 font-normal">${escapeHtml(code)}</code>`
-    );
-    return token;
-  });
-
-  // 3. Links ([text](url))
-  const linkTokens = [];
-  processed = processed.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+|#[^\s)]+)\)/g, (match, linkText, url) => {
-    const token = `\u0000LINK_${linkTokens.length}\u0000`;
-    linkTokens.push(
-      `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="text-duck-400 underline decoration-duck-500/50 hover:text-duck-300 cursor-pointer" contenteditable="false">${escapeHtml(linkText)}</a>`
-    );
-    return token;
-  });
-
-  // 4. Escape HTML for the remaining content
-  processed = escapeHtml(processed);
-
-  // 5. Bold & Italic (***text*** or ___text___)
-  processed = processed.replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
-  processed = processed.replace(/___([^_\n]+)___/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
-
-  // 6. Bold (**text** or __text__)
-  processed = processed.replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-bold text-ink-100">$1</strong>');
-  processed = processed.replace(/__([^_\n]+)__/g, '<strong class="font-bold text-ink-100">$1</strong>');
-
-  // 7. Italic (*text* or _text_)
-  processed = processed.replace(/\*([^*\n]+)\*/g, '<em class="italic text-ink-200">$1</em>');
-  processed = processed.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,;:!?])/g, '$1<em class="italic text-ink-200">$2</em>');
-
-  // 8. Strikethrough (~~text~~)
-  processed = processed.replace(/~~([^~\n]+)~~/g, '<del class="line-through text-ink-500">$1</del>');
-
-  // 9. Highlight (==text==)
-  processed = processed.replace(/==([^=\n]+)==/g, '<mark class="bg-duck-500/25 text-duck-200 px-1 py-0.5 rounded font-medium">$1</mark>');
-
-  // 10. Restore tokens
-  linkTokens.forEach((linkHtml, idx) => {
-    processed = processed.replace(`\u0000LINK_${idx}\u0000`, linkHtml);
-  });
-  codeTokens.forEach((codeHtml, idx) => {
-    processed = processed.replace(`\u0000CODE_${idx}\u0000`, codeHtml);
-  });
-  mathTokens.forEach((mathHtml, idx) => {
-    processed = processed.replace(`\u0000MATH_${idx}\u0000`, mathHtml);
-  });
-
-  return processed;
-}
-
-export function setBlockDOMFromText(domNode, text, blockType = "text") {
-  if (!domNode) return;
-  let textToFormat = text || "";
-  if (blockType === "inlinemath" && textToFormat && !textToFormat.includes("$")) {
-    textToFormat = `$${textToFormat}$`;
-  }
-  domNode.innerHTML = formatMarkdownInline(textToFormat);
-}
-
-export function getBlockTextFromDOM(domNode) {
-  if (!domNode) return "";
-
-  function walk(node) {
-    if (node.nodeType === 3 /* Node.TEXT_NODE */) {
-      return node.nodeValue || "";
-    }
-    if (node.nodeType !== 1 /* Node.ELEMENT_NODE */) {
-      return "";
-    }
-
-    // 1. Math Pill
-    if (node.classList && node.classList.contains("katex-inline-node")) {
-      const formula = node.getAttribute("data-formula") || "";
-      return `$${formula}$`;
-    }
-
-    // 2. KaTeX fallback
-    if (node.classList && (node.classList.contains("katex") || node.classList.contains("katex-html"))) {
-      const formula = node.closest(".katex-inline-node")?.getAttribute("data-formula");
-      if (formula) return `$${formula}$`;
-    }
-
-    const tag = node.tagName.toLowerCase();
-
-    // 3. Line break
-    if (tag === "br") {
-      return "\n";
-    }
-
-    let inner = "";
-    for (const child of node.childNodes) {
-      inner += walk(child);
-    }
-
-    // 4. Bold
-    if (tag === "strong" || tag === "b") {
-      return inner ? `**${inner}**` : "";
-    }
-
-    // 5. Italic
-    if (tag === "em" || tag === "i") {
-      return inner ? `*${inner}*` : "";
-    }
-
-    // 6. Code
-    if (tag === "code" && !node.classList.contains("code-block")) {
-      return inner ? `\`${inner}\`` : "";
-    }
-
-    // 7. Strikethrough
-    if (tag === "del" || tag === "s" || tag === "strike") {
-      return inner ? `~~${inner}~~` : "";
-    }
-
-    // 8. Highlight
-    if (tag === "mark") {
-      return inner ? `==${inner}==` : "";
-    }
-
-    // 9. Links
-    if (tag === "a") {
-      const href = node.getAttribute("href");
-      return href ? `[${inner}](${href})` : inner;
-    }
-
-    return inner;
-  }
-
-  return walk(domNode);
-}
-
-
-function getSerializedTextFromRange(container, endContainer, endOffset) {
-  if (!container || !endContainer) return "";
-  try {
-    const range = document.createRange();
-    range.selectNodeContents(container);
-    range.setEnd(endContainer, endOffset);
-    const fragment = range.cloneContents();
-    const tempDiv = document.createElement("div");
-    tempDiv.appendChild(fragment);
-    return getBlockTextFromDOM(tempDiv);
-  } catch (e) {
-    return "";
-  }
-}
-
 function InlineEquationPopover({
   isOpen,
   initialFormula = "",
+  placement = "bottom",
   onSave,
   onDelete,
   onClose,
@@ -1098,7 +1284,9 @@ function InlineEquationPopover({
       ref={popoverRef}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      className="absolute left-0 top-full z-50 mt-1.5 w-full max-w-lg rounded-xl border border-duck-500/50 bg-ink-900/98 p-3 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto"
+      className={`absolute left-0 z-[100] w-full max-w-lg rounded-xl border border-duck-500/50 bg-ink-900/98 p-3 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto ${
+        placement === "top" ? "bottom-full mb-2" : "top-full mt-1.5"
+      }`}
       style={{
         boxShadow: "0 20px 40px -10px rgba(0,0,0,0.7), 0 0 0 1px rgba(240, 192, 74, 0.25)",
       }}
@@ -1154,7 +1342,9 @@ function InlineEquationPopover({
               ref={presetsRef}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="absolute right-0 top-full mt-1.5 z-[60] w-72 rounded-xl border border-duck-500/40 bg-ink-900/98 p-2.5 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto"
+              className={`absolute right-0 z-[110] w-72 rounded-xl border border-duck-500/40 bg-ink-900/98 p-2.5 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto ${
+                placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"
+              }`}
               style={{
                 boxShadow: "0 20px 40px -5px rgba(0,0,0,0.85), 0 0 0 1px rgba(240, 192, 74, 0.25)",
               }}
@@ -1226,7 +1416,7 @@ function InlineEquationPopover({
               onClose();
             }
           }}
-          placeholder="LaTeX formula (e.g. f'(x) = 2x or \lim_{x \to 0}\frac{\sin x}{x})..."
+          placeholder="LaTeX formula (e.g. f'(x) = 2x or \\lim_{x \\to 0}\\frac{\\sin x}{x})..."
           className="w-full rounded-lg border border-duck-500/50 bg-ink-950 px-3 py-1.5 font-mono text-xs text-duck-200 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
         />
       </div>
@@ -1257,13 +1447,17 @@ function InlineEquationPopover({
 }
 
 // ─── Math Block Component (KaTeX LaTeX Equation Container) ───────────
-function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formula, setFormula] = useState(block.content ?? "");
   const textareaRef = useRef(null);
   const viewportRef = useRef(null);
   const formulaInnerRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+
+  const MIN_READABLE_SCALE = 0.75;
 
   useEffect(() => {
     setFormula(block.content ?? "");
@@ -1275,18 +1469,32 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
     }
   }, [isEditing]);
 
-  // Auto-scale formula so it smoothly fits inside the container without scrollbars in the editor
+  // Intelligent visibility & font size scaling calculation
   useEffect(() => {
     function updateScale() {
       if (viewportRef.current && formulaInnerRef.current) {
-        const containerWidth = viewportRef.current.clientWidth - 24; // padding allowance
-        const formulaWidth = formulaInnerRef.current.scrollWidth || formulaInnerRef.current.offsetWidth;
-        if (containerWidth > 0 && formulaWidth > 0) {
-          if (formulaWidth > containerWidth) {
-            const newScale = Math.max(0.35, Math.min(1, containerWidth / formulaWidth));
-            setScale(newScale);
-          } else {
+        const viewportEl = viewportRef.current;
+        const formulaEl = formulaInnerRef.current;
+
+        const containerWidth = viewportEl.clientWidth - 32; // padding allowance
+        const rawFormulaWidth = formulaEl.scrollWidth || formulaEl.offsetWidth;
+
+        if (containerWidth > 0 && rawFormulaWidth > 0) {
+          if (rawFormulaWidth <= containerWidth) {
+            // Whole text is completely visible at 100% full scale
             setScale(1);
+            setIsOverflowing(false);
+          } else {
+            const idealScale = containerWidth / rawFormulaWidth;
+            if (idealScale >= MIN_READABLE_SCALE) {
+              // Fits cleanly within the comfortable dynamic scale range
+              setScale(idealScale);
+              setIsOverflowing(false);
+            } else {
+              // Formula is too long to fit at readable scale -> lock to readable floor & enable scroll wheel
+              setScale(MIN_READABLE_SCALE);
+              setIsOverflowing(true);
+            }
           }
         }
       }
@@ -1300,77 +1508,174 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
     return () => ro?.disconnect();
   }, [formula, isEditing]);
 
-  const presets = [
-    { label: "Quadratic", math: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" },
-    { label: "Euler", math: "e^{i\\pi} + 1 = 0" },
-    { label: "Integral", math: "\\int_{a}^{b} f(x) dx = F(b) - F(a)" },
-    { label: "Einstein", math: "E = mc^2" },
-    { label: "Normal Dist", math: "f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{1}{2}\\left(\\frac{x-\\mu}{\\sigma}\\right)^2}" },
-    { label: "Derivative", math: "\\frac{d}{dx}\\left( \\sin(x) \\right) = \\cos(x)" },
-    { label: "Matrix", math: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}" },
+  // Horizontal mouse scroll wheel listener when equation overflows
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) return;
+
+    const handleWheel = (e) => {
+      if (!isOverflowing) return;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        const canScrollLeft = viewportEl.scrollLeft > 0;
+        const canScrollRight =
+          viewportEl.scrollLeft < viewportEl.scrollWidth - viewportEl.clientWidth - 1;
+
+        if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
+          e.preventDefault();
+          viewportEl.scrollLeft += e.deltaY * 0.85;
+        }
+      }
+    };
+
+    viewportEl.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewportEl.removeEventListener("wheel", handleWheel);
+  }, [isOverflowing]);
+
+  const MATH_PRESETS = [
+    { label: "Quadratic", latex: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" },
+    { label: "Euler", latex: "e^{i\\pi} + 1 = 0" },
+    { label: "Integral", latex: "\\int_{a}^{b} f(x) dx = F(b) - F(a)" },
+    { label: "Einstein", latex: "E = mc^2" },
+    { label: "Normal Dist", latex: "f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{1}{2}\\left(\\frac{x-\\mu}{\\sigma}\\right)^2}" },
+    { label: "Derivative", latex: "\\frac{d}{dx}\\left( \\sin(x) \\right) = \\cos(x)" },
+    { label: "Matrix", latex: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}" },
   ];
 
-  const handleFormulaChange = (newVal) => {
-    setFormula(newVal);
-    onUpdateBlock(block.id, { content: newVal }, true);
+  const handleSave = () => {
+    setIsEditing(false);
+    onUpdateBlock(block.id, { content: formula.trim() });
   };
 
-  const handleExitEdit = () => {
-    if (!formula || !formula.trim()) {
-      if (onDelete) {
-        onDelete(block.id);
-      }
-    } else {
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === "Escape") {
       setIsEditing(false);
+      setFormula(block.content ?? "");
+    } else if (e.key === "ArrowDown") {
+      e.stopPropagation();
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      const val = formula || "";
+      const isLastLine = !val.substring(start).includes("\n");
+      if (isLastLine && start === end) {
+        e.preventDefault();
+        handleSave();
+        onExitDown?.(block.id);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.stopPropagation();
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      const val = formula || "";
+      const isFirstLine = !val.substring(0, start).includes("\n");
+      if (isFirstLine && start === end) {
+        e.preventDefault();
+        handleSave();
+        onExitUp?.(block.id);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.stopPropagation();
+      if (e.target.selectionStart === 0 && e.target.selectionEnd === 0) {
+        e.preventDefault();
+        handleSave();
+        onExitUp?.(block.id);
+      }
+    } else if (e.key === "ArrowRight") {
+      e.stopPropagation();
+      const val = formula || "";
+      if (e.target.selectionStart === val.length && e.target.selectionEnd === val.length) {
+        e.preventDefault();
+        handleSave();
+        onExitDown?.(block.id);
+      }
+    } else if (e.key === "Backspace" && !formula.trim()) {
+      if (!isLocked) {
+        e.preventDefault();
+        setIsEditing(false);
+        onDelete?.(block.id);
+      }
     }
   };
 
   return (
     <div
+      tabIndex={0}
       onClick={() => {
         onSelect(block.id);
+        if (!isLocked) setIsEditing(true);
       }}
-      className="group/mathblk relative my-2 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 transition-all hover:border-duck-500/50 shadow-md"
+      onKeyDown={(e) => {
+        if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") {
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "Enter" && !isEditing) {
+          e.preventDefault();
+          if (!isLocked) setIsEditing(true);
+        } else if (
+          e.key === "Delete" &&
+          !isEditing &&
+          e.target.tagName !== "INPUT" &&
+          e.target.tagName !== "TEXTAREA"
+        ) {
+          if (!isLocked) {
+            e.preventDefault();
+            onDelete?.(block.id);
+          }
+        }
+      }}
+      id={`math_${block.id}`}
+      className="group/mathblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 cursor-pointer outline-none focus:ring-1 focus:ring-duck-400/40"
     >
-      <div className="flex items-center justify-between border-b border-ink-800 pb-2 mb-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-duck-300 w-full">
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 font-mono text-xs text-duck-400 shrink-0">∑</span>
-          <input
-            type="text"
-            value={block.title || "LaTeX Math Equation"}
-            onChange={(e) => onUpdateBlock(block.id, { title: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            className="print-content bg-transparent border-none outline-none text-duck-300 placeholder:text-duck-500/50 w-full"
-            placeholder="Equation Title..."
-          />
-        </div>
-      </div>
-
-      {/* Rendered KaTeX Formula Viewport — Auto-scales to fit without scrollbars */}
+      {/* KaTeX Centered Equation Viewer (100% full formula visibility with dynamic auto-scaling) */}
       <div
         ref={viewportRef}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(block.id);
-          setIsEditing(true);
+          if (!isLocked) setIsEditing(true);
         }}
-        className="flex items-center justify-center min-h-[3.5rem] py-2 px-4 overflow-hidden text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-duck-500/40 transition-colors w-full"
+        className={`relative flex items-center min-h-[3.5rem] py-2.5 px-4 text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-duck-500/40 transition-colors w-full ${
+          isOverflowing
+            ? "justify-start overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-duck-500/50 scrollbar-track-transparent"
+            : "justify-center overflow-hidden"
+        }`}
       >
         <div
           ref={formulaInnerRef}
           style={{
             transform: scale < 1 ? `scale(${scale})` : undefined,
-            transformOrigin: "center center",
+            transformOrigin: isOverflowing ? "left center" : "center center",
             transition: "transform 0.15s ease-out",
           }}
-          className="flex items-center justify-center max-w-full text-duck-300"
+          className={`flex items-center text-duck-300 ${isOverflowing ? "min-w-max pr-6" : "max-w-full justify-center"}`}
         >
           <KaTeXRender formula={formula || "E = mc^2"} displayMode={true} />
         </div>
+
+        {/* Scroll hint indicator when overflowing */}
+        {isOverflowing && (
+          <div className="absolute right-2 bottom-1 text-[9px] font-mono text-ink-500/70 bg-ink-950/80 px-1.5 py-0.5 rounded border border-ink-800/60 pointer-events-none print:hidden opacity-70 group-hover/mathblk:opacity-100 transition-opacity">
+            ↔ Scroll
+          </div>
+        )}
       </div>
 
       {/* Interactive LaTeX Code Input & Presets */}
-      {isEditing && (
+      {!isLocked && isEditing && (
         <div
           className="mt-3 border-t border-ink-800/80 pt-3 space-y-2.5"
           onClick={(e) => e.stopPropagation()}
@@ -1384,43 +1689,115 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete }) {
             </div>
             <textarea
               ref={textareaRef}
-              rows={2}
               value={formula}
-              onFocus={() => onSelect(block.id)}
-              onChange={(e) => handleFormulaChange(e.target.value)}
-              onBlur={handleExitEdit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleExitEdit();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  handleExitEdit();
-                }
-              }}
-              placeholder="e.g. E = mc^2 or \int_{a}^{b} f(x) dx"
-              className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-xs font-mono text-duck-300 outline-none focus:border-duck-400 focus:ring-1 focus:ring-duck-400"
+              onChange={(e) => setFormula(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}"
+              rows={2}
+              className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 font-mono text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
             />
           </div>
 
-          {/* Preset Buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-500 mr-1">Quick Presets:</span>
-            {presets.map((p) => (
+          {/* Action Toolbar with single Presets toggle button */}
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-ink-800/50">
+            <button
+              type="button"
+              onClick={() => setPresetsOpen((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                presetsOpen
+                  ? "border-duck-400 bg-duck-500/25 text-duck-200 shadow-sm"
+                  : "border-ink-700 bg-ink-850 text-ink-300 hover:border-duck-500/50 hover:bg-duck-500/10 hover:text-duck-200"
+              }`}
+              title="Toggle math formula presets & symbols"
+            >
+              <span>✨ Presets</span>
+              <span className="text-[10px] opacity-70">{presetsOpen ? "▴" : "▾"}</span>
+            </button>
+
+            <div className="flex items-center gap-2">
               <button
-                key={p.label}
                 type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleFormulaChange(p.math);
+                onClick={() => {
+                  setIsEditing(false);
+                  setPresetsOpen(false);
+                  setFormula(block.content ?? "");
                 }}
-                className="rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-duck-500/40 hover:bg-duck-500/20 hover:text-duck-300 active:scale-95 cursor-pointer"
+                className="rounded-md px-3 py-1 text-xs text-ink-400 hover:bg-ink-800 hover:text-ink-200 cursor-pointer"
               >
-                {p.label}
+                Cancel
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={handleSave}
+                className="rounded-md bg-duck-400 px-3 py-1 text-xs font-semibold text-ink-950 hover:bg-duck-300 cursor-pointer"
+              >
+                Done (Save)
+              </button>
+            </div>
           </div>
+
+          {/* Expandable Presets & Symbols Tray */}
+          {presetsOpen && (
+            <div className="rounded-lg border border-ink-750 bg-ink-950 p-2.5 space-y-2 animate-fade-in text-left">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-400 block mb-1">
+                  Formula Templates
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {MATH_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setFormula(preset.latex);
+                        onUpdateBlock(block.id, { content: preset.latex });
+                      }}
+                      className="rounded-md border border-ink-750 bg-ink-850 px-2 py-0.5 text-[11px] font-mono text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-400 block mb-1">
+                  Quick Symbols
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    "\\pi", "\\theta", "\\alpha", "\\beta", "\\lambda", "\\sigma", "\\Delta", "\\nabla",
+                    "\\pm", "\\le", "\\ge", "\\neq", "\\approx", "\\infty", "\\cdot", "\\times", "\\to", "\\partial", "\\sqrt{x}", "\\frac{a}{b}"
+                  ].map((sym) => (
+                    <button
+                      key={sym}
+                      type="button"
+                      onClick={() => {
+                        const textarea = textareaRef.current;
+                        if (textarea) {
+                          const start = textarea.selectionStart ?? formula.length;
+                          const end = textarea.selectionEnd ?? formula.length;
+                          const next = formula.slice(0, start) + sym + formula.slice(end);
+                          setFormula(next);
+                          setTimeout(() => {
+                            textarea.focus();
+                            const pos = start + sym.length;
+                            textarea.setSelectionRange(pos, pos);
+                          }, 10);
+                        } else {
+                          setFormula((prev) => (prev ? prev + " " : "") + sym);
+                        }
+                      }}
+                      className="rounded border border-ink-750 bg-ink-850/80 px-1.5 py-0.5 text-xs font-mono text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-duck-200 transition-colors cursor-pointer"
+                      title={sym}
+                    >
+                      {sym.replace(/^\\/, "")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1448,13 +1825,21 @@ function HighlightCode({ code, language }) {
   );
 }
 
-function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false, registerRef }) {
   const [copied, setCopied] = useState(false);
-  const underlayRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (registerRef) registerRef(block.id, textareaRef);
+  }, [block.id, registerRef]);
 
   const activeLangId = normalizeLanguage(block.language || block.meta?.language);
   const activeLangObj =
     CORE_LANGUAGES.find((l) => l.id === activeLangId) || CORE_LANGUAGES[0];
+
+  const codeText = block.content || "";
+  const lines = codeText.split("\n");
+  const lineCount = Math.max(3, lines.length);
 
   const handleCopy = async (e) => {
     e.stopPropagation();
@@ -1482,65 +1867,158 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   };
 
   const handleSelectLang = (langId) => {
+    if (isLocked) return;
     onUpdateBlock(
       block.id,
       {
         language: langId,
         meta: { ...(block.meta || {}), language: langId },
       },
-      true
+      false
     );
   };
 
   const handleKeyDown = (e) => {
+    if (isLocked) {
+      if (e.key === "Backspace" || e.key === "Delete" || e.key === "Enter") {
+        e.preventDefault();
+        return;
+      }
+    }
+    const start = e.target.selectionStart;
+    const end = e.target.selectionEnd;
+    const val = block.content || "";
+
+    if (e.key === "ArrowDown") {
+      e.stopPropagation();
+      const isLastLine = !val.substring(start).includes("\n");
+      if (isLastLine && start === end) {
+        e.preventDefault();
+        onExitDown?.(block.id);
+        return;
+      }
+    }
+    if (e.key === "ArrowUp") {
+      e.stopPropagation();
+      const isFirstLine = !val.substring(0, start).includes("\n");
+      if (isFirstLine && start === end) {
+        e.preventDefault();
+        onExitUp?.(block.id);
+        return;
+      }
+    }
+    if (e.key === "ArrowLeft") {
+      e.stopPropagation();
+      if (start === 0 && end === 0) {
+        e.preventDefault();
+        onExitUp?.(block.id);
+        return;
+      }
+    }
+    if (e.key === "ArrowRight") {
+      e.stopPropagation();
+      if (start === val.length && end === val.length) {
+        e.preventDefault();
+        onExitDown?.(block.id);
+        return;
+      }
+    }
     if (e.key === "Tab") {
       e.preventDefault();
-      const target = e.target;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const val = target.value;
+      if (isLocked) return;
       if (e.shiftKey) {
-        // Shift+Tab: Unindent 2 spaces if present
+        // Dedent 2 spaces if possible
         if (start >= 2 && val.substring(start - 2, start) === "  ") {
           const newVal = val.substring(0, start - 2) + val.substring(end);
-          onUpdateBlock(block.id, { content: newVal }, true);
+          onUpdateBlock(block.id, { content: newVal }, false);
           setTimeout(() => {
-            target.selectionStart = target.selectionEnd = Math.max(0, start - 2);
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start - 2;
+            }
           }, 0);
         }
       } else {
-        // Tab: Insert 2 spaces
+        // Indent 2 spaces
         const newVal = val.substring(0, start) + "  " + val.substring(end);
-        onUpdateBlock(block.id, { content: newVal }, true);
+        onUpdateBlock(block.id, { content: newVal }, false);
         setTimeout(() => {
-          target.selectionStart = target.selectionEnd = start + 2;
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+          }
+        }, 0);
+      }
+    } else if (e.key === "Enter") {
+      // Auto-indent to match previous line leading spaces
+      const currentLineText = val.substring(0, start).split("\n").pop() || "";
+      const match = currentLineText.match(/^(\s+)/);
+      if (match && match[1]) {
+        e.preventDefault();
+        const indent = match[1];
+        const newVal = val.substring(0, start) + "\n" + indent + val.substring(start);
+        onUpdateBlock(block.id, { content: newVal }, false);
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 1 + indent.length;
+          }
         }, 0);
       }
     } else if (e.key === "Backspace" && (!block.content || !block.content.trim())) {
-      e.preventDefault();
-      onDelete?.(block.id);
-    }
-  };
-
-  const handleScroll = (e) => {
-    if (underlayRef.current) {
-      underlayRef.current.scrollTop = e.target.scrollTop;
-      underlayRef.current.scrollLeft = e.target.scrollLeft;
+      if (!isLocked) {
+        e.preventDefault();
+        onDelete?.(block.id);
+      }
     }
   };
 
   return (
     <div
-      onClick={() => onSelect(block.id)}
-      className="group/codeblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-950 font-mono text-sm shadow-xl transition-all hover:border-ink-700"
+      tabIndex={0}
+      onClick={() => {
+        onSelect(block.id);
+        if (textareaRef.current && document.activeElement !== textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }}
+      onFocus={(e) => {
+        if (e.target === e.currentTarget && textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          onAddAfter?.(block.id, "", "text");
+        } else if (e.key === "Delete" && e.target.tagName !== "TEXTAREA" && e.target.tagName !== "INPUT") {
+          if (!isLocked) {
+            e.preventDefault();
+            onDelete?.(block.id);
+          }
+        }
+      }}
+      className="group/codeblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-[#0f1219] font-mono text-sm shadow-xl transition-all hover:border-emerald-500/30 outline-none focus:ring-1 focus:ring-emerald-400/40"
     >
       {/* Top Header Bar with Language Dropdown & Copy Controls */}
-      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-900/90 px-3.5 py-2 select-none">
+      <div className="flex items-center justify-between border-b border-ink-800/80 bg-ink-900/90 px-3.5 py-2 select-none">
         <div className="flex items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/20 text-[10px] font-extrabold text-emerald-400">
             &lt;/&gt;
           </span>
-          <span className="text-xs font-semibold text-ink-300">Code Snippet</span>
+          <span className="text-xs font-semibold text-ink-300 font-sans">Code Snippet</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -1549,13 +2027,13 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
             {activeLangObj.label || activeLangId}
           </span>
 
-          {/* Copy Button (Screen Only) */}
+          {/* Copy Button */}
           <button
             type="button"
             onClick={handleCopy}
             onMouseDown={(e) => e.stopPropagation()}
             title="Copy code snippet"
-            className="flex items-center gap-1 rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 pointer-events-auto relative z-20 print:hidden"
+            className="flex items-center gap-1 rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-colors hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 pointer-events-auto relative z-20 print:hidden cursor-pointer"
           >
             {copied ? (
               <>
@@ -1570,14 +2048,17 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
             )}
           </button>
 
-          {/* 10-Language Selector Dropdown (Screen Only) */}
+          {/* 10-Language Selector Dropdown */}
           <div className="relative pointer-events-auto z-20 print:hidden">
             <select
               value={activeLangId}
+              disabled={isLocked}
               onChange={(e) => handleSelectLang(e.target.value)}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="cursor-pointer rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 transition-all hover:border-emerald-500/50 hover:bg-ink-750 focus:outline-none pointer-events-auto"
+              className={`cursor-pointer rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 transition-all hover:border-emerald-500/50 hover:bg-ink-750 focus:outline-none pointer-events-auto ${
+                isLocked ? "opacity-60 cursor-not-allowed" : ""
+              }`}
             >
               {CORE_LANGUAGES.map((lang) => (
                 <option key={lang.id} value={lang.id} className="bg-ink-900 text-ink-100">
@@ -1589,33 +2070,37 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete }) {
         </div>
       </div>
 
-      {/* Code Editor Body */}
-      <div className="relative min-h-[4rem] bg-ink-950 font-mono text-sm leading-relaxed overflow-hidden rounded-b-xl">
-        {/* Syntax Highlighting Underlay */}
+      {/* Code Editor Body with Line Numbers */}
+      <div className="relative flex min-h-[4.5rem] bg-[#0d1017] font-mono text-xs sm:text-sm leading-relaxed overflow-hidden rounded-b-xl">
+        {/* Line Numbers Gutter */}
         <div
-          ref={underlayRef}
-          className="code-highlight-underlay absolute inset-0 pointer-events-none p-4 whitespace-pre-wrap break-words overflow-hidden text-ink-100"
-          style={{ tabSize: 2 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            textareaRef.current?.focus();
+          }}
+          className="select-none py-3.5 pl-3 pr-2.5 text-right font-mono text-ink-600 border-r border-ink-850 bg-ink-950/60 shrink-0 text-xs leading-relaxed min-w-[2.5rem] cursor-pointer"
         >
-          <HighlightCode code={block.content || ""} language={activeLangId} />
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div key={i} className="leading-relaxed">
+              {i + 1}
+            </div>
+          ))}
         </div>
-        
-        {/* Interactive Textarea Overlay */}
+
+        {/* Textarea Code Editor */}
         <textarea
+          id={`code_${block.id}`}
+          ref={textareaRef}
           value={block.content || ""}
-          onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, true)}
+          readOnly={isLocked}
+          onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false)}
           onKeyDown={handleKeyDown}
-          onScroll={handleScroll}
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Write code snippet here..."
-          rows={Math.max(3, (block.content || "").split("\n").length)}
-          style={{
-            tabSize: 2,
-            color: "transparent",
-            caretColor: "#34d399", // emerald-400
-          }}
-          className="relative z-10 block w-full resize-y bg-transparent font-mono text-sm leading-relaxed outline-none placeholder:text-ink-600 focus:outline-none p-4 whitespace-pre-wrap break-words border-0 outline-0 shadow-none ring-0 selection:bg-duck-500/30 selection:text-transparent pointer-events-auto"
+          placeholder="// Type or paste code here..."
+          rows={lineCount}
+          style={{ tabSize: 2 }}
+          className="flex-1 block w-full resize-y bg-transparent font-mono text-xs sm:text-sm leading-relaxed text-emerald-300 placeholder:text-ink-600 focus:outline-none p-3.5 whitespace-pre border-0 outline-0 shadow-none ring-0 selection:bg-emerald-500/20 selection:text-emerald-100 pointer-events-auto overflow-x-auto"
           spellCheck={false}
         />
       </div>
@@ -1632,11 +2117,15 @@ function TableCell({
   onChange,
   onKeyDown,
   onDelete,
+  onMathClick,
+  rowIdx,
+  colIdx,
+  isLocked = false,
 }) {
   const cellRef = useRef(null);
 
   useEffect(() => {
-    if (cellRef.current) {
+    if (cellRef.current && document.activeElement !== cellRef.current) {
       const currentDomText = getBlockTextFromDOM(cellRef.current);
       if (currentDomText !== value) {
         setBlockDOMFromText(cellRef.current, value || "");
@@ -1645,7 +2134,10 @@ function TableCell({
   }, [value]);
 
   const handleInput = () => {
+    if (isLocked) return;
     if (cellRef.current) {
+      tryAutoFormatInlineCode(cellRef.current);
+      tryAutoFormatInlineMath(cellRef.current);
       const newText = getBlockTextFromDOM(cellRef.current);
       onChange(newText);
     }
@@ -1657,25 +2149,54 @@ function TableCell({
     }
   };
 
+  const handleClick = (e) => {
+    if (isLocked) return;
+    const mathPill = e.target.closest(".katex-inline-node");
+    if (mathPill) {
+      e.stopPropagation();
+      e.preventDefault();
+      onMathClick?.(mathPill, cellRef.current, rowIdx, colIdx, isHeader);
+    }
+  };
+
+  const handleKeyDownInternal = (e) => {
+    if (isLocked) {
+      if (e.key === "Enter" || e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        return;
+      }
+    }
+    handleInlineBoundaryKeyDown(e);
+    if (e.key === "Enter" || e.key === "Tab") {
+      if (cellRef.current) {
+        const text = getBlockTextFromDOM(cellRef.current);
+        if (text.includes("$") || text.includes("`")) {
+          setBlockDOMFromText(cellRef.current, text);
+        }
+      }
+    }
+    onKeyDown?.(e);
+  };
+
   return (
     <div className="flex items-center justify-between gap-1 w-full">
       <div
         id={id}
         ref={cellRef}
-        contentEditable
+        contentEditable={!isLocked}
         suppressContentEditableWarning
         onInput={handleInput}
         onBlur={handleBlur}
-        onKeyDown={onKeyDown}
-        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDownInternal}
+        onClick={handleClick}
         data-placeholder={placeholder}
         className={`w-full outline-none transition-colors rounded px-1.5 py-1 min-h-[1.5em] empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
           isHeader
             ? "font-semibold text-duck-300 focus:text-duck-200 focus:bg-ink-800/80"
             : "text-ink-100 focus:text-duck-200 focus:bg-ink-900/80"
-        }`}
+        } ${isLocked ? "cursor-default select-text" : ""}`}
       />
-      {onDelete && (
+      {!isLocked && onDelete && (
         <button
           type="button"
           onClick={(e) => {
@@ -1685,7 +2206,7 @@ function TableCell({
           title={isHeader ? "Delete column" : "Delete row"}
           className={`opacity-0 ${
             isHeader ? "group-hover/th:opacity-100" : "group-hover/tr:opacity-100"
-          } rounded px-1 text-[10px] text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-opacity print:hidden cursor-pointer shrink-0`}
+          } rounded px-1 text-[10px] text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-opacity cursor-pointer shrink-0 print:hidden`}
         >
           ✕
         </button>
@@ -1694,55 +2215,190 @@ function TableCell({
   );
 }
 
+function removeFormulaAtIndex(text, targetIndex) {
+  if (!text) return "";
+  let currentIndex = 0;
+  return text.replace(/\$([^$\n]+)\$/g, (match) => {
+    if (currentIndex === targetIndex) {
+      currentIndex++;
+      return "";
+    }
+    currentIndex++;
+    return match;
+  }).replace(/\s+/g, " ").trim();
+}
+
+function removeFormulaFromCellText(text, formulaToRemove, formulaIndex = -1) {
+  if (!text) return "";
+  if (formulaIndex >= 0) {
+    const byIndex = removeFormulaAtIndex(text, formulaIndex);
+    if (byIndex !== text) return byIndex;
+  }
+  if (!formulaToRemove) return text;
+  const escaped = formulaToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`\\$${escaped}\\$`, "g");
+  return text.replace(regex, "").replace(/\s+/g, " ").trim();
+}
+
+function updateFormulaAtIndex(text, targetIndex, newFormula) {
+  if (!text) return "";
+  let currentIndex = 0;
+  return text.replace(/\$([^$\n]+)\$/g, (match) => {
+    if (currentIndex === targetIndex) {
+      currentIndex++;
+      return `$${newFormula}$`;
+    }
+    currentIndex++;
+    return match;
+  });
+}
+
+function updateFormulaInCellText(text, oldFormula, newFormula, formulaIndex = -1) {
+  if (!text) return `$${newFormula}$`;
+  if (formulaIndex >= 0) {
+    const byIndex = updateFormulaAtIndex(text, formulaIndex, newFormula);
+    if (byIndex !== text) return byIndex;
+  }
+  if (oldFormula) {
+    const escaped = oldFormula.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`\\$${escaped}\\$`);
+    if (regex.test(text)) {
+      return text.replace(regex, `$${newFormula}$`);
+    }
+  }
+  const regex = /\$([^$\n]+)\$/;
+  if (regex.test(text)) {
+    return text.replace(regex, `$${newFormula}$`);
+  }
+  return `${text} $${newFormula}$`.trim();
+}
+
 // ─── Table Block Component (Interactive Matrix / Grid Table) ─────────
-function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false }) {
   const normData = useMemo(() => {
     return getNormalizedTableData(block.tableData, block.content);
   }, [block.tableData, block.content]);
 
   const [tableData, setTableData] = useState(normData);
 
+  // Math Popover State for Table Cells
+  const [mathPopoverOpen, setMathPopoverOpen] = useState(false);
+  const [selectedMathNode, setSelectedMathNode] = useState(null);
+  const [popoverFormula, setPopoverFormula] = useState("");
+  const [activeCellLocation, setActiveCellLocation] = useState(null); // { rowIdx, colIdx, isHeader }
+  const [activeCellEl, setActiveCellEl] = useState(null);
+  const [activeFormulaIndex, setActiveFormulaIndex] = useState(-1);
+
   useEffect(() => {
     setTableData(normData);
   }, [normData]);
 
-  const updateAndSave = (newData) => {
+  const updateAndSave = (newData, recordHistory = false) => {
+    if (isLocked) return;
     setTableData(newData);
-    onUpdateBlock(block.id, { tableData: newData, content: "" }, true);
+    onUpdateBlock(block.id, { tableData: newData, content: "" }, true, recordHistory);
   };
 
-  const handleCellChange = (rowIndex, colIndex, value, isHeader = false) => {
+  const handleCellChange = (rowIndex, colIndex, value, isHeader = false, recordHistory = false) => {
+    if (isLocked) return;
     if (isHeader) {
       const newHeaders = [...tableData.headers];
+      while (newHeaders.length <= colIndex) newHeaders.push("");
       newHeaders[colIndex] = value;
-      updateAndSave({ ...tableData, headers: newHeaders });
+      updateAndSave({ ...tableData, headers: newHeaders }, recordHistory);
     } else {
       const newRows = tableData.rows.map((r, rIdx) => {
         if (rIdx !== rowIndex) return r;
-        const newRow = [...r];
+        const newRow = Array.isArray(r) ? [...r] : [];
+        while (newRow.length <= colIndex) newRow.push("");
         newRow[colIndex] = value;
         return newRow;
       });
-      updateAndSave({ ...tableData, rows: newRows });
+      updateAndSave({ ...tableData, rows: newRows }, recordHistory);
     }
   };
 
+  const handleMathClick = (mathPill, cellEl, rowIdx, colIdx, isHeader) => {
+    if (isLocked) return;
+    let pillIdx = -1;
+    if (mathPill && cellEl) {
+      const allPills = Array.from(cellEl.querySelectorAll(".katex-inline-node"));
+      pillIdx = allPills.indexOf(mathPill);
+    }
+    setActiveFormulaIndex(pillIdx);
+
+    if (mathPill) {
+      const formula = mathPill.getAttribute("data-formula") || "";
+      setSelectedMathNode(mathPill);
+      setPopoverFormula(formula);
+    } else {
+      setSelectedMathNode(null);
+      setPopoverFormula("x^2");
+    }
+    setActiveCellLocation({ rowIdx, colIdx, isHeader });
+    setActiveCellEl(cellEl);
+    setMathPopoverOpen(true);
+  };
+
+  const handleMathSave = (newFormula) => {
+    if (isLocked) return;
+    if (activeCellLocation) {
+      const { rowIdx, colIdx, isHeader } = activeCellLocation;
+      const currentCellText =
+        (isHeader
+          ? tableData.headers[colIdx]
+          : tableData.rows[rowIdx]?.[colIdx]) || "";
+
+      let newCellText = "";
+      if (!newFormula || !newFormula.trim()) {
+        const formulaToDelete = popoverFormula || (selectedMathNode?.getAttribute("data-formula") || "");
+        newCellText = removeFormulaFromCellText(currentCellText, formulaToDelete, activeFormulaIndex);
+      } else if (popoverFormula) {
+        newCellText = updateFormulaInCellText(currentCellText, popoverFormula, newFormula.trim(), activeFormulaIndex);
+      } else {
+        newCellText = currentCellText ? `${currentCellText} $${newFormula.trim()}$` : `$${newFormula.trim()}$`;
+      }
+
+      const cellId = isHeader
+        ? `tbl_${block.id}_h_${colIdx}`
+        : `tbl_${block.id}_r_${rowIdx}_c_${colIdx}`;
+      const targetEl = document.getElementById(cellId) || activeCellEl;
+      if (targetEl) {
+        setBlockDOMFromText(targetEl, newCellText);
+      }
+      handleCellChange(rowIdx, colIdx, newCellText, isHeader, true);
+    }
+    setMathPopoverOpen(false);
+    setSelectedMathNode(null);
+    setActiveFormulaIndex(-1);
+    setActiveCellLocation(null);
+    setActiveCellEl(null);
+  };
+
+  const handleMathDelete = () => {
+    if (isLocked) return;
+    handleMathSave("");
+  };
+
   const addColumn = () => {
+    if (isLocked) return;
     const colNumber = tableData.headers.length + 1;
     const newHeaders = [...tableData.headers, `Column ${colNumber}`];
-    const newRows = tableData.rows.map((r) => [...r, ""]);
-    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows });
+    const newRows = tableData.rows.map((r) => (Array.isArray(r) ? [...r, ""] : [""]));
+    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows }, true);
   };
 
   const removeColumn = (colIndex) => {
+    if (isLocked) return;
     if (tableData.headers.length <= 1) return;
     const newHeaders = tableData.headers.filter((_, idx) => idx !== colIndex);
-    const newRows = tableData.rows.map((r) => r.filter((_, idx) => idx !== colIndex));
-    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows });
+    const newRows = tableData.rows.map((r) => (Array.isArray(r) ? r.filter((_, idx) => idx !== colIndex) : []));
+    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows }, true);
   };
 
   const addRow = (insertIndex = null) => {
-    const emptyRow = Array(tableData.headers.length).fill("");
+    if (isLocked) return;
+    const emptyRow = Array(Math.max(1, tableData.headers.length)).fill("");
     let newRows;
     if (insertIndex !== null && insertIndex >= 0) {
       newRows = [...tableData.rows];
@@ -1750,19 +2406,24 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
     } else {
       newRows = [...tableData.rows, emptyRow];
     }
-    updateAndSave({ ...tableData, rows: newRows });
+    updateAndSave({ ...tableData, rows: newRows }, true);
   };
 
   const removeRow = (rowIndex) => {
+    if (isLocked) return;
     if (tableData.rows.length <= 1) return;
     const newRows = tableData.rows.filter((_, idx) => idx !== rowIndex);
-    updateAndSave({ ...tableData, rows: newRows });
+    updateAndSave({ ...tableData, rows: newRows }, true);
   };
 
   const handleCellKeyDown = (e, rowIndex, colIndex, isHeader = false) => {
+    if (isLocked) return;
+    const colCount = tableData.headers.length || 1;
+    const rowCount = tableData.rows.length || 0;
+    const hasHeaders = tableData.hasHeaderRow !== false && tableData.headers.length > 0;
+
     if (e.key === "Tab") {
       e.preventDefault();
-      const colCount = tableData.headers.length;
       if (!e.shiftKey) {
         if (isHeader) {
           if (colIndex < colCount - 1) {
@@ -1776,7 +2437,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
           if (colIndex < colCount - 1) {
             const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex}_c_${colIndex + 1}`);
             nextEl?.focus();
-          } else if (rowIndex < tableData.rows.length - 1) {
+          } else if (rowIndex < rowCount - 1) {
             const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_0`);
             nextEl?.focus();
           } else {
@@ -1806,66 +2467,222 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
           }
         }
       }
+    } else if (e.key === "ArrowDown") {
+      if (isHeader) {
+        if (rowCount > 0) {
+          e.preventDefault();
+          const targetEl = document.getElementById(`tbl_${block.id}_r_0_c_${colIndex}`);
+          targetEl?.focus();
+        } else {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        }
+      } else {
+        if (rowIndex < rowCount - 1) {
+          e.preventDefault();
+          const targetEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_${colIndex}`);
+          targetEl?.focus();
+        } else {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        }
+      }
+    } else if (e.key === "ArrowUp") {
+      if (isHeader) {
+        e.preventDefault();
+        onExitUp?.(block.id);
+      } else {
+        if (rowIndex > 0) {
+          e.preventDefault();
+          const targetEl = document.getElementById(`tbl_${block.id}_r_${rowIndex - 1}_c_${colIndex}`);
+          targetEl?.focus();
+        } else {
+          // Row 0: navigate into header if present, otherwise exit up (BUG-TBL-09)
+          e.preventDefault();
+          if (hasHeaders) {
+            const targetEl = document.getElementById(`tbl_${block.id}_h_${colIndex}`);
+            targetEl?.focus();
+          } else {
+            onExitUp?.(block.id);
+          }
+        }
+      }
+    } else if (e.key === "ArrowLeft") {
+      const activeEl = document.activeElement;
+      const sel = window.getSelection();
+      const isAtStart = isCaretAtBlockStart(activeEl, sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null);
+      if (isAtStart) {
+        e.preventDefault();
+        if (colIndex > 0) {
+          const targetId = isHeader
+            ? `tbl_${block.id}_h_${colIndex - 1}`
+            : `tbl_${block.id}_r_${rowIndex}_c_${colIndex - 1}`;
+          const targetEl = document.getElementById(targetId);
+          if (targetEl) setCaretToEnd(targetEl);
+        } else {
+          // colIndex === 0
+          if (isHeader) {
+            onExitUp?.(block.id);
+          } else if (rowIndex > 0) {
+            const targetEl = document.getElementById(`tbl_${block.id}_r_${rowIndex - 1}_c_${colCount - 1}`);
+            if (targetEl) setCaretToEnd(targetEl);
+          } else {
+            if (hasHeaders) {
+              const targetEl = document.getElementById(`tbl_${block.id}_h_${colCount - 1}`);
+              if (targetEl) setCaretToEnd(targetEl);
+            } else {
+              onExitUp?.(block.id);
+            }
+          }
+        }
+      }
+    } else if (e.key === "ArrowRight") {
+      const activeEl = document.activeElement;
+      const sel = window.getSelection();
+      const isAtEnd = isCaretAtBlockEnd(activeEl, sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null);
+      if (isAtEnd) {
+        e.preventDefault();
+        if (colIndex < colCount - 1) {
+          const targetId = isHeader
+            ? `tbl_${block.id}_h_${colIndex + 1}`
+            : `tbl_${block.id}_r_${rowIndex}_c_${colIndex + 1}`;
+          const targetEl = document.getElementById(targetId);
+          if (targetEl) setCaretToStart(targetEl);
+        } else {
+          // colIndex === colCount - 1
+          if (isHeader) {
+            const targetEl = document.getElementById(`tbl_${block.id}_r_0_c_0`);
+            if (targetEl) setCaretToStart(targetEl);
+            else onExitDown?.(block.id);
+          } else if (rowIndex < rowCount - 1) {
+            const targetEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_0`);
+            if (targetEl) setCaretToStart(targetEl);
+          } else {
+            onExitDown?.(block.id);
+          }
+        }
+      }
     } else if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (isHeader) {
-        const nextEl = document.getElementById(`tbl_${block.id}_r_0_c_${colIndex}`);
-        nextEl?.focus();
-      } else if (rowIndex < tableData.rows.length - 1) {
+        if (rowCount > 0) {
+          const nextEl = document.getElementById(`tbl_${block.id}_r_0_c_${colIndex}`);
+          nextEl?.focus();
+        } else if (colIndex === colCount - 1) {
+          const exited = onExitDown?.(block.id);
+          if (!exited) {
+            onAddAfter?.(block.id, "", "text");
+          }
+        } else {
+          const nextEl = document.getElementById(`tbl_${block.id}_h_${colIndex + 1}`);
+          nextEl?.focus();
+        }
+      } else if (rowIndex < rowCount - 1) {
         const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_${colIndex}`);
         nextEl?.focus();
       } else {
-        addRow();
-        setTimeout(() => {
-          const newEl = document.getElementById(`tbl_${block.id}_r_${rowIndex + 1}_c_${colIndex}`);
-          newEl?.focus();
-        }, 30);
+        // Last row (rowIndex === rowCount - 1):
+        if (colIndex === colCount - 1) {
+          // Last row, last col: go to next block (place caret there)
+          const exited = onExitDown?.(block.id);
+          if (!exited) {
+            onAddAfter?.(block.id, "", "text");
+          }
+        } else {
+          // Move to next column on last row without adding any new rows or columns
+          const nextEl = document.getElementById(`tbl_${block.id}_r_${rowIndex}_c_${colIndex + 1}`);
+          nextEl?.focus();
+        }
       }
     }
   };
 
   return (
     <div
+      tabIndex={0}
       onClick={() => onSelect(block.id)}
-      className="group/tableblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40"
+      onKeyDown={(e) => {
+        if (e.key === "ArrowDown" && !e.target.isContentEditable && e.target.tagName !== "INPUT") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "ArrowUp" && !e.target.isContentEditable && e.target.tagName !== "INPUT") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowLeft" && !e.target.isContentEditable && e.target.tagName !== "INPUT") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowRight" && !e.target.isContentEditable && e.target.tagName !== "INPUT") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "Enter" && e.target.tagName !== "INPUT" && !e.target.isContentEditable) {
+          e.preventDefault();
+          onAddAfter?.(block.id, "", "text");
+        } else if (
+          e.key === "Delete" &&
+          e.target.tagName !== "INPUT" &&
+          !e.target.isContentEditable
+        ) {
+          if (!isLocked) {
+            e.preventDefault();
+            onDelete?.(block.id);
+          }
+        }
+      }}
+      className="group/tableblk relative my-3 overflow-visible rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40 outline-none focus:ring-1 focus:ring-duck-400/40"
     >
+      {/* Inline LaTeX Equation Popover positioned ABOVE the Table */}
+      {!isLocked && mathPopoverOpen && (
+        <InlineEquationPopover
+          isOpen={mathPopoverOpen}
+          placement="top"
+          initialFormula={popoverFormula}
+          onSave={handleMathSave}
+          onDelete={handleMathDelete}
+          onClose={() => {
+            const el = activeCellEl;
+            setMathPopoverOpen(false);
+            setSelectedMathNode(null);
+            setActiveCellLocation(null);
+            setActiveCellEl(null);
+            requestAnimationFrame(() => {
+              el?.focus();
+            });
+          }}
+        />
+      )}
+
       {/* Table Top Toolbar */}
-      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none">
-        <div className="flex items-center gap-2 flex-1 mr-4">
+      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none rounded-t-xl">
+        <div className="flex items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 text-xs font-bold text-duck-400 shrink-0">
             ▦
           </span>
-          <input
-            type="text"
-            value={block.title || ""}
-            onChange={(e) => onUpdateBlock(block.id, { title: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            className="print-content bg-transparent border-none outline-none text-xs font-semibold text-duck-300 placeholder:text-ink-500 w-full"
-            placeholder="Table title or caption (optional)..."
-          />
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 print:hidden">
+          <span className="text-xs font-semibold text-ink-300">Table</span>
           <span className="text-[10px] font-mono font-medium text-ink-400 bg-ink-900 border border-ink-800 px-2 py-0.5 rounded">
             {tableData.rows.length} × {tableData.headers.length}
           </span>
-          <button
-            type="button"
-            onClick={addColumn}
-            title="Add Column to the right"
-            className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
-          >
-            <span>+</span> Column
-          </button>
-          <button
-            type="button"
-            onClick={() => addRow()}
-            title="Add Row to bottom"
-            className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
-          >
-            <span>+</span> Row
-          </button>
         </div>
+
+        {!isLocked && (
+          <div className="flex items-center gap-2 shrink-0 print:hidden">
+            <button
+              type="button"
+              onClick={addColumn}
+              title="Add Column to the right"
+              className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
+            >
+              <span>+</span> Column
+            </button>
+            <button
+              type="button"
+              onClick={() => addRow()}
+              title="Add Row to bottom"
+              className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
+            >
+              <span>+</span> Row
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Interactive Table Grid Container */}
@@ -1887,6 +2704,10 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
                       onChange={(val) => handleCellChange(0, colIdx, val, true)}
                       onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
                       onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
+                      onMathClick={handleMathClick}
+                      rowIdx={0}
+                      colIdx={colIdx}
+                      isLocked={isLocked}
                     />
                   </th>
                 ))}
@@ -1912,6 +2733,10 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
                       onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
                       onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
                       onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
+                      onMathClick={handleMathClick}
+                      rowIdx={rowIdx}
+                      colIdx={colIdx}
+                      isLocked={isLocked}
                     />
                   </td>
                 ))}
@@ -1926,7 +2751,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete }) {
 
 // ─── Site Bookmark Component ─────────────────────────────────────────
 
-function SiteBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp }) {
   const [urlInput, setUrlInput] = useState(block.url || "");
 
   const handleEmbed = (e) => {
@@ -1950,13 +2775,33 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete }) {
       tabIndex={0}
       onClick={() => onSelect(block.id)}
       onKeyDown={(e) => {
-        if (e.key === "Backspace" || e.key === "Delete") {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+          return;
+        }
+        if (e.key === "Enter" && e.target.tagName !== "INPUT") {
+          e.preventDefault();
+          onAddAfter?.(block.id, "", "text");
+          return;
+        }
+        if (e.key === "Delete") {
           if (e.target.tagName !== "INPUT" || !urlInput) {
             e.preventDefault();
             onDelete?.(block.id);
           }
         }
+        if (e.key === "Backspace" && (e.target.tagName !== "INPUT" || !urlInput)) {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        }
       }}
+      id={`site_${block.id}`}
       className="group/siteblk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-3.5 shadow-md transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
     >
       {!block.url ? (
@@ -2035,33 +2880,31 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   );
 }
 
-// ─── Media Block Component (URL Embed & Local File Upload) ────────────
-function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
+// ─── Media Block Component (URL Embed & Local File Upload & YouTube) ──
+function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false }) {
   const [activeTab, setActiveTab] = useState("url"); // "url" | "upload"
   const [urlInput, setUrlInput] = useState(block.url || "");
   const [mediaError, setMediaError] = useState(false);
   const fileInputRef = useRef(null);
 
-  const mediaKind = block.mediaKind || "image";
+  const ytInfo = useMemo(() => getYouTubeEmbedInfo(block.url), [block.url]);
+  const isYouTube = block.mediaKind === "youtube" || !!ytInfo;
+  const mediaKind = isYouTube ? "youtube" : (block.mediaKind || "image");
 
   const handleEmbedUrl = (e) => {
     e?.preventDefault?.();
-    if (urlInput.trim()) {
+    const rawUrl = urlInput.trim();
+    if (rawUrl) {
       setMediaError(false);
-      onUpdateBlock(block.id, { url: urlInput.trim(), mediaKind }, true);
+      const detectedYt = getYouTubeEmbedInfo(rawUrl);
+      const chosenKind = detectedYt ? "youtube" : mediaKind === "youtube" ? "video" : mediaKind;
+      onUpdateBlock(block.id, { url: rawUrl, mediaKind: chosenKind }, true);
     }
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    let detectedKind = "image";
-    if (file.type.startsWith("audio/")) {
-      detectedKind = "audio";
-    } else if (file.type.startsWith("video/")) {
-      detectedKind = "video";
-    }
+    if (!file || !file.type.startsWith("image/")) return;
 
     const reader = new FileReader();
     reader.onload = (loadEvt) => {
@@ -2072,7 +2915,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
           block.id,
           {
             url: dataUrl,
-            mediaKind: detectedKind,
+            mediaKind: "image",
             fileName: file.name,
             content: block.content || file.name,
           },
@@ -2090,13 +2933,33 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
       tabIndex={0}
       onClick={() => onSelect(block.id)}
       onKeyDown={(e) => {
-        if (e.key === "Backspace" || e.key === "Delete") {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+          return;
+        }
+        if (e.key === "Enter" && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          onAddAfter?.(block.id, "", "text");
+          return;
+        }
+        if (e.key === "Delete") {
           if (e.target.tagName !== "INPUT" || !urlInput) {
             e.preventDefault();
             onDelete?.(block.id);
           }
         }
+        if (e.key === "Backspace" && (e.target.tagName !== "INPUT" || !urlInput)) {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        }
       }}
+      id={`media_${block.id}`}
       className="group/mediablk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
     >
       {!block.url ? (
@@ -2115,30 +2978,36 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
               >
                 🔗 Embed Link
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("upload")}
-                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
-                  activeTab === "upload"
-                    ? "bg-duck-500/20 text-duck-200 border border-duck-400/40"
-                    : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
-                }`}
-              >
-                📁 Upload File
-              </button>
+              {mediaKind !== "youtube" && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("upload")}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                    activeTab === "upload"
+                      ? "bg-duck-500/20 text-duck-200 border border-duck-400/40"
+                      : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
+                  }`}
+                >
+                  📁 Upload File
+                </button>
+              )}
             </div>
 
             {/* Media Kind Selector */}
             <div className="flex items-center gap-1">
               {[
                 { id: "image", label: "🖼️ Image" },
-                { id: "audio", label: "🎵 Audio" },
-                { id: "video", label: "🎬 Video" },
+                { id: "youtube", label: "▶️ YouTube" },
               ].map((m) => (
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => onUpdateBlock(block.id, { mediaKind: m.id })}
+                  onClick={() => {
+                    if (m.id === "youtube") {
+                      setActiveTab("url");
+                    }
+                    onUpdateBlock(block.id, { mediaKind: m.id });
+                  }}
                   className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase transition-all cursor-pointer ${
                     mediaKind === m.id
                       ? "bg-duck-500/25 text-duck-300 border border-duck-500/50"
@@ -2158,7 +3027,11 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
                 type="text"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder={`Paste ${mediaKind} URL (e.g. https://example.com/media.png)...`}
+                placeholder={
+                  mediaKind === "youtube"
+                    ? "Paste YouTube URL (e.g. https://www.youtube.com/watch?v=... or youtu.be)..."
+                    : `Paste image URL (e.g. https://example.com/diagram.png)...`
+                }
                 className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
               />
               <button
@@ -2171,13 +3044,13 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
             </form>
           )}
 
-          {/* Tab 2: Upload File */}
-          {activeTab === "upload" && (
+          {/* Tab 2: Upload Image */}
+          {activeTab === "upload" && mediaKind !== "youtube" && (
             <div>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,audio/*,video/*"
+                accept="image/*"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -2187,13 +3060,13 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
                 className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-ink-700 bg-ink-950/60 p-6 transition-all hover:border-duck-500/60 hover:bg-duck-500/5 cursor-pointer group"
               >
                 <span className="text-3xl mb-1.5 group-hover:scale-110 transition-transform">
-                  {mediaKind === "audio" ? "🎵" : mediaKind === "video" ? "🎬" : "🖼️"}
+                  🖼️
                 </span>
                 <span className="text-xs font-semibold text-ink-200 group-hover:text-duck-200">
-                  Click to select {mediaKind} from your computer
+                  Click to select image from your computer
                 </span>
                 <span className="text-[10px] text-ink-500 mt-0.5">
-                  Supports PNG, JPG, GIF, WebP, MP3, WAV, MP4, WebM
+                  Supports PNG, JPG, JPEG, GIF, WebP, SVG
                 </span>
               </button>
             </div>
@@ -2204,50 +3077,107 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between border-b border-ink-800/80 pb-2">
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-duck-400 uppercase tracking-wider">
-              <span>{mediaKind === "audio" ? "🎵 Audio" : mediaKind === "video" ? "🎬 Video" : "🖼️ Image"}</span>
+              <span>{isYouTube ? "▶️ YouTube Video" : mediaKind === "audio" ? "🎵 Audio" : mediaKind === "video" ? "🎬 Video" : "🖼️ Image"}</span>
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                setUrlInput(block.url.startsWith("data:") ? "" : block.url);
-                setMediaError(false);
-                onUpdateBlock(block.id, { url: "" });
-              }}
-              className="rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-xs text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
-            >
-              ✏️ Replace Media
-            </button>
+
+            <div className="flex items-center gap-2 print:hidden">
+              {/* Width Resize Presets for Images, Videos, and YouTube */}
+              {mediaKind !== "audio" && (
+                <div className="flex items-center gap-1 bg-ink-950/80 px-1 py-0.5 rounded-lg border border-ink-750">
+                  {["25%", "50%", "100%"].map((sz) => {
+                    const currentSize = block.size || block.width || "100%";
+                    const isActive = currentSize === sz;
+                    return (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateBlock(block.id, { size: sz, width: sz });
+                        }}
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-duck-500/30 text-duck-200 border border-duck-400/50 shadow-sm"
+                            : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
+                        }`}
+                        title={`Resize to ${sz} width`}
+                      >
+                        {sz}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUrlInput(block.url.startsWith("data:") ? "" : block.url);
+                  setMediaError(false);
+                  onUpdateBlock(block.id, { url: "" });
+                }}
+                className="rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-xs text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
+              >
+                ✏️ Replace Media
+              </button>
+            </div>
           </div>
 
-          {/* Media Player / Image */}
-          {mediaError ? (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-center text-xs text-rose-300">
-              ⚠️ Unable to load media from this URL. Please check the link or choose another file.
-            </div>
-          ) : mediaKind === "audio" ? (
-            <audio src={formattedUrl} controls onError={() => setMediaError(true)} className="w-full" />
-          ) : mediaKind === "video" ? (
-            <video
-              src={formattedUrl}
-              controls
-              onError={() => setMediaError(true)}
-              className="w-full max-h-[28rem] rounded-xl border border-ink-800 bg-ink-950 object-contain shadow"
-            />
-          ) : (
-            <img
-              src={formattedUrl}
-              alt={block.content || "Media"}
-              onError={() => setMediaError(true)}
-              className="w-full max-h-[28rem] rounded-xl object-contain bg-ink-950/80 border border-ink-800 shadow"
-            />
-          )}
+          {/* Media Player / Image / YouTube Container */}
+          <div
+            className={`transition-all duration-300 ${
+              mediaKind === "audio"
+                ? "w-full"
+                : (block.size || block.width) === "25%"
+                ? "w-full max-w-[25%] min-w-[220px] mx-auto"
+                : (block.size || block.width) === "50%"
+                ? "w-full max-w-[50%] min-w-[320px] mx-auto"
+                : "w-full"
+            }`}
+          >
+            {mediaError ? (
+              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-center text-xs text-rose-300">
+                ⚠️ Unable to load media from this URL. Please check the link or choose another file.
+              </div>
+            ) : isYouTube && ytInfo ? (
+              <div className="relative w-full overflow-hidden rounded-xl border border-ink-800 bg-black aspect-video shadow-lg">
+                <iframe
+                  src={ytInfo.embedUrl}
+                  title={block.content || "YouTube video player"}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="absolute inset-0 h-full w-full border-0"
+                />
+              </div>
+            ) : isYouTube && !ytInfo ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-xs text-amber-300">
+                ⚠️ Invalid YouTube URL. Please enter a valid YouTube video link (e.g. https://www.youtube.com/watch?v=... or https://youtu.be/...).
+              </div>
+            ) : mediaKind === "audio" ? (
+              <audio src={formattedUrl} controls onError={() => setMediaError(true)} className="w-full" />
+            ) : mediaKind === "video" ? (
+              <video
+                src={formattedUrl}
+                controls
+                onError={() => setMediaError(true)}
+                className="w-full max-h-[28rem] rounded-xl border border-ink-800 bg-ink-950 object-contain shadow"
+              />
+            ) : (
+              <img
+                src={formattedUrl}
+                alt={block.content || "Media"}
+                onError={() => setMediaError(true)}
+                className="w-full max-h-[28rem] rounded-xl object-contain bg-ink-950/80 border border-ink-800 shadow"
+              />
+            )}
+          </div>
 
           {/* Editable Caption */}
           <input
             type="text"
             value={block.content || ""}
             onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
-            placeholder="Add an optional caption (e.g. Figure 1: Circuit diagram)..."
+            placeholder="Add an optional caption (e.g. Lecture 4: Key concepts)..."
             className="w-full bg-transparent text-center text-xs text-ink-400 placeholder:text-ink-600 outline-none border-b border-transparent focus:border-duck-500/30 py-0.5"
           />
         </div>
@@ -2256,100 +3186,570 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete }) {
   );
 }
 
-// ─── Canvas Block Component (Interactive Whiteboard & Drawing) ────────
-function CanvasBlock({ block, onUpdateBlock, onSelect, onDelete }) {
-  const [showCanvasModal, setShowCanvasModal] = useState(false);
+
+
+// ─── Multi-Column Layout Block (2 to 5 Columns Split) ──────────────────────────
+function ColumnItem({ blockId, col, idx, totalCols = 2, isLocked, onTitleChange, onContentChange, onMathClick, onAddAfter, onExitDown, onExitUp, onDelete, allCols, setSelectedBlockIds, selectedBlockIds }) {
+  const titleRef = useRef(null);
+  const contentRef = useRef(null);
+
+  useEffect(() => {
+    if (titleRef.current && document.activeElement !== titleRef.current) {
+      const domText = getBlockTextFromDOM(titleRef.current);
+      if (domText !== (col.title || "")) {
+        setBlockDOMFromText(titleRef.current, col.title || "");
+      }
+    }
+  }, [col.title]);
+
+  useEffect(() => {
+    if (contentRef.current && document.activeElement !== contentRef.current) {
+      const domText = getBlockTextFromDOM(contentRef.current);
+      if (domText !== (col.content || "")) {
+        setBlockDOMFromText(contentRef.current, col.content || "");
+      }
+    }
+  }, [col.content]);
+
+  const handleTitleInput = () => {
+    if (isLocked || !titleRef.current) return;
+    tryAutoFormatInlineCode(titleRef.current);
+    tryAutoFormatInlineMath(titleRef.current);
+    const text = getBlockTextFromDOM(titleRef.current);
+    onTitleChange(text);
+  };
+
+  const handleTitleBlur = () => {
+    if (titleRef.current) {
+      setBlockDOMFromText(titleRef.current, col.title || "");
+    }
+  };
+
+  const handleContentInput = () => {
+    if (isLocked || !contentRef.current) return;
+    tryAutoFormatInlineCode(contentRef.current);
+    tryAutoFormatInlineMath(contentRef.current);
+    const text = getBlockTextFromDOM(contentRef.current);
+    onContentChange(text);
+  };
+
+  const handleContentBlur = () => {
+    if (contentRef.current) {
+      setBlockDOMFromText(contentRef.current, col.content || "");
+    }
+  };
+
+  const handleClick = (e) => {
+    if (isLocked) return;
+    const mathPill = e.target.closest(".katex-inline-node");
+    if (mathPill) {
+      e.stopPropagation();
+      e.preventDefault();
+      const isTitle = titleRef.current && titleRef.current.contains(mathPill);
+      onMathClick?.(
+        mathPill,
+        idx,
+        isTitle ? "title" : "content",
+        isTitle ? titleRef.current : contentRef.current
+      );
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (isLocked) {
+      if (e.key === "Enter" || e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    const activeEl = document.activeElement;
+    const isTitle = activeEl === titleRef.current;
+    const isContent = activeEl === contentRef.current;
+
+    // 1. Enter key: title advances to content instead of inserting newline (BUG-COL-11)
+    if (e.key === "Enter" && !e.shiftKey) {
+      if (isTitle) {
+        e.preventDefault();
+        if (contentRef.current) {
+          setCaretToStart(contentRef.current);
+        }
+        return;
+      }
+    }
+
+    // 2. Tab & Shift+Tab column hopping (BUG-COL-13)
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (!e.shiftKey) {
+        if (isTitle) {
+          if (contentRef.current) setCaretToStart(contentRef.current);
+        } else {
+          if (idx < totalCols - 1) {
+            const nextTitle = document.getElementById(`col_${blockId}_${idx + 1}_title`);
+            if (nextTitle) setCaretToStart(nextTitle);
+          } else {
+            onExitDown?.(blockId);
+          }
+        }
+      } else {
+        if (isContent) {
+          if (titleRef.current) setCaretToEnd(titleRef.current);
+        } else {
+          if (idx > 0) {
+            const prevContent = document.getElementById(`col_${blockId}_${idx - 1}_content`);
+            if (prevContent) setCaretToEnd(prevContent);
+          } else {
+            onExitUp?.(blockId);
+          }
+        }
+      }
+      return;
+    }
+
+    // 3. ArrowDown navigation (BUG-COL-11)
+    if (e.key === "ArrowDown") {
+      if (isTitle) {
+        const sel = window.getSelection();
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+        if (isCaretOnLastVisualLine(titleRef.current, range)) {
+          e.preventDefault();
+          if (contentRef.current) setCaretToStart(contentRef.current);
+          return;
+        }
+      } else if (isContent) {
+        const sel = window.getSelection();
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+        if (isCaretOnLastVisualLine(contentRef.current, range)) {
+          e.preventDefault();
+          onExitDown?.(blockId);
+          return;
+        }
+      }
+    }
+
+    // 4. ArrowUp navigation (BUG-COL-12)
+    if (e.key === "ArrowUp") {
+      if (isContent) {
+        const sel = window.getSelection();
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+        if (isCaretOnFirstVisualLine(contentRef.current, range)) {
+          e.preventDefault();
+          if (titleRef.current) setCaretToEnd(titleRef.current);
+          return;
+        }
+      } else if (isTitle) {
+        const sel = window.getSelection();
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+        if (isCaretOnFirstVisualLine(titleRef.current, range)) {
+          e.preventDefault();
+          onExitUp?.(blockId);
+          return;
+        }
+      }
+    }
+
+    // 5. Horizontal ArrowLeft across columns (BUG-COL-13)
+    if (e.key === "ArrowLeft") {
+      const sel = window.getSelection();
+      const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+      if (isTitle) {
+        if (isCaretAtBlockStart(titleRef.current, range)) {
+          e.preventDefault();
+          if (idx > 0) {
+            const prevTitle = document.getElementById(`col_${blockId}_${idx - 1}_title`);
+            if (prevTitle) setCaretToEnd(prevTitle);
+          } else {
+            onExitUp?.(blockId);
+          }
+          return;
+        }
+      } else if (isContent) {
+        if (isCaretAtBlockStart(contentRef.current, range)) {
+          e.preventDefault();
+          if (idx > 0) {
+            const prevContent = document.getElementById(`col_${blockId}_${idx - 1}_content`);
+            if (prevContent) setCaretToEnd(prevContent);
+          } else if (titleRef.current) {
+            setCaretToEnd(titleRef.current);
+          }
+          return;
+        }
+      }
+    }
+
+    // 6. Horizontal ArrowRight across columns (BUG-COL-13)
+    if (e.key === "ArrowRight") {
+      const sel = window.getSelection();
+      const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+      if (isTitle) {
+        if (isCaretAtBlockEnd(titleRef.current, range)) {
+          e.preventDefault();
+          if (idx < totalCols - 1) {
+            const nextTitle = document.getElementById(`col_${blockId}_${idx + 1}_title`);
+            if (nextTitle) setCaretToStart(nextTitle);
+          } else if (contentRef.current) {
+            setCaretToStart(contentRef.current);
+          }
+          return;
+        }
+      } else if (isContent) {
+        if (isCaretAtBlockEnd(contentRef.current, range)) {
+          e.preventDefault();
+          if (idx < totalCols - 1) {
+            const nextContent = document.getElementById(`col_${blockId}_${idx + 1}_content`);
+            if (nextContent) setCaretToStart(nextContent);
+          } else {
+            onExitDown?.(blockId);
+          }
+          return;
+        }
+      }
+    }
+
+    // 7. Backspace key across columns & empty split block deletion:
+    if (e.key === "Backspace") {
+      const activeEl = document.activeElement;
+      const isTitle = activeEl === titleRef.current;
+      const isContent = activeEl === contentRef.current;
+      const sel = window.getSelection();
+      const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+      const isAtStart = range ? isCaretAtBlockStart(activeEl, range) : false;
+      const currentText = cleanZeroWidth(getBlockTextFromDOM(activeEl));
+      const isEmpty = currentText.length === 0;
+
+      const isEntireBlockEmpty = allCols && allCols.every(
+        (c) => (!c.title || cleanZeroWidth(c.title).length === 0) && (!c.content || cleanZeroWidth(c.content).length === 0)
+      );
+
+      if (isEntireBlockEmpty && (isAtStart || isEmpty)) {
+        e.preventDefault();
+        onDelete?.(blockId);
+        return;
+      }
+
+      if (isAtStart || isEmpty) {
+        if (isContent && isEmpty) {
+          e.preventDefault();
+          if (titleRef.current) setCaretToEnd(titleRef.current);
+          return;
+        }
+        if (isTitle && isEmpty && idx > 0) {
+          e.preventDefault();
+          const prevContent = document.getElementById(`col_${blockId}_${idx - 1}_content`);
+          if (prevContent) setCaretToEnd(prevContent);
+          return;
+        }
+      }
+    }
+
+    // 8. Delete key across columns & empty split block deletion:
+    if (e.key === "Delete") {
+      const activeEl = document.activeElement;
+      const isTitle = activeEl === titleRef.current;
+      const isContent = activeEl === contentRef.current;
+      const sel = window.getSelection();
+      const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+      const isAtEnd = range ? isCaretAtBlockEnd(activeEl, range) : false;
+      const currentText = cleanZeroWidth(getBlockTextFromDOM(activeEl));
+      const isEmpty = currentText.length === 0;
+
+      const isEntireBlockEmpty = allCols && allCols.every(
+        (c) => (!c.title || cleanZeroWidth(c.title).length === 0) && (!c.content || cleanZeroWidth(c.content).length === 0)
+      );
+
+      if (isEntireBlockEmpty && (isAtEnd || isEmpty)) {
+        e.preventDefault();
+        onDelete?.(blockId);
+        return;
+      }
+
+      if (isAtEnd || isEmpty) {
+        if (isTitle) {
+          e.preventDefault();
+          if (contentRef.current) setCaretToStart(contentRef.current);
+          return;
+        }
+        if (isContent && idx < totalCols - 1) {
+          e.preventDefault();
+          const nextTitle = document.getElementById(`col_${blockId}_${idx + 1}_title`);
+          if (nextTitle) setCaretToStart(nextTitle);
+          return;
+        }
+      }
+    }
+
+    // Escape key focuses the parent columns block container in Notion style
+    if (e.key === "Escape") {
+      e.preventDefault();
+      const container = document.getElementById(`columns_${blockId}`);
+      if (container) {
+        container.focus();
+      } else if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      return;
+    }
+
+    handleInlineBoundaryKeyDown(e);
+  };
+
+  return (
+    <div
+      onClick={(e) => {
+        handleClick(e);
+        const isEditable = Boolean(e.target.closest("[contenteditable='true'], input, textarea, select, button"));
+        if (!isEditable) {
+          const container = document.getElementById(`columns_${blockId}`);
+          container?.focus();
+        }
+      }}
+      className="flex flex-col rounded-xl border border-ink-800/80 bg-ink-900/80 p-3.5 shadow-sm transition-all hover:border-duck-500/30 hover:bg-ink-900/95 group/colcard min-w-0"
+    >
+      {/* Column Title with Inline Math / Code formatting */}
+      <div
+        id={`col_${blockId}_${idx}_title`}
+        ref={titleRef}
+        contentEditable={!isLocked}
+        suppressContentEditableWarning
+        onInput={handleTitleInput}
+        onBlur={handleTitleBlur}
+        onKeyDown={handleKeyDown}
+        data-placeholder={`Column ${idx + 1} Title...`}
+        className="w-full bg-transparent text-xs font-semibold text-ink-100 placeholder:text-ink-600 border-b border-ink-800/60 pb-1.5 mb-2 focus:outline-none focus:border-duck-400 empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] transition-colors min-h-[1.5em]"
+      />
+
+      {/* Column Multi-Line Body with Live KaTeX ($x$) & Inline Code (`code`) */}
+      <div
+        id={`col_${blockId}_${idx}_content`}
+        ref={contentRef}
+        contentEditable={!isLocked}
+        suppressContentEditableWarning
+        onInput={handleContentInput}
+        onBlur={handleContentBlur}
+        onKeyDown={handleKeyDown}
+        data-placeholder={`Notes, $formula$, \`code\`, or details for Column ${idx + 1}...`}
+        className="w-full flex-1 bg-transparent text-xs leading-relaxed text-ink-200 placeholder:text-ink-600 focus:outline-none min-h-[5.5rem] empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] whitespace-pre-wrap transition-colors"
+      />
+    </div>
+  );
+}
+
+function ColumnsBlock({
+  block,
+  onUpdateBlock,
+  onSelect,
+  setSelectedBlockIds,
+  selectedBlockIds,
+  onDelete,
+  isLocked = false,
+  onSaveNote,
+  onAddAfter,
+  onExitDown,
+  onExitUp,
+}) {
+  const currentCount = Math.max(2, Math.min(5, Number(block.columnCount) || 2));
+  const columnsData = useMemo(() => {
+    return getNormalizedColumnsData(block.columnsData, block.content, currentCount);
+  }, [block.columnsData, block.content, currentCount]);
+
+  const [localCols, setLocalCols] = useState(columnsData);
+
+  // Math Popover State for Columns
+  const [mathPopoverOpen, setMathPopoverOpen] = useState(false);
+  const [selectedMathNode, setSelectedMathNode] = useState(null);
+  const [popoverFormula, setPopoverFormula] = useState("");
+  const [activeMathColIndex, setActiveMathColIndex] = useState(0);
+  const [activeMathField, setActiveMathField] = useState("content");
+  const [activeMathEl, setActiveMathEl] = useState(null);
+  const [activeFormulaIndex, setActiveFormulaIndex] = useState(-1);
+
+  useEffect(() => {
+    setLocalCols(columnsData);
+  }, [columnsData]);
+
+  const updateAndPersist = useCallback(
+    (newCols, newCount = currentCount, immediate = false, recordHistory = false) => {
+      setLocalCols(newCols);
+      onUpdateBlock?.(
+        block.id,
+        {
+          columnCount: newCount,
+          columnsData: newCols,
+          content: newCols.map((c) => `### ${c.title || "Column"}\n${c.content || ""}`).join("\n\n"),
+        },
+        immediate,
+        recordHistory
+      );
+      if (immediate) {
+        onSaveNote?.();
+      }
+    },
+    [block.id, currentCount, onUpdateBlock, onSaveNote]
+  );
+
+  const handleTitleChange = (idx, val) => {
+    if (isLocked) return;
+    const newCols = localCols.map((col, i) => (i === idx ? { ...col, title: val } : col));
+    updateAndPersist(newCols, currentCount, false);
+  };
+
+  const handleContentChange = (idx, val) => {
+    if (isLocked) return;
+    const newCols = localCols.map((col, i) => (i === idx ? { ...col, content: val } : col));
+    updateAndPersist(newCols, currentCount, false);
+  };
+
+  const handleMathClick = (mathPill, colIdx, fieldType, targetEl) => {
+    if (isLocked) return;
+    const formula = mathPill.getAttribute("data-formula") || "";
+    setSelectedMathNode(mathPill);
+    setPopoverFormula(formula);
+    setActiveMathColIndex(colIdx);
+    setActiveMathField(fieldType);
+    setActiveMathEl(targetEl);
+
+    // Compute active formula index
+    let formulaIdx = 0;
+    if (targetEl) {
+      const allPills = Array.from(targetEl.querySelectorAll(".katex-inline-node"));
+      const foundIdx = allPills.indexOf(mathPill);
+      if (foundIdx >= 0) formulaIdx = foundIdx;
+    }
+    setActiveFormulaIndex(formulaIdx);
+    setMathPopoverOpen(true);
+  };
+
+  const handleMathSave = (newFormula) => {
+    if (isLocked) return;
+    const targetCol = localCols[activeMathColIndex];
+    if (targetCol) {
+      const currentText = (activeMathField === "title" ? targetCol.title : targetCol.content) || "";
+      let newText = "";
+      if (!newFormula || !newFormula.trim()) {
+        const formulaToDelete = popoverFormula || (selectedMathNode?.getAttribute("data-formula") || "");
+        newText = removeFormulaFromCellText(currentText, formulaToDelete, activeFormulaIndex);
+      } else if (popoverFormula) {
+        newText = updateFormulaInCellText(currentText, popoverFormula, newFormula.trim(), activeFormulaIndex);
+      } else {
+        newText = currentText ? `${currentText} $${newFormula.trim()}$` : `$${newFormula.trim()}$`;
+      }
+
+      const targetEl = activeMathEl || document.getElementById(`col_${block.id}_${activeMathColIndex}_${activeMathField}`);
+      if (targetEl) {
+        setBlockDOMFromText(targetEl, newText);
+      }
+
+      const newCols = localCols.map((col, i) =>
+        i === activeMathColIndex
+          ? { ...col, [activeMathField]: newText }
+          : col
+      );
+      updateAndPersist(newCols, currentCount, true, true);
+    }
+    setMathPopoverOpen(false);
+    setSelectedMathNode(null);
+    setActiveFormulaIndex(-1);
+    setActiveMathEl(null);
+  };
+
+  const handleMathDelete = () => {
+    if (isLocked) return;
+    handleMathSave("");
+  };
+
+  const gridColsClass =
+    currentCount === 2
+      ? "grid-cols-1 md:grid-cols-2"
+      : currentCount === 3
+      ? "grid-cols-1 md:grid-cols-3"
+      : currentCount === 4
+      ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-4"
+      : "grid-cols-1 sm:grid-cols-2 md:grid-cols-5";
 
   return (
     <div
       tabIndex={0}
-      onClick={() => onSelect(block.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Backspace" || e.key === "Delete") {
-          if (e.target.tagName !== "INPUT") {
-            e.preventDefault();
-            onDelete?.(block.id);
-          }
+      id={`columns_${block.id}`}
+      onClick={(e) => {
+        onSelect?.(block.id);
+        const isEditable = Boolean(e.target.closest("[contenteditable='true'], input, textarea, select, button"));
+        if (!isEditable) {
+          e.currentTarget.focus();
         }
       }}
-      className="group/canvasblk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
+      onKeyDown={(e) => {
+        if (
+          e.key === "Delete" &&
+          (!e.target.isContentEditable && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA")
+        ) {
+          if (!isLocked) {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete?.(block.id);
+            return;
+          }
+        } else if (e.key === "ArrowDown" && !e.target.isContentEditable && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "ArrowUp" && !e.target.isContentEditable && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowLeft" && !e.target.isContentEditable && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        } else if (e.key === "ArrowRight" && !e.target.isContentEditable && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+        } else if (e.key === "Enter" && !e.target.isContentEditable && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          onAddAfter?.(block.id, "", "text");
+        }
+      }}
+      className="relative w-full my-2 select-text outline-none focus:ring-1 focus:ring-duck-400/40 rounded-xl"
     >
-      <div className="flex items-center justify-between border-b border-ink-800/80 pb-2 mb-3">
-        <div className="flex items-center gap-2 flex-1 pr-3">
-          <span className="text-lg">🎨</span>
-          <input
-            type="text"
-            value={block.content || ""}
-            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
-            placeholder="Canvas Drawing Title..."
-            className="print-content w-full bg-transparent text-xs font-semibold text-ink-100 outline-none placeholder:text-ink-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowCanvasModal(true)}
-            className="rounded-md border border-duck-500/40 bg-duck-500/15 px-2.5 py-1 text-xs font-semibold text-duck-200 transition-colors hover:bg-duck-500/25 cursor-pointer"
-          >
-            🎨 {block.drawingData ? "Edit Drawing" : "Open Canvas"}
-          </button>
-        </div>
-      </div>
-
-      <div
-        onClick={() => setShowCanvasModal(true)}
-        className="relative w-full rounded-xl border border-dashed border-ink-750 overflow-hidden transition-all hover:border-duck-500/60 group/view flex flex-col items-center justify-center bg-ink-950 cursor-pointer"
-        style={{ height: block.previewHeight || 240 }}
-      >
-        {block.drawingData ? (
-          <div
-            className="w-full h-full relative"
-            style={{
-              transform: `scale(${block.canvasZoom || 1})`,
-              transformOrigin: "top left",
-              width: `${100 / (block.canvasZoom || 1)}%`,
-              height: `${100 / (block.canvasZoom || 1)}%`,
-            }}
-          >
-            <img
-              src={block.drawingData}
-              alt="Canvas drawing preview"
-              className="w-full h-full object-contain object-center"
-            />
-          </div>
-        ) : (
-          <div className="no-print text-center space-y-2 p-6 pointer-events-none">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-duck-500/10 text-duck-300 text-2xl group-hover/view:scale-110 transition-transform">
-              🎨
-            </div>
-            <p className="text-xs font-semibold text-ink-200">Interactive Whiteboard & Canvas</p>
-            <p className="text-[11px] text-ink-500">Click to expand to 85% screen drawing workspace</p>
-          </div>
-        )}
-      </div>
-
-      {showCanvasModal && (
-        <CanvasModal
-          drawingData={block.drawingData}
-          title={block.content || "Canvas Drawing"}
-          initialCanvasHeight={block.canvasHeight}
-          initialCanvasZoom={block.canvasZoom}
-          onSave={(newData, newCanvasHeight, newCanvasZoom) => {
-            onUpdateBlock(
-              block.id,
-              {
-                drawingData: newData,
-                canvasHeight: newCanvasHeight,
-                canvasZoom: newCanvasZoom,
-              },
-              true
-            );
-            setShowCanvasModal(false);
+      {/* Inline LaTeX Equation Popover positioned directly above the Columns */}
+      {!isLocked && mathPopoverOpen && (
+        <InlineEquationPopover
+          isOpen={mathPopoverOpen}
+          placement="top"
+          initialFormula={popoverFormula}
+          onSave={handleMathSave}
+          onDelete={handleMathDelete}
+          onClose={() => {
+            const el = activeMathEl;
+            setMathPopoverOpen(false);
+            setSelectedMathNode(null);
+            setActiveMathEl(null);
+            requestAnimationFrame(() => {
+              el?.focus();
+            });
           }}
-          onClose={() => setShowCanvasModal(false)}
         />
       )}
+
+      <div className={`grid ${gridColsClass} gap-3 sm:gap-4 items-stretch`}>
+        {localCols.map((col, idx) => (
+          <ColumnItem
+            key={col.id || idx}
+            blockId={block.id}
+            col={col}
+            idx={idx}
+            totalCols={localCols.length}
+            isLocked={isLocked}
+            onTitleChange={(val) => handleTitleChange(idx, val)}
+            onContentChange={(val) => handleContentChange(idx, val)}
+            onMathClick={handleMathClick}
+            onAddAfter={onAddAfter}
+            onExitDown={onExitDown}
+            onExitUp={onExitUp}
+            onDelete={onDelete}
+            allCols={localCols}
+            setSelectedBlockIds={setSelectedBlockIds}
+            selectedBlockIds={selectedBlockIds}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -2363,6 +3763,8 @@ const EditorBlock = memo(function EditorBlock({
   isLast,
   isSelected,
   onSelect,
+  setSelectedBlockIds,
+  selectedBlockIds,
   onChange,
   onChangeType,
   onUpdateBlock,
@@ -2382,59 +3784,17 @@ const EditorBlock = memo(function EditorBlock({
   dragHandlers,
   isDragTarget,
   isMultiSelected = false,
+  isLocked = false,
+  allBlocks = [],
+  onSelectHeading,
+  onExitDown,
+  onExitUp,
 }) {
   const contentRef = useRef(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const handleFormat = (command) => {
-    const el = contentRef.current;
-    if (!el) return;
-    el.focus();
-
-    const sel = window.getSelection();
-    let isSelectedInside = false;
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-      const range = sel.getRangeAt(0);
-      if (el.contains(range.commonAncestorContainer)) {
-        isSelectedInside = true;
-      }
-    }
-
-    if (command === "math") {
-      if (isSelectedInside) {
-        const text = sel.toString();
-        document.execCommand("insertText", false, `$${text || "x"}$`);
-      } else {
-        const currentText = getBlockTextFromDOM(el);
-        if (currentText.startsWith("$") && currentText.endsWith("$")) {
-          const unmath = currentText.slice(1, -1);
-          setBlockDOMFromText(el, unmath);
-          onChange(block.id, unmath);
-        } else {
-          const mathText = `$${currentText || "E = mc^2"}$`;
-          setBlockDOMFromText(el, mathText);
-          onChange(block.id, mathText);
-        }
-      }
-      const updatedText = getBlockTextFromDOM(el);
-      onChange(block.id, updatedText);
-      return;
-    }
-
-    if (isSelectedInside) {
-      document.execCommand(command, false, null);
-    } else {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      document.execCommand(command, false, null);
-    }
-    const updatedText = getBlockTextFromDOM(el);
-    onChange(block.id, updatedText);
-  };
+  const [menuPosition, setMenuPosition] = useState(null);
   // The block only becomes draggable while the ⠿ handle is held. Making the
   // whole row draggable would hijack text selection inside contentEditable.
   const [handleHeld, setHandleHeld] = useState(false);
@@ -2446,7 +3806,9 @@ const EditorBlock = memo(function EditorBlock({
   const [mathPopoverOpen, setMathPopoverOpen] = useState(false);
 
   useEffect(() => {
-    if (registerRef) registerRef(block.id, contentRef);
+    if (registerRef && contentRef.current) {
+      registerRef(block.id, contentRef);
+    }
   }, [block.id, registerRef]);
 
   useEffect(() => {
@@ -2459,6 +3821,9 @@ const EditorBlock = memo(function EditorBlock({
   }, [block.id, block.type, block.content]);
 
   function handleInput() {
+    if (isLocked) return;
+    tryAutoFormatInlineCode(contentRef.current);
+    tryAutoFormatInlineMath(contentRef.current);
     const text = getBlockTextFromDOM(contentRef.current);
     onChange(block.id, text);
 
@@ -2482,8 +3847,10 @@ const EditorBlock = memo(function EditorBlock({
       { prefix: "- ", type: "bullet" },
       { prefix: "* ", type: "bullet" },
       { prefix: "1. ", type: "number" },
-      { prefix: "[ ] ", type: "todo" },
-      { prefix: "[] ", type: "todo" },
+      { prefix: "[ ] ", type: "todo", checked: false },
+      { prefix: "[] ", type: "todo", checked: false },
+      { prefix: "[x] ", type: "todo", checked: true },
+      { prefix: "[X] ", type: "todo", checked: true },
       { prefix: "> ", type: "quote" },
       { prefix: "💡 ", type: "callout" },
       { prefix: ">! ", type: "callout" },
@@ -2494,21 +3861,42 @@ const EditorBlock = memo(function EditorBlock({
       { prefix: "|| ", type: "table" },
     ];
 
-
     for (const sc of shortcuts) {
       if (text.startsWith(sc.prefix)) {
         const remaining = text.slice(sc.prefix.length);
-        onChangeType(block.id, sc.type);
+        const targetCaret = remaining.length > 0 ? "end" : "start";
+        if (sc.checked !== undefined && onUpdateBlock) {
+          onUpdateBlock(block.id, { checked: sc.checked });
+        }
+        if (block.type === sc.type) {
+          onChange(block.id, remaining);
+          if (contentRef.current) {
+            setBlockDOMFromText(contentRef.current, remaining, block.type);
+            if (targetCaret === "end") {
+              setCaretToEnd(contentRef.current);
+            } else {
+              setCaretToStart(contentRef.current);
+            }
+          }
+          return;
+        }
+        onChangeType(block.id, sc.type, targetCaret);
         onChange(block.id, remaining);
         if (contentRef.current) {
-          setBlockDOMFromText(contentRef.current, remaining);
+          setBlockDOMFromText(contentRef.current, remaining, sc.type);
+          if (targetCaret === "end") {
+            setCaretToEnd(contentRef.current);
+          } else {
+            setCaretToStart(contentRef.current);
+          }
         }
         return;
       }
     }
   }
 
-  function handleSlashSelect(type) {
+  function handleSlashSelect(type, extra = {}) {
+    if (isLocked) return;
     const text = getBlockTextFromDOM(contentRef.current) || block.content || "";
     const lastSlashIndex = text.lastIndexOf("/");
 
@@ -2532,12 +3920,30 @@ const EditorBlock = memo(function EditorBlock({
       return;
     }
 
+    let initialCount = extra?.columnCount || 2;
+    if (type === "columns") {
+      const q = slashFilter.toLowerCase();
+      if (extra?.columnCount) initialCount = extra.columnCount;
+      else if (q.includes("3") || q.includes("three")) initialCount = 3;
+      else if (q.includes("4") || q.includes("four")) initialCount = 4;
+      else if (q.includes("5") || q.includes("five")) initialCount = 5;
+      else if (q.includes("2") || q.includes("two")) initialCount = 2;
+
+      onUpdateBlock?.(block.id, {
+        columnCount: initialCount,
+        columnsData: getNormalizedColumnsData(null, "", initialCount),
+      });
+    }
+
     if (lastSlashIndex <= 0 || text.trim().startsWith("/")) {
       onChange(block.id, "");
       if (contentRef.current) {
         contentRef.current.textContent = "";
       }
-      onChangeType(block.id, type);
+      onChangeType(block.id, type, {
+        columnCount: initialCount,
+        columnsData: getNormalizedColumnsData(null, "", initialCount),
+      });
     } else {
       const textBefore = text.slice(0, lastSlashIndex).trimEnd();
       const textAfter = text.slice(lastSlashIndex + slashFilter.length + 1).trimStart();
@@ -2548,7 +3954,10 @@ const EditorBlock = memo(function EditorBlock({
       }
 
       if (onAddAfter) {
-        onAddAfter(block.id, "", type);
+        onAddAfter(block.id, "", type, {
+          columnCount: initialCount,
+          columnsData: getNormalizedColumnsData(null, "", initialCount),
+        });
         if (textAfter) {
           setTimeout(() => {
             onAddAfter(block.id, textAfter, "text");
@@ -2563,6 +3972,7 @@ const EditorBlock = memo(function EditorBlock({
   }
 
   const handleTagClick = (e) => {
+    if (isLocked) return;
     const mathPill = e.target.closest(".katex-inline-node");
     if (mathPill) {
       e.stopPropagation();
@@ -2575,36 +3985,151 @@ const EditorBlock = memo(function EditorBlock({
   };
 
   const handleMathSave = (newFormula) => {
-    if (selectedMathNode && contentRef.current) {
+    if (isLocked) return;
+    const mathNode = selectedMathNode;
+    if (mathNode && contentRef.current) {
       if (!newFormula) {
-        selectedMathNode.remove();
+        mathNode.remove();
       } else {
         const katexHtml = katex.renderToString(newFormula, { displayMode: false, throwOnError: false });
         const escapedFormula = newFormula.replace(/"/g, "&quot;");
-        selectedMathNode.setAttribute("data-formula", newFormula);
-        selectedMathNode.innerHTML = katexHtml;
+        mathNode.setAttribute("data-formula", newFormula);
+        mathNode.innerHTML = katexHtml;
       }
       const updatedText = getBlockTextFromDOM(contentRef.current);
       onChange(block.id, updatedText);
       onUpdateBlock(block.id, { content: updatedText }, true);
+      const targetNext = mathNode.nextSibling;
+      setMathPopoverOpen(false);
+      setSelectedMathNode(null);
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.focus();
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            if (targetNext && targetNext.nodeType === 3) {
+              range.setStart(targetNext, 0);
+              range.collapse(true);
+            } else if (contentRef.current.contains(mathNode)) {
+              range.setStartAfter(mathNode);
+              range.collapse(true);
+            } else {
+              range.selectNodeContents(contentRef.current);
+              range.collapse(false);
+            }
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      });
+      return;
     }
     setMathPopoverOpen(false);
     setSelectedMathNode(null);
   };
 
   const handleMathDelete = () => {
-    if (selectedMathNode && contentRef.current) {
-      selectedMathNode.remove();
+    if (isLocked) return;
+    const mathNode = selectedMathNode;
+    if (mathNode && contentRef.current) {
+      const prevSibling = mathNode.previousSibling;
+      mathNode.remove();
       const updatedText = getBlockTextFromDOM(contentRef.current);
       onChange(block.id, updatedText);
       onUpdateBlock(block.id, { content: updatedText }, true);
+      setMathPopoverOpen(false);
+      setSelectedMathNode(null);
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.focus();
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            if (prevSibling && prevSibling.nodeType === 3) {
+              range.setStart(prevSibling, prevSibling.nodeValue ? prevSibling.nodeValue.length : 0);
+              range.collapse(true);
+            } else {
+              range.selectNodeContents(contentRef.current);
+              range.collapse(true);
+            }
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      });
+      return;
     }
     setMathPopoverOpen(false);
     setSelectedMathNode(null);
   };
 
   function handleKeyDown(e) {
+    if (isLocked) {
+      if (e.key === "Enter" || e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        return;
+      }
+    }
+
+    handleInlineBoundaryKeyDown(e);
+
     if (slashOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
+      return;
+    }
+
+    // Sub-bullet Tab / Shift+Tab indentation & unindentation for bullet lists
+    if (e.key === "Tab" && block.type === "bullet") {
+      e.preventDefault();
+      const currentLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
+      if (!e.shiftKey) {
+        if (currentLevel < 4) {
+          onUpdateBlock?.(block.id, { level: currentLevel + 1 }, false, true);
+        }
+      } else {
+        if (currentLevel > 0) {
+          onUpdateBlock?.(block.id, { level: currentLevel - 1 }, false, true);
+        } else {
+          const text = contentRef.current ? getBlockTextFromDOM(contentRef.current) : (block.content || "");
+          if (!text.trim()) {
+            onChangeType?.(block.id, "text");
+          }
+        }
+      }
+      return;
+    }
+
+    // BUG-TAB-01: Soft tab indentation / outdent without losing focus
+    if (e.key === "Tab" && block.type !== "code" && block.type !== "table") {
+      e.preventDefault();
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !contentRef.current) return;
+      const range = sel.getRangeAt(0);
+
+      if (!e.shiftKey) {
+        const textNode = document.createTextNode("  ");
+        range.deleteContents();
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const updated = getBlockTextFromDOM(contentRef.current);
+        onChange(block.id, updated);
+      } else {
+        const fullText = getBlockTextFromDOM(contentRef.current);
+        if (fullText.startsWith("  ")) {
+          const newText = fullText.slice(2);
+          setBlockDOMFromText(contentRef.current, newText);
+          setCaretToStart(contentRef.current);
+          onChange(block.id, newText);
+        } else if (fullText.startsWith(" ")) {
+          const newText = fullText.slice(1);
+          setBlockDOMFromText(contentRef.current, newText);
+          setCaretToStart(contentRef.current);
+          onChange(block.id, newText);
+        }
+      }
       return;
     }
 
@@ -2617,12 +4142,9 @@ const EditorBlock = memo(function EditorBlock({
 
       if (sel && sel.rangeCount > 0 && sel.focusNode && contentRef.current) {
         const range = sel.getRangeAt(0);
-        textBefore = getSerializedTextFromRange(contentRef.current, range.startContainer, range.startOffset);
-        const textSelected = range.collapsed
-          ? ""
-          : getSerializedTextFromRange(contentRef.current, range.endContainer, range.endOffset).slice(textBefore.length);
-        const fullText = getBlockTextFromDOM(contentRef.current);
-        textAfter = fullText.slice(textBefore.length + textSelected.length);
+        const split = splitBlockDOMAtRange(contentRef.current, range);
+        textBefore = split.textBefore;
+        textAfter = split.textAfter;
         
         onChange(block.id, textBefore);
         if (contentRef.current) {
@@ -2630,14 +4152,25 @@ const EditorBlock = memo(function EditorBlock({
         }
       }
 
-      if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim()) {
+      if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim() && !textAfter.trim()) {
+        if (block.type === "bullet" && (block.level || 0) > 0) {
+          onUpdateBlock?.(block.id, { level: (block.level || 0) - 1 }, false, true);
+          return;
+        }
         onChangeType(block.id, "text");
         return;
       }
 
       // Pressing Enter in headings, callouts, and quotes spawns a standard paragraph text block below
       const nextType = ["h1", "h2", "h3", "h4", "callout", "quote"].includes(block.type) ? "text" : block.type;
-      onAddAfter(block.id, textAfter, nextType);
+      
+      // Clean redundant leading bullet markers if inheriting list type
+      if (["bullet", "number", "todo"].includes(nextType)) {
+        textAfter = textAfter.replace(/^(\*|-|\u2022|\d+\.|\\[[ xX]?\\])\s+/, "");
+      }
+
+      const extraProps = nextType === "todo" ? { checked: false } : nextType === "bullet" ? { level: block.level || 0 } : {};
+      onAddAfter(block.id, textAfter, nextType, extraProps);
       return;
     }
 
@@ -2686,11 +4219,6 @@ const EditorBlock = memo(function EditorBlock({
             ? "h4"
             : "div";
 
-  // Flatten all notes from notesBySpace for Note Link picker
-  const allNotes = Object.entries(notesBySpace).flatMap(([space, notes]) =>
-    (notes || []).map((n) => ({ ...n, space }))
-  );
-
   return (
     <div
       data-block-id={block.id}
@@ -2705,45 +4233,97 @@ const EditorBlock = memo(function EditorBlock({
           ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-duck-400"
           : ""
       }`}
-      onClick={() => onSelect(block.id)}
+      onClick={(e) => {
+        onSelect(block.id);
+        if (contentRef.current && !isLocked) {
+          // If clicked in the empty margin/whitespace of the row, place caret at the end of the text
+          if (
+            e.target === e.currentTarget ||
+            (e.target.tagName === "DIV" &&
+              !e.target.isContentEditable &&
+              !e.target.closest("button, a, input, textarea, select, table, [contenteditable='true']"))
+          ) {
+            setCaretToEnd(contentRef.current);
+          }
+        }
+      }}
+      onDragOver={(e) => {
+        if (isLocked) return;
+        e.preventDefault();
+        dragHandlers?.onDragOver(block.id);
+      }}
+      onDrop={(e) => {
+        if (isLocked) return;
+        e.preventDefault();
+        dragHandlers?.onDrop();
+      }}
+      onContextMenu={(e) => {
+        if (isLocked) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect(block.id);
+        const rect = e.currentTarget.getBoundingClientRect();
+        const offsetX = Math.max(0, Math.min(rect.width - 290, e.clientX - rect.left));
+        const offsetY = Math.max(0, e.clientY - rect.top + 4);
+        setMenuPosition({ x: offsetX, y: offsetY });
+        setMenuOpen(true);
+      }}
     >
       {/* Properly Aligned Controls */}
-      <div className="absolute -left-14 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(block.id);
-          }}
-          title="Delete Block"
-          className="rounded p-1 text-xs text-rose-400/90 transition-colors hover:bg-rose-500/20 hover:text-rose-300"
-        >
-          🗑️
-        </button>
-        <button
-          type="button"
-          onMouseDown={() => setHandleHeld(true)}
-          onMouseUp={() => setHandleHeld(false)}
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen(!menuOpen);
-          }}
-          title="Drag to move · click for block menu"
-          className="cursor-grab rounded p-1 text-xs text-ink-500 transition-colors hover:bg-ink-800 hover:text-duck-300 active:cursor-grabbing"
-        >
-          ⠿
-        </button>
-      </div>
+      {!isLocked && (
+        <div className="absolute -left-14 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(block.id);
+            }}
+            title="Delete Block"
+            className="rounded p-1 text-xs text-rose-400/90 transition-colors hover:bg-rose-500/20 hover:text-rose-300 cursor-pointer"
+          >
+            🗑️
+          </button>
+          <button
+            type="button"
+            draggable={!isLocked}
+            onDragStart={(e) => {
+              if (isLocked) return;
+              e.stopPropagation();
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", block.id);
+              dragHandlers?.onDragStart(block.id);
+            }}
+            onDragEnd={() => {
+              dragHandlers?.onDragEnd();
+            }}
+            onMouseDown={() => setHandleHeld(true)}
+            onMouseUp={() => setHandleHeld(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(block.id);
+              setMenuPosition(null);
+              setMenuOpen(!menuOpen);
+            }}
+            title="Drag to move · click for block menu"
+            className="cursor-grab rounded p-1 text-xs text-ink-500 transition-colors hover:bg-ink-800 hover:text-duck-300 active:cursor-grabbing"
+          >
+            ⠿
+          </button>
+        </div>
+      )}
 
       {menuOpen && (
         <BlockContextMenu
           block={block}
-          onClose={() => setMenuOpen(false)}
+          position={menuPosition}
+          onClose={() => {
+            setMenuOpen(false);
+            setMenuPosition(null);
+          }}
           onChangeType={onChangeType}
           onDelete={onDelete}
           onExplainBlock={onExplainBlock}
           onQuizBlock={onQuizBlock}
-          onFormat={handleFormat}
           onDuplicate={onDuplicate}
           onMoveUp={onMoveUp}
           onMoveDown={onMoveDown}
@@ -2757,12 +4337,23 @@ const EditorBlock = memo(function EditorBlock({
       {/* 1. Divider */}
       {block.type === "divider" ? (
         <div
+          id={`divider_${block.id}`}
           tabIndex={0}
           onClick={() => onSelect(block.id)}
           onKeyDown={(e) => {
-            if (e.key === "Backspace" || e.key === "Delete") {
+            if (isLocked) return;
+            if (e.key === "Delete") {
               e.preventDefault();
               onDelete(block.id);
+            } else if (e.key === "Backspace") {
+              e.preventDefault();
+              onExitUp?.(block.id);
+            } else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              onExitDown?.(block.id);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              onExitUp?.(block.id);
             } else if (e.key === "Enter") {
               e.preventDefault();
               onAddAfter(block.id, "", "text");
@@ -2777,30 +4368,48 @@ const EditorBlock = memo(function EditorBlock({
         </div>
       ) : block.type === "math" ? (
         /* Math Equation Block */
-        <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
+        <MathBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} onAddAfter={onAddAfter} onExitDown={onExitDown} onExitUp={onExitUp} isLocked={isLocked} />
       ) : block.type === "code" ? (
         /* Code Snippet Block */
-        <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
+        <CodeBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} onAddAfter={onAddAfter} onExitDown={onExitDown} onExitUp={onExitUp} isLocked={isLocked} registerRef={registerRef} />
       ) : block.type === "table" ? (
         /* Interactive Grid Table Block */
-        <TableBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
+        <TableBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} onAddAfter={onAddAfter} onExitDown={onExitDown} onExitUp={onExitUp} isLocked={isLocked} />
       ) : block.type === "bullet" ? (
 
-        /* 3. Bullet List */
-        <div className="flex items-start gap-2.5">
-          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-400" />
-          <Tag
-            ref={contentRef}
-            contentEditable
-            suppressContentEditableWarning
-            onClick={handleTagClick}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            onFocus={() => onSelect(block.id)}
-            data-placeholder={placeholders.bullet}
-            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.bullet} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
-          />
-        </div>
+        /* 3. Bullet List (Hierarchical sub-bullets with Tab/Shift+Tab support) */
+        (() => {
+          const bulletLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
+          return (
+            <div
+              className="flex items-start gap-2.5 transition-all"
+              style={bulletLevel > 0 ? { paddingLeft: `${bulletLevel * 1.5}rem` } : undefined}
+            >
+              {bulletLevel === 0 ? (
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-400" />
+              ) : bulletLevel === 1 ? (
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full border border-ink-400 bg-transparent" />
+              ) : bulletLevel === 2 ? (
+                <span className="mt-2.5 h-1.25 w-1.25 shrink-0 rounded-none bg-ink-400" />
+              ) : (
+                <span className="mt-2.5 h-1.25 w-1.25 shrink-0 rounded-none border border-ink-400 bg-transparent" />
+              )}
+              <Tag
+                ref={contentRef}
+                contentEditable={!isLocked}
+                suppressContentEditableWarning
+                onClick={handleTagClick}
+                onInput={handleInput}
+                onKeyDown={handleKeyDown}
+                onFocus={() => onSelect(block.id)}
+                data-placeholder={bulletLevel > 0 ? "Sub-bullet item" : placeholders.bullet}
+                className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.bullet} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+                  isLocked ? "cursor-default select-text" : ""
+                }`}
+              />
+            </div>
+          );
+        })()
       ) : block.type === "number" ? (
         /* 4. Numbered List */
         <div className="flex items-start gap-2.5">
@@ -2809,14 +4418,16 @@ const EditorBlock = memo(function EditorBlock({
           </span>
           <Tag
             ref={contentRef}
-            contentEditable
+            contentEditable={!isLocked}
             suppressContentEditableWarning
             onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
             data-placeholder={placeholders.number}
-            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.number} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.number} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+              isLocked ? "cursor-default select-text" : ""
+            }`}
           />
         </div>
       ) : block.type === "todo" ? (
@@ -2824,13 +4435,16 @@ const EditorBlock = memo(function EditorBlock({
         <div className="flex items-start gap-2.5">
           <input
             type="checkbox"
+            disabled={isLocked}
             checked={Boolean(block.checked)}
             onChange={(e) => onUpdateBlock(block.id, { checked: e.target.checked })}
-            className="mt-1 h-4 w-4 rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0 cursor-pointer"
+            className={`mt-1 h-4 w-4 rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0 ${
+              isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
           />
           <Tag
             ref={contentRef}
-            contentEditable
+            contentEditable={!isLocked}
             suppressContentEditableWarning
             onClick={handleTagClick}
             onInput={handleInput}
@@ -2839,7 +4453,9 @@ const EditorBlock = memo(function EditorBlock({
             data-placeholder={placeholders.todo}
             className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.todo} ${
               block.checked ? "line-through text-ink-500" : ""
-            } empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+            } empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+              isLocked ? "cursor-default select-text" : ""
+            }`}
           />
         </div>
       ) : block.type === "toggle" ? (
@@ -2850,21 +4466,23 @@ const EditorBlock = memo(function EditorBlock({
             <button
               type="button"
               onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden cursor-pointer"
               title="Toggle Dropdown Section"
             >
               {block.open === false ? "▶" : "▼"}
             </button>
             <Tag
               ref={contentRef}
-              contentEditable
+              contentEditable={!isLocked}
               suppressContentEditableWarning
               onClick={handleTagClick}
               onInput={handleInput}
               onKeyDown={handleKeyDown}
               onFocus={() => onSelect(block.id)}
               data-placeholder={placeholders.toggle}
-              className={`min-h-[1.5em] flex-1 font-semibold text-ink-100 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+              className={`min-h-[1.5em] flex-1 font-semibold text-ink-100 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+                isLocked ? "cursor-default select-text" : ""
+              }`}
             />
             <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 px-2 py-0.5 rounded border border-ink-800 bg-ink-950 print:hidden">
               {block.open === false ? "Collapsed" : "Expanded"}
@@ -2875,11 +4493,56 @@ const EditorBlock = memo(function EditorBlock({
           {block.open !== false && (
             <div className="ml-7 rounded-lg border-l-2 border-duck-500/40 bg-ink-850/70 p-3 text-xs leading-relaxed text-ink-200 animate-fade-in print:hidden">
               <textarea
+                id={`toggle_details_${block.id}`}
                 value={block.details ?? block.toggleContent ?? ""}
+                readOnly={isLocked}
                 onChange={(e) => onUpdateBlock(block.id, { details: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    const start = e.target.selectionStart;
+                    const val = e.target.value || "";
+                    const isLastLine = !val.substring(start).includes("\n");
+                    if (isLastLine && start === val.length) {
+                      e.preventDefault();
+                      onExitDown?.(block.id);
+                    }
+                  } else if (e.key === "ArrowUp") {
+                    const start = e.target.selectionStart;
+                    const val = e.target.value || "";
+                    const isFirstLine = !val.substring(0, start).includes("\n");
+                    if (isFirstLine && start === 0) {
+                      e.preventDefault();
+                      if (contentRef.current) {
+                        setCaretToEnd(contentRef.current);
+                      } else {
+                        onExitUp?.(block.id);
+                      }
+                    }
+                  } else if (e.key === "ArrowLeft") {
+                    if (e.target.selectionStart === 0 && e.target.selectionEnd === 0) {
+                      e.preventDefault();
+                      if (contentRef.current) {
+                        setCaretToEnd(contentRef.current);
+                      } else {
+                        onExitUp?.(block.id);
+                      }
+                    }
+                  } else if (e.key === "ArrowRight") {
+                    const val = e.target.value || "";
+                    if (e.target.selectionStart === val.length && e.target.selectionEnd === val.length) {
+                      e.preventDefault();
+                      onExitDown?.(block.id);
+                    }
+                  } else if (e.key === "Enter" && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    onAddAfter(block.id, "", "text");
+                  }
+                }}
                 placeholder="Add collapsible details, deep dive text, or code breakdown here..."
                 rows={3}
-                className="w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-y min-h-[3rem]"
+                className={`w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-y min-h-[3rem] ${
+                  isLocked ? "cursor-default" : ""
+                }`}
               />
             </div>
           )}
@@ -2897,13 +4560,16 @@ const EditorBlock = memo(function EditorBlock({
           <div className="relative">
             <button
               type="button"
+              disabled={isLocked}
               onClick={() => setShowIconPicker(!showIconPicker)}
-              className="text-lg leading-none p-1 rounded hover:bg-ink-800"
+              className={`text-lg leading-none p-1 rounded hover:bg-ink-800 ${
+                isLocked ? "cursor-default" : "cursor-pointer"
+              }`}
             >
               {block.calloutIcon || "💡"}
             </button>
 
-            {showIconPicker && (
+            {!isLocked && showIconPicker && (
               <>
                 <div
                   className="fixed inset-0 z-40"
@@ -2930,14 +4596,16 @@ const EditorBlock = memo(function EditorBlock({
 
           <Tag
             ref={contentRef}
-            contentEditable
+            contentEditable={!isLocked}
             suppressContentEditableWarning
             onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
             data-placeholder={placeholders.callout}
-            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.text} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.text} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+              isLocked ? "cursor-default select-text" : ""
+            }`}
           />
         </div>
       ) : block.type === "quote" ? (
@@ -2945,30 +4613,44 @@ const EditorBlock = memo(function EditorBlock({
         <div className="border-l-4 border-duck-400 pl-4 py-1 italic">
           <Tag
             ref={contentRef}
-            contentEditable
+            contentEditable={!isLocked}
             suppressContentEditableWarning
             onClick={handleTagClick}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={() => onSelect(block.id)}
             data-placeholder={placeholders.quote}
-            className={`min-h-[1.5em] outline-none ${typeStyles.quote} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+            className={`min-h-[1.5em] outline-none ${typeStyles.quote} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+              isLocked ? "cursor-default select-text" : ""
+            }`}
           />
         </div>
       ) : block.type === "site" ? (
         /* 10. Site Bookmark Embed */
-        <SiteBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
+        <SiteBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} onAddAfter={onAddAfter} onExitDown={onExitDown} onExitUp={onExitUp} />
       ) : block.type === "media" ? (
         /* 11. Image / Audio / Video Embed */
-        <MediaBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
-      ) : block.type === "canvas" ? (
-        /* 12. Canvas / Drawing Block */
-        <CanvasBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} />
+        <MediaBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} onAddAfter={onAddAfter} onExitDown={onExitDown} onExitUp={onExitUp} isLocked={isLocked} />
+      ) : block.type === "columns" ? (
+        /* Multi-Column Layout Block (2 to 5 Columns Split) */
+        <ColumnsBlock
+          block={block}
+          onUpdateBlock={onUpdateBlock}
+          onSelect={onSelect}
+          setSelectedBlockIds={setSelectedBlockIds}
+          selectedBlockIds={selectedBlockIds}
+          onDelete={onDelete}
+          isLocked={isLocked}
+          onSaveNote={onSaveNote}
+          onAddAfter={onAddAfter}
+          onExitDown={onExitDown}
+          onExitUp={onExitUp}
+        />
       ) : (
         /* Standard Paragraph & Heading Blocks */
         <Tag
           ref={contentRef}
-          contentEditable
+          contentEditable={!isLocked}
           suppressContentEditableWarning
           onClick={handleTagClick}
           onInput={handleInput}
@@ -2976,6 +4658,19 @@ const EditorBlock = memo(function EditorBlock({
           onFocus={() => onSelect(block.id)}
           data-placeholder={placeholders[block.type] ?? ""}
           className={`min-h-[1.5em] outline-none ${typeStyles[block.type] ?? typeStyles.text} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
+        />
+      )}
+
+      {/* Bottom Insertion Dropzone for effortless clicking below any block */}
+      {!isLocked && (
+        <div
+          data-insert-zone="after"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddAfter(block.id, "", "text");
+          }}
+          className="h-1.5 w-full cursor-text my-0.5 rounded transition-all hover:bg-duck-400/20 group/dropzone flex items-center justify-center"
+          title="Click to place cursor and type below this block"
         />
       )}
 
@@ -2988,6 +4683,9 @@ const EditorBlock = memo(function EditorBlock({
           onClose={() => {
             setMathPopoverOpen(false);
             setSelectedMathNode(null);
+            requestAnimationFrame(() => {
+              contentRef.current?.focus();
+            });
           }}
         />
       )}
@@ -2999,6 +4697,9 @@ const EditorBlock = memo(function EditorBlock({
           onClose={() => {
             setSlashOpen(false);
             setSlashFilter("");
+            requestAnimationFrame(() => {
+              contentRef.current?.focus();
+            });
           }}
           filter={slashFilter}
         />
@@ -3007,592 +4708,238 @@ const EditorBlock = memo(function EditorBlock({
   );
 });
 
-// ─── Canvas Modal (85% Screen Drawing Workspace) ────────────────────
-function CanvasModal({ drawingData, title, initialCanvasHeight, initialCanvasZoom, onSave, onClose }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
+// ─── Floating Text Selection Popover Toolbar ────────────────────────
+function TextSelectionToolbar({
+  editorContainerRef,
+  onExplainBlock,
+  onQuizBlock,
+  onRecordHistory,
+}) {
+  const [position, setPosition] = useState(null); // { x, y, selectedText }
+  const [visible, setVisible] = useState(false);
+  const toolbarRef = useRef(null);
 
-  const [color, setColor] = useState("#3B82F6");
-  const [tool, setTool] = useState("pen");
-  const [lastNonRulerTool, setLastNonRulerTool] = useState("pen");
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [dragStart, setDragStart] = useState(null);
-  const [currentPos, setCurrentPos] = useState(null);
-  const [mousePos, setMousePos] = useState(null);
-  const [lastPoint, setLastPoint] = useState(null);
-
-  const [undoStack, setUndoStack] = useState([]);
-  const [redoStack, setRedoStack] = useState([]);
-
-  const [eraserSize, setEraserSize] = useState(24);
-  const [penSize, setPenSize] = useState(4);
-  const [measureInfo, setMeasureInfo] = useState(null);
-
-  const [canvasHeight, setCanvasHeight] = useState(initialCanvasHeight || 700);
-  const [canvasZoom, setCanvasZoom] = useState(initialCanvasZoom || 1);
-
-  const COLORS = [
-    "#FFFFFF",
-    "#F59E0B",
-    "#3B82F6",
-    "#EF4444",
-    "#10B981",
-    "#A855F7",
-    "#06B6D4",
-    "#F97316",
-    "#EAB308",
-    "#64748B",
-  ];
-
-  const TOOLS = [
-    { id: "pen", label: "Pen", icon: "🖊️", opacity: 1 },
-    { id: "marker", label: "Marker", icon: "🖌️", opacity: 0.9 },
-    { id: "highlighter", label: "Highlighter", icon: "🖍️", opacity: 0.35 },
-    { id: "eraser", label: "Eraser", icon: "🧹", opacity: 1 },
-    { id: "ruler", label: "Ruler Line", icon: "📐", opacity: 1 },
-  ];
-
-  const isInitialized = useRef(false);
-
-  // Ensure canvas has the correct coordinate resolution for the zoom level
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    
-    const desiredWidth = container.clientWidth / canvasZoom;
-    const desiredHeight = canvasHeight / canvasZoom;
-
-    if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
-      const ctx = canvas.getContext("2d");
-      
-      let currentData = null;
-      // Only capture currentData if we have already initialized the canvas with drawingData
-      if (isInitialized.current && canvas.width > 0 && canvas.height > 0) {
-        currentData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      }
-      
-      canvas.width = desiredWidth;
-      canvas.height = desiredHeight;
-      
-      if (currentData) {
-        ctx.putImageData(currentData, 0, 0);
-      } else if (drawingData && !isInitialized.current) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0);
-          saveState();
-        };
-        img.src = drawingData;
-      } else {
-        saveState();
-      }
-      isInitialized.current = true;
-    }
-  }, [canvasHeight, canvasZoom, drawingData]);
-
-  // Global Ctrl+Z (Undo) and Ctrl+Y / Ctrl+Shift+Z (Redo) inside Canvas Modal
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        if (e.shiftKey) {
-          e.preventDefault();
-          handleRedo();
-        } else {
-          e.preventDefault();
-          handleUndo();
-        }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undoStack, redoStack]);
-
-  function saveState() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    setUndoStack((prev) => [...prev.slice(-25), data]);
-    setRedoStack([]);
-  }
-
-  function handleUndo() {
-    if (undoStack.length <= 1) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const nextUndo = [...undoStack];
-    const currentData = nextUndo.pop();
-    setRedoStack((prev) => [currentData, ...prev]);
-
-    const previousState = nextUndo[nextUndo.length - 1];
-    setUndoStack(nextUndo);
-
-    if (previousState) {
-      ctx.putImageData(previousState, 0, 0);
-    }
-  }
-
-  function handleRedo() {
-    if (redoStack.length === 0) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const nextRedo = [...redoStack];
-    const targetData = nextRedo.shift();
-    setRedoStack(nextRedo);
-
-    if (targetData) {
-      ctx.putImageData(targetData, 0, 0);
-      setUndoStack((prev) => [...prev, targetData]);
-    }
-  }
-
-  function handleClear() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    saveState();
-  }
-
-  function handleToolClick(toolId) {
-    if (toolId === "ruler") {
-      if (tool === "ruler") {
-        // Toggle ruler off -> restore previous tool
-        setTool(lastNonRulerTool || "pen");
-      } else {
-        setLastNonRulerTool(tool);
-        setTool("ruler");
-      }
-    } else {
-      setLastNonRulerTool(toolId);
-      setTool(toolId);
-    }
-  }
-
-  function getCanvasCoords(e) {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-      x: (clientX - rect.left) / canvasZoom,
-      y: (clientY - rect.top) / canvasZoom,
-    };
-  }
-
-  function applyToolStyle(ctx) {
-    const tObj = TOOLS.find((t) => t.id === tool) || TOOLS[0];
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    if (tool === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.lineWidth = eraserSize;
-    } else {
-      ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = tObj.opacity;
-
-      if (tool === "marker") {
-        ctx.lineWidth = Math.max(4, penSize * 2.2);
-      } else if (tool === "highlighter") {
-        ctx.lineWidth = Math.max(12, penSize * 4.5);
-      } else {
-        // Standard Pen
-        ctx.lineWidth = penSize;
-      }
-    }
-  }
-
-  function startDrawing(e) {
-    e.preventDefault();
-    const coords = getCanvasCoords(e);
-    
-
-    setIsDrawing(true);
-    setDragStart(coords);
-    setCurrentPos(coords);
-    setLastPoint(coords);
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    if (tool === "eraser") {
-      ctx.beginPath();
-      ctx.moveTo(coords.x, coords.y);
-      applyToolStyle(ctx);
-    }
-  }
-
-  function draw(e) {
-    const coords = getCanvasCoords(e);
-    setMousePos(coords);
-
-    if (!isDrawing) return;
-    e.preventDefault();
-    setCurrentPos(coords);
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    if (tool === "ruler") {
-      if (dragStart) {
-        const dx = coords.x - dragStart.x;
-        const dy = coords.y - dragStart.y;
-        const length = Math.round(Math.sqrt(dx * dx + dy * dy));
-        const angle = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
-        setMeasureInfo({ length, angle });
-      }
-
-    } else if (tool === "marker") {
-      // 🖌️ Felt-Tip Marker: Saturated felt ink with soft edge bleed
-      if (lastPoint) {
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = color;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-
-        // Outer soft felt bleed
-        ctx.globalAlpha = 0.35;
-        ctx.lineWidth = Math.max(6, penSize * 2.8);
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-
-        // Inner saturated ink core
-        ctx.globalAlpha = 0.85;
-        ctx.lineWidth = Math.max(4, penSize * 2.0);
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-
-        setLastPoint(coords);
-      }
-    } else if (tool === "highlighter") {
-      // 🖍️ Translucent Chisel Highlighter: Wide flat chisel stroke
-      if (lastPoint) {
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.35;
-        ctx.lineCap = "square";
-        ctx.lineJoin = "bevel";
-        ctx.lineWidth = Math.max(16, penSize * 4.5);
-
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-
-        setLastPoint(coords);
-      }
-
-    } else if (tool === "pen") {
-      // 🖊️ Gel Ballpoint Pen: Smooth velocity-sensitive ink line
-      if (lastPoint) {
-        const dx = coords.x - lastPoint.x;
-        const dy = coords.y - lastPoint.y;
-        const speed = Math.sqrt(dx * dx + dy * dy);
-        const dynamicWidth = Math.max(1, penSize * (1.2 / (1 + speed * 0.04)));
-
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = 1.0;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.lineWidth = dynamicWidth;
-
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-
-        setLastPoint(coords);
-      }
-    } else {
-      // Eraser
-      applyToolStyle(ctx);
-      ctx.lineTo(coords.x, coords.y);
-      ctx.stroke();
-    }
-  }
-
-  function stopDrawing(e) {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    if (tool === "ruler" && dragStart && currentPos) {
-      applyToolStyle(ctx);
-      ctx.beginPath();
-      ctx.moveTo(dragStart.x, dragStart.y);
-      ctx.lineTo(currentPos.x, currentPos.y);
-      ctx.stroke();
-    }
-
-    setDragStart(null);
-    setCurrentPos(null);
-    setLastPoint(null);
-    setMeasureInfo(null);
-    saveState();
-  }
-
-  function handleSaveAndClose() {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      onClose();
+  const updateSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) {
+      setVisible(false);
       return;
     }
-    const dataUrl = canvas.toDataURL("image/png");
-    onSave(dataUrl, canvasHeight, canvasZoom);
-  }
+    const text = sel.toString().trim();
+    if (!text) {
+      setVisible(false);
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    // Ensure selection is within the editorContainer
+    if (
+      editorContainerRef.current &&
+      !editorContainerRef.current.contains(range.commonAncestorContainer)
+    ) {
+      setVisible(false);
+      return;
+    }
+
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      setVisible(false);
+      return;
+    }
+
+    const toolbarWidth = 370;
+    const toolbarHeight = 40;
+    const targetX = Math.max(
+      16,
+      Math.min(window.innerWidth - toolbarWidth - 16, rect.left + rect.width / 2 - toolbarWidth / 2)
+    );
+    let targetY = rect.top - toolbarHeight - 8;
+    if (targetY < 8) {
+      targetY = rect.bottom + 8;
+    }
+
+    setPosition({ x: targetX, y: targetY, selectedText: text });
+    setVisible(true);
+  }, [editorContainerRef]);
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      requestAnimationFrame(updateSelection);
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    window.addEventListener("scroll", handleSelectionChange, true);
+    window.addEventListener("resize", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      window.removeEventListener("scroll", handleSelectionChange, true);
+      window.removeEventListener("resize", handleSelectionChange);
+    };
+  }, [updateSelection]);
+
+  if (!visible || !position) return null;
+
+  const handleFormat = (command) => {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const selectedText = sel.toString();
+    if (!selectedText) return;
+
+    // Record history snapshot before applying format
+    onRecordHistory?.();
+
+    const activeEl =
+      (document.activeElement && document.activeElement.isContentEditable)
+        ? document.activeElement
+        : range.commonAncestorContainer?.nodeType === 1
+        ? range.commonAncestorContainer.closest("[contenteditable='true']")
+        : range.commonAncestorContainer?.parentElement?.closest("[contenteditable='true']");
+
+    if (command === "bold") {
+      document.execCommand("bold", false, null);
+    } else if (command === "italic") {
+      document.execCommand("italic", false, null);
+    } else if (command === "underline") {
+      document.execCommand("underline", false, null);
+    } else if (command === "strikethrough") {
+      document.execCommand("strikeThrough", false, null);
+    } else if (command === "code") {
+      const trimmed = selectedText.trim();
+      document.execCommand("insertText", false, `\`${trimmed}\``);
+    } else if (command === "math") {
+      const trimmed = selectedText.trim();
+      document.execCommand("insertText", false, `$${trimmed}$`);
+    }
+
+    if (activeEl) {
+      // Immediately compile rich KaTeX math pills and inline code tags in DOM
+      if (command === "math" || command === "code") {
+        const fullText = getBlockTextFromDOM(activeEl);
+        setBlockDOMFromText(activeEl, fullText);
+        setCaretToEnd(activeEl);
+      }
+      activeEl.dispatchEvent(new Event("input", { bubbles: true }));
+      requestAnimationFrame(() => {
+        activeEl.focus();
+      });
+    }
+
+    setVisible(false);
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 animate-fade-in">
-      <div className="flex w-[85vw] h-[85vh] relative flex-col rounded-2xl border border-ink-700 bg-ink-950 shadow-2xl overflow-hidden">
-        {/* Header Bar */}
-        <div className="flex items-center justify-between border-b border-ink-800 bg-ink-900 px-4 py-2.5">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">🎨</span>
-            <div>
-              <h2 className="text-sm font-bold text-ink-100">{title || "Canvas Whiteboard"}</h2>
-              <p className="text-[11px] text-ink-400">85% Viewport Drawing Workspace • Ctrl+Z / Ctrl+Y to Undo/Redo</p>
-            </div>
-          </div>
+    <div
+      ref={toolbarRef}
+      onMouseDown={(e) => {
+        // Prevent selection blur when clicking toolbar buttons
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+      }}
+      className="fixed z-[120] flex items-center gap-0.5 rounded-xl border border-ink-700/90 bg-ink-900/98 px-1.5 py-1 shadow-2xl backdrop-blur-md animate-fade-in text-xs select-none pointer-events-auto"
+    >
+      {/* Formatting buttons */}
+      <button
+        type="button"
+        onClick={() => handleFormat("bold")}
+        title="Bold"
+        className="flex h-7 w-7 items-center justify-center rounded-lg font-bold text-ink-200 hover:bg-ink-800 hover:text-white transition-colors cursor-pointer"
+      >
+        B
+      </button>
+      <button
+        type="button"
+        onClick={() => handleFormat("italic")}
+        title="Italic"
+        className="flex h-7 w-7 items-center justify-center rounded-lg italic text-ink-200 hover:bg-ink-800 hover:text-white transition-colors cursor-pointer"
+      >
+        I
+      </button>
+      <button
+        type="button"
+        onClick={() => handleFormat("underline")}
+        title="Underline"
+        className="flex h-7 w-7 items-center justify-center rounded-lg underline text-ink-200 hover:bg-ink-800 hover:text-white transition-colors cursor-pointer"
+      >
+        U
+      </button>
+      <button
+        type="button"
+        onClick={() => handleFormat("strikethrough")}
+        title="Cross / Strikethrough"
+        className="flex h-7 w-7 items-center justify-center rounded-lg line-through text-ink-200 hover:bg-ink-800 hover:text-white transition-colors cursor-pointer"
+      >
+        S
+      </button>
+      <button
+        type="button"
+        onClick={() => handleFormat("code")}
+        title="Convert to Code (`code`)"
+        className="flex h-7 px-1.5 items-center justify-center rounded-lg font-mono text-xs text-ink-200 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+      >
+        &lt;/&gt;
+      </button>
+      <button
+        type="button"
+        onClick={() => handleFormat("math")}
+        title="Convert to Formula ($formula$)"
+        className="flex h-7 px-1.5 items-center justify-center rounded-lg font-mono text-xs font-bold text-duck-300 hover:bg-duck-500/20 hover:text-duck-200 transition-colors cursor-pointer"
+      >
+        $x$
+      </button>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleUndo}
-              disabled={undoStack.length <= 1}
-              className="inline-flex items-center gap-1 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs font-medium text-ink-200 hover:bg-ink-800 disabled:opacity-40"
-              title="Undo (Ctrl+Z)"
-            >
-              <span>↩</span>
-              <span>Undo</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleRedo}
-              disabled={redoStack.length === 0}
-              className="inline-flex items-center gap-1 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs font-medium text-ink-200 hover:bg-ink-800 disabled:opacity-40"
-              title="Redo (Ctrl+Y)"
-            >
-              <span>↪</span>
-              <span>Redo</span>
-            </button>
+      {/* Divider */}
+      <div className="mx-1 h-4 w-[1px] bg-ink-700/80" />
 
-            <button
-              type="button"
-              onClick={handleClear}
-              className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-500/20"
-              title="Clear full grid/canvas"
-            >
-              🗑️ Clear Full Grid
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveAndClose}
-              className="rounded-lg bg-gradient-to-r from-duck-500 to-amber-500 px-4 py-1.5 text-xs font-bold text-ink-950 shadow hover:brightness-110"
-            >
-              Save & Done
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* Toolbar: Tools + Size Selectors + 10 Colors */}
-        <div className="flex flex-wrap items-center justify-between border-b border-ink-800 bg-ink-900/90 px-4 py-2 gap-3">
-          {/* Tool Picker */}
-          <div className="flex items-center gap-1">
-            {TOOLS.map((t) => {
-              const isActive = tool === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => handleToolClick(t.id)}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                    isActive
-                      ? "bg-duck-500/20 text-duck-300 border border-duck-500/40 shadow-sm"
-                      : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
-                  }`}
-                  title={t.id === "ruler" ? (isActive ? "Click to deactivate Ruler" : "Click to activate Ruler") : t.label}
-                >
-                  <span>{t.icon}</span>
-                  <span className="hidden sm:inline">{t.label}</span>
-                  {t.id === "ruler" && isActive && <span className="text-[10px] text-amber-400">●</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Dynamic Tool Size Control */}
-          <div className="flex items-center gap-2 rounded-xl border border-ink-800 bg-ink-850 px-3 py-1">
-            <span className="text-[11px] font-semibold text-ink-400">
-              {tool === "eraser" ? "Eraser Size:" : "Stroke Width:"}
-            </span>
-            {tool === "eraser" ? (
-              <div className="flex items-center gap-1">
-                {[12, 24, 40, 60, 80].map((sz) => (
-                  <button
-                    key={sz}
-                    type="button"
-                    onClick={() => setEraserSize(sz)}
-                    className={`rounded px-2 py-0.5 text-[11px] font-bold transition-all ${
-                      eraserSize === sz
-                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                        : "text-ink-400 hover:text-ink-200"
-                    }`}
-                  >
-                    {sz}px
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                {[1.5, 3, 6, 12, 20].map((sz) => (
-                  <button
-                    key={sz}
-                    type="button"
-                    onClick={() => setPenSize(sz)}
-                    className={`rounded px-2 py-0.5 text-[11px] font-bold transition-all ${
-                      penSize === sz
-                        ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
-                        : "text-ink-400 hover:text-ink-200"
-                    }`}
-                  >
-                    {sz}px
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 10 Colors Palette */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-ink-800 bg-ink-850 p-1.5">
-            {COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                style={{ backgroundColor: c }}
-                className={`h-5 w-5 rounded-full transition-transform hover:scale-125 ${
-                  color === c ? "ring-2 ring-duck-400 ring-offset-2 ring-offset-ink-900 scale-110" : ""
-                }`}
-                title={c}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Canvas Body (85% viewport height container) */}
-        <div
-          ref={containerRef}
-          className="relative flex-1 w-full h-full overflow-auto group"
-        >
-          <div
-            style={{ width: `${100 / canvasZoom}%`, height: canvasHeight / canvasZoom, transform: `scale(${canvasZoom})` }}
-            className={`relative origin-top-left cursor-crosshair bg-ink-950`}
-          >
-            <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchStart={startDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-            className="absolute inset-0 z-10 block"
-          />
-
-
-
-          {/* Floating Circular Eraser Preview Cursor */}
-          {tool === "eraser" && mousePos && (
-            <div
-              style={{
-                left: mousePos.x - eraserSize / 2,
-                top: mousePos.y - eraserSize / 2,
-                width: eraserSize,
-                height: eraserSize,
-              }}
-              className="pointer-events-none absolute z-30 rounded-full border-2 border-dashed border-rose-400 bg-rose-500/20 shadow-lg"
-            />
-          )}
-
-          {/* Ruler Line Preview Guide while dragging */}
-          {tool === "ruler" && isDrawing && dragStart && currentPos && (
-            <svg className="absolute inset-0 z-20 pointer-events-none w-full h-full">
-              <line
-                x1={dragStart.x}
-                y1={dragStart.y}
-                x2={currentPos.x}
-                y2={currentPos.y}
-                stroke={color}
-                strokeWidth={Math.max(2, penSize)}
-                strokeDasharray="6 4"
-              />
-              <circle cx={dragStart.x} cy={dragStart.y} r={5} fill={color} />
-              <circle cx={currentPos.x} cy={currentPos.y} r={5} fill={color} />
-            </svg>
-          )}
-
-          {/* Floating measurement readout for Ruler tool */}
-          {tool === "ruler" && measureInfo && currentPos && (
-            <div
-              style={{ left: currentPos.x + 12, top: currentPos.y + 12 }}
-              className="absolute z-30 rounded bg-ink-900/90 border border-duck-500/40 px-2 py-1 text-[11px] font-mono font-bold text-duck-300 shadow-lg pointer-events-none"
-            >
-              📏 {measureInfo.length}px | {measureInfo.angle}°
-            </div>
-          )}
-
-          {/* Translucent Ruler Active Banner */}
-          {tool === "ruler" && !isDrawing && (
-            <div className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-950/90 px-3 py-1.5 text-xs text-amber-300 font-semibold shadow-lg">
-              <span>📐 Ruler Guide Active: Drag to draw straight lines</span>
-              <button
-                type="button"
-                onClick={() => setTool(lastNonRulerTool || "pen")}
-                className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/40 transition-colors"
-              >
-                ✕ Deactivate
-              </button>
-            </div>
-          )}
-          </div>
-        </div>
-      </div>
+      {/* Explain & Quiz AI Study Buttons */}
+      <button
+        type="button"
+        onClick={() => {
+          if (position.selectedText) {
+            onExplainBlock?.(position.selectedText);
+            setVisible(false);
+          }
+        }}
+        title="Explain highlighted text with Socratic AI"
+        className="flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-ink-200 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+      >
+        <span>✨</span>
+        <span>Explain</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (position.selectedText) {
+            onQuizBlock?.(position.selectedText);
+            setVisible(false);
+          }
+        }}
+        title="Generate quiz from highlighted text"
+        className="flex items-center gap-1 rounded-lg border border-duck-500/30 bg-duck-500/10 px-2 py-1 font-medium text-duck-300 hover:bg-duck-500/20 hover:text-duck-200 transition-colors cursor-pointer"
+      >
+        <span>🦆</span>
+        <span>Quiz me</span>
+      </button>
     </div>
   );
 }
 
+export const NOTE_FONT_CLASSES = {
+  sans: "font-note-sans",
+  serif: "font-note-serif",
+  mono: "font-note-mono",
+  handwriting: "font-note-handwriting",
+  geometric: "font-note-geometric",
+};
+
 // ─── BlockNoteEditor (main export) ──────────────────────────────────
 export default function BlockNoteEditor({
+  noteId = "",
+  spaceId = "",
   onExplainBlock,
   onQuizBlock,
   onTriggerSocratic,
@@ -3602,9 +4949,15 @@ export default function BlockNoteEditor({
   initialBanner = null,
   initialFavorite = false,
   initialEmoji = null,
+  initialFontStyle = "sans",
+  initialFullWidth = false,
+  initialLocked = false,
+  onToggleLock,
   onBlocksChange,
   onSaveNote,
   onExportImport,
+  onRegisterReformat,
+  onReformatStateChange,
   notesBySpace = {},
   onSelectNote,
   clickToAppend = true,
@@ -3613,6 +4966,9 @@ export default function BlockNoteEditor({
   const [banner, setBanner] = useState(initialBanner);
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const [emoji, setEmoji] = useState(initialEmoji);
+  const [fontStyle, setFontStyle] = useState(initialFontStyle || "sans");
+  const [fullWidth, setFullWidth] = useState(Boolean(initialFullWidth));
+  const [isLocked, setIsLocked] = useState(Boolean(initialLocked));
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showBannerPicker, setShowBannerPicker] = useState(false);
@@ -3620,21 +4976,360 @@ export default function BlockNoteEditor({
   const [reformatProgress, setReformatProgress] = useState(null);
   const [reformatToast, setReformatToast] = useState(null);
 
-  const [blocks, setBlocks] = useState(() =>
+  useEffect(() => {
+    setFontStyle(initialFontStyle || "sans");
+    fontStyleRef.current = initialFontStyle || "sans";
+  }, [initialFontStyle]);
 
+  useEffect(() => {
+    setFullWidth(Boolean(initialFullWidth));
+    fullWidthRef.current = Boolean(initialFullWidth);
+  }, [initialFullWidth]);
+
+  useEffect(() => {
+    setIsLocked(Boolean(initialLocked));
+    isLockedRef.current = Boolean(initialLocked);
+  }, [initialLocked]);
+
+  const [blocks, setBlocks] = useState(() =>
     initialBlocks && initialBlocks.length > 0
       ? initialBlocks
       : [{ id: "blk_default_init_0", type: "text", content: "" }]
   );
   const [selectedId, setSelectedId] = useState(null);
   const [selectedBlockIds, setSelectedBlockIds] = useState(new Set());
+  const selectedBlockIdsRef = useRef(selectedBlockIds);
+  useEffect(() => {
+    selectedBlockIdsRef.current = selectedBlockIds;
+  }, [selectedBlockIds]);
+
   const [marqueeBox, setMarqueeBox] = useState(null);
   const isDraggingMarquee = useRef(false);
-  const marqueeStart = useRef({ x: 0, y: 0 });
+  const marqueeStartClient = useRef({ x: 0, y: 0 });
+  const marqueeStartEditor = useRef({ x: 0, y: 0 });
+  const currentMousePos = useRef({ clientX: 0, clientY: 0 });
+  const initialSelectedIdsRef = useRef(new Set());
+  const scrollContainerRef = useRef(null);
+  const marqueeRafId = useRef(null);
+
   const editorContainerRef = useRef(null);
   const blockRefs = useRef({});
+  const noteTitleInputRef = useRef(null);
   const bannerPickerRef = useRef(null);
   const emojiPickerRef = useRef(null);
+
+  const lastHistoryPush = useRef(0);
+  const [pastBlocks, setPastBlocks] = useState([]);
+  const [futureBlocks, setFutureBlocks] = useState([]);
+
+  const noteIdRef = useRef(noteId);
+  const spaceIdRef = useRef(spaceId);
+  const titleRef = useRef(title);
+  const bannerRef = useRef(banner);
+  const isFavoriteRef = useRef(isFavorite);
+  const emojiRef = useRef(emoji);
+  const fontStyleRef = useRef(fontStyle);
+  const fullWidthRef = useRef(fullWidth);
+  const isLockedRef = useRef(isLocked);
+  const blocksRef = useRef(blocks);
+  const pastBlocksRef = useRef(pastBlocks);
+  const futureBlocksRef = useRef(futureBlocks);
+  const saveTimeoutRef = useRef(null);
+  const isDirtyRef = useRef(false);
+
+  const registerRef = useCallback((id, ref) => {
+    blockRefs.current[id] = ref;
+  }, []);
+
+  const focusBlock = useCallback((blockOrId, position = "start") => {
+    if (!blockOrId) return;
+    const block =
+      typeof blockOrId === "object" && blockOrId !== null
+        ? blockOrId
+        : blocksRef.current.find((b) => b.id === blockOrId);
+    if (!block) return;
+
+    setSelectedId(block.id);
+    setSelectedBlockIds(new Set());
+
+    const performFocus = () => {
+      // 1. CodeBlock
+      if (block.type === "code") {
+        const codeEl = document.getElementById(`code_${block.id}`);
+        if (codeEl) {
+          codeEl.focus();
+          if (position === "end") {
+            const len = codeEl.value ? codeEl.value.length : 0;
+            codeEl.setSelectionRange(len, len);
+          } else {
+            codeEl.setSelectionRange(0, 0);
+          }
+          return true;
+        }
+      }
+
+      // 2. TableBlock
+      if (block.type === "table") {
+        const norm = getNormalizedTableData(block.tableData, block.content);
+        const hasHeaders = norm.hasHeaderRow !== false && norm.headers && norm.headers.length > 0;
+        const rowCount = norm.rows?.length || 0;
+        const colCount = Math.max(
+          norm.headers?.length || 0,
+          ...(norm.rows?.map((r) => (Array.isArray(r) ? r.length : 0)) || [2])
+        );
+
+        if (position === "end") {
+          let targetCell = null;
+          if (rowCount > 0) {
+            targetCell = document.getElementById(`tbl_${block.id}_r_${rowCount - 1}_c_${colCount - 1}`);
+          }
+          if (!targetCell && hasHeaders) {
+            targetCell = document.getElementById(`tbl_${block.id}_h_${colCount - 1}`);
+          }
+          if (!targetCell) {
+            targetCell = document.querySelector(`[data-block-id="${block.id}"] [contenteditable="true"]:last-of-type`);
+          }
+          if (targetCell) {
+            setCaretToEnd(targetCell);
+            return true;
+          }
+        } else {
+          const firstCell = hasHeaders
+            ? document.getElementById(`tbl_${block.id}_h_0`)
+            : document.getElementById(`tbl_${block.id}_r_0_c_0`) ||
+              document.querySelector(`[data-block-id="${block.id}"] [contenteditable="true"]`);
+          if (firstCell) {
+            setCaretToStart(firstCell);
+            return true;
+          }
+        }
+      }
+
+      // 3. ColumnsBlock
+      if (block.type === "columns") {
+        const colCount = Math.max(2, Math.min(5, Number(block.columnCount) || 2));
+        if (position === "end") {
+          const lastColIdx = colCount - 1;
+          const targetEl =
+            document.getElementById(`col_${block.id}_${lastColIdx}_content`) ||
+            document.getElementById(`col_${block.id}_${lastColIdx}_title`);
+          if (targetEl) {
+            setCaretToEnd(targetEl);
+            return true;
+          }
+        } else {
+          const firstColTitle =
+            document.getElementById(`col_${block.id}_0_title`) ||
+            document.getElementById(`col_${block.id}_0_content`);
+          if (firstColTitle) {
+            setCaretToStart(firstColTitle);
+            return true;
+          }
+        }
+      }
+
+      // 4. MathBlock
+      if (block.type === "math") {
+        const titleInput = document.querySelector(`[data-block-id="${block.id}"] input`);
+        if (titleInput) {
+          titleInput.focus();
+          const len = titleInput.value ? titleInput.value.length : 0;
+          if (position === "end") {
+            titleInput.setSelectionRange(len, len);
+          } else {
+            titleInput.setSelectionRange(0, 0);
+          }
+          return true;
+        }
+        const mathContainer =
+          document.getElementById(`math_${block.id}`) ||
+          document.querySelector(`[data-block-id="${block.id}"] .group\\/mathblk`) ||
+          document.querySelector(`[data-block-id="${block.id}"] [tabindex="0"]`);
+        if (mathContainer) {
+          mathContainer.focus();
+          return true;
+        }
+      }
+
+      // 5. Divider
+      if (block.type === "divider") {
+        const dividerEl =
+          document.getElementById(`divider_${block.id}`) ||
+          document.querySelector(`[data-block-id="${block.id}"] .group\\/divider`) ||
+          document.querySelector(`[data-block-id="${block.id}"] [tabindex="0"]`);
+        if (dividerEl) {
+          dividerEl.focus();
+          return true;
+        }
+      }
+
+      // 6. Site, Media standalone embeds
+      if (["site", "media"].includes(block.type)) {
+        const cardEl =
+          document.getElementById(`${block.type}_${block.id}`) ||
+          document.querySelector(`[data-block-id="${block.id}"] [tabindex="0"]`) ||
+          document.querySelector(`[data-block-id="${block.id}"]`);
+        if (cardEl) {
+          cardEl.focus();
+          return true;
+        }
+      }
+
+      // 7. Toggle Block
+      if (block.type === "toggle") {
+        if (position === "end" && block.open !== false) {
+          const textarea = document.querySelector(`[data-block-id="${block.id}"] textarea`);
+          if (textarea) {
+            setCaretToEnd(textarea);
+            return true;
+          }
+        }
+      }
+
+      // 8. Standard ContentEditable Block (text, headings, lists, quote, callout, inlinemath, toggle summary)
+      const el =
+        blockRefs.current[block.id]?.current ||
+        document.querySelector(`[data-block-id="${block.id}"] [contenteditable="true"]`);
+      if (el) {
+        if (position === "end") {
+          setCaretToEnd(el);
+        } else {
+          setCaretToStart(el);
+        }
+        return true;
+      }
+
+      return false;
+    };
+
+    if (!performFocus()) {
+      requestAnimationFrame(() => {
+        if (!performFocus()) {
+          setTimeout(performFocus, 25);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    noteIdRef.current = noteId;
+  }, [noteId]);
+
+  useEffect(() => {
+    spaceIdRef.current = spaceId;
+  }, [spaceId]);
+
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+
+  useEffect(() => {
+    bannerRef.current = banner;
+  }, [banner]);
+
+  useEffect(() => {
+    isFavoriteRef.current = isFavorite;
+  }, [isFavorite]);
+
+  useEffect(() => {
+    emojiRef.current = emoji;
+  }, [emoji]);
+
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
+
+  useEffect(() => {
+    pastBlocksRef.current = pastBlocks;
+  }, [pastBlocks]);
+
+  useEffect(() => {
+    futureBlocksRef.current = futureBlocks;
+  }, [futureBlocks]);
+
+  useEffect(() => {
+    fontStyleRef.current = fontStyle;
+  }, [fontStyle]);
+
+  useEffect(() => {
+    fullWidthRef.current = fullWidth;
+  }, [fullWidth]);
+
+  useEffect(() => {
+    isLockedRef.current = isLocked;
+  }, [isLocked]);
+
+  const performSave = useCallback(
+    (overrides = {}) => {
+      isDirtyRef.current = false;
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      onSaveNote?.({
+        id: overrides.id || noteIdRef.current,
+        spaceId: overrides.spaceId || spaceIdRef.current,
+        title: overrides.title !== undefined ? overrides.title : titleRef.current,
+        blocks: overrides.blocks !== undefined ? overrides.blocks : blocksRef.current,
+        banner: overrides.banner !== undefined ? overrides.banner : bannerRef.current,
+        isFavorite: overrides.isFavorite !== undefined ? overrides.isFavorite : isFavoriteRef.current,
+        emoji: overrides.emoji !== undefined ? overrides.emoji : emojiRef.current,
+        fontStyle: overrides.fontStyle !== undefined ? overrides.fontStyle : fontStyleRef.current,
+        fullWidth: overrides.fullWidth !== undefined ? overrides.fullWidth : fullWidthRef.current,
+        isLocked: overrides.isLocked !== undefined ? overrides.isLocked : isLockedRef.current,
+      });
+    },
+    [onSaveNote]
+  );
+
+  const triggerDebouncedSave = useCallback(
+    (overrides = {}) => {
+      isDirtyRef.current = true;
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        saveTimeoutRef.current = null;
+        performSave(overrides);
+      }, 400);
+    },
+    [performSave]
+  );
+
+  // Flush pending changes on unmount for this exact noteId & spaceId
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      if (isDirtyRef.current) {
+        isDirtyRef.current = false;
+        onSaveNote?.({
+          id: noteIdRef.current,
+          spaceId: spaceIdRef.current,
+          title: titleRef.current,
+          blocks: blocksRef.current,
+          banner: bannerRef.current,
+          isFavorite: isFavoriteRef.current,
+          emoji: emojiRef.current,
+          fontStyle: fontStyleRef.current,
+          fullWidth: fullWidthRef.current,
+          isLocked: isLockedRef.current,
+        });
+      }
+    };
+  }, [onSaveNote]);
+
+  // Editor-level Ctrl+S / Cmd+S shortcut to immediately save the active note
+  useEffect(() => {
+    const handleEditorSaveShortcut = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        performSave();
+      }
+    };
+    window.addEventListener("keydown", handleEditorSaveShortcut);
+    return () => window.removeEventListener("keydown", handleEditorSaveShortcut);
+  }, [performSave]);
 
   // Close banner and emoji pickers on outside click
   useEffect(() => {
@@ -3656,81 +5351,143 @@ export default function BlockNoteEditor({
     };
   }, [showBannerPicker, showEmojiPicker]);
 
-  // Marquee Drag Selection & Empty Canvas Click Handlers
-  const handleEditorMouseDown = (e) => {
-    const isInput = e.target.closest('[contenteditable="true"], input, textarea, button, a, select, [role="button"]');
-    if (isInput) {
-      if (!e.shiftKey) {
-        setSelectedBlockIds(new Set());
-      }
-      return;
-    }
+  // High-Performance Smooth Marquee Drag Selection & Auto-Scrolling Engine
+  const updateMarqueeFrame = useCallback(() => {
+    if (!isDraggingMarquee.current || !editorContainerRef.current) return;
 
-    isDraggingMarquee.current = true;
-    marqueeStart.current = { x: e.clientX, y: e.clientY };
-    setMarqueeBox({
-      startX: e.clientX,
-      startY: e.clientY,
-      currentX: e.clientX,
-      currentY: e.clientY,
-    });
+    const editorEl = editorContainerRef.current;
+    const scrollContainer = scrollContainerRef.current;
 
-    if (!e.shiftKey) {
-      setSelectedBlockIds(new Set());
-    }
-  };
+    // 1. Smooth Edge Proximity Auto-Scrolling
+    if (scrollContainer) {
+      const containerRect =
+        scrollContainer === document.documentElement || scrollContainer === document.body
+          ? { top: 0, bottom: window.innerHeight, height: window.innerHeight }
+          : scrollContainer.getBoundingClientRect();
 
-  const handleEditorMouseMove = (e) => {
-    if (!isDraggingMarquee.current) return;
+      const mouseY = currentMousePos.current.clientY;
+      const topThreshold = containerRect.top + 80;
+      const bottomThreshold = containerRect.bottom - 80;
 
-    const currentX = e.clientX;
-    const currentY = e.clientY;
-    const startX = marqueeStart.current.x;
-    const startY = marqueeStart.current.y;
-
-    setMarqueeBox({
-      startX,
-      startY,
-      currentX,
-      currentY,
-    });
-
-    const boxRect = {
-      left: Math.min(startX, currentX),
-      top: Math.min(startY, currentY),
-      right: Math.max(startX, currentX),
-      bottom: Math.max(startY, currentY),
-    };
-
-    const newSelected = new Set();
-    blocks.forEach((b) => {
-      const el = document.querySelector(`[data-block-id="${b.id}"]`);
-      if (el) {
-        const r = el.getBoundingClientRect();
-        const intersects =
-          r.left < boxRect.right &&
-          r.right > boxRect.left &&
-          r.top < boxRect.bottom &&
-          r.bottom > boxRect.top;
-        if (intersects) {
-          newSelected.add(b.id);
+      if (mouseY < topThreshold) {
+        const dist = topThreshold - mouseY;
+        const speed = -Math.min(35, Math.max(3, (dist / 80) * 30));
+        if (scrollContainer === document.documentElement || scrollContainer === document.body) {
+          window.scrollBy({ top: speed, behavior: "instant" });
+        } else {
+          scrollContainer.scrollTop += speed;
+        }
+      } else if (mouseY > bottomThreshold) {
+        const dist = mouseY - bottomThreshold;
+        const speed = Math.min(35, Math.max(3, (dist / 80) * 30));
+        if (scrollContainer === document.documentElement || scrollContainer === document.body) {
+          window.scrollBy({ top: speed, behavior: "instant" });
+        } else {
+          scrollContainer.scrollTop += speed;
         }
       }
+    }
+
+    // 2. Compute Selection Box in Editor Coordinates (after scroll update)
+    const updatedEditorRect = editorEl.getBoundingClientRect();
+    const currentX = currentMousePos.current.clientX - updatedEditorRect.left;
+    const currentY = currentMousePos.current.clientY - updatedEditorRect.top;
+    const startX = marqueeStartEditor.current.x;
+    const startY = marqueeStartEditor.current.y;
+
+    const boxLeft = Math.min(startX, currentX);
+    const boxTop = Math.min(startY, currentY);
+    const boxRight = Math.max(startX, currentX);
+    const boxBottom = Math.max(startY, currentY);
+    const boxWidth = boxRight - boxLeft;
+    const boxHeight = boxBottom - boxTop;
+
+    setMarqueeBox({
+      left: boxLeft,
+      top: boxTop,
+      width: boxWidth,
+      height: boxHeight,
     });
 
-    setSelectedBlockIds(newSelected);
-  };
+    // 3. Batch Check Block Intersections (Only if box is larger than small click threshold)
+    if (boxWidth > 4 || boxHeight > 4) {
+      const blockEls = editorEl.querySelectorAll("[data-block-id]");
+      const newSelected = new Set(initialSelectedIdsRef.current);
 
-  const handleEditorMouseUp = (e) => {
+      for (let i = 0; i < blockEls.length; i++) {
+        const el = blockEls[i];
+        const id = el.getAttribute("data-block-id");
+        if (!id) continue;
+
+        const elRect = el.getBoundingClientRect();
+        const elTop = elRect.top - updatedEditorRect.top;
+        const elBottom = elTop + elRect.height;
+        const elLeft = elRect.left - updatedEditorRect.left;
+        const elRight = elLeft + elRect.width;
+
+        const intersects =
+          elLeft < boxRight &&
+          elRight > boxLeft &&
+          elTop < boxBottom &&
+          elBottom > boxTop;
+
+        if (intersects) {
+          newSelected.add(id);
+        }
+      }
+
+      // Check if selection set actually changed before updating state to avoid laggy re-renders
+      const currentSelected = selectedBlockIdsRef.current;
+      let changed = currentSelected.size !== newSelected.size;
+      if (!changed) {
+        for (const id of newSelected) {
+          if (!currentSelected.has(id)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      if (changed) {
+        selectedBlockIdsRef.current = newSelected;
+        setSelectedBlockIds(newSelected);
+      }
+    }
+
     if (isDraggingMarquee.current) {
-      const startX = marqueeStart.current.x;
-      const startY = marqueeStart.current.y;
-      const currentX = e?.clientX ?? startX;
-      const currentY = e?.clientY ?? startY;
-      const dist = Math.hypot(currentX - startX, currentY - startY);
+      marqueeRafId.current = requestAnimationFrame(updateMarqueeFrame);
+    }
+  }, []);
+
+  const handleGlobalMouseMove = useCallback((e) => {
+    if (!isDraggingMarquee.current) return;
+    currentMousePos.current = { clientX: e.clientX, clientY: e.clientY };
+  }, []);
+
+  const handleGlobalMouseUp = useCallback(
+    (e) => {
+      if (!isDraggingMarquee.current) return;
+
+      if (marqueeRafId.current) {
+        cancelAnimationFrame(marqueeRafId.current);
+        marqueeRafId.current = null;
+      }
+
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+
+      const clientX = e?.clientX ?? currentMousePos.current.clientX;
+      const clientY = e?.clientY ?? currentMousePos.current.clientY;
+      const startClient = marqueeStartClient.current;
+      const dist = Math.hypot(clientX - startClient.x, clientY - startClient.y);
 
       isDraggingMarquee.current = false;
       setMarqueeBox(null);
+      if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) {
+        if (document.activeElement && document.activeElement.blur) {
+          document.activeElement.blur();
+        }
+      }
 
       // Simple click on empty canvas area -> create or focus last block
       if (dist < 6) {
@@ -3738,20 +5495,83 @@ export default function BlockNoteEditor({
         const lastBlock = blocksRef.current[blocksRef.current.length - 1];
         if (!lastBlock || (lastBlock.content !== "" && lastBlock.content !== undefined)) {
           const newBlock = createBlock("text", "");
-          setBlocks((prev) => [...prev, newBlock]);
+          setBlocks((prev) => {
+            const next = [...prev, newBlock];
+            triggerDebouncedSave({ blocks: next });
+            return next;
+          });
           setSelectedId(newBlock.id);
-          setTimeout(() => {
-            blockRefs.current[newBlock.id]?.current?.focus();
-          }, 30);
+          focusBlock(newBlock, "end");
         } else if (lastBlock) {
-          setSelectedId(lastBlock.id);
-          setTimeout(() => {
-            blockRefs.current[lastBlock.id]?.current?.focus();
-          }, 30);
+          focusBlock(lastBlock, "end");
         }
       }
+    },
+    [clickToAppend, focusBlock, handleGlobalMouseMove, triggerDebouncedSave]
+  );
+
+  const handleEditorMouseDown = (e) => {
+    if (e.button !== 0) return;
+
+    const isInput = e.target.closest(
+      '[contenteditable="true"], input, textarea, button, a, select, [role="button"], canvas, svg, [data-menu]'
+    );
+    if (isInput) {
+      if (!e.shiftKey) {
+        setSelectedBlockIds(new Set());
+        selectedBlockIdsRef.current = new Set();
+      }
+      return;
     }
+
+    if (!editorContainerRef.current) return;
+
+    const editorEl = editorContainerRef.current;
+    const editorRect = editorEl.getBoundingClientRect();
+
+    isDraggingMarquee.current = true;
+    marqueeStartClient.current = { x: e.clientX, y: e.clientY };
+    marqueeStartEditor.current = {
+      x: e.clientX - editorRect.left,
+      y: e.clientY - editorRect.top,
+    };
+    currentMousePos.current = { clientX: e.clientX, clientY: e.clientY };
+    initialSelectedIdsRef.current = e.shiftKey ? new Set(selectedBlockIdsRef.current) : new Set();
+
+    scrollContainerRef.current =
+      editorEl.closest("main") ||
+      editorEl.parentElement ||
+      document.scrollingElement ||
+      document.documentElement;
+
+    if (!e.shiftKey) {
+      setSelectedBlockIds(new Set());
+      selectedBlockIdsRef.current = new Set();
+    }
+
+    setMarqueeBox({
+      left: e.clientX - editorRect.left,
+      top: e.clientY - editorRect.top,
+      width: 0,
+      height: 0,
+    });
+
+    window.addEventListener("mousemove", handleGlobalMouseMove, { passive: true });
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+
+    if (marqueeRafId.current) cancelAnimationFrame(marqueeRafId.current);
+    marqueeRafId.current = requestAnimationFrame(updateMarqueeFrame);
   };
+
+  useEffect(() => {
+    return () => {
+      if (marqueeRafId.current) {
+        cancelAnimationFrame(marqueeRafId.current);
+      }
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
   // Drag-to-reorder, driven by each block's ⠿ handle.
   const [dragging, setDragging] = useState(null);
@@ -3767,10 +5587,6 @@ export default function BlockNoteEditor({
         setDragOver(null);
       },
       onDrop: () => {
-        // Record undo history for the reorder itself. Without this, dragging
-        // a block was the only editing action that bypassed the undo stack —
-        // Ctrl+Z right after a drag would skip over it and revert an earlier,
-        // unrelated edit instead, which reads as "undo silently ate my change".
         if (dragging && dragOver && dragging !== dragOver) {
           setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
           setFutureBlocks([]);
@@ -3782,20 +5598,16 @@ export default function BlockNoteEditor({
           if (from === -1 || to === -1) return prev;
           const next = [...prev];
           const [moved] = next.splice(from, 1);
-          // The drop indicator renders above the target block, signalling
-          // "insert before this block". When dragging forward (from < to),
-          // removing the source shifts every later index down by one, so the
-          // target's post-removal position is `to - 1`. Without this
-          // adjustment the block lands one slot too far, after the target.
           const insertAt = from < to ? to - 1 : to;
           next.splice(insertAt, 0, moved);
+          performSave({ blocks: next });
           return next;
         });
         setDragging(null);
         setDragOver(null);
       },
     }),
-    [dragging, dragOver],
+    [dragging, dragOver, performSave],
   );
 
   const { totalCharacters, totalWords } = useMemo(() => {
@@ -3816,75 +5628,35 @@ export default function BlockNoteEditor({
 
   const totalBlocks = blocks.length;
 
-  // Initial states are handled by useState initialization.
-  // The component is completely remounted when changing notes because of the `key` prop in Workspace.jsx.
-  // We avoid syncing these via useEffect to prevent the editor's internal state from being overwritten
-  // during typing or saving, which causes cursor jumps and lost focus.
-
   useEffect(() => {
     onBlocksChange?.(blocks);
   }, [blocks, onBlocksChange]);
 
-  const registerRef = useCallback((id, ref) => {
-    blockRefs.current[id] = ref;
-  }, []);
 
-  const lastHistoryPush = useRef(0);
-
-  const handleChange = useCallback((id, content) => {
-    const now = Date.now();
-    if (now - lastHistoryPush.current > 600) {
-      setPastBlocks((p) => [...p.slice(-30), blocksRef.current]);
-      setFutureBlocks([]);
-      lastHistoryPush.current = now;
-    }
-    setBlocks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, content } : b))
-    );
-  }, []);
-
-  const [pastBlocks, setPastBlocks] = useState([]);
-  const [futureBlocks, setFutureBlocks] = useState([]);
-
-  const blocksRef = useRef(blocks);
-  const pastBlocksRef = useRef(pastBlocks);
-  const futureBlocksRef = useRef(futureBlocks);
-  const saveTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    blocksRef.current = blocks;
-  }, [blocks]);
-
-  useEffect(() => {
-    pastBlocksRef.current = pastBlocks;
-  }, [pastBlocks]);
-
-  useEffect(() => {
-    futureBlocksRef.current = futureBlocks;
-  }, [futureBlocks]);
-
-  // Cancel any pending debounced title save on unmount. Workspace.jsx mounts
-  // this editor with `key={activeNoteObj.id}`, so switching notes unmounts
-  // this instance entirely. Without this cleanup, a title edit made just
-  // before switching notes still fires its setTimeout after unmount; that
-  // stale onSaveNote call carries no note id, so the parent's handleSaveNote
-  // falls back to whatever note is active *then* — silently overwriting the
-  // newly-opened note with the previous note's title/blocks.
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, []);
+  const handleChange = useCallback(
+    (id, content) => {
+      const now = Date.now();
+      if (now - lastHistoryPush.current > 600) {
+        setPastBlocks((p) => [...p.slice(-30), blocksRef.current]);
+        setFutureBlocks([]);
+        lastHistoryPush.current = now;
+      }
+      setBlocks((prev) => {
+        const next = prev.map((b) => (b.id === id ? { ...b, content } : b));
+        triggerDebouncedSave({ blocks: next });
+        return next;
+      });
+    },
+    [triggerDebouncedSave]
+  );
 
   const handleTitleChange = useCallback(
     (newTitle) => {
       setTitle(newTitle);
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        onSaveNote?.({ title: newTitle, blocks: blocksRef.current, banner, isFavorite, emoji });
-      }, 400);
+      titleRef.current = newTitle;
+      triggerDebouncedSave({ title: newTitle });
     },
-    [banner, isFavorite, emoji, onSaveNote]
+    [triggerDebouncedSave]
   );
 
   useEffect(() => {
@@ -3892,7 +5664,8 @@ export default function BlockNoteEditor({
       const activeEl = document.activeElement;
       const inEditor =
         (editorContainerRef.current && editorContainerRef.current.contains(activeEl)) ||
-        activeEl === document.body;
+        activeEl === document.body ||
+        !activeEl;
 
       if (!inEditor) return;
 
@@ -3902,18 +5675,32 @@ export default function BlockNoteEditor({
             e.preventDefault();
             const next = futureBlocksRef.current[0];
             setFutureBlocks((f) => f.slice(1));
-            setPastBlocks((p) => [...p, blocksRef.current]);
-            setBlocks(next);
-            onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
+            setPastBlocks((p) => [
+              ...p,
+              JSON.parse(JSON.stringify(blocksRef.current)),
+            ]);
+            const clonedNext = JSON.parse(JSON.stringify(next));
+            setBlocks(clonedNext);
+            performSave({ blocks: clonedNext });
           }
         } else {
           if (pastBlocksRef.current.length > 0) {
             e.preventDefault();
             const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
             setPastBlocks((p) => p.slice(0, p.length - 1));
-            setFutureBlocks((f) => [blocksRef.current, ...f]);
-            setBlocks(previous);
-            onSaveNote?.({ title, blocks: previous, banner, isFavorite, emoji });
+            setFutureBlocks((f) => [
+              JSON.parse(JSON.stringify(blocksRef.current)),
+              ...f,
+            ]);
+            const clonedPrevious = JSON.parse(JSON.stringify(previous));
+            setBlocks(clonedPrevious);
+            performSave({ blocks: clonedPrevious });
+            const targetId = selectedId || clonedPrevious[0]?.id;
+            if (targetId) {
+              requestAnimationFrame(() => {
+                focusBlock(targetId, "end");
+              });
+            }
           }
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
@@ -3921,15 +5708,27 @@ export default function BlockNoteEditor({
           e.preventDefault();
           const next = futureBlocksRef.current[0];
           setFutureBlocks((f) => f.slice(1));
-          setPastBlocks((p) => [...p, blocksRef.current]);
-          setBlocks(next);
-          onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
+          setPastBlocks((p) => [
+            ...p,
+            JSON.parse(JSON.stringify(blocksRef.current)),
+          ]);
+          const clonedNext = JSON.parse(JSON.stringify(next));
+          setBlocks(clonedNext);
+          performSave({ blocks: clonedNext });
+          const targetId = selectedId || clonedNext[0]?.id;
+          if (targetId) {
+            requestAnimationFrame(() => {
+              focusBlock(targetId, "end");
+            });
+          }
         }
       }
     };
     window.addEventListener("keydown", handleGlobalUndoRedo);
     return () => window.removeEventListener("keydown", handleGlobalUndoRedo);
-  }, [title, banner, isFavorite, emoji, onSaveNote]);
+  }, [performSave]);
+
+  // Multi-Block Selection Keyboard Shortcuts: Ctrl+A, Ctrl+C, Ctrl+X, Delete/Backspace
 
   // Multi-Block Selection Keyboard Shortcuts: Ctrl+A, Ctrl+C, Ctrl+X, Delete/Backspace
   useEffect(() => {
@@ -3939,16 +5738,20 @@ export default function BlockNoteEditor({
         activeEl &&
         (activeEl.isContentEditable || activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
 
+      // CRITICAL: When user is typing inside any text input or contentEditable block, NEVER intercept keys!
+      if (isInput) return;
+
       // Ctrl+A / Cmd+A Select All Blocks
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
-        if (!isInput) {
-          e.preventDefault();
-          setSelectedBlockIds(new Set(blocksRef.current.map((b) => b.id)));
-        }
+        e.preventDefault();
+        setSelectedBlockIds(new Set(blocksRef.current.map((b) => b.id)));
         return;
       }
 
-      const effectiveIds = selectedBlockIds.size > 0 ? selectedBlockIds : null;
+      const effectiveIds =
+        selectedBlockIds && selectedBlockIds.size > 0
+          ? selectedBlockIds
+          : null;
 
       if (effectiveIds && effectiveIds.size > 0) {
         // Ctrl+C / Cmd+C Copy Selected Blocks as Markdown
@@ -3970,7 +5773,9 @@ export default function BlockNoteEditor({
           setFutureBlocks([]);
           setBlocks((prev) => {
             const next = prev.filter((b) => !effectiveIds.has(b.id));
-            return next.length > 0 ? next : [createBlock("text", "")];
+            const safeNext = next.length > 0 ? next : [createBlock("text", "")];
+            triggerDebouncedSave({ blocks: safeNext });
+            return safeNext;
           });
           setSelectedBlockIds(new Set());
           if (selectedId) setSelectedId(null);
@@ -3997,6 +5802,8 @@ export default function BlockNoteEditor({
             const newBlock = createBlock("text", "");
             next.splice(insertIdxInNext, 0, newBlock);
 
+            triggerDebouncedSave({ blocks: next });
+
             setTimeout(() => {
               const el = blockRefs.current[newBlock.id]?.current;
               el?.focus();
@@ -4009,16 +5816,28 @@ export default function BlockNoteEditor({
         }
 
         // Backspace / Delete Selected Blocks
-        if ((e.key === "Backspace" || e.key === "Delete") && !isInput) {
+        if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
+          e.stopPropagation();
           setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
           setFutureBlocks([]);
+          let focusTarget = null;
           setBlocks((prev) => {
+            const firstSelectedIdx = prev.findIndex((b) => effectiveIds.has(b.id));
             const next = prev.filter((b) => !effectiveIds.has(b.id));
-            return next.length > 0 ? next : [createBlock("text", "")];
+            const safeNext = next.length > 0 ? next : [createBlock("text", "")];
+            const targetIdx = Math.max(0, Math.min(firstSelectedIdx >= 0 ? firstSelectedIdx : 0, safeNext.length - 1));
+            focusTarget = safeNext[targetIdx];
+            triggerDebouncedSave({ blocks: safeNext });
+            return safeNext;
           });
           setSelectedBlockIds(new Set());
-          if (selectedId) setSelectedId(null);
+          if (focusTarget) {
+            setSelectedId(focusTarget.id);
+            requestAnimationFrame(() => {
+              focusBlock(focusTarget, "end");
+            });
+          }
           return;
         }
       }
@@ -4026,13 +5845,15 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds, selectedId]);
+  }, [selectedBlockIds, selectedId, triggerDebouncedSave]);
 
-  const handleChangeType = useCallback((id, type) => {
+  const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
+    const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
+    const caretTarget = typeof extraOrCaret === "string" ? extraOrCaret : "start";
     setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
     setFutureBlocks([]);
-    setBlocks((prev) =>
-      prev.map((b) => {
+    setBlocks((prev) => {
+      const next = prev.map((b) => {
         if (b.id !== id) return b;
         if (type === "code") {
           const lang = b.language || b.meta?.language || "javascript";
@@ -4043,27 +5864,70 @@ export default function BlockNoteEditor({
             meta: { ...(b.meta || {}), language: lang },
           };
         }
+        if (type === "table") {
+          const norm = getNormalizedTableData(b.tableData, b.content);
+          return {
+            ...b,
+            type: "table",
+            tableData: norm,
+            content: "",
+          };
+        }
+        if (type === "columns") {
+          const count = extra.columnCount || b.columnCount || 2;
+          const norm = extra.columnsData || getNormalizedColumnsData(b.columnsData, b.content, count);
+          return {
+            ...b,
+            type: "columns",
+            columnCount: count,
+            columnsData: norm,
+            content: b.content || "",
+          };
+        }
+        if (b.type === "table") {
+          const serializedText = blockToMarkdown(b);
+          return {
+            ...b,
+            type,
+            content: serializedText,
+            tableData: undefined,
+          };
+        }
+        if (b.type === "columns") {
+          const serializedText = blockToMarkdown(b);
+          return {
+            ...b,
+            type,
+            content: serializedText,
+            columnsData: undefined,
+            columnCount: undefined,
+          };
+        }
         return { ...b, type };
-      })
-    );
+      });
+      triggerDebouncedSave({ blocks: next });
+      return next;
+    });
     setSelectedId(id);
     requestAnimationFrame(() => {
       setTimeout(() => {
-        const el = blockRefs.current[id]?.current;
-        if (el) {
-          el.focus();
-          const sel = window.getSelection();
-          if (sel) {
-            sel.selectAllChildren(el);
-            sel.collapseToStart();
-          }
+        const targetBlock = blocksRef.current.find((b) => b.id === id);
+        if (targetBlock) {
+          focusBlock(targetBlock, caretTarget);
         }
       }, 15);
     });
-  }, []);
+  }, [focusBlock, triggerDebouncedSave]);
 
   const handleUpdateBlock = useCallback(
-    (id, patch, shouldSaveNote = false) => {
+    (id, patch, shouldSaveNote = false, recordHistory = false) => {
+      if (recordHistory) {
+        setPastBlocks((p) => [
+          ...p.slice(-25),
+          JSON.parse(JSON.stringify(blocksRef.current)),
+        ]);
+        setFutureBlocks([]);
+      }
       setBlocks((prev) => {
         const next = prev.map((b) => {
           if (b.id !== id) return b;
@@ -4074,24 +5938,47 @@ export default function BlockNoteEditor({
           return updated;
         });
         if (shouldSaveNote) {
-          queueMicrotask(() => {
-            onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
-          });
+          performSave({ blocks: next });
+        } else {
+          triggerDebouncedSave({ blocks: next });
         }
         return next;
       });
     },
-    [title, banner, isFavorite, emoji, onSaveNote]
+    [performSave, triggerDebouncedSave]
   );
 
-  const handleDeleteBlock = useCallback((id) => {
-    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+  const recordHistorySnapshot = useCallback(() => {
+    setPastBlocks((p) => [
+      ...p.slice(-25),
+      JSON.parse(JSON.stringify(blocksRef.current)),
+    ]);
     setFutureBlocks([]);
-    setBlocks((prev) => {
-      const next = prev.filter((b) => b.id !== id);
-      return next.length > 0 ? next : [createBlock("text", "")];
-    });
   }, []);
+
+  const handleDeleteBlock = useCallback(
+    (id) => {
+      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+      setFutureBlocks([]);
+      let focusTarget = null;
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === id);
+        const next = prev.filter((b) => b.id !== id);
+        const safeNext = next.length > 0 ? next : [createBlock("text", "")];
+        const targetIdx = Math.max(0, Math.min(idx > 0 ? idx - 1 : 0, safeNext.length - 1));
+        focusTarget = safeNext[targetIdx];
+        performSave({ blocks: safeNext });
+        return safeNext;
+      });
+      if (focusTarget) {
+        setSelectedId(focusTarget.id);
+        requestAnimationFrame(() => {
+          focusBlock(focusTarget, "end");
+        });
+      }
+    },
+    [performSave, focusBlock]
+  );
 
   const handleDuplicateBlock = useCallback(
     (id) => {
@@ -4100,19 +5987,17 @@ export default function BlockNoteEditor({
       setBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
         if (idx === -1) return prev;
-        const target = prev[idx];
-        const newBlock = {
-          ...target,
-          id: `blk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        const orig = prev[idx];
+        const copy = {
+          ...JSON.parse(JSON.stringify(orig)),
+          id: Math.random().toString(36).slice(2, 10),
         };
-        const next = [...prev.slice(0, idx + 1), newBlock, ...prev.slice(idx + 1)];
-        queueMicrotask(() => {
-          onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
-        });
+        const next = [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+        performSave({ blocks: next });
         return next;
       });
     },
-    [title, banner, isFavorite, emoji, onSaveNote]
+    [performSave]
   );
 
   const handleMoveBlock = useCallback(
@@ -4124,109 +6009,175 @@ export default function BlockNoteEditor({
         const next = [...prev];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
-        queueMicrotask(() => {
-          onSaveNote?.({ title, blocks: next, banner, isFavorite, emoji });
-        });
+        performSave({ blocks: next });
         return next;
       });
     },
-    [title, banner, isFavorite, emoji, onSaveNote]
+    [performSave]
   );
 
-  const handleAddAfter = useCallback((afterId, content = "", typeToInherit = null) => {
+  const handleAddAfter = useCallback((afterId, content = "", typeToInherit = null, extraProps = {}) => {
     setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
     setFutureBlocks([]);
     
+    const currentBlock = blocksRef.current.find((b) => b.id === afterId);
     let newType = "text";
     if (typeToInherit) {
       newType = typeToInherit;
     } else {
-      const currentBlock = blocksRef.current.find((b) => b.id === afterId);
       if (currentBlock && ["bullet", "number", "todo", "toggle"].includes(currentBlock.type)) {
         newType = currentBlock.type;
       }
     }
 
-    const newBlock = createBlock(newType, content);
+    const defaultExtra = {};
+    if (newType === "bullet" && currentBlock && currentBlock.type === "bullet" && (currentBlock.level || 0) > 0) {
+      defaultExtra.level = currentBlock.level;
+    }
+
+    const count = extraProps?.columnCount || 2;
+    const extra =
+      newType === "columns"
+        ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
+        : { ...defaultExtra, ...(extraProps || {}) };
+    const newBlock = createBlock(newType, content, extra);
     setBlocks((prev) => {
       const idx = prev.findIndex((b) => b.id === afterId);
       const next = [...prev];
       next.splice(idx + 1, 0, newBlock);
+      triggerDebouncedSave({ blocks: next });
       return next;
     });
     setSelectedId(newBlock.id);
-    setTimeout(() => {
-      blockRefs.current[newBlock.id]?.current?.focus();
-    }, 30);
-  }, []);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        focusBlock(newBlock, "start");
+      }, 30);
+    });
+  }, [focusBlock, triggerDebouncedSave]);
 
-  // Smart Markdown & Plain Text Paste Handler
+  const handleExitDown = useCallback(
+    (blockId) => {
+      const idx = blocksRef.current.findIndex((b) => b.id === blockId);
+      if (idx === -1) return false;
+      if (idx < blocksRef.current.length - 1) {
+        const nextBlock = blocksRef.current[idx + 1];
+        focusBlock(nextBlock, "start");
+        return true;
+      }
+      return false;
+    },
+    [focusBlock]
+  );
+
+  const handleExitUp = useCallback(
+    (blockId) => {
+      const idx = blocksRef.current.findIndex((b) => b.id === blockId);
+      if (idx === -1) return;
+      if (idx > 0) {
+        const prevBlock = blocksRef.current[idx - 1];
+        focusBlock(prevBlock, "end");
+      } else if (idx === 0) {
+        // Exiting UP from Block 0 -> Focus Note Title input!
+        if (noteTitleInputRef.current) {
+          noteTitleInputRef.current.focus();
+          const len = noteTitleInputRef.current.value?.length || 0;
+          noteTitleInputRef.current.setSelectionRange(len, len);
+        }
+      }
+    },
+    [focusBlock]
+  );
+
+  // Smart Markdown, Google Docs HTML & Plain Text Paste Handler
   const handleSmartPaste = useCallback(
     (e) => {
       const targetTag = e.target?.tagName;
       if (targetTag === "TEXTAREA" || targetTag === "INPUT") return;
 
-      const text = e.clipboardData?.getData("text/plain");
-      if (!text) return;
+      const html = e.clipboardData?.getData("text/html");
+      const text = e.clipboardData?.getData("text/plain") || "";
+      if (!html && !text) return;
 
-      const isMarkdown =
-        text.includes("\n") ||
-        /^(#+|-|\*|\d+\.|>|```|\$\$|\[\s*\]|---)\s/m.test(text);
+      // 1. Check if clipboard contains structured/rich HTML (from Google Docs, Web pages, etc.)
+      let parsedBlocks = [];
+      const hasRichHtml =
+        html &&
+        (/<(h[1-6]|ul|ol|table|blockquote|pre|details|b\b|strong\b|i\b|em\b|mark\b|a\s+href|iframe|video)/i.test(html) ||
+          html.includes("docs-internal-guid"));
 
-      if (isMarkdown) {
-        e.preventDefault();
-        const parsedBlocks = parseMarkdownToBlocks(text);
-        if (parsedBlocks.length > 0) {
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
-          setBlocks((prev) => {
-            const activeIdx = prev.findIndex((b) => b.id === selectedId);
-            if (activeIdx !== -1) {
-              const activeBlock = prev[activeIdx];
-              const el = blockRefs.current[activeBlock.id]?.current;
-              const sel = window.getSelection();
-              let textBefore = "";
-              let textAfter = "";
-              if (el && sel && sel.rangeCount > 0 && el.contains(sel.focusNode)) {
-                const range = sel.getRangeAt(0);
-                textBefore = getSerializedTextFromRange(el, range.startContainer, range.startOffset);
-                const textSelected = range.collapsed
-                  ? ""
-                  : getSerializedTextFromRange(el, range.endContainer, range.endOffset).slice(textBefore.length);
-                const fullText = getBlockTextFromDOM(el);
-                textAfter = fullText.slice(textBefore.length + textSelected.length);
-              }
+      if (hasRichHtml) {
+        parsedBlocks = parseHtmlToBlocks(html);
+      }
 
-              const blocksToInsert = parsedBlocks.map((b) => ({ ...b }));
-              if (textBefore && blocksToInsert.length > 0) {
-                blocksToInsert[0].content = (textBefore + (blocksToInsert[0].content || ""));
-              }
-              if (textAfter && blocksToInsert.length > 0) {
-                const lastIdx = blocksToInsert.length - 1;
-                blocksToInsert[lastIdx].content = ((blocksToInsert[lastIdx].content || "") + textAfter);
-              }
+      // 2. If no structured HTML parsed, check if plain text is markdown or multi-line TSV
+      if (parsedBlocks.length === 0 && text) {
+        const isMarkdown =
+          text.includes("\n") ||
+          /^(#+|-|\*|\d+\.|>|```|\$\$|\[\s*\]|---)\s/m.test(text) ||
+          text.includes("\t") ||
+          !!getYouTubeEmbedInfo(text.trim());
 
-              const next = [...prev];
-              next.splice(activeIdx, 1, ...blocksToInsert);
-              const lastInserted = blocksToInsert[blocksToInsert.length - 1];
-              if (lastInserted) {
-                setSelectedId(lastInserted.id);
-                setTimeout(() => {
-                  blockRefs.current[lastInserted.id]?.current?.focus();
-                }, 30);
-              }
-              return next;
-            }
-            return [...prev, ...parsedBlocks];
-          });
+        if (isMarkdown) {
+          parsedBlocks = parseMarkdownToBlocks(text);
         }
+      }
+
+      if (parsedBlocks.length > 0) {
+        e.preventDefault();
+        setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+        setFutureBlocks([]);
+        setBlocks((prev) => {
+          const activeIdx = prev.findIndex((b) => b.id === selectedId);
+          let next;
+          if (activeIdx !== -1) {
+            const activeBlock = prev[activeIdx];
+            const el = blockRefs.current[activeBlock.id]?.current;
+            const sel = window.getSelection();
+            let textBefore = "";
+            let textAfter = "";
+            if (el && sel && sel.rangeCount > 0 && el.contains(sel.focusNode)) {
+              const range = sel.getRangeAt(0);
+              textBefore = getSerializedTextFromRange(el, range.startContainer, range.startOffset);
+              const textSelected = range.collapsed
+                ? ""
+                : getSerializedTextFromRange(el, range.endContainer, range.endOffset).slice(textBefore.length);
+              const fullText = getBlockTextFromDOM(el);
+              textAfter = fullText.slice(textBefore.length + textSelected.length);
+            }
+
+            const blocksToInsert = parsedBlocks.map((b) => ({ ...b }));
+            if (textBefore && blocksToInsert.length > 0) {
+              blocksToInsert[0].content = (textBefore + (blocksToInsert[0].content || ""));
+            }
+            if (textAfter && blocksToInsert.length > 0) {
+              const lastIdx = blocksToInsert.length - 1;
+              blocksToInsert[lastIdx].content = ((blocksToInsert[lastIdx].content || "") + textAfter);
+            }
+
+            next = [...prev];
+            next.splice(activeIdx, 1, ...blocksToInsert);
+            const lastInserted = blocksToInsert[blocksToInsert.length - 1];
+            if (lastInserted) {
+              focusBlock(lastInserted, "end");
+            }
+          } else {
+            next = [...prev, ...parsedBlocks];
+            const lastInserted = parsedBlocks[parsedBlocks.length - 1];
+            if (lastInserted) {
+              focusBlock(lastInserted, "end");
+            }
+          }
+          triggerDebouncedSave({ blocks: next });
+          return next;
+        });
         return;
       }
 
       // If pasting single-line or non-multiline text, sanitize to plain text to avoid foreign HTML injection
       if (e.target?.isContentEditable) {
         e.preventDefault();
-        const plainText = e.clipboardData?.getData("text/plain") || "";
+        const plainText = text;
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
@@ -4249,8 +6200,105 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [selectedId, handleChange]
+    [selectedId, handleChange, focusBlock, triggerDebouncedSave]
   );
+
+  const headings = useMemo(() => {
+    return (blocks || []).filter((b) => ["h1", "h2", "h3", "h4"].includes(b.type));
+  }, [blocks]);
+
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  const [isOutlinePinned, setIsOutlinePinned] = useState(false);
+  const [activeHeadingId, setActiveHeadingId] = useState(null);
+  const outlineTimeoutRef = useRef(null);
+
+  const handleOutlineMouseEnter = useCallback(() => {
+    if (outlineTimeoutRef.current) {
+      clearTimeout(outlineTimeoutRef.current);
+      outlineTimeoutRef.current = null;
+    }
+    setIsOutlineOpen(true);
+  }, []);
+
+  const handleOutlineMouseLeave = useCallback(() => {
+    if (isOutlinePinned) return;
+    if (outlineTimeoutRef.current) {
+      clearTimeout(outlineTimeoutRef.current);
+    }
+    outlineTimeoutRef.current = setTimeout(() => {
+      setIsOutlineOpen(false);
+    }, 280);
+  }, [isOutlinePinned]);
+
+  const handleSelectHeading = useCallback((targetId) => {
+    if (!targetId) return;
+    setSelectedId(targetId);
+    setActiveHeadingId(targetId);
+    const targetRef = blockRefs.current[targetId];
+    const el = targetRef?.current;
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus();
+      const blockContainer = el.closest("[data-block-id]");
+      if (blockContainer) {
+        blockContainer.classList.add("ring-2", "ring-duck-400", "bg-duck-500/10");
+        setTimeout(() => {
+          blockContainer.classList.remove("ring-2", "ring-duck-400", "bg-duck-500/10");
+        }, 1200);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (headings.length === 0) {
+      setActiveHeadingId(null);
+      return;
+    }
+
+    let ticking = false;
+    let rafId = null;
+
+    const checkScrollPosition = () => {
+      let currentActive = null;
+      for (const h of headings) {
+        const el = blockRefs.current[h.id]?.current;
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 200) {
+            currentActive = h.id;
+          }
+        }
+      }
+      if (currentActive) {
+        setActiveHeadingId((prev) => (prev !== currentActive ? currentActive : prev));
+      } else if (headings.length > 0) {
+        setActiveHeadingId((prev) => (prev !== headings[0].id ? headings[0].id : prev));
+      }
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        rafId = requestAnimationFrame(checkScrollPosition);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    const scrollParent = editorContainerRef.current?.closest("main");
+    if (scrollParent) {
+      scrollParent.addEventListener("scroll", handleScroll, { passive: true });
+    }
+    checkScrollPosition();
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollParent) {
+        scrollParent.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, [headings]);
 
   const handleIntelligentReformat = useCallback(async () => {
     if (isReformatting) return;
@@ -4299,11 +6347,9 @@ export default function BlockNoteEditor({
         const effectiveEmoji = emoji || newEmoji || null;
         const effectiveBlocks = newBlocks && newBlocks.length > 0 ? newBlocks : currentBlocks;
 
-        onSaveNote?.({
+        performSave({
           title: effectiveTitle,
           blocks: effectiveBlocks,
-          banner,
-          isFavorite,
           emoji: effectiveEmoji,
         });
 
@@ -4326,12 +6372,23 @@ export default function BlockNoteEditor({
       setIsReformatting(false);
       setReformatProgress(null);
     }
-  }, [isReformatting, title, emoji, banner, isFavorite, onSaveNote]);
+  }, [isReformatting, title, emoji, performSave]);
+
+  useEffect(() => {
+    onRegisterReformat?.(handleIntelligentReformat);
+  }, [handleIntelligentReformat, onRegisterReformat]);
+
+  useEffect(() => {
+    onReformatStateChange?.({ isReformatting, progress: reformatProgress });
+  }, [isReformatting, reformatProgress, onReformatStateChange]);
 
 
   const handleKeyDown = useCallback(
 
     (e, blockId) => {
+      if (selectedBlockIdsRef.current?.size > 0) {
+        setSelectedBlockIds(new Set());
+      }
       if (e.key === "Backspace") {
         const block = blocks.find((b) => b.id === blockId);
         if (!block) return;
@@ -4341,165 +6398,138 @@ export default function BlockNoteEditor({
         const el = blockRefs.current[blockId]?.current;
         let isAtStart = false;
         if (el) {
-          const sel = window.getSelection();
-          if (sel && sel.rangeCount > 0 && sel.focusNode) {
-            const range = sel.getRangeAt(0);
-            if (range.collapsed) {
-              const textBefore = getSerializedTextFromRange(el, range.startContainer, range.startOffset);
-              if (textBefore.length === 0) {
-                isAtStart = true;
+          isAtStart = isCaretAtLogicalStart(el);
+          if (!isAtStart) {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0 && sel.focusNode) {
+              const range = sel.getRangeAt(0);
+              if (range.collapsed) {
+                const split = splitBlockDOMAtRange(el, range);
+                if (cleanZeroWidth(split.textBefore).length === 0) {
+                  isAtStart = true;
+                }
               }
             }
           }
-        } else if (block.content === "") {
+        } else if (!block.content || cleanZeroWidth(block.content) === "") {
           isAtStart = true;
         }
 
-        // 1. Notion-style Divider, Site Bookmark, Media & Canvas Deletion:
-        // When Backspace is pressed at the start of a line after a divider, site, media or canvas block, delete it!
-        const standaloneEmbedTypes = ["divider", "site", "media", "canvas"];
-        if (isAtStart && idx > 0 && standaloneEmbedTypes.includes(blocks[idx - 1]?.type)) {
-          e.preventDefault();
-          const targetBlock = blocks[idx - 1];
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
-          setBlocks((prev) => prev.filter((b) => b.id !== targetBlock.id));
-          return;
-        }
-
-        // A. If block is empty and we have more than 1 block, delete THIS block and move focus to previous block
-        if (block.content === "" && blocks.length > 1) {
-          e.preventDefault();
-          const prevBlock = idx > 0 ? blocks[idx - 1] : null;
-          
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
-          setBlocks((prev) => prev.filter((b) => b.id !== blockId));
-
-          if (prevBlock) {
-            setSelectedId(prevBlock.id);
-            requestAnimationFrame(() => {
-              setTimeout(() => {
-                const el = blockRefs.current[prevBlock.id]?.current;
-                if (el) {
-                  el.focus();
-                  const sel = window.getSelection();
-                  if (sel) {
-                    sel.selectAllChildren(el);
-                    sel.collapseToEnd();
-                  }
-                }
-              }, 15);
-            });
-          }
-          return;
-        }
-
-        // B. If block is a single remaining empty list item, change it to text
-        if (block.type !== "text" && block.content === "" && blocks.length === 1) {
-          e.preventDefault();
-          handleChangeType(blockId, "text");
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              const el = blockRefs.current[blockId]?.current;
-              if (el) {
-                el.focus();
-              }
-            }, 15);
-          });
-          return;
-        }
-
-        // C. If list block or heading is non-empty, but caret is at offset 0, convert to text block (escape list style)
-        if (el && isAtStart) {
-          if (block.type !== "text") {
+        // 1. UN-LIST / UN-FORMAT:
+        // If current block is a list or formatted type (bullet, number, todo, toggle, heading, quote, callout)
+        // AND (caret is at offset 0 OR the block content is empty):
+        // Convert block to a plain "text" paragraph first without deleting or merging!
+        if (block.type !== "text" && (isAtStart || block.content === "")) {
+          if (block.type === "bullet" && (block.level || 0) > 0) {
             e.preventDefault();
-            handleChangeType(blockId, "text");
-            requestAnimationFrame(() => {
-              setTimeout(() => {
-                const targetEl = blockRefs.current[blockId]?.current;
-                if (targetEl) {
-                  targetEl.focus();
-                  const newSel = window.getSelection();
-                  if (newSel) {
-                    newSel.selectAllChildren(targetEl);
-                    newSel.collapseToStart();
-                  }
-                }
-              }, 15);
-            });
+            handleUpdateBlock(blockId, { level: (block.level || 0) - 1 }, false, true);
             return;
           }
-
-          // D. Merge non-empty text block into previous block if caret is at start
-          if (idx > 0) {
-            const prevBlock = blocks[idx - 1];
-            const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
-            if (mergeableTypes.includes(prevBlock.type)) {
-              e.preventDefault();
-              const prevContent = prevBlock.content || "";
-              const currentContent = block.content || "";
-              const mergedContent = prevContent + currentContent;
-
-              setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-              setFutureBlocks([]);
-
-              setBlocks((prev) => {
-                const next = prev.filter((b) => b.id !== blockId);
-                const targetIdx = next.findIndex((b) => b.id === prevBlock.id);
-                if (targetIdx !== -1) {
-                  next[targetIdx] = { ...next[targetIdx], content: mergedContent };
-                }
-                return next;
-              });
-
-              setSelectedId(prevBlock.id);
-              requestAnimationFrame(() => {
-                setTimeout(() => {
-                  const targetEl = blockRefs.current[prevBlock.id]?.current;
-                  if (targetEl) {
-                    targetEl.focus();
-                    const newSel = window.getSelection();
-                    if (newSel) {
-                      try {
-                        let charCount = 0;
-                        let found = false;
-                        const walker = document.createTreeWalker(targetEl, NodeFilter.SHOW_TEXT, null, false);
-                        let node;
-                        while ((node = walker.nextNode())) {
-                          const nextCount = charCount + node.length;
-                          if (prevContent.length <= nextCount) {
-                            const r = document.createRange();
-                            r.setStart(node, Math.min(node.length, Math.max(0, prevContent.length - charCount)));
-                            r.collapse(true);
-                            newSel.removeAllRanges();
-                            newSel.addRange(r);
-                            found = true;
-                            break;
-                          }
-                          charCount = nextCount;
-                        }
-                        if (!found) {
-                          newSel.selectAllChildren(targetEl);
-                          newSel.collapseToEnd();
-                        }
-                      } catch (_) {
-                        newSel.selectAllChildren(targetEl);
-                        newSel.collapseToEnd();
-                      }
-                    }
-                  }
-                }, 20);
-              });
-              return;
+          e.preventDefault();
+          handleChangeType(blockId, "text", "start");
+          const focusStart = () => {
+            const targetEl = blockRefs.current[blockId]?.current;
+            if (targetEl) {
+              setCaretToStart(targetEl);
             }
+          };
+          requestAnimationFrame(focusStart);
+          setTimeout(focusStart, 10);
+          return;
+        }
+
+        // 2. EMPTY PLAIN TEXT BLOCK DELETION:
+        // When Backspace is pressed on an empty plain text line, delete the empty line itself
+        // and cleanly place the caret at the end of the block above (never deleting the block above)!
+        const currentDOMText = el ? getBlockTextFromDOM(el) : "";
+        if (block.type === "text" && (block.content === "" || currentDOMText === "")) {
+          if (blocks.length > 1) {
+            e.preventDefault();
+            const prevBlock = idx > 0 ? blocks[idx - 1] : (blocks[1] || null);
+            
+            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+            setFutureBlocks([]);
+            setBlocks((prev) => {
+              const next = prev.filter((b) => b.id !== blockId);
+              triggerDebouncedSave({ blocks: next });
+              return next;
+            });
+
+            if (prevBlock) {
+              focusBlock(prevBlock, idx > 0 ? "end" : "start");
+              requestAnimationFrame(() => {
+                focusBlock(prevBlock, idx > 0 ? "end" : "start");
+              });
+            }
+            return;
+          } else {
+            // Single remaining block in note: keep it as empty text and focus start
+            e.preventDefault();
+            focusBlock(blockId, "start");
+            return;
+          }
+        }
+
+        // 3. MERGE PLAIN TEXT BLOCK OR STEP INTO PREVIOUS SPECIAL BLOCK (at offset 0, idx > 0):
+        if (el && isAtStart && idx > 0 && block.type === "text") {
+          const prevBlock = blocks[idx - 1];
+          const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
+          if (mergeableTypes.includes(prevBlock.type)) {
+            e.preventDefault();
+            const prevContent = prevBlock.content || "";
+            const currentContent = block.content || "";
+            const mergedContent = prevContent + currentContent;
+
+            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+            setFutureBlocks([]);
+
+            // Measure DOM text length before merge to avoid markdown syntax offset overshooting
+            const prevEl = blockRefs.current[prevBlock.id]?.current;
+            const domCaretOffset = prevEl ? getDOMCaretLength(prevEl) : prevContent.length;
+
+            // Synchronously update DOM of target element so caret placement is rock-solid and not wiped by re-render
+            const targetEl = blockRefs.current[prevBlock.id]?.current;
+            if (targetEl) {
+              setBlockDOMFromText(targetEl, mergedContent, prevBlock.type);
+              setCaretAtOffset(targetEl, domCaretOffset);
+            }
+
+            setBlocks((prev) => {
+              const next = prev.filter((b) => b.id !== blockId);
+              const targetIdx = next.findIndex((b) => b.id === prevBlock.id);
+              if (targetIdx !== -1) {
+                next[targetIdx] = { ...next[targetIdx], content: mergedContent };
+              }
+              triggerDebouncedSave({ blocks: next });
+              return next;
+            });
+
+            setSelectedId(prevBlock.id);
+            const focusJoin = () => {
+              const targetElRef = blockRefs.current[prevBlock.id]?.current;
+              if (targetElRef) {
+                setCaretAtOffset(targetElRef, domCaretOffset);
+              }
+            };
+            requestAnimationFrame(focusJoin);
+            setTimeout(focusJoin, 10);
+            setTimeout(focusJoin, 35);
+            return;
+          } else {
+            // Previous block is a special non-mergeable block (code, table, math, columns, divider, site, media, canvas):
+            // Step into the previous block at the end without deleting it!
+            e.preventDefault();
+            focusBlock(prevBlock, "end");
+            return;
           }
         }
 
       } else if (e.key === "Delete") {
-        // Notion-style Divider, Site Bookmark, Media & Canvas Deletion:
-        // When Delete is pressed at the end of a line before a divider, site, media or canvas block, delete it!
-        const standaloneEmbedTypes = ["divider", "site", "media", "canvas"];
+        // Notion-style Forward Deletion & Merging:
+        // When Delete is pressed at the end of a block:
+        const standaloneEmbedTypes = ["divider", "site", "media"];
+        const complexCardTypes = ["code", "math", "table", "columns"];
+        const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
         const el = blockRefs.current[blockId]?.current;
         if (el) {
           const sel = window.getSelection();
@@ -4512,13 +6542,69 @@ export default function BlockNoteEditor({
               
               if (textAfter.length === 0) {
                 const idx = blocks.findIndex((b) => b.id === blockId);
-                if (idx !== -1 && idx < blocks.length - 1 && standaloneEmbedTypes.includes(blocks[idx + 1]?.type)) {
-                  e.preventDefault();
+                if (idx !== -1 && idx < blocks.length - 1) {
                   const targetBlock = blocks[idx + 1];
-                  setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                  setFutureBlocks([]);
-                  setBlocks((prev) => prev.filter((b) => b.id !== targetBlock.id));
-                  return;
+                  // 1. Standalone embed block (divider, site, media, canvas): delete it!
+                  if (standaloneEmbedTypes.includes(targetBlock?.type)) {
+                    e.preventDefault();
+                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+                    setFutureBlocks([]);
+                    setBlocks((prev) => {
+                      const next = prev.filter((b) => b.id !== targetBlock.id);
+                      triggerDebouncedSave({ blocks: next });
+                      return next;
+                    });
+                    return;
+                  }
+                  // 2. Empty text block: delete it!
+                  if (targetBlock?.type === "text" && (!targetBlock.content || targetBlock.content.trim() === "")) {
+                    e.preventDefault();
+                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+                    setFutureBlocks([]);
+                    setBlocks((prev) => {
+                      const next = prev.filter((b) => b.id !== targetBlock.id);
+                      triggerDebouncedSave({ blocks: next });
+                      return next;
+                    });
+                    return;
+                  }
+                  // 3. Mergeable text block: pull and merge it into current block!
+                  if (mergeableTypes.includes(targetBlock?.type)) {
+                    e.preventDefault();
+                    const currentContent = block.content || "";
+                    const nextContent = targetBlock.content || "";
+                    const mergedContent = currentContent + nextContent;
+
+                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+                    setFutureBlocks([]);
+
+                    const domCaretOffset = getDOMCaretLength(el);
+
+                    setBlockDOMFromText(el, mergedContent, block.type);
+                    setCaretAtOffset(el, domCaretOffset);
+
+                    setBlocks((prev) => {
+                      const next = prev.filter((b) => b.id !== targetBlock.id);
+                      const targetIdx = next.findIndex((b) => b.id === blockId);
+                      if (targetIdx !== -1) {
+                        next[targetIdx] = { ...next[targetIdx], content: mergedContent };
+                      }
+                      triggerDebouncedSave({ blocks: next });
+                      return next;
+                    });
+
+                    requestAnimationFrame(() => {
+                      const targetEl = blockRefs.current[blockId]?.current;
+                      if (targetEl) setCaretAtOffset(targetEl, domCaretOffset);
+                    });
+                    return;
+                  }
+                  // 4. Complex block (code, math, table, columns): step into it!
+                  if (complexCardTypes.includes(targetBlock?.type)) {
+                    e.preventDefault();
+                    focusBlock(targetBlock, "start");
+                    return;
+                  }
                 }
               }
             }
@@ -4530,13 +6616,7 @@ export default function BlockNoteEditor({
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
           if (idx > 0) {
-            let targetIdx = idx - 1;
-            while (targetIdx >= 0 && blocks[targetIdx].type === "divider") targetIdx--;
-            if (targetIdx >= 0) {
-              const prevId = blocks[targetIdx].id;
-              setSelectedId(prevId);
-              blockRefs.current[prevId]?.current?.focus();
-            }
+            focusBlock(blocks[idx - 1], "end");
           }
           return;
         }
@@ -4546,29 +6626,9 @@ export default function BlockNoteEditor({
           const sel = window.getSelection();
           if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(el);
-            preCaretRange.setEnd(range.startContainer, range.startOffset);
-            if (preCaretRange.toString().length === 0) {
-              const idx = blocks.findIndex((b) => b.id === blockId);
-              if (idx > 0) {
-                e.preventDefault();
-                let targetIdx = idx - 1;
-                while (targetIdx >= 0 && blocks[targetIdx].type === "divider") targetIdx--;
-                if (targetIdx >= 0) {
-                  const prevId = blocks[targetIdx].id;
-                  setSelectedId(prevId);
-                  const prevEl = blockRefs.current[prevId]?.current;
-                  if (prevEl) {
-                    prevEl.focus();
-                    const newSel = window.getSelection();
-                    if (newSel) {
-                      newSel.selectAllChildren(prevEl);
-                      newSel.collapseToEnd();
-                    }
-                  }
-                }
-              }
+            if (isCaretOnFirstVisualLine(el, range)) {
+              e.preventDefault();
+              handleExitUp(blockId);
             }
           }
         }
@@ -4577,13 +6637,7 @@ export default function BlockNoteEditor({
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
           if (idx < blocks.length - 1) {
-            let targetIdx = idx + 1;
-            while (targetIdx < blocks.length && blocks[targetIdx].type === "divider") targetIdx++;
-            if (targetIdx < blocks.length) {
-              const nextId = blocks[targetIdx].id;
-              setSelectedId(nextId);
-              blockRefs.current[nextId]?.current?.focus();
-            }
+            focusBlock(blocks[idx + 1], "start");
           }
           return;
         }
@@ -4593,35 +6647,58 @@ export default function BlockNoteEditor({
           const sel = window.getSelection();
           if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
-            const postCaretRange = range.cloneRange();
-            postCaretRange.selectNodeContents(el);
-            postCaretRange.setStart(range.endContainer, range.endOffset);
-            if (postCaretRange.toString().length === 0) {
+            if (isCaretOnLastVisualLine(el, range)) {
+              // BUG-TOG-01: If this is an open toggle block, step down into its details textarea!
+              const currentBlock = blocks.find((b) => b.id === blockId);
+              if (currentBlock?.type === "toggle" && currentBlock.open !== false) {
+                const detailsEl = document.getElementById(`toggle_details_${blockId}`);
+                if (detailsEl) {
+                  e.preventDefault();
+                  detailsEl.focus();
+                  detailsEl.setSelectionRange(0, 0);
+                  return;
+                }
+              }
+
               const idx = blocks.findIndex((b) => b.id === blockId);
               if (idx < blocks.length - 1) {
                 e.preventDefault();
-                let targetIdx = idx + 1;
-                while (targetIdx < blocks.length && blocks[targetIdx].type === "divider") targetIdx++;
-                if (targetIdx < blocks.length) {
-                  const nextId = blocks[targetIdx].id;
-                  setSelectedId(nextId);
-                  const nextEl = blockRefs.current[nextId]?.current;
-                  if (nextEl) {
-                    nextEl.focus();
-                    const newSel = window.getSelection();
-                    if (newSel) {
-                      newSel.selectAllChildren(nextEl);
-                      newSel.collapseToStart();
-                    }
-                  }
-                }
+                handleExitDown(blockId);
+              }
+            }
+          }
+        }
+      } else if (e.key === "ArrowLeft") {
+        const el = blockRefs.current[blockId]?.current;
+        if (el) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+            const range = sel.getRangeAt(0);
+            if (isCaretAtBlockStart(el, range)) {
+              e.preventDefault();
+              handleExitUp(blockId);
+            }
+          }
+        }
+      } else if (e.key === "ArrowRight") {
+        const el = blockRefs.current[blockId]?.current;
+        if (el) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+            const range = sel.getRangeAt(0);
+            if (isCaretAtBlockEnd(el, range)) {
+              const idx = blocks.findIndex((b) => b.id === blockId);
+              if (idx < blocks.length - 1) {
+                e.preventDefault();
+                const nextBlock = blocks[idx + 1];
+                focusBlock(nextBlock, "start");
               }
             }
           }
         }
       }
     },
-    [blocks, handleChangeType]
+    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, triggerDebouncedSave]
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);
@@ -4633,158 +6710,188 @@ export default function BlockNoteEditor({
     <div
       ref={editorContainerRef}
       onMouseDown={handleEditorMouseDown}
-      onMouseMove={handleEditorMouseMove}
-      onMouseUp={handleEditorMouseUp}
       onPaste={handleSmartPaste}
-      className="relative min-h-full w-full pb-32"
+      className={`relative min-h-full w-full pb-32 transition-all ${
+        NOTE_FONT_CLASSES[fontStyle] || "font-note-sans"
+      }`}
     >
-      {/* Marquee Selection Box Overlay */}
+      {/* Floating Text Selection Popover Toolbar */}
+      <TextSelectionToolbar
+        editorContainerRef={editorContainerRef}
+        onExplainBlock={onExplainBlock}
+        onQuizBlock={onQuizBlock}
+        onRecordHistory={recordHistorySnapshot}
+      />
+
+      {/* High-Performance Marquee Selection Box (Absolute in document coordinate space) */}
       {marqueeBox && (
         <div
-          className="fixed z-50 pointer-events-none rounded-lg border border-duck-400/60 bg-duck-500/20 backdrop-blur-[1px] shadow-lg animate-pulse"
+          className="absolute z-40 pointer-events-none rounded border border-duck-400/80 bg-duck-500/15 shadow-sm transition-none select-none"
           style={{
-            left: Math.min(marqueeBox.startX, marqueeBox.currentX),
-            top: Math.min(marqueeBox.startY, marqueeBox.currentY),
-            width: Math.abs(marqueeBox.currentX - marqueeBox.startX),
-            height: Math.abs(marqueeBox.currentY - marqueeBox.startY),
+            left: marqueeBox.left,
+            top: marqueeBox.top,
+            width: marqueeBox.width,
+            height: marqueeBox.height,
           }}
         />
       )}
-      {banner && (
-        <div
-          className={`group relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all print:hidden ${banner.startsWith("data:image/") ? "" : (activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600")}`}
-          style={banner.startsWith("data:image/") ? { backgroundImage: `url(${banner})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
-        />
-      )}
-
-      <div className={`absolute right-6 ${banner ? "top-4" : "top-3"} z-30 flex flex-col items-end gap-2 print:hidden`}>
-        <div className="relative" ref={bannerPickerRef}>
+      
+      {/* Subtle Lock Indicator at Top Right (under top bar) */}
+      {isLocked && (
+        <div className="absolute top-3 right-6 z-30 print:hidden select-none">
           <button
             type="button"
-            onClick={() => setShowBannerPicker(!showBannerPicker)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur-md transition-all ${
-              banner
-                ? "border-white/30 bg-ink-950/40 text-white opacity-60 hover:opacity-100 hover:bg-ink-950/80 hover:border-white/50"
-                : "border-ink-700 bg-ink-900/90 text-ink-200 hover:border-duck-500/40 hover:text-duck-300"
-            }`}
+            onClick={() => {
+              setIsLocked(false);
+              isLockedRef.current = false;
+              performSave({ isLocked: false });
+              onToggleLock?.(false);
+            }}
+            title="Page is locked to prevent edits. Click to unlock."
+            className="group/lock flex items-center justify-center p-1.5 rounded-lg border border-ink-800/70 bg-ink-900/80 text-ink-400 hover:text-amber-300 hover:border-amber-500/40 hover:bg-ink-850/90 backdrop-blur-md transition-all shadow-sm cursor-pointer"
           >
-            <span>🖼️</span>
-            <span>{banner ? "Change Cover" : "Add Cover Banner"}</span>
+            <Lock className="h-4 w-4 text-amber-400/80 group-hover/lock:text-amber-300 transition-colors" />
           </button>
+        </div>
+      )}
 
-          {showBannerPicker && (
-            <div className="absolute right-0 top-9 z-50 w-64 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl">
-              <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-                Select Cover Style
-              </p>
-              <div className="space-y-1">
-                {BANNER_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => {
-                      setBanner(preset.id);
-                      setShowBannerPicker(false);
-                      onSaveNote?.({ title, blocks, banner: preset.id, isFavorite, emoji });
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800"
-                  >
-                    <span className={`h-4 w-8 rounded ${preset.style}`} />
-                    <span>{preset.label}</span>
-                  </button>
-                ))}
-                <label className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800">
-                  <span className="h-4 w-8 rounded bg-ink-700 flex items-center justify-center text-[10px]">📁</span>
-                  <span>Upload Image...</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        const dataUrl = ev.target.result;
-                        setBanner(dataUrl);
-                        setShowBannerPicker(false);
-                        onSaveNote?.({ title, blocks, banner: dataUrl, isFavorite, emoji });
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                  />
-                </label>
-                {banner && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBanner(null);
-                      setShowBannerPicker(false);
-                      onSaveNote?.({ title, blocks, banner: null, isFavorite, emoji });
-                    }}
-                    className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-400 hover:bg-rose-500/10"
-                  >
-                    Remove Banner
-                  </button>
+      {/* AI Reformat Floating Progress Banner & Feedback */}
+      {(isReformatting || reformatToast) && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-fade-in select-none">
+          {isReformatting ? (
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-ink-900/95 border border-duck-500/50 shadow-2xl backdrop-blur-md text-xs font-semibold text-duck-200 ring-4 ring-duck-400/20">
+              <Sparkles className="h-4 w-4 text-amber-400 animate-spin shrink-0" />
+              <div className="flex flex-col">
+                <span className="flex items-center gap-1.5">
+                  <span>Structuring & Reformatting Note with AI...</span>
+                  <span className="inline-flex h-2 w-2 rounded-full bg-duck-400 animate-ping" />
+                </span>
+                {reformatProgress ? (
+                  <span className="text-[10px] text-duck-300/80 font-normal">
+                    {typeof reformatProgress === "string"
+                      ? reformatProgress
+                      : reformatProgress.message || (reformatProgress.total > 1 ? `Part ${reformatProgress.current} of ${reformatProgress.total}...` : null)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : reformatToast ? (
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl border shadow-2xl backdrop-blur-md text-xs font-semibold ${
+                reformatToast.type === "error"
+                  ? "border-rose-500/50 bg-ink-900/95 text-rose-300 ring-4 ring-rose-500/20"
+                  : "border-duck-500/50 bg-ink-900/95 text-duck-200 ring-4 ring-duck-500/20"
+              }`}
+            >
+              {reformatToast.type === "error" ? (
+                <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+              )}
+              <span>{reformatToast.message}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Cover Banner (when set) */}
+      {banner && (
+        <div
+          className={`group/banner relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all print:hidden ${
+            banner.startsWith("data:image/")
+              ? ""
+              : activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600"
+          }`}
+          style={
+            banner.startsWith("data:image/")
+              ? { backgroundImage: `url(${banner})`, backgroundSize: "cover", backgroundPosition: "center" }
+              : {}
+          }
+        >
+          {/* Controls on banner */}
+          {!isLocked && (
+            <div className="absolute right-6 top-3 z-30 flex items-center gap-2 opacity-80 group-hover/banner:opacity-100 transition-opacity">
+              <div className="relative" ref={bannerPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowBannerPicker(!showBannerPicker)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-ink-950/60 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-all hover:bg-ink-950/90 hover:border-white/50"
+                >
+                  <span>🖼️</span>
+                  <span>Change Cover</span>
+                </button>
+
+                {showBannerPicker && (
+                  <div className="absolute right-0 top-9 z-50 w-64 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl animate-fade-in">
+                    <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                      Select Cover Style
+                    </p>
+                    <div className="space-y-1">
+                      {BANNER_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setBanner(preset.id);
+                            bannerRef.current = preset.id;
+                            setShowBannerPicker(false);
+                            performSave({ banner: preset.id });
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800"
+                        >
+                          <span className={`h-4 w-8 rounded ${preset.style}`} />
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                      <label className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800">
+                        <span className="h-4 w-8 rounded bg-ink-700 flex items-center justify-center text-[10px]">📁</span>
+                        <span>Upload Image...</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              const dataUrl = ev.target.result;
+                              setBanner(dataUrl);
+                              bannerRef.current = dataUrl;
+                              setShowBannerPicker(false);
+                              performSave({ banner: dataUrl });
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBanner(null);
+                          bannerRef.current = null;
+                          setShowBannerPicker(false);
+                          performSave({ banner: null });
+                        }}
+                        className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-400 hover:bg-rose-500/10"
+                      >
+                        Remove Banner
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           )}
         </div>
-
-        {/* Intelligent AI Note Reformat Button — placed directly below Change Cover button */}
-        <div className="flex items-center gap-2">
-          {reformatToast && (
-            <span
-              className={`animate-fade-in inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium border shadow-md backdrop-blur-md ${
-                reformatToast.type === "error"
-                  ? "border-rose-500/30 bg-rose-500/20 text-rose-300"
-                  : "border-duck-500/30 bg-duck-500/20 text-duck-300"
-              }`}
-            >
-              {reformatToast.message}
-            </span>
-          )}
-
-          <button
-            type="button"
-            onClick={handleIntelligentReformat}
-            disabled={isReformatting}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur-md transition-all ${
-              banner
-                ? "border-white/30 bg-ink-950/40 text-white opacity-60 hover:opacity-100 hover:bg-ink-950/80 hover:border-white/50"
-                : "border-ink-700 bg-ink-900/90 text-ink-300 hover:border-duck-500/40 hover:text-duck-300 hover:bg-duck-500/5 active:scale-95"
-            } ${
-              isReformatting ? "border-duck-500/60 bg-duck-500/10 text-duck-300 cursor-wait animate-pulse" : ""
-            }`}
-            title="Intelligently read whole note and reformat into structured headings, callouts, math formulas, toggles, tables & checklists"
-          >
-            {isReformatting ? (
-              <>
-                <span className="inline-block animate-spin">🪄</span>
-                <span>
-                  {reformatProgress && reformatProgress.total > 1
-                    ? `Part ${reformatProgress.current}/${reformatProgress.total}...`
-                    : "Reformatting..."}
-                </span>
-              </>
-            ) : (
-              <>
-                <span>✨</span>
-                <span>Reformat Note</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-
+      )}
 
       {/* Main Note Content Container */}
       <div
         data-editor-root
-        className="relative mx-auto max-w-3xl px-10 pt-4 pb-20 cursor-text print:px-0 print:pt-0 print:pb-0"
+        className={`relative mx-auto ${fullWidth ? "w-full max-w-none px-6 md:px-12" : "max-w-3xl px-10"} ${banner ? "pt-6" : "pt-8"} pb-20 cursor-text print:px-0 print:pt-0 print:pb-0`}
         onClick={(e) => {
+          if (isLocked) return;
           if (e.target === e.currentTarget && blocks.length > 0) {
             const lastBlock = blocks[blocks.length - 1];
             setSelectedId(lastBlock.id);
@@ -4801,7 +6908,7 @@ export default function BlockNoteEditor({
           }
         }}
       >
-        {/* Print-Only Clean Document Title & Icon Header (Auto-wraps, never cut off) */}
+        {/* Print-Only Clean Document Title & Icon Header */}
         <div className="hidden print:block mb-4 pt-0">
           {emoji && <div className="text-4xl mb-1 leading-none">{emoji}</div>}
           <h1 className="text-3xl font-extrabold tracking-tight text-black leading-tight break-words">
@@ -4809,91 +6916,179 @@ export default function BlockNoteEditor({
           </h1>
         </div>
 
-        {/* Controls Bar Below Banner: Add Icon, AI Reformat & Quick Actions */}
-        <div className="mb-4 pl-8 flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="relative" ref={emojiPickerRef}>
-              <button
-                type="button"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-3 py-1.5 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/40 hover:text-duck-300"
-              >
-                <span>{emoji || "😀"}</span>
-                <span>{emoji ? "Change Icon" : "Add Icon"}</span>
-              </button>
+        {/* Title Header with Progressive Disclosure Actions */}
+        <div className="group/header relative mb-6 pl-8 print:hidden">
+          {/* Progressive Action Hover Strip (revealed on hover) */}
+          {!isLocked && (
+            <div
+              className={`flex items-center gap-2 mb-2 transition-all duration-200 ${
+                showEmojiPicker || showBannerPicker || isReformatting
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 group-hover/header:opacity-100 pointer-events-none group-hover/header:pointer-events-auto"
+              }`}
+            >
+              {/* Add/Change Icon button */}
+              <div className="relative" ref={emojiPickerRef}>
+                {!emoji ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-2.5 py-1 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/40 hover:text-duck-300 cursor-pointer"
+                  >
+                    <span>😀</span>
+                    <span>Add Icon</span>
+                  </button>
+                ) : null}
 
-              {showEmojiPicker && (
-                <div className="absolute left-0 top-9 z-50 w-64 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl space-y-1.5 animate-fade-in">
-                  <p className="px-2 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-                    Select Note Icon
-                  </p>
-                  <div className="grid grid-cols-6 gap-1 p-1">
-                    {NOTE_EMOJIS.map((e) => (
+                {showEmojiPicker && (
+                  <div className="absolute left-0 top-9 z-50 w-64 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl space-y-1.5 animate-fade-in">
+                    <p className="px-2 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                      Select Note Icon
+                    </p>
+                    <div className="grid grid-cols-6 gap-1 p-1 max-h-48 overflow-y-auto">
+                      {NOTE_EMOJIS.map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() => {
+                            setEmoji(e);
+                            emojiRef.current = e;
+                            setShowEmojiPicker(false);
+                            performSave({ emoji: e });
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors hover:bg-ink-800 cursor-pointer"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                    {emoji && (
                       <button
-                        key={e}
                         type="button"
                         onClick={() => {
-                          setEmoji(e);
+                          setEmoji(null);
+                          emojiRef.current = null;
                           setShowEmojiPicker(false);
-                          onSaveNote?.({ title, blocks, banner, isFavorite, emoji: e });
+                          performSave({ emoji: null });
                         }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors hover:bg-ink-800"
+                        className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-400 hover:bg-rose-500/10 cursor-pointer"
                       >
-                        {e}
+                        Remove Icon
                       </button>
-                    ))}
+                    )}
                   </div>
-                  {emoji && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmoji(null);
-                        setShowEmojiPicker(false);
-                        onSaveNote?.({ title, blocks, banner, isFavorite, emoji: null });
-                      }}
-                      className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-400 hover:bg-rose-500/10"
-                    >
-                      Remove Icon
-                    </button>
+                )}
+              </div>
+
+              {/* Add Cover Button (when no banner exists) */}
+              {!banner && (
+                <div className="relative" ref={bannerPickerRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowBannerPicker(!showBannerPicker)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-2.5 py-1 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/40 hover:text-duck-300 cursor-pointer"
+                  >
+                    <span>🖼️</span>
+                    <span>Add Cover</span>
+                  </button>
+
+                  {showBannerPicker && (
+                    <div className="absolute left-0 top-9 z-50 w-64 rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-2xl animate-fade-in">
+                      <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                        Select Cover Style
+                      </p>
+                      <div className="space-y-1">
+                        {BANNER_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setBanner(preset.id);
+                              bannerRef.current = preset.id;
+                              setShowBannerPicker(false);
+                              performSave({ banner: preset.id });
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800 cursor-pointer"
+                          >
+                            <span className={`h-4 w-8 rounded ${preset.style}`} />
+                            <span>{preset.label}</span>
+                          </button>
+                        ))}
+                        <label className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-200 hover:bg-ink-800">
+                          <span className="h-4 w-8 rounded bg-ink-700 flex items-center justify-center text-[10px]">📁</span>
+                          <span>Upload Image...</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                const dataUrl = ev.target.result;
+                                setBanner(dataUrl);
+                                bannerRef.current = dataUrl;
+                                setShowBannerPicker(false);
+                                performSave({ banner: dataUrl });
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          )}
 
-
-
-        {/* Notion Large Note Icon & Title Input (Interactive Screen Mode Only) */}
-        <div className="mb-6 pl-8 print:hidden">
+          {/* Large Notion Note Icon (when set) */}
           {emoji && (
-            <div className="mb-2">
+            <div className="mb-2 inline-block relative">
               <button
                 type="button"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="text-5xl leading-none transition-transform hover:scale-105"
-                title="Change Icon"
+                disabled={isLocked}
+                onClick={() => !isLocked && setShowEmojiPicker(!showEmojiPicker)}
+                className={`text-5xl leading-none transition-transform select-none ${
+                  isLocked ? "cursor-default" : "hover:scale-105 cursor-pointer"
+                }`}
+                title={isLocked ? "Note icon" : "Change Icon"}
               >
                 {emoji}
               </button>
             </div>
           )}
           <input
+            ref={noteTitleInputRef}
             type="text"
+            readOnly={isLocked}
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 if (blocks.length > 0) {
-                  const firstId = blocks[0].id;
-                  setSelectedId(firstId);
-                  blockRefs.current[firstId]?.current?.focus();
+                  focusBlock(blocks[0], "start");
+                }
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                if (blocks.length > 0) {
+                  focusBlock(blocks[0], "start");
+                }
+              } else if (e.key === "ArrowRight") {
+                const len = e.target.value?.length || 0;
+                if (e.target.selectionStart === len && blocks.length > 0) {
+                  e.preventDefault();
+                  focusBlock(blocks[0], "start");
                 }
               }
             }}
             placeholder="Untitled Note"
-            className="w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem]"
+            className={`w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem] ${
+              isLocked ? "cursor-default select-text" : ""
+            }`}
           />
         </div>
 
@@ -4916,6 +7111,8 @@ export default function BlockNoteEditor({
                 isLast={index === blocks.length - 1}
                 isSelected={selectedId === block.id}
                 onSelect={setSelectedId}
+                setSelectedBlockIds={setSelectedBlockIds}
+                selectedBlockIds={selectedBlockIds}
                 onChange={handleChange}
                 onChangeType={handleChangeType}
                 onUpdateBlock={handleUpdateBlock}
@@ -4932,15 +7129,116 @@ export default function BlockNoteEditor({
                 dragHandlers={dragHandlers}
                 isDragTarget={dragOver === block.id && dragging !== block.id}
                 isMultiSelected={selectedBlockIds.has(block.id)}
+                isLocked={isLocked}
+                allBlocks={blocks}
+                onSelectHeading={handleSelectHeading}
                 notesBySpace={notesBySpace}
                 onSelectNote={onSelectNote}
                 registerRef={registerRef}
-                onSaveNote={() => onSaveNote?.({ title, blocks, banner, isFavorite, emoji })}
+                onSaveNote={() => performSave()}
+                onExitDown={handleExitDown}
+                onExitUp={handleExitUp}
               />
             );
           })}
         </div>
       </div>
+
+      {/* Notion-Style Right-Side Outline (Minimap Ticks & Floating Card) */}
+      {headings.length > 0 && (
+        <aside
+          aria-label="Table of Contents Outline"
+          className="print:hidden fixed top-24 right-2 sm:right-3.5 z-40 flex items-start select-none pointer-events-auto"
+        >
+          {/* Notion Floating Outline Card (Image 1) */}
+          {isOutlineOpen && (
+            <div
+              className="mr-2 w-64 sm:w-72 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-2xl border border-[#2b2e37] bg-[#16181f]/95 p-3.5 shadow-2xl backdrop-blur-2xl transition-all animate-fade-in space-y-1 select-none ring-1 ring-white/5"
+              onMouseEnter={handleOutlineMouseEnter}
+              onMouseLeave={handleOutlineMouseLeave}
+            >
+              <div className="space-y-1 pr-0.5">
+                {headings.map((h) => {
+                  const isActive = activeHeadingId === h.id;
+                  const isH1 = h.type === "h1";
+                  const indentClass =
+                    h.type === "h1"
+                      ? "pl-0"
+                      : h.type === "h2"
+                      ? "pl-3.5"
+                      : h.type === "h3"
+                      ? "pl-6"
+                      : "pl-8";
+
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectHeading(h.id);
+                      }}
+                      className={`flex w-full items-center text-left py-1 px-2.5 rounded-lg text-xs leading-relaxed transition-all cursor-pointer group/outlineitem ${indentClass} ${
+                        isActive
+                          ? "bg-[#282b34] text-white font-medium shadow-sm ring-1 ring-white/10"
+                          : isH1
+                          ? "text-sky-400 font-medium hover:text-sky-300 hover:bg-ink-800/40"
+                          : "text-[#9ca0ab] hover:text-white hover:bg-ink-800/40 font-normal"
+                      }`}
+                      title={h.content || "Untitled"}
+                    >
+                      <span className="truncate flex-1">
+                        {h.content || <span className="italic text-ink-600">Untitled</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Right-Margin Minimap Dash Strip (Image 2) */}
+          <div
+            className="flex flex-col items-end gap-2.5 py-4 px-1.5 cursor-pointer group select-none"
+            onClick={() => {
+              setIsOutlinePinned((p) => !p);
+              setIsOutlineOpen(true);
+            }}
+            onMouseEnter={handleOutlineMouseEnter}
+            onMouseLeave={handleOutlineMouseLeave}
+            title={isOutlinePinned ? "Outline pinned (click to unpin)" : "Hover to view outline, click to pin"}
+          >
+            {headings.map((h) => {
+              const isActive = activeHeadingId === h.id;
+              const barWidth =
+                h.type === "h1"
+                  ? "w-5"
+                  : h.type === "h2"
+                  ? "w-4"
+                  : h.type === "h3"
+                  ? "w-3"
+                  : "w-2";
+
+              return (
+                <button
+                  key={h.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSelectHeading(h.id);
+                  }}
+                  className={`h-[2px] rounded-full transition-all duration-200 cursor-pointer p-0 border-0 ${barWidth} ${
+                    isActive
+                      ? "bg-white h-[2.5px] shadow-[0_0_8px_rgba(255,255,255,0.7)]"
+                      : "bg-[#4e515d] hover:bg-white hover:h-[2.5px] group-hover:bg-[#828698]"
+                  }`}
+                  title={h.content || "Untitled"}
+                />
+              );
+            })}
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

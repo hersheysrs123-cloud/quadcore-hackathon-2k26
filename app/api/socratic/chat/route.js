@@ -59,8 +59,18 @@ you never probed.
 - recommendedWidget: pick the one whose interaction would expose the largest
   red or yellow gap.`;
 
-function buildSystemPrompt({ concept, noteContent, isFinalTurn }) {
+function buildSystemPrompt({ concept, noteContent, isFinalTurn, syllabus }) {
   const sections = [PERSONA, `Concept under examination: ${concept}`];
+
+  if (syllabus?.trim()) {
+    sections.push(
+      `ACADEMIC SYLLABUS & CURRICULUM BOUNDARIES:
+<syllabus_statement>
+${syllabus.trim()}
+</syllabus_statement>
+Calibrate all Socratic questions, depth, and evaluation strictly within this syllabus standard. Do not ask for or expect concepts beyond this level.`,
+    );
+  }
 
   if (noteContent?.trim()) {
     sections.push(
@@ -114,7 +124,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const { noteContent, concept, conversationHistory, isFinalTurn = false } =
+  const { noteContent, concept, conversationHistory, isFinalTurn = false, syllabus } =
     body ?? {};
 
   if (!concept || typeof concept !== "string" || !concept.trim()) {
@@ -158,6 +168,7 @@ export async function POST(request) {
     concept: concept.trim(),
     noteContent,
     isFinalTurn,
+    syllabus,
   });
 
   try {
