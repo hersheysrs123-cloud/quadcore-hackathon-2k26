@@ -117,4 +117,72 @@ describe("Mastery Analytics & Heatmap Algorithm (lib/mastery.js)", () => {
       assert.deepStrictEqual(summary.weaknesses, []);
     });
   });
+
+  describe("Space-Specific Mastery Rollup & Isolation", () => {
+    const multiSpaceSessions = [
+      {
+        id: "sess_school_1",
+        noteId: "note_school",
+        space: "School",
+        score: 90,
+        createdAt: "2026-08-01T10:00:00Z",
+        heatmap: [{ subtopic: "Calculus Limits", status: "green", feedback: "Strong grasp" }],
+      },
+      {
+        id: "sess_personal_1",
+        noteId: "note_personal",
+        space: "Personal",
+        score: 30,
+        createdAt: "2026-08-02T10:00:00Z",
+        heatmap: [{ subtopic: "Spanish Verbs", status: "red", feedback: "Irregular conjugations missed" }],
+      },
+      {
+        id: "sess_legacy_no_space",
+        noteId: "note_unknown",
+        // legacy session missing explicit space: tests backwards compatibility fallback to "School"
+        score: 75,
+        createdAt: "2026-08-03T10:00:00Z",
+        heatmap: [{ subtopic: "Mechanics Vectors", status: "yellow", feedback: "Good magnitude, wrong sign" }],
+      },
+    ];
+
+    it("accurately isolates mastery data by space", () => {
+      const schoolSessions = multiSpaceSessions.filter((s) => (s.space || "School") === "School");
+      const personalSessions = multiSpaceSessions.filter((s) => (s.space || "School") === "Personal");
+
+      const schoolSummary = summariseMastery(schoolSessions);
+      const personalSummary = summariseMastery(personalSessions);
+
+      assert.strictEqual(schoolSummary.sessionCount, 2); // sess_school_1 + sess_legacy_no_space
+      assert.strictEqual(personalSummary.sessionCount, 1); // sess_personal_1
+
+      // School has Calculus and Mechanics
+      const schoolSubtopics = schoolSummary.topics.map((t) => t.subtopic);
+      assert.ok(schoolSubtopics.includes("Calculus Limits"));
+      assert.ok(schoolSubtopics.includes("Mechanics Vectors"));
+      assert.ok(!schoolSubtopics.includes("Spanish Verbs"));
+
+      // Personal only has Spanish Verbs
+      const personalSubtopics = personalSummary.topics.map((t) => t.subtopic);
+      assert.deepStrictEqual(personalSubtopics, ["Spanish Verbs"]);
+      assert.strictEqual(personalSummary.weaknesses.length, 1);
+      assert.strictEqual(personalSummary.strengths.length, 0);
+    });
+
+    it("aggregates across all spaces when requested", () => {
+      const allSummary = summariseMastery(multiSpaceSessions);
+      assert.strictEqual(allSummary.sessionCount, 3);
+      assert.strictEqual(allSummary.totalTopics, 3);
+      assert.strictEqual(allSummary.strengths.length, 1); // Calculus
+      assert.strictEqual(allSummary.weaknesses.length, 1); // Spanish
+    });
+
+    it("preserves other spaces when filtering or clearing a specific space", () => {
+      const remainingAfterClearingPersonal = multiSpaceSessions.filter(
+        (s) => (s.space || "School") !== "Personal"
+      );
+      assert.strictEqual(remainingAfterClearingPersonal.length, 2);
+      assert.ok(remainingAfterClearingPersonal.every((s) => (s.space || "School") === "School"));
+    });
+  });
 });

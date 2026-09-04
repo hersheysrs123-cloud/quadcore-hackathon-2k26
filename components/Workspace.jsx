@@ -566,9 +566,16 @@ export default function Workspace() {
     [notesBySpace],
   );
 
+  const currentSpaceSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      const sp = s.space || (s.noteId ? allNotes.find((n) => n.id === s.noteId)?.space : null) || "School";
+      return sp === activeSpace;
+    });
+  }, [sessions, activeSpace, allNotes]);
+
   const gapCount = useMemo(
-    () => summariseMastery(sessions).weaknesses.length,
-    [sessions],
+    () => summariseMastery(currentSpaceSessions).weaknesses.length,
+    [currentSpaceSessions],
   );
 
   const handleDeleteNote = useCallback(
@@ -1473,6 +1480,9 @@ export default function Workspace() {
             <MasteryDashboard
               sessions={sessions}
               notes={allNotes}
+              activeSpace={activeSpace}
+              spaces={spaces}
+              onSelectSpace={setActiveSpace}
               mounted={mounted}
               onOpenNote={(noteId) => {
                 const match = allNotes.find((n) => n.id === noteId);
@@ -1483,9 +1493,20 @@ export default function Workspace() {
                 setActiveTab("notes");
               }}
               onStudy={handleStudyTopic}
-              onClearSessions={async () => {
-                setSessions([]);
-                await clearStudySessions();
+              onClearSessions={async (targetSpace) => {
+                const spaceToClear = targetSpace || activeSpace;
+                if (spaceToClear === "all") {
+                  setSessions([]);
+                  await clearStudySessions();
+                } else {
+                  setSessions((prev) =>
+                    prev.filter((s) => {
+                      const sp = s.space || (s.noteId ? allNotes.find((n) => n.id === s.noteId)?.space : null) || "School";
+                      return sp !== spaceToClear;
+                    })
+                  );
+                  await clearStudySessions(spaceToClear);
+                }
               }}
             />
           )}

@@ -256,18 +256,29 @@ function htmlNodeToInlineMarkdown(node) {
   if (tag === "strong" || tag === "b" || isBoldStyle) {
     const isDocGuid = node.id && node.id.startsWith("docs-internal-guid") && /font-weight\s*:\s*normal/i.test(style);
     if (!isDocGuid) {
+      const leadingSpace = (formatted.match(/^(\s*)/) || ["", ""])[1];
+      const trailingSpace = (formatted.match(/(\s*)$/) || ["", ""])[1];
       const trimmed = formatted.trim();
-      if (trimmed && !trimmed.startsWith("**") && !trimmed.endsWith("**")) {
-        formatted = formatted.replace(trimmed, `**${trimmed}**`);
+      const isAlreadyBold = (trimmed.startsWith("**") && trimmed.endsWith("**")) || (trimmed.startsWith("__") && trimmed.endsWith("__"));
+      if (trimmed && !isAlreadyBold) {
+        formatted = `${leadingSpace}**${trimmed}**${trailingSpace}`;
       }
     }
   }
 
   // Italic / Em / Google Docs italic
   if (tag === "em" || tag === "i" || isItalicStyle) {
+    const leadingSpace = (formatted.match(/^(\s*)/) || ["", ""])[1];
+    const trailingSpace = (formatted.match(/(\s*)$/) || ["", ""])[1];
     const trimmed = formatted.trim();
-    if (trimmed && !trimmed.startsWith("*") && !trimmed.endsWith("*")) {
-      formatted = formatted.replace(trimmed, `*${trimmed}*`);
+    const isTripleStar = trimmed.startsWith("***") && trimmed.endsWith("***");
+    const isSingleStar = trimmed.startsWith("*") && !trimmed.startsWith("**") && trimmed.endsWith("*") && !trimmed.endsWith("**");
+    const isSingleUnderscore = trimmed.startsWith("_") && !trimmed.startsWith("__") && trimmed.endsWith("_") && !trimmed.endsWith("__");
+    const isMixed = (trimmed.startsWith("**_") && trimmed.endsWith("_**")) || (trimmed.startsWith("_**") && trimmed.endsWith("**_"));
+    const isAlreadyItalic = isTripleStar || isSingleStar || isSingleUnderscore || isMixed;
+
+    if (trimmed && !isAlreadyItalic) {
+      formatted = `${leadingSpace}*${trimmed}*${trailingSpace}`;
     }
   }
 
@@ -368,7 +379,13 @@ export function parseHtmlToBlocks(htmlString) {
                 const nestedList = li.querySelector("ul, ol");
                 const liClone = li.cloneNode(true);
                 liClone.querySelectorAll("ul, ol").forEach((n) => n.remove());
-                const content = htmlNodeToInlineMarkdown(liClone).trim().replace(/^[•*\-\d+.]\s*/, "");
+                let content = htmlNodeToInlineMarkdown(liClone).trim();
+                // Strip redundant list markers or numbers (e.g. "• ", "- ", "* ", "1. "), but NEVER strip bold (**) or italic (* or _)
+                content = content
+                  .replace(/^[•◦▪▫⁃]\s*/, "")
+                  .replace(/^[-*+]\s+/, "")
+                  .replace(/^\d+[.)]\s+/, "")
+                  .trim();
                 if (content) {
                   if (isTodo) {
                     blocks.push(createBlock("todo", content, { checked: checkbox ? checkbox.checked : false }));
@@ -659,10 +676,10 @@ function parseMarkdownToBlocks(rawText) {
       }
     }
 
-    // 4.7 Standalone bold category subheadings (e.g. "* **Eye Structures:**" or "**Eye Structures:**")
-    const boldHeadingMatch = trimmed.match(/^([*•\-+]\s*)?\*\*([^*]+)\*\*[:\s]*$/);
+    // 4.7 Standalone bold category subheadings ending with colon (e.g. "* **Eye Structures:**", "**Eye Structures:**" or "**Eye Structures**:")
+    const boldHeadingMatch = trimmed.match(/^(?:[*•\-+]\s*)?\*\*([^*:]+)(?::\*\*|\*\*:)[\s]*$/);
     if (boldHeadingMatch) {
-      const headingText = boldHeadingMatch[2].trim().replace(/[:\s]+$/, "");
+      const headingText = boldHeadingMatch[1].trim();
       if (headingText) {
         resultBlocks.push(createBlock("h3", headingText));
         continue;
@@ -697,12 +714,7 @@ function parseMarkdownToBlocks(rawText) {
       }
       const indentSpaces = (line.match(/^(\s*)/)[1] || "").replace(/\t/g, "  ").length;
       const level = Math.min(4, Math.floor(indentSpaces / 2));
-      const boldHeadingMatchInBullet = bContent.match(/^\*\*([^*]+)\*\*[:\s]*$/);
-      if (boldHeadingMatchInBullet) {
-        resultBlocks.push(createBlock("h3", boldHeadingMatchInBullet[1].trim().replace(/[:\s]+$/, "")));
-      } else {
-        resultBlocks.push(createBlock("bullet", bContent, level > 0 ? { level } : {}));
-      }
+      resultBlocks.push(createBlock("bullet", bContent, level > 0 ? { level } : {}));
     }
 
 
@@ -6147,6 +6159,13 @@ export default function BlockNoteEditor({
             }
 
             const blocksToInsert = parsedBlocks.map((b) => ({ ...b }));
+            if (activeBlock && ["bullet", "number", "todo"].includes(activeBlock.type)) {
+              if (blocksToInsert.length > 0 && blocksToInsert[0].type === "text") {
+                blocksToInsert[0].type = activeBlock.type;
+                if (activeBlock.level !== undefined) blocksToInsert[0].level = activeBlock.level;
+                if (activeBlock.type === "todo") blocksToInsert[0].checked = activeBlock.checked || false;
+              }
+            }
             if (textBefore && blocksToInsert.length > 0) {
               blocksToInsert[0].content = (textBefore + (blocksToInsert[0].content || ""));
             }
@@ -6174,27 +6193,36 @@ export default function BlockNoteEditor({
         return;
       }
 
-      // If pasting single-line or non-multiline text, sanitize to plain text to avoid foreign HTML injection
+      // If pasting single-line or non-multiline text, compile inline markdown safely into DOM
       if (e.target?.isContentEditable) {
         e.preventDefault();
-        const plainText = text;
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          range.deleteContents();
-          const textNode = document.createTextNode(plainText);
-          range.insertNode(textNode);
-          range.setStartAfter(textNode);
-          range.setEndAfter(textNode);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          
-          const activeBlockEl = e.target.closest("[contenteditable]");
-          if (activeBlockEl) {
-            const blockId = activeBlockEl.closest("[data-block-id]")?.getAttribute("data-block-id");
+        const activeBlockEl = e.target.closest("[contenteditable]");
+        if (activeBlockEl) {
+          const blockContainer = activeBlockEl.closest("[data-block-id]");
+          const blockId = blockContainer?.getAttribute("data-block-id");
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const { textBefore, textAfter } = splitBlockDOMAtRange(activeBlockEl, range);
+            const fullText = (textBefore || "") + text + (textAfter || "");
+            const block = blocksRef.current?.find((b) => b.id === blockId);
+            const bType = block?.type || "text";
+
+            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+            setFutureBlocks([]);
+
+            // Format DOM immediately with inline markdown (handles bold, italic, code, math)
+            setBlockDOMFromText(activeBlockEl, fullText, bType);
+            const targetOffset = (textBefore || "").length + text.length;
+            setCaretAtOffset(activeBlockEl, targetOffset);
+
             if (blockId) {
-              const updatedText = getBlockTextFromDOM(activeBlockEl);
-              handleChange(blockId, updatedText);
+              handleChange(blockId, fullText);
+              setBlocks((prev) => {
+                const next = prev.map((b) => (b.id === blockId ? { ...b, content: fullText } : b));
+                triggerDebouncedSave({ blocks: next });
+                return next;
+              });
             }
           }
         }
@@ -7163,12 +7191,12 @@ export default function BlockNoteEditor({
                   const isH1 = h.type === "h1";
                   const indentClass =
                     h.type === "h1"
-                      ? "pl-0"
+                      ? "pl-2.5 sm:pl-3"
                       : h.type === "h2"
-                      ? "pl-3.5"
+                      ? "pl-5 sm:pl-5.5"
                       : h.type === "h3"
-                      ? "pl-6"
-                      : "pl-8";
+                      ? "pl-7 sm:pl-8"
+                      : "pl-9 sm:pl-10";
 
                   return (
                     <button
@@ -7178,7 +7206,7 @@ export default function BlockNoteEditor({
                         e.stopPropagation();
                         handleSelectHeading(h.id);
                       }}
-                      className={`flex w-full items-center text-left py-1 px-2.5 rounded-lg text-xs leading-relaxed transition-all cursor-pointer group/outlineitem ${indentClass} ${
+                      className={`flex w-full items-center text-left py-1.5 pr-2.5 rounded-lg text-xs leading-relaxed transition-all cursor-pointer group/outlineitem ${indentClass} ${
                         isActive
                           ? "bg-[#282b34] text-white font-medium shadow-sm ring-1 ring-white/10"
                           : isH1

@@ -181,11 +181,11 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **Minimap Dash Strip (Collapsed State)**: Minimalist vertical column of horizontal tick bars (`fixed top-24 right-2 sm:right-3.5 z-40`) on the right margin. Bar widths reflect heading hierarchy (`H1`: `w-5`, `H2`: `w-4`, `H3`: `w-3`, `H4`: `w-2`). Active section glows in solid white (`bg-white h-[2.5px] shadow-[0_0_8px_rgba(255,255,255,0.7)]`), inactive bars are subtle dark grey (`bg-[#4e515d]`).
 - **Floating Outline Card (Expanded State)**: Border-clean dark popover (`w-64 sm:w-72 max-h-[calc(100vh-8rem)] rounded-2xl border border-[#2b2e37] bg-[#16181f]/95 p-3.5 shadow-2xl backdrop-blur-2xl`) revealed on hover or click-to-pin.
 - **Hierarchy Tokens**:
-  - `H1`: `pl-0 text-sky-400 font-medium text-xs` (Top level)
-  - `H2`: `pl-3.5 text-[#9ca0ab] text-xs`
-  - `H3`: `pl-6 text-[#9ca0ab] text-xs`
-  - `H4`: `pl-8 text-[#9ca0ab] text-xs`
-- **Active Section Highlight**: Rounded dark pill (`bg-[#282b34] text-white font-medium shadow-sm ring-1 ring-white/10 rounded-lg px-2.5 py-1`).
+  - `H1`: `pl-2.5 sm:pl-3 text-sky-400 font-medium text-xs` (Top level with breathing room inside highlight box)
+  - `H2`: `pl-5 sm:pl-5.5 text-[#9ca0ab] text-xs`
+  - `H3`: `pl-7 sm:pl-8 text-[#9ca0ab] text-xs`
+  - `H4`: `pl-9 sm:pl-10 text-[#9ca0ab] text-xs`
+- **Active Section Highlight**: Rounded dark pill (`bg-[#282b34] text-white font-medium shadow-sm ring-1 ring-white/10 rounded-lg py-1.5 pr-2.5` with hierarchy-based left padding).
 - **Target Jump Pulse**: `ring-2 ring-duck-400 bg-duck-500/10` temporary visual ring on clicked headings.
 
 ### 10. Multi-Column Layout Block (`columns` 2–5 Columns Split)
@@ -360,6 +360,45 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
   - Incorrect Answer Card: `bg-rose-950/25 border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.06)]`.
   - Expected Sequence / Chip List: `bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 text-xs font-medium px-2.5 py-1 rounded-lg`.
   - Model Code Solution: `p-2.5 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-duck-200 overflow-x-auto whitespace-pre`.
+
+### 18. Space-Specific Mastery Dashboard & Space Selector (`MasteryDashboard.jsx`)
+- **Header Layout**:
+  - Main Title: `text-[28px] sm:text-[32px] font-bold leading-tight tracking-tight text-ink-100 flex items-center gap-3`.
+  - Quick Space Selector Dropdown: `rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none cursor-pointer appearance-none shadow-sm transition-all hover:border-ink-600`.
+  - Space Options: List of active workspace spaces (e.g. `🏫 School Space`, `💼 Work Space`, `Personal Space`) plus `🌐 All Spaces` for complete cross-space analytics.
+  - Subtitle Context: Dynamic session count & note count description updating between space-scoped (`Scoped to School`) and multi-space aggregate (`Aggregated across all spaces`).
+  - Clear History Action: `rounded-lg border border-ink-800 px-3 py-1.5 text-xs text-ink-500 transition-colors hover:border-gap-500/40 hover:text-gap-500 cursor-pointer` (safely clearing only the selected space).
+- **Stat Row**:
+  - Score Ring Card: `col-span-2 flex items-center gap-4 rounded-2xl border border-ink-800 bg-ink-900 px-5 py-4 sm:col-span-1`.
+  - Status Tiles: 3 distinct cards for Solid (`text-solid-500`), Shaky (`text-shaky-500`), and Gap (`text-gap-500`) with proportional percentage fill bars (`bg-ink-800` track with dynamic `fill` widths).
+- **Empty State**:
+  - Container: `mx-auto flex min-h-[40vh] max-w-2xl flex-col justify-center px-4 py-8 animate-fade-up`.
+  - Header persists visibly above empty state to ensure instant switching back to populated spaces or All Spaces.
+  - Note Suggestions: Recommends up to 3 notes specifically created in the active space with one-click `Quiz me →` actions.
+
+### 19. 3D Model Credits & Open-Source Attribution Modal (`RespiratoryCanvas.jsx`)
+- **Quick-Access Floating Pill Button**:
+  - Container / Placement: `absolute top-3 right-3 z-20 pointer-events-auto`.
+  - Styling: `flex items-center gap-1.5 rounded-lg border border-ink-800/90 bg-ink-900/90 px-2.5 py-1.5 text-xs font-semibold text-ink-300 shadow-xl backdrop-blur-md transition-all hover:border-duck-500/50 hover:bg-ink-850 hover:text-duck-300 cursor-pointer`.
+- **HUD Header Credits Trigger**:
+  - Inactive State: `border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200 hover:border-ink-600`.
+  - Active / Open State: `border-duck-500/50 bg-duck-500/20 text-duck-300`.
+- **In-HUD Deep Link**:
+  - Styling: `pt-2 border-t border-ink-800/60 flex items-center justify-between text-[10px] text-ink-400` with action link `text-duck-400 hover:text-duck-300 hover:underline font-semibold cursor-pointer`.
+- **Credits Modal Backdrop & Dialog**:
+  - Backdrop: `fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-ink-950/80 backdrop-blur-sm animate-fade-in`.
+  - Dialog Frame: `relative w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl border border-ink-700/80 bg-ink-900/98 shadow-2xl backdrop-blur-xl text-ink-100 overflow-hidden animate-scale-in`.
+  - Header: `flex items-start justify-between gap-3 border-b border-ink-800 px-5 py-4 shrink-0 bg-ink-900`.
+  - Open Source Badge: `rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300`.
+- **Attribution Cards**:
+  - Card Box: `rounded-xl border border-ink-800 bg-ink-850/70 p-3.5 transition-colors hover:border-ink-700`.
+  - Semantic License Badges:
+    - CC-BY-4.0 & MIT: `bg-sky-500/15 text-sky-300 border-sky-500/30`.
+    - CC-BY-4.0 (Commercial Permitted): `bg-emerald-500/15 text-emerald-300 border-emerald-500/30`.
+    - Original Shader / Kinematics (Commercial Permitted): `bg-purple-500/15 text-purple-300 border-purple-500/30` / `bg-rose-500/15 text-rose-300 border-rose-500/30`.
+  - Outbound Links: Dual links to original Sketchfab artists and GitHub hosting repositories with `ExternalLink` icon and `target="_blank" rel="noopener noreferrer"`.
+- **Accessibility & Dismissal**:
+  - Dismissible via top-right `X` icon, bottom `Close Credits` button, backdrop click, or native `Escape` key event listener.
 
 ---
 

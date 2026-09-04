@@ -3364,3 +3364,164 @@ The newly introduced AI Tutor chat interface rendered model responses exclusivel
    - Created dedicated unit test suite `tests/unit/math-question-types.test.mjs` covering schema integrity, normalization, and objective grading engine (10/10 tests pass).
    - Full test suite passing (370/370 tests).
 
+---
+
+## 68. Markdown Formatting in Bullets & List Paste Corruption Fix
+
+### Problem Statement
+When pasting markdown or copying formatted list items into notes, bold and italic formatting inside bullets was corrupted, lost, or displayed with dangling asterisks:
+1. Copying bullet lists from ChatGPT, Google Docs, Notion, or web pages stripped the opening asterisk of bold (`*bold**`) and italic (`italic*`), rendering bold as italic with a trailing asterisk and rendering italic as unformatted text with a trailing asterisk.
+2. Pasting markdown bullets with bold items (e.g. `- **Item 1**`) converted the bullets into `h3` heading blocks and stripped the bold asterisks instead of preserving them as bullet list items.
+3. Nested bold and italic syntax (e.g. `**bold with *italic* inside**`, `*italic with **bold** inside*`, `**_text_**`, and `_**text**_`) failed to parse in `formatMarkdownInline`, resulting in mangled asterisks and improperly placed formatting tags.
+4. In `htmlNodeToInlineMarkdown`, italic styling was completely dropped from any text that was already bolded (such as `<i><b>text</b></i>` or `<span style="font-weight: 700; font-style: italic">`), because the check `!trimmed.startsWith("*")` falsely detected bold asterisks (`**`) as an existing italic delimiter.
+5. Pasting single-line or plain text with markdown formatting into an active bullet block inserted raw text nodes without compiling inline markdown, leaving raw unrendered asterisks in the document. Furthermore, pasting plain text into an active bullet list converted the active bullet into a standard paragraph text block.
+
+### Root Cause Analysis
+1. **Unsafe Bullet Marker Stripping in `parseHtmlToBlocks`**:
+   `content.replace(/^[•*\-\d+.]\s*/, "")` contained an asterisk `*` followed by optional whitespace `\s*`. Any bullet item starting with bold (`**word**`), italic (`*word*`), or bold-italic (`***word***`) had its first asterisk stripped because `\s*` matched zero whitespace, transforming `**word**` into `*word**` and `*word*` into `word*`.
+2. **Overly Broad `boldHeadingMatch` Hijacking Bullets**:
+   In `BlockNoteEditor.jsx:parseMarkdownToBlocks` and `exportImport.js:tryParseMarkdownToBlocks`, the heading regex `^([*•\-+]\s*)?\*\*([^*]+)\*\*[:\s]*$` allowed an optional colon `[:\s]*$`. Consequently, any bullet whose content was wrapped in bold (e.g. `- **First Concept**`) matched the heading rule and was forcibly converted into an `h3` block. In addition, `boldHeadingMatchInBullet = bContent.match(/^\*\*([^*]+)\*\*[:\s]*$/)` also converted bold bullets into `h3` blocks.
+3. **Restricted Token Scanning in `formatMarkdownInline`**:
+   The bold regex `/\*\*([^*\n]+)\*\*/g` prohibited any asterisk (`[^*\n]+`) between the outer `**` markers. If bold text contained an italic phrase `*italic*`, the bold pattern failed to match, leaving the text to be processed by the subsequent italic regex which matched across the bold boundary and left dangling asterisks. Combined forms like `**_text_**` and `_**text**_` also lacked dedicated handling and failed HTML tag boundary checks.
+4. **Italic/Bold Mutual Exclusion in `htmlNodeToInlineMarkdown`**:
+   The italic handler checked `!trimmed.startsWith("*") && !trimmed.endsWith("*")`. Since bold text begins and ends with `*` (`**`), the condition evaluated to false, preventing italic markdown from ever being applied to bold elements.
+5. **Raw Text Node Insertion in `handleSmartPaste`**:
+   When single-line text was pasted into a `contentEditable` block, `document.createTextNode(plainText)` inserted raw text into the DOM. Because `getBlockTextFromDOM` read the raw text identically to `block.content`, the component's synchronization effect did not trigger `setBlockDOMFromText`, leaving raw asterisks in the editor.
+
+### Resolution & Implementation
+1. **Bullet Marker Safe Stripping (`parseHtmlToBlocks` in `BlockNoteEditor.jsx`)**:
+   Replaced `/^[•*\-\d+.]\s*/` with strict pattern rules requiring trailing whitespace for ASCII bullets and numbers:
+   ```javascript
+   content = content
+     .replace(/^[•◦▪▫⁃]\s*/, "")
+     .replace(/^[-*+]\s+/, "")
+     .replace(/^\d+[.)]\s+/, "")
+     .trim();
+   ```
+   Ensures `**` (bold), `*` (italic), and `***` (bold-italic) are never stripped.
+2. **Preserve Bullets and Require Colons for Subheadings**:
+   - Updated `boldHeadingMatch` in `BlockNoteEditor.jsx`, `lib/exportImport.js`, `lib/aiService.js`, and `app/api/reformat/route.js` to:
+     ```javascript
+     const boldHeadingMatch = trimmed.match(/^(?:[*•\-+]\s*)?\*\*([^*:]+)(?::\*\*|\*\*:)[\s]*$/);
+     ```
+     Strictly requires a colon (`(?::\*\*|\*\*:)`) for category lines (e.g. `* **Eye Structures:**`), while leaving standard bold bullets (e.g. `- **Item 1**`) intact as bullets.
+   - Removed the bullet-to-h3 conversion in `parseMarkdownToBlocks` and `tryParseMarkdownToBlocks` so bullet items always retain `type: "bullet"`.
+3. **Robust Nested Bold & Italic Inline Compiler (`lib/editorCaret.js`)**:
+   - Added combined bold and italic rules:
+     ```javascript
+     processed = processed.replace(/\*\*\*([^\n]+?)\*\*\*/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
+     processed = processed.replace(/___([^\n]+?)___/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
+     processed = processed.replace(/\*\*_\s*([^\n]+?)\s*_\*\*/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
+     processed = processed.replace(/_\*\*\s*([^\n]+?)\s*\*\*_(?=\s|$|[.,;:!?<)\]])/g, '<strong class="font-bold text-ink-100"><em class="italic text-ink-200">$1</em></strong>');
+     ```
+   - Updated bold regex to permit inner single asterisks:
+     ```javascript
+     processed = processed.replace(/\*\*(?!\s)((?:[^*\n]|\*(?!\*))+?)(?<!\s)\*\*/g, '<strong class="font-bold text-ink-100">$1</strong>');
+     processed = processed.replace(/__(?!\s)((?:[^_\n]|_(?!_))+?)(?<!\s)__/g, '<strong class="font-bold text-ink-100">$1</strong>');
+     ```
+   - Updated italic regexes to safely compile nested italics without mangling outer tags:
+     ```javascript
+     processed = processed.replace(/(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, '<em class="italic text-ink-200">$1</em>');
+     processed = processed.replace(/(^|\s|>|[(])_(?!\s)([^_\n]+?)(?<!\s)_(?=\s|$|[.,;:!?<)\]])/g, '$1<em class="italic text-ink-200">$2</em>');
+     ```
+4. **Symmetrical Bold & Italic Nesting in `htmlNodeToInlineMarkdown`**:
+   - Differentiated single-star italics from double-star bold elements.
+   - Wrapping bold (`**text**`) with italic now cleanly yields `***text***`.
+   - Wrapping italic (`*text*`) with bold now cleanly yields `***text***`.
+   - Preserves surrounding whitespace without using destructive single-word string replacement.
+5. **Immediate In-Block Formatting & Type Preservation in `handleSmartPaste`**:
+   - When pasting into contenteditable blocks, calls `setBlockDOMFromText` and `setCaretAtOffset` immediately with the full text, formatting inline markdown on the fly without requiring a blur event.
+   - When pasting text into active `bullet`, `number`, or `todo` blocks, preserves the active block type and indent level (`level: activeBlock.level`).
+6. **Automated Verification**:
+   - Added unit test suite `tests/unit/markdown-bullets-formatting.test.mjs` covering all inline markdown combinations and bullet preservation (12/12 passing).
+   - Full test suite passing (382/382 tests).
+
+---
+
+## 142. Table of Contents Outline Highlight Box Padding & Breathing Room
+
+### Root Causes & Problem Statements
+1. **Flush Heading Alignment in Outline Highlight Container**:
+   - In the Notion-style right-side floating table of contents outline card (`components/BlockNoteEditor.jsx`), top-level H1 items (such as `"Cambridge IGCSE Additional Mathematic..."`) had `pl-0`, causing the first letter ('C') to sit directly flush against the left boundary of the rounded active highlight pill (`bg-[#282b34]`).
+
+### Resolution & Architectural Enhancements
+1. **Balanced Padding Hierarchy**:
+   - Updated the indent scale in `BlockNoteEditor.jsx`:
+     - `h1`: `pl-2.5 sm:pl-3` (providing comfortable breathing room from the highlight container boundary).
+     - `h2`: `pl-5 sm:pl-5.5`
+     - `h3`: `pl-7 sm:pl-8`
+     - `h4+`: `pl-9 sm:pl-10`
+   - Replaced `px-2.5` with `pr-2.5 py-1.5` so all hierarchy tiers receive their proportional left inset while maintaining symmetric right and vertical padding.
+2. **Design Tokens Updated**:
+   - Updated `DESIGN_SYSTEM.md` under Section 9 (Notion-Style Right-Side Outline) to record the new breathing room hierarchy tokens.
+
+---
+
+## 143. Space-Specific Mastery Tab & Non-Destructive Progress Retention
+
+### Root Causes & Problem Statements
+1. **Global Unscoped Mastery Dashboard**:
+   - The Mastery Tab (`components/MasteryDashboard.jsx`) previously accepted a global list of all study sessions across every space indiscriminately, without space filtering or space switcher controls.
+   - The Workspace top-navigation `gapCount` badge computed weaknesses across all sessions globally, showing red gap counts even when working inside an empty or unrelated space.
+   - Clearing history wiped all sessions in `db.studySessions` globally instead of scoping the purge to the currently active subject space.
+2. **Preservation of Existing Mastery Data**:
+   - Users with active study histories required a migration and filtering guarantee that older or legacy sessions would not be dropped, deleted, or orphaned when space scoping was introduced.
+
+### Resolution & Architectural Enhancements
+1. **Space-Specific Isolation with Fallback Resolution (`lib/storageService.js` & `components/Workspace.jsx`)**:
+   - Enhanced `getStudySessions` in `lib/storageService.js` to automatically ensure every session contains a valid `space` property (`s.space || s.spaceId || "School"`).
+   - Added `clearStudySessions(targetSpace)` supporting targeted bulk-deletion exclusively of sessions belonging to `targetSpace`, while leaving all other spaces completely untouched.
+   - In `Workspace.jsx`, updated `gapCount` to compute weaknesses strictly over `currentSpaceSessions`, keeping the top-nav badge in sync with the active space.
+2. **Interactive Space Switcher & Persistent Header (`components/MasteryDashboard.jsx`)**:
+   - Added a quick Space Switcher dropdown inside the Mastery header populated with all defined spaces (`School`, `Personal`, custom spaces) plus a combined `🌐 All Spaces` aggregate option.
+   - Preserved header visibility when viewing empty spaces, allowing users to toggle between spaces directly from the Mastery tab.
+   - Custom `EmptyState` offers contextual guidance and note recommendations created specifically in that space.
+3. **Automated Verification**:
+   - Added unit test suite in `tests/unit/mastery-analytics.test.mjs` verifying space-isolated session rollups, `All Spaces` aggregation, legacy session fallback, and space-safe history clearing (11/11 tests passing; 225/225 full test suite passing).
+
+---
+
+## 144. 3D Respiratory Mechanics Model Attribution & Open-Source Licensing Compliance
+
+### User Inquiries & Problem Statements
+1. **Open-Source Provenance & Licensing Assurance**:
+   - The user requested confirmation on whether the 3D models utilized in the Respiratory Mechanics simulator (`skeleton_ct.glb`, `lung.glb`, and the procedural muscle/diaphragm components) are 100% free and open-source.
+   - Requested the addition of a compact, non-intrusive "Credits" button on the 3D simulation canvas that expands to show complete model attributions, upstream repositories, and licensing credentials.
+
+### Provenance Audit & Findings
+1. **Clinical CT-Derived Thoracic Skeleton (`skeleton_ct.glb`, 16.3 MB)**:
+   - **Original Author**: Created by forensic/anatomical scientist **Terrie Simmons-Ehrhardt** ([Sketchfab profile](https://sketchfab.com/terrielsimmons)).
+   - **Original 3D Model**: [CT Derived Human Skeleton](https://sketchfab.com/3d-models/ct-derived-human-skeleton-7235c83248574ce986dd9e8b35159afa) directly verified from the internal binary glTF asset chunk (`extras.license: CC-BY-4.0`).
+   - **License**: **Creative Commons Attribution 4.0 International (CC-BY-4.0)**.
+   - **Commercial Rights**: **Permitted!** CC-BY-4.0 explicitly grants the worldwide, royalty-free right to reproduce, adapt, distribute, and commercialize the 3D model, with the sole requirement of maintaining appropriate author attribution. (Meteorkid's non-commercial clause in `Meteorkid/skeleton-anatomy` only applies to their proprietary React detection code, and cannot restrict the underlying CC-BY-4.0 model created by Terrie Simmons-Ehrhardt).
+2. **Photorealistic Medical Lungs (`lung.glb`, 17.1 MB)**:
+   - **Original Author**: Created by 3D artist **neshallads** ([Sketchfab profile](https://sketchfab.com/neshallads)).
+   - **Original 3D Model**: [Realistic Human Lungs](https://sketchfab.com/3d-models/realistic-human-lungs-ce09f4099a68467880f46e61eb9a3531) directly verified from the internal binary glTF asset chunk (`extras.license: CC-BY-4.0`).
+   - **License**: **CC-BY-4.0** (also distributed via MIT by `yihalem123/Human-Organ3D`).
+   - **Commercial Rights**: **Permitted!** Allows commercial use, adaptation, and redistribution with author attribution.
+3. **Sculpted Muscular Diaphragm Dome (`SculptedDiaphragmDome`) & Antagonistic Intercostal Muscles (`PhotorealisticIntercostalMuscles`)**:
+   - 100% original procedural WebGL / Three.js parametric meshes engineered by the SocraticOS Core Team.
+   - Features 132 active procedural muscle fascicles across all 11 intercostal spaces and a 32-segment parametric dome with dynamic vertex flattening ($Y = 1.05 \to 0.63$), central tendon, and 3 anatomical hiatuses.
+   - **Commercial Rights**: 100% owned and unencumbered original code.
+
+### Resolution & Implementation
+1. **Model Attribution Metadata (`RESPIRATORY_MODEL_CREDITS`)**:
+   - Declared authoritative metadata array in `components/visualizations/RespiratoryCanvas.jsx` containing detailed information for each asset: `id`, `name`, `icon`, `file`, `size`, `type`, `license`, `licenseTag`, `licenseColor`, `commercialUse`, `originalCreator`, `sourceUrl`, `author`, `project`, `repoUrl`, and comprehensive anatomical description.
+2. **Multi-Point Credits Triggers**:
+   - **HUD Header Action**: Compact `[Info] Credits` button in the HUD header adjacent to the Auto-Loop and Minimize buttons, maintaining access even when the HUD is minimized.
+   - **Floating Quick-Access Pill**: Top-right corner of the canvas viewport (`absolute top-3 right-3 z-20 pointer-events-auto`) styled with glassmorphic backdrop-blur and hover accents.
+   - **In-HUD Deep Link**: Subtle link under the Anatomical Structures toggle list ("Open-Source 3D Models: View Credits & Licenses →").
+3. **Accessible Glassmorphic Attribution Modal**:
+   - Opens an interactive modal (`fixed inset-0 z-50 bg-ink-950/80 backdrop-blur-sm`) featuring:
+     - Header with "Commercial Use Permitted" badge and dismiss button.
+     - Commercial rights explanation clarifying compliance with CC-BY-4.0 and MIT terms.
+     - Distinct attribution cards for Lungs, Skeleton, Diaphragm, and Intercostals with semantic license badges (`sky` for CC-BY-4.0 & MIT, `emerald` for CC-BY-4.0, `purple`/`rose` for Original).
+     - Direct external links to both original Sketchfab creators and GitHub hosting repositories with `ExternalLink` icons and security attributes (`target="_blank" rel="noopener noreferrer"`).
+     - Keyboard accessibility: closes instantly on `Escape` key press or backdrop click.
+4. **Automated Verification**:
+   - Added unit test suite in `tests/unit/respiratory-mechanics.test.mjs` verifying that `RESPIRATORY_MODEL_CREDITS` contains all 4 assets, accurate file sizes, valid GitHub repository URLs, original creators, and CC-BY-4.0 commercial permissions (3/3 passing; 388/388 full test suite passing).
+
+
+
+
+

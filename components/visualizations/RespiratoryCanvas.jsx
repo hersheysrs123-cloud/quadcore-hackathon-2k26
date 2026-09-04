@@ -9,6 +9,7 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Eye,
   Gauge,
   Info,
@@ -22,6 +23,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Wind,
+  X,
 } from "lucide-react";
 import {
   CANVAS_BG,
@@ -45,6 +47,86 @@ if (typeof window !== "undefined") {
   useGLTF.preload("/models/lung.glb");
   useGLTF.preload("/models/skeleton_ct.glb");
 }
+
+// ─── 3D Model Attribution & Open Source Licensing Metadata ──────────────
+export const RESPIRATORY_MODEL_CREDITS = [
+  {
+    id: "lungs",
+    name: "Photorealistic Human Lungs Model",
+    icon: "🫁",
+    file: "lung.glb",
+    size: "17.1 MB",
+    type: "Clinical 3D Organ Scan",
+    license: "CC-BY-4.0 & MIT",
+    licenseTag: "Permissive / Commercial Allowed",
+    licenseColor: "sky",
+    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
+    originalCreator: "neshallads",
+    sourceUrl: "https://sketchfab.com/3d-models/realistic-human-lungs-ce09f4099a68467880f46e61eb9a3531",
+    author: "yihalem123",
+    project: "Human-Organ3D",
+    repoUrl: "https://github.com/yihalem123/Human-Organ3D",
+    description:
+      "High-resolution clinical 3D organ scan created by neshallads under CC-BY-4.0, featuring bilateral pulmonary lobes, primary bronchi, pulmonary vascular branchings, and tracheobronchial airway tree with dynamic breathing volume expansion.",
+  },
+  {
+    id: "skeleton",
+    name: "Clinical CT-Derived Thoracic Skeleton",
+    icon: "🦴",
+    file: "skeleton_ct.glb",
+    size: "16.3 MB",
+    type: "CT Scan Reconstruction",
+    license: "CC-BY-4.0",
+    licenseTag: "Permissive / Commercial Allowed",
+    licenseColor: "emerald",
+    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
+    originalCreator: "Terrie Simmons-Ehrhardt",
+    sourceUrl: "https://sketchfab.com/3d-models/ct-derived-human-skeleton-7235c83248574ce986dd9e8b35159afa",
+    author: "Meteorkid",
+    project: "Skeleton-Anatomy",
+    repoUrl: "https://github.com/Meteorkid/skeleton-anatomy",
+    description:
+      "Clinical CT scan reconstruction created by Terrie Simmons-Ehrhardt and published under CC-BY-4.0. We isolate 43 anatomical bone nodes (all 24 ribs, T1–T12 thoracic vertebrae, L1–L3 lumbar crura anchors, sternum, and clavicles) with active bucket-handle & pump-handle kinematics.",
+  },
+  {
+    id: "diaphragm",
+    name: "Sculpted Muscular Diaphragm Dome",
+    icon: "🪂",
+    file: "Procedural Mesh",
+    size: "Procedural Vector Shader",
+    type: "Parametric Anatomical Mesh",
+    license: "Original Code (SocraticOS)",
+    licenseTag: "Commercial Allowed",
+    licenseColor: "purple",
+    commercialUse: "Permitted (100% Original Code)",
+    originalCreator: "SocraticOS Core Team",
+    sourceUrl: null,
+    author: "SocraticOS Core Team",
+    project: "SocraticOS Simulator",
+    repoUrl: null,
+    description:
+      "Custom 32-segment parametric radial dome with procedural trifoliate central tendon (centrum tendineum), 3 physiological hiatuses (Caval T8, Esophageal T10, Aortic T12), bilateral vertebral crura, and real-time vertex flattening on inspiration (Y = 1.05 → 0.63).",
+  },
+  {
+    id: "intercostals",
+    name: "Dual-Layer Antagonistic Intercostal Muscles",
+    icon: "💪",
+    file: "Procedural Mesh",
+    size: "Procedural Vector Shader",
+    type: "Striated Myofibril Simulation",
+    license: "Original Code (SocraticOS)",
+    licenseTag: "Commercial Allowed",
+    licenseColor: "rose",
+    commercialUse: "Permitted (100% Original Code)",
+    originalCreator: "SocraticOS Core Team",
+    sourceUrl: null,
+    author: "SocraticOS Core Team",
+    project: "SocraticOS Simulator",
+    repoUrl: null,
+    description:
+      "132 active procedural muscle fascicles across all 11 intercostal spaces with dual-layer antagonistic kinematics (superficial external +35° inspiratory vs deep internal -45° forced expiratory), Canvas-generated striated myofibril textures, and dynamic tension shaders.",
+  },
+];
 
 // ─── Physiological Constants & Formulations ──────────────────────────
 export const RESPIRATORY_PHASES = {
@@ -1261,6 +1343,17 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [showAirflow, setShowAirflow] = useState(true);
   const [showVectors, setShowVectors] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
+  const [showCredits, setShowCredits] = useState(false);
+
+  // Close credits modal on Escape key press
+  useEffect(() => {
+    if (!showCredits) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setShowCredits(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showCredits]);
 
   const [panelWidth, setPanelWidth] = useState(360);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -1458,6 +1551,19 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         />
       </Canvas>
 
+      {/* Top Right Floating Quick-Access Credits Button */}
+      <div className="absolute top-3 right-3 z-20 pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => setShowCredits(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-ink-800/90 bg-ink-900/90 px-2.5 py-1.5 text-xs font-semibold text-ink-300 shadow-xl backdrop-blur-md transition-all hover:border-duck-500/50 hover:bg-ink-850 hover:text-duck-300 cursor-pointer"
+          title="3D Model Attribution & Open Source Licenses"
+        >
+          <Info className="h-3.5 w-3.5 text-duck-400" />
+          <span>Credits</span>
+        </button>
+      </div>
+
       {/* ─── Floating Physiological Control HUD ─────────────────────── */}
       <div
         className="absolute left-3 top-3 bottom-3 z-20 flex flex-col pointer-events-none"
@@ -1485,6 +1591,20 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCredits((prev) => !prev)}
+                className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
+                  showCredits
+                    ? "border-duck-500/50 bg-duck-500/20 text-duck-300"
+                    : "border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200 hover:border-ink-600"
+                }`}
+                title="View 3D Model Credits & Open Source Licenses"
+              >
+                <Info className="h-3 w-3 text-duck-400" />
+                <span className="hidden sm:inline">Credits</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setAutoLoop(!autoLoop)}
@@ -1700,6 +1820,16 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   checked={showLabels}
                   onChange={setShowLabels}
                 />
+                <div className="pt-2 border-t border-ink-800/60 flex items-center justify-between text-[10px] text-ink-400">
+                  <span>Open-Source 3D Models</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCredits(true)}
+                    className="text-duck-400 hover:text-duck-300 hover:underline font-semibold cursor-pointer"
+                  >
+                    View Credits & Licenses →
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1766,6 +1896,162 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           )}
         </div>
       </div>
+
+      {/* ─── 3D Model Credits & Open Source Attribution Modal ─────────── */}
+      {showCredits && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-ink-950/80 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCredits(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="credits-modal-title"
+        >
+          <div className="relative w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl border border-ink-700/80 bg-ink-900/98 shadow-2xl backdrop-blur-xl text-ink-100 overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-ink-800 px-5 py-4 shrink-0 bg-ink-900">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-duck-500/40 bg-duck-500/10 text-duck-400 shadow-inner">
+                  <Info className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 id="credits-modal-title" className="text-sm sm:text-base font-bold text-ink-100">
+                      3D Model & Anatomy Attribution
+                    </h3>
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                      100% Free & Open Source
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-400 mt-0.5">
+                    Open-source assets & scientific models used for Grade 10 Respiratory Mechanics
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCredits(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-100 hover:bg-ink-750 transition-colors cursor-pointer"
+                title="Close credits"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto px-5 py-4 space-y-3.5 no-scrollbar">
+              {/* Notice Banner */}
+              <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-3 text-xs text-ink-200 leading-relaxed">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-duck-300">Open Source & Commercial Rights Notice</p>
+                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded">
+                    Commercial Use Permitted
+                  </span>
+                </div>
+                <p className="text-ink-300 text-[11px] leading-relaxed">
+                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-duck-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm and intercostal muscles are 100% original SocraticOS code.
+                </p>
+              </div>
+
+              {/* Model Cards */}
+              <div className="space-y-3">
+                {RESPIRATORY_MODEL_CREDITS.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-ink-800 bg-ink-850/70 p-3.5 transition-colors hover:border-ink-700"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg leading-none">{item.icon}</span>
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-ink-100">{item.name}</h4>
+                          <span className="font-mono text-[10px] text-ink-400">
+                            {item.file} · {item.size} · {item.type}
+                          </span>
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded px-2 py-0.5 text-[10px] font-bold border ${
+                          item.licenseColor === "sky"
+                            ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                            : item.licenseColor === "emerald"
+                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                            : item.licenseColor === "rose"
+                            ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                            : "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                        }`}
+                      >
+                        {item.license}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-ink-300 text-[11px] leading-relaxed">
+                      {item.description}
+                    </p>
+
+                    <div className="mt-2 flex items-center gap-1 text-[10px] font-medium text-emerald-400">
+                      <span>✓ Commercial Use:</span>
+                      <span className="text-ink-300">{item.commercialUse}</span>
+                    </div>
+
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] pt-2 border-t border-ink-800/80">
+                      <div className="text-ink-400 text-[10px]">
+                        Creator: <span className="text-ink-200 font-semibold">{item.originalCreator || item.author}</span>
+                        {item.project ? ` · Host: ${item.author} (${item.project})` : ""}
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        {item.sourceUrl && (
+                          <a
+                            href={item.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-medium text-ink-300 hover:text-ink-100 hover:underline text-[10px]"
+                          >
+                            <span>Sketchfab Source</span>
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
+                        {item.repoUrl ? (
+                          <a
+                            href={item.repoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-duck-400 hover:text-duck-300 hover:underline text-[10px]"
+                          >
+                            <span>GitHub</span>
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        ) : (
+                          <span className="text-[10px] font-mono text-ink-500">Original Procedural Code</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Curriculum & Hackathon Note */}
+              <div className="rounded-xl border border-ink-800 bg-ink-900/60 p-3 text-[11px] text-ink-400 leading-relaxed">
+                <span className="font-semibold text-ink-300">Licensing Summary: </span>
+                Both 3D models are fully free and permissive for academic, hackathon, and commercial applications under CC-BY-4.0. Retaining this Credits modal satisfies all legal attribution requirements.
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-ink-800 px-5 py-3 shrink-0 bg-ink-900">
+              <span className="text-[11px] text-ink-500">SocraticOS 3D Anatomy Engine</span>
+              <button
+                type="button"
+                onClick={() => setShowCredits(false)}
+                className="rounded-lg bg-duck-500 px-4 py-1.5 text-xs font-bold text-ink-950 transition-all hover:bg-duck-400 shadow-sm active:scale-98 cursor-pointer"
+              >
+                Close Credits
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ViewportHint>
         drag to orbit · scroll to zoom · right-drag to pan

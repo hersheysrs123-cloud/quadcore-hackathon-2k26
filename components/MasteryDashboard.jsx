@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import ScoreRing from "@/components/ScoreRing";
+import { ChevronDown } from "lucide-react";
 import {
   STATUS,
   STATUS_ORDER,
@@ -12,7 +13,7 @@ import {
 
 /**
  * Every graded session, rolled up into one picture of what the learner holds
- * and what they don't.
+ * and what they don't, scoped per space with an optional All-Spaces overview.
  *
  * Three views of the same data, deliberately: the strip is the glance, the
  * focus list is the read, and the log is the history. A topic's colour, its
@@ -20,8 +21,11 @@ import {
  * load-bearing.
  */
 export default function MasteryDashboard({
-  sessions,
-  notes,
+  sessions = [],
+  notes = [],
+  activeSpace = "School",
+  spaces = [],
+  onSelectSpace,
   onOpenNote,
   onStudy,
   onClearSessions,
@@ -30,7 +34,36 @@ export default function MasteryDashboard({
   mounted = false,
 }) {
   const hydrated = mounted;
-  const mastery = useMemo(() => summariseMastery(sessions), [sessions]);
+  const [selectedSpace, setSelectedSpace] = useState(activeSpace);
+
+  // Synchronize when activeSpace is changed via sidebar or top navigation
+  useEffect(() => {
+    setSelectedSpace(activeSpace);
+  }, [activeSpace]);
+
+  const handleSpaceChange = (newSpace) => {
+    setSelectedSpace(newSpace);
+    if (newSpace !== "all") {
+      onSelectSpace?.(newSpace);
+    }
+  };
+
+  // Safe backwards-compatible session filtering by space so existing progress is never dropped
+  const filteredSessions = useMemo(() => {
+    if (selectedSpace === "all") return sessions;
+    return sessions.filter((s) => {
+      const space = s.space || (s.noteId ? notes.find((n) => n.id === s.noteId)?.space : null) || "School";
+      return space === selectedSpace;
+    });
+  }, [sessions, selectedSpace, notes]);
+
+  // Notes scoped to current space for empty-state suggestions
+  const filteredNotes = useMemo(() => {
+    if (selectedSpace === "all") return notes;
+    return notes.filter((n) => (n.space || n.spaceId || "School") === selectedSpace);
+  }, [notes, selectedSpace]);
+
+  const mastery = useMemo(() => summariseMastery(filteredSessions), [filteredSessions]);
 
   const byNote = useMemo(() => {
     const groups = new Map();
@@ -58,57 +91,93 @@ export default function MasteryDashboard({
     return groupList.sort((a, b) => a.avgScore - b.avgScore);
   }, [mastery.topics]);
 
-  if (mastery.sessionCount === 0) {
-    return <EmptyState notes={notes} onStudy={onStudy} />;
-  }
-
   return (
-    <div className="mx-auto max-w-4xl px-10 pb-24 pt-10">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-4xl px-6 sm:px-10 pb-24 pt-8">
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-[32px] font-bold leading-tight tracking-tight text-ink-100">
-            Mastery
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-[28px] sm:text-[32px] font-bold leading-tight tracking-tight text-ink-100">
+              Mastery
+            </h1>
+            {/* Quick Space Switcher Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedSpace}
+                onChange={(e) => handleSpaceChange(e.target.value)}
+                className="rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none cursor-pointer appearance-none shadow-sm transition-all hover:border-ink-600"
+                title="Filter mastery by space"
+              >
+                {(spaces && spaces.length > 0 ? spaces : [{ name: activeSpace, icon: "📁" }]).map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.icon || "📁"} {s.name} Space
+                  </option>
+                ))}
+                <option value="all">🌐 All Spaces</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-ink-400 pointer-events-none" />
+            </div>
+          </div>
           <p className="mt-1.5 text-sm text-ink-400">
-            Built from {mastery.sessionCount} graded{" "}
-            {mastery.sessionCount === 1 ? "session" : "sessions"} across{" "}
-            {byNote.length} {byNote.length === 1 ? "note" : "notes"}.
+            {selectedSpace === "all"
+              ? `Aggregated across all spaces (${mastery.sessionCount} graded ${mastery.sessionCount === 1 ? "session" : "sessions"} across ${byNote.length} ${byNote.length === 1 ? "note" : "notes"}).`
+              : `Scoped to ${selectedSpace} (${mastery.sessionCount} graded ${mastery.sessionCount === 1 ? "session" : "sessions"} across ${byNote.length} ${byNote.length === 1 ? "note" : "notes"}).`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof window !== "undefined" && window.confirm("Are you sure you want to clear your study sessions history and mastery data? This cannot be undone.")) {
-              onClearSessions?.();
-            }
-          }}
-          className="rounded-lg border border-ink-800 px-3 py-1.5 text-xs text-ink-500 transition-colors hover:border-gap-500/40 hover:text-gap-500"
-        >
-          Clear history
-        </button>
+
+        {filteredSessions.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const spaceLabel = selectedSpace === "all" ? "all spaces" : `the "${selectedSpace}" space`;
+              if (
+                typeof window !== "undefined" &&
+                window.confirm(
+                  `Are you sure you want to clear study sessions and mastery data for ${spaceLabel}? This cannot be undone.`
+                )
+              ) {
+                onClearSessions?.(selectedSpace);
+              }
+            }}
+            className="self-start sm:self-auto rounded-lg border border-ink-800 px-3 py-1.5 text-xs text-ink-500 transition-colors hover:border-gap-500/40 hover:text-gap-500 cursor-pointer"
+          >
+            Clear {selectedSpace === "all" ? "all history" : `${selectedSpace} history`}
+          </button>
+        )}
       </header>
 
-      {/* Stat row */}
-      <section className="mb-9 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="col-span-2 flex items-center gap-4 rounded-2xl border border-ink-800 bg-ink-900 px-5 py-4 sm:col-span-1">
-          <ScoreRing score={mastery.averageScore ?? 0} size="sm" />
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wider text-ink-500">
-              Average
-            </p>
-            <p className="text-xs text-ink-400">across all sessions</p>
-          </div>
-        </div>
+      {mastery.sessionCount === 0 ? (
+        <EmptyState
+          notes={filteredNotes}
+          spaceName={selectedSpace}
+          onStudy={(target, kind) =>
+            onStudy?.({ ...target, space: selectedSpace === "all" ? activeSpace : selectedSpace }, kind)
+          }
+        />
+      ) : (
+        <>
+          {/* Stat row */}
+          <section className="mb-9 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="col-span-2 flex items-center gap-4 rounded-2xl border border-ink-800 bg-ink-900 px-5 py-4 sm:col-span-1">
+              <ScoreRing score={mastery.averageScore ?? 0} size="sm" />
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wider text-ink-500">
+                  Average
+                </p>
+                <p className="text-xs text-ink-400">
+                  {selectedSpace === "all" ? "across all spaces" : `in ${selectedSpace}`}
+                </p>
+              </div>
+            </div>
 
-        {STATUS_ORDER.map((key) => (
-          <StatTile
-            key={key}
-            status={STATUS[key]}
-            count={mastery.counts[key] ?? 0}
-            total={mastery.totalTopics}
-          />
-        ))}
-      </section>
+            {STATUS_ORDER.map((key) => (
+              <StatTile
+                key={key}
+                status={STATUS[key]}
+                count={mastery.counts[key] ?? 0}
+                total={mastery.totalTopics}
+              />
+            ))}
+          </section>
 
       {/* The heatmap */}
       <section className="mb-9">
@@ -217,45 +286,47 @@ export default function MasteryDashboard({
         </section>
       )}
 
-      {/* Session log */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-ink-100">Session log</h2>
-        <ul className="space-y-1.5">
-          {sessions.slice(0, 10).map((session) => (
-            <li
-              key={session.id}
-              className="flex items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-2.5"
-            >
-              <span
-                aria-hidden="true"
-                className="text-sm"
-                title={session.mode === "quiz" ? "Quick quiz" : "Socratic session"}
+        {/* Session log */}
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink-100">Session log</h2>
+          <ul className="space-y-1.5">
+            {filteredSessions.slice(0, 10).map((session) => (
+              <li
+                key={session.id}
+                className="flex items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-2.5"
               >
-                {session.mode === "quiz" ? "📋" : "🦆"}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[13px] text-ink-200">
-                {session.concept}
-              </span>
-              {hydrated && (
-                <span className="shrink-0 text-[11px] text-ink-600">
-                  {relativeTime(session.createdAt)}
+                <span
+                  aria-hidden="true"
+                  className="text-sm"
+                  title={session.mode === "quiz" ? "Quick quiz" : "Socratic session"}
+                >
+                  {session.mode === "quiz" ? "📋" : "🦆"}
                 </span>
-              )}
-              <span
-                className={`shrink-0 text-sm font-semibold tabular-nums ${
-                  statusOf(
-                    session.score >= 70 ? "green" : session.score >= 40 ? "yellow" : "red",
-                  ).text
-                }`}
-              >
-                {session.score}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
+                <span className="min-w-0 flex-1 truncate text-[13px] text-ink-200">
+                  {session.concept}
+                </span>
+                {hydrated && (
+                  <span className="shrink-0 text-[11px] text-ink-600">
+                    {relativeTime(session.createdAt)}
+                  </span>
+                )}
+                <span
+                  className={`shrink-0 text-sm font-semibold tabular-nums ${
+                    statusOf(
+                      session.score >= 70 ? "green" : session.score >= 40 ? "yellow" : "red",
+                    ).text
+                  }`}
+                >
+                  {session.score}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </>
+    )}
+  </div>
+);
 }
 
 const average = (topics) =>
@@ -356,11 +427,12 @@ function Trend({ topic }) {
 }
 
 // ─── Empty state ────────────────────────────────────────────────────
-function EmptyState({ notes, onStudy }) {
+function EmptyState({ notes = [], spaceName = "this space", onStudy }) {
   const suggestions = notes.slice(0, 3);
+  const displayName = spaceName === "all" ? "All Spaces" : `${spaceName} Space`;
 
   return (
-    <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-10 py-16">
+    <div className="mx-auto flex min-h-[40vh] max-w-2xl flex-col justify-center px-4 py-8">
       <div className="animate-fade-up">
         <div
           aria-hidden="true"
@@ -377,9 +449,9 @@ function EmptyState({ notes, onStudy }) {
           )}
         </div>
 
-        <h1 className="text-[32px] font-bold leading-tight tracking-tight text-ink-100">
-          Your mastery map is empty
-        </h1>
+        <h2 className="text-2xl sm:text-[28px] font-bold leading-tight tracking-tight text-ink-100">
+          Your mastery map for {displayName} is empty
+        </h2>
         <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-ink-400">
           Every time the Duck quizzes you, it grades each sub-topic separately
           and drops the result here. After a few sessions this page becomes the
@@ -390,15 +462,15 @@ function EmptyState({ notes, onStudy }) {
         {suggestions.length > 0 ? (
           <div className="mt-8">
             <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-500">
-              Start with a note
+              Start with a note in {displayName}
             </p>
             <ul className="space-y-2">
               {suggestions.map((note) => (
                 <li key={note.id}>
                   <button
                     type="button"
-                    onClick={() => onStudy({ noteId: note.id }, "quiz")}
-                    className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-3 text-left transition-colors hover:border-duck-500/40"
+                    onClick={() => onStudy?.({ noteId: note.id, noteTitle: note.title, space: note.space }, "quiz")}
+                    className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-3 text-left transition-colors hover:border-duck-500/40 cursor-pointer"
                   >
                     <span className="text-lg leading-none">{note.emoji || "📝"}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-ink-200">
@@ -416,8 +488,8 @@ function EmptyState({ notes, onStudy }) {
           <div className="mt-8">
             <button
               type="button"
-              onClick={() => onStudy?.({}, "quiz")}
-              className="inline-flex items-center gap-2 rounded-xl bg-duck-400 px-4 py-2.5 text-xs font-bold text-ink-950 shadow-md hover:bg-duck-300 transition-colors"
+              onClick={() => onStudy?.({ space: spaceName === "all" ? "School" : spaceName }, "quiz")}
+              className="inline-flex items-center gap-2 rounded-xl bg-duck-400 px-4 py-2.5 text-xs font-bold text-ink-950 shadow-md hover:bg-duck-300 transition-colors cursor-pointer"
             >
               <span>🦆</span>
               <span>Start a Socratic Drill</span>

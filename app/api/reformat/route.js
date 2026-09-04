@@ -106,13 +106,13 @@ export function normalizeReformattedNote(raw, fallbackTitle = "Untitled Note") {
           .trim();
       }
 
-      // Auto-heal bullets (strip redundant leading bullet markers)
+      // Auto-heal bullets (strip redundant leading bullet markers, only convert to h3 if explicitly ending with colon)
       if (type === "bullet") {
         content = content.replace(/^[*•\-+]\s+/, "").trim();
-        const boldHeadingMatch = content.match(/^\*\*([^*]+)\*\*[:\s]*$/);
+        const boldHeadingMatch = content.match(/^\*\*([^*:]+)(?::\*\*|\*\*:)[\s]*$/);
         if (boldHeadingMatch) {
           type = "h3";
-          content = boldHeadingMatch[1].trim().replace(/[:\s]+$/, "");
+          content = boldHeadingMatch[1].trim();
         }
       }
 
