@@ -12,7 +12,7 @@ import { Check, Copy } from "lucide-react";
  * Converts inline formatting (bold, italic, inline code, inline math, links)
  * while delegating math expressions to KaTeX.
  */
-function FormattedInline({ text = "" }) {
+export function FormattedInline({ text = "" }) {
   const elements = useMemo(() => {
     if (!text) return null;
 

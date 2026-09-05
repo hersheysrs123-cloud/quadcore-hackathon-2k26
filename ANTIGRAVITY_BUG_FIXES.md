@@ -3521,7 +3521,99 @@ When pasting markdown or copying formatted list items into notes, bold and itali
 4. **Automated Verification**:
    - Added unit test suite in `tests/unit/respiratory-mechanics.test.mjs` verifying that `RESPIRATORY_MODEL_CREDITS` contains all 4 assets, accurate file sizes, valid GitHub repository URLs, original creators, and CC-BY-4.0 commercial permissions (3/3 passing; 388/388 full test suite passing).
 
+---
 
+## 145. AI Reformatter Prompt & Fallback Normalization: Mandatory LaTeX Formulas & Bullet Markdown Preservation
 
+### Problem Statement & User Directives
+1. **Accidental Markdown Stripping in Bullets and Blocks**:
+   - The user previously observed that the AI Reformatter prompt directive 3 ("Artifact Cleanup") instructed the LLM to strip leading formatting or symbols from bullet items and normal text blocks.
+   - Because modern SocraticOS bullet blocks and block editors natively parse inline Markdown (bold `**`, italic `*`, strikethrough `~~`, inline code ``` ` ```, and inline LaTeX `$`), stripping these formatting markers destroyed emphasis and degraded notes when reformatting.
+2. **Formula & Equation Enforcement in LaTeX**:
+   - The user instructed that all formula-related content MUST be formatted in LaTeX inline (`$...$`) or block equations (`math` blocks / `$$...$$`) only.
+   - Formulas and equations must never be output as plain text, even for simple mathematical expressions (e.g. `f(x) = 0`, `y = mx + c`, `a^2 + b^2 = c^2`).
+3. **Bold Bullet Item Misclassification as Headings**:
+   - In `lib/aiService.js`, the fallback heuristic parser `heuristicReformatBlocks` converted any bold line matching `^\*\*([^\*]+)\*\*[:\s]*$` into an `h3` heading even if it had no trailing colon, converting simple bold list items (e.g. `* **Item 1**`) into level-3 headings.
 
+### Resolution & Architectural Enhancements
+1. **Prompt Synchronization in `app/api/reformat/route.js` & `lib/aiService.js` (`REFORMAT_PERSONA`)**:
+   - Added **Mandatory Directive 2 (MANDATORY LATEX FOR ALL FORMULAS & EQUATIONS)**:
+     - All mathematical expressions, chemical equations, physics equations, variables with arithmetic, and formula-related content must be formatted in LaTeX.
+     - Standalone equations must be placed in `math` blocks (`\[...\]` or `$$...$$`).
+     - Inline expressions and variables must be wrapped in inline LaTeX (`$...$`).
+     - Never leave any formula or equation in plain text, even for simple expressions like `f(x) = 0` or `y = mx + c`.
+   - Updated **Directive 3 (PRESERVE INLINE MARKDOWN & ARTIFACT CLEANUP)**:
+     - Bullets and all text blocks fully support inline Markdown.
+     - Explicitly instructed the model to **NEVER** strip bold (`**` or `__`), italic (`*` or `_`), strikethrough (`~~`), inline code (``` ` ```), or inline LaTeX (`$`) inside bullet items or any blocks.
+     - Preserves all inner emphasis and styling markers exactly as intended while only cleaning true artifact clutter (e.g. broken numbering prefixes or orphaned list markers).
+2. **Schema Description Enforcement (`lib/schemas.js`)**:
+   - Updated `REFORMAT_SCHEMA`'s `content` property description to instruct Gemini that formula content must use LaTeX and that inline formatting markers must be retained.
+3. **Heuristic Normalization & Fallback Parser Enhancements (`lib/aiService.js`)**:
+   - In `heuristicReformatBlocks`, updated standalone formula detection to automatically route simple and complex math lines (matching equations like `f(x) = 0`, `y = mx + c`, `E = mc^2`, `\int`, `\frac`, etc.) into `math` blocks with cleaned `$$` formatting.
+   - Updated `boldHeaderMatch` regex to strictly require a colon (e.g., `**Heading:**`) before promoting a bold line to an `h3` heading. Standalone bold items without colons (e.g., `* **Key Term** - definition`) are preserved as bullet items.
+4. **Automated Verification**:
+   - Added unit test suite in `tests/unit/reformat-note.test.mjs` ("Markdown & Equation Preservation in Reformatting") testing:
+     - Retention of bold, italic, code, and inline LaTeX in bullets.
+     - Retention of bold bullet items as bullets when no colon is present.
+     - Automatic classification of simple equations (e.g. `f(x) = 0`, `y = mx + c`) as `math` blocks.
+   - Full test suite passes with 0 failures (`node --test tests/unit/*.test.mjs`).
+
+---
+
+## 146. LaTeX \reflectbox KaTeX Macro & Horizontal Mirror Reflection Support
+
+### Problem Statement
+- In LaTeX math equations and inline math formulas, expressions containing \`\reflectbox{...}\` failed to render.
+- Root Cause:
+  - In standard LaTeX, \`\reflectbox\` is provided by the \`graphicx\` package. KaTeX does not implement \`\reflectbox\` as a native primitive.
+  - When users wrote equations like \`\reflectbox{R}\`, KaTeX threw an \`Undefined control sequence: \reflectbox\` parse error.
+
+### Resolution & Architectural Enhancements
+1. **KaTeX Global Macro Definition (\`lib/editorCaret.js\`)**:
+   - Registered a global KaTeX macro:
+     \`\`\`javascript
+     export const KATEX_GLOBAL_MACROS = {
+       "\\reflectbox": "\\htmlClass{reflect-flip}{#1}",
+     };
+     \`\`\`
+   - Configured \`renderKatexToStringMemoized\` with \`trust: true\`, \`strict: false\`, and \`macros: KATEX_GLOBAL_MACROS\`. This permits KaTeX to apply custom HTML classes to the rendered math span.
+2. **Horizontal Reflection Styling (\`app/globals.css\`)**:
+   - Added the authoritative CSS class \`.reflect-flip\`:
+     \`\`\`css
+     .reflect-flip {
+       display: inline-block !important;
+       transform: scaleX(-1) !important;
+       transform-origin: center center;
+     }
+     \`\`\`
+   - Provides true mirror horizontal reflection matching standard LaTeX \`\reflectbox\`.
+3. **Memoized KaTeX Integration in Inline Math Popover (\`components/BlockNoteEditor.jsx\`)**:
+   - Updated inline math pill editing in \`BlockNoteEditor.jsx\` to utilize \`renderKatexToStringMemoized\` rather than raw unconfigured \`katex.renderToString\`, ensuring all macros and reflection rules are instantly available in live inline math edits.
+4. **Automated Verification**:
+   - Verified via unit runner that \`renderKatexToStringMemoized('\\reflectbox{F}')\` renders without error and generates the \`reflect-flip\` span.
+   - All 228 unit tests pass with 0 failures across the suite.
+
+---
+
+## 147. Markdown & KaTeX LaTeX Rendering in AI Explain Drawer
+
+### Problem Statement
+- In the AI Explain drawer (triggered by the AI Explain button on notes, highlighted text, and study recommendations), all sections (TL;DR, mechanism steps, analogies, misconceptions, worked examples, and check-yourself questions) were rendered as raw plain text strings.
+- Mathematical expressions, scientific formulas (e.g. \`f(x) = 0\`, \`E = mc^2\`, \`H_2O\`), inline code snippets, and markdown formatting (bold, italic, strikethrough) were displayed as literal characters (e.g. \`$f(x) = 0$\`, \`**bold**\`) rather than formatted HTML and KaTeX math.
+
+### Resolution & Architectural Enhancements
+1. **Universal Markdown & KaTeX Inline Renderer Integration (\`components/ExplainPanel.jsx\`)**:
+   - Replaced raw text paragraph interpolations across all 6 sections of \`ExplainPanel.jsx\` with \`FormattedInline\` from \`components/MarkdownRenderer.jsx\`:
+     - **TL;DR**: Wrapped summary in \`FormattedInline\`.
+     - **How it works (Key Ideas)**: Rendered both \`heading\` and \`body\` via \`FormattedInline\`.
+     - **Analogy**: Rendered \`title\`, \`body\`, and \`breaksDown\` via \`FormattedInline\`.
+     - **Misconceptions**: Rendered wrong claim and explanation via \`FormattedInline\`.
+     - **Worked Example**: Rendered problem title, step titles, step explanations, and takeaway via \`FormattedInline\`.
+     - **Check Yourself**: Rendered diagnostic questions via \`FormattedInline\`.
+2. **AI Prompt Directives for LaTeX & Markdown (\`app/api/explain/route.js\` & \`lib/aiService.js\`)**:
+   - Updated \`PERSONA\` and \`EXPLAIN_PERSONA\` with explicit formatting guidelines:
+     - Format all mathematical expressions, variables, formulas, and equations in LaTeX (\`$...$\` for inline, \`$$...$$\` for display).
+     - Use inline markdown (\`**bold**\`, \`*italic*\`, \``code`\`) for emphasis and technical terminology.
+3. **Automated Verification**:
+   - All 228 unit tests pass with 0 failures across the test suite.
 

@@ -410,4 +410,4 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 4. **Local-First Database Persistence**: Ensure new data models sync with Dexie.js (`lib/db.js` & `lib/storageService.js`) and gracefully fall back during offline usage.
 5. **Modal Viewport Bounds**: Modal dialogs must use `max-h-[calc(100vh-2rem)] flex flex-col` and `shrink-0` on headers/footers to prevent clipping on compact displays.
 6. **Print & PDF Content Guarantees**: Any user-created note content (titles, toggle details, LaTeX formulas, code snippets) must render cleanly in `@media print` without reliance on interactive form controls or fixed-height containers.
-
+7. **KaTeX Extensions & Mathematical Glyphs**: Custom LaTeX macros (such as `\reflectbox{...}`) are supported globally in `lib/editorCaret.js` using `KATEX_GLOBAL_MACROS` and styled via `.reflect-flip` (`display: inline-block; transform: scaleX(-1);`) to ensure proper rendering across both inline and display math blocks.

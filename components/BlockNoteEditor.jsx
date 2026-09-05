@@ -4003,7 +4003,7 @@ const EditorBlock = memo(function EditorBlock({
       if (!newFormula) {
         mathNode.remove();
       } else {
-        const katexHtml = katex.renderToString(newFormula, { displayMode: false, throwOnError: false });
+        const katexHtml = renderKatexToStringMemoized(newFormula, { displayMode: false, throwOnError: false });
         const escapedFormula = newFormula.replace(/"/g, "&quot;");
         mathNode.setAttribute("data-formula", newFormula);
         mathNode.innerHTML = katexHtml;

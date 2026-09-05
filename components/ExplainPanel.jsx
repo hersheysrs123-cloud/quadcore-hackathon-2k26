@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
 import { explainConcept, shouldUseClientAI } from "@/lib/aiService";
+import { FormattedInline } from "@/components/MarkdownRenderer";
 
 /**
  * The teaching half of the app.
@@ -111,9 +112,9 @@ export default function ExplainPanel({
           <div className="animate-fade-up space-y-7">
             {/* TL;DR */}
             <section>
-              <p className="rounded-xl border border-duck-500/25 bg-duck-500/5 px-4 py-3.5 text-[15px] font-medium leading-relaxed text-ink-100">
-                {explanation.tldr}
-              </p>
+              <div className="rounded-xl border border-duck-500/25 bg-duck-500/5 px-4 py-3.5 text-[15px] font-medium leading-relaxed text-ink-100">
+                <FormattedInline text={explanation.tldr} />
+              </div>
             </section>
 
             {/* Key ideas */}
@@ -125,12 +126,12 @@ export default function ExplainPanel({
                       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink-800 text-[11px] font-semibold tabular-nums text-duck-300">
                         {i + 1}
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-ink-100">
-                          {idea.heading}
+                          <FormattedInline text={idea.heading} />
                         </p>
                         <p className="mt-1 text-[13px] leading-relaxed text-ink-300">
-                          {idea.body}
+                          <FormattedInline text={idea.body} />
                         </p>
                       </div>
                     </li>
@@ -144,17 +145,17 @@ export default function ExplainPanel({
               <Section label="An analogy">
                 <div className="rounded-xl border border-ink-800 bg-ink-850 px-4 py-3.5">
                   <p className="text-sm font-semibold text-ink-100">
-                    {explanation.analogy.title}
+                    <FormattedInline text={explanation.analogy.title} />
                   </p>
                   <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
-                    {explanation.analogy.body}
+                    <FormattedInline text={explanation.analogy.body} />
                   </p>
                   {explanation.analogy.breaksDown && (
                     <p className="mt-2.5 border-t border-ink-800 pt-2.5 text-[12px] leading-relaxed text-ink-500">
                       <span className="font-medium text-ink-400">
                         Where it breaks:
                       </span>{" "}
-                      {explanation.analogy.breaksDown}
+                      <FormattedInline text={explanation.analogy.breaksDown} />
                     </p>
                   )}
                 </div>
@@ -172,10 +173,10 @@ export default function ExplainPanel({
                     >
                       <p className="flex gap-2 text-[13px] font-medium leading-relaxed text-shaky-500">
                         <span aria-hidden="true">✗</span>
-                        <span>“{m.claim}”</span>
+                        <span>“<FormattedInline text={m.claim} />”</span>
                       </p>
                       <p className="mt-1.5 pl-5 text-[13px] leading-relaxed text-ink-300">
-                        {m.correction}
+                        <FormattedInline text={m.correction} />
                       </p>
                     </li>
                   ))}
@@ -190,9 +191,9 @@ export default function ExplainPanel({
               <Section label="Worked through">
                 <div className="rounded-xl border border-ink-800 bg-ink-850 px-4 py-3.5 space-y-3">
                   {(explanation.workedExample.title || explanation.workedExample.problem) && (
-                    <p className="text-xs font-bold text-ink-100 leading-snug">
-                      {explanation.workedExample.title || explanation.workedExample.problem}
-                    </p>
+                    <div className="text-xs font-bold text-ink-100 leading-snug">
+                      <FormattedInline text={explanation.workedExample.title || explanation.workedExample.problem} />
+                    </div>
                   )}
                   {explanation.workedExample.steps?.length > 0 && (
                     <ol className="space-y-2.5">
@@ -208,12 +209,12 @@ export default function ExplainPanel({
                             <div className="flex-1 space-y-0.5 min-w-0">
                               {stepTitle && (
                                 <p className="font-semibold text-ink-200">
-                                  {stepTitle}
+                                  <FormattedInline text={stepTitle} />
                                 </p>
                               )}
                               {stepExplanation && (
                                 <p className="text-ink-300 text-xs leading-relaxed">
-                                  {stepExplanation}
+                                  <FormattedInline text={stepExplanation} />
                                 </p>
                               )}
                             </div>
@@ -225,7 +226,9 @@ export default function ExplainPanel({
                   {explanation.workedExample.takeaway && (
                     <div className="mt-3 pt-2.5 border-t border-ink-800 flex items-start gap-2 text-xs text-duck-300 bg-duck-500/5 rounded-lg p-2.5 border border-duck-500/20">
                       <span className="shrink-0 font-bold">💡 Takeaway:</span>
-                      <span className="text-ink-200">{explanation.workedExample.takeaway}</span>
+                      <span className="text-ink-200">
+                        <FormattedInline text={explanation.workedExample.takeaway} />
+                      </span>
                     </div>
                   )}
                 </div>
@@ -244,7 +247,9 @@ export default function ExplainPanel({
                       <span aria-hidden="true" className="text-duck-500">
                         ?
                       </span>
-                      <span>{question}</span>
+                      <span>
+                        <FormattedInline text={question} />
+                      </span>
                     </li>
                   ))}
                 </ul>

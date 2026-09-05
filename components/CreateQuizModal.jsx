@@ -770,6 +770,14 @@ export default function CreateQuizModal({
                         ))}
                       </div>
                     </div>
+
+                    {/* Helper Hint */}
+                    <p className="pt-1.5 border-t border-ink-800/80 text-[11px] text-ink-400 flex items-center gap-1.5 leading-relaxed">
+                      <span className="text-duck-400 shrink-0">💡</span>
+                      <span>
+                        <strong className="text-ink-300 font-semibold">Tip:</strong> Choose your main headings. Selecting subheadings is not required since the full note is provided to the AI.
+                      </span>
+                    </p>
                   </div>
                 ) : (
                   <div className="text-xs text-ink-400 italic p-3 rounded-xl bg-ink-850 border border-ink-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
