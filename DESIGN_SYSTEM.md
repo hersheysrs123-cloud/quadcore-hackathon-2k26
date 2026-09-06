@@ -406,6 +406,44 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **Accessibility & Dismissal**:
   - Dismissible via top-right `X` icon, bottom `Close Credits` button, backdrop click, or native `Escape` key event listener.
 
+### 23. Pre-Download Document Export Preview Tokens (`ExportPreview.jsx` & `ExportImportModal.jsx`)
+- **Responsive Dynamic Modal Sizing**:
+  - Format Picker View: Standard compact modal `max-w-2xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)]`.
+  - Preview Mode Transition: Expanded document reader canvas `max-w-4xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)]` with smooth CSS transition.
+- **Top Control & Format Switcher Bar**:
+  - Surface: `border-b border-ink-800 bg-ink-950/80 px-4 sm:px-6 py-3 shrink-0`.
+  - Back Button: `border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-xs font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100 rounded-lg`.
+  - Format Switcher Tabs: `bg-ink-900/90 border border-ink-800 p-1 rounded-xl` housing active pill `bg-duck-500 text-ink-950 font-bold shadow-xs` and inactive pill `text-ink-400 hover:text-ink-200 hover:bg-ink-800/60`.
+- **Word Document (.docx) Sheet Preview Tokens**:
+  - Ribbon Bar: `bg-[#1f4e79] text-white text-xs font-medium px-4 py-2 border-b border-gray-200` with Microsoft Word logo indicator and print layout metadata.
+  - Page Canvas: Authentic 8.5" x 11" sheet layout `bg-white text-gray-900 shadow-2xl rounded-sm max-w-3xl mx-auto p-8 sm:p-14 min-h-[580px] border border-gray-200 font-sans leading-relaxed`.
+  - Typography Hierarchy:
+    - Document Title: `text-2xl sm:text-3xl font-bold text-[#1f4e79] border-b-2 border-[#1f4e79]/20 pb-3 mb-6`.
+    - H1: `text-xl font-bold text-[#1f4e79] mt-4 mb-2`.
+    - H2: `text-lg font-bold text-[#2e74b5] mt-3 mb-1`.
+    - H3 / H4: `text-base / text-sm font-semibold text-[#1f4e79] / text-[#2e74b5]`.
+    - Body Text: `text-[13.5px] text-gray-800 leading-relaxed`.
+    - Tables: `border border-gray-300 rounded-md` with `bg-[#1f4e79]/10 text-[#1f4e79] font-bold` header cells.
+    - Code Blocks: `bg-gray-50 border border-gray-300 rounded-md font-mono text-xs text-gray-800`.
+- **HTML Web Page (.html) Browser Mockup Tokens**:
+  - Mockup Header: `border-b border-ink-800 bg-ink-900 px-4 py-2 text-xs` with faux window traffic lights (red, amber, emerald dots) and address bar pill `file:///exports/{filename}` with emerald globe icon.
+  - Sandbox iFrame: Isolated security container with dynamic height auto-sizing to `scrollHeight` via `handleIframeLoad` + `ResizeObserver` on `doc.body` with mouse wheel forwarding to the parent scroll canvas.
+- **Plain Text (.txt) Monospace Editor Tokens**:
+  - Titlebar: `border-b border-ink-800 bg-ink-900/80 px-4 py-2 text-xs font-mono text-ink-400`.
+  - Body: `font-mono text-xs sm:text-[13px] leading-relaxed text-ink-200 whitespace-pre p-4 sm:p-6 overflow-x-auto`.
+- **Markdown (.md) Reader Tokens**:
+  - Container: `rounded-xl border border-ink-800 bg-ink-950 p-6 sm:p-8 shadow-2xl`.
+  - Rendering Engine: `MarkdownRenderer` with syntax highlighting and KaTeX display/inline math.
+- **Code Block Viewer with Line Gutter**:
+  - Numbering Gutter: `w-10 pr-4 text-right select-none text-ink-600 font-mono text-[10px]`.
+  - Code Cell: `whitespace-pre font-mono text-ink-100 text-[11px] sm:text-xs leading-relaxed`.
+- **Bottom Footer Download Bar**:
+  - Surface: `border-t border-ink-800 bg-ink-950 px-4 sm:px-6 py-3.5 shrink-0`.
+  - Primary Action Button: `border border-duck-500/40 bg-duck-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 shadow-md active:scale-95`.
+- **Scroll Container Architecture**:
+  - Canvas Container: `flex-1 min-h-0 overflow-y-auto overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-duck-500/30 scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-duck-500/50 scroll-smooth`.
+  - Viewport Bounds: `h-[calc(100vh-2.5rem)] sm:h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] max-h-[920px]` with backdrop `overflow-hidden` to prevent parent scroll conflict.
+
 ---
 
 ## 🛠️ Code Conventions for AI & Developers
@@ -429,4 +467,9 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
     - **Clickable Status Badge**: The `[COLLAPSED]` / `[EXPANDED]` badge is an interactive `<button>` with `hover:border-duck-500/40 hover:text-duck-300`, allowing quick toggling from either side of the block.
     - **Dynamic Auto-Expanding Details Textarea**: Interactive toggle details use dynamic height calculation (`el.style.height = Math.max(48, el.scrollHeight) + 'px'`) on mount, open transition, and input. Textareas use `resize-none overflow-hidden` to completely prevent internal scrollbars and clipping.
     - **Enter Key Stepping**: Pressing Enter at the end of a toggle heading automatically opens the toggle and focuses the details textarea at offset `(0, 0)`. Splitting a heading defaults `nextType` to `"text"`.
+12. **Modal Scroll Containers & Unbroken Flex Chains**: When embedding full-length document previews or scrollable content inside modal dialogs:
+    - The top-level modal element must declare an explicit computed height class (e.g. `h-[calc(100vh-4rem)] max-h-[920px] flex flex-col`) rather than only `max-h-...` to establish a definite containing block.
+    - Every intermediate child wrapper in the DOM hierarchy between the modal root and the scrollable viewport must preserve `flex flex-col flex-1 h-full min-h-0 overflow-hidden`.
+    - Inner iframe sandboxes must compute height dynamically against `doc.documentElement.scrollHeight` and forward `wheel` events to the parent canvas ref to avoid scroll trapping.
+
 

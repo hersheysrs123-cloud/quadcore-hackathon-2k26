@@ -9,10 +9,14 @@ import {
   exportMarkdown,
   exportBookmarksToHtml,
   importNoteFromFile,
+  PREVIEWABLE_EXPORT_FORMATS,
 } from "@/lib/exportImport";
 import { getAllBookmarks, getAllFolders } from "@/lib/storageService";
 import { exportWorkspaceToJSON } from "@/lib/backup";
-import { Download, Upload, X, FileType, Sparkles, Package } from "lucide-react";
+import { Download, Upload, X, FileType, Sparkles, Package, Eye } from "lucide-react";
+import ExportPreview from "./ExportPreview";
+
+export const PREVIEWABLE_FORMATS = PREVIEWABLE_EXPORT_FORMATS;
 
 export default function ExportImportModal({
   open,
@@ -29,6 +33,7 @@ export default function ExportImportModal({
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const fileInputRef = useRef(null);
   const modalRef = useRef(null);
 
@@ -38,6 +43,12 @@ export default function ExportImportModal({
       setExportSpace(activeSpace);
     }
   }, [activeSpace]);
+
+  useEffect(() => {
+    if (!open) {
+      setIsPreviewOpen(false);
+    }
+  }, [open]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -84,6 +95,7 @@ export default function ExportImportModal({
       icon: "📝",
       description: "Microsoft Word file with formatted headings, lists & text",
       badge: "Word format",
+      hasPreview: true,
     },
     {
       id: "html",
@@ -92,6 +104,7 @@ export default function ExportImportModal({
       icon: "🌐",
       description: "Standalone HTML document with embedded CSS & KaTeX CDN",
       badge: "Web standard",
+      hasPreview: true,
     },
     {
       id: "txt",
@@ -100,6 +113,7 @@ export default function ExportImportModal({
       icon: "📑",
       description: "Clean plain text with structured indentation & ASCII symbols",
       badge: "Universal",
+      hasPreview: true,
     },
     {
       id: "md",
@@ -108,14 +122,51 @@ export default function ExportImportModal({
       icon: "⬇️",
       description: "Standard Markdown syntax compatible with Obsidian & Notion",
       badge: "Developer",
+      hasPreview: true,
     },
   ];
 
-  const handleExport = async () => {
+  const handleDownloadDirect = async (formatToExport = exportFormat) => {
     setIsProcessing(true);
     const title = activeNote?.title || "Untitled Note";
     const blocks = activeNote?.blocks || [];
     const emoji = activeNote?.emoji || "📝";
+
+    try {
+      if (formatToExport === "docx") {
+        if (!activeNote) throw new Error("No active note to export.");
+        await exportDocx(blocks, title, emoji);
+        setToastMessage(`✓ Downloaded ${title}.docx`);
+      } else if (formatToExport === "html") {
+        if (!activeNote) throw new Error("No active note to export.");
+        exportHtml(blocks, title, emoji);
+        setToastMessage(`✓ Downloaded ${title}.html`);
+      } else if (formatToExport === "txt") {
+        if (!activeNote) throw new Error("No active note to export.");
+        exportTxt(blocks, title);
+        setToastMessage(`✓ Downloaded ${title}.txt`);
+      } else if (formatToExport === "md") {
+        if (!activeNote) throw new Error("No active note to export.");
+        exportMarkdown(blocks, title);
+        setToastMessage(`✓ Downloaded ${title}.md`);
+      }
+    } catch (err) {
+      console.error("Export error:", err);
+      setToastMessage("❌ Export failed: " + err.message);
+    } finally {
+      setIsProcessing(false);
+      setTimeout(() => setToastMessage(""), 4000);
+    }
+  };
+
+  const handleExport = async () => {
+    if (PREVIEWABLE_FORMATS.includes(exportFormat)) {
+      setIsPreviewOpen(true);
+      return;
+    }
+
+    setIsProcessing(true);
+    const title = activeNote?.title || "Untitled Note";
 
     try {
       if (exportFormat === "socratic") {
@@ -130,22 +181,6 @@ export default function ExportImportModal({
         if (!activeNote) throw new Error("No active note to export.");
         exportToPdf(title);
         setToastMessage("✓ Triggered PDF Print Dialog");
-      } else if (exportFormat === "docx") {
-        if (!activeNote) throw new Error("No active note to export.");
-        await exportDocx(blocks, title, emoji);
-        setToastMessage(`✓ Downloaded ${title}.docx`);
-      } else if (exportFormat === "html") {
-        if (!activeNote) throw new Error("No active note to export.");
-        exportHtml(blocks, title, emoji);
-        setToastMessage(`✓ Downloaded ${title}.html`);
-      } else if (exportFormat === "txt") {
-        if (!activeNote) throw new Error("No active note to export.");
-        exportTxt(blocks, title);
-        setToastMessage(`✓ Downloaded ${title}.txt`);
-      } else if (exportFormat === "md") {
-        if (!activeNote) throw new Error("No active note to export.");
-        exportMarkdown(blocks, title);
-        setToastMessage(`✓ Downloaded ${title}.md`);
       }
     } catch (err) {
       console.error("Export error:", err);
@@ -201,290 +236,396 @@ export default function ExportImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in">
+    <div
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6 ${
+        isPreviewOpen ? "overflow-hidden" : "overflow-y-auto"
+      } animate-fade-in`}
+    >
       <div
         ref={modalRef}
-        className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl transition-all my-auto"
+        className={`relative w-full ${
+          isPreviewOpen
+            ? "max-w-5xl h-[calc(100vh-2.5rem)] sm:h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] max-h-[920px]"
+            : "max-w-2xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3.5rem)]"
+        } flex flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl transition-all my-auto`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
-              <FileType className="h-4 w-4 sm:h-5 sm:w-5" />
+        {isPreviewOpen ? (
+          <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden">
+            {/* Preview Top Header with Close */}
+            <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/80 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
+                  <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-ink-100">Document Export Preview</h2>
+                  <p className="text-[11px] sm:text-xs text-ink-400">
+                    Review document layout & content before downloading to disk
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+              >
+                <X className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
             </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-ink-100">Note Import & Export</h2>
-              <p className="text-[11px] sm:text-xs text-ink-400">.socratic Space Backups, PDF, Word, HTML, TXT & MD</p>
+
+            {toastMessage && (
+              <div className="mx-4 sm:mx-6 mt-3 rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-2 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2 shrink-0">
+                <Sparkles className="h-4 w-4 shrink-0 text-duck-300" />
+                <span>{toastMessage}</span>
+              </div>
+            )}
+
+            {/* ExportPreview Canvas Container */}
+            <div className="flex-1 h-full min-h-0 overflow-hidden flex flex-col">
+              <ExportPreview
+                note={activeNote}
+                format={exportFormat}
+                onFormatChange={(fmt) => setExportFormat(fmt)}
+                onBack={() => setIsPreviewOpen(false)}
+                onDownload={handleDownloadDirect}
+                isProcessing={isProcessing}
+              />
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-          >
-            <X className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex border-b border-ink-800 bg-ink-950/30 px-5 sm:px-6 pt-1.5 sm:pt-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setTab("export")}
-            className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
-              tab === "export"
-                ? "border-duck-400 text-duck-300"
-                : "border-transparent text-ink-400 hover:text-ink-200"
-            }`}
-          >
-            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span>Export Notes & Spaces</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab("import")}
-            className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
-              tab === "import"
-                ? "border-duck-400 text-duck-300"
-                : "border-transparent text-ink-400 hover:text-ink-200"
-            }`}
-          >
-            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span>Import Note / Space File</span>
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-4 sm:p-5 md:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-          {toastMessage && (
-            <div className="rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-2.5 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2">
-              <Sparkles className="h-4 w-4 shrink-0 text-duck-300" />
-              <span>{toastMessage}</span>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
+                  <FileType className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-ink-100">Note Import & Export</h2>
+                  <p className="text-[11px] sm:text-xs text-ink-400">.socratic Space Backups, PDF, Word, HTML, TXT & MD</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors"
+              >
+                <X className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
             </div>
-          )}
 
-          {/* EXPORT TAB */}
-          {tab === "export" && (
-            <div className="space-y-3.5 sm:space-y-4">
-              {/* Active Note Preview Card */}
-              <div className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850/60 p-2.5 sm:p-3">
-                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                  <span className="text-xl sm:text-2xl shrink-0">{activeNote?.emoji || "📝"}</span>
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-xs sm:text-sm text-ink-100 truncate">
-                      {activeNote?.title || "Untitled Note"}
-                    </h3>
-                    <p className="text-[11px] sm:text-xs text-ink-400 truncate">
-                      Current Space: <span className="text-duck-300 font-medium">{activeSpace || "School"}</span> • Blocks: {(activeNote?.blocks || []).length}
-                    </p>
-                  </div>
-                </div>
-                <span className="rounded-md border border-ink-700 bg-ink-900 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] font-mono text-ink-300 shrink-0 ml-2">
-                  Ready to export
-                </span>
-              </div>
-
-              {/* Space Picker for .socratic Package Export */}
-              {exportFormat === "socratic" && (
-                <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-3 sm:p-3.5 space-y-2 animate-fade-in">
-                  <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-duck-300 flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5" />
-                    <span>Choose Space to Export (.socratic):</span>
-                  </label>
-                  <p className="text-[11px] text-duck-200/80 leading-relaxed">
-                    Select a single space to export its notes or choose &quot;All Spaces&quot; to export your full workspace backup.
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
-                    {[{ name: "All", icon: "🌐" }, ...spaces].map((sp) => (
-                      <button
-                        key={sp.name}
-                        type="button"
-                        onClick={() => setExportSpace(sp.name)}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
-                          exportSpace === sp.name
-                            ? "border-duck-400 bg-duck-500/30 text-duck-200 shadow-sm"
-                            : "border-ink-700 bg-ink-900/60 text-ink-300 hover:bg-ink-800 hover:text-ink-100"
-                        }`}
-                      >
-                        <span>{sp.icon}</span>
-                        <span>{sp.name === "All" ? "All Spaces" : sp.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-1.5 sm:space-y-2">
-                <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-ink-400">
-                  Select Format:
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {formats.map((fmt) => (
-                    <button
-                      key={fmt.id}
-                      type="button"
-                      onClick={() => setExportFormat(fmt.id)}
-                      className={`flex items-start gap-2.5 sm:gap-3 rounded-xl border p-2.5 sm:p-3 text-left transition-all ${
-                        exportFormat === fmt.id
-                          ? "border-duck-500/60 bg-duck-500/15 shadow-sm"
-                          : "border-ink-800 bg-ink-950/40 hover:border-ink-700 hover:bg-ink-850/40"
-                      }`}
-                    >
-                      <span className="text-xl sm:text-2xl shrink-0 mt-0.5">{fmt.icon}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="font-bold text-xs text-ink-100">{fmt.name}</span>
-                          <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase bg-ink-800 text-ink-300 border border-ink-700 shrink-0">
-                            {fmt.badge}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-ink-400 mt-0.5 line-clamp-2 leading-tight">
-                          {fmt.description}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* IMPORT TAB */}
-          {tab === "import" && (
-            <div className="space-y-3.5 sm:space-y-4">
-              {/* Target Space Selection */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-ink-400">
-                  Target Space for Import:
-                </label>
-                <p className="text-[11px] text-ink-400">
-                  Select which space to assign the imported note/backup to:
-                </p>
-                <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setImportSpace("Original")}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
-                      importSpace === "Original"
-                        ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
-                        : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
-                    }`}
-                  >
-                    <span>🔄</span>
-                    <span>Original Spaces (File Defaults)</span>
-                  </button>
-
-                  {spaces.map((space) => (
-                    <button
-                      key={space.name}
-                      type="button"
-                      onClick={() => setImportSpace(space.name)}
-                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
-                        importSpace === space.name
-                          ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
-                          : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
-                      }`}
-                    >
-                      <span>{space.icon}</span>
-                      <span>{space.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* File Dropzone */}
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center cursor-pointer transition-all ${
-                  selectedFile
-                    ? "border-duck-400 bg-duck-500/10"
-                    : "border-ink-700 bg-ink-950/50 hover:border-duck-500/50 hover:bg-ink-850/50"
+            {/* Tab Navigation */}
+            <div className="flex border-b border-ink-800 bg-ink-950/30 px-5 sm:px-6 pt-1.5 sm:pt-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTab("export")}
+                className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
+                  tab === "export"
+                    ? "border-duck-400 text-duck-300"
+                    : "border-transparent text-ink-400 hover:text-ink-200"
                 }`}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".socratic,.json,.docx,.html,.htm,.txt,.md,.markdown"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Export Notes & Spaces</span>
+              </button>
 
-                {selectedFile ? (
-                  <div className="space-y-2">
-                    <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-duck-500/20 text-duck-300 text-xl sm:text-2xl">
-                      📄
+              <button
+                type="button"
+                onClick={() => setTab("import")}
+                className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
+                  tab === "import"
+                    ? "border-duck-400 text-duck-300"
+                    : "border-transparent text-ink-400 hover:text-ink-200"
+                }`}
+              >
+                <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Import Note / Space File</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 md:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+              {toastMessage && (
+                <div className="rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-2.5 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 shrink-0 text-duck-300" />
+                  <span>{toastMessage}</span>
+                </div>
+              )}
+
+              {/* EXPORT TAB */}
+              {tab === "export" && (
+                <div className="space-y-3.5 sm:space-y-4">
+                  {/* Active Note Preview Card */}
+                  <div className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850/60 p-2.5 sm:p-3">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <span className="text-xl sm:text-2xl shrink-0">{activeNote?.emoji || "📝"}</span>
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-xs sm:text-sm text-ink-100 truncate">
+                          {activeNote?.title || "Untitled Note"}
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-ink-400 truncate">
+                          Current Space: <span className="text-duck-300 font-medium">{activeSpace || "School"}</span> • Blocks: {(activeNote?.blocks || []).length}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-xs sm:text-sm text-ink-100">{selectedFile.name}</p>
-                      <p className="text-[11px] sm:text-xs text-ink-400 mt-0.5">
-                        Size: {(selectedFile.size / 1024).toFixed(1)} KB • Click to change file
+                    <span className="rounded-md border border-ink-700 bg-ink-900 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] font-mono text-ink-300 shrink-0 ml-2">
+                      Ready to export
+                    </span>
+                  </div>
+
+                  {/* Space Picker for .socratic Package Export */}
+                  {exportFormat === "socratic" && (
+                    <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-3 sm:p-3.5 space-y-2 animate-fade-in">
+                      <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-duck-300 flex items-center gap-1.5">
+                        <Package className="h-3.5 w-3.5" />
+                        <span>Choose Space to Export (.socratic):</span>
+                      </label>
+                      <p className="text-[11px] text-duck-200/80 leading-relaxed">
+                        Select a single space to export its notes or choose &quot;All Spaces&quot; to export your full workspace backup.
                       </p>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
+                        {[{ name: "All", icon: "🌐" }, ...spaces].map((sp) => (
+                          <button
+                            key={sp.name}
+                            type="button"
+                            onClick={() => setExportSpace(sp.name)}
+                            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
+                              exportSpace === sp.name
+                                ? "border-duck-400 bg-duck-500/30 text-duck-200 shadow-sm"
+                                : "border-ink-700 bg-ink-900/60 text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                            }`}
+                          >
+                            <span>{sp.icon}</span>
+                            <span>{sp.name === "All" ? "All Spaces" : sp.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-ink-400">
+                      Select Format:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {formats.map((fmt) => (
+                        <button
+                          key={fmt.id}
+                          type="button"
+                          onClick={() => setExportFormat(fmt.id)}
+                          className={`flex items-start gap-2.5 sm:gap-3 rounded-xl border p-2.5 sm:p-3 text-left transition-all ${
+                            exportFormat === fmt.id
+                              ? "border-duck-500/60 bg-duck-500/15 shadow-sm"
+                              : "border-ink-800 bg-ink-950/40 hover:border-ink-700 hover:bg-ink-850/40"
+                          }`}
+                        >
+                          <span className="text-xl sm:text-2xl shrink-0 mt-0.5">{fmt.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-xs text-ink-100">{fmt.name}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {fmt.hasPreview && (
+                                  <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-duck-500/20 text-duck-300 border border-duck-500/30">
+                                    Preview
+                                  </span>
+                                )}
+                                <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase bg-ink-800 text-ink-300 border border-ink-700">
+                                  {fmt.badge}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-ink-400 mt-0.5 line-clamp-2 leading-tight">
+                              {fmt.description}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-ink-800 text-ink-300">
-                      <Upload className="h-5 w-5 sm:h-6 sm:w-6" />
+
+                  {/* Preview Ready Banner for previewable formats */}
+                  {PREVIEWABLE_FORMATS.includes(exportFormat) && (
+                    <div className="flex items-center justify-between rounded-xl border border-duck-500/40 bg-duck-500/10 p-3 sm:p-3.5 animate-fade-in">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-duck-500/20 text-duck-300 shrink-0">
+                          <Eye className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-duck-200 truncate">
+                            Export Preview Ready
+                          </h4>
+                          <p className="text-[11px] text-duck-300/80 truncate">
+                            Inspect layout, formatting & content before downloading ({exportFormat.toUpperCase()})
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPreviewOpen(true)}
+                        className="flex items-center gap-1.5 rounded-lg border border-duck-500/50 bg-duck-500/20 px-3 py-1.5 text-xs font-bold text-duck-200 hover:bg-duck-500/30 transition-colors shrink-0 ml-2 shadow-xs"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>Preview File</span>
+                      </button>
                     </div>
-                    <div>
-                      <p className="font-bold text-xs sm:text-sm text-ink-200">
-                        Click to browse or drop your note / space backup file here
-                      </p>
-                      <p className="text-[11px] sm:text-xs text-ink-400 mt-1">
-                        Supports <span className="text-duck-300 font-semibold">.socratic, .docx, .html, .txt, .md</span> files
-                      </p>
+                  )}
+                </div>
+              )}
+
+              {/* IMPORT TAB */}
+              {tab === "import" && (
+                <div className="space-y-3.5 sm:space-y-4">
+                  {/* Target Space Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-ink-400">
+                      Target Space for Import:
+                    </label>
+                    <p className="text-[11px] text-ink-400">
+                      Select which space to assign the imported note/backup to:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setImportSpace("Original")}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
+                          importSpace === "Original"
+                            ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
+                            : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+                        }`}
+                      >
+                        <span>🔄</span>
+                        <span>Original Spaces (File Defaults)</span>
+                      </button>
+
+                      {spaces.map((space) => (
+                        <button
+                          key={space.name}
+                          type="button"
+                          onClick={() => setImportSpace(space.name)}
+                          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
+                            importSpace === space.name
+                              ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
+                              : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+                          }`}
+                        >
+                          <span>{space.icon}</span>
+                          <span>{space.name}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {selectedFile && /\.(html|htm)$/i.test(selectedFile.name) && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2 animate-fade-in">
-                  <span className="text-sm shrink-0">⚠️</span>
-                  <p className="text-[11px] leading-relaxed">
-                    <strong>Note:</strong> If this is a browser bookmarks export, importing will replace existing bookmarks in the <strong>"{importSpace}"</strong> space to prevent duplicate folders and links.
-                  </p>
+                  {/* File Dropzone */}
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center cursor-pointer transition-all ${
+                      selectedFile
+                        ? "border-duck-400 bg-duck-500/10"
+                        : "border-ink-700 bg-ink-950/50 hover:border-duck-500/50 hover:bg-ink-850/50"
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".socratic,.json,.docx,.html,.htm,.txt,.md,.markdown"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+
+                    {selectedFile ? (
+                      <div className="space-y-2">
+                        <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-duck-500/20 text-duck-300 text-xl sm:text-2xl">
+                          📄
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs sm:text-sm text-ink-100">{selectedFile.name}</p>
+                          <p className="text-[11px] sm:text-xs text-ink-400 mt-0.5">
+                            Size: {(selectedFile.size / 1024).toFixed(1)} KB • Click to change file
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-ink-800 text-ink-300">
+                          <Upload className="h-5 w-5 sm:h-6 sm:w-6" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs sm:text-sm text-ink-200">
+                            Click to browse or drop your note / space backup file here
+                          </p>
+                          <p className="text-[11px] sm:text-xs text-ink-400 mt-1">
+                            Supports <span className="text-duck-300 font-semibold">.socratic, .docx, .html, .txt, .md</span> files
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedFile && /\.(html|htm)$/i.test(selectedFile.name) && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2 animate-fade-in">
+                      <span className="text-sm shrink-0">⚠️</span>
+                      <p className="text-[11px] leading-relaxed">
+                        <strong>Note:</strong> If this is a browser bookmarks export, importing will replace existing bookmarks in the <strong>"{importSpace}"</strong> space to prevent duplicate folders and links.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Modal Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-ink-700 px-4 py-2 text-xs font-semibold text-ink-300 hover:bg-ink-800 transition-colors"
-          >
-            Cancel
-          </button>
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-ink-700 px-4 py-2 text-xs font-semibold text-ink-300 hover:bg-ink-800 transition-colors"
+              >
+                Cancel
+              </button>
 
-          {tab === "export" ? (
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isProcessing}
-              className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
-            >
-              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>{isProcessing ? "Exporting..." : `Export ${exportFormat === "socratic" ? `"${exportSpace}" Space` : exportFormat.toUpperCase()}`}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={isProcessing || !selectedFile}
-              className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
-            >
-              <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>{isProcessing ? "Importing..." : "Import File to Workspace"}</span>
-            </button>
-          )}
-        </div>
+              {tab === "export" ? (
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={isProcessing}
+                  className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
+                >
+                  {PREVIEWABLE_FORMATS.includes(exportFormat) ? (
+                    <>
+                      <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <span>Preview & Download {exportFormat.toUpperCase()}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <span>
+                        {isProcessing
+                          ? "Exporting..."
+                          : exportFormat === "socratic"
+                          ? `Export "${exportSpace}" Space`
+                          : exportFormat === "bookmarks"
+                          ? "Export Bookmarks HTML"
+                          : "Print / PDF Preview"}
+                      </span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={isProcessing || !selectedFile}
+                  className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
+                >
+                  <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span>{isProcessing ? "Importing..." : "Import File to Workspace"}</span>
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

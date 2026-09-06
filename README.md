@@ -167,7 +167,7 @@ A comprehensive suite of 25 real-time interactive 3D STEM simulations built usin
 ### 📦 9. Multi-Format Export, Import & Backup Engine
 - **Workspace & Space Backups (.socratic)** ([`ExportImportModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ExportImportModal.jsx)): Export entire spaces, folders, bookmarks, and individual notes into portable JSON `.socratic` packages.
 - **Netscape HTML Bookmarks (`.html`)**: Export space-filtered or complete bookmarks into browser-compliant HTML bookmark collections with tags and notes.
-- **Multi-Format Note Export**: Export notes to styled **PDF** (with KaTeX math equation rendering and code block preservation), **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), or **Markdown** (`.md`).
+- **Multi-Format Note Export with Pre-Download Preview** ([`ExportPreview.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ExportPreview.jsx)): Preview files before downloading for **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), and **Markdown** (`.md`). Features authentic Microsoft Word sheet layouts with heading colors, browser mockup frames with dynamic auto-height sandbox iframes & embedded KaTeX math formulas, monospace text editors, dedicated full-document scroll container with wheel forwarding, and rendered/source code view toggles. **PDF** directly launches the native browser print preview dialog (`window.print()`).
 - **Drag-and-Drop Import**: Drag and drop `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, or `.md` files directly into target spaces.
 
 ### 🗑️ 10. 24-Hour Soft-Delete Trash, Custom Spaces & Privacy Settings
@@ -216,6 +216,7 @@ components/
   ConfidenceHeatmap.jsx         Per-session sub-topic confidence heatmap
   MasteryDashboard.jsx          Aggregate topic mastery analytics dashboard
   ExportImportModal.jsx         .socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT & MD export/import modal
+  ExportPreview.jsx             Pre-download document preview for Word (.docx), HTML, Plain text & Markdown
   FeatureRequestModal.jsx       User feedback & feature request submission modal
   visualizations/
     PhysicsCanvas.jsx           Gas laws, optics, induction, refraction, motor effect engines
