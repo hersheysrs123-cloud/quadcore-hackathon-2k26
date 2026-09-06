@@ -4289,3 +4289,63 @@ Users requested that Callout blocks in PDF / Print export return to a clean, min
    - All 389 unit tests pass (`npm test`).
    - Production build compiled successfully (`npm run build`).
    - Verified via Chrome DevTools Protocol (CDP) print emulation: captured `current_callout_print.png` showing the callout with plain white background, clean neutral border, crisp `#0f172a` text, and prominent emoji.
+
+---
+
+## 168. Toggle Block Triangle Disclosure Alignment & Media Block Print Caption Sizing
+
+### Problem Statement
+Users identified two visual inconsistencies during print and PDF export:
+1. **Toggle Disclosure Triangle Misalignment**: In print/PDF mode, the amber disclosure chevron (`▼`) was offset horizontally from the thin vertical accent line (`border-left: 3px solid #cbd5e1` at `margin-left: 14pt`) rendered on the expanded details container below it. The chevron's downward vertex did not point directly into the vertical guide line.
+2. **Massive Image Embed Caption**: In print/PDF mode, media block captions (e.g. "Hydrogen Atomic Orbital Probability Cloud") rendered at a massive `22pt` bold font size rather than matching the small, muted caption (`text-xs`) seen in the interactive note view.
+
+### Root Cause Analysis
+1. **Image Caption Font Explosion**:
+   - In `app/globals.css`, Section 2 defined:
+     ```css
+     [data-editor-root] input[type="text"]:first-of-type,
+     [data-editor-root] input[placeholder="Untitled Note"] {
+       font-size: 22pt !important;
+       font-weight: 800 !important;
+     }
+     ```
+   - In CSS, `:first-of-type` matches an element that is the first child of its tag type within its *immediate parent*. In `MediaBlock` (`components/BlockNoteEditor.jsx`), the caption is an `<input type="text" ... />` inside its own wrapper `<div>`, making it the first of its type.
+   - The specificity of `[data-editor-root] input[type="text"]:first-of-type` `(0, 3, 1)` superseded the media caption styling `[class*="group/mediablk"] input` `(0, 1, 1)`, forcing the caption input to inherit the `22pt !important` document title styles.
+2. **Toggle Chevron vs. Vertical Accent Line Offset**:
+   - The details container `.toggle-print-details` had `margin-left: 14pt !important; border-left: 3px solid #cbd5e1 !important;`, positioning the 3px accent line between `x = 14pt` and `16.25pt` (center at `15.125pt`).
+   - The disclosure chevron `[class*="group/toggleblk"] > div:first-child span:first-child` originally had `margin-left: 0 !important;`, and later `14pt !important;` (which aligned the left bounding box edge of the glyph with the left edge of the border, pushing the center/tip of the 9.5pt wide glyph 4.82px to the right of the 3px line's center).
+
+### Resolution & Architectural Enhancements
+1. **Dedicated Attributes & High-Specificity Print Selectors (`components/BlockNoteEditor.jsx`, `app/globals.css`)**:
+   - Added `data-note-title="true"` to the document title input in `components/BlockNoteEditor.jsx` (around line 7237).
+   - Added `data-media-caption="true"` to the media caption input in `components/BlockNoteEditor.jsx` (around line 3289).
+   - Updated `app/globals.css` Note Title selector to use explicit title attributes (`[data-editor-root] input[data-note-title="true"], [data-editor-root] input[placeholder="Untitled Note"], input[data-note-title="true"]`) instead of the over-broad `:first-of-type` pseudo-class.
+   - Upgraded media block print caption styles in `app/globals.css` Section 13 with high-specificity selectors:
+     ```css
+     [class*="group/mediablk"] input,
+     [data-editor-root] [class*="group/mediablk"] input,
+     input[data-media-caption="true"],
+     [data-editor-root] input[data-media-caption="true"] {
+       color: #64748b !important;
+       text-align: center !important;
+       border: none !important;
+       background: transparent !important;
+       font-size: 9pt !important;
+       font-weight: 400 !important;
+       line-height: 1.4 !important;
+       margin-top: 4pt !important;
+       margin-bottom: 2pt !important;
+       width: 100% !important;
+       display: block !important;
+     }
+     ```
+2. **Sub-Pixel Mathematical Alignment of Toggle Disclosure Triangle (`app/globals.css`)**:
+   - Calculated the geometric center of the 3px accent line (`15.125pt`) and the 9.5pt glyph box (`margin-left + 4.74pt`).
+   - Configured `[class*="group/toggleblk"] > div:first-child span:first-child` with `margin-left: 10.5pt !important; margin-right: 5pt !important;`.
+   - Verified through headless Chrome DevTools Protocol measurement that the horizontal offset between the triangle's center vertex (`spanCenter = 30.898px`) and the details border center (`borderCenter = 30.734px`) was reduced to **0.16px** (virtually zero).
+3. **Automated & Visual Verification**:
+   - Full test suite passed cleanly: **389 tests across 105 suites** (`npm test`).
+   - Production build compiled successfully (`npm run build`).
+   - Chrome DevTools Protocol (CDP) print emulation visual verification:
+     - `current_media_print.png`: image caption renders crisply at 9pt regular weight in muted slate `#64748b` centered under the image.
+     - `verify_toggle_print_screen.png`: amber `▼` chevron sits centered directly above the 3px vertical accent border.

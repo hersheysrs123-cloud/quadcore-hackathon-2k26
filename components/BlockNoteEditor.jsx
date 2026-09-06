@@ -3288,6 +3288,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
           {/* Editable Caption */}
           <input
             type="text"
+            data-media-caption="true"
             value={block.content || ""}
             onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
             placeholder="Add an optional caption (e.g. Lecture 4: Key concepts)..."
@@ -7236,6 +7237,7 @@ export default function BlockNoteEditor({
           <input
             ref={noteTitleInputRef}
             type="text"
+            data-note-title="true"
             readOnly={isLocked}
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}

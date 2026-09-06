@@ -583,6 +583,9 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
 8. **PDF Export & Chromium Print Canvas Dark Mode Reset**:
    - In Chromium/Blink, when printing while the web app is in dark mode, the `@page` margin box (`margin: 1.2cm 1.5cm`) is painted using the root canvas background color (`--color-ink-950`: `#12151e`), creating an unsightly black border framing the printed sheet.
    - Always guarantee pure white pages edge-to-edge by keeping `color-scheme: light !important; background-color: #ffffff !important;` on `:root, html, body` and `@page` in `@media print` (`app/globals.css`), overriding `--color-ink-950` to `#ffffff !important`, and having `exportToPdf()` (`lib/exportImport.js`) temporarily set `document.documentElement.style.colorScheme = "light"` before invoking `window.print()`.
+9. **Print / PDF Block Specificity & Toggle Disclosure Alignment**:
+   - In `@media print` (`app/globals.css`), avoid generic `input[type="text"]:first-of-type` selectors inside `[data-editor-root]` because they accidentally match nested `<input>` children such as media block captions (`data-media-caption="true"`), causing them to explode to 22pt title sizes. Use explicit attribute selectors (`input[data-note-title="true"]`).
+   - In toggle collapsible blocks, the print disclosure chevron (`▼`) is centered directly over the 3px vertical accent line of the expanded details container (`border-left: 3px solid #cbd5e1` at `margin-left: 14pt`) by setting `margin-left: 10.5pt !important;` on `[class*="group/toggleblk"] > div:first-child span:first-child`, achieving 0.16px centered alignment.
 
 ---
 
