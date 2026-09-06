@@ -168,7 +168,16 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
   );
 }
 
-function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [] }) {
+function SettingsModal({
+  open,
+  onClose,
+  theme,
+  setTheme,
+  onResetData,
+  spaces = [],
+  spaceSwitcherLayout = "dropdown",
+  onSpaceSwitcherLayoutChange,
+}) {
   const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -374,13 +383,13 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
   const handleSeedDemoNotes = async () => {
     try {
       setStatusMsg("");
-      const res = await seedDemoContent({ overwrite: true });
-      setStatusMsg(`Successfully seeded ${res.notes} demo notes and ${res.bookmarks} bookmarks! Reloading...`);
+      const res = await seedDemoContent({ overwrite: false });
+      setStatusMsg(`Successfully seeded ${res.notes} demo notes (your custom notes and bookmarks were preserved)! Reloading...`);
       setTimeout(() => {
         window.location.reload();
       }, 1000);
     } catch (err) {
-      alert("Error seeding demo content: " + err.message);
+      alert("Error seeding demo notes: " + err.message);
     }
   };
 
@@ -614,6 +623,47 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
                     <div className="text-left">
                       <div className="font-bold text-ink-100">Light Mode</div>
                       <div className="text-[11px] text-ink-400 font-normal">Warm Stone paper aesthetic for daytime</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Space Switcher Display Layout */}
+              <div className="border-t border-ink-800/80 pt-5">
+                <label className="mb-3 block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                  <span className="text-sm">🗂️</span>
+                  Space Switcher Display
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => onSpaceSwitcherLayoutChange?.("dropdown")}
+                    className={`flex items-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all cursor-pointer ${
+                      spaceSwitcherLayout === "dropdown"
+                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
+                        : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
+                    }`}
+                  >
+                    <span className="text-xl">▾</span>
+                    <div className="text-left">
+                      <div className="font-bold text-ink-100">Dropdown Menu</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Compact dropdown trigger with popup space list</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSpaceSwitcherLayoutChange?.("grid")}
+                    className={`flex items-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all cursor-pointer ${
+                      spaceSwitcherLayout === "grid"
+                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
+                        : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
+                    }`}
+                  >
+                    <span className="text-xl">⊞</span>
+                    <div className="text-left">
+                      <div className="font-bold text-ink-100">Grid View</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Multi-column tiles for direct 1-click space switching</div>
                     </div>
                   </button>
                 </div>
@@ -896,10 +946,10 @@ function SettingsModal({ open, onClose, theme, setTheme, onResetData, spaces = [
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-xs font-bold text-duck-200">
                     <span>🌱</span>
-                    <span>Sample Study Materials (Demo Notes &amp; Bookmarks)</span>
+                    <span>Sample Study Notes (Demo Notes Only)</span>
                   </div>
                   <p className="text-[11px] text-ink-300">
-                    Re-seed curated textbook-grade study notes (Calculus, Photosynthesis, Big-O, Elasticity) and study web links into your workspace.
+                    Re-seed curated textbook-grade study notes (Calculus, Photosynthesis, Big-O, Wave Optics, Neuroscience, Quantum Mechanics) into your workspace without modifying your Web Saver bookmarks or folders.
                   </p>
                 </div>
                 <button
@@ -1392,9 +1442,45 @@ export default function Sidebar({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   const [spacesDropdownOpen, setSpacesDropdownOpen] = useState(false);
+  const [spaceSwitcherLayout, setSpaceSwitcherLayout] = useState("dropdown"); // "dropdown" | "grid"
   const [draggingNoteId, setDraggingNoteId] = useState(null);
   const [dragOverInfo, setDragOverInfo] = useState(null); // { id: string, position: 'top' | 'bottom' }
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("socraticos_space_switcher_layout");
+      if (cached === "grid" || cached === "dropdown") {
+        setSpaceSwitcherLayout(cached);
+      }
+    } catch {
+      // Ignore
+    }
+    db.settings.get("space_switcher_layout").then((item) => {
+      if (item?.value && (item.value === "grid" || item.value === "dropdown")) {
+        setSpaceSwitcherLayout(item.value);
+        try {
+          localStorage.setItem("socraticos_space_switcher_layout", item.value);
+        } catch {
+          // Ignore
+        }
+      }
+    }).catch(console.error);
+  }, []);
+
+  const handleSpaceSwitcherLayoutChange = useCallback(async (newLayout) => {
+    setSpaceSwitcherLayout(newLayout);
+    try {
+      localStorage.setItem("socraticos_space_switcher_layout", newLayout);
+    } catch {
+      // Ignore
+    }
+    try {
+      await db.settings.put({ key: "space_switcher_layout", value: newLayout });
+    } catch (err) {
+      console.error("Failed to save space switcher layout setting:", err);
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -1548,89 +1634,144 @@ export default function Sidebar({
           <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
             Spaces
           </div>
-          <div className="relative w-full" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setSpacesDropdownOpen((prev) => !prev)}
-              title="Switch Space"
-              className="flex w-full items-center justify-between rounded-xl border border-ink-700/80 bg-ink-850/90 px-3 py-2 text-xs font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100 active:scale-98 shadow-sm"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm leading-none shrink-0">{currentSpaceObj?.icon || "📂"}</span>
-                <span className="truncate font-semibold text-ink-100 text-xs">{activeSpace}</span>
-              </div>
-              <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0 ml-1" />
-            </button>
+          {spaceSwitcherLayout === "grid" ? (
+            /* Grid View */
+            <div className="grid grid-cols-2 gap-1.5 w-full">
+              {spaces.map((space) => {
+                const isActive = space.name === activeSpace;
+                return (
+                  <div
+                    key={space.name}
+                    className={`group/space relative flex items-center justify-between rounded-xl border px-2.5 py-2 text-xs transition-all ${
+                      isActive
+                        ? "border-duck-500/60 bg-duck-500/15 text-duck-300 font-semibold shadow-sm ring-1 ring-duck-500/30"
+                        : "border-ink-750 bg-ink-850/80 text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-ink-100"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSelectSpace(space.name)}
+                      className="flex-1 flex items-center gap-1.5 truncate text-left min-w-0 cursor-pointer"
+                      title={`Switch to ${space.name}`}
+                    >
+                      <span className="text-sm leading-none shrink-0">{space.icon || "📂"}</span>
+                      <span className="truncate text-xs">{space.name}</span>
+                    </button>
 
-            {/* Dropdown Menu */}
-            {spacesDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 z-[100] w-full rounded-xl border border-ink-700 bg-ink-900 shadow-2xl p-1.5 backdrop-blur-md">
-                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
-                  Spaces
-                </div>
-                <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                  {spaces.map((space) => {
-                    const isActive = space.name === activeSpace;
-                    return (
-                      <div 
-                        key={space.name} 
-                        className={`group/space flex w-full items-center justify-between rounded-lg transition-colors ${
-                          isActive
-                            ? "bg-ink-800 text-duck-300 font-semibold"
-                            : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
-                        }`}
+                    {spaces.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSpace(space.name);
+                        }}
+                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all shrink-0 ml-1"
+                        title="Delete space"
                       >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onSelectSpace(space.name);
-                            setSpacesDropdownOpen(false);
-                          }}
-                          className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate"
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="text-sm leading-none">{space.icon}</span>
-                            <span className="truncate">{space.name}</span>
-                          </div>
-                          {isActive && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-duck-400 shrink-0 mx-2" />
-                          )}
-                        </button>
-                        
-                        {spaces.length > 1 && (
-                          <div className="flex items-center shrink-0 pr-1">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSpace(space.name);
-                              }}
-                              className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-1"
-                              title="Delete space"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Create New Space Button in Grid */}
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="flex items-center justify-center gap-1 rounded-xl border border-dashed border-ink-700/80 bg-ink-850/40 px-2.5 py-2 text-xs text-ink-400 hover:border-duck-500/50 hover:bg-duck-500/10 hover:text-duck-300 transition-all font-medium cursor-pointer"
+                title="Create New Space"
+              >
+                <span className="text-sm leading-none">＋</span>
+                <span className="truncate">New</span>
+              </button>
+            </div>
+          ) : (
+            /* Dropdown View */
+            <div className="relative w-full" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setSpacesDropdownOpen((prev) => !prev)}
+                title="Switch Space"
+                className="flex w-full items-center justify-between rounded-xl border border-ink-700/80 bg-ink-850/90 px-3 py-2 text-xs font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100 active:scale-98 shadow-sm"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm leading-none shrink-0">{currentSpaceObj?.icon || "📂"}</span>
+                  <span className="truncate font-semibold text-ink-100 text-xs">{activeSpace}</span>
                 </div>
-                <div className="my-1 border-t border-ink-800" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSpacesDropdownOpen(false);
-                    setModalOpen(true);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-duck-400 transition-colors hover:bg-ink-850 hover:text-duck-300 font-medium"
-                >
-                  <span className="text-sm leading-none">＋</span>
-                  <span>Create New Space</span>
-                </button>
-              </div>
-            )}
-          </div>
+                <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0 ml-1" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {spacesDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1.5 z-[100] w-full rounded-xl border border-ink-700 bg-ink-900 shadow-2xl p-1.5 backdrop-blur-md">
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-500">
+                    Spaces
+                  </div>
+                  <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                    {spaces.map((space) => {
+                      const isActive = space.name === activeSpace;
+                      return (
+                        <div 
+                          key={space.name} 
+                          className={`group/space flex w-full items-center justify-between rounded-lg transition-colors ${
+                            isActive
+                              ? "bg-ink-800 text-duck-300 font-semibold"
+                              : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectSpace(space.name);
+                              setSpacesDropdownOpen(false);
+                            }}
+                            className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="text-sm leading-none">{space.icon}</span>
+                              <span className="truncate">{space.name}</span>
+                            </div>
+                            {isActive && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-duck-400 shrink-0 mx-2" />
+                            )}
+                          </button>
+                          
+                          {spaces.length > 1 && (
+                            <div className="flex items-center shrink-0 pr-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSpace(space.name);
+                                }}
+                                className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-1"
+                                title="Delete space"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="my-1 border-t border-ink-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpacesDropdownOpen(false);
+                      setModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-duck-400 transition-colors hover:bg-ink-850 hover:text-duck-300 font-medium"
+                  >
+                    <span className="text-sm leading-none">＋</span>
+                    <span>Create New Space</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Space Hub Navigation Button Right Below Spaces Switcher */}
           <button
@@ -1658,30 +1799,6 @@ export default function Sidebar({
               </div>
             </div>
             <span className="text-xs text-ink-400 group-hover:text-duck-300 transition-colors shrink-0">→</span>
-          </button>
-
-          {/* AI Tutor Quick Access Button */}
-          <button
-            type="button"
-            onClick={() => onOpenTutor?.()}
-            className="mt-1.5 flex w-full items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 text-xs font-semibold transition-all group shadow-sm hover:border-emerald-500/60 hover:bg-emerald-900/30 text-emerald-200"
-            title={`Ask doubts to your AI Tutor in ${activeSpace} with active curriculum documents`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm leading-none group-hover:scale-110 transition-transform">🧑‍🏫</span>
-              <div className="text-left truncate">
-                <div className="text-[11px] font-bold leading-tight truncate flex items-center gap-1.5 text-emerald-300">
-                  <span>AI Tutor</span>
-                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-bold text-emerald-400">
-                    Doubts
-                  </span>
-                </div>
-                <div className="text-[9px] text-ink-400 font-normal leading-tight truncate mt-0.5">
-                  Ask questions &amp; solve problems
-                </div>
-              </div>
-            </div>
-            <span className="text-xs text-emerald-400/80 group-hover:text-emerald-300 transition-colors shrink-0">💬</span>
           </button>
         </div>
 
@@ -1912,6 +2029,8 @@ export default function Sidebar({
         onSyncSupabase={onSyncSupabase}
         onResetData={onResetData}
         spaces={spaces}
+        spaceSwitcherLayout={spaceSwitcherLayout}
+        onSpaceSwitcherLayoutChange={handleSpaceSwitcherLayoutChange}
       />
 
       <FeatureRequestModal

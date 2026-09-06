@@ -67,6 +67,22 @@ const NOTE_EMOJIS = [
   "🏆", "🌱", "💬", "🌐", "⚙️", "🔮", "💎", "📜"
 ];
 
+// Blocks where pressing Enter naturally creates a new block/line below, so bottom dropzone is omitted
+const EXCLUDED_DROPZONE_TYPES = new Set([
+  "text",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "heading",
+  "bullet",
+  "number",
+  "todo",
+  "inlinemath",
+  "callout",
+  "quote",
+]);
+
 export function getYouTubeEmbedInfo(url) {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
@@ -1296,11 +1312,11 @@ function InlineEquationPopover({
       ref={popoverRef}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      className={`absolute left-0 z-[100] w-full max-w-lg rounded-xl border border-duck-500/50 bg-ink-900/98 p-3 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto ${
+      className={`absolute left-0 z-[100] w-full max-w-lg rounded-xl border border-ink-700 bg-ink-900/98 p-3 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto ${
         placement === "top" ? "bottom-full mb-2" : "top-full mt-1.5"
       }`}
       style={{
-        boxShadow: "0 20px 40px -10px rgba(0,0,0,0.7), 0 0 0 1px rgba(240, 192, 74, 0.25)",
+        boxShadow: "0 20px 40px -10px rgba(0,0,0,0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)",
       }}
     >
       <div className="flex items-center justify-end gap-2 border-b border-ink-800 pb-2">
@@ -1429,7 +1445,7 @@ function InlineEquationPopover({
             }
           }}
           placeholder="LaTeX formula (e.g. f'(x) = 2x or \\lim_{x \\to 0}\\frac{\\sin x}{x})..."
-          className="w-full rounded-lg border border-duck-500/50 bg-ink-950 px-3 py-1.5 font-mono text-xs text-duck-200 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
+          className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 font-mono text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
         />
       </div>
 
@@ -1443,16 +1459,13 @@ function InlineEquationPopover({
               <KaTeXRender
                 formula={formula}
                 displayMode={false}
-                className="text-duck-200 font-semibold inline"
+                className="text-ink-100 font-normal inline"
               />
             ) : (
               <span className="text-xs italic text-ink-600">Empty equation</span>
             )}
           </div>
         </div>
-        {formula.trim() && (
-          <span className="text-[10px] font-mono text-ink-500 shrink-0">KaTeX</span>
-        )}
       </div>
     </div>
   );
@@ -1840,6 +1853,8 @@ function HighlightCode({ code, language }) {
 function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false, registerRef }) {
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef(null);
+  const gutterRef = useRef(null);
+  const preRef = useRef(null);
 
   useEffect(() => {
     if (registerRef) registerRef(block.id, textareaRef);
@@ -1851,7 +1866,32 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
 
   const codeText = block.content || "";
   const lines = codeText.split("\n");
-  const lineCount = Math.max(3, lines.length);
+  const lineCount = lines.length;
+
+  const tokens = useMemo(() => {
+    return tokenizeCode(codeText, activeLangId);
+  }, [codeText, activeLangId]);
+
+  const handleScroll = (e) => {
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = e.target.scrollTop;
+    }
+    if (preRef.current) {
+      preRef.current.scrollTop = e.target.scrollTop;
+      preRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
+
+  const handleLineClick = (lineIdx, e) => {
+    e.stopPropagation();
+    if (!textareaRef.current) return;
+    textareaRef.current.focus();
+    let charOffset = 0;
+    for (let i = 0; i < lineIdx; i++) {
+      charOffset += (lines[i]?.length ?? 0) + 1;
+    }
+    textareaRef.current.setSelectionRange(charOffset, charOffset);
+  };
 
   const handleCopy = async (e) => {
     e.stopPropagation();
@@ -2082,39 +2122,100 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         </div>
       </div>
 
-      {/* Code Editor Body with Line Numbers */}
-      <div className="relative flex min-h-[4.5rem] bg-[#0d1017] font-mono text-xs sm:text-sm leading-relaxed overflow-hidden rounded-b-xl">
+      {/* Code Editor Body with Pixel-Perfect Aligned Line Numbers */}
+      <div className="relative flex bg-[#0d1017] font-mono text-xs sm:text-sm overflow-hidden rounded-b-xl border-t border-ink-800/40 min-h-[3.25rem]">
         {/* Line Numbers Gutter */}
         <div
+          ref={gutterRef}
           onClick={(e) => {
             e.stopPropagation();
             textareaRef.current?.focus();
           }}
-          className="select-none py-3.5 pl-3 pr-2.5 text-right font-mono text-ink-600 border-r border-ink-850 bg-ink-950/60 shrink-0 text-xs leading-relaxed min-w-[2.5rem] cursor-pointer"
+          className={`select-none pl-3 pr-2.5 text-right font-mono text-ink-600 border-r border-ink-850 bg-ink-950/60 shrink-0 text-xs sm:text-sm cursor-pointer overflow-hidden ${
+            lineCount >= 1000
+              ? "min-w-[4rem]"
+              : lineCount >= 100
+              ? "min-w-[3.25rem]"
+              : "min-w-[2.5rem]"
+          }`}
+          style={{
+            paddingTop: "14px",
+            paddingBottom: "14px",
+            lineHeight: "24px",
+          }}
         >
-          {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i} className="leading-relaxed">
+          {lines.map((_, i) => (
+            <div
+              key={i}
+              onClick={(e) => handleLineClick(i, e)}
+              className="h-6 leading-6 text-right select-none font-mono text-xs sm:text-sm text-ink-600/90 hover:text-ink-400 transition-colors cursor-pointer"
+              style={{ height: "24px", lineHeight: "24px" }}
+              title={`Click to jump to line ${i + 1}`}
+            >
               {i + 1}
             </div>
           ))}
         </div>
 
-        {/* Textarea Code Editor */}
-        <textarea
-          id={`code_${block.id}`}
-          ref={textareaRef}
-          value={block.content || ""}
-          readOnly={isLocked}
-          onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false)}
-          onKeyDown={handleKeyDown}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          placeholder="// Type or paste code here..."
-          rows={lineCount}
-          style={{ tabSize: 2 }}
-          className="flex-1 block w-full resize-y bg-transparent font-mono text-xs sm:text-sm leading-relaxed text-emerald-300 placeholder:text-ink-600 focus:outline-none p-3.5 whitespace-pre border-0 outline-0 shadow-none ring-0 selection:bg-emerald-500/20 selection:text-emerald-100 pointer-events-auto overflow-x-auto"
-          spellCheck={false}
-        />
+        {/* Code Editor Area: Live Syntax Highlighting Underlay + Interactive Transparent Textarea */}
+        <div className="relative flex-1 min-w-0 overflow-hidden print:overflow-visible">
+          {/* Syntax Highlighted Underlay */}
+          <pre
+            ref={preRef}
+            aria-hidden="true"
+            className="code-highlight-underlay pointer-events-none absolute inset-0 block w-full overflow-hidden font-mono text-xs sm:text-sm leading-6 px-3.5 whitespace-pre border-0 outline-0 m-0 select-none print:static print:relative print:overflow-visible print:inset-auto print:h-auto print:pointer-events-auto print:block"
+            style={{
+              tabSize: 2,
+              lineHeight: "24px",
+              paddingTop: "14px",
+              paddingBottom: "14px",
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              letterSpacing: "normal",
+              fontVariantLigatures: "none",
+            }}
+          >
+            <code>
+              {tokens.map((token, idx) => (
+                <span
+                  key={idx}
+                  className={`${TOKEN_STYLES[token.type] || "text-ink-200"} print:inline`}
+                >
+                  {token.text}
+                </span>
+              ))}
+              {codeText.endsWith("\n") && "\n"}
+            </code>
+          </pre>
+
+          {/* Transparent Textarea Overlay */}
+          <textarea
+            id={`code_${block.id}`}
+            ref={textareaRef}
+            value={codeText}
+            readOnly={isLocked}
+            wrap="off"
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false)}
+            onKeyDown={handleKeyDown}
+            onScroll={handleScroll}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="// Type or paste code here..."
+            rows={Math.max(1, lineCount)}
+            style={{
+              tabSize: 2,
+              lineHeight: "24px",
+              paddingTop: "14px",
+              paddingBottom: "14px",
+              color: codeText ? "transparent" : undefined,
+              caretColor: "#34d399",
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              letterSpacing: "normal",
+              fontVariantLigatures: "none",
+            }}
+            className="relative z-10 block w-full resize-y bg-transparent font-mono text-xs sm:text-sm leading-6 placeholder:text-ink-600 focus:outline-none px-3.5 whitespace-pre border-0 outline-0 shadow-none ring-0 selection:bg-emerald-500/25 selection:text-transparent pointer-events-auto overflow-x-auto print:hidden"
+            spellCheck={false}
+          />
+        </div>
       </div>
     </div>
   );
@@ -2664,7 +2765,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
       )}
 
       {/* Table Top Toolbar */}
-      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none rounded-t-xl">
+      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none rounded-t-xl print:hidden">
         <div className="flex items-center gap-2">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 text-xs font-bold text-duck-400 shrink-0">
             ▦
@@ -3088,7 +3189,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
         /* Rendered Media Viewport */
         <div className="space-y-2.5">
           <div className="flex items-center justify-between border-b border-ink-800/80 pb-2">
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-duck-400 uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-duck-400 uppercase tracking-wider font-['Segoe_UI_Emoji','Apple_Color_Emoji','Noto_Color_Emoji',sans-serif]">
               <span>{isYouTube ? "▶️ YouTube Video" : mediaKind === "audio" ? "🎵 Audio" : mediaKind === "video" ? "🎬 Video" : "🖼️ Image"}</span>
             </span>
 
@@ -3672,12 +3773,12 @@ function ColumnsBlock({
 
   const gridColsClass =
     currentCount === 2
-      ? "grid-cols-1 md:grid-cols-2"
+      ? "grid-cols-1 md:grid-cols-2 print:grid-cols-2"
       : currentCount === 3
-      ? "grid-cols-1 md:grid-cols-3"
+      ? "grid-cols-1 md:grid-cols-3 print:grid-cols-3"
       : currentCount === 4
-      ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-4"
-      : "grid-cols-1 sm:grid-cols-2 md:grid-cols-5";
+      ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-4 print:grid-cols-4"
+      : "grid-cols-1 sm:grid-cols-2 md:grid-cols-5 print:grid-cols-5";
 
   return (
     <div
@@ -3816,6 +3917,17 @@ const EditorBlock = memo(function EditorBlock({
   const [selectedMathNode, setSelectedMathNode] = useState(null);
   const [popoverFormula, setPopoverFormula] = useState("");
   const [mathPopoverOpen, setMathPopoverOpen] = useState(false);
+
+  const toggleTextareaRef = useRef(null);
+  const toggleDetailsVal = block.details ?? block.toggleContent ?? "";
+
+  useEffect(() => {
+    if (block.type === "toggle" && toggleTextareaRef.current) {
+      const el = toggleTextareaRef.current;
+      el.style.height = "auto";
+      el.style.height = `${Math.max(48, el.scrollHeight)}px`;
+    }
+  }, [block.type, block.open, toggleDetailsVal]);
 
   useEffect(() => {
     if (registerRef && contentRef.current) {
@@ -4173,8 +4285,23 @@ const EditorBlock = memo(function EditorBlock({
         return;
       }
 
-      // Pressing Enter in headings, callouts, and quotes spawns a standard paragraph text block below
-      const nextType = ["h1", "h2", "h3", "h4", "callout", "quote"].includes(block.type) ? "text" : block.type;
+      // If in a toggle heading and at the end of the text, expand toggle (if collapsed) and focus details
+      if (block.type === "toggle" && !textAfter.trim()) {
+        if (block.open === false) {
+          onUpdateBlock?.(block.id, { open: true });
+        }
+        setTimeout(() => {
+          const detailsEl = document.getElementById(`toggle_details_${block.id}`);
+          if (detailsEl) {
+            detailsEl.focus();
+            detailsEl.setSelectionRange(0, 0);
+          }
+        }, 30);
+        return;
+      }
+
+      // Pressing Enter in headings, callouts, quotes, and toggles spawns a standard paragraph text block below
+      const nextType = ["h1", "h2", "h3", "h4", "callout", "quote", "toggle"].includes(block.type) ? "text" : block.type;
       
       // Clean redundant leading bullet markers if inheriting list type
       if (["bullet", "number", "todo"].includes(nextType)) {
@@ -4234,6 +4361,7 @@ const EditorBlock = memo(function EditorBlock({
   return (
     <div
       data-block-id={block.id}
+      data-block-type={block.type}
       className={`group relative rounded-lg px-2.5 py-1.5 transition-all ${
         isMultiSelected
           ? "bg-duck-500/20 border border-duck-400/60 shadow-md ring-1 ring-duck-400/40"
@@ -4473,13 +4601,13 @@ const EditorBlock = memo(function EditorBlock({
       ) : block.type === "toggle" ? (
         /* 6. Toggle / Collapsible Dropdown Block */
         <div className="group/toggleblk my-1 rounded-xl border border-ink-800 bg-ink-900/60 p-2.5 shadow-sm space-y-2 transition-all">
-          <div className="flex items-center gap-2 print:gap-1">
-            <span className="hidden print:inline-block font-bold text-xs text-ink-600 shrink-0 ml-3 mr-1.5">▶</span>
+          <div className="flex items-start gap-2 print:gap-1">
+            <span className="hidden print:inline-block font-bold text-xs text-amber-600 shrink-0 ml-1 mr-1.5 mt-0.5">▼</span>
             <button
               type="button"
               onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden cursor-pointer"
-              title="Toggle Dropdown Section"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden cursor-pointer mt-0.5 select-none"
+              title={block.open === false ? "Expand Section" : "Collapse Section"}
             >
               {block.open === false ? "▶" : "▼"}
             </button>
@@ -4496,19 +4624,29 @@ const EditorBlock = memo(function EditorBlock({
                 isLocked ? "cursor-default select-text" : ""
               }`}
             />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500 px-2 py-0.5 rounded border border-ink-800 bg-ink-950 print:hidden">
+            <button
+              type="button"
+              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
+              className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-ink-500 hover:text-duck-300 px-2 py-0.5 rounded border border-ink-800 hover:border-duck-500/40 bg-ink-950 transition-colors print:hidden cursor-pointer select-none"
+              title={block.open === false ? "Click to expand" : "Click to collapse"}
+            >
               {block.open === false ? "Collapsed" : "Expanded"}
-            </span>
+            </button>
           </div>
 
           {/* 1. Screen Interactive Textarea: Shown only when open on screen */}
           {block.open !== false && (
             <div className="ml-7 rounded-lg border-l-2 border-duck-500/40 bg-ink-850/70 p-3 text-xs leading-relaxed text-ink-200 animate-fade-in print:hidden">
               <textarea
+                ref={toggleTextareaRef}
                 id={`toggle_details_${block.id}`}
                 value={block.details ?? block.toggleContent ?? ""}
                 readOnly={isLocked}
-                onChange={(e) => onUpdateBlock(block.id, { details: e.target.value })}
+                onChange={(e) => {
+                  onUpdateBlock(block.id, { details: e.target.value });
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.max(48, e.target.scrollHeight)}px`;
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {
                     const start = e.target.selectionStart;
@@ -4551,8 +4689,8 @@ const EditorBlock = memo(function EditorBlock({
                   }
                 }}
                 placeholder="Add collapsible details, deep dive text, or code breakdown here..."
-                rows={3}
-                className={`w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-y min-h-[3rem] ${
+                rows={1}
+                className={`w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-none overflow-hidden min-h-[3rem] ${
                   isLocked ? "cursor-default" : ""
                 }`}
               />
@@ -4568,18 +4706,21 @@ const EditorBlock = memo(function EditorBlock({
         </div>
       ) : block.type === "callout" ? (
         /* 7. Callout Box */
-        <div className="relative rounded-xl border border-ink-700 bg-ink-850/90 p-3.5 shadow-md flex items-start gap-3">
-          <div className="relative">
+        <div className="group/calloutblk callout relative rounded-xl border border-ink-700 bg-ink-850/90 p-3.5 shadow-md flex items-start gap-3">
+          <div className="relative shrink-0">
             <button
               type="button"
               disabled={isLocked}
               onClick={() => setShowIconPicker(!showIconPicker)}
-              className={`text-lg leading-none p-1 rounded hover:bg-ink-800 ${
+              className={`text-lg leading-none p-1 rounded hover:bg-ink-800 print:hidden ${
                 isLocked ? "cursor-default" : "cursor-pointer"
               }`}
             >
               {block.calloutIcon || "💡"}
             </button>
+            <span className="hidden print:inline-block text-xl leading-none pt-0.5 select-none font-['Segoe_UI_Emoji','Apple_Color_Emoji','Noto_Color_Emoji',sans-serif]">
+              {block.calloutIcon || "💡"}
+            </span>
 
             {!isLocked && showIconPicker && (
               <>
@@ -4622,7 +4763,7 @@ const EditorBlock = memo(function EditorBlock({
         </div>
       ) : block.type === "quote" ? (
         /* 8. Quote */
-        <div className="border-l-4 border-duck-400 pl-4 py-1 italic">
+        <div className="group/quoteblk quote border-l-4 border-duck-400 pl-4 py-1 italic">
           <Tag
             ref={contentRef}
             contentEditable={!isLocked}
@@ -4673,8 +4814,8 @@ const EditorBlock = memo(function EditorBlock({
         />
       )}
 
-      {/* Bottom Insertion Dropzone for effortless clicking below any block */}
-      {!isLocked && (
+      {/* Bottom Insertion Dropzone for effortless clicking below complex/container blocks */}
+      {!isLocked && !EXCLUDED_DROPZONE_TYPES.has(block.type) && (
         <div
           data-insert-zone="after"
           onClick={(e) => {
@@ -6825,7 +6966,7 @@ export default function BlockNoteEditor({
       {/* Cover Banner (when set) */}
       {banner && (
         <div
-          className={`group/banner relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all print:hidden ${
+          className={`group/banner relative h-44 md:h-52 w-full border-b border-ink-800/40 shadow-lg transition-all print:block print:h-20 print:rounded-lg print:overflow-hidden print:mb-3 print:shadow-none ${
             banner.startsWith("data:image/")
               ? ""
               : activeBannerPreset?.style || "bg-gradient-to-r from-indigo-600 to-purple-600"
@@ -6838,7 +6979,7 @@ export default function BlockNoteEditor({
         >
           {/* Controls on banner */}
           {!isLocked && (
-            <div className="absolute right-6 top-3 z-30 flex items-center gap-2 opacity-80 group-hover/banner:opacity-100 transition-opacity">
+            <div className="absolute right-6 top-3 z-30 flex items-center gap-2 opacity-80 group-hover/banner:opacity-100 transition-opacity print:hidden">
               <div className="relative" ref={bannerPickerRef}>
                 <button
                   type="button"
@@ -6937,9 +7078,13 @@ export default function BlockNoteEditor({
         }}
       >
         {/* Print-Only Clean Document Title & Icon Header */}
-        <div className="hidden print:block mb-4 pt-0">
-          {emoji && <div className="text-4xl mb-1 leading-none">{emoji}</div>}
-          <h1 className="text-3xl font-extrabold tracking-tight text-black leading-tight break-words">
+        <div className="hidden print:block mb-2 pt-0">
+          {emoji && (
+            <div className="text-2xl mb-1 leading-none font-['Segoe_UI_Emoji','Apple_Color_Emoji','Noto_Color_Emoji',sans-serif]">
+              {emoji}
+            </div>
+          )}
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 leading-tight break-words border-b border-slate-200 pb-1 mb-2">
             {title || "Untitled Note"}
           </h1>
         </div>

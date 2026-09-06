@@ -223,12 +223,31 @@ body {
 
 /* ─── Print Stylesheet (@media print) for Clean Full-Document PDF Export ─────────── */
 @media print {
+  :root,
+  html,
+  body {
+    color-scheme: light !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    --color-ink-950: #ffffff !important;
+    --color-ink-900: #f8fafc !important;
+    --color-ink-850: #ffffff !important;
+    --color-ink-800: #f1f5f9 !important;
+    --color-ink-700: #cbd5e1 !important;
+    --color-ink-600: #94a3b8 !important;
+    --color-ink-500: #64748b !important;
+    --color-ink-400: #475569 !important;
+    --color-ink-200: #1e293b !important;
+    --color-ink-100: #0f172a !important;
+  }
+
   @page {
     margin: 1.2cm 1.5cm;
     size: A4;
+    background-color: #ffffff !important;
   }
 
-  /* ── 1. Blanket-hide all interactive UI chrome ── */
+  /* ── 1. Blanket-hide interactive UI chrome ── */
   aside,
   header,
   nav,
@@ -244,10 +263,11 @@ body {
   /* hide drag handles, block menus, slash menu, picker flyouts */
   [title="Delete Block"],
   [title="Drag to move · click for block menu"],
-  /* Hide banner cover voids & banner pickers */
-  [class*="group relative h-44"],
-  [class*="group relative md:h-52"],
-  [class*="group/banner"] {
+  /* Hide banner picker flyouts & interactive controls on banner */
+  .group\/banner button,
+  [class*="group/banner"] button,
+  [class*="group/banner"] input,
+  [class*="group/banner"] label {
     display: none !important;
   }
 
@@ -261,21 +281,47 @@ body {
     appearance: none !important;
   }
 
+  /* ── 1c. Cover Banner in Print ── */
+  .group\/banner,
+  [class*="group/banner"] {
+    display: block !important;
+    height: 60pt !important;
+    max-height: 60pt !important;
+    border-radius: 6pt !important;
+    margin-bottom: 8pt !important;
+    overflow: hidden !important;
+    border: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   /* ── 2. Reset page layout so all content flows without clipping or top gaps ── */
   html, body {
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
     background-color: #ffffff !important;
-    color: #000000 !important;
+    color: #0f172a !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-family: Georgia, 'Times New Roman', serif !important;
-    font-size: 11pt !important;
-    line-height: 1.5 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji" !important;
+    font-size: 11.5pt !important;
+    line-height: 1.55 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* Reset any flex / grid / sticky containers that clamp height or add voids */
+  /* Ensure print:hidden is unconditionally and strictly hidden */
+  .print\:hidden,
+  [class*="print:hidden"],
+  [data-print-hidden],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset outer layout wrappers only */
   #__next,
   main,
   [data-editor-root],
@@ -293,6 +339,7 @@ body {
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
+    background-color: transparent !important;
     flex: none !important;
   }
 
@@ -308,9 +355,33 @@ body {
     max-height: none !important;
   }
 
-  /* ── 3. Typography & Compact Headings ── */
+  /* Note Title */
+  [data-editor-root] input[type="text"]:first-of-type,
+  [data-editor-root] input[placeholder="Untitled Note"] {
+    font-size: 22pt !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    margin-top: 2pt !important;
+    margin-bottom: 6pt !important;
+    color: #0f172a !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* ── 3. Typography & Compact Headings (Universal Solid Dark Text) ── */
+  html, body,
+  [data-editor-root],
+  [data-editor-root] *,
+  [data-block-id],
+  [data-block-id] *,
+  [contenteditable],
+  div, p, span, li,
+  .text-ink-100, .text-ink-200, .text-ink-300, .text-ink-400, .text-ink-500,
+  .text-duck-100, .text-duck-200, .text-duck-300, .text-duck-400 {
+    color: #0f172a !important;
+  }
+
   h1, h2, h3, h4 {
-    color: #000000 !important;
     break-after: avoid !important;
     page-break-after: avoid !important;
     padding-top: 0 !important;
@@ -318,54 +389,123 @@ body {
   }
 
   h1 {
-    font-size: 18pt !important;
-    line-height: 1.25 !important;
-    margin-top: 0.7em !important;
-    margin-bottom: 0.25em !important;
+    color: #0f172a !important;
+    font-size: 20pt !important;
+    font-weight: 800 !important;
+    line-height: 1.3 !important;
+    margin-top: 10pt !important;
+    margin-bottom: 5pt !important;
   }
 
   h2 {
-    font-size: 15pt !important;
+    color: #1e293b !important;
+    font-size: 16pt !important;
+    font-weight: 700 !important;
     line-height: 1.3 !important;
-    margin-top: 0.6em !important;
-    margin-bottom: 0.2em !important;
+    margin-top: 9pt !important;
+    margin-bottom: 4pt !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 2pt !important;
   }
 
   h3 {
-    font-size: 13pt !important;
+    color: #334155 !important;
+    font-size: 13.5pt !important;
+    font-weight: 700 !important;
     line-height: 1.3 !important;
-    margin-top: 0.5em !important;
-    margin-bottom: 0.2em !important;
+    margin-top: 8pt !important;
+    margin-bottom: 3pt !important;
   }
 
   h4 {
-    font-size: 11pt !important;
+    color: #475569 !important;
+    font-size: 12pt !important;
+    font-weight: 600 !important;
     line-height: 1.3 !important;
-    margin-top: 0.4em !important;
-    margin-bottom: 0.15em !important;
+    margin-top: 6pt !important;
+    margin-bottom: 2pt !important;
   }
 
   p, li {
-    color: #000000 !important;
+    color: #1e293b !important;
+    font-size: 11pt !important;
+    line-height: 1.55 !important;
     orphans: 3;
     widows: 3;
-    margin: 3pt 0 !important;
+    margin: 3.5pt 0 !important;
   }
 
   /* ── 4. Avoid breaking inside atomic blocks (short blocks only) ── */
   blockquote,
   figure,
   .callout,
+  [class*="group/calloutblk"],
   [class*="group/mathblk"],
   [class*="group/siteblk"],
-  [class*="group/canvasblk"] {
+  [class*="group/canvasblk"],
+  [class*="group/toggleblk"],
+  [class*="group/mediablk"],
+  [class*="group/tableblk"],
+  [id^="columns_"] {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
-  /* ── 5. Universal color and scrollbar reset ── */
+  /* ── 4b. Form Controls & Lists in Print ── */
+  textarea {
+    resize: none !important;
+  }
+
+  input[type="checkbox"] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    width: 12pt !important;
+    height: 12pt !important;
+    min-width: 12pt !important;
+    min-height: 12pt !important;
+    border: 1.5px solid #475569 !important;
+    border-radius: 3px !important;
+    background-color: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-top: 1.5pt !important;
+    margin-right: 4pt !important;
+    vertical-align: middle !important;
+    position: relative !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  input[type="checkbox"]:checked {
+    background-color: #0284c7 !important;
+    border-color: #0284c7 !important;
+  }
+
+  input[type="checkbox"]:checked::after {
+    content: "✓" !important;
+    color: #ffffff !important;
+    font-size: 9pt !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    display: block !important;
+    text-align: center !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Bullet dots visible in print */
+  [data-block-id] span.rounded-full,
+  [data-block-id] span.rounded-none {
+    background-color: #334155 !important;
+    border: 1px solid #334155 !important;
+    display: inline-block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ── 5. Universal scrollbar and shadow reset ── */
   * {
-    color: #000000 !important;
     box-shadow: none !important;
     text-shadow: none !important;
     scrollbar-width: none !important;
@@ -378,80 +518,284 @@ body {
     height: 0 !important;
   }
 
-  /* ── 6. Code blocks (Clean outer card, flows immediately without giant gaps) ── */
+  /* ── 6. Code blocks (Clean outer card & syntax token colors in print) ── */
   [class*="group/codeblk"],
   .code-block {
-    background-color: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 6pt !important;
-    margin: 8pt 0 !important;
-    overflow: visible !important;
     display: block !important;
-    break-inside: auto !important;
-    page-break-inside: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    margin: 10pt 0 !important;
+    overflow: hidden !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  [class*="group/codeblk"] * {
+    background-color: transparent !important;
+  }
+
+  /* Header banner */
   [class*="group/codeblk"] > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     background-color: #f1f5f9 !important;
-    border-bottom: 1px solid #e2e8f0 !important;
-    padding: 3pt 8pt !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding: 5pt 10pt !important;
+    width: 100% !important;
     break-after: avoid !important;
     page-break-after: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  .code-highlight-underlay {
+  [class*="group/codeblk"] > div:first-child span {
+    color: #475569 !important;
+    font-weight: 600 !important;
+    font-size: 9.5pt !important;
+  }
+
+  /* Code container row */
+  [class*="group/codeblk"] > div:last-child {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    background-color: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
+    border-radius: 0 0 8px 8px !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Gutter line numbers in print */
+  [class*="group/codeblk"] > div:last-child > div:first-child {
+    display: block !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 2.75rem !important;
+    max-width: 4rem !important;
+    background-color: #f1f5f9 !important;
+    border-right: 1px solid #e2e8f0 !important;
+    color: #94a3b8 !important;
+    padding: 8pt 6pt !important;
+    line-height: 20px !important;
+    font-size: 8.5pt !important;
+    text-align: right !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/codeblk"] > div:last-child > div:first-child > div {
+    color: #94a3b8 !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    font-size: 8.5pt !important;
+  }
+
+  /* Code content area */
+  [class*="group/codeblk"] > div:last-child > div:last-child {
+    display: block !important;
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    position: relative !important;
+    overflow: visible !important;
+    background-color: #f8fafc !important;
+  }
+
+  [class*="group/codeblk"] textarea {
+    display: none !important;
+  }
+
+  [class*="group/codeblk"] pre,
+  [class*="group/codeblk"] pre.code-highlight-underlay {
     display: block !important;
     position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
     padding: 8pt 10pt !important;
-    background: transparent !important;
+    margin: 0 !important;
+    background: #f8fafc !important;
+    background-color: #f8fafc !important;
     border: none !important;
     overflow: visible !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 9.5pt !important;
+    line-height: 20px !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  .code-highlight-underlay code,
-  code {
+  [class*="group/codeblk"] pre code {
+    display: block !important;
+    width: 100% !important;
     border: none !important;
     background: transparent !important;
-    display: block !important;
-    box-shadow: none !important;
-    font-family: 'Courier New', Courier, monospace !important;
-    font-size: 9.5pt !important;
-    line-height: 1.5 !important;
-    color: #1e293b !important;
-    text-decoration: none !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    color: #0f172a !important;
     white-space: pre-wrap !important;
     word-break: break-all !important;
     padding: 0 !important;
     margin: 0 !important;
   }
 
-  .code-highlight-underlay span,
-  code span {
-    border: none !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    text-decoration: none !important;
-  }
-
   pre {
     padding: 8pt 10pt !important;
     margin: 6pt 0 !important;
     background-color: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 4pt !important;
-    font-family: 'Courier New', Courier, monospace !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6pt !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
     font-size: 9.5pt !important;
+    line-height: 1.5 !important;
     white-space: pre-wrap !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  pre code {
+    border: none !important;
+    background: transparent !important;
+    display: block !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 9.5pt !important;
+    line-height: 1.5 !important;
+    color: #1e293b !important;
+    white-space: pre-wrap !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Inline code snippets */
+  :not(pre) > code {
+    background-color: #f1f5f9 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 3px !important;
+    padding: 1px 4px !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 85% !important;
+    color: #be185d !important;
+    display: inline !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* High-Contrast Syntax Highlighting Tokens in Print */
+  [class*="group/codeblk"] .text-pink-400,
+  [class*="group/codeblk"] span[class*="text-pink-400"] {
+    color: #be185d !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-cyan-300,
+  [class*="group/codeblk"] span[class*="text-cyan-300"] {
+    color: #0284c7 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-blue-400,
+  [class*="group/codeblk"] span[class*="text-blue-400"] {
+    color: #2563eb !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-emerald-300,
+  [class*="group/codeblk"] span[class*="text-emerald-300"] {
+    color: #059669 !important;
+    font-weight: 500 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-ink-500,
+  [class*="group/codeblk"] span[class*="text-ink-500"] {
+    color: #64748b !important;
+    font-style: italic !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-amber-400,
+  [class*="group/codeblk"] span[class*="text-amber-400"] {
+    color: #d97706 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-duck-300,
+  [class*="group/codeblk"] span[class*="text-duck-300"] {
+    color: #d97706 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-rose-400,
+  [class*="group/codeblk"] span[class*="text-rose-400"] {
+    color: #e11d48 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-purple-300,
+  [class*="group/codeblk"] span[class*="text-purple-300"] {
+    color: #7c3aed !important;
+    font-weight: 500 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-yellow-400,
+  [class*="group/codeblk"] span[class*="text-yellow-400"] {
+    color: #b45309 !important;
+    font-style: italic !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-sky-300,
+  [class*="group/codeblk"] span[class*="text-sky-300"] {
+    color: #0284c7 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-ink-400,
+  [class*="group/codeblk"] span[class*="text-ink-400"] {
+    color: #475569 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [class*="group/codeblk"] .text-ink-200,
+  [class*="group/codeblk"] span[class*="text-ink-200"] {
+    color: #1e293b !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* ── 7. KaTeX / LaTeX Math Equation Auto-Scaling & Scrollbar Elimination ── */
   [class*="group/mathblk"] {
     border: 1px solid #e2e8f0 !important;
-    background-color: #fafafa !important;
+    background-color: #f8fafc !important;
     border-radius: 6pt !important;
     padding: 6pt 10pt !important;
     margin: 6pt 0 !important;
     overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   [class*="group/mathblk"] input {
@@ -472,13 +816,13 @@ body {
     overflow-x: visible !important;
     max-width: 100% !important;
     background: transparent !important;
-    color: #000000 !important;
+    color: #0f172a !important;
   }
 
   /* Auto-scale very long LaTeX equations so they fit neatly without horizontal clipping */
   .katex-display {
-    font-size: clamp(8pt, 1.6vw, 11.5pt) !important;
-    margin: 4pt 0 !important;
+    font-size: 12.5pt !important;
+    margin: 8pt 0 !important;
     text-align: center !important;
   }
 
@@ -487,21 +831,75 @@ body {
     text-align: center !important;
   }
 
-  /* ── 8. Toggle / Collapsible Blocks (Auto-expanded, zero scrollbars, clean straight line) ── */
+  /* Inline math in print: seamless without pill border or background */
+  .katex-inline-node {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 1.5pt !important;
+    margin: 0 !important;
+    display: inline-block !important;
+    vertical-align: baseline !important;
+    color: inherit !important;
+    font-size: 11.5pt !important;
+  }
+
+  /* ── 8. Toggle / Collapsible Blocks (Auto-expanded, zero scrollbars, clean single-line header) ── */
   [class*="group/toggleblk"] {
-    border: 1px solid #e5e7eb !important;
-    background-color: #fafafa !important;
+    display: block !important;
+    width: 100% !important;
+    border: 1px solid #cbd5e1 !important;
+    background-color: #f8fafc !important;
     padding: 8pt 12pt !important;
     border-radius: 6pt !important;
-    margin: 6pt 0 !important;
+    margin: 8pt 0 !important;
     overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/toggleblk"] > div:first-child {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    gap: 4pt !important;
+    width: 100% !important;
   }
 
   [class*="group/toggleblk"] > div:first-child span:first-child {
-    margin-left: 8pt !important;
-    margin-right: 2pt !important;
+    color: #d97706 !important;
+    font-weight: bold !important;
+    font-size: 11pt !important;
+    margin-left: 0 !important;
+    margin-right: 4pt !important;
+    display: inline-block !important;
+    flex: 0 0 auto !important;
+  }
+
+  [class*="group/toggleblk"] > div:first-child [contenteditable],
+  [class*="group/toggleblk"] > div:first-child div[class*="font-semibold"],
+  [class*="group/toggleblk"] > div:first-child h1,
+  [class*="group/toggleblk"] > div:first-child h2,
+  [class*="group/toggleblk"] > div:first-child h3,
+  [class*="group/toggleblk"] > div:first-child h4 {
+    display: block !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 12pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    line-height: 1.4 !important;
+    white-space: normal !important;
+  }
+
+  /* Hide toggle interactive collapse button and collapsed/expanded status badge */
+  [class*="group/toggleblk"] button,
+  [class*="group/toggleblk"] span.print\:hidden,
+  [class*="group/toggleblk"] span[class*="print:hidden"],
+  [class*="group/toggleblk"] [data-print-hidden] {
+    display: none !important;
   }
 
   [class*="group/toggleblk"] .toggle-print-details,
@@ -509,26 +907,57 @@ body {
     display: block !important;
     visibility: visible !important;
     color: #1e293b !important;
-    font-size: 9.5pt !important;
-    line-height: 1.55 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.6 !important;
     margin-top: 6pt !important;
-    margin-left: 0 !important;
-    padding-left: 10pt !important;
-    border-left: 2.5px solid #94a3b8 !important;
+    margin-left: 14pt !important;
+    padding: 4pt 0 4pt 10pt !important;
+    border-left: 3px solid #cbd5e1 !important;
     border-radius: 0 !important;
     overflow: visible !important;
     height: auto !important;
     max-height: none !important;
     background: transparent !important;
+    white-space: pre-wrap !important;
   }
 
-  /* ── 9. Site Bookmarks (Clean card layout without duplicate URL overlays) ── */
+  /* ── 9. Site Bookmarks (Clean card layout with blue link and crisp styling) ── */
   [class*="group/siteblk"] {
-    border: 1px solid #e5e7eb !important;
-    background-color: #fafafa !important;
-    padding: 6pt 10pt !important;
+    border: 1px solid #bae6fd !important;
+    background-color: #f0f9ff !important;
+    padding: 8pt 12pt !important;
     border-radius: 6pt !important;
-    margin: 5pt 0 !important;
+    margin: 6pt 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/siteblk"] * {
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+
+  [class*="group/siteblk"] [class*="bg-ink-850"] {
+    border: 1px solid #bae6fd !important;
+    background-color: #ffffff !important;
+  }
+
+  [class*="group/siteblk"] a,
+  [class*="group/siteblk"] a * {
+    color: #0284c7 !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+  }
+
+  [class*="group/siteblk"] p:first-child {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  [class*="group/siteblk"] p:last-child {
+    color: #0284c7 !important;
   }
 
   [class*="group/siteblk"] a::after,
@@ -564,24 +993,58 @@ body {
     margin: 6pt 0 !important;
   }
 
-  /* ── 12. Blockquotes & Callouts ── */
-  blockquote {
-    border-left: 3pt solid #94a3b8 !important;
-    padding-left: 10pt !important;
+  /* ── 12. Blockquotes & Callouts (Vibrant, colorful, premium cards) ── */
+  blockquote,
+  .quote,
+  [class*="group/quoteblk"] {
+    border-left: 3.5pt solid #eab308 !important;
+    padding: 6pt 12pt !important;
     font-style: italic !important;
-    color: #334155 !important;
     margin: 6pt 0 !important;
-    background: transparent !important;
+    background-color: #fefce8 !important;
+    border-radius: 0 6pt 6pt 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  blockquote *,
+  .quote *,
+  [class*="group/quoteblk"] * {
+    color: #334155 !important;
   }
 
   .callout,
+  [class*="group/calloutblk"],
   [class*="callout"] {
     border: 1px solid #e2e8f0 !important;
-    border-left: 3.5pt solid #f59e0b !important;
-    padding: 6pt 10pt !important;
-    background-color: #f8fafc !important;
-    border-radius: 4pt !important;
+    padding: 8pt 12pt !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    border-radius: 6pt !important;
     margin: 6pt 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 8pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .callout *,
+  [class*="group/calloutblk"] *,
+  .callout [contenteditable],
+  [class*="group/calloutblk"] [contenteditable] {
+    color: #0f172a !important;
+  }
+
+  .callout span,
+  [class*="group/calloutblk"] span {
+    display: inline-block !important;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif !important;
   }
 
   /* ── 13. Canvas & Media Blocks ── */
@@ -601,10 +1064,57 @@ body {
     display: none !important;
   }
 
-  img {
-    max-width: 100% !important;
+  [class*="group/mediablk"] {
+    border: 1px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+    padding: 8pt 12pt !important;
+    border-radius: 8pt !important;
+    margin: 8pt 0 !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/mediablk"] * {
+    background-color: transparent !important;
+  }
+
+  [class*="group/mediablk"] > div > div:first-child {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 4pt !important;
+    margin-bottom: 6pt !important;
+  }
+
+  [class*="group/mediablk"] span {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif !important;
+    color: #475569 !important;
+  }
+
+  [class*="group/mediablk"] img,
+  img {
+    max-width: 100% !important;
+    max-height: 180pt !important;
+    object-fit: contain !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    display: block !important;
+    border-radius: 6pt !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/mediablk"] input {
+    color: #64748b !important;
+    text-align: center !important;
+    border: none !important;
+    background: transparent !important;
+    font-size: 8.5pt !important;
   }
 
   /* ── 14. Strip UI spacing classes in print ── */
@@ -613,6 +1123,181 @@ body {
   .px-10 {
     padding-left: 0 !important;
     margin-left: 0 !important;
+  }
+
+  /* ── 15. Multi-Column Split Blocks in Print (Side-by-side columns) ── */
+  [id^="columns_"] > div[class*="grid"] {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    gap: 12pt !important;
+    width: 100% !important;
+  }
+
+  [id^="columns_"] > div[class*="grid"] > * {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+  }
+
+  .group\/colcard,
+  [class*="group/colcard"] {
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6pt !important;
+    padding: 8pt 10pt !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .group\/colcard *,
+  [class*="group/colcard"] * {
+    background-color: transparent !important;
+  }
+
+  .group\/colcard [id*="_title"],
+  [class*="group/colcard"] [id*="_title"] {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 4pt !important;
+    margin-bottom: 4pt !important;
+  }
+
+  .group\/colcard [id*="_content"],
+  [class*="group/colcard"] [id*="_content"] {
+    color: #1e293b !important;
+  }
+
+  /* ── 16. Prevent accidental trailing blank page ── */
+  [data-editor-root] > *:last-child,
+  [data-editor-root] .space-y-2 > *:last-child,
+  [data-editor-root] [data-block-id]:last-child,
+  [data-editor-root] [data-block-id]:last-child > * {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  main {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* ── 17. Tables in Print (Full-width clean rounded standalone table, zero toolbar) ── */
+  [class*="group/tableblk"],
+  [class*="group/tableblk"] * {
+    background-color: transparent !important;
+  }
+
+  [class*="group/tableblk"] {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 10pt 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Completely hide table interactive toolbar and cell action buttons (delete, add col/row) */
+  [class*="group/tableblk"] button,
+  [class*="group/tableblk"] > div:first-child:not(:last-child),
+  [class*="group/tableblk"] .print\:hidden,
+  [class*="group/tableblk"] [class*="print:hidden"] {
+    display: none !important;
+  }
+
+  [class*="group/tableblk"] > div {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  [class*="group/tableblk"] table {
+    display: table !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    table-layout: auto !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    overflow: hidden !important;
+    background-color: #ffffff !important;
+    font-size: 10pt !important;
+    line-height: 1.5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/tableblk"] th {
+    background-color: #f1f5f9 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    border-right: 1px solid #cbd5e1 !important;
+    padding: 7pt 10pt !important;
+    text-align: left !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/tableblk"] th,
+  [class*="group/tableblk"] th *,
+  [class*="group/tableblk"] th [contenteditable] {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  [class*="group/tableblk"] td {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    border-right: 1px solid #e2e8f0 !important;
+    padding: 6pt 10pt !important;
+    color: #1e293b !important;
+    font-size: 9.5pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  [class*="group/tableblk"] td,
+  [class*="group/tableblk"] td *,
+  [class*="group/tableblk"] td [contenteditable] {
+    color: #1e293b !important;
+    font-weight: normal !important;
+    font-size: 9.5pt !important;
+  }
+
+  [class*="group/tableblk"] th:last-child,
+  [class*="group/tableblk"] td:last-child {
+    border-right: none !important;
+  }
+
+  [class*="group/tableblk"] tr:last-child td {
+    border-bottom: none !important;
+  }
+
+  [class*="group/tableblk"] thead tr:first-child th:first-child {
+    border-top-left-radius: 7px !important;
+  }
+  [class*="group/tableblk"] thead tr:first-child th:last-child {
+    border-top-right-radius: 7px !important;
+  }
+  [class*="group/tableblk"] tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 7px !important;
+  }
+  [class*="group/tableblk"] tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 7px !important;
   }
 }
 
@@ -687,4 +1372,31 @@ input[type="range"].quiz-slider::-moz-range-thumb:hover {
   display: inline-block !important;
   transform: scaleX(-1) !important;
   transform-origin: center center;
+}
+
+/* Inline KaTeX equations: Notion-style clear, borderless & seamless typography */
+.katex-inline-node {
+  border: none !important;
+  background: transparent !important;
+  color: inherit !important;
+  padding: 0 2px !important;
+  margin: 0 1px !important;
+  border-radius: 3px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: baseline !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease !important;
+}
+
+.katex-inline-node:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.light .katex-inline-node:hover {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+.katex-inline-node .katex {
+  color: inherit !important;
 }

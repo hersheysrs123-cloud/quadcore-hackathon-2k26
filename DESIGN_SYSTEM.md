@@ -67,7 +67,7 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
   - **H3**: `text-lg font-semibold text-ink-100`
   - **H4**: `text-base font-semibold text-ink-100`
 - **Code Snippet**: `font-mono text-sm leading-relaxed text-emerald-300 bg-ink-850 rounded-lg px-4 py-3 border border-ink-700`
-- **LaTeX Math Formula**: Live KaTeX math pills (`.katex-inline-node`) and standalone blocks (`.katex-display`) with preserved KaTeX font metrics.
+- **LaTeX Math Formula**: Seamless Notion-style inline math equations (`.katex-inline-node`) rendered clear (transparent background, borderless, text-matching color, soft hover background) and standalone equation blocks (`.katex-display`) with preserved KaTeX font metrics.
 
 ---
 
@@ -160,11 +160,17 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **Scrollable Body**: Container body must declare `overflow-y-auto flex-1 min-h-0` to isolate scrolling to the modal content area without expanding the dialog beyond the viewport.
 
 ### 7. Print Stylesheet & PDF Export (`@media print`)
-- **Page Layout**: Set to A4 with `margin: 1.2cm 1.5cm` and all interactive chrome (`aside`, `header`, `nav`, `button:not(.print-content)`, modals, timer HUDs, drag handles) blanket-hidden.
-- **Print Header**: Note icon and note title auto-wrap cleanly via print-rendered `<h1>` without `<input>` truncation or banner whitespace voids.
-- **Code Block Formatting**: Light card background (`#f8fafc border border-ink-200`) with no inline `<code>` double-border striping.
-- **LaTeX Math Scaling**: Equations auto-scale via `clamp(8pt, 1.6vw, 11.5pt)` with complete suppression of horizontal scrollbars.
-- **Toggles & Site Bookmarks**: Details text renders as clean pre-wrapped text; interactive status badges and duplicate link URLs are suppressed.
+- **Page Layout**: Set to A4 with `margin: 1.2cm 1.5cm`, modern sans-serif typography (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif, "Segoe UI Emoji"`), and interactive UI chrome (`aside`, `header`, `nav`, `button:not(.print-content)`, modals, timer HUDs, drag handles, table toolbar chrome) blanket-hidden.
+- **Universal Solid Dark Text**: Enforces `color: #0f172a !important;` on `[data-editor-root] *`, `[data-block-id] *`, `[contenteditable]`, and all neutral ink / duck utilities (`.text-ink-*`, `.text-duck-*`), preventing faint inverted cyan/gray text on white paper.
+- **Cover Banner**: Compact sleek banner rendering (`height: 60pt; max-height: 60pt; border-radius: 6pt; margin-bottom: 8pt;`) with exact background color / image preservation (`print-color-adjust: exact`) and interactive picker buttons suppressed.
+- **Print Header & Emojis**: Note icon and title auto-wrap cleanly via print-rendered `<h1>` with native color emoji font fallback (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`) on both the note header and callout boxes.
+- **Code Block Formatting & Syntax Highlighting**: Clean light card (`#f8fafc border border-slate-200`) with atomic page break protection (`break-inside: avoid !important; page-break-inside: avoid !important;`), pitch-black container backgrounds completely stripped, line numbers gutter on `#f1f5f9` with slate text `#94a3b8`, and 12 high-contrast token colors (keywords `#be185d`, types/functions `#0284c7`, strings `#059669`, comments `#64748b`, numbers `#d97706`, builtins `#2563eb`).
+- **LaTeX Math Scaling**: Equations auto-scale via `clamp(8pt, 1.6vw, 11.5pt)` with complete suppression of horizontal scrollbars, and inline math pills rendered seamlessly without computer pill borders or background shading.
+- **Tables**: Modern standalone rounded card table (`border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px;`) with light slate header `#f1f5f9` and bold text `#0f172a`, clean white cells with `#1e293b` text, outer card padding/border stripped, and rounded outer corner cells.
+- **Vibrant Block Cards**: Callouts render cleanly in plain white (`#ffffff`, subtle neutral border `#e2e8f0`, standard dark text `#0f172a`, and prominent emoji icon), quotes render in soft gold (`#fefce8`, left accent `#eab308`, text `#334155`), site bookmarks render in soft blue (`#f0f9ff`, border `#bae6fd`, link `#0284c7` without inner dark cards), and media image embeds render frameless without dark borders or backgrounds.
+- **Multi-Column Splits**: Enforced side-by-side flex row layout (`display: flex; flex-direction: row; gap: 12pt;`) with light card styling (`#f8fafc`, border `#cbd5e1`, bold title `#0f172a`, body `#1e293b`).
+- **Normalized Checkboxes & Lists**: Checkboxes normalized across all print engines (`-webkit-appearance: none; appearance: none;`) with crisp `#475569` border, 12pt size, and vivid `#0284c7` fill with white `"✓"` checkmark when checked; list bullet dots rendered with `#334155` fill and border (`print-color-adjust: exact`).
+- **Atomic Blocks & Pagination**: `break-inside: avoid` enforced on code blocks, toggles, tables, multi-column splits, callouts, and media blocks to prevent awkward cross-page splits, with zeroed trailing container margins preventing trailing blank pages.
 
 ### 8. Standalone HTML Export Styling (`blocksToHTMLLossy`)
 - **Theme Palette**: Self-contained dark theme with `#12151e` background, `#f1f3fa` high-contrast typography, `#f8fafc` headings, and `#334155` card borders.
@@ -236,9 +242,9 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **Banner Surface**: `flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-ink-900/95 border border-duck-500/50 shadow-2xl backdrop-blur-md text-xs font-semibold text-duck-200 ring-4 ring-duck-400/20`.
 - **Active Trigger Button State (`NoteMenu.jsx`)**: `bg-duck-500/15 border border-duck-500/30 text-duck-200 cursor-wait pointer-events-none` with spinning sparkle and pulsing `"AI"` tag.
 
-### 15. KaTeX LaTeX & Chemical Formula Rendering (`MathText`)
+### 15. KaTeX LaTeX & Chemical Formula Rendering (`MathText` & `.katex-inline-node`)
 - **Display Math Container**: `block my-2 overflow-x-auto overflow-y-hidden text-center py-1 select-text` (with responsive horizontal scroll preservation for wide equations).
-- **Inline Math Container**: `inline-block align-baseline mx-0.5 select-text` (seamlessly aligned with paragraph font baseline).
+- **Inline Math Container (`MathText` & `.katex-inline-node`)**: Seamless Notion-style typography: transparent background (`bg-transparent`), zero borders (`border: none`), natural text matching (`color: inherit`, `text-ink-100`), baseline alignment (`vertical-align: baseline`), subtle hover background highlight (`hover:bg-ink-800/60`), and no side handles or pill brackets.
 - **KaTeX Styling Guarantees**: Relies on bundled `katex/dist/katex.min.css` across all runners and review reports, guaranteeing standard Computer Modern math typography for physics vectors, calculus integrals, and chemistry arrows.
 
 ### 16. Redesigned Decluttered Quiz Runner Layout & Question Palette
@@ -411,3 +417,16 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 5. **Modal Viewport Bounds**: Modal dialogs must use `max-h-[calc(100vh-2rem)] flex flex-col` and `shrink-0` on headers/footers to prevent clipping on compact displays.
 6. **Print & PDF Content Guarantees**: Any user-created note content (titles, toggle details, LaTeX formulas, code snippets) must render cleanly in `@media print` without reliance on interactive form controls or fixed-height containers.
 7. **KaTeX Extensions & Mathematical Glyphs**: Custom LaTeX macros (such as `\reflectbox{...}`) are supported globally in `lib/editorCaret.js` using `KATEX_GLOBAL_MACROS` and styled via `.reflect-flip` (`display: inline-block; transform: scaleX(-1);`) to ensure proper rendering across both inline and display math blocks.
+8. **Selective Block Insertion Dropzones**: The bottom click-to-insert bar (`data-insert-zone="after"`, `hover:bg-duck-400/20`) is scoped strictly to complex/container blocks (`math`, `code`, `table`, `toggle`, `columns`, `site`, `media`, `divider`) where Enter does not naturally append a block below. Linear content blocks (`text`, `h1`–`h4`, `bullet`, `number`, `todo`, `inlinemath`, `callout`, `quote`) omit the bottom dropzone to preserve clean vertical spacing and avoid visual clutter.
+9. **PDF Export & Print Sheet Color-Scheme Guarantee**: Always ensure `@media print` forces `:root, html, body` and `@page` to `color-scheme: light !important; background-color: #ffffff !important;` with `--color-ink-950: #ffffff !important`, and resets all dark background container utilities (`.bg-ink-950`, `.bg-ink-900`) to `transparent !important`. This prevents Chromium's print engine from rendering dark mode canvas margins (`rgb(18, 18, 18)`) around the printed page.
+10. **Print Layout Rules & Scoped Block Engines**: Never apply layout properties (`display: block !important; width: 100% !important; flex: none !important;`) to universal background color utility selectors (`[class*="bg-ink-950"]`, `[class*="bg-ink-900"]`) in `@media print`. Always scope structural resets strictly to root layout containers (`#__next, main, [data-editor-root]`). For complex blocks (`code`, `table`, `toggle`), provide explicit scoped print rules:
+    - **Code Blocks**: Display flex row with fixed-width gutter (`min-width: 2.75rem`) and full-width `<pre>` taking remaining width with high-contrast syntax highlighting token colors.
+    - **Tables**: `display: table !important; width: 100% !important; min-width: 100% !important; table-layout: auto !important; border: 1.5px solid #cbd5e1 !important; border-radius: 8px !important;` with interactive toolbars and cell delete buttons strictly hidden (`display: none !important;`).
+    - **Toggles**: Single-line flex title row (`gap: 4pt`) with amber `▼` disclosure arrows, collapsed badges strictly hidden, and expanded details rendered with legible 10.5pt typography and indented 14pt left border accent (`margin-left: 14pt !important; border-left: 3px solid #cbd5e1 !important;`).
+    - **Media Images**: Constrained with `max-height: 180pt !important; object-fit: contain !important; margin: 0 auto !important;` to prevent dominating page vertical space.
+11. **Toggle Block Layout & Auto-Expansion Rules (`components/BlockNoteEditor.jsx`)**:
+    - **Header Flex Alignment**: The toggle header flex row uses `items-start` (never `items-center`) with `mt-0.5` on the 24px chevron button and status badge. This anchors the controls cleanly to line 1 of the title when titles wrap across multiple lines.
+    - **Clickable Status Badge**: The `[COLLAPSED]` / `[EXPANDED]` badge is an interactive `<button>` with `hover:border-duck-500/40 hover:text-duck-300`, allowing quick toggling from either side of the block.
+    - **Dynamic Auto-Expanding Details Textarea**: Interactive toggle details use dynamic height calculation (`el.style.height = Math.max(48, el.scrollHeight) + 'px'`) on mount, open transition, and input. Textareas use `resize-none overflow-hidden` to completely prevent internal scrollbars and clipping.
+    - **Enter Key Stepping**: Pressing Enter at the end of a toggle heading automatically opens the toggle and focuses the details textarea at offset `(0, 0)`. Splitting a heading defaults `nextType` to `"text"`.
+

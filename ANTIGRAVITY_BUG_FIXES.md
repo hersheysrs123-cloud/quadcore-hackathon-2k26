@@ -3617,3 +3617,675 @@ When pasting markdown or copying formatted list items into notes, bold and itali
 3. **Automated Verification**:
    - All 228 unit tests pass with 0 failures across the test suite.
 
+---
+
+## 148. Non-Destructive Demo Seeding & All-Block Quantum Note Upgrade
+
+### Problem Statement
+- Previously, invoking demo seeding (or resetting `DEMO_SEED_KEY`) executed `db.notes.bulkPut(demoItems)` with `overwrite: true`. While this did not delete unrelated notes, it unconditionally overwrote any existing demo notes (`note_calc`, `note_photo`, etc.) that the user had customized.
+- In addition, the seeded Quantum Mechanics note (`note_quantum`) lacked several rich block types, specifically `columns` (multi-column split layout block), `table` (Socratic table), and `canvas` (whiteboard drawing embed).
+- Users required assurance that re-seeding or restoring sample study notes would never overwrite, destroy, or clobber their existing custom notes and edits.
+
+### Resolution & Architectural Enhancements
+1. **Upgraded `note_quantum` with All 20 Supported Block Types (`lib/demoNotes.js`)**:
+   - Enhanced `note_quantum` to natively contain every single supported block type:
+     - Headings: `h1`, `h2`, `h3`, `h4`
+     - Text & Rich Inline: `text` with inline math and formatting, `quote`, `callout`
+     - Interactive Widgets: `toggle` collapsible details, `todo` interactive checklists
+     - Scientific Content: `math` display equations, `inlinemath` formulas, `code` Python/JS harmonic oscillator
+     - Lists: `number` sequential derivations, `bullet` conceptual foundations
+     - Media & Links: `site` MIT OCW bookmark embed, `media` atomic orbital probability cloud
+     - Layout & Visuals: `columns` 2-column split (Copenhagen vs. Many-Worlds), `table` quantum numbers matrix, `canvas` Bloch sphere whiteboard drawing, and `divider`.
+2. **Guaranteed Non-Destructive Notes-Only Seeding (`lib/db.js` & `lib/storageService.js`)**:
+   - Updated `initAndSeedDatabase()` and `seedDemoContent()` to operate non-destructively and strictly on notes:
+     - Never calls `db.notes.clear()`.
+     - Completely removed Web Saver bookmark and folder seeding (`DEMO_FOLDERS` and `DEMO_BOOKMARKS` removed from seed execution) so that users' Web Saver lists remain exclusively under their control.
+     - Custom user notes (any note whose ID is not a demo note) are 100% preserved.
+     - Existing notes are checked individually: if missing, they are inserted; if `note_quantum` exists and has fewer blocks than the new 32-block suite, its blocks are safely upgraded while preserving user space, favorite, and timestamp preferences.
+   - Bumped `DEMO_SEED_KEY` to `"socratic_demo_seeded_v13"` in `lib/db.js`.
+3. **Safe UI Action in Settings (`components/Sidebar.jsx`)**:
+   - In `components/Sidebar.jsx`, updated `handleSeedDemoNotes` to call `seedDemoContent({ overwrite: false })`, ensuring existing notes are never overwritten, and updated the Settings card title to "Sample Study Notes (Demo Notes Only)" with status messaging explicitly confirming: `(your custom notes and bookmarks were preserved)`.
+4. **Automated Verification**:
+   - Executed `npm test`: all 388 unit tests passed with 0 failures across 105 suites.
+
+---
+
+## 149. Plain Text & Multi-Format Export Engine Overhaul: Columns Serialization, Clean Quotes & Deprecated Canvas Purge
+
+### Problem Statement
+- During note export testing across formats on the seeded Quantum Mechanics note:
+  1. **Missing Columns Block**: In `blocksToPlainText()`, there was no `case "columns":`. When notes containing multi-column blocks (`columns`) were exported to Plain Text (`.txt`), the columns were completely dropped from the output.
+  2. **Double Quotes on Quote Blocks**: When quote blocks whose content already contained opening and closing quotes (e.g. `"I think I can safely say..." — Richard P. Feynman`) were exported to `.txt` and `.docx`, the exporters wrapped the string unconditionally in quotes (`"${content}"`), causing jarring double quotation marks (`""I think...""`).
+  3. **Deprecated Canvas Block in Seeded Notes and Exports**: A legacy `canvas` block (`qua_canvas_bloch`) remained in `lib/demoNotes.js` even though interactive canvas drawings had been deleted and removed from the active editor. Furthermore, `filterBlocksForExport()` transformed any legacy canvas block into a `callout` (`[NOTE: [Canvas] – ...]`), polluting plain text, Markdown, HTML, and Word document exports.
+
+### Resolution & Architectural Enhancements
+1. **Multi-Column Plain Text Export (`lib/exportImport.js`)**:
+   - Added `case "columns":` to `blocksToPlainText()`:
+     - Normalizes column structure via `getNormalizedColumnsData()`.
+     - Emits structured column headers and content (`[COLUMN: <Title>]\n<Content>`).
+   - Added round-trip column parsing in `tryParsePlainTextToBlocks()` to support importing plain text notes with `[COLUMN: ...]` blocks.
+2. **Quote Normalization in Plain Text & DOCX Exporters (`lib/exportImport.js`)**:
+   - Updated `blocksToPlainText()` and `blocksToDocxBlob()`:
+     - If the quote block's content already starts with `"` and contains attribution (`" —`, `" -`), or starts and ends with `"`, it preserves the string as-is without re-wrapping.
+     - Strips redundant leading/trailing quotes before applying wrapping, eliminating doubled double quotes (`""...""`).
+3. **Markdown Title Header & Interactive Task List Checkboxes (`lib/exportImport.js`)**:
+   - **Top Note Title**: Updated `blocksToMarkdownLossy(rawBlocks, title)` and `exportMarkdown(blocks, title)` to automatically prepend `# <Title>\n\n` at the top of exported Markdown files (guarding against duplicating when the note's first block is already an H1 matching the title).
+   - **Interactive Checkboxes**: Updated `case "todo":` in `blocksToMarkdownLossy()` from `[x] / [ ]` to standard GitHub/Obsidian task list syntax: `- [x] ` and `- [ ] `, allowing markdown viewers (GitHub, Obsidian, VS Code) to render native interactive checkboxes.
+4. **Deprecated Canvas Removal & Seed Clean-up (`lib/demoNotes.js`, `lib/exportImport.js`, `lib/db.js`, `lib/storageService.js`)**:
+   - **`lib/demoNotes.js`**: Completely removed `qua_canvas_bloch` from `note_quantum` and updated the supported block types comment (19 native blocks).
+   - **`lib/exportImport.js`**:
+     - `filterBlocksForExport`: Omitted `case "canvas": case "drawing": break;` so canvas blocks are discarded during sanitization.
+     - `blocksToMarkdownLossy`: Returns empty string for canvas/drawing.
+     - `blocksToHTMLLossy`: Returns empty string for canvas/drawing.
+     - `blocksToPlainText`: Omits canvas/drawing blocks.
+     - `blocksToDocxBlob`: Omits canvas/drawing blocks.
+   - **`lib/db.js` & `lib/storageService.js`**:
+     - Bumped `DEMO_SEED_KEY` to `"socratic_demo_seeded_v14"`.
+     - In `initAndSeedDatabase()` and `seedDemoContent()`, added automatic detection to strip legacy canvas blocks from existing `note_quantum` records in IndexedDB so reseeding or loading seamlessly cleans existing databases.
+5. **Automated Verification**:
+   - Updated `tests/unit/export-import.test.mjs` to test column plain text serialization, quote normalization, canvas block exclusion, and markdown title/task list syntax.
+   - Executed `npm test`: all 388 unit tests passed with 0 failures across 105 suites.
+
+---
+
+## 150. Word Document (.docx) Export Suite: Toggle Multi-Line Paragraph Breaks & Math Delimiter Normalization
+
+### Problem Statement
+- During DOCX export visual inspection on the seeded Quantum Mechanics note:
+  1. **Squashed Multi-Line Toggle Details**: In `blocksToDocxBlob()`, toggle block details (`details` / `toggleContent`) were wrapped in a single `Paragraph` with a single `TextRun`. In Microsoft Word, a single `TextRun` ignores newline characters (`\n`), causing multi-paragraph explanations and formula listings (e.g. Bell state basis vectors `|Φ⁺⟩ = ...\n|Φ⁻⟩ = ...`) to collapse into a single unreadable continuous block.
+  2. **Raw LaTeX Delimiters in Formula & Inline Math Badges**:
+     - Word export renders math equations with visual badges: `Formula: ` for block math and `ƒ(x) ` for inline math.
+     - Because equation blocks in notes may store LaTeX formulas wrapped in single `$` or double `$$`, Word documents displayed redundant literal delimiters alongside the badge (e.g., `ƒ(x) $formula$` and `Formula: $$formula$$`), creating visual noise and duplication.
+
+### Resolution & Architectural Enhancements
+1. **Multi-Line Toggle Details Paragraph Splitting (`lib/exportImport.js:blocksToDocxBlob`)**:
+   - In `case "toggle":`, toggle details are now split by newlines (`details.split(/\r?\n/)`).
+   - Each non-empty line is rendered as an independent `Paragraph` with `indent: { left: 720 }` and muted italic styling (`color: "6B7280"`).
+   - The first non-empty line is cleanly prefixed with `↳ `, while subsequent lines align underneath with matching indentation.
+   - Empty lines are rendered as spacer paragraphs (`spacing: { after: 40 }, indent: { left: 720 }`) to preserve intentional paragraph gaps.
+2. **Formula Delimiter Normalization (`lib/exportImport.js:blocksToDocxBlob`)**:
+   - In `case "math":`, formulas are cleaned via `.trim().replace(/^\$+|\$+$/g, "").trim()`, stripping any leading/trailing `$$` or `$` while retaining the bold italic `Formula: ` badge and Consolas monospace formatting.
+   - In `case "inlinemath":`, formulas are cleaned via `.trim().replace(/^\$+|\$+$/g, "").trim()`, stripping any leading/trailing `$` while retaining the amber `ƒ(x) ` badge and Consolas monospace formatting.
+3. **Automated Verification**:
+   - Added unit test in `tests/unit/export-import.test.mjs` verifying that `blocksToDocxBlob` handles multi-line toggle details and dollar-delimited formulas into valid Word binary Blobs (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`).
+   - All 389 unit tests pass with 0 failures across 105 test suites.
+
+---
+
+## 151. Full PDF Document & Print Stylesheet Suite: Multi-Column Split, Atomic Page Breaks, Table Chrome Elimination & Trailing Blank Page Prevention
+
+### Problem Statement
+- During PDF export verification (`window.print()` / `@media print`) on the comprehensive 19-block seeded Quantum Mechanics note, 7 distinct visual bugs and layout anomalies were identified:
+  1. **Trailing Blank Page 6**: The exported PDF generated an extra completely blank 6th page due to container bottom margins and padding on `[data-editor-root]`, `main`, and the last callout block overflowing by fractional millimeters.
+  2. **Editor UI Table Header Clutter**: The editor's interactive toolbar `▦ Table [ 4 × 4 ]` was rendered at the top of the table on Page 5 in the PDF output.
+  3. **Multi-Column Block Vertical Stacking**: Comparative 2-to-5 column split blocks (`ColumnsBlock`, e.g. *Copenhagen Interpretation* & *Many-Worlds Interpretation*) were collapsed into vertically stacked full-width cards instead of remaining side-by-side columns.
+  4. **Toggle Block Sliced Across Page Boundaries**: The toggle block on Page 1 (`▶ Quantum Superposition, Entanglement & Bell's Theorem`) was sliced in half after 3 lines, leaving the second half of the explanation on Page 2 with open borders.
+  5. **Media Block Severed Across Pages**: On Page 3, an empty card with just `🖼️ IMAGE` was stranded at the bottom of the page, while the orbital probability cloud image and its caption were pushed to Page 4.
+  6. **Unchecked Checkboxes Inverted as Solid Black Squares (`⬛`)**: Dark theme `bg-ink-850` on `<input type="checkbox">` caused browser print engines to render solid black square blocks for uncompleted tasks.
+  7. **Invisible Bullet Dots**: Unordered list bullets (`span.bg-ink-400`) were stripped of background colors in print stylesheets, rendering list items as plain unindented text.
+  8. **Code Block Textarea Resize Grip**: The browser's native diagonal resize grip was visible in the bottom-right corner of code blocks.
+  9. **Inline Math Pill Borders**: Inline LaTeX pills (`.katex-inline-node`) carried interactive editor pill borders and background shading, rather than blending seamlessly as typographic math.
+
+### Resolution & Architectural Enhancements
+1. **Trailing Blank Page Elimination (`app/globals.css:@media print`)**:
+   - Added zero-margin/padding rules on `[data-editor-root] > *:last-child`, `[data-block-id]:last-child`, `[data-block-id]:last-child > *`, and `main`:
+     ```css
+     [data-editor-root] > *:last-child,
+     [data-editor-root] .space-y-2 > *:last-child,
+     [data-editor-root] [data-block-id]:last-child,
+     [data-editor-root] [data-block-id]:last-child > * {
+       margin-bottom: 0 !important;
+       padding-bottom: 0 !important;
+     }
+     main {
+       margin-bottom: 0 !important;
+       padding-bottom: 0 !important;
+     }
+     ```
+2. **Table Top Toolbar UI Chrome Stripping (`components/BlockNoteEditor.jsx`)**:
+   - Added `print:hidden` to the Table Top Toolbar container in `TableBlock`, ensuring only the clean styled table grid and headers are exported to PDF.
+3. **Side-by-Side Multi-Column Layout (`components/BlockNoteEditor.jsx` & `app/globals.css`)**:
+   - Added `print:grid-cols-2` through `print:grid-cols-5` to `gridColsClass` in `ColumnsBlock`.
+   - Enforced flex row layout in `@media print`:
+     ```css
+     [id^="columns_"] > div[class*="grid"] {
+       display: flex !important;
+       flex-direction: row !important;
+       align-items: stretch !important;
+       gap: 12pt !important;
+       width: 100% !important;
+     }
+     [id^="columns_"] > div[class*="grid"] > * {
+       flex: 1 1 0px !important;
+       min-width: 0 !important;
+     }
+     ```
+4. **Atomic Block Break-Inside Avoidance (`app/globals.css:@media print`)**:
+   - Extended `break-inside: avoid !important; page-break-inside: avoid !important;` to include `[class*="group/toggleblk"]`, `[class*="group/mediablk"]`, `[class*="group/tableblk"]`, and `[id^="columns_"]`.
+   - Prevents awkward splits across pages for toggles, tables, multi-column blocks, and media embeds.
+5. **Print Form Controls & List Styling (`app/globals.css:@media print`)**:
+   - Styled `input[type="checkbox"]` with `background-color: #ffffff !important; border: 1.5px solid #374151 !important; border-radius: 3px !important;` and `print-color-adjust: exact !important;` to produce crisp square task checkboxes.
+   - Styled list bullet spans with `background-color: #000000 !important; border: 1px solid #000000 !important; display: inline-block !important; print-color-adjust: exact !important;` so bullet points remain cleanly visible.
+6. **Code Snippet Resize Grip Removal (`components/BlockNoteEditor.jsx` & `app/globals.css`)**:
+   - Added `print:resize-none` to the `<textarea>` in `CodeBlock` and global rule `textarea { resize: none !important; }` in `@media print`.
+7. **Typographic Inline Math Blending (`app/globals.css:@media print`)**:
+   - Set `.katex-inline-node { border: none !important; background: transparent !important; padding: 0 1.5pt !important; display: inline-block !important; vertical-align: baseline !important; }` so equations read seamlessly like in printed textbooks.
+8. **Automated Verification**:
+   - Ran `npm test`: all 389 unit tests pass with 0 regressions.
+
+---
+
+## 152. Notion-Style Clear Inline Math Equations & Side Clutter Removal
+
+### Problem Statement
+- **Bulky Pill Borders & Colored Background on Inline Equations**: Inline LaTeX math formulas (`.katex-inline-node`) were previously rendered with a yellow/duck border (`border-duck-500/40`), a tinted yellow background (`bg-duck-500/10`), duck yellow text (`text-duck-200`), and excessive side padding (`px-2 mx-1`), looking like button badges rather than clean, seamless typographic math like in Notion.
+- **Side Block Controls on Standalone Inline Math Blocks**: Blocks of type `inlinemath` rendered left-side block hover controls (`🗑️` and `⠿`), cluttering inline formula blocks with side chrome.
+- **Side Clutter in Inline Equation Popover**: The `InlineEquationPopover` displayed an unnecessary `"KaTeX"` label on the right side of the preview box and heavy duck-colored borders.
+- **Export Inconsistencies**: Word export prepended an amber `"ƒ(x) "` badge to every inline formula, and HTML export gave inline math a tinted background and border.
+
+### Resolution & Architectural Enhancements
+1. **Notion-Style Clear & Borderless Typography (`lib/editorCaret.js` & `app/globals.css`)**:
+   - Updated `.katex-inline-node` in `formatMarkdownInline` and `tryAutoFormatInlineMath`:
+     - Clear transparent background (`background: transparent !important`).
+     - Zero borders (`border: none !important`), eliminating side pill borders.
+     - Natural text color matching (`text-ink-100` / `color: inherit !important`).
+     - Subtle Notion-like hover background highlight (`hover:bg-ink-800/60` / `rgba(255, 255, 255, 0.08)`).
+     - Compact padding (`px-1 py-0.5 mx-0.5` / `0 2px`) for seamless baseline text integration.
+2. **Preserved Universal Block Controls (`components/BlockNoteEditor.jsx`)**:
+   - Ensured left-side block hover controls (`🗑️` and `⠿`) remain universally active across every block type without exception.
+3. **Streamlined Inline Equation Popover (`components/BlockNoteEditor.jsx`)**:
+   - Removed the right-side `"KaTeX"` badge from the preview row.
+   - Updated popover styling to a sleek, dark Notion-style card (`border border-ink-700 bg-ink-900/98`) and clean font-normal preview text.
+4. **Clean Export Normalization (`lib/exportImport.js`)**:
+   - In HTML export, styled `.inlinemath` and `.inline-math` with transparent background and zero borders.
+   - In Word export (`blocksToDocxBlob`), replaced the legacy `"ƒ(x) "` side badge with `"Inline: "` (`bold`, `italic`), cleanly pairing with display math's `"Formula: "`.
+5. **Automated Verification**:
+   - All 389 test cases across 105 test suites pass with 0 failures (`npm test`).
+   - Milestone 1 empirical navigation and inline math stress suites pass with 0 errors.
+
+---
+
+## 153. Selective Bottom Insertion Dropzone Scoping & Linear Block Cleanup
+
+### Problem Statement
+- **Cluttering Yellow Dropzone on Standard Editable Blocks**: Every block card previously rendered a bottom insertion dropzone bar (`data-insert-zone="after"`, `hover:bg-duck-400/20`), adding unnecessary visual flash and click zones below linear text blocks, headings (`h1`–`h4`), list blocks (`bullet`, `number`, `todo`), inline equations (`inlinemath`), callout blocks, and quote blocks.
+- **Redundancy with Native Keyboard Enter**: In text, headings, lists, callouts, and quotes, pressing `Enter` naturally splits or appends an empty paragraph below. Having an interactive yellow bar below these blocks added unnecessary DOM elements and visual noise on mouse hover.
+- **Requirement to Retain Dropzones on Container/Embed Blocks**: Container and embed blocks (`math`, `code`, `table`, `toggle`, `columns`, `site`, `media`, `divider`) do not naturally create a paragraph below upon pressing standard `Enter` (or `Enter` operates internally, such as new lines in code/math or new rows in tables), making the bottom dropzone essential for those specific blocks.
+
+### Resolution & Architectural Enhancements
+1. **Defined `EXCLUDED_DROPZONE_TYPES` Constant (`components/BlockNoteEditor.jsx`)**:
+   - Created a strict set of block types where standard `Enter` already creates a new line or block below:
+     ```javascript
+     const EXCLUDED_DROPZONE_TYPES = new Set([
+       "text",
+       "h1",
+       "h2",
+       "h3",
+       "h4",
+       "heading",
+       "bullet",
+       "number",
+       "todo",
+       "inlinemath",
+       "callout",
+       "quote",
+     ]);
+     ```
+2. **Conditional Dropzone Rendering (`components/BlockNoteEditor.jsx`)**:
+   - Updated the bottom dropzone JSX to evaluate `!isLocked && !EXCLUDED_DROPZONE_TYPES.has(block.type)`.
+   - The yellow bottom insertion dropzone is completely omitted for headings, bullet/number/checklist items, plain text, inline equations, callout blocks, and quote blocks.
+   - The dropzone is retained for `math`, `code`, `table`, `toggle`, `columns`, `site`, `media`, and `divider` blocks.
+3. **Preserved Universal Left-Side Block Controls**:
+   - Left-side hover controls (`🗑️` delete button and `⠿` 6-dots drag/context handle) remain active across every block.
+4. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+   - Inline math round-trip tests pass completely.
+
+---
+
+## 154. Sidebar Navigation Streamlining — Removed Duplicate AI Tutor Button
+
+### Problem Statement
+- **Sidebar Clutter Under Space Hub**: The sidebar rendered an extra quick-access AI Tutor button below the Space Hub action button, adding visual weight to the sidebar navigation and competing with the primary AI Tutor trigger located prominently in the Top HUD (`Workspace.jsx` / shortcut `Ctrl+Shift+T`).
+- **User Experience Request**: Streamline the left navigation rail by removing the AI Tutor button from the sidebar while keeping the full AI Tutor functionality, drawer, API integration, and header shortcuts intact.
+
+### Resolution & Architectural Enhancements
+1. **Removed Sidebar AI Tutor Quick-Access Button (`components/Sidebar.jsx`)**:
+   - Deleted the emerald-styled `🧑‍🏫 AI Tutor (Doubts)` button from the Space Hub container in `Sidebar.jsx`.
+   - Cleaned up the spacing above the active Space Notes list.
+   - Retained the `onOpenTutor` prop in the component interface for full backwards-compatibility.
+2. **Preserved Primary AI Tutor Access**:
+   - The top header HUD button in `Workspace.jsx` and global keyboard shortcut `Ctrl+Shift+T` remain fully operational.
+3. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 failures (`npm test`).
+
+---
+
+## 155. Space Switcher Display Layout Setting (Dropdown vs Grid)
+
+### Problem Statement
+- **Fixed Dropdown Presentation**: The space switcher in the sidebar previously only offered a single compact dropdown button that opened a popover list of spaces.
+- **User Experience Request**: Provide a user setting in Settings > General & Theme to display the space switcher either as a **Dropdown Menu** (default) or as a **Grid View** (direct 1-click tile access), strictly inside Settings without cluttering the sidebar interface.
+
+### Resolution & Architectural Enhancements
+1. **General & Theme Settings Option (`components/Sidebar.jsx:SettingsModal`)**:
+   - Added a dedicated "Space Switcher Display" selector in `tab === "general"`.
+   - Rendered two visual option cards using design tokens:
+     - **Dropdown Menu**: Compact single-row trigger with expandable space popover menu.
+     - **Grid View**: Multi-column interactive cards for direct 1-click switching.
+2. **Dual-Mode Sidebar Space Switcher (`components/Sidebar.jsx:Sidebar`)**:
+   - Maintained `spaceSwitcherLayout` state with dual persistence:
+     - Synchronous read/write from `localStorage` (`socraticos_space_switcher_layout`) for zero layout shift on refresh.
+     - Async local-first persistence in Dexie (`db.settings.put({ key: "space_switcher_layout", value })`).
+   - When set to `"grid"`:
+     - Renders a 2-column grid (`grid-cols-2 gap-1.5`) displaying all user spaces with icons, names, and active duck accent highlighting.
+     - Retains delete button on hover if `spaces.length > 1`.
+     - Includes dashed "+ New" tile for fast space creation.
+   - When set to `"dropdown"`:
+     - Renders the classic compact dropdown button and popover list.
+3. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+
+---
+
+## 156. Top HUD Header Centering for Study Navigation Tabs (Notes, Quizzes, Mastery)
+
+### Problem Statement
+- **Off-Center Study Mode Switcher**: In `Workspace.jsx`, the top header HUD rendered `<nav>` containing the `[📝 Notes]`, `[🎯 Quizzes]`, and `[📊 Mastery]` tabs as an inline flex child within a 3-element `justify-between` header layout.
+- **Asymmetric Flex Shifting**: When the left breadcrumb container (displaying the current space, folder icon, and note title e.g. `Quantum Mechanics — Wavefunctions & Atomic ...`) expanded, it pushed the study tabs pill far to the right, causing it to cluster right next to the study actions (`AI Tutor`, `Explain`, `Quiz me`).
+- **User Experience Flaw**: The main application mode switcher felt misplaced and uncentered on all viewports, lacking visual symmetry.
+
+### Resolution & Architectural Enhancements
+1. **Mathematical Absolute Centering (`components/Workspace.jsx`)**:
+   - Re-architected `<nav>` in the top header with `absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto`.
+   - Guaranteed that the study tabs capsule sits precisely at 50% horizontal and vertical midpoint of the entire header bar, independent of varying content lengths on the left or right.
+2. **Dynamic Left Breadcrumb Clamping (`components/Workspace.jsx`)**:
+   - Set the left container width to `max-w-[calc(50%-135px)] sm:max-w-[calc(50%-145px)]` with `min-w-0` and `truncate`.
+   - Prevents long note titles or deep breadcrumbs from ever colliding with the centered navigation capsule.
+3. **Clean Right Action Alignment (`components/Workspace.jsx`)**:
+   - Added `ml-auto` to the right-side action group, ensuring it remains cleanly anchored to the right border of the viewport without pushing or shifting the centered tabs.
+4. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 failures (`npm test`).
+
+---
+
+## 157. Compact Width & Typography for Top HUD Study Action Buttons
+
+### Problem Statement
+- **Tight Gap Between Centered Tabs and Right Actions**: On medium viewports (~1000px–1150px), the mathematically centered study navigation capsule (`[📝 Notes] [🎯 Quizzes] [📊 Mastery]`) came within close proximity to the `AI Tutor` action button on the right.
+- **Button Bulkiness**: The `AI Tutor`, `Explain`, and `Quiz me` buttons had wider horizontal padding (`px-2.5`), larger text (`text-xs`), and larger gaps (`gap-1.5` / `gap-1.5 sm:gap-2`), causing the right action bar to span ~320px and crowd the center capsule on narrower screens.
+
+### Resolution & Architectural Enhancements
+1. **Compact Button Width with Preserved Height (`components/Workspace.jsx`)**:
+   - Kept vertical height identical (`py-1.5`) while trimming horizontal padding from `px-2.5` to `px-2`.
+   - Reduced internal button icon-to-label gap from `gap-1.5` to `gap-1`.
+   - Decreased button label typography from `text-xs` (12px) to `text-[11px]` with slightly smaller emoji icons (`text-xs`).
+   - Tightened action bar cluster spacing from `gap-1.5 sm:gap-2` to `gap-1 sm:gap-1.5`.
+2. **Visual Spacing Relief**:
+   - Saved over 55px of horizontal width across the right action group, providing generous breathing space between the centered study tabs and the action buttons without compromising readability or touch target height.
+3. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 failures (`npm test`).
+
+---
+
+## 158. Responsive Icon-Only HUD Study Action Buttons on Laptop & Tablet Displays
+
+### Problem Statement
+- **Persistent Header Cramping on Laptop Viewports**: On displays under 1280px width (especially with the 256px sidebar expanded, leaving ~944px of usable header space), the right action cluster (`AI Tutor`, `Explain`, `Quiz me`) occupied ~300px, crowding against the centered `[📝 Notes] [🎯 Quizzes] [📊 Mastery]` navigation capsule.
+- **Requirement for Responsive Adaptation**: While maintaining identical button heights (`py-1.5`) and full functionality, the action buttons needed to reduce their horizontal footprint on medium/laptop viewports to provide generous breathing space for the centered tabs.
+
+### Resolution & Architectural Enhancements
+1. **Responsive Icon Badge Mode (`components/Workspace.jsx`)**:
+   - Styled `AI Tutor`, `Explain`, and `Quiz me` buttons with responsive padding: `p-1.5 xl:px-2.5 xl:py-1.5`.
+   - Wrapped text labels in `<span className="hidden xl:inline">...</span>`:
+     - Under `1280px` (laptops and tablets): Buttons collapse into sleek square icon badges (`🧑‍🏫`, `✨`, `🦆`) preserving full native tooltips (`title="AI Tutor..."`, `title="Explain this note..."`, `title="Quiz me on this note..."`).
+     - At `1280px+` (`xl` screens): Buttons smoothly expand to display their complete text labels alongside the icons.
+2. **Reclaimed Horizontal Clearance**:
+   - Reclaimed over 120px of horizontal breathing room on laptop screens, creating ~170px+ of clean negative space between the `Mastery` tab and `AI Tutor`.
+   - Preserved vertical height, active border states, and hover effects.
+3. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+
+---
+
+## 159. Removal of Conflicting Browser Shortcut (Ctrl+Shift+T) for AI Tutor
+
+### Problem Statement
+- **Global Keybinding Collision with Browser Tab Restore**: The application bound `(e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t"` to toggle the AI Tutor drawer.
+- **Operating System / Browser Conflict**: In Google Chrome, Microsoft Edge, Brave, and Mozilla Firefox on Windows and Linux, `Ctrl+Shift+T` is the universal, high-frequency standard browser shortcut to "Reopen closed tab". Intercepting this key combination hijacked the native browser shortcut, preventing users from restoring accidentally closed tabs and disrupting browser muscle memory.
+
+### Resolution & Architectural Enhancements
+1. **Removed `Ctrl+Shift+T` Key Listener (`components/Workspace.jsx`)**:
+   - Removed the `(ctrlKey || metaKey) && shiftKey && key === "t"` branch from `handleGlobalKeyDown`.
+   - Native browser tab restoration (`Ctrl+Shift+T`) is completely unimpeded.
+2. **Cleaned Up Button Tooltip & Docs (`components/Workspace.jsx`, `README.md`, `CODEBASE_SUMMARY.md`)**:
+   - Updated the AI Tutor button's `title` attribute to `"AI Tutor: Ask doubts and get step-by-step guidance"` without referencing `(Ctrl+Shift+T)`.
+   - Updated `README.md` and `CODEBASE_SUMMARY.md` to reflect that the primary trigger is the dedicated top HUD button.
+3. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+
+---
+
+## 160. Code Snippet Block Line Numbers & Code Lines Desynchronization Resolution
+
+### Problem Statement
+- **Escalating Vertical Line Misalignment**: In `CodeBlock` (`components/BlockNoteEditor.jsx`), the line numbers gutter used `text-xs leading-relaxed` (line height 19.5px), whereas the code editor `<textarea>` used `text-xs sm:text-sm leading-relaxed` (line height 22.75px on screens $\ge$ 640px). This typography mismatch produced a cumulative vertical drift of 3.25px per line. By line 10, the gutter was offset by 32px (more than a full line); by line 28, it was offset by over 91px (four full lines), rendering line numbers completely disconnected from the actual code lines.
+- **Phantom Line Numbers (`Math.max(3, lines.length)`)**: The gutter line count was calculated using `Math.max(3, lines.length)`. On 1-line or 2-line code blocks, the gutter rendered phantom numbers `2` and `3` where no code lines existed.
+- **Soft Line Wrapping Disruption**: The `<textarea>` lacked `wrap="off"`. Long code lines soft-wrapped across multiple visual rows while the gutter only rendered a single number, offsetting all subsequent line numbers.
+- **Unsynchronized Vertical Scrolling**: When the code block was resized vertically or scrolled, the textarea moved while the gutter remained static, causing numbers at the top of the gutter to point to scrolled-down lines of code.
+
+### Resolution & Architectural Enhancements
+1. **Pixel-Perfect Line Height & Baseline Alignment (`components/BlockNoteEditor.jsx`)**:
+   - Standardized both the gutter and `<textarea>` on `font-mono text-xs sm:text-sm`.
+   - Bound both elements to an exact mathematical `lineHeight: "24px"` (`leading-6`) with matching `paddingTop: "14px"` and `paddingBottom: "14px"`.
+   - Rendered each gutter number within an explicit `h-6 leading-6` (24px) container, ensuring 100% pixel-perfect vertical alignment for every single line from line 1 to line 1,000+.
+2. **True 1-to-1 Line Number Count**:
+   - Replaced `Math.max(3, lines.length)` with exact `lines.length`. A 1-line snippet renders only line `1`, expanding naturally as new lines are typed or pasted.
+3. **Strict Non-Wrapping with Horizontal Scroll (`wrap="off"`)**:
+   - Added `wrap="off"` to the `<textarea>` paired with `overflow-x-auto`, ensuring code lines never wrap onto visual secondary rows.
+4. **Lockstep Vertical Scroll Synchronization (`onScroll`)**:
+   - Attached `ref={gutterRef}` to the gutter container with `overflow-hidden`.
+   - Wired `onScroll={(e) => { gutterRef.current.scrollTop = e.target.scrollTop; }}` to the `<textarea>`, guaranteeing immediate scroll synchronization.
+5. **Interactive Line Jump Navigation**:
+   - Clicking any line number in the gutter calculates the character offset and positions the caret directly at the start of that line in the textarea.
+6. **Responsive Gutter Width Sizing**:
+   - Applied adaptive width classes (`min-w-[2.5rem]` < 100 lines, `min-w-[3.25rem]` < 1,000 lines, `min-w-[4rem]` 1,000+ lines) to prevent digit crowding.
+7. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+
+---
+
+## 161. Interactive Code Block Live Syntax Highlighting Engine
+
+### Problem Statement
+- **Monochrome Green Code Blocks**: In `CodeBlock` (`components/BlockNoteEditor.jsx`), code was rendered inside a plain `<textarea>` styled with `text-emerald-300`. Because HTML textareas cannot render formatted text spans, all code appeared completely flat green without any syntax highlighting. Keywords, comments, string literals, numbers, operators, and functions across all 10 programming languages lacked visual distinction.
+- **Underutilized Tokenizer**: The SocraticOS 10-language tokenizer (`lib/syntaxHighlighter.js`) and token color map (`TOKEN_STYLES`) were implemented and tested, but never connected to the interactive note editor's code blocks.
+
+### Resolution & Architectural Enhancements
+1. **Synchronized Dual-Layer Editor Architecture (`components/BlockNoteEditor.jsx`)**:
+   - Implemented a dual-layer code editor architecture combining:
+     1. **Live Syntax Highlighting Underlay (`<pre><code>`)**: Positioned with `pointer-events-none absolute inset-0`, rendering tokenized syntax elements with full `TOKEN_STYLES` coloring.
+     2. **Interactive Transparent Textarea Overlay (`<textarea>`)**: Positioned with `relative z-10`, receiving all keyboard, mouse, selection, and clipboard events.
+2. **Dynamic 10-Language Tokenization (`tokenizeCode`)**:
+   - Tokenizes code in real-time via `useMemo(() => tokenizeCode(codeText, activeLangId), [codeText, activeLangId])`.
+   - Rich token palette: Keywords (`text-pink-400 font-semibold`), Types (`text-cyan-300`), Built-ins (`text-blue-400`), Strings (`text-emerald-300`), Comments (`text-ink-500 italic`), Numbers (`text-amber-400 font-mono`), Operators (`text-duck-300`), Functions (`text-sky-300`), and JSON keys (`text-sky-300 font-semibold`).
+3. **Caret, Selection & Placeholder Preservation**:
+   - Configured `color: codeText ? "transparent" : undefined` to preserve the `// Type or paste code here...` placeholder when empty.
+   - Applied vivid emerald cursor (`caretColor: "#34d399"`) and translucent selection highlighting (`selection:bg-emerald-500/25 selection:text-transparent`), allowing highlighted syntax tokens to show clearly beneath text selections.
+   - Preserved all native editor behaviors: undo/redo (`Ctrl+Z`), auto-indent on `Enter`, 2-space soft tabs (`Tab`/`Shift+Tab`), and arrow key navigation.
+4. **Lockstep 2D Scroll Synchronization**:
+   - Updated `onScroll` to synchronize `scrollTop` to the line numbers gutter and both `scrollTop` and `scrollLeft` to the syntax-highlighted underlay `<pre>`, guaranteeing perfect alignment during horizontal and vertical scrolling.
+5. **Print & PDF Export Styling**:
+   - Marked `<pre>` with `print:block` and `<textarea>` with `print:hidden` so exported documents and printed notes include full syntax highlighting.
+6. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 failures (`npm test`).
+
+---
+
+## 162. PDF Print Export Visual Polish — Cover Banner, Callout Emojis, Syntax Highlighting, Table Borders & Checkbox Normalization
+
+### Problem Statement
+- **Missing Cover Banner**: The cover banner (`group/banner`) was completely stripped from print/PDF export due to `print:hidden` in JSX and `display: none !important;` in `app/globals.css`.
+- **Missing Callout & Header Emojis**: Callout icons and the main note header icon were enclosed within `<button>` elements, which were blanket-hidden by `button:not(.print-content)` in print stylesheets, leaving callouts and headers iconless.
+- **Monochrome Flat Code in PDF**: While syntax highlighting was rendered on screen, `@media print` lacked print-flow styling on `<pre>` and was throttled by universal black text resets (`* { color: #000000 !important; }`), washing out all syntax colors.
+- **Glitchy Table Corners & Outer Card Bleed**: In print, tables retained outer card padding and borders, while `border-collapse: collapse` collided with rounded corners, causing table borders to clip into thin lines and cut off sharply.
+- **Washed Out Document Colors**: The aggressive universal reset `* { color: #000000 !important; }` eliminated all subtle visual identity across callouts, quotes, bookmarks, and badges.
+- **Broken Media Emoji Glyphs**: Fallback serif typography (Georgia / Times New Roman) in print disrupted color emoji font fallback (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`) on media embed headers (`🖼️ Image`).
+- **Inconsistent Task Checkboxes**: Checkboxes displayed inconsistent native browser print defaults across engines with faded borders or missing checked indicators.
+
+### Resolution & Architectural Enhancements
+1. **Cover Banner Print Display (`components/BlockNoteEditor.jsx` & `app/globals.css`)**:
+   - In `BlockNoteEditor.jsx`, enabled print rendering with `print:block print:h-36 print:rounded-xl print:overflow-hidden print:mb-5 print:shadow-none`.
+   - Hidden interactive picker controls and buttons in print (`print:hidden`).
+   - In `app/globals.css`, removed banner selectors from hidden rules and added `.group\/banner` styling with explicit `-webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;`.
+2. **Callout & Note Header Emoji Restoration (`components/BlockNoteEditor.jsx`)**:
+   - Added print-only emoji spans (`hidden print:inline-block`) with native color emoji font fallback (`font-['Segoe_UI_Emoji','Apple_Color_Emoji','Noto_Color_Emoji',sans-serif]`) alongside interactive picker buttons for both callout icons and the document header emoji.
+   - Preserved interactive click-away icon pickers on screen while ensuring crisp, full-color emoji rendering in PDF exports.
+3. **Syntax-Highlighted Code in PDF (`components/BlockNoteEditor.jsx` & `app/globals.css`)**:
+   - Updated CodeBlock `<pre>` underlay to transition into normal document flow during print (`code-highlight-underlay print:static print:relative print:overflow-visible print:inset-auto print:h-auto print:pointer-events-auto print:block`).
+   - Configured dedicated high-contrast token classes in `app/globals.css` with exact print color preservation: keywords (`#be185d`), types/functions (`#0284c7`), strings (`#059669`), comments (`#64748b`), numbers/operators (`#d97706`), tags (`#e11d48`), and builtins (`#2563eb`).
+   - Styled gutter line numbers cleanly in light gray (`#94a3b8`) on `#f1f5f9`.
+4. **Table Border & Corner Modernization (`app/globals.css`)**:
+   - Stripped outer container borders, backgrounds, and padding in `@media print` (`[class*="group/tableblk"]`).
+   - Styled the inner `table` element with `border-collapse: separate !important; border-spacing: 0 !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; overflow: hidden !important;`.
+   - Added rounded corners to outer boundary cells (`th:first-child`, `th:last-child`, `td:first-child`, `td:last-child`) and `#f1f5f9` header backgrounds.
+5. **Color Restoration Across Document Blocks (`app/globals.css`)**:
+   - Removed destructive `* { color: #000000 !important; }`.
+   - Set targeted font colors on `html, body` (`#0f172a`), headings (`#0f172a`, `#1e293b`), and paragraphs (`#1e293b`).
+   - Callout cards: warm amber background (`#fffbeb`), gold border (`#fde68a`), vibrant amber accent (`#f59e0b`), and rich brown text (`#78350f`).
+   - Quote cards: soft gold background (`#fefce8`), gold bar (`#eab308`), italic slate text (`#334155`).
+   - Site bookmarks: sky tint (`#f0f9ff`), light blue border (`#bae6fd`), bright blue link (`#0284c7`).
+   - Toggles: amber arrow (`#d97706`), `#f8fafc` background, `#cbd5e1` details bar.
+6. **Task Checkbox Normalization (`app/globals.css`)**:
+   - Configured `input[type="checkbox"]` with `-webkit-appearance: none !important; appearance: none !important;`.
+   - Set clean white background with crisp slate border (`#475569`) and 12pt dimensions.
+   - When checked, applies `#0284c7` background with brilliant white checkmark (`::after { content: "✓"; }`).
+7. **Emoji Font Stack Preservation (`app/globals.css`)**:
+   - Modernized `html, body` font family to include `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"`.
+   - Guaranteed that `🖼️ Image` and all emoji glyphs render in full native color without falling back to monochrome text.
+8. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+
+---
+
+## 163. Complete Restoration of PDF Export Fidelity — Universal Solid Text, Compact Banner, Page-Break Avoidance, and Dark Card Elimination
+
+### Problem Statement
+- **Washed-Out / Inverted Text**: All editable note blocks (paragraphs, bullets, numbers, to-do checklist items, toggle headings, column items, and table cells) were rendered in faint, almost invisible light cyan/gray (`#d6dbed` / `#f1f3fa`). Because blocks are implemented as `<div>` elements rather than `<p>` or `<li>`, the earlier print reset `p, li { color: #1e293b !important; }` did not match them, and their direct Tailwind utility classes (`text-ink-200`, `text-ink-100`) overrode inherited body styles.
+- **Excessive Cover Banner Height**: The cover banner in `@media print` was set to `height: 110pt !important`, pushing the note title and initial content down into a massive vertical void on Page 1.
+- **Pitch-Black Code Block & Awkward Page Split**: The code block editor container retained dark theme styling (`bg-[#0f1219]` and `bg-[#0d1017]`), rendering a solid dark charcoal block on paper. Additionally, its print break behavior was set to `break-inside: auto !important`, causing the snippet to split across pages 2 and 3.
+- **Pitch-Black Multi-Column Split Cards**: The multi-column layout (`group/colcard`) retained its dark screen background (`bg-ink-900/80`), producing pitch-black cards with white text on white paper.
+- **Pitch-Black Site Bookmark Card**: The site bookmark embed had an inner wrapper with `bg-ink-950/70`, resulting in a dark card inside the light blue print border.
+- **Dark Media Image Frame**: Media images retained dark mode frame borders (`border border-ink-800`) and dark background fills (`bg-ink-950/80`).
+- **Table Header & Cell Inverted Colors**: In `TableBlock`, header cells contained `TableCell` with `text-duck-300` (rendering yellow text on light gray) and body cells contained `text-ink-100` (rendering nearly white text on white).
+
+### Root Cause Analysis
+1. In Tailwind v4 and CSS cascading, class selectors directly applied to child elements (`.text-ink-200`, `.text-ink-100`, `.text-duck-300`) take precedence over inherited colors from `body`. When `* { color: #000000 !important; }` was previously removed to preserve syntax highlighting, `div[contenteditable]` elements had no matching print color rule and fell back to their dark-mode light pastel colors.
+2. In `@media print`, `[class*="group/codeblk"]` lacked rules resetting child containers `bg-[#0d1017]` and had `break-inside: auto !important` instead of `break-inside: avoid !important`.
+3. Multi-column cards (`group/colcard`), site bookmarks (`group/siteblk`), and media images (`group/mediablk`) lacked complete child background resets in print.
+
+### Resolution & Architectural Enhancements
+1. **Universal Solid Dark Text Rule (`app/globals.css:@media print`)**:
+   - Implemented an authoritative rule targeting all block roots, child containers, contenteditable elements, and ink/duck utility classes:
+     ```css
+     html, body,
+     [data-editor-root],
+     [data-editor-root] *,
+     [data-block-id],
+     [data-block-id] *,
+     [contenteditable],
+     div, p, span, li,
+     .text-ink-100, .text-ink-200, .text-ink-300, .text-ink-400, .text-ink-500,
+     .text-duck-100, .text-duck-200, .text-duck-300, .text-duck-400 {
+       color: #0f172a !important;
+     }
+     ```
+   - Maintained all colorful syntax highlighting tokens, callouts, blockquotes, bookmarks, and toggle arrows by defining them with higher-specificity selectors below this universal rule.
+2. **Compact Sleek Cover Banner (`app/globals.css:@media print`)**:
+   - Adjusted `.group\/banner` height in print from `110pt` to `60pt` (`max-height: 60pt !important; margin-bottom: 8pt !important;`), providing a clean, compact header banner that leaves maximum vertical room on Page 1.
+3. **Clean Code Block & Atomic Page-Break Avoidance (`app/globals.css:@media print`)**:
+   - Enforced `break-inside: avoid !important; page-break-inside: avoid !important;` to ensure code blocks never split across page boundaries.
+   - Reset all child container backgrounds to transparent (`[class*="group/codeblk"] * { background-color: transparent !important; }`).
+   - Styled code body with clean `#f8fafc`, top bar with `#f1f5f9` and slate text (`#475569`), line numbers with `#94a3b8` on `#f1f5f9`, and preserved all 12 syntax token colors.
+4. **Clean Light Multi-Column Cards (`app/globals.css:@media print`)**:
+   - Styled `.group\/colcard, [class*="group/colcard"]` with light `#f8fafc` background, `#cbd5e1` border, `break-inside: avoid !important`, `#0f172a` bold title with bottom border, and `#1e293b` body text.
+5. **Clean Light Site Bookmark Cards (`app/globals.css:@media print`)**:
+   - Reset all inner child backgrounds in `[class*="group/siteblk"]` to transparent.
+   - Styled domain/title in `#0f172a` bold and URL in `#0284c7` bright blue.
+6. **Frameless Clean Media Images (`app/globals.css:@media print`)**:
+   - Removed borders, background fills, and shadows from `img` inside `[class*="group/mediablk"]`.
+7. **Table Header & Cell Typography Restoration (`app/globals.css:@media print`)**:
+   - Enforced `color: #0f172a !important; font-weight: 700 !important;` on `th *` and `th [contenteditable]`.
+   - Enforced `color: #1e293b !important; font-weight: normal !important;` on `td *` and `td [contenteditable]`.
+   - Stripped all internal dark backgrounds across `[class*="group/tableblk"] *`.
+8. **Automated Verification**:
+   - All 389 unit tests across 105 suites pass with 0 regressions (`npm test`).
+
+---
+
+## 164. Elimination of Dark Border / Black Frame Around PDF Export & Print Preview
+
+### Problem Statement
+When exporting notes to PDF or opening the browser print preview dialog (`window.print()`), the printed A4 page displayed a thick, solid black / dark border (`rgb(18, 18, 18)` / `#12151e`) framing the entire perimeter of the white page. While the inner document content rendered cleanly on white paper with vibrant callouts, headers, and equations, the outer margins (1.2cm top/bottom, 1.5cm left/right) were pitch black, producing an unsightly black box around every page.
+
+### Root Cause Analysis
+1. **Chromium Canvas Painting in Dark Mode**:
+   - In Chromium / Blink print engine, when a document is in dark theme or has not explicitly declared a light color scheme (`color-scheme: light`), the browser initializes the root printing canvas with the dark canvas background color (`--color-ink-950`: `#12151e`).
+2. **`@page` Margin Box Rendering**:
+   - In CSS Paged Media, `@page { margin: 1.2cm 1.5cm; }` defines margins that sit *outside* the `html` and `body` content box.
+   - While `html` and `body` had `background-color: #ffffff !important`, their layout box only spanned the area inside the margins (`A4 width - 3cm`, `A4 height - 2.4cm`).
+   - The margin perimeter was painted with the root canvas background (`rgb(18, 18, 18)`), creating a 1.5cm black frame on the sides and 1.2cm on the top and bottom.
+3. **Tailwind Dark Variables**:
+   - Tailwind v4's root `--color-ink-950` (`#12151e`) remained active in print media, leaking through utility classes like `.bg-ink-950` on `<body>` and `<div className="flex h-screen ...">`.
+
+### Resolution & Architectural Enhancements
+1. **Enforced Light Color Scheme & Overridden Root Palette (`app/globals.css:@media print`)**:
+   - Declared `color-scheme: light !important` and pure white background on `:root`, `html`, and `body`.
+   - Overrode the neutral ink ramp in `@media print` so `--color-ink-950` resolves to `#ffffff !important` and `--color-ink-900` resolves to `#f8fafc !important`.
+- Explicitly assigned `background-color: #ffffff !important` to `@page`.
+2. **Transparent Container Overrides (`app/globals.css:@media print`)**:
+   - Extended the layout container reset to include `.bg-ink-950`, `[class*="bg-ink-950"]`, `.bg-ink-900`, and `[class*="bg-ink-900"]`, setting them to `background-color: transparent !important; background: transparent !important;`.
+3. **Runtime Print Dialog Canvas Guard (`lib/exportImport.js:exportToPdf`)**:
+   - Added pre-print state guards to `exportToPdf()` setting `document.documentElement.style.colorScheme = "light"`, `document.documentElement.style.backgroundColor = "#ffffff"`, and `document.body.style.backgroundColor = "#ffffff"` immediately prior to triggering `window.print()`, then cleanly restoring the user's active theme afterwards.
+4. **CDP Automated Verification**:
+   - Tested using Chrome DevTools Protocol (`Page.printToPDF` and pixel sampling via `sharp`). Verified that margin pixels transitioned from `rgb(18, 18, 18)` to pure white `rgb(255, 255, 255)` across both page 1 and page 2.
+   - All 389 unit tests across 105 suites pass (`npm test`).
+
+---
+
+## 165. Resolution of Code Snippet Collapse, Global Print Typography Scaling, Table Block Width/Toolbar, and Toggle Block Layout in PDF Export
+
+### Problem Statement
+During PDF export and print preview of rich notes (such as `note_quantum` in the Misc space):
+1. **Code Snippet Failed to Render / Collapsed**: The code block (`qua_code_hermite`) appeared completely blank or crushed into an invisible 26px sliver on the right side of the page.
+2. **Global Font Sizes Too Small**: Global body text (10.5pt), table headers/cells (9pt), toggle details (7.5pt/text-xs), and KaTeX equations were cramped, difficult to read, and lacked visual hierarchy.
+3. **Table Block Printing Flaws**:
+   - Interactive toolbar badge (`▦ Table 4 × 4`) and cell delete buttons (`✕`) were visible in print above the table.
+   - Table rendered with narrow ~60% width with awkward empty whitespace on the right margin instead of spanning 100% of the printable width.
+4. **Toggle Block Printing Flaws**:
+   - The interactive `COLLAPSED` badge was printed directly inline inside the header line.
+   - The toggle title was crushed into a narrow 80px column, forcing words to wrap vertically.
+5. **Media Image Oversizing**: Media images spanned 100% width and took up to 80% of page height, pushing subsequent content onto awkward split pages.
+
+### Root Cause Analysis
+1. **Universal Color Utility Override Collapsed Code Block & Unhid Badges**:
+   - In an earlier attempt to strip dark backgrounds, a CSS rule had assigned `display: block !important; width: 100% !important; flex: none !important;` to `.bg-ink-950, [class*="bg-ink-950"]`.
+   - In the CodeBlock component (`BlockNoteEditor.jsx`), the line numbers gutter has the class `bg-ink-950/60`. The broad selector matched the gutter, forcing it to expand to `100%` width (`756px`). This crushed the adjacent `<pre>` code container into a 26px sliver at `x = 757`.
+   - In the TableBlock component, the top toolbar has `bg-ink-950/80` and in the ToggleBlock component, the `COLLAPSED` badge has `bg-ink-950`. The broad `display: block !important` rule overrode their `print:hidden` classes, making interactive UI chrome visible in print.
+2. **Toggle Title Selector Collided with Badge**:
+   - In `@media print`, `[class*="group/toggleblk"] > div:first-child span:last-child` was targeted as the title. However, the last child span in the DOM was actually the `COLLAPSED` status badge (`<span className="... print:hidden">{block.open === false ? "Collapsed" : "Expanded"}</span>`). This gave the badge `display: block !important` and squeezed the editable title into an 80px column.
+3. **Missing Print Width & Sizing Constraints**:
+   - The table block container lacked explicit `display: table !important; width: 100% !important; min-width: 100% !important;` rules, leaving it constrained by screen-optimized layout.
+   - Media images lacked a `max-height` cap, allowing large images to expand to 100% page width and fill over half an A4 page.
+
+### Resolution & Architectural Enhancements
+1. **Removed Layout Mutators from Color Utility Selectors (`app/globals.css:@media print`)**:
+   - Completely removed `.bg-ink-950, [class*="bg-ink-950"], .bg-ink-900, [class*="bg-ink-900"]` from structural layout reset rules.
+   - Added an authoritative `.print\:hidden, [class*="print:hidden"], [data-print-hidden], .no-print { display: none !important; }` rule.
+2. **Complete Code Block Print Engine (`app/globals.css:@media print`)**:
+   - Outer card: `display: block !important; width: 100% !important; background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; margin: 10pt 0 !important; break-inside: avoid !important;`.
+   - Header banner: `display: flex !important; align-items: center !important; justify-content: space-between !important; background-color: #f1f5f9 !important; border-bottom: 1px solid #cbd5e1 !important; padding: 5pt 10pt !important; width: 100% !important;`.
+   - Gutter: `display: block !important; flex: 0 0 auto !important; width: auto !important; min-width: 2.75rem !important; max-width: 4rem !important; background-color: #f1f5f9 !important; border-right: 1px solid #e2e8f0 !important; color: #94a3b8 !important; padding: 8pt 6pt !important; line-height: 20px !important; font-size: 8.5pt !important; text-align: right !important;`.
+   - Body & `<pre>`: `<pre>` takes `display: block !important; width: 100% !important; font-size: 9.5pt !important; line-height: 20px !important; color: #0f172a !important; white-space: pre-wrap !important; word-break: break-all !important; padding: 8pt 10pt !important;`, preserving all 12 syntax highlighting token colors.
+3. **Global Print Typography Upgrades (`app/globals.css:@media print`)**:
+   - Base text: `html, body` 11.5pt with 1.55 line height.
+   - Note title: 22pt bold with 1.25 line height.
+   - Headings: H1 (20pt), H2 (16pt), H3 (13.5pt), H4 (12pt), paragraphs and lists (11pt).
+   - KaTeX math: Display equations upgraded to 12.5pt (`margin: 8pt 0 !important; text-align: center !important;`), inline equations upgraded to 11.5pt.
+4. **Table Block 100% Width & Clean Print Presentation (`app/globals.css:@media print`)**:
+   - Outer block: `display: block !important; width: 100% !important; max-width: 100% !important; border: none !important; margin: 10pt 0 !important; break-inside: avoid !important;`.
+   - Hide interactive chrome: `[class*="group/tableblk"] button, [class*="group/tableblk"] > div:first-child:not(:last-child), [class*="group/tableblk"] .print\:hidden { display: none !important; }`.
+   - Table grid: `display: table !important; width: 100% !important; min-width: 100% !important; table-layout: auto !important; border: 1.5px solid #cbd5e1 !important; border-radius: 8px !important; border-collapse: separate !important;`.
+   - Headers & cells: Headers in `#f1f5f9` with 10pt bold text and 2px bottom border; cells in `#ffffff` with 9.5pt text and clean 1px borders.
+5. **Toggle Block Single-Line Header & Expanded Details (`app/globals.css:@media print`)**:
+   - Header row: `display: flex !important; flex-direction: row !important; align-items: baseline !important; gap: 4pt !important; width: 100% !important;`.
+   - Removed `span:last-child` from title selector. Targeted `[contenteditable], div[class*="font-semibold"], h1, h2, h3, h4` with `flex: 1 1 auto !important; width: 100% !important; font-size: 12pt !important; font-weight: 700 !important;`.
+   - Strictly hid collapsed/expanded status badges and arrow button via `display: none !important;`.
+   - Details container: `.toggle-print-details { font-size: 10.5pt !important; line-height: 1.6 !important; border-left: 3px solid #cbd5e1 !important; padding: 4pt 0 4pt 10pt !important; color: #1e293b !important; }`.
+6. **Media Image Proportional Constraint (`app/globals.css:@media print`)**:
+   - Added `max-height: 180pt !important; object-fit: contain !important; margin: 0 auto !important; display: block !important;` to prevent media blocks from dominating entire pages.
+7. **Automated Verification**:
+   - All 389 unit tests pass with 0 failures (`npm test`).
+   - Verified via Chrome DevTools Protocol (CDP) on the live Next.js production build:
+     - Code block: `<pre>` rendered at full `694.7px` width with 23 lines of code and syntax colors.
+     - Table: Spanned full `738.8px` width; toolbar badge and column delete buttons verified hidden (`display: none`).
+     - Toggle: Title rendered on a single `697.5px` wide line with 12pt font; collapsed badge verified hidden (`display: none`).
+     - All 6 pages rendered to PNG and visually verified.
+
+---
+
+## 166. Toggle Block Realignment, Dynamic Auto-Expanding Details, Clickable Status Badge & Print Indentation Polish
+
+### Problem Statement
+Users identified visual and interaction defects with toggle dropdown blocks (`type === "toggle"`) across both the interactive web workspace editor (`components/BlockNoteEditor.jsx`) and the print/PDF export engine (`app/globals.css`, `lib/exportImport.js`):
+1. **Vertical Chevron & Badge Misalignment on Multi-Line Titles**:
+   - The toggle header flex row utilized `items-center`. When a toggle block title wrapped across 2 or 3 lines (e.g. *"Quantum Harmonic Oscillator Ladder Operators (Creation & Annihilation)"*), `items-center` vertically centered both the 24px toggle button (`▶`/`▼`) and the status badge (`COLLAPSED`/`EXPANDED`) at the 50% midpoint (on line 2). The chevron appeared disconnected between lines 1 and 2 instead of neatly anchoring to the first line.
+2. **Fixed-Height Details Textarea with Internal Scrollbar & Clipped Content**:
+   - In expanded state, the interactive details `<textarea>` had a fixed `rows={3}` with `min-h-[3rem]` and `resize-y`. Multi-line explanations (e.g., equations, formulas, or multi-paragraph deep dives) were truncated behind an internal vertical scrollbar and obscured by a bottom-right resize grip.
+3. **Contradictory Arrow Direction in PDF / Print Export**:
+   - The print arrow marker in the DOM was hardcoded to `▶` (right-facing triangle = collapsed), even though in PDF export all toggle details are unconditionally expanded and rendered below the title.
+4. **Flush Print Details Border Alignment**:
+   - In `@media print`, `.toggle-print-details` had `margin-left: 0 !important; border-left: 3px solid #cbd5e1 !important;`. The left accent line was pinned to the container's left edge directly below the disclosure arrow rather than indenting naturally under the title text.
+5. **Static Non-Clickable Status Badge**:
+   - The `[COLLAPSED]` / `[EXPANDED]` status badge was rendered as a static `<span>` with no click handler or interactive hover feedback, forcing users to click only the small 24px chevron icon to toggle.
+6. **Enter Key Navigation on Toggle Header**:
+   - Pressing Enter at the end of a toggle heading failed to step into the details textarea, requiring manual mouse clicks to focus the content area.
+
+### Root Cause Analysis
+- `components/BlockNoteEditor.jsx`:
+  - The toggle header wrapper had `<div className="flex items-center gap-2 print:gap-1">`. Flex `items-center` computes alignment against the full multi-line height of the contentEditable element.
+  - The `<textarea>` lacked auto-expansion logic; without adjusting `style.height = scrollHeight + "px"`, standard textareas adhere strictly to their `rows` or CSS height constraints.
+  - Hardcoded `▶` in `<span className="hidden print:inline-block ...">▶</span>`.
+  - Enter key handler in `BlockRow` inherited `block.type` (`nextType = "toggle"`), attempting to create another toggle block rather than focusing the details textarea or creating a text paragraph.
+- `app/globals.css`:
+  - `.toggle-print-details` had `margin-left: 0 !important;` which positioned the border flush against the left boundary.
+
+### Resolution & Architectural Enhancements
+1. **Top Alignment with Fine-Tuned Baseline Offset (`components/BlockNoteEditor.jsx`)**:
+   - Replaced `items-center` with `items-start` on the toggle header flex container (`<div className="flex items-start gap-2 print:gap-1">`).
+   - Added `mt-0.5` to the 24px chevron button and status badge, perfectly centering both controls against the 24px line-height of the first line of text regardless of how many lines the heading wraps.
+2. **Dynamic Auto-Expanding Textarea Engine (`components/BlockNoteEditor.jsx`)**:
+   - Bound `toggleTextareaRef` to the interactive details `<textarea>`.
+   - Added a `useEffect` and `onChange` handler that calculates `Math.max(48, el.scrollHeight) + 'px'` on mount, block open transition, and user input.
+   - Styled with `resize-none overflow-hidden min-h-[3rem]` to eliminate unsightly scrollbars and corner grips.
+3. **Interactive Clickable Status Badge (`components/BlockNoteEditor.jsx`)**:
+   - Converted the badge from a static `<span>` into a semantic `<button>` with `cursor-pointer`, `hover:border-duck-500/40`, `hover:text-duck-300`, and `onClick` toggling between collapsed and expanded states.
+4. **Print Arrow & Indentation Alignment (`components/BlockNoteEditor.jsx`, `app/globals.css`, `lib/exportImport.js`)**:
+   - Updated print disclosure arrow from `▶` to `▼` (in `BlockNoteEditor.jsx` line 4605 and `lib/exportImport.js` Word docx export) to accurately reflect the unfolded state of the details.
+   - Updated `@media print` `.toggle-print-details` to `margin-left: 14pt !important;` so the 3px accent border aligns cleanly under the title text.
+5. **Intelligent Enter Key Navigation (`components/BlockNoteEditor.jsx:handleKeyDown`)**:
+   - Added special handling for Enter on toggle headings: when the caret is at the end of the heading, pressing Enter automatically opens the toggle (if collapsed) and focuses the details `<textarea>` at offset `(0, 0)`.
+   - When splitting a heading, `nextType` defaults to a clean `"text"` paragraph block.
+6. **Automated & Visual Verification**:
+   - All 389 unit tests pass across 105 test suites (`npm test`).
+   - Verified via Chrome DevTools Protocol (CDP) on the live Next.js production build (`http://localhost:3000/workspace`):
+     - Collapsed state: chevron and badge anchor cleanly to line 1 of multi-line title.
+     - Expanded state: all 6 lines of details render with zero internal scrollbars or text clipping.
+     - Badge clickability verified: clicking the badge toggles between collapsed and expanded.
+     - Print PDF view verified: amber `▼` disclosure icon and `14pt` indented left border verified.
+
+---
+
+## 167. Callout Box Clean Plain White Background & Color De-Saturation in PDF / Print Export
+
+### Problem Statement
+Users requested that Callout blocks in PDF / Print export return to a clean, minimal design without saturated accent colors:
+- The callout had previously been styled with an amber/yellow theme (`border: 1px solid #fde68a`, `border-left: 3.5pt solid #f59e0b`, `background-color: #fffbeb`, and `color: #78350f`).
+- The user requested: *"just keep it back to normal, just the emoji and then the text in plain white background no need excessive colours anymore"*.
+
+### Root Cause Analysis
+- In `app/globals.css:@media print`, Section 12 had assigned saturated amber background `#fffbeb`, dual-tone yellow/orange borders, and brown text color `#78350f` to `.callout`, `[class*="group/calloutblk"]`, and child text elements.
+
+### Resolution & Architectural Enhancements
+1. **Neutral Light Background & Border (`app/globals.css:@media print`)**:
+   - Replaced saturated background `#fffbeb` with plain white (`background-color: #ffffff !important; background: #ffffff !important;`).
+   - Removed the thick 3.5pt orange left accent border and yellow outline in favor of a clean, uniform neutral border (`border: 1px solid #e2e8f0 !important; border-radius: 6pt !important;`).
+   - Maintained flex row layout (`display: flex !important; flex-direction: row !important; align-items: flex-start !important; gap: 8pt !important;`) with 8pt/12pt padding.
+2. **Solid Dark Body Text (`app/globals.css:@media print`)**:
+   - Reset text color from brown `#78350f` to standard print body text (`color: #0f172a !important;`).
+3. **Clean Emoji Presentation (`app/globals.css:@media print`)**:
+   - Kept the callout emoji intact with native multi-color font stack (`"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`).
+4. **Automated & Visual Verification**:
+   - All 389 unit tests pass (`npm test`).
+   - Production build compiled successfully (`npm run build`).
+   - Verified via Chrome DevTools Protocol (CDP) print emulation: captured `current_callout_print.png` showing the callout with plain white background, clean neutral border, crisp `#0f172a` text, and prominent emoji.

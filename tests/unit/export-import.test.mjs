@@ -43,20 +43,32 @@ describe("Multi-Format Export & Import Engine (lib/exportImport.js)", () => {
         hasHeaderRow: true,
       },
     },
+    {
+      id: "b19",
+      type: "columns",
+      columnCount: 2,
+      columnsData: [
+        { id: "c1", title: "Copenhagen", content: "Wavefunction collapses." },
+        { id: "c2", title: "Many-Worlds", content: "Wavefunction branches." },
+      ],
+    },
   ];
 
   describe("filterBlocksForExport", () => {
-    it("converts canvas and site blocks into standard representations while preserving toggles", () => {
+    it("omits deprecated canvas blocks and normalizes site and column blocks while preserving toggles", () => {
       const filtered = filterBlocksForExport(sampleBlocks);
       assert.ok(Array.isArray(filtered));
-      assert.ok(filtered.length >= sampleBlocks.length);
 
-      const canvasBlock = filtered.find((b) => b.content.includes("[Canvas] – Qubit Bloch Sphere Diagram"));
-      assert.ok(canvasBlock, "Canvas block should be represented as a clean badge");
+      const canvasBlock = filtered.find((b) => b.type === "canvas" || (b.content && b.content.includes("Qubit Bloch Sphere Diagram")));
+      assert.strictEqual(canvasBlock, undefined, "Canvas block should be omitted from export");
 
       const toggleBlock = filtered.find((b) => b.type === "toggle" && b.content === "What is decoherence?");
       assert.ok(toggleBlock, "Toggle block should pass through as a native toggle");
       assert.ok(toggleBlock.details.includes("loss of quantum coherence"), "Toggle details should be preserved");
+
+      const colBlock = filtered.find((b) => b.type === "columns");
+      assert.ok(colBlock, "Columns block should pass through");
+      assert.strictEqual(colBlock.columnsData.length, 2);
     });
   });
 
@@ -194,7 +206,7 @@ describe("Multi-Format Export & Import Engine (lib/exportImport.js)", () => {
   });
 
   describe("Plain Text Serialization (AI Context Prompt Feed)", () => {
-    it("converts blocks to clean formatted plain text with sequential numbers and code delimiters", () => {
+    it("converts blocks to clean formatted plain text with sequential numbers, columns, and code delimiters", () => {
       const txt = blocksToPlainText(sampleBlocks, "Quantum Note");
       assert.ok(txt.includes("1. Prepare initial state"));
       assert.ok(txt.includes("2. Apply Hadamard transformation"));
@@ -203,10 +215,16 @@ describe("Multi-Format Export & Import Engine (lib/exportImport.js)", () => {
       assert.ok(txt.includes("[ ] Simulate Grover search in Python"));
       assert.ok(txt.includes("--- CODE (python) ---"));
       assert.ok(txt.includes("▶ What is decoherence?"));
+      assert.ok(txt.includes("[COLUMN: Copenhagen]"));
+      assert.ok(txt.includes("Wavefunction collapses."));
+      assert.ok(txt.includes("[COLUMN: Many-Worlds]"));
+      assert.ok(txt.includes("Wavefunction branches."));
+      assert.ok(txt.includes('"If you think you understand quantum mechanics, you don\'t."'));
+      assert.ok(!txt.includes('""If you think'));
     });
 
-    it("parses plain text code blocks and list lines into structured editor blocks", () => {
-      const txt = "First line\n--- CODE (python) ---\ndef solve():\n    return 42\n------------\n• Bullet one\n[x] Done task";
+    it("parses plain text code blocks, columns, and list lines into structured editor blocks", () => {
+      const txt = "First line\n--- CODE (python) ---\ndef solve():\n    return 42\n------------\n• Bullet one\n[x] Done task\n[COLUMN: Left]\nLeft body\n[COLUMN: Right]\nRight body";
       const blocks = tryParsePlainTextToBlocks(txt);
       assert.ok(blocks.length >= 4);
       assert.strictEqual(blocks[0].content, "First line");
@@ -216,6 +234,11 @@ describe("Multi-Format Export & Import Engine (lib/exportImport.js)", () => {
       assert.ok(codeBlock.content.includes("def solve():"));
       const todoBlock = blocks.find((b) => b.type === "todo");
       assert.ok(todoBlock && todoBlock.checked);
+      const colBlock = blocks.find((b) => b.type === "columns");
+      assert.ok(colBlock);
+      assert.strictEqual(colBlock.columnsData.length, 2);
+      assert.strictEqual(colBlock.columnsData[0].title, "Left");
+      assert.strictEqual(colBlock.columnsData[0].content, "Left body");
     });
   });
 
@@ -225,6 +248,22 @@ describe("Multi-Format Export & Import Engine (lib/exportImport.js)", () => {
       assert.ok(blob instanceof Blob);
       assert.ok(blob.size > 1000, "DOCX Blob should have substantial binary content");
       assert.strictEqual(blob.type, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    });
+
+    it("handles multi-line toggle details and strips dollar delimiters from math and inlinemath", async () => {
+      const blocksWithDelimiters = [
+        {
+          id: "t1",
+          type: "toggle",
+          content: "Bell State Basis",
+          details: "Bell states represent maximally entangled states:\n\n|Φ⁺⟩ = 1/√2 (|00⟩ + |11⟩)\n|Φ⁻⟩ = 1/√2 (|00⟩ - |11⟩)",
+        },
+        { id: "m1", type: "math", content: "$$\\hat{H}\\Psi = E\\Psi$$" },
+        { id: "im1", type: "inlinemath", content: "$E = mc^2$" },
+      ];
+      const blob = await blocksToDocxBlob(blocksWithDelimiters, "Math Note", "📐");
+      assert.ok(blob instanceof Blob);
+      assert.ok(blob.size > 500);
     });
   });
 

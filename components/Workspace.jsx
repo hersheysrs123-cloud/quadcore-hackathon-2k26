@@ -214,9 +214,6 @@ export default function Workspace() {
       } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
         toggleZenMode();
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t") {
-        e.preventDefault();
-        setStudyKind((prev) => (prev === "tutor" ? null : "tutor"));
       } else if (e.key === "Escape" && isZenMode) {
         setIsZenMode(false);
       }
@@ -1154,7 +1151,7 @@ export default function Workspace() {
         {!isZenMode && (
           <header className="no-print relative z-[60] flex h-13 shrink-0 items-center justify-between gap-3 border-b border-ink-800 bg-ink-900 px-4 sm:px-5 transition-colors duration-200 shadow-sm">
             {/* Left Breadcrumb & Sidebar Toggle & History Controls */}
-            <div className="flex items-center gap-2 text-sm text-ink-400 min-w-0 max-w-[36%] sm:max-w-[44%]">
+            <div className="flex items-center gap-2 text-sm text-ink-400 min-w-0 max-w-[calc(50%-135px)] sm:max-w-[calc(50%-145px)]">
               <button
                 type="button"
                 onClick={() => setSidebarOpen((prev) => !prev)}
@@ -1232,8 +1229,8 @@ export default function Workspace() {
               </div>
             </div>
 
-            {/* Center Space-Specific Study Tabs (Notes, Quizzes, Mastery) */}
-            <nav className="flex items-center gap-1 rounded-xl bg-ink-950 p-1 border border-ink-800 shadow-inner shrink-0">
+            {/* Center Space-Specific Study Tabs (Notes, Quizzes, Mastery) - Mathematically Centered */}
+            <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-1 rounded-xl bg-ink-950 p-1 border border-ink-800 shadow-inner shrink-0 pointer-events-auto">
               <button
                 type="button"
                 onClick={() => setActiveTab("notes")}
@@ -1278,7 +1275,7 @@ export default function Workspace() {
             </nav>
 
             {/* Right Action Bar: Save Status, Socratic Duck Triggers, 3-dots Note Menu & Zen Mode */}
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 ml-auto">
               {saveStatus && (
                 <span className="hidden md:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 animate-fade-in mr-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -1295,15 +1292,15 @@ export default function Workspace() {
                     openStudy("tutor", null);
                   }
                 }}
-                title="AI Tutor: Ask doubts and get step-by-step guidance (Ctrl+Shift+T)"
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                title="AI Tutor: Ask doubts and get step-by-step guidance"
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg border p-1.5 xl:px-2.5 xl:py-1.5 text-xs font-semibold transition-all ${
                   studyKind === "tutor"
                     ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 shadow-xs"
                     : "border-ink-700 bg-ink-850/60 text-ink-200 hover:border-emerald-500/50 hover:text-emerald-300 hover:bg-ink-800"
                 }`}
               >
                 <span>🧑‍🏫</span>
-                <span className="hidden sm:inline">AI Tutor</span>
+                <span className="hidden xl:inline">AI Tutor</span>
               </button>
 
               <button
@@ -1314,10 +1311,10 @@ export default function Workspace() {
                   openStudy("explain", null);
                 }}
                 title={activeNoteObj ? "Explain this note with AI" : "Create or select a note to explain"}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850/50 px-2.5 py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:pointer-events-none"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850/50 p-1.5 xl:px-2.5 xl:py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:pointer-events-none"
               >
                 <span>✨</span>
-                <span className="hidden md:inline">Explain</span>
+                <span className="hidden xl:inline">Explain</span>
               </button>
 
               <button
@@ -1328,10 +1325,10 @@ export default function Workspace() {
                   openStudy("quiz", null);
                 }}
                 title={activeNoteObj ? "Quiz me on this note" : "Create or select a note to quiz"}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-2.5 py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 p-1.5 xl:px-2.5 xl:py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
               >
                 <span>🦆</span>
-                <span className="hidden md:inline">Quiz me</span>
+                <span className="hidden xl:inline">Quiz me</span>
               </button>
 
               {/* 3-Dots Note Menu (Only 3 dots, no text) */}
