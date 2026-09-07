@@ -20,6 +20,7 @@ import {
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { mediumColour, mediumName } from "@/components/visualizations/media";
+import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 
 // ─── IGCSE Physics · five scenes ────────────────────────────────────
 // Refraction, the motor effect, thin lenses, electromagnetic induction
@@ -3166,6 +3167,7 @@ const SCENES = {
   projectile: ProjectileScene,
   interference: InterferenceScene,
   orbits: OrbitScene,
+  shadows: ShadowLabCanvas,
 };
 
 export default function PhysicsCanvas({ topicId, params, setParam, onOpenQuiz }) {

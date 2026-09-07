@@ -10,6 +10,7 @@
 
 import {
   Aperture,
+  Eye,
   ArrowUpDown,
   Atom,
   AudioWaveform,
@@ -21,6 +22,7 @@ import {
   FlaskConical,
   GitBranch,
   Hexagon,
+  Lightbulb,
   Magnet,
   Microscope,
   Orbit,
@@ -556,6 +558,52 @@ export const TOPICS = [
     ],
   },
   // ═══ Chemistry ═════════════════════════════════════════════════════
+  {
+    id: "shadows",
+    category: "physics",
+    icon: Lightbulb,
+    title: "Light, Shadows & Straight Lines",
+    blurb: "A torch, a shape and a screen — why shadows have the size and sharpness they do",
+    syllabus: "Physics · Primary Science · Light",
+    keywords:
+      "light shadow straight lines rectilinear propagation opaque translucent transparent umbra penumbra point source shadow size magnification torch screen silhouette blocking light primary school",
+    ownHud: true,
+    defaults: {},
+    controls: [],
+    concepts: [
+      "Light only ever travels in straight lines. A shadow is simply the place a straight ray could not reach — which is why the shadow's outline is exactly the object's outline, stretched, and never bends around the sides.",
+      "Move the torch closer to the object and the shadow grows; move the screen further back and it grows too. Both follow from one rule: the shadow is (torch→screen) ÷ (torch→object) times life size.",
+      "What the object is made of decides how dark the shadow is. Opaque blocks every ray and gives a black shadow, translucent lets some through for a pale grey one, and transparent lets nearly all of them past so there is barely a shadow at all.",
+    ],
+    quiz: [
+      {
+        question:
+          "A torch shines on a toy, casting a shadow on the wall behind it. You move the torch closer to the toy without moving anything else. What happens to the shadow?",
+        options: [
+          "It gets bigger",
+          "It gets smaller",
+          "It stays exactly the same size",
+          "It disappears completely",
+        ],
+        answer: 0,
+        explanation:
+          "The rays leaving a nearby torch spread apart more steeply by the time they reach the wall, so the gap they leave is wider. The shadow is (torch→wall) ÷ (torch→toy) times life size, and moving the torch closer shrinks the bottom of that fraction — so the shadow grows.",
+      },
+      {
+        question:
+          "A sheet of frosted glass is held in the beam. What sort of shadow does it cast, and why?",
+        options: [
+          "A pale, faint shadow, because it lets some of the light straight through",
+          "A completely black shadow, because it is solid",
+          "No shadow at all, because glass is see-through",
+          "A shadow with a bright spot in the middle",
+        ],
+        answer: 0,
+        explanation:
+          "Frosted glass is translucent: some light passes and some is blocked or scattered. Fewer rays reach the screen there than around it, so the patch is dimmer than its surroundings but nowhere near black.",
+      },
+    ],
+  },
   {
     id: "bohr",
     category: "chemistry",
@@ -1167,6 +1215,52 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "The i to i+4 hydrogen bond is what defines the α-helix. That spacing sets the pitch of the spiral at 3.6 residues per turn and a rise of 0.54 nm. Bonds between neighbouring strands are what hold a β-sheet together instead.",
+      },
+    ],
+  },
+  {
+    id: "eye",
+    category: "biology",
+    icon: Eye,
+    title: "The Human Eye — Accommodation & Pupil Reflex",
+    blurb: "Cutaway eyeball with live ray tracing, a deforming lens, and the iris reflex",
+    syllabus: "Biology 2.4 · Coordination & Response",
+    keywords:
+      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight long sight aqueous vitreous humour",
+    ownHud: true,
+    defaults: {},
+    controls: [],
+    concepts: [
+      "Focusing on something NEAR is the active state, and it runs backwards from most people's intuition: the ciliary muscle CONTRACTS, which slackens the suspensory ligaments it was pulling on, and the freed lens springs back to its naturally fat, highly curved shape.",
+      "For a distant object the ciliary muscle relaxes and widens, pulling the zonules taut and stretching the lens thin and flat. Less curvature means less refraction — which is all that is needed, because rays from far away arrive almost parallel.",
+      "The iris works two antagonistic muscles: circular sphincter fibres constrict the pupil in bright light to protect the photoreceptors, and radial dilator fibres pull it open in the dark to gather more light.",
+    ],
+    quiz: [
+      {
+        question:
+          "You look up from a book to a tree on the horizon. What happens to the ciliary muscle and the suspensory ligaments?",
+        options: [
+          "Ciliary muscle relaxes; ligaments become taut",
+          "Ciliary muscle contracts; ligaments become taut",
+          "Ciliary muscle relaxes; ligaments become slack",
+          "Ciliary muscle contracts; ligaments become slack",
+        ],
+        answer: 0,
+        explanation:
+          "Distance vision is the resting state. The ciliary ring relaxes and so widens, which pulls the zonules taut, and the taut zonules stretch the lens thin. A thin lens refracts weakly — exactly right for rays that are already nearly parallel.",
+      },
+      {
+        question:
+          "Someone holds a page 15 cm away but their lens stays fully relaxed. Where does the image form, and why?",
+        options: [
+          "Behind the retina, because the lens is not curved enough to converge the diverging rays in time",
+          "In front of the retina, because the relaxed lens is too powerful",
+          "On the retina, because the cornea does all the focusing",
+          "Behind the retina, because the pupil has constricted",
+        ],
+        answer: 0,
+        explanation:
+          "Rays from 15 cm away diverge strongly and need about 6.7 D of extra power. Without accommodation the eye is still set for infinity, so the rays have not converged by the time they reach the retina and cross behind it — each point of the page paints a blur circle instead.",
       },
     ],
   },
