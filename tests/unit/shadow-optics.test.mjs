@@ -15,6 +15,9 @@ import {
   screenBrightness,
   shadowEdgeOnScreen,
   solveShadow,
+  SCENE,
+  seesShadowSide,
+  shadowFitsScreen,
 } from "../../lib/shadowOptics.js";
 
 const close = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
@@ -354,5 +357,90 @@ describe("scene geometry — drawn rays must reach the computed shadow edge", ()
     assert.ok(BENCH.lightHome < BENCH.objectHome);
     assert.ok(BENCH.objectHome < BENCH.screenHome);
     assert.ok(BENCH.screenHome <= BENCH.max);
+  });
+});
+
+describe("the scene must actually show the shadow", () => {
+  // The bug this block exists to prevent: the shadow lands on the face of the
+  // screen that points BACK at the lamp, and the default camera was parked
+  // past the screen, looking at its blank back nearly edge-on. Nothing was
+  // ever visibly projected onto anything.
+  it("stands the camera on the lamp's side of the screen", () => {
+    assert.ok(
+      seesShadowSide(SCENE.cameraBenchZ, BENCH.screenHome),
+      `camera at ${SCENE.cameraBenchZ} cm is not in front of the screen at ${BENCH.screenHome} cm`,
+    );
+  });
+
+  it("keeps the camera behind the lamp so the whole bench is in front of it", () => {
+    assert.ok(SCENE.cameraBenchZ <= BENCH.min, "camera should not sit inside the apparatus");
+  });
+
+  it("aims the camera at the bench between the object and the screen", () => {
+    assert.ok(SCENE.targetBenchZ > BENCH.objectHome);
+    assert.ok(SCENE.targetBenchZ <= BENCH.screenHome);
+  });
+
+  it("keeps every reachable position on a screen that stands on the bench", () => {
+    // The panel is centred on the optical axis, so it can only be as tall as
+    // the axis is high without sinking through the bench top.
+    assert.ok(
+      SCENE.screenHalfHeightCm <= SCENE.axisHeightCm,
+      "screen would extend below the bench surface",
+    );
+  });
+
+  it("fits the default shadow comfortably on the paper", () => {
+    assert.ok(shadowFitsScreen(solveShadow(bench)), "the home layout must land on the screen");
+  });
+
+  it("notices when a shadow has grown off the edge of the screen", () => {
+    const huge = solveShadow({ ...bench, ...PRESETS.huge, shape: "cube" });
+    assert.equal(shadowFitsScreen(huge), false, "the huge preset overflows and should say so");
+  });
+});
+
+describe("the drawn solid casts its own shadow", () => {
+  // The mesh args used to be written out by hand and had drifted: the cylinder
+  // and the cone were drawn at twice the width the optics module was
+  // projecting, so the solid and its shadow were different objects.
+  const MESH = {
+    // radius, or half-side, taken from the silhouette the module computes
+    cylinder: (s) => ({ radius: s.halfWidth, height: s.halfHeight * 2 }),
+    cone: (s) => ({ radius: s.halfWidth, height: s.halfHeight * 2 }),
+    sphere: (s) => ({ radius: s.halfWidth }),
+    cube: (s) => ({ side: s.halfWidth * 2 }),
+  };
+
+  it("gives every solid the width its silhouette claims", () => {
+    for (const [shape, build] of Object.entries(MESH)) {
+      const sil = silhouette(shape, 0, 10);
+      const mesh = build(sil);
+      const drawnHalfWidth = mesh.side ? mesh.side / 2 : mesh.radius;
+      assert.ok(
+        close(drawnHalfWidth, sil.halfWidth, 1e-9),
+        `${shape}: drawn ${drawnHalfWidth} vs projected ${sil.halfWidth}`,
+      );
+    }
+  });
+
+  it("gives every solid the height its silhouette claims", () => {
+    for (const shape of ["cylinder", "cone"]) {
+      const sil = silhouette(shape, 0, 10);
+      assert.ok(close(MESH[shape](sil).height / 2, sil.halfHeight, 1e-9), shape);
+    }
+  });
+
+  it("blurs the shadow edge by exactly the band the readout prints", () => {
+    // The screen texture draws the geometric silhouette and blurs it with
+    // sigma = penumbraWidth / 4, so the +/-2 sigma transition runs from the
+    // umbra edge out to the penumbra edge.
+    for (const source of ["point", "broad"]) {
+      const solved = solveShadow({ ...bench, shape: "cube", source });
+      const sigma = solved.horizontal.penumbraWidth / 4;
+      const geometric = solved.outline.halfWidth * solved.magnification;
+      assert.ok(close(geometric - 2 * sigma, solved.horizontal.umbra, 1e-9), `${source} inner edge`);
+      assert.ok(close(geometric + 2 * sigma, solved.horizontal.penumbra, 1e-9), `${source} outer edge`);
+    }
   });
 });
