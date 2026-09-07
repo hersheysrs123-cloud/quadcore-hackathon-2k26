@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseMathSegments } from "../../lib/mathUtils.js";
-import { renderKatexToStringMemoized } from "../../lib/editorCaret.js";
+import { parseMathSegments, sanitizeMathText } from "../../lib/mathUtils.js";
+import { renderKatexToStringMemoized, KATEX_GLOBAL_MACROS } from "../../lib/editorCaret.js";
+import { repairJsonLatexEscapes } from "../../lib/gemini.js";
 
 describe("MathText & LaTeX Quiz Rendering Subsystem", () => {
   it("returns plain text unchanged when no math patterns are present", () => {
@@ -82,5 +83,71 @@ describe("MathText & LaTeX Quiz Rendering Subsystem", () => {
     // Malformed syntax fallback without throwing exception
     const brokenHtml = renderKatexToStringMemoized("\\frac{broken", { displayMode: false });
     assert.ok(brokenHtml); // Produces safe fallback without crashing
+  });
+
+  it("extracts bare \\frac inside prose without delimiters into inline math", () => {
+    const text = "The formula for acceleration is \\frac{\\Delta v}{\\Delta t}, where \\Delta v is velocity change.";
+    const segments = parseMathSegments(text);
+
+    assert.strictEqual(segments[0].type, "text");
+    assert.strictEqual(segments[0].content, "The formula for acceleration is ");
+    assert.strictEqual(segments[1].type, "inline_math");
+    assert.strictEqual(segments[1].content, "\\frac{\\Delta v}{\\Delta t}");
+    assert.strictEqual(segments[2].type, "text");
+    assert.strictEqual(segments[2].content, ", where ");
+    assert.strictEqual(segments[3].type, "inline_math");
+    assert.strictEqual(segments[3].content, "\\Delta v");
+    assert.strictEqual(segments[4].type, "text");
+    assert.strictEqual(segments[4].content, " is velocity change.");
+
+    // Render the extracted math segment to verify it renders without error
+    const fracHtml = renderKatexToStringMemoized(segments[1].content);
+    assert.ok(fracHtml.includes("frac-line"));
+    assert.ok(!fracHtml.includes("ParseError"));
+  });
+
+  it("heals and renders \\ext as \\text without KaTeX error", () => {
+    const text = "The unit is \\ext{m/s}^2 for acceleration.";
+    const segments = parseMathSegments(text);
+
+    // Verify \\ext was normalized
+    assert.ok(segments.some((s) => s.type === "inline_math" && s.content.includes("\\text{m/s}^2")));
+
+    // Verify KaTeX global macro renders \\ext{hello} cleanly
+    assert.strictEqual(KATEX_GLOBAL_MACROS["\\ext"], "\\text{#1}");
+    const extHtml = renderKatexToStringMemoized("\\ext{meters}", { displayMode: false });
+    assert.ok(extHtml.includes("meters"));
+    assert.ok(!extHtml.includes("color:#cc0000")); // No red KaTeX error
+  });
+
+  it("heals JSON-escaped control character corruptions (form-feed \\frac and tab \\text)", () => {
+    // Single-backslash JSON parsing turns \f into \u000c and \t into \u0009
+    const corruptedInput = "Formula is \u000crac{dy}{dx} and unit is \u0009ext{kg}.";
+    const sanitized = sanitizeMathText(corruptedInput);
+    assert.strictEqual(sanitized, "Formula is \\frac{dy}{dx} and unit is \\text{kg}.");
+
+    const segments = parseMathSegments(corruptedInput);
+    assert.ok(segments.some((s) => s.type === "inline_math" && s.content === "\\frac{dy}{dx}"));
+    assert.ok(segments.some((s) => s.type === "inline_math" && s.content === "\\text{kg}"));
+  });
+
+  it("repairs raw wire JSON with single-backslash LaTeX keywords before JSON.parse", () => {
+    const rawWire = '{"tldr": "Formula is \\frac{a}{b} and \\text{test}."}';
+    const repaired = repairJsonLatexEscapes(rawWire);
+    const parsed = JSON.parse(repaired);
+
+    // Characters should be literal backslash + 'f' and backslash + 't', NOT \u000c or \u0009
+    assert.ok(parsed.tldr.includes("\\frac{a}{b}"));
+    assert.ok(parsed.tldr.includes("\\text{test}"));
+    assert.ok(!parsed.tldr.includes("\u000c"));
+    assert.ok(!parsed.tldr.includes("\u0009"));
+  });
+
+  it("handles mixed delimited math and bare LaTeX in the same prose string", () => {
+    const text = "Given $v_0 = 0$, we have \\frac{\\Delta x}{\\Delta t} = \\bar{v}.";
+    const segments = parseMathSegments(text);
+
+    assert.ok(segments.some((s) => s.type === "inline_math" && s.content === "v_0 = 0"));
+    assert.ok(segments.some((s) => s.type === "inline_math" && s.content === "\\frac{\\Delta x}{\\Delta t}"));
   });
 });

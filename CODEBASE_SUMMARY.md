@@ -239,7 +239,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
   - **Full Width**: Notion-style toggle switch row under "Move to Space" in NoteMenu switching the document layout between standard reading column (`max-w-3xl px-10`) and edge-to-edge canvas (`w-full max-w-none px-6 md:px-12`). Persists per-note via `fullWidth: boolean`.
   - **Lock Page**: Notion-style toggle switch row under "Full width" making the document strictly read-only (`isLocked: boolean`). When active: renders a subtle top-right lock icon button (under top bar) with an instant "Unlock" action and tooltip, sets title input to `readOnly`, hides header action strips and banner controls, disables icon changes, sets `contentEditable={false}` across all blocks and table cells, hides gutter drag/delete buttons, and disables right-click and slash menus.
 - **Real-Time Note Stats**: NoteMenu calculates total characters, total words, total blocks, and estimated reading time across all block contents, toggle details, and math formulas.
-- **Auto-Instantiation & Click-to-Append**: Typing inside an empty space automatically instantiates a note. Clicking blank space below the editor appends a new block.
+- **Auto-Instantiation & Click-to-Append**: Typing inside an empty space automatically instantiates a note. When `clickToAppend` is enabled, clicking blank space strictly below the last block in bottom whitespace appends a new block or focuses the last empty block; clicking in the outer sides of the screen or lateral padding beside blocks is strictly disabled from appending or focusing.
 - **Debounced Auto-Save & Unmount Flush Engine**:
   - All block mutations (`handleChange`, `handleSmartPaste`, `handleAddAfter`, `handleDeleteBlock`, `handleMoveBlock`, `handleDuplicateBlock`, `handleChangeType`, table cell edits, math updates, banner, font style, fullWidth, isLocked, and emoji adjustments) automatically trigger a 400ms debounced save (`triggerDebouncedSave`).
   - `performSave` packages complete note payloads (`id`, `spaceId`, `title`, `blocks`, `banner`, `fontStyle`, `fullWidth`, `isLocked`, `isFavorite`, `emoji`).
@@ -249,6 +249,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
   - Document-anchored selection box (`absolute` coordinate space) with 60/120fps `requestAnimationFrame` loop.
   - Continuous edge proximity auto-scrolling (up to 35px/frame) allowing seamless selection across long notes far beyond the viewport.
   - Batch intersection calculations and set equality state caching for zero-lag drag performance.
+  - Re-entrance and marquee completion guards (`justFinishedMarquee` and `lastWhitespaceClickHandledTime`) preventing synthetic mouseup clicks on the side margin from clearing multi-block lasso selections.
 
 ---
 
@@ -256,6 +257,16 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 - **Streamlined Dual-Level Navigation Architecture** (`components/Workspace.jsx` & `components/Sidebar.jsx`):
   - **Top Header (Space-Specific Study Suite)**: Dedicated strictly to the space-filtered views: 📝 **Notes**, 🎯 **Quizzes Studio**, and 📊 **Mastery Dashboard** (with active gap count badge). Clean breadcrumb indicating current space and open note title (or `Space Hub · {activeSpace}`).
   - **Sidebar (Global Workspace Tools, Space Switcher & Space Hub)**: Houses system-wide tools in a compact 4-column icon grid (Instant Note `⚡`, 🌌 3D Simulations, 📅 Calendar with `GlobalTimerHUD`, and 🔖 Web Saver & Bookmarks), followed by the Spaces dropdown switcher and the prominent **Space Hub** button (`⚙️ Space Hub · Syllabus`) navigating to the full-page dashboard.
+  - **Multi-Note Selection & Bulk Operations Suite (`components/Sidebar.jsx` & `components/Workspace.jsx`)**:
+    - Inline **"Select" / "Done"** toggle button with `ListChecks` in the `{activeSpace} · Notes` header.
+    - Click-to-toggle multi-selection: Clicking notes one-by-one toggles selection indicators without opening or switching notes in the editor.
+    - Checkbox indicators: Rounded checkmark pill on selected rows with `bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200` highlight. Drag handles and single-note menus are neatly suppressed during selection.
+    - Dynamic header counter (`{count} of {total} selected`) with 1-click **Select All / Deselect All** toggle.
+    - **Bulk Actions Toolbar**:
+      - ⭐ **Star / Unstar**: Bulk favorites or un-favorites all selected notes.
+      - 📋 **Copy**: Duplicates all selected notes with `"Copy of [note name]"` titles and cloned block trees.
+      - 📁 **Move**: Opens `BatchMoveModal` allowing fast reassignment into any destination space.
+      - 🗑️ **Delete to Trash (Mandatory Confirmation)**: Opens `BatchDeleteConfirmModal` showing note count, previewing titles with emojis, and providing 24h recovery info before confirming move to Trash.
 - **Space Hub Dashboard & Curriculum Management Engine (`components/SpaceHubView.jsx`)**:
   - Full-page dedicated hub for managing per-space curriculum boundaries and AI examiner behaviors.
   - **Multiple Documents per Space**: Upload and store multiple syllabus documents (`.pdf`, `.docx`, `.txt`, `.md`) directly within each space.
@@ -338,8 +349,7 @@ A comprehensive suite of 25 real-time interactive 3D simulations across 5 STEM d
 
 ---
 
-### 🦆 E. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
-- **Structured Concept Explainer (`app/api/explain/route.js`, `lib/aiService.js` & `components/ExplainPanel.jsx`)**: Generates structured breakdowns containing TL;DR summaries, mechanism steps, analogies with explicit breakdown boundaries, common misconceptions, worked examples, and check-yourself questions, now rendered with rich inline Markdown (**bold**, *italic*, `code`) and live KaTeX LaTeX mathematical/scientific equations.
+- **Structured Concept Explainer (`app/api/explain/route.js`, `lib/aiService.js` & `components/ExplainPanel.jsx`)**: Generates structured breakdowns containing TL;DR summaries, mechanism steps, analogies with explicit breakdown boundaries, common misconceptions, worked examples, and check-yourself questions, rendered with rich inline Markdown (**bold**, *italic*, `code`) and live KaTeX LaTeX mathematical/scientific equations. Features robust mathematical healing including JSON wire single-backslash escape repair (`repairJsonLatexEscapes`), control character healing (`sanitizeMathText` repairing `\f` form-feed `\frac` and `\t` tab `\text` corruptions), discrete bare LaTeX extraction in prose without delimiters (`BARE_INLINE_LATEX_REGEX`), and global KaTeX macro registration (`"\\ext": "\\text{#1}"`).
 - **Intelligent Note Reformatting (`app/api/reformat/route.js` & `lib/aiService.js`)**: Analyzes notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with emoji icons, hierarchical sub-bullets with multi-level nesting via `level` schema, LaTeX display/inline math, collapsible toggles, code snippets, checklists, tables, and dividers) with automatic multi-chunk segmentation for long notes (`chunkNoteBlocks`), live progress updates (`Part X/Y...`), strict LaTeX formula enforcement across all equations (never plain text, routing equations like `f(x) = 0` and `y = mx + c` into `math` or `$..$` inline math), markdown preservation inside bullets and all blocks (never stripping bold `**`, italic `*`, strikethrough `~~`, code, or inline math), strict colon requirements before heading promotions, LaTeX/KaTeX formula syntax repair, strict underlying knowledge fidelity, instantaneous `Ctrl+Z` undo stack tracking, offline heuristic fallback recognizing indented markdown sub-bullets, active visual feedback on trigger buttons (`components/NoteMenu.jsx`), and a top-center floating glassmorphic status banner (`components/BlockNoteEditor.jsx`) with animated sparkles and live progress indicator.
 
 
@@ -597,6 +607,10 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
 9. **Print / PDF Block Specificity & Toggle Disclosure Alignment**:
    - In `@media print` (`app/globals.css`), avoid generic `input[type="text"]:first-of-type` selectors inside `[data-editor-root]` because they accidentally match nested `<input>` children such as media block captions (`data-media-caption="true"`), causing them to explode to 22pt title sizes. Use explicit attribute selectors (`input[data-note-title="true"]`).
    - In toggle collapsible blocks, the print disclosure chevron (`▼`) is centered directly over the 3px vertical accent line of the expanded details container (`border-left: 3px solid #cbd5e1` at `margin-left: 14pt`) by setting `margin-left: 10.5pt !important;` on `[class*="group/toggleblk"] > div:first-child span:first-child`, achieving 0.16px centered alignment.
+10. **3D Visualization Studio Canvas Clear Colour (`CANVAS_BG = "#273043"`, `PALETTE.line = "#525e76"`)**:
+    - WebGL scenes cannot read dynamic CSS variables in shader pipelines. The clear color in `scene-kit.jsx` is calibrated to `#273043` (mid-tone studio slate) to provide rich contrast and depth for 3D meshes, atoms, and rays in Dark Mode without harsh glare, while avoiding a stark pitch-black void in Light Mode. Applied uniformly across `ThreeDView.jsx`, `app/visualizations/page.jsx`, and `BinaryTree3D.jsx`.
+11. **Editor Lasso Marquee & Side Margin Click Boundary Safety**:
+    - When clicking on side margins or dragging marquee selection boxes, `data-editor-root` and `handleGlobalMouseUp` check `justFinishedMarquee.current` and verify whether clicks are vertically below `lastRect.bottom` before appending or focusing blocks. Clicks on side margins or following lasso selections never jump to the last block, strictly honoring the `clickToAppend` setting.
 
 ---
 

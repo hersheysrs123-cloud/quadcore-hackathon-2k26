@@ -14,6 +14,7 @@ import {
   TOPICS,
   TOPICS_BY_ID,
 } from "@/components/visualizations/topics";
+import { CANVAS_BG } from "@/components/visualizations/scene-kit";
 
 // ─── IGCSE Grade 10 · Interactive 3D Visualization Hub ──────────────
 // Scenes across sciences & computer science. Every scene is a pure function
@@ -22,7 +23,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────
 
 const viewportLoader = () => (
-  <div className="flex h-full w-full items-center justify-center">
+  <div className="flex h-full w-full items-center justify-center min-h-[400px]" style={{ backgroundColor: CANVAS_BG }}>
     <div className="flex flex-col items-center gap-3">
       <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink-700 border-t-duck-400" />
       <span className="text-[11px] uppercase tracking-wider text-ink-500">Compiling scene</span>
@@ -287,7 +288,7 @@ export default function VisualizationsPage() {
       {/* ─── Body ────────────────────────────────────────── */}
       <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Viewport + overlaid HUD */}
-        <main className="relative min-h-[600px] flex-1 lg:min-h-0">
+        <main className="relative min-h-[600px] flex-1 lg:min-h-0" style={{ backgroundColor: CANVAS_BG }}>
           {/* Remounting per topic gives each scene a clean WebGL context. */}
           <Canvas
             key={topic.id}

@@ -4431,3 +4431,182 @@ Users identified two visual inconsistencies during print and PDF export:
    - Added automated unit test verifying that long 50-block documents produce full, unclipped content across Markdown, HTML, and Plain text exports.
    - 396 unit tests passing cleanly across 106 suites.
 
+---
+
+## 70. Editor Lasso Marquee Selection & Side Margin Click Cursor Jump Repair
+
+### Problem Statement
+1. **Unwanted Cursor Jump on Side Margin Click**:
+   - Clicking on the side margin of the note (left or right padding beside blocks) caused the text cursor to jump directly into the last block at the bottom of the document, even when the setting *"Click anywhere to place block"* (`clickToAppend`) was toggled OFF in Settings.
+2. **Lasso Selection Disrupted by Cursor Jump**:
+   - Starting a marquee drag from the left-hand side of the screen to lasso-select multiple blocks caused the cursor to jump into the last block upon mouse release (`mouseup`), deselecting the lassoed blocks and stealing focus away from the multi-block selection.
+
+### Root Cause Analysis
+1. **Unchecked `onClick` on `data-editor-root`**:
+   - In `components/BlockNoteEditor.jsx`, the document container `<div data-editor-root className="... px-10 pb-20 cursor-text ...">` had an `onClick` handler:
+     ```jsx
+     if (e.target === e.currentTarget && blocks.length > 0) {
+       const lastBlock = blocks[blocks.length - 1];
+       setSelectedId(lastBlock.id);
+       el.focus();
+     }
+     ```
+   - This handler completely ignored the `clickToAppend` prop (`clickToAppend === false`).
+   - Because `data-editor-root` spans the note container with `px-10` lateral padding, clicking anywhere on the side margins matched `e.target === e.currentTarget`.
+   - The handler also lacked any vertical coordinate check (`e.clientY`), meaning a click horizontally aligned with Heading 1 or Paragraph 2 still triggered `lastBlock.id` selection.
+2. **Synthetic Browser Click Following Marquee Drag**:
+   - When users dragged a marquee selection from the side margin across blocks (`isDraggingMarquee`), `handleGlobalMouseUp` cleared the marquee box on `mouseup`.
+   - Under standard DOM event sequencing, the browser immediately dispatches a synthetic `click` event to `data-editor-root` following `mouseup`.
+   - `data-editor-root`'s `onClick` received this event, saw `e.target === e.currentTarget`, and immediately focused the last block, clearing `selectedBlockIds` and destroying the lasso selection.
+3. **Missing Y-Coordinate Boundary Check in `handleGlobalMouseUp`**:
+   - While `handleGlobalMouseUp` checked `if (!clickToAppend) return;`, for `dist < 6` (clicks) it did not verify whether `clientY` occurred in the empty whitespace *below* the last block versus the side margin beside content.
+
+### Resolution & Architectural Enhancements
+1. **Marquee Completion & Re-entrance Guard (`components/BlockNoteEditor.jsx`)**:
+   - Added `justFinishedMarquee = useRef(false)` and `lastWhitespaceClickHandledTime = useRef(0)`.
+   - In `handleGlobalMouseUp`:
+     - If `dist >= 6` or `selectedBlockIdsRef.current.size > 0`, activates `justFinishedMarquee.current = true` with a debounce timer (150ms), suppressing subsequent click events.
+     - For `dist < 6`, verifies that `clientY >= lastRect.bottom` before creating or focusing an empty block. Clicks on side margins beside existing content (`clientY < lastRect.bottom`) return immediately.
+2. **Defensive Guard on `data-editor-root` `onClick` (`components/BlockNoteEditor.jsx`)**:
+   - Added comprehensive guards to the container `onClick`:
+     ```jsx
+     if (isLocked) return;
+     if (!clickToAppend) return;
+     if (justFinishedMarquee.current) return;
+     if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) return;
+     if (Date.now() - lastWhitespaceClickHandledTime.current < 250) return;
+     if (lastRect && e.clientY < lastRect.bottom) return;
+     ```
+   - Removed `cursor-text` from `data-editor-root`, ensuring the text I-beam only appears over actual editable block content while margins retain the standard pointer cursor.
+3. **Automated Unit Testing (`tests/unit/editor-marquee-click.test.mjs`)**:
+   - Created 7 unit test assertions verifying:
+     - Side margin clicks with `clickToAppend=false` never focus the last block.
+     - Lasso marquee drags from the left margin preserve all selected block IDs without jumping caret to the last block.
+     - Lasso drags with `clickToAppend=true` preserve multi-block selection.
+     - Side margin clicks beside content with `clickToAppend=true` do not jump to the bottom.
+     - Bottom whitespace clicks below the last block with `clickToAppend=true` properly focus/append.
+     - Bottom whitespace clicks with `clickToAppend=false` strictly do nothing.
+     - Outer side clicks on the left or right of the screen never append or focus.
+
+---
+
+## 71. AI Explain LaTeX \frac & \ext Rendering Healing, Bare Math Prose Extraction & KaTeX Global Macro
+
+### Problem Statement
+- In the AI Explain drawer (opened via the "Explain" button on study notes, text selections, and study recommendations), mathematical fractions like `\frac` and text macros like `\ext` failed to render properly:
+  - Raw `\frac{...}{...}` formulas inside explanatory prose remained unparsed as literal text or caused the entire surrounding sentence to be smushed into KaTeX math mode as italic multiplied variables.
+  - Text labels containing `\ext` or `\text` either failed to render, displayed raw `\ext{...}`, or caused KaTeX red parse errors (`Undefined control sequence: \ext`).
+
+### Root Cause Analysis
+1. **JSON Escape Control Character Mangling (`\f` & `\t`)**:
+   - In standard JSON syntax, single-backslash escape sequences `\f` and `\t` are legal escapes for form-feed (`\u000c`) and horizontal tab (`\u0009`).
+   - When Gemini or LLM structured output returned JSON containing LaTeX commands with single backslashes (e.g. `"\frac{a}{b}"` or `"\text{unit}"`), `JSON.parse` evaluated `\f` as byte `0x0c` (leaving `\u000crac{a}{b}`) and `\t` as byte `0x09` (leaving `\u0009ext{unit}`).
+   - KaTeX throws a fatal syntax parse error on `\u000c`, failing the formula completely, while `\u0009` turns `\text` into plain `ext`, rendering as italic variables $e \cdot x \cdot t$.
+2. **Whole-Sentence Math Misclassification in `parseMathSegments` (`lib/mathUtils.js`)**:
+   - Previously, if a sentence lacked standard math delimiters (`$`, `$$`, `\(`, `\[`) but contained a LaTeX command like `\frac`, `parseMathSegments` returned the *entire string* as a single `inline_math` segment.
+   - KaTeX then attempted to parse normal English prose ("The formula for acceleration is \frac{\Delta v}{\Delta t} where...") in math mode, destroying the layout.
+   - If delimiters were present elsewhere in the text, bare `\frac` commands in the surrounding text were emitted as plain `text`, where inline Markdown ignored them and left them as raw literal `\frac{...}` characters.
+3. **KaTeX Missing `\ext` Macro**:
+   - In KaTeX, `\ext` is not a standard primitive. When LLM outputs produced `\ext` (either via single-backslash tab stripping or prompt confusion), KaTeX rendered a red error element `<span style="color:#cc0000">\ext</span>`.
+
+### Resolution & Architectural Enhancements
+1. **KaTeX Global Macro Registration (`lib/editorCaret.js`)**:
+   - Added `"\\ext": "\\text{#1}"` to `KATEX_GLOBAL_MACROS`, guaranteeing that any `\ext{...}` expression is seamlessly rendered as standard KaTeX `\text{...}` without error.
+2. **JSON Wire Escape Repair (`lib/gemini.js`)**:
+   - Implemented `repairJsonLatexEscapes(rawJson)` in `lib/gemini.js` which sanitizes unescaped single backslashes before common LaTeX keywords (`frac`, `text`, `rho`, `beta`, `times`, etc.) prior to `JSON.parse`, preventing control character conversion at the source.
+3. **Universal Math Text Sanitization (`lib/mathUtils.js`)**:
+   - Implemented and exported `sanitizeMathText(text)` which heals corrupted JSON control characters (`\u000crac` -> `\frac`, `\u0009ext` -> `\text`, `\u0009au` -> `\tau`, `\r` -> `\rho`, etc.) and normalizes `\ext` to `\text`.
+   - Wired `sanitizeMathText` into `normalizeExplanation` across both `app/api/explain/route.js` and `lib/aiService.js`.
+4. **Prose Bare Math Extraction (`lib/mathUtils.js`)**:
+   - Added `BARE_INLINE_LATEX_REGEX` with nested brace support for `\frac`, `\sqrt`, and `\text`, along with Greek letters and operators.
+   - Added `isPureMathString(str)` heuristic to preserve single-formula quiz options as pure `inline_math` without regressing existing quiz test suites.
+   - Enhanced `parseMathSegments(text)` to automatically extract bare LaTeX commands embedded within prose slices (both between delimiters and in standalone sentences) into discrete `inline_math` segments.
+5. **AI Prompt Directives**:
+   - Updated `PERSONA` in `app/api/explain/route.js` and `EXPLAIN_PERSONA` in `lib/aiService.js` to enforce wrapping all formulas in `$...$` or `$$...$$` with double-escaped backslashes in JSON output.
+6. **Automated Verification**:
+   - Expanded `tests/unit/math-text.test.mjs` with 5 new assertions testing:
+     - Extraction of bare `\frac` inside prose sentences into `inline_math` and clean KaTeX rendering.
+     - Healing and error-free rendering of `\ext` as `\text`.
+     - Healing of corrupted form-feed (`\u000crac`) and tab (`\u0009ext`) characters.
+     - Pre-parse wire repair of single-backslash LaTeX keywords.
+     - Mixed delimited and bare math coexistence.
+   - All 11 math unit tests passing.
+
+---
+
+## 72. Click-to-Append Strict Screen Sides Disabling & Bottom Whitespace Boundary Constraint
+
+### Problem Statement
+- When the setting *"Click anywhere to place block"* (`clickToAppend`) was enabled, clicking on the left or right side margins of the screen (or the lateral padding beside existing blocks) still triggered block append or focused the last block.
+- The user directive required that when click-to-append is enabled, clicking on the sides of the screen must be completely disabled from appending, and click-to-append should strictly work only in the bottom whitespace beneath all notes content.
+
+### Root Cause Analysis
+- In `components/BlockNoteEditor.jsx`:
+  1. `handleGlobalMouseUp` previously only checked vertical `clientY` against `lastRect.bottom` if `lastRect` existed. If the last block was a math block, table, or divider (which does not register a standard `contentRef`), `lastRect` was undefined.
+  2. There was no horizontal boundary check (`clientX`) against the note content column (`[data-editor-root]`), allowing clicks far out in the screen margins to trigger append.
+  3. `data-editor-root`'s `onClick` lacked strict bounding rectangle checks for `blockEls` and horizontal note column bounds.
+
+### Resolution & Architectural Enhancements
+1. **Dual-Axis Boundary Enforcement in `handleGlobalMouseUp` (`components/BlockNoteEditor.jsx`)**:
+   - **Horizontal Side Check**: Queries `[data-editor-root]` and verifies `if (clientX < rootRect.left || clientX > rootRect.right) return;`. Clicks in the wide screen margins outside the note column are completely discarded.
+   - **Vertical Bottom Whitespace Check**: Queries `querySelectorAll("[data-block-id]")` to find the true DOM bottom of the last block (`lastBottom`). Verifies `if (clientY <= lastBottom + 8) return;`. Clicks beside existing blocks or in header areas never append or focus.
+2. **Synchronized Guard in `data-editor-root` `onClick` (`components/BlockNoteEditor.jsx`)**:
+   - Replaced weak `lastRect` checks with authoritative `querySelectorAll("[data-block-id]")` bottom resolution and `rootRect` horizontal boundary checking.
+3. **Automated Verification**:
+   - Updated `tests/unit/editor-marquee-click.test.mjs` with test assertions verifying that clicking anywhere on the outer sides of the screen (`clientX < rootRect.left` or `clientX > rootRect.right`) never appends or focuses, even when `clickToAppend` is true.
+   - All 7 tests passing.
+
+---
+
+## 73. Multi-Note Selection & Bulk Actions Suite (Move to Space, Delete to Trash with Confirmation, Star, Duplicate)
+
+### Problem Statement
+- In the sidebar notes list, users previously had to manage notes strictly one-by-one via individual note menus. There was no way to select multiple notes simultaneously to organize, move, clean up, favorite, or clone notes in bulk.
+- Specific requirements:
+  1. Add a multi-note selection mode triggered by a "Select" button in the notes list header.
+  2. In selection mode, clicking notes one-by-one toggles their selection state with clear visual indicators without inadvertently opening or navigating the editor.
+  3. Provide 4 bulk operations:
+     - **Move to Space**: Move all selected notes into any destination space.
+     - **Delete to Trash with Confirmation**: Mandatory confirmation dialog asking user to confirm before moving multiple notes into Trash (24h recovery).
+     - **Star / Favorite**: Star (or toggle favorite) on all selected notes in bulk.
+     - **Duplicate**: Clone all selected notes with unique IDs, "Copy of [note name]" titles, and preserved block structures.
+
+### Root Cause & UX Analysis
+- Notes in `Sidebar.jsx` were hard-wired to `onSelectNote(n)` on click and drag-and-drop event listeners.
+- No selection state or bulk operation handlers existed in `Workspace.jsx` or `Sidebar.jsx`.
+- Moving multiple notes to trash without a confirmation dialog risked accidental data loss when multiple notes were selected.
+
+### Resolution & Architectural Enhancements
+1. **Multi-Selection Mode & Header Bar (`components/Sidebar.jsx`)**:
+   - Added `isMultiSelecting`, `selectedNoteIds`, `batchDeleteOpen`, and `batchMoveOpen` state hooks.
+   - Header `{activeSpace} · Notes` features an inline "Select" / "Done" toggle button with `ListChecks` icon.
+   - When active, displays live `{selectedCount} of {total} selected` count and a "Select All" / "Deselect All" quick toggle.
+   - Automatically resets selection on space change and auto-exits if the space becomes empty.
+2. **Click-to-Toggle Item Interaction (`components/Sidebar.jsx`)**:
+   - When `isMultiSelecting` is true, clicking anywhere on a note row toggles its selection in `selectedNoteIds` instead of navigating or switching the active editor note.
+   - Displays a custom rounded checkbox on the left (`Check` on `bg-duck-500` when selected, hollow border when unselected).
+   - Suppresses drag-and-drop handles (`GripVertical`) and hides individual `NoteMenu` buttons during selection mode to prevent misclicks.
+   - Highlights selected rows with `bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200`.
+3. **Bulk Action Toolbar (`components/Sidebar.jsx`)**:
+   - Features 4 action buttons docked in the multi-select header box:
+     - ⭐ **Star / Unstar**: Bulk stars all selected notes (or unstars if all selected are already starred).
+     - 📋 **Copy**: Clones all selected notes with `"Copy of [note name]"` titles and cloned block hierarchies.
+     - 📁 **Move**: Opens `BatchMoveModal` to select a destination space (excluding current space).
+     - 🗑️ **Delete**: Opens `BatchDeleteConfirmModal` with mandatory confirmation.
+4. **Mandatory Batch Delete Confirmation Modal (`BatchDeleteConfirmModal`)**:
+   - Prevents accidental bulk deletion by displaying:
+     - Warning header: *"Move {N} Notes to Trash?"*
+     - Scrollable preview box listing up to 5 note titles with emojis (`+ X more notes...` if greater).
+     - Warning explaining notes can be restored within 24 hours.
+     - "Cancel" button and prominent red "Move {N} Notes to Trash" button.
+5. **Batch State Handlers in `Workspace.jsx`**:
+   - `handleDeleteMultipleNotes(noteIds)`: removes from `notesBySpace`, updates `trashNotes`, calls `deleteNoteToTrash(id)` for each, and smoothly selects first remaining note if active note was deleted.
+   - `handleMoveMultipleNotes(noteIds, targetSpaceName)`: moves notes to target space with sequential orders, sets `space` and `spaceId`, and saves each note.
+   - `handleToggleFavoriteMultipleNotes(noteIds, forceFavorite)`: updates `isFavorite` on all notes and saves to DB.
+   - `handleDuplicateMultipleNotes(noteIds)`: clones blocks with fresh IDs, creates `"Copy of [note name]"` duplicates, appends to space, and saves to DB.
+6. **Automated Verification**:
+   - Created `tests/unit/multi-note-selection.test.mjs` verifying individual selection toggles, Select All / Deselect All, confirmation dialog abort/confirm behavior, batch move, batch star/unstar, and batch duplicate.
+   - All 6 unit tests passing (512 total test suite passing).
+
+
+

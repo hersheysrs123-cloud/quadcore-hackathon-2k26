@@ -759,7 +759,7 @@ export default function Workspace() {
 
       const duplicatedNote = {
         id: `n_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        title: `${noteToDuplicate.title || "Untitled Note"} (Copy)`,
+        title: `Copy of ${noteToDuplicate.title || "Untitled Note"}`,
         space: targetSpace,
         spaceId: targetSpace,
         banner: noteToDuplicate.banner || null,
@@ -848,6 +848,191 @@ export default function Workspace() {
       setTimeout(() => setSaveStatus(""), 2500);
     },
     [handleSaveNote]
+  );
+
+  const handleDeleteMultipleNotes = useCallback(
+    async (noteIds, spaceOverride) => {
+      if (!noteIds || noteIds.length === 0) return;
+      const targetSpace = spaceOverride || activeSpace;
+      const spaceNotes = notesBySpace[targetSpace] || [];
+      const noteIdSet = new Set(noteIds);
+      const notesToDelete = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      if (notesToDelete.length === 0) return;
+
+      setNotesBySpace((prev) => ({
+        ...prev,
+        [targetSpace]: (prev[targetSpace] || []).filter((n) => !noteIdSet.has(n.id)),
+      }));
+
+      const now = new Date().toISOString();
+      setTrashNotes((prev) => [
+        ...prev,
+        ...notesToDelete.map((n) => ({ ...n, space: targetSpace, deletedAt: now })),
+      ]);
+
+      if (noteIdSet.has(activeNoteId)) {
+        const remainingNotes = spaceNotes.filter((n) => !noteIdSet.has(n.id));
+        if (remainingNotes.length > 0) {
+          setActiveNoteId(remainingNotes[0].id);
+          setEditorBlocks(remainingNotes[0].blocks || []);
+        } else {
+          setActiveNoteId(null);
+          setEditorBlocks([]);
+        }
+      }
+
+      for (const note of notesToDelete) {
+        await deleteNoteToTrash(note.id);
+      }
+
+      setSaveStatus(`✓ Moved ${notesToDelete.length} note${notesToDelete.length === 1 ? "" : "s"} to Trash`);
+      setTimeout(() => setSaveStatus(""), 2500);
+    },
+    [activeSpace, notesBySpace, activeNoteId]
+  );
+
+  const handleMoveMultipleNotes = useCallback(
+    async (noteIds, targetSpaceName) => {
+      if (!noteIds || noteIds.length === 0 || !targetSpaceName) return;
+      const fromSpace = activeSpace;
+      if (fromSpace === targetSpaceName) return;
+
+      const noteIdSet = new Set(noteIds);
+      const spaceNotes = notesBySpace[fromSpace] || [];
+      const notesToMove = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      if (notesToMove.length === 0) return;
+
+      const targetSpaceNotes = notesBySpace[targetSpaceName] || [];
+      const baseOrder = targetSpaceNotes.length;
+
+      const updatedMovedNotes = notesToMove.map((n, idx) => {
+        const rawBlocks =
+          n.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
+            ? editorBlocksRef.current
+            : (n.blocks || []);
+        return {
+          ...n,
+          space: targetSpaceName,
+          spaceId: targetSpaceName,
+          blocks: rawBlocks,
+          order: baseOrder + idx,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      setNotesBySpace((prev) => {
+        const prevFromList = (prev[fromSpace] || []).filter((n) => !noteIdSet.has(n.id));
+        const prevToList = [...(prev[targetSpaceName] || []), ...updatedMovedNotes];
+        return {
+          ...prev,
+          [fromSpace]: prevFromList,
+          [targetSpaceName]: prevToList,
+        };
+      });
+
+      if (noteIdSet.has(activeNoteId)) {
+        setActiveSpace(targetSpaceName);
+      }
+
+      for (const note of updatedMovedNotes) {
+        await saveNote(note);
+      }
+
+      setSaveStatus(`✓ Moved ${notesToMove.length} note${notesToMove.length === 1 ? "" : "s"} to ${targetSpaceName}`);
+      setTimeout(() => setSaveStatus(""), 2500);
+    },
+    [activeNoteObj, activeNoteId, activeSpace, notesBySpace]
+  );
+
+  const handleToggleFavoriteMultipleNotes = useCallback(
+    async (noteIds, forceFavorite) => {
+      if (!noteIds || noteIds.length === 0) return;
+      const noteIdSet = new Set(noteIds);
+      const spaceNotes = notesBySpace[activeSpace] || [];
+      const targetNotes = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      if (targetNotes.length === 0) return;
+
+      const allFav = targetNotes.every((n) => Boolean(n.isFavorite));
+      const nextFav = forceFavorite !== undefined ? Boolean(forceFavorite) : !allFav;
+
+      setNotesBySpace((prev) => {
+        const currentList = prev[activeSpace] || [];
+        const updated = currentList.map((n) =>
+          noteIdSet.has(n.id) ? { ...n, isFavorite: nextFav } : n
+        );
+        return { ...prev, [activeSpace]: updated };
+      });
+
+      for (const note of targetNotes) {
+        await saveNote({
+          ...note,
+          isFavorite: nextFav,
+        });
+      }
+
+      setSaveStatus(`✓ ${nextFav ? "Starred" : "Unstarred"} ${targetNotes.length} note${targetNotes.length === 1 ? "" : "s"}`);
+      setTimeout(() => setSaveStatus(""), 2500);
+    },
+    [activeSpace, notesBySpace]
+  );
+
+  const handleDuplicateMultipleNotes = useCallback(
+    async (noteIds) => {
+      if (!noteIds || noteIds.length === 0) return;
+      const noteIdSet = new Set(noteIds);
+      const spaceNotes = notesBySpace[activeSpace] || [];
+      const notesToDuplicate = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      if (notesToDuplicate.length === 0) return;
+
+      const duplicatedNotes = [];
+      const currentMaxOrder = spaceNotes.length;
+
+      for (let i = 0; i < notesToDuplicate.length; i++) {
+        const n = notesToDuplicate[i];
+        const rawBlocks =
+          n.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
+            ? editorBlocksRef.current
+            : (n.blocks || []);
+
+        const clonedBlocks = (rawBlocks || []).map((b) => ({
+          ...b,
+          id: `blk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${i}`,
+          tableData: b.tableData ? JSON.parse(JSON.stringify(b.tableData)) : undefined,
+          meta: b.meta ? JSON.parse(JSON.stringify(b.meta)) : undefined,
+        }));
+
+        const dupNote = {
+          id: `n_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${i}`,
+          title: `Copy of ${n.title || "Untitled Note"}`,
+          space: activeSpace,
+          spaceId: activeSpace,
+          banner: n.banner || null,
+          emoji: n.emoji || "📝",
+          isFavorite: Boolean(n.isFavorite),
+          order: currentMaxOrder + i,
+          blocks: clonedBlocks.length > 0 ? clonedBlocks : [{ id: `blk_${Date.now()}_${i}`, type: "text", content: "" }],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        duplicatedNotes.push(dupNote);
+      }
+
+      setNotesBySpace((prev) => {
+        const currentList = prev[activeSpace] || [];
+        return {
+          ...prev,
+          [activeSpace]: [...currentList, ...duplicatedNotes],
+        };
+      });
+
+      for (const dup of duplicatedNotes) {
+        await saveNote(dup);
+      }
+
+      setSaveStatus(`✓ Duplicated ${duplicatedNotes.length} note${duplicatedNotes.length === 1 ? "" : "s"}`);
+      setTimeout(() => setSaveStatus(""), 2500);
+    },
+    [activeNoteObj, activeSpace, notesBySpace]
   );
 
   const handleSaveInstantNote = useCallback(
@@ -1107,6 +1292,10 @@ export default function Workspace() {
           onDuplicateNote={handleDuplicateNote}
           onMoveNote={handleMoveNoteToSpace}
           onRenameNote={handleRenameNote}
+          onDeleteMultipleNotes={handleDeleteMultipleNotes}
+          onMoveMultipleNotes={handleMoveMultipleNotes}
+          onToggleFavoriteMultipleNotes={handleToggleFavoriteMultipleNotes}
+          onDuplicateMultipleNotes={handleDuplicateMultipleNotes}
           onOpenExportImport={(n) => {
             if (n) handleSelectNote(n);
             setExportImportOpen(true);

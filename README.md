@@ -56,7 +56,7 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 ### 🔍 2. Universal Navigation, History & Instant Capture
 - **In-Memory Keyboard Navigation History (`Alt + ←` / `Alt + →`)**: Instant back-and-forth traversal between recently visited notes across spaces, with visual `◀` / `▶` breadcrumb controls in the top bar.
 - **Command Palette (`Ctrl+K` / `Cmd+K`)**: Fuzzy-search notes across all spaces, open workspace tabs (Notes, Calendar, 3D Studio, Mastery Dashboard), or open settings.
-- **Instant Note Capture (`Ctrl+I` / `Cmd+I`)**: 75% screen glassmorphic modal overlay for instant note drafting from anywhere in the app with `Ctrl+Enter` quick save into the **"Misc"** space.
+- **Multi-Note Selection & Bulk Operations Suite**: Select multiple notes one-by-one with an inline "Select" toggle in the notes list header. Provides live count badges, Select All / Deselect All, and a 4-action bulk toolbar: **Star/Unstar** in bulk, **Duplicate** all selected notes (titled "Copy of [note name]"), **Move** all to any destination space, and **Delete to Trash** with a mandatory safety confirmation modal.
 - **Quick Save (`Ctrl+S`)**: Explicit keyboard shortcut to instantly save notes.
 
 ### ⚙️ 3. Space Hub & Per-Space Curriculum Management

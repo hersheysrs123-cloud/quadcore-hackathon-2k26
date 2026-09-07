@@ -15,6 +15,7 @@ import {
   TOPICS_BY_ID,
   formatTopicStudyContext,
 } from "@/components/visualizations/topics";
+import { CANVAS_BG } from "@/components/visualizations/scene-kit";
 
 // ─── 3D Visualizations Studio ─────────────────────────────────────────
 // Studio for rendering interactive 3D visualizations across Physics,
@@ -22,7 +23,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────
 
 const viewportLoader = () => (
-  <div className="flex h-full w-full items-center justify-center bg-ink-950 min-h-[400px]">
+  <div className="flex h-full w-full items-center justify-center min-h-[400px]" style={{ backgroundColor: CANVAS_BG }}>
     <div className="flex flex-col items-center gap-3">
       <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink-700 border-t-duck-400" />
       <span className="text-[11px] uppercase tracking-wider text-ink-500">Compiling 3D scene</span>
@@ -336,9 +337,9 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
       {/* ─── Body ────────────────────────────────────────── */}
       <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Viewport + overlaid HUD */}
-        <main className="relative flex-1 h-full w-full min-h-0">
+        <main className="relative flex-1 h-full w-full min-h-0" style={{ backgroundColor: CANVAS_BG }}>
           {isCustomSelected && activeWidgetObj ? (
-            <div className="h-full w-full p-4 overflow-y-auto">
+            <div className="h-full w-full p-4 overflow-y-auto" style={{ backgroundColor: CANVAS_BG }}>
               <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
                 <h2 className="text-sm font-semibold text-ink-100">
                   {activeWidgetObj.title}

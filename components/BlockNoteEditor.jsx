@@ -5159,6 +5159,8 @@ export default function BlockNoteEditor({
 
   const [marqueeBox, setMarqueeBox] = useState(null);
   const isDraggingMarquee = useRef(false);
+  const justFinishedMarquee = useRef(false);
+  const lastWhitespaceClickHandledTime = useRef(0);
   const marqueeStartClient = useRef({ x: 0, y: 0 });
   const marqueeStartEditor = useRef({ x: 0, y: 0 });
   const currentMousePos = useRef({ clientX: 0, clientY: 0 });
@@ -5637,15 +5639,57 @@ export default function BlockNoteEditor({
 
       isDraggingMarquee.current = false;
       setMarqueeBox(null);
-      if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) {
+
+      const hadSelection = Boolean(
+        selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0
+      );
+
+      if (dist >= 6 || hadSelection) {
+        justFinishedMarquee.current = true;
+        setTimeout(() => {
+          justFinishedMarquee.current = false;
+        }, 150);
+      }
+
+      if (hadSelection) {
         if (document.activeElement && document.activeElement.blur) {
           document.activeElement.blur();
         }
       }
 
-      // Simple click on empty canvas area -> create or focus last block
-      if (dist < 6) {
+      // Simple click on empty canvas area -> create or focus last block only if in bottom whitespace
+      if (dist < 6 && !hadSelection) {
         if (!clickToAppend) return;
+
+        const editorEl = editorContainerRef.current;
+        if (!editorEl) return;
+
+        // 1. Check horizontal boundaries: if click is on the side margins of the screen outside the note column, DO NOT append
+        const rootEl = editorEl.querySelector("[data-editor-root]");
+        if (rootEl) {
+          const rootRect = rootEl.getBoundingClientRect();
+          if (clientX < rootRect.left || clientX > rootRect.right) {
+            return;
+          }
+        }
+
+        // 2. Check vertical boundaries: click must be strictly below the last block in the bottom whitespace
+        const blockEls = editorEl.querySelectorAll("[data-block-id]");
+        let contentBottom = -Infinity;
+        if (blockEls && blockEls.length > 0) {
+          const lastBlockEl = blockEls[blockEls.length - 1];
+          contentBottom = lastBlockEl.getBoundingClientRect().bottom;
+        } else if (rootEl) {
+          contentBottom = rootEl.getBoundingClientRect().top + 100;
+        }
+
+        if (clientY <= contentBottom + 8) {
+          // Clicked on side margin/padding beside existing blocks or header, not in bottom whitespace
+          return;
+        }
+
+        lastWhitespaceClickHandledTime.current = Date.now();
+
         const lastBlock = blocksRef.current[blocksRef.current.length - 1];
         if (!lastBlock || (lastBlock.content !== "" && lastBlock.content !== undefined)) {
           const newBlock = createBlock("text", "");
@@ -7059,13 +7103,31 @@ export default function BlockNoteEditor({
       {/* Main Note Content Container */}
       <div
         data-editor-root
-        className={`relative mx-auto ${fullWidth ? "w-full max-w-none px-6 md:px-12" : "max-w-3xl px-10"} ${banner ? "pt-6" : "pt-8"} pb-20 cursor-text print:px-0 print:pt-0 print:pb-0`}
+        className={`relative mx-auto ${fullWidth ? "w-full max-w-none px-6 md:px-12" : "max-w-3xl px-10"} ${banner ? "pt-6" : "pt-8"} pb-20 print:px-0 print:pt-0 print:pb-0`}
         onClick={(e) => {
           if (isLocked) return;
+          if (!clickToAppend) return;
+          if (justFinishedMarquee.current) return;
+          if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) return;
+          if (Date.now() - lastWhitespaceClickHandledTime.current < 250) return;
+
           if (e.target === e.currentTarget && blocks.length > 0) {
+            const blockEls = e.currentTarget.querySelectorAll("[data-block-id]");
+            if (!blockEls || blockEls.length === 0) return;
+            const lastBlockEl = blockEls[blockEls.length - 1];
+            const lastBottom = lastBlockEl.getBoundingClientRect().bottom;
+            // Only focus last block if click was strictly in bottom whitespace below the last block
+            if (e.clientY <= lastBottom + 8) {
+              return;
+            }
+            const rootRect = e.currentTarget.getBoundingClientRect();
+            if (e.clientX < rootRect.left || e.clientX > rootRect.right) {
+              return;
+            }
+
             const lastBlock = blocks[blocks.length - 1];
-            setSelectedId(lastBlock.id);
             const el = blockRefs.current[lastBlock.id]?.current;
+            setSelectedId(lastBlock.id);
             if (el) {
               el.focus();
               const range = document.createRange();

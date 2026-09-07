@@ -296,7 +296,7 @@ export default function NoteMenu({
       const duplicatedNote = {
         ...note,
         id: `n_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        title: `${note?.title || "Untitled Note"} (Copy)`,
+        title: `Copy of ${note?.title || "Untitled Note"}`,
         blocks: clonedBlocks.length > 0 ? clonedBlocks : [{ id: `blk_${Date.now()}`, type: "text", content: "" }],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
