@@ -13,7 +13,7 @@
 - **Framework**: Next.js 15.0.0 (App Router, Turbopack / Webpack build engine)
 - **UI & Logic**: React 19 (Server & Client Components), Tailwind CSS v4 (`@tailwindcss/postcss`, dynamic CSS variable design tokens)
 - **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v7) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, folders, bookmarks, quizzes, quiz trash, space documents, and graphics settings
-- **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/reformat`, `app/api/tutor/chat`, `app/api/socratic/chat`). `lib/aiService.js` provides isomorphic client/server AI orchestration
+- **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/reformat`, `app/api/tutor/chat`). `lib/aiService.js` provides isomorphic client/server AI orchestration
 - **3D Engine**: Three.js (r185), `@react-three/fiber` (v9), `@react-three/drei` (v10), custom Canvas engines with OrbitControls, procedural & clinical CT geometry, and WebGL lifecycle memory management
 - **Math & Equation Engine**: KaTeX (`katex`) for full block and in-sentence `$formula$` inline math rendering
 - **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, Netscape Bookmark standard HTML import/export, `.socratic` JSON workspace backup format
@@ -33,7 +33,6 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── quiz/grade/route.js           # POST: Objective integer MC + LLM short answer grading
 │   │   ├── reformat/route.js             # POST: Intelligent note reformatting & block structuring generator
 │   │   ├── reset/route.js                # POST: Local-first factory reset signal route
-│   │   ├── socratic/chat/route.js        # POST: Socratic diagnostic probing & chat route
 │   │   ├── tutor/chat/route.js           # POST: Interactive AI Tutor chat with space syllabus and academic pedagogy
 │   │   └── visualizations/route.js       # Local-first 3D visualizations persistence route
 │   ├── globals.css                       # Tailwind v4 tokens, light/dark themes, print stylesheet, KaTeX styles

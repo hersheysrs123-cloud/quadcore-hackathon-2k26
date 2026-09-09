@@ -4806,38 +4806,38 @@ Users identified two visual inconsistencies during print and PDF export:
 
 ---
 
-## 79. Complete Decommissioning of Scrapped 3D Socratic Canvas Widgets & Documentation Audit
+## 79. Complete Decommissioning of Scrapped Socratic Duck Endpoints (`/api/socratic/chat` & `/api/socratic/widget`) & Documentation Audit
 
 ### Problem Statement
-- Early iterations of SocraticOS experimented with a dynamic 3D WebGL widget generator (`/api/socratic/widget` and `components/WidgetCanvas.jsx`) designed to generate vector simulations for misconceptions detected during conversational Socratic duck diagnostics.
-- When the Socratic duck mode was replaced by the dedicated `AITutorPanel` and the studio focused on 27 curated Three.js scientific simulations (`ThreeDView.jsx`), the widget pipeline was scrapped.
+- Early iterations of SocraticOS experimented with a "Socratic Rubber Duck" diagnostic chat dialogue (`/api/socratic/chat`) and dynamic 3D WebGL widget generator (`/api/socratic/widget` and `components/WidgetCanvas.jsx`) designed to probe misconceptions and generate vector simulations.
+- When the Socratic duck mode was replaced by the dedicated, space-grounded `AITutorPanel` (`/api/tutor/chat` and `tutorChat`) and the 3D studio focused on 27 curated Three.js scientific simulations (`ThreeDView.jsx`), the legacy Socratic Duck pipeline was scrapped.
 - However, obsolete code artifacts, test files, and documentation references remained:
   1. `components/WidgetCanvas.jsx` (230-line obsolete Three.js canvas component).
-  2. `app/api/socratic/widget/route.js` (unsupported backend endpoint).
+  2. `app/api/socratic/widget/route.js` and `app/api/socratic/chat/route.js` (unsupported backend endpoints under `app/api/socratic/`).
   3. `tests/integration/ai-widget-resilience.test.mjs` (outdated test suite for deleted widget payloads).
   4. Dead branching and state hooks in `components/ThreeDView.jsx` (`WidgetCanvas` import, `isCustomSelected`, `activeWidgetObj`).
-  5. Exported `socraticWidget` function, `normalizeWidget`, and unused schema imports in `lib/aiService.js`.
-  6. Obsolete `WIDGET_SCHEMA`, `WIDGET_TYPES`, and `OBJECT_KINDS` in `lib/schemas.js`.
-  7. Outdated references in `CODEBASE_SUMMARY.md` and `README.md` listing dynamic 3D concept widgets, route maps, and test lists.
+  5. Exported `socraticChat` and `socraticWidget` functions, `normalizeWidget`, `normalizeDiagnostic`, and unused schema imports in `lib/aiService.js`.
+  6. Obsolete `DIAGNOSTIC_SCHEMA`, `RECOMMENDED_WIDGETS`, `WIDGET_SCHEMA`, `WIDGET_TYPES`, and `OBJECT_KINDS` in `lib/schemas.js`.
+  7. Outdated references in `CODEBASE_SUMMARY.md` and `README.md` listing `socratic/chat` and `socratic/widget` in Tech Stack fallback routes, File Maps, and feature bullets.
 
 ### Root Cause Analysis
-- Code refactoring in prior sprints had decommissioned the frontend invocation of widgets without executing a complete repository-wide audit, leaving dormant routes, dead React state branches, and phantom documentation entries.
+- Code refactoring in prior sprints had decommissioned the frontend invocation of the Socratic Duck without executing a complete repository-wide audit, leaving dormant `/api/socratic/*` routes, dead React state branches, and phantom documentation entries.
 
 ### Resolution & Architectural Enhancements
 1. **Repository File Purge**:
    - Safely removed `components/WidgetCanvas.jsx`.
-   - Safely removed `app/api/socratic/widget/route.js` and deleted the empty directory `app/api/socratic/widget`.
+   - Safely removed `app/api/socratic/widget/route.js` and `app/api/socratic/chat/route.js`, deleting the entire `app/api/socratic` directory.
    - Safely removed `tests/integration/ai-widget-resilience.test.mjs`.
 2. **ThreeDView Viewport Clean-Up (`components/ThreeDView.jsx`)**:
    - Removed `WidgetCanvas` import, `customWidgets` and `selectedWidgetId` state hooks, and `/api/visualizations` fetch effect.
    - Removed `isCustomSelected` topic active checks, simplifying topic selection to `active = topicId === t.id`.
    - Eliminated conditional widget branching in the main viewport, directly rendering `CanvasComponent`, `VisualizationHUD`, and `ViewportHint`.
 3. **AI Service & Schemas Clean-Up (`lib/aiService.js` & `lib/schemas.js`)**:
-   - Removed `socraticWidget`, `normalizeWidget`, `WIDGET_SYSTEM`, and `WIDGET_PREFERENCE` from `lib/aiService.js`.
-   - Removed unused imports `OBJECT_KINDS`, `WIDGET_SCHEMA`, and `WIDGET_TYPES` from `lib/aiService.js`.
-   - Removed `WIDGET_SCHEMA`, `WIDGET_TYPES`, and `OBJECT_KINDS` from `lib/schemas.js`.
+   - Removed `socraticChat`, `socraticWidget`, `normalizeWidget`, `normalizeDiagnostic`, `buildSocraticPrompt`, and related prompt templates from `lib/aiService.js`.
+   - Removed unused imports `DIAGNOSTIC_SCHEMA`, `RECOMMENDED_WIDGETS`, `OBJECT_KINDS`, `WIDGET_SCHEMA`, and `WIDGET_TYPES` from `lib/aiService.js`.
+   - Removed `DIAGNOSTIC_SCHEMA`, `RECOMMENDED_WIDGETS`, `WIDGET_SCHEMA`, `WIDGET_TYPES`, and `OBJECT_KINDS` from `lib/schemas.js`.
 4. **Documentation Audit & Synchronization (`CODEBASE_SUMMARY.md` & `README.md`)**:
-   - `CODEBASE_SUMMARY.md`: Removed "dynamic 3D concept widgets" from Executive Summary, removed `socratic/widget` from Tech Stack fallback routes, removed `socratic/widget/route.js` and `WidgetCanvas.jsx` from File Map, removed Section 3.E widget bullet, and removed `ai-widget-resilience.test.mjs` from test suite list.
-   - `README.md`: Removed widget references from project description, updated Section 5 header to "Socratic AI Tutor, Explain & Reformat", removed widget bullet, and pruned file tree and test suite list.
+   - `CODEBASE_SUMMARY.md`: Removed "dynamic 3D concept widgets" from Executive Summary, removed `socratic/widget` and `socratic/chat` from Tech Stack fallback routes, removed `socratic/` routes and `WidgetCanvas.jsx` from File Map, removed Section 3.E widget bullet, and removed `ai-widget-resilience.test.mjs` from test suite list.
+   - `README.md`: Removed widget references from project description, updated Section 5 header to "Socratic AI Tutor, Explain & Reformat", removed widget bullet, and pruned file tree (`socratic/chat` replaced by `tutor/chat`) and test suite list.
 5. **Automated Verification**:
-   - All 527 tests across 136 suites pass cleanly with zero errors.
+   - All 528 tests across 136 suites pass cleanly with zero errors.

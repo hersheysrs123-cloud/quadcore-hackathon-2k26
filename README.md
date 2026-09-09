@@ -196,7 +196,7 @@ app/
     explain/route.js            POST  Structured note explanation generator
     quiz/generate/route.js      POST  Diagnostic quiz builder
     quiz/grade/route.js         POST  Quiz grading & sub-topic heatmap emitter
-    socratic/chat/route.js      POST  Socratic assistant chat dialogue & diagnostic
+    tutor/chat/route.js         POST  Interactive space-grounded AI Tutor chat
     calendar/events/route.js    Local-first calendar events route fallback
     visualizations/route.js     Local-first 3D visualization persistence route
     reset/route.js              Local-first database factory reset route
