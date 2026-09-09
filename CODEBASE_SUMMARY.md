@@ -7,13 +7,13 @@
 
 ## 📌 1. Executive Summary & Tech Stack
 
-**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes across 7 question types, an interactive space-grounded AI Tutor, dynamic 3D concept widgets, multi-timer HUDs, website bookmarking with folder hierarchies, and an aggregate mastery heatmap tracking sub-topic confidence over time.
+**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes across 7 question types, an interactive space-grounded AI Tutor, multi-timer HUDs, website bookmarking with folder hierarchies, and an aggregate mastery heatmap tracking sub-topic confidence over time.
 
 ### Tech Stack:
 - **Framework**: Next.js 15.0.0 (App Router, Turbopack / Webpack build engine)
 - **UI & Logic**: React 19 (Server & Client Components), Tailwind CSS v4 (`@tailwindcss/postcss`, dynamic CSS variable design tokens)
 - **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v7) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, folders, bookmarks, quizzes, quiz trash, space documents, and graphics settings
-- **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/reformat`, `app/api/tutor/chat`, `app/api/socratic/chat`, `app/api/socratic/widget`). `lib/aiService.js` provides isomorphic client/server AI orchestration
+- **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/reformat`, `app/api/tutor/chat`, `app/api/socratic/chat`). `lib/aiService.js` provides isomorphic client/server AI orchestration
 - **3D Engine**: Three.js (r185), `@react-three/fiber` (v9), `@react-three/drei` (v10), custom Canvas engines with OrbitControls, procedural & clinical CT geometry, and WebGL lifecycle memory management
 - **Math & Equation Engine**: KaTeX (`katex`) for full block and in-sentence `$formula$` inline math rendering
 - **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, Netscape Bookmark standard HTML import/export, `.socratic` JSON workspace backup format
@@ -34,7 +34,6 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── reformat/route.js             # POST: Intelligent note reformatting & block structuring generator
 │   │   ├── reset/route.js                # POST: Local-first factory reset signal route
 │   │   ├── socratic/chat/route.js        # POST: Socratic diagnostic probing & chat route
-│   │   ├── socratic/widget/route.js      # POST: Interactive 3D WebGL widget generator
 │   │   ├── tutor/chat/route.js           # POST: Interactive AI Tutor chat with space syllabus and academic pedagogy
 │   │   └── visualizations/route.js       # Local-first 3D visualizations persistence route
 │   ├── globals.css                       # Tailwind v4 tokens, light/dark themes, print stylesheet, KaTeX styles
@@ -71,7 +70,6 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── SpaceHubView.jsx                  # Dedicated Space Hub dashboard: per-space curriculum docs with active toggles & AI pedagogy settings
 │   ├── ThreeDView.jsx                    # 3D studio container with 27 interactive scientific simulations across 5 STEM domains & resizable HUD
 │   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
-│   ├── WidgetCanvas.jsx                  # Interactive 3D Socratic Canvas widget renderer
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
 │   └── visualizations/
 │       ├── BinaryTree3D.jsx              # 3D Binary Search Tree / AVL tree with animated operations
@@ -138,7 +136,6 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   └── web-saver.test.mjs            # URL normalization, domain parsing, Netscape HTML export/import round-trips
 │   ├── integration/
 │   │   ├── 3d-topic-schemas.test.mjs     # 3D scene topics, slider boundary validations & optical media
-│   │   ├── ai-widget-resilience.test.mjs # Socratic 3D AI widget normalizer & WebGL shielding
 │   │   ├── trash-24h-purge.test.mjs      # 24-hour auto-purge expiration calculations & time formatting
 │   │   └── dexie-backup-restore.test.mjs # Full .socratic workspace export/import round-trips & validation
 │   └── e2e/
@@ -379,7 +376,6 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
 - **Structured Concept Explainer (`app/api/explain/route.js`, `lib/aiService.js` & `components/ExplainPanel.jsx`)**: Generates structured breakdowns containing TL;DR summaries, mechanism steps, analogies with explicit breakdown boundaries, common misconceptions, worked examples, and check-yourself questions, rendered with rich inline Markdown (**bold**, *italic*, `code`) and live KaTeX LaTeX mathematical/scientific equations. Features robust mathematical healing including JSON wire single-backslash escape repair (`repairJsonLatexEscapes`), control character healing (`sanitizeMathText` repairing `\f` form-feed `\frac` and `\t` tab `\text` corruptions), discrete bare LaTeX extraction in prose without delimiters (`BARE_INLINE_LATEX_REGEX`), and global KaTeX macro registration (`"\\ext": "\\text{#1}"`).
 - **Intelligent Note Reformatting (`app/api/reformat/route.js` & `lib/aiService.js`)**: Analyzes notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with emoji icons, hierarchical sub-bullets with multi-level nesting via `level` schema, LaTeX display/inline math, collapsible toggles, code snippets, checklists, tables, and dividers) with automatic multi-chunk segmentation for long notes (`chunkNoteBlocks`), live progress updates (`Part X/Y...`), strict LaTeX formula enforcement across all equations, markdown preservation inside bullets and all blocks, instantaneous `Ctrl+Z` undo stack tracking, offline heuristic fallback recognizing indented markdown sub-bullets, and a top-center floating glassmorphic status banner with live progress indicator.
 - **Quiz Drawer Assessment Engine (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions and recording session scores directly into the mastery analytics store.
-- **3D Socratic Canvas Widgets (`app/api/socratic/widget/route.js` & `components/WidgetCanvas.jsx`)**: Translates sub-topic misconceptions into interactive 3D WebGL scenes with vector arrows, camera controls, parameter sliders, and real-time gap repair guidance.
 - **Client-Side AI Orchestration (`lib/aiService.js`)**: Allows users to provide their own Gemini API key stored privately in IndexedDB, calling Gemini directly from the client or falling back to server routes.
 
 ---

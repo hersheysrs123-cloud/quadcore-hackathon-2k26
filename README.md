@@ -2,7 +2,7 @@
 
 > **quadcore-hackathon-2k26** — An intelligent, interactive study workspace, 3D scientific visualization studio & Socratic AI tutor.
 
-A state-of-the-art learning environment built around one core premise: **rereading is not studying**. Take block-based notes, command your workspace with universal keyboard shortcuts, explore concepts in real-time 3D, receive structured explanations, test your understanding through interactive quizzes, interact with 3D Socratic widgets, and track sub-topic confidence over time on an aggregate mastery heatmap.
+A state-of-the-art learning environment built around one core premise: **rereading is not studying**. Take block-based notes, command your workspace with universal keyboard shortcuts, explore concepts in real-time 3D, receive structured explanations, test your understanding through interactive quizzes, and track sub-topic confidence over time on an aggregate mastery heatmap.
 
 **Stack**: Next.js 15 (App Router) · React 19 · Three.js / React Three Fiber · Tailwind CSS · Google Gemini AI API · IndexedDB (Dexie.js).
 
@@ -134,10 +134,9 @@ A comprehensive suite of 27 real-time interactive 3D STEM simulations built usin
 - **Study Calendar & Schedule** ([`CalendarView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/CalendarView.jsx)): Event scheduling, month navigation, space tagging, 24-hour time picker, and custom recurring alarm integration.
 - **Calming Study Break & Timer Alert** ([`AlarmOverlay.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/AlarmOverlay.jsx)): Glassmorphic modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (`🦆` $\leftrightarrow$ `☕`), and friendly snooze/extend controls.
 
-### 🦆 5. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
+### 🦆 5. Socratic AI Tutor, Explain & Reformat
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
 - **Diagnostic Quiz Drawer (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions and recording session scores directly into the mastery analytics store.
-- **3D Socratic Canvas Widgets (`POST /api/socratic/widget` & [`WidgetCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/WidgetCanvas.jsx)): Generates interactive 3D concept widgets with drag-orbit controls, custom sliders, camera zoom, and sub-topic gap repair hints.
 
 
 ### 📊 6. Graded Quizzes, Quizzes Studio & Sub-Topic Mastery Heatmap
@@ -198,7 +197,6 @@ app/
     quiz/generate/route.js      POST  Diagnostic quiz builder
     quiz/grade/route.js         POST  Quiz grading & sub-topic heatmap emitter
     socratic/chat/route.js      POST  Socratic assistant chat dialogue & diagnostic
-    socratic/widget/route.js    POST  Interactive 3D WebGL widget generator
     calendar/events/route.js    Local-first calendar events route fallback
     visualizations/route.js     Local-first 3D visualization persistence route
     reset/route.js              Local-first database factory reset route
@@ -216,7 +214,6 @@ components/
   GlobalTimerHUD.jsx            Unified top HUD multi-timer manager
   AlarmOverlay.jsx              Calming study break alert modal with gentle chime
   ThreeDView.jsx                3D visualization studio container & control HUD
-  WidgetCanvas.jsx              Interactive Socratic 3D canvas widget renderer
   ExplainPanel.jsx              Structured LLM explanation drawer
   QuizPanel.jsx                 Graded quiz drawer & knowledge assessment runner
   ConfidenceHeatmap.jsx         Per-session sub-topic confidence heatmap
@@ -250,7 +247,7 @@ lib/
 
 tests/
   unit/                         Physics solvers, AVL tree, export/import, mastery rollup, quiz grading, timers, syntax, tables
-  integration/                  3D topic schemas, AI widget normalizer, 24h trash purge, Dexie backup/restore
+  integration/                  3D topic schemas, 24h trash purge, Dexie backup/restore
   e2e/                          Keyboard shortcuts (Ctrl+K/I/S), block editor flow, theme toggle, export & print
 
 scripts/

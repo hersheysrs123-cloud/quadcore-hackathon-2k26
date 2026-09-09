@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { ChevronDown, Search, X } from "lucide-react";
-import WidgetCanvas from "@/components/WidgetCanvas";
 import {
   ViewportHint,
   VisualizationHUD,
@@ -56,9 +55,6 @@ const CANVASES = {
 
 
 export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStudyTopic }) {
-  const [customWidgets, setCustomWidgets] = useState([]);
-  const [selectedWidgetId, setSelectedWidgetId] = useState(null);
-
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
   const [topicId, setTopicId] = useState(TOPICS[0].id);
@@ -96,30 +92,6 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
   const [paramsByTopic, setParamsByTopic] = useState(() =>
     Object.fromEntries(TOPICS.map((t) => [t.id, { ...t.defaults }])),
   );
-
-  // Fetch saved 3D visualization models on mount
-  useEffect(() => {
-    async function loadVisualizations() {
-      try {
-        const res = await fetch("/api/visualizations");
-        const data = await res.json();
-        if (data.visualizations && data.visualizations.length > 0) {
-          const formatted = data.visualizations.map((v) => ({
-            id: v.id,
-            title: v.title || v.concept_name || "3D Model",
-            widget: v.widget_json,
-          }));
-          setCustomWidgets(formatted);
-        }
-      } catch {
-        // Fallback if network/DB table not populated yet
-      }
-    }
-    loadVisualizations();
-  }, []);
-
-  const isCustomSelected = selectedWidgetId !== null;
-  const activeWidgetObj = customWidgets.find((w) => w.id === selectedWidgetId);
 
   const topic = TOPICS_BY_ID[topicId] || TOPICS[0];
   const params = paramsByTopic[topic.id] || topic.defaults;
@@ -297,7 +269,7 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
 
           <div className="flex items-center gap-1.5 shrink-0">
             {visibleTopics.map((t) => {
-              const active = !isCustomSelected && topicId === t.id;
+              const active = topicId === t.id;
               const Icon = t.icon;
               return (
                 <button
@@ -338,38 +310,22 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
       <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Viewport + overlaid HUD */}
         <main className="relative flex-1 h-full w-full min-h-0" style={{ backgroundColor: CANVAS_BG }}>
-          {isCustomSelected && activeWidgetObj ? (
-            <div className="h-full w-full p-4 overflow-y-auto" style={{ backgroundColor: CANVAS_BG }}>
-              <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
-                <h2 className="text-sm font-semibold text-ink-100">
-                  {activeWidgetObj.title}
-                </h2>
-                <span className="rounded-full border border-duck-500/30 bg-duck-500/10 px-2.5 py-1 text-[10px] text-duck-300">
-                  Saved Supabase Model
-                </span>
-              </div>
-              <WidgetCanvas widget={activeWidgetObj.widget} />
-            </div>
-          ) : (
-            <>
-              {CanvasComponent && (
-                <CanvasComponent key={topic.id} topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={handleOpenStudy} />
-              )}
-
-              {!topic.ownHud && (
-                <VisualizationHUD
-                  topic={topic}
-                  params={params}
-                  setParam={setParam}
-                  setParams={setParams}
-                  onReset={resetParams}
-                  onOpenQuiz={handleOpenStudy}
-                />
-              )}
-
-              <ViewportHint>drag to orbit · scroll to zoom · right-drag to pan</ViewportHint>
-            </>
+          {CanvasComponent && (
+            <CanvasComponent key={topic.id} topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={handleOpenStudy} />
           )}
+
+          {!topic.ownHud && (
+            <VisualizationHUD
+              topic={topic}
+              params={params}
+              setParam={setParam}
+              setParams={setParams}
+              onReset={resetParams}
+              onOpenQuiz={handleOpenStudy}
+            />
+          )}
+
+          <ViewportHint>drag to orbit · scroll to zoom · right-drag to pan</ViewportHint>
         </main>
       </div>
     </div>
