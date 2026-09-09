@@ -4210,16 +4210,16 @@ const EditorBlock = memo(function EditorBlock({
     if (e.key === "Tab" && (block.type === "bullet" || block.type === "number")) {
       e.preventDefault();
       const currentLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
+      const currentText = contentRef.current ? getBlockTextFromDOM(contentRef.current) : (block.content || "");
       if (!e.shiftKey) {
         if (currentLevel < 4) {
-          onUpdateBlock?.(block.id, { level: currentLevel + 1 }, false, true);
+          onUpdateBlock?.(block.id, { level: currentLevel + 1, content: currentText }, false, true);
         }
       } else {
         if (currentLevel > 0) {
-          onUpdateBlock?.(block.id, { level: currentLevel - 1 }, false, true);
+          onUpdateBlock?.(block.id, { level: currentLevel - 1, content: currentText }, false, true);
         } else {
-          const text = contentRef.current ? getBlockTextFromDOM(contentRef.current) : (block.content || "");
-          if (!text.trim()) {
+          if (!currentText.trim()) {
             onChangeType?.(block.id, "text");
           }
         }
@@ -4278,7 +4278,7 @@ const EditorBlock = memo(function EditorBlock({
       // Notion behavior: Pressing enter at the start of a heading block keeps heading intact,
       // shifts heading and all blocks below down, and inserts a new empty block above
       if (["h1", "h2", "h3", "h4"].includes(block.type)) {
-        const isHeadingAtStart = cleanZeroWidth(textBefore).length === 0;
+        const isHeadingAtStart = cleanZeroWidth(textBefore).trim().length === 0;
         if (isHeadingAtStart) {
           if (cleanZeroWidth(textAfter).length === 0) {
             onChangeType?.(block.id, "text");
@@ -4289,19 +4289,25 @@ const EditorBlock = memo(function EditorBlock({
         }
       }
 
-      if (sel && sel.rangeCount > 0 && sel.focusNode && contentRef.current) {
-        onChange(block.id, textBefore);
-        if (contentRef.current) {
-          setBlockDOMFromText(contentRef.current, textBefore);
+      // Notion behavior: Pressing enter at the start of a bullet (or numbered) block inserts a bullet above
+      // and moves the current bullet with its content to the next line, keeping focus on the moved bullet
+      if (block.type === "bullet" || block.type === "number") {
+        const isListAtStart = cleanZeroWidth(textBefore).trim().length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
+        if (isListAtStart) {
+          if (cleanZeroWidth(textAfter).length > 0) {
+            onAddBefore?.(block.id, "", block.type, { level: block.level || 0 }, "original");
+            return;
+          }
         }
       }
 
+      // Empty list / callout / quote block exit:
       if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim() && !textAfter.trim()) {
         if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
           onUpdateBlock?.(block.id, { level: (block.level || 0) - 1 }, false, true);
           return;
         }
-        onChangeType(block.id, "text");
+        onChangeType?.(block.id, "text");
         return;
       }
 
@@ -4320,6 +4326,11 @@ const EditorBlock = memo(function EditorBlock({
         return;
       }
 
+      // Synchronously update local DOM text so there's no visual stutter
+      if (contentRef.current) {
+        setBlockDOMFromText(contentRef.current, textBefore, block.type);
+      }
+
       // Pressing Enter in headings, callouts, quotes, and toggles spawns a standard paragraph text block below
       const nextType = ["h1", "h2", "h3", "h4", "callout", "quote", "toggle"].includes(block.type) ? "text" : block.type;
       
@@ -4333,7 +4344,9 @@ const EditorBlock = memo(function EditorBlock({
         : (nextType === "bullet" || nextType === "number") 
           ? { level: block.level || 0 } 
           : {};
-      onAddAfter(block.id, textAfter, nextType, extraProps);
+
+      // Atomically split block in a single history snapshot
+      onAddAfter(block.id, textAfter, nextType, extraProps, textBefore);
       return;
     }
 
@@ -5181,6 +5194,16 @@ export default function BlockNoteEditor({
       : [{ id: "blk_default_init_0", type: "text", content: "" }]
   );
   const [selectedId, setSelectedId] = useState(null);
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  const handleSelectBlock = useCallback((id) => {
+    selectedIdRef.current = id;
+    setSelectedId(id);
+  }, []);
+
   const [selectedBlockIds, setSelectedBlockIds] = useState(new Set());
   const selectedBlockIdsRef = useRef(selectedBlockIds);
   useEffect(() => {
@@ -5235,8 +5258,10 @@ export default function BlockNoteEditor({
         : blocksRef.current.find((b) => b.id === blockOrId);
     if (!block) return;
 
+    selectedIdRef.current = block.id;
     setSelectedId(block.id);
     setSelectedBlockIds(new Set());
+    selectedBlockIdsRef.current = new Set();
 
     const performFocus = () => {
       // 1. CodeBlock
@@ -5801,6 +5826,15 @@ export default function BlockNoteEditor({
     };
   }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
+  const pushHistorySnapshot = useCallback(() => {
+    const snapshot = JSON.parse(JSON.stringify(blocksRef.current));
+    pastBlocksRef.current = [...pastBlocksRef.current.slice(-30), snapshot];
+    setPastBlocks(pastBlocksRef.current);
+    futureBlocksRef.current = [];
+    setFutureBlocks([]);
+    lastHistoryPush.current = Date.now();
+  }, []);
+
   // Drag-to-reorder, driven by each block's ⠿ handle.
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
@@ -5816,8 +5850,7 @@ export default function BlockNoteEditor({
       },
       onDrop: () => {
         if (dragging && dragOver && dragging !== dragOver) {
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
         }
         setBlocks((prev) => {
           if (!dragging || !dragOver || dragging === dragOver) return prev;
@@ -5828,6 +5861,7 @@ export default function BlockNoteEditor({
           const [moved] = next.splice(from, 1);
           const insertAt = from < to ? to - 1 : to;
           next.splice(insertAt, 0, moved);
+          blocksRef.current = next;
           performSave({ blocks: next });
           return next;
         });
@@ -5835,7 +5869,7 @@ export default function BlockNoteEditor({
         setDragOver(null);
       },
     }),
-    [dragging, dragOver, performSave],
+    [dragging, dragOver, performSave, pushHistorySnapshot],
   );
 
   const { totalCharacters, totalWords } = useMemo(() => {
@@ -5865,17 +5899,16 @@ export default function BlockNoteEditor({
     (id, content) => {
       const now = Date.now();
       if (now - lastHistoryPush.current > 600) {
-        setPastBlocks((p) => [...p.slice(-30), blocksRef.current]);
-        setFutureBlocks([]);
-        lastHistoryPush.current = now;
+        pushHistorySnapshot();
       }
       setBlocks((prev) => {
         const next = prev.map((b) => (b.id === id ? { ...b, content } : b));
+        blocksRef.current = next;
         triggerDebouncedSave({ blocks: next });
         return next;
       });
     },
-    [triggerDebouncedSave]
+    [pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const handleTitleChange = useCallback(
@@ -5897,56 +5930,99 @@ export default function BlockNoteEditor({
 
       if (!inEditor) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        if (e.shiftKey) {
-          if (futureBlocksRef.current.length > 0) {
-            e.preventDefault();
-            const next = futureBlocksRef.current[0];
-            setFutureBlocks((f) => f.slice(1));
-            setPastBlocks((p) => [
-              ...p,
-              JSON.parse(JSON.stringify(blocksRef.current)),
-            ]);
-            const clonedNext = JSON.parse(JSON.stringify(next));
-            setBlocks(clonedNext);
-            performSave({ blocks: clonedNext });
-          }
-        } else {
-          if (pastBlocksRef.current.length > 0) {
-            e.preventDefault();
-            const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
-            setPastBlocks((p) => p.slice(0, p.length - 1));
-            setFutureBlocks((f) => [
-              JSON.parse(JSON.stringify(blocksRef.current)),
-              ...f,
-            ]);
-            const clonedPrevious = JSON.parse(JSON.stringify(previous));
-            setBlocks(clonedPrevious);
-            performSave({ blocks: clonedPrevious });
-            const targetId = selectedId || clonedPrevious[0]?.id;
-            if (targetId) {
-              requestAnimationFrame(() => {
-                focusBlock(targetId, "end");
-              });
+      const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey;
+      const isRedo =
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey);
+
+      if (isUndo) {
+        if (pastBlocksRef.current.length > 0) {
+          e.preventDefault();
+          const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
+          const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
+          const clonedPrevious = JSON.parse(JSON.stringify(previous));
+
+          pastBlocksRef.current = pastBlocksRef.current.slice(0, -1);
+          futureBlocksRef.current = [currentBlocks, ...futureBlocksRef.current];
+          blocksRef.current = clonedPrevious;
+
+          setPastBlocks(pastBlocksRef.current);
+          setFutureBlocks(futureBlocksRef.current);
+          setBlocks(clonedPrevious);
+          performSave({ blocks: clonedPrevious });
+
+          const currentSelected = selectedIdRef.current;
+          let targetBlock = null;
+
+          if (currentSelected && clonedPrevious.some((b) => b.id === currentSelected)) {
+            targetBlock = clonedPrevious.find((b) => b.id === currentSelected);
+          } else {
+            const prevIdx = currentBlocks.findIndex((b) => b.id === currentSelected);
+            if (prevIdx !== -1) {
+              const targetIdx = Math.max(0, Math.min(prevIdx, clonedPrevious.length - 1));
+              targetBlock = clonedPrevious[targetIdx];
+            } else {
+              const diffIdx = clonedPrevious.findIndex(
+                (b, i) =>
+                  !currentBlocks[i] ||
+                  b.id !== currentBlocks[i].id ||
+                  b.content !== currentBlocks[i].content ||
+                  b.level !== currentBlocks[i].level ||
+                  b.type !== currentBlocks[i].type
+              );
+              targetBlock = diffIdx !== -1 ? clonedPrevious[diffIdx] : clonedPrevious[0];
             }
           }
+
+          if (targetBlock) {
+            selectedIdRef.current = targetBlock.id;
+            setSelectedId(targetBlock.id);
+            requestAnimationFrame(() => {
+              focusBlock(targetBlock, "end");
+            });
+          }
         }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+      } else if (isRedo) {
         if (futureBlocksRef.current.length > 0) {
           e.preventDefault();
+          const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
           const next = futureBlocksRef.current[0];
-          setFutureBlocks((f) => f.slice(1));
-          setPastBlocks((p) => [
-            ...p,
-            JSON.parse(JSON.stringify(blocksRef.current)),
-          ]);
           const clonedNext = JSON.parse(JSON.stringify(next));
+
+          futureBlocksRef.current = futureBlocksRef.current.slice(1);
+          pastBlocksRef.current = [...pastBlocksRef.current, currentBlocks];
+          blocksRef.current = clonedNext;
+
+          setFutureBlocks(futureBlocksRef.current);
+          setPastBlocks(pastBlocksRef.current);
           setBlocks(clonedNext);
           performSave({ blocks: clonedNext });
-          const targetId = selectedId || clonedNext[0]?.id;
-          if (targetId) {
+
+          const currentSelected = selectedIdRef.current;
+          let targetBlock = null;
+
+          const newlyAdded = clonedNext.find((b) => !currentBlocks.some((cb) => cb.id === b.id));
+          if (newlyAdded) {
+            targetBlock = newlyAdded;
+          } else if (currentSelected && clonedNext.some((b) => b.id === currentSelected)) {
+            targetBlock = clonedNext.find((b) => b.id === currentSelected);
+          } else {
+            const diffIdx = clonedNext.findIndex(
+              (b, i) =>
+                !currentBlocks[i] ||
+                b.id !== currentBlocks[i].id ||
+                b.content !== currentBlocks[i].content ||
+                b.level !== currentBlocks[i].level ||
+                b.type !== currentBlocks[i].type
+            );
+            targetBlock = diffIdx !== -1 ? clonedNext[diffIdx] : clonedNext[clonedNext.length - 1];
+          }
+
+          if (targetBlock) {
+            selectedIdRef.current = targetBlock.id;
+            setSelectedId(targetBlock.id);
             requestAnimationFrame(() => {
-              focusBlock(targetId, "end");
+              focusBlock(targetBlock, "end");
             });
           }
         }
@@ -5954,7 +6030,7 @@ export default function BlockNoteEditor({
     };
     window.addEventListener("keydown", handleGlobalUndoRedo);
     return () => window.removeEventListener("keydown", handleGlobalUndoRedo);
-  }, [performSave]);
+  }, [focusBlock, performSave]);
 
   // Multi-Block Selection Keyboard Shortcuts: Ctrl+A, Ctrl+C, Ctrl+X, Delete/Backspace
 
@@ -5997,24 +6073,27 @@ export default function BlockNoteEditor({
           const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
           const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
           navigator.clipboard.writeText(md);
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
           setBlocks((prev) => {
             const next = prev.filter((b) => !effectiveIds.has(b.id));
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
+            blocksRef.current = safeNext;
             triggerDebouncedSave({ blocks: safeNext });
             return safeNext;
           });
           setSelectedBlockIds(new Set());
-          if (selectedId) setSelectedId(null);
+          selectedBlockIdsRef.current = new Set();
+          if (selectedIdRef.current) {
+            selectedIdRef.current = null;
+            setSelectedId(null);
+          }
           return;
         }
 
         // Enter on Selected Blocks
         if (e.key === "Enter" && !isInput) {
           e.preventDefault();
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
           setBlocks((prev) => {
             let lastSelectedIdx = -1;
             prev.forEach((b, i) => {
@@ -6030,7 +6109,11 @@ export default function BlockNoteEditor({
             const newBlock = createBlock("text", "");
             next.splice(insertIdxInNext, 0, newBlock);
 
+            blocksRef.current = next;
             triggerDebouncedSave({ blocks: next });
+
+            selectedIdRef.current = newBlock.id;
+            setSelectedId(newBlock.id);
 
             setTimeout(() => {
               const el = blockRefs.current[newBlock.id]?.current;
@@ -6039,7 +6122,7 @@ export default function BlockNoteEditor({
             return next;
           });
           setSelectedBlockIds(new Set());
-          if (selectedId) setSelectedId(null);
+          selectedBlockIdsRef.current = new Set();
           return;
         }
 
@@ -6047,8 +6130,7 @@ export default function BlockNoteEditor({
         if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
           e.stopPropagation();
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
           let focusTarget = null;
           setBlocks((prev) => {
             const firstSelectedIdx = prev.findIndex((b) => effectiveIds.has(b.id));
@@ -6056,11 +6138,14 @@ export default function BlockNoteEditor({
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
             const targetIdx = Math.max(0, Math.min(firstSelectedIdx >= 0 ? firstSelectedIdx : 0, safeNext.length - 1));
             focusTarget = safeNext[targetIdx];
+            blocksRef.current = safeNext;
             triggerDebouncedSave({ blocks: safeNext });
             return safeNext;
           });
           setSelectedBlockIds(new Set());
+          selectedBlockIdsRef.current = new Set();
           if (focusTarget) {
+            selectedIdRef.current = focusTarget.id;
             setSelectedId(focusTarget.id);
             requestAnimationFrame(() => {
               focusBlock(focusTarget, "end");
@@ -6078,8 +6163,7 @@ export default function BlockNoteEditor({
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
     const caretTarget = typeof extraOrCaret === "string" ? extraOrCaret : "start";
-    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-    setFutureBlocks([]);
+    pushHistorySnapshot();
     setBlocks((prev) => {
       const next = prev.map((b) => {
         if (b.id !== id) return b;
@@ -6133,9 +6217,11 @@ export default function BlockNoteEditor({
         }
         return { ...b, type };
       });
+      blocksRef.current = next;
       triggerDebouncedSave({ blocks: next });
       return next;
     });
+    selectedIdRef.current = id;
     setSelectedId(id);
     requestAnimationFrame(() => {
       setTimeout(() => {
@@ -6145,16 +6231,12 @@ export default function BlockNoteEditor({
         }
       }, 15);
     });
-  }, [focusBlock, triggerDebouncedSave]);
+  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
 
   const handleUpdateBlock = useCallback(
     (id, patch, shouldSaveNote = false, recordHistory = false) => {
       if (recordHistory) {
-        setPastBlocks((p) => [
-          ...p.slice(-25),
-          JSON.parse(JSON.stringify(blocksRef.current)),
-        ]);
-        setFutureBlocks([]);
+        pushHistorySnapshot();
       }
       setBlocks((prev) => {
         const next = prev.map((b) => {
@@ -6165,6 +6247,7 @@ export default function BlockNoteEditor({
           }
           return updated;
         });
+        blocksRef.current = next;
         if (shouldSaveNote) {
           performSave({ blocks: next });
         } else {
@@ -6173,21 +6256,16 @@ export default function BlockNoteEditor({
         return next;
       });
     },
-    [performSave, triggerDebouncedSave]
+    [performSave, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const recordHistorySnapshot = useCallback(() => {
-    setPastBlocks((p) => [
-      ...p.slice(-25),
-      JSON.parse(JSON.stringify(blocksRef.current)),
-    ]);
-    setFutureBlocks([]);
-  }, []);
+    pushHistorySnapshot();
+  }, [pushHistorySnapshot]);
 
   const handleDeleteBlock = useCallback(
     (id) => {
-      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
       let focusTarget = null;
       setBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
@@ -6195,23 +6273,24 @@ export default function BlockNoteEditor({
         const safeNext = next.length > 0 ? next : [createBlock("text", "")];
         const targetIdx = Math.max(0, Math.min(idx > 0 ? idx - 1 : 0, safeNext.length - 1));
         focusTarget = safeNext[targetIdx];
+        blocksRef.current = safeNext;
         performSave({ blocks: safeNext });
         return safeNext;
       });
       if (focusTarget) {
+        selectedIdRef.current = focusTarget.id;
         setSelectedId(focusTarget.id);
         requestAnimationFrame(() => {
           focusBlock(focusTarget, "end");
         });
       }
     },
-    [performSave, focusBlock]
+    [focusBlock, performSave, pushHistorySnapshot]
   );
 
   const handleDuplicateBlock = useCallback(
     (id) => {
-      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
       setBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
         if (idx === -1) return prev;
@@ -6221,72 +6300,79 @@ export default function BlockNoteEditor({
           id: Math.random().toString(36).slice(2, 10),
         };
         const next = [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+        blocksRef.current = next;
         performSave({ blocks: next });
         return next;
       });
     },
-    [performSave]
+    [performSave, pushHistorySnapshot]
   );
 
   const handleMoveBlock = useCallback(
     (fromIndex, toIndex) => {
-      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
       setBlocks((prev) => {
         if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev;
         const next = [...prev];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
+        blocksRef.current = next;
         performSave({ blocks: next });
         return next;
       });
     },
-    [performSave]
+    [performSave, pushHistorySnapshot]
   );
 
-  const handleAddAfter = useCallback((afterId, content = "", typeToInherit = null, extraProps = {}) => {
-    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-    setFutureBlocks([]);
-    
-    const currentBlock = blocksRef.current.find((b) => b.id === afterId);
-    let newType = "text";
-    if (typeToInherit) {
-      newType = typeToInherit;
-    } else {
-      if (currentBlock && ["bullet", "number", "todo", "toggle"].includes(currentBlock.type)) {
-        newType = currentBlock.type;
+  const handleAddAfter = useCallback(
+    (afterId, content = "", typeToInherit = null, extraProps = {}, splitBeforeContent = null) => {
+      pushHistorySnapshot();
+      
+      const currentBlock = blocksRef.current.find((b) => b.id === afterId);
+      let newType = "text";
+      if (typeToInherit) {
+        newType = typeToInherit;
+      } else {
+        if (currentBlock && ["bullet", "number", "todo", "toggle"].includes(currentBlock.type)) {
+          newType = currentBlock.type;
+        }
       }
-    }
 
-    const defaultExtra = {};
-    if ((newType === "bullet" || newType === "number") && currentBlock && currentBlock.type === newType && (currentBlock.level || 0) > 0) {
-      defaultExtra.level = currentBlock.level;
-    }
+      const defaultExtra = {};
+      if ((newType === "bullet" || newType === "number") && currentBlock && currentBlock.type === newType && (currentBlock.level || 0) > 0) {
+        defaultExtra.level = currentBlock.level;
+      }
 
-    const count = extraProps?.columnCount || 2;
-    const extra =
-      newType === "columns"
-        ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
-        : { ...defaultExtra, ...(extraProps || {}) };
-    const newBlock = createBlock(newType, content, extra);
-    setBlocks((prev) => {
-      const idx = prev.findIndex((b) => b.id === afterId);
-      const next = [...prev];
-      next.splice(idx + 1, 0, newBlock);
-      triggerDebouncedSave({ blocks: next });
-      return next;
-    });
-    setSelectedId(newBlock.id);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        focusBlock(newBlock, "start");
-      }, 30);
-    });
-  }, [focusBlock, triggerDebouncedSave]);
+      const count = extraProps?.columnCount || 2;
+      const extra =
+        newType === "columns"
+          ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
+          : { ...defaultExtra, ...(extraProps || {}) };
+      const newBlock = createBlock(newType, content, extra);
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === afterId);
+        const next = [...prev];
+        if (splitBeforeContent !== null && idx !== -1) {
+          next[idx] = { ...next[idx], content: splitBeforeContent };
+        }
+        next.splice(idx + 1, 0, newBlock);
+        blocksRef.current = next;
+        triggerDebouncedSave({ blocks: next });
+        return next;
+      });
+      selectedIdRef.current = newBlock.id;
+      setSelectedId(newBlock.id);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          focusBlock(newBlock, "start");
+        }, 30);
+      });
+    },
+    [focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+  );
 
   const handleAddBefore = useCallback((beforeId, content = "", typeToUse = "text", extraProps = {}, focusTarget = "original") => {
-    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-    setFutureBlocks([]);
+    pushHistorySnapshot();
     
     const count = extraProps?.columnCount || 2;
     const extra =
@@ -6302,21 +6388,25 @@ export default function BlockNoteEditor({
       } else {
         next.unshift(newBlock);
       }
+      blocksRef.current = next;
       triggerDebouncedSave({ blocks: next });
       return next;
     });
 
     if (focusTarget === "original") {
+      selectedIdRef.current = beforeId;
       requestAnimationFrame(() => {
         setTimeout(() => {
           const origBlock = blocksRef.current.find((b) => b.id === beforeId);
           if (origBlock) {
+            selectedIdRef.current = origBlock.id;
             setSelectedId(origBlock.id);
             focusBlock(origBlock, "start");
           }
         }, 20);
       });
     } else {
+      selectedIdRef.current = newBlock.id;
       setSelectedId(newBlock.id);
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -6324,7 +6414,7 @@ export default function BlockNoteEditor({
         }, 20);
       });
     }
-  }, [focusBlock, triggerDebouncedSave]);
+  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
 
   const handleExitDown = useCallback(
     (blockId) => {
@@ -6395,10 +6485,9 @@ export default function BlockNoteEditor({
 
       if (parsedBlocks.length > 0) {
         e.preventDefault();
-        setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-        setFutureBlocks([]);
+        pushHistorySnapshot();
         setBlocks((prev) => {
-          const activeIdx = prev.findIndex((b) => b.id === selectedId);
+          const activeIdx = prev.findIndex((b) => b.id === (selectedIdRef.current || selectedId));
           let next;
           if (activeIdx !== -1) {
             const activeBlock = prev[activeIdx];
@@ -6445,6 +6534,7 @@ export default function BlockNoteEditor({
               focusBlock(lastInserted, "end");
             }
           }
+          blocksRef.current = next;
           triggerDebouncedSave({ blocks: next });
           return next;
         });
@@ -6466,8 +6556,7 @@ export default function BlockNoteEditor({
             const block = blocksRef.current?.find((b) => b.id === blockId);
             const bType = block?.type || "text";
 
-            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-            setFutureBlocks([]);
+            pushHistorySnapshot();
 
             // Format DOM immediately with inline markdown (handles bold, italic, code, math)
             setBlockDOMFromText(activeBlockEl, fullText, bType);
@@ -6478,6 +6567,7 @@ export default function BlockNoteEditor({
               handleChange(blockId, fullText);
               setBlocks((prev) => {
                 const next = prev.map((b) => (b.id === blockId ? { ...b, content: fullText } : b));
+                blocksRef.current = next;
                 triggerDebouncedSave({ blocks: next });
                 return next;
               });
@@ -6486,7 +6576,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [selectedId, handleChange, focusBlock, triggerDebouncedSave]
+    [selectedId, handleChange, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const headings = useMemo(() => {
@@ -6605,8 +6695,7 @@ export default function BlockNoteEditor({
     setReformatToast(null);
 
     try {
-      setPastBlocks((p) => [...p.slice(-30), currentBlocks]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
 
       const res = await reformatNoteContent({
         title,
@@ -6620,6 +6709,7 @@ export default function BlockNoteEditor({
         const { title: newTitle, emoji: newEmoji, blocks: newBlocks } = res.reformatted;
 
         if (newBlocks && newBlocks.length > 0) {
+          blocksRef.current = newBlocks;
           setBlocks(newBlocks);
         }
         if (newTitle) {
@@ -6658,7 +6748,7 @@ export default function BlockNoteEditor({
       setIsReformatting(false);
       setReformatProgress(null);
     }
-  }, [isReformatting, title, emoji, performSave]);
+  }, [isReformatting, title, emoji, performSave, pushHistorySnapshot]);
 
   useEffect(() => {
     onRegisterReformat?.(handleIntelligentReformat);
@@ -6735,15 +6825,16 @@ export default function BlockNoteEditor({
             e.preventDefault();
             const prevBlock = idx > 0 ? blocks[idx - 1] : (blocks[1] || null);
             
-            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-            setFutureBlocks([]);
+            pushHistorySnapshot();
             setBlocks((prev) => {
               const next = prev.filter((b) => b.id !== blockId);
+              blocksRef.current = next;
               triggerDebouncedSave({ blocks: next });
               return next;
             });
 
             if (prevBlock) {
+              selectedIdRef.current = prevBlock.id;
               focusBlock(prevBlock, idx > 0 ? "end" : "start");
               requestAnimationFrame(() => {
                 focusBlock(prevBlock, idx > 0 ? "end" : "start");
@@ -6768,8 +6859,7 @@ export default function BlockNoteEditor({
             const currentContent = block.content || "";
             const mergedContent = prevContent + currentContent;
 
-            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-            setFutureBlocks([]);
+            pushHistorySnapshot();
 
             // Measure DOM text length before merge to avoid markdown syntax offset overshooting
             const prevEl = blockRefs.current[prevBlock.id]?.current;
@@ -6788,10 +6878,12 @@ export default function BlockNoteEditor({
               if (targetIdx !== -1) {
                 next[targetIdx] = { ...next[targetIdx], content: mergedContent };
               }
+              blocksRef.current = next;
               triggerDebouncedSave({ blocks: next });
               return next;
             });
 
+            selectedIdRef.current = prevBlock.id;
             setSelectedId(prevBlock.id);
             const focusJoin = () => {
               const targetElRef = blockRefs.current[prevBlock.id]?.current;
@@ -6835,10 +6927,10 @@ export default function BlockNoteEditor({
                   // 1. Standalone embed block (divider, site, media, canvas): delete it!
                   if (standaloneEmbedTypes.includes(targetBlock?.type)) {
                     e.preventDefault();
-                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                    setFutureBlocks([]);
+                    pushHistorySnapshot();
                     setBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
+                      blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
                       return next;
                     });
@@ -6847,10 +6939,10 @@ export default function BlockNoteEditor({
                   // 2. Empty text block: delete it!
                   if (targetBlock?.type === "text" && (!targetBlock.content || targetBlock.content.trim() === "")) {
                     e.preventDefault();
-                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                    setFutureBlocks([]);
+                    pushHistorySnapshot();
                     setBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
+                      blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
                       return next;
                     });
@@ -6863,8 +6955,7 @@ export default function BlockNoteEditor({
                     const nextContent = targetBlock.content || "";
                     const mergedContent = currentContent + nextContent;
 
-                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                    setFutureBlocks([]);
+                    pushHistorySnapshot();
 
                     const domCaretOffset = getDOMCaretLength(el);
 
@@ -6877,9 +6968,13 @@ export default function BlockNoteEditor({
                       if (targetIdx !== -1) {
                         next[targetIdx] = { ...next[targetIdx], content: mergedContent };
                       }
+                      blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
                       return next;
                     });
+
+                    selectedIdRef.current = blockId;
+                    setSelectedId(blockId);
 
                     requestAnimationFrame(() => {
                       const targetEl = blockRefs.current[blockId]?.current;
@@ -6986,7 +7081,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, triggerDebouncedSave]
+    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);
@@ -7428,7 +7523,7 @@ export default function BlockNoteEditor({
                   blockLabel={blockNumberLabel}
                   isLast={index === blocks.length - 1}
                   isSelected={selectedId === block.id}
-                  onSelect={setSelectedId}
+                  onSelect={handleSelectBlock}
                   setSelectedBlockIds={setSelectedBlockIds}
                   selectedBlockIds={selectedBlockIds}
                   onChange={handleChange}

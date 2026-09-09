@@ -182,8 +182,10 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
     - `Tab`: Indents bullet or number item by 1 level (`level = level + 1`, capped at level 4).
     - `Shift+Tab`: Outdents item by 1 level; if at level 0 on empty item, converts cleanly to paragraph.
     - `Backspace`: Decrements level if indented, or un-lists empty items to plain text.
-- **Heading Block Notion-Grade Downward Flow**:
+- **Heading & Bullet Notion-Grade Downward Flow**:
   - Pressing `Enter` at the logical start (offset 0) of any heading (`h1`–`h4`) prepends a new blank text paragraph above and moves the heading and all downstream blocks down, preserving heading style and content.
+  - Pressing `Enter` at the logical start (offset 0) of any bullet (`bullet`) or numbered (`number`) item with content (specifically the first bullet in a list) prepends an empty list item of matching level above and moves the current item down to the next line with its list glyph intact, keeping focus at the start of the item on the next line.
+- **Undo / Redo History Engine (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`)**: Fully deep-cloned immutable snapshots across all block mutations; atomic splitting on Enter; smart focus target restoration ensuring caret is never dropped to `document.body` or jumped to block 0.
 - **Draggable 6-Dots Handle (`⠿`)**: Drag to reorder blocks with `duck-400` drop target; click to open the context menu.
 
 

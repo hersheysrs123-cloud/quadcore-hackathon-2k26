@@ -81,6 +81,8 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 74. [Numbered and Bullet List Indentation, Sub-Bullet Numbering (a., b., c.), and Caret Backspace Handling](#74-numbered-and-bullet-list-indentation-sub-bullet-numbering-a-b-c-and-caret-backspace-handling)
 75. [Heading Block Enter-at-Start Prepending & Downward Block Flow (Notion Parity)](#75-heading-block-enter-at-start-prepending--downward-block-flow-notion-parity)
 76. [Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up](#76-socratic-duck-conversational-bot-removal-from-quiz-panel--system-clean-up)
+77. [Bullet & Numbered List Enter-at-Start Prepending & Downward Flow (Specifically First Bullet)](#77-bullet--numbered-list-enter-at-start-prepending--downward-flow-specifically-first-bullet)
+78. [Bullet & List Block Undo / Redo State Machine & Focus Target Overhaul](#78-bullet--list-block-undo--redo-state-machine--focus-target-overhaul)
 
 ---
 
@@ -4708,3 +4710,97 @@ Users identified two visual inconsistencies during print and PDF export:
    - Updated `BlockNoteEditor.jsx`: removed unused `onTriggerSocratic` props and updated floating selection toolbar tooltip to "Quiz me on Selection".
 3. **Automated Verification**:
    - Ran complete test suite: all 523 tests across 135 test suites pass cleanly with 0 regressions.
+
+---
+
+## 77. Bullet & Numbered List Enter-at-Start Prepending & Downward Flow (Specifically First Bullet)
+
+### Problem Statement
+- When pressing `Enter` at the beginning (offset 0) of a bullet list item (`bullet`) or numbered list item (`number`), specifically the first bullet in a list or note, the editor previously wiped the current item's text via `onChange(block.id, "")` and spawned a new block below via `onAddAfter`.
+- This corrupted the list structure, caused race conditions between React state batching and ref synchronization, and failed to cleanly insert an empty bullet above the first item while preserving the original bullet and its content on the next line.
+
+### Root Cause Analysis
+- In `components/BlockNoteEditor.jsx`, the Enter key handler in `EditorBlock` only intercepted headings (`h1`–`h4`) for `onAddBefore`.
+- Bullets fell through to standard downstream splitting (`splitBlockDOMAtRange`), which replaced `block.id`'s content with `textBefore` (`""`) and called `onAddAfter` with `textAfter`.
+- For the first bullet in a list, there was no way to prepend a bullet above it without mutating or corrupting the existing bullet block.
+
+### Resolution & Architectural Enhancements
+1. **Bullet & Number Enter-at-Start Interception (`EditorBlock` in `BlockNoteEditor.jsx`)**:
+   - Added logical start detection for list blocks:
+     ```javascript
+     if (block.type === "bullet" || block.type === "number") {
+       const isListAtStart = cleanZeroWidth(textBefore).trim().length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
+       if (isListAtStart) {
+         if (cleanZeroWidth(textAfter).length > 0) {
+           onAddBefore?.(block.id, "", block.type, { level: block.level || 0 }, "original");
+           return;
+         }
+       }
+     }
+     ```
+   - When Enter is pressed at the start of any bullet or number item with content, it calls `onAddBefore`, prepending a new empty list item of the identical type and indent `level` above the target.
+   - The original item and all blocks below move down by one line with their content, bullet glyph, and `id` intact.
+   - Caret focus is placed at `"start"` of the original item on the next line via `focusTarget === "original"`.
+2. **Synchronous `blocksRef.current` State Synchronization (`handleAddBefore`)**:
+   - Updated `handleAddBefore` to synchronously assign `blocksRef.current = next;` inside `setBlocks`, guaranteeing that `focusBlock` immediately resolves `origBlock` in the next frame.
+3. **Automated Verification**:
+   - Expanded `tests/unit/bullet-number-heading-fixes.test.mjs` with test assertions for prepending empty bullets above first bullets, preserving nested sub-bullet levels, and pushing numbered items down.
+   - All 526 unit and integration tests passing.
+
+---
+
+## 78. Bullet & List Block Undo / Redo State Machine & Focus Target Overhaul
+
+### Problem Statement
+- Pressing `Ctrl+Z` (Undo) and `Ctrl+Y` / `Ctrl+Shift+Z` (Redo) exhibited unpredictable, erratic behavior in bullet and list blocks:
+  1. Undoing a bullet indentation (`Tab`), text edit, or block creation frequently jumped focus and scroll position to the very first block at the top of the note (or note title), or dropped focus completely to `document.body` leaving the user without a cursor.
+  2. Undoing an `Enter` keypress required multiple `Ctrl+Z` strokes, often restoring truncated text without the latter half of the split bullet or losing history states.
+  3. Undoing after rapid keystrokes (`Tab`, typing, `Backspace`) frequently skipped edits or failed to restore indentation levels (`level: 0`, `level: 1`, `level: 2`).
+  4. Redoing via `Ctrl+Shift+Z` never restored caret focus to any block.
+
+### Root Cause Analysis
+1. **Uncloned History Objects Across 19 Block Mutations**:
+   - Across `BlockNoteEditor.jsx`, `setPastBlocks((p) => [...p.slice(-25), blocksRef.current])` pushed `blocksRef.current` directly without deep cloning (`JSON.parse(JSON.stringify)`). Because JavaScript objects share memory references, subsequent block mutations (e.g. `block.level`, `block.content`, `block.meta`) mutated objects already pushed to `pastBlocks`. Undoing therefore restored already-mutated objects.
+2. **Asynchronous Stale Refs in Undo/Redo Engine**:
+   - `handleGlobalUndoRedo` read from `pastBlocksRef.current`, `futureBlocksRef.current`, and `blocksRef.current`. These refs were only synchronized inside post-render `useEffect` hooks. Rapid `Ctrl+Z` / `Ctrl+Y` keystrokes read stale history stacks before React flushed updates, popping duplicate states or dropping history entries.
+3. **Stale Closure & Phantom Focus Target**:
+   - `handleGlobalUndoRedo` was registered in a `useEffect` with dependency `[performSave]`, permanently capturing `selectedId = null` from mount.
+   - In `const targetId = selectedId || clonedPrevious[0]?.id;`, `selectedId` was always `null` (falling back to block 0 at the top of the document) or pointed to a newly undone/destroyed block ID. When `targetId` was not in `clonedPrevious`, `focusBlock` failed silently, dropping focus to `document.body`.
+4. **Non-Atomic Block Splitting on Enter**:
+   - Pressing Enter in `EditorBlock` called `onChange(block.id, textBefore)` followed by `onAddAfter(block.id, textAfter, ...)`. If the 600ms history push interval elapsed, two separate history snapshots were pushed for a single Enter keypress, requiring two `Ctrl+Z` presses to undo and leaving truncated intermediate states.
+5. **Redo Focus Disconnect (`Ctrl+Shift+Z`)**:
+   - The `Ctrl+Shift+Z` branch in `handleGlobalUndoRedo` lacked focus targeting code altogether, leaving focus orphaned.
+
+### Resolution & Architectural Enhancements
+1. **Centralized History Engine (`pushHistorySnapshot`)**:
+   - Implemented a single centralized snapshot function with deep cloning and synchronous ref synchronization:
+     ```javascript
+     const pushHistorySnapshot = useCallback(() => {
+       const snapshot = JSON.parse(JSON.stringify(blocksRef.current));
+       pastBlocksRef.current = [...pastBlocksRef.current.slice(-30), snapshot];
+       setPastBlocks(pastBlocksRef.current);
+       futureBlocksRef.current = [];
+       setFutureBlocks([]);
+       lastHistoryPush.current = Date.now();
+     }, []);
+     ```
+   - Replaced all 19 uncloned `setPastBlocks` calls across the editor (`handleChange`, `handleChangeType`, `handleUpdateBlock`, `handleDeleteBlock`, `handleDuplicateBlock`, `handleMoveBlock`, `handleAddAfter`, `handleAddBefore`, `handleSmartPaste`, `handleIntelligentReformat`, `onDrop`, multi-block selection actions, Backspace/Delete) with `pushHistorySnapshot()`.
+2. **Synchronous Ref State Synchronization**:
+   - In `handleGlobalUndoRedo`, `pastBlocksRef.current`, `futureBlocksRef.current`, and `blocksRef.current` are updated synchronously prior to calling React `setPastBlocks`, `setFutureBlocks`, and `setBlocks`. Rapid undo/redo keystrokes always read fresh, accurate history stacks.
+3. **Smart Focus Target Resolution**:
+   - Replaced stale closure variable with `selectedIdRef = useRef(selectedId)`.
+   - On Undo: checks if `selectedIdRef.current` exists in `clonedPrevious`. If the target was destroyed by the undo (e.g. undone block creation), it calculates the neighboring index in `clonedPrevious` (`targetIdx = Math.max(0, Math.min(prevIdx, clonedPrevious.length - 1))`) and seamlessly focuses the adjacent surviving block.
+   - On Redo: detects newly added blocks in `clonedNext` and automatically focuses the new block. Focus is symmetrically supported on both `Ctrl+Y` and `Ctrl+Shift+Z`.
+4. **Atomic Block Splitting via `splitBeforeContent`**:
+   - Updated `handleAddAfter` to accept `splitBeforeContent = null`. On Enter, `EditorBlock` synchronously sets DOM text and calls `onAddAfter` with `textBefore`.
+   - `handleAddAfter` executes a single `pushHistorySnapshot()`, updates `afterId`'s content to `textBefore`, and inserts `newBlock` with `textAfter` within a single state update, ensuring 1-press clean undo/redo.
+5. **Automated Verification**:
+   - Created comprehensive unit test suite `tests/unit/bullet-list-undo-redo.test.mjs` verifying:
+     - Snapshot integrity via deep cloning without mutation leakage.
+     - Single-step atomic Enter split undo/redo.
+     - Sub-bullet Tab indentation (`level: 0 -> 1 -> 2`) and Shift+Tab outdent undo/redo.
+     - Backspace un-listing undo/redo.
+     - Enter-at-start prepending undo/redo with valid focus.
+     - Rapid alternating undo/redo stress sequences.
+   - All 532 tests across 137 suites pass cleanly with 0 failures.
+

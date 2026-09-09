@@ -169,6 +169,78 @@ describe("Bullet, Number List, Heading Enter & Socratic Bot Fixes", () => {
     });
   });
 
+  describe("Bullet & Number Enter-at-Start Prepending (Notion-style)", () => {
+    it("prepends an empty bullet ABOVE the first bullet and moves the first bullet to the next line", () => {
+      const blocks = [
+        { id: "b1", type: "bullet", level: 0, content: "First bullet item" },
+        { id: "b2", type: "bullet", level: 0, content: "Second bullet item" },
+      ];
+
+      // Simulate handleAddBefore for b1 (the first bullet)
+      const beforeId = "b1";
+      const newBlock = { id: "new_b", type: "bullet", level: blocks[0].level, content: "" };
+      const idx = blocks.findIndex((b) => b.id === beforeId);
+      const nextBlocks = [...blocks];
+      nextBlocks.splice(idx, 0, newBlock);
+
+      // Verify the new block above is an empty bullet, and b1 is moved down to index 1 with its bullet type and content
+      assert.strictEqual(nextBlocks.length, 3);
+      assert.strictEqual(nextBlocks[0].id, "new_b");
+      assert.strictEqual(nextBlocks[0].type, "bullet");
+      assert.strictEqual(nextBlocks[0].content, "");
+      assert.strictEqual(nextBlocks[0].level, 0);
+
+      assert.strictEqual(nextBlocks[1].id, "b1");
+      assert.strictEqual(nextBlocks[1].type, "bullet");
+      assert.strictEqual(nextBlocks[1].content, "First bullet item");
+      assert.strictEqual(nextBlocks[1].level, 0);
+
+      assert.strictEqual(nextBlocks[2].id, "b2");
+      assert.strictEqual(nextBlocks[2].content, "Second bullet item");
+    });
+
+    it("preserves sub-bullet level when prepending a bullet above an indented item", () => {
+      const blocks = [
+        { id: "b1", type: "bullet", level: 0, content: "Root bullet" },
+        { id: "b2", type: "bullet", level: 2, content: "Deeply nested sub-bullet" },
+      ];
+
+      // Simulate handleAddBefore for b2 (level 2)
+      const beforeId = "b2";
+      const newBlock = { id: "new_sub", type: "bullet", level: blocks[1].level, content: "" };
+      const idx = blocks.findIndex((b) => b.id === beforeId);
+      const nextBlocks = [...blocks];
+      nextBlocks.splice(idx, 0, newBlock);
+
+      assert.strictEqual(nextBlocks[1].id, "new_sub");
+      assert.strictEqual(nextBlocks[1].type, "bullet");
+      assert.strictEqual(nextBlocks[1].level, 2);
+      assert.strictEqual(nextBlocks[1].content, "");
+
+      assert.strictEqual(nextBlocks[2].id, "b2");
+      assert.strictEqual(nextBlocks[2].level, 2);
+      assert.strictEqual(nextBlocks[2].content, "Deeply nested sub-bullet");
+    });
+
+    it("prepends an empty number block ABOVE a numbered item and pushes the numbered item down", () => {
+      const blocks = [
+        { id: "n1", type: "number", level: 0, content: "First instruction" },
+      ];
+
+      const beforeId = "n1";
+      const newBlock = { id: "new_num", type: "number", level: blocks[0].level, content: "" };
+      const idx = blocks.findIndex((b) => b.id === beforeId);
+      const nextBlocks = [...blocks];
+      nextBlocks.splice(idx, 0, newBlock);
+
+      assert.strictEqual(nextBlocks.length, 2);
+      assert.strictEqual(nextBlocks[0].type, "number");
+      assert.strictEqual(nextBlocks[0].content, "");
+      assert.strictEqual(nextBlocks[1].type, "number");
+      assert.strictEqual(nextBlocks[1].content, "First instruction");
+    });
+  });
+
   describe("Backspace & Caret Detection on Empty Elements", () => {
     it("isCaretAtLogicalStart returns true for null, input at 0, or empty text", () => {
       const fakeInput = { tagName: "INPUT", selectionStart: 0, selectionEnd: 0 };
