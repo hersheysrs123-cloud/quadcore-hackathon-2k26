@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
-import WidgetCanvas from "@/components/WidgetCanvas";
 import ScoreRing from "@/components/ScoreRing";
-import { quizGenerate, quizGrade, socraticChat, socraticWidget, shouldUseClientAI } from "@/lib/aiService";
+import { quizGenerate, quizGrade, shouldUseClientAI } from "@/lib/aiService";
 import { getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
 import { CheckSquare, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import MathText from "@/components/MathText";
@@ -29,15 +28,8 @@ const MATH_SYMBOLS_DRAWER = [
 ];
 
 /**
- * Both ways of being quizzed, in one drawer.
- *
- *   Quick quiz — generated questions, graded, straight to a heatmap. Fast, and
- *                the multiple-choice half is marked deterministically.
- *   Socratic   — the Duck asks and never answers, then scores the transcript.
- *                Slower, and much better at finding what you only think you know.
- *
- * Both produce the same { score, summary, heatmap } shape, which is what lets
- * the mastery dashboard treat them as one dataset.
+ * Graded Quiz Runner drawer. Generates concept-aligned questions,
+ * grades multiple choice and short answers, and records mastery feedback.
  */
 export default function QuizPanel({
   open,
@@ -47,14 +39,7 @@ export default function QuizPanel({
   onClose,
   onComplete,
 }) {
-  const [mode, setMode] = useState("quiz");
   const scrollRef = useRef(null);
-
-  // A fresh concept starts on the quick quiz. Switching modes mid-concept is
-  // the learner's call and survives until they open something else.
-  useEffect(() => {
-    if (open) setMode("quiz");
-  }, [open, concept]);
 
   return (
     <Drawer
@@ -65,65 +50,15 @@ export default function QuizPanel({
       subtitle={concept}
       scrollRef={scrollRef}
     >
-      <div className="sticky top-0 z-10 border-b border-ink-800 bg-ink-900/95 px-5 py-3 backdrop-blur">
-        <div
-          role="tablist"
-          aria-label="Quiz mode"
-          className="flex gap-1 rounded-xl bg-ink-850 p-1"
-        >
-          <ModeTab
-            active={mode === "quiz"}
-            onClick={() => setMode("quiz")}
-            label="Quick quiz"
-            hint="8 questions, graded"
-          />
-          <ModeTab
-            active={mode === "socratic"}
-            onClick={() => setMode("socratic")}
-            label="Socratic duck"
-            hint="Feynman-style probe"
-          />
-        </div>
-      </div>
-
-      {/* Keying on the mode preserves the active quiz session during edits */}
-      {mode === "quiz" ? (
-        <QuizRunner
-          open={open}
-          concept={concept}
-          noteContent={noteContent}
-          spaceId={spaceId}
-          onComplete={onComplete}
-          scrollRef={scrollRef}
-        />
-      ) : (
-        <SocraticSession
-          open={open}
-          concept={concept}
-          noteContent={noteContent}
-          spaceId={spaceId}
-          onComplete={onComplete}
-          scrollRef={scrollRef}
-        />
-      )}
+      <QuizRunner
+        open={open}
+        concept={concept}
+        noteContent={noteContent}
+        spaceId={spaceId}
+        onComplete={onComplete}
+        scrollRef={scrollRef}
+      />
     </Drawer>
-  );
-}
-
-function ModeTab({ active, onClick, label, hint }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={`flex-1 rounded-lg px-3 py-2 text-left transition-colors ${
-        active ? "bg-ink-800 text-ink-100" : "text-ink-500 hover:text-ink-300"
-      }`}
-    >
-      <span className="block text-xs font-semibold">{label}</span>
-      <span className="block text-[10px] text-ink-600">{hint}</span>
-    </button>
   );
 }
 
@@ -811,300 +746,5 @@ function QuizReview({ result, concept, onRetake }) {
         </ul>
       </section>
     </div>
-  );
-}
-
-// ─── Socratic session ───────────────────────────────────────────────
-function SocraticSession({ open, concept, noteContent, spaceId = null, onComplete, scrollRef }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [diagnostic, setDiagnostic] = useState(null);
-  const [widget, setWidget] = useState(null);
-  const [thinking, setThinking] = useState(false);
-  const [scoring, setScoring] = useState(false);
-  const [buildingWidget, setBuildingWidget] = useState(false);
-  const [error, setError] = useState(null);
-  const [widgetError, setWidgetError] = useState(null);
-  const lastConceptRef = useRef(null);
-
-  const { visible, answerCount } = useMemo(() => {
-    const vis = messages.filter((m) => !m.hidden);
-    const count = vis.filter((m) => m.role === "user").length;
-    return { visible: vis, answerCount: count };
-  }, [messages]);
-  const scored = Boolean(diagnostic);
-
-  const toWire = (history) => history.map(({ role, content }) => ({ role, content }));
-
-  /**
-   * The transcript opens with one hidden user turn. The API must start on a
-   * user message and the server drops any leading assistant turn, so without
-   * this seed the Duck's own first question would fall out of context on every
-   * later call — it would end up scoring answers to a question it never saw
-   * itself ask.
-   */
-  const seed = useCallback(
-    () => [
-      {
-        role: "user",
-        content: `I want to be examined on: ${concept}. Ask me your first question.`,
-        hidden: true,
-      },
-    ],
-    [concept],
-  );
-
-  const askDuck = useCallback(
-    async (history) => {
-      setThinking(true);
-      setError(null);
-      try {
-        const { statement: syllabus, enabled } = await getSyllabusStatement(spaceId);
-        const payload = {
-          noteContent,
-          concept,
-          conversationHistory: toWire(history),
-          isFinalTurn: false,
-          syllabus: enabled ? syllabus : "",
-          spaceId,
-        };
-
-        const isClient = await shouldUseClientAI();
-        const data = isClient
-          ? await socraticChat(payload)
-          : await postJson("/api/socratic/chat", payload);
-
-        const newMsgIndex = history.length;
-        const assistantMsg = { role: "assistant", content: data.reply };
-        setMessages([...history, assistantMsg]);
-
-        if (autoSpeak && data.reply && ttsSupported) {
-          speak(data.reply, `msg-${newMsgIndex}`);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setThinking(false);
-      }
-    },
-    [concept, noteContent, autoSpeak, ttsSupported, speak, spaceId],
-  );
-
-  const buildWidget = useCallback(
-    async (result) => {
-      const reds = result.heatmap.filter((h) => h.status === "red");
-      const gaps = reds.length
-        ? reds
-        : result.heatmap.filter((h) => h.status === "yellow");
-      if (!gaps.length) return;
-
-      setBuildingWidget(true);
-      setWidgetError(null);
-      try {
-        const payload = {
-          concept,
-          redSubtopics: gaps.map((g) => ({
-            subtopic: g.subtopic,
-            feedback: g.feedback,
-          })),
-          recommendedWidget: result.recommendedWidget,
-        };
-
-        const isClient = await shouldUseClientAI();
-        const data = isClient
-          ? await socraticWidget(payload)
-          : await postJson("/api/socratic/widget", payload);
-
-        setWidget(data.widget);
-      } catch (err) {
-        setWidgetError(err.message);
-      } finally {
-        setBuildingWidget(false);
-      }
-    },
-    [concept],
-  );
-
-  async function endSession() {
-    setScoring(true);
-    setError(null);
-    stopSpeaking();
-    try {
-      const { statement: syllabus, enabled } = await getSyllabusStatement(spaceId);
-      const payload = {
-        noteContent,
-        concept,
-        conversationHistory: toWire(messages),
-        isFinalTurn: true,
-        syllabus: enabled ? syllabus : "",
-        spaceId,
-      };
-
-      const isClient = await shouldUseClientAI();
-      const data = isClient
-        ? await socraticChat(payload)
-        : await postJson("/api/socratic/chat", payload);
-
-      setDiagnostic(data.diagnostic);
-      onComplete?.({
-        mode: "socratic",
-        concept,
-        score: data.diagnostic.score,
-        summary: data.diagnostic.summary,
-        heatmap: data.diagnostic.heatmap,
-      });
-      await buildWidget(data.diagnostic);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setScoring(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!open || !concept) return;
-    if (lastConceptRef.current === concept && messages.length > 0) return;
-    lastConceptRef.current = concept;
-    const opening = seed();
-    setMessages(opening);
-    askDuck(opening);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, concept]);
-
-  useEffect(() => {
-    scrollRef?.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages, thinking, diagnostic, widget, scrollRef]);
-
-  const submitAnswer = useCallback(
-    (textToSubmit) => {
-      const answer = (textToSubmit !== undefined ? textToSubmit : input).trim();
-      if (!answer || thinking || scoring || scored) return;
-
-      const next = [...messages, { role: "user", content: answer }];
-      setMessages(next);
-      setInput("");
-      askDuck(next);
-    },
-    [input, thinking, scoring, scored, messages, askDuck],
-  );
-
-  function handleSubmit(event) {
-    if (event) event.preventDefault();
-    submitAnswer();
-  }
-
-
-  const busy = thinking || scoring;
-
-  return (
-    <>
-      <div className="space-y-4 px-5 py-5">
-        {visible.map((message, i) => {
-          return (
-            <div
-              key={i}
-              className={message.role === "user" ? "flex justify-end" : "flex items-start gap-2"}
-            >
-              <p
-                className={`max-w-[85%] animate-fade-up whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                  message.role === "user"
-                    ? "rounded-br-md bg-ink-800 text-ink-100"
-                    : "rounded-bl-md border border-duck-500/25 bg-duck-500/5 text-ink-200"
-                }`}
-              >
-                {message.content}
-              </p>
-            </div>
-          );
-        })}
-
-        {busy && (
-          <p className="flex items-center gap-2 text-xs text-ink-500">
-            <span className="inline-flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="h-1.5 w-1.5 animate-pulse rounded-full bg-duck-500"
-                  style={{ animationDelay: `${i * 160}ms` }}
-                />
-              ))}
-            </span>
-            {scoring ? "Scoring your explanation…" : "The Duck is thinking…"}
-          </p>
-        )}
-
-        <DrawerError message={error} />
-      </div>
-
-      {scored && (
-        <ConfidenceHeatmap diagnostic={diagnostic} />
-      )}
-
-      {scored && (buildingWidget || widget || widgetError) && (
-        <section className="px-5 py-5">
-          <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-500">
-            Playground built from your gaps
-          </p>
-          <WidgetCanvas
-            widget={widget}
-            loading={buildingWidget}
-            error={widgetError}
-          />
-        </section>
-      )}
-
-      {!scored && (
-        <form
-          onSubmit={handleSubmit}
-          className="sticky bottom-0 border-t border-ink-800 bg-ink-900/95 px-5 py-4 backdrop-blur"
-        >
-
-
-          <div className="flex items-end gap-2">
-            <textarea
-              rows={2}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) handleSubmit(e);
-              }}
-              disabled={busy}
-              placeholder="Explain it in your own words..."
-              className="flex-1 resize-none rounded-xl border border-ink-800 bg-ink-850 px-3.5 py-2.5 text-[13px] text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none disabled:opacity-50"
-            />
-
-
-            <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              className="shrink-0 rounded-xl bg-duck-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-duck-300 disabled:opacity-30"
-            >
-              Send
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={endSession}
-            disabled={busy || answerCount === 0}
-            className="mt-2.5 w-full rounded-xl border border-ink-700 px-3 py-2 text-xs text-ink-400 transition-colors hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:hover:border-ink-700 disabled:hover:text-ink-400"
-          >
-            {answerCount === 0
-              ? "Answer at least once to be scored"
-              : `End session & score me (${answerCount} answer${answerCount === 1 ? "" : "s"})`}
-          </button>
-        </form>
-      )}
-
-      {scored && (
-        <p className="border-t border-ink-800 px-5 py-4 text-xs text-ink-500">
-          Saved to your mastery map. Close the drawer and pick another note to
-          keep going.
-        </p>
-      )}
-    </>
   );
 }

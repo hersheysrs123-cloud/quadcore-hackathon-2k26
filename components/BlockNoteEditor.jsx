@@ -12,6 +12,7 @@ import {
 } from "@/lib/syntaxHighlighter";
 import { reformatNoteContent } from "@/lib/aiService";
 import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow } from "@/lib/exportImport";
+import { formatNumberMarker } from "@/lib/blocks";
 
 
 
@@ -3874,6 +3875,7 @@ const EditorBlock = memo(function EditorBlock({
   index = 0,
   totalBlocks = 1,
   blockNumber,
+  blockLabel,
   isLast,
   isSelected,
   onSelect,
@@ -3887,6 +3889,7 @@ const EditorBlock = memo(function EditorBlock({
   onMoveUp,
   onMoveDown,
   onKeyDown,
+  onAddBefore,
   onAddAfter,
   onExplainBlock,
   onQuizBlock,
@@ -4203,8 +4206,8 @@ const EditorBlock = memo(function EditorBlock({
       return;
     }
 
-    // Sub-bullet Tab / Shift+Tab indentation & unindentation for bullet lists
-    if (e.key === "Tab" && block.type === "bullet") {
+    // Sub-bullet Tab / Shift+Tab indentation & unindentation for bullet & numbered lists
+    if (e.key === "Tab" && (block.type === "bullet" || block.type === "number")) {
       e.preventDefault();
       const currentLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
       if (!e.shiftKey) {
@@ -4225,7 +4228,7 @@ const EditorBlock = memo(function EditorBlock({
     }
 
     // BUG-TAB-01: Soft tab indentation / outdent without losing focus
-    if (e.key === "Tab" && block.type !== "code" && block.type !== "table") {
+    if (e.key === "Tab" && block.type !== "code" && block.type !== "table" && block.type !== "bullet" && block.type !== "number") {
       e.preventDefault();
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount || !contentRef.current) return;
@@ -4270,7 +4273,23 @@ const EditorBlock = memo(function EditorBlock({
         const split = splitBlockDOMAtRange(contentRef.current, range);
         textBefore = split.textBefore;
         textAfter = split.textAfter;
-        
+      }
+
+      // Notion behavior: Pressing enter at the start of a heading block keeps heading intact,
+      // shifts heading and all blocks below down, and inserts a new empty block above
+      if (["h1", "h2", "h3", "h4"].includes(block.type)) {
+        const isHeadingAtStart = cleanZeroWidth(textBefore).length === 0;
+        if (isHeadingAtStart) {
+          if (cleanZeroWidth(textAfter).length === 0) {
+            onChangeType?.(block.id, "text");
+            return;
+          }
+          onAddBefore?.(block.id, "", "text", {}, "original");
+          return;
+        }
+      }
+
+      if (sel && sel.rangeCount > 0 && sel.focusNode && contentRef.current) {
         onChange(block.id, textBefore);
         if (contentRef.current) {
           setBlockDOMFromText(contentRef.current, textBefore);
@@ -4278,7 +4297,7 @@ const EditorBlock = memo(function EditorBlock({
       }
 
       if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim() && !textAfter.trim()) {
-        if (block.type === "bullet" && (block.level || 0) > 0) {
+        if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
           onUpdateBlock?.(block.id, { level: (block.level || 0) - 1 }, false, true);
           return;
         }
@@ -4309,7 +4328,11 @@ const EditorBlock = memo(function EditorBlock({
         textAfter = textAfter.replace(/^(\*|-|\u2022|\d+\.|\\[[ xX]?\\])\s+/, "");
       }
 
-      const extraProps = nextType === "todo" ? { checked: false } : nextType === "bullet" ? { level: block.level || 0 } : {};
+      const extraProps = nextType === "todo" 
+        ? { checked: false } 
+        : (nextType === "bullet" || nextType === "number") 
+          ? { level: block.level || 0 } 
+          : {};
       onAddAfter(block.id, textAfter, nextType, extraProps);
       return;
     }
@@ -4552,25 +4575,33 @@ const EditorBlock = memo(function EditorBlock({
           );
         })()
       ) : block.type === "number" ? (
-        /* 4. Numbered List */
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 w-5 font-mono text-sm font-semibold text-ink-400">
-            {blockNumber || 1}.
-          </span>
-          <Tag
-            ref={contentRef}
-            contentEditable={!isLocked}
-            suppressContentEditableWarning
-            onClick={handleTagClick}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            onFocus={() => onSelect(block.id)}
-            data-placeholder={placeholders.number}
-            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.number} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
-              isLocked ? "cursor-default select-text" : ""
-            }`}
-          />
-        </div>
+        /* 4. Numbered List (Hierarchical with a., b., c. sub-bullets) */
+        (() => {
+          const numberLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
+          return (
+            <div
+              className="flex items-start gap-2.5 transition-all"
+              style={numberLevel > 0 ? { paddingLeft: `${numberLevel * 1.5}rem` } : undefined}
+            >
+              <span className="mt-0.5 min-w-5 shrink-0 font-mono text-sm font-semibold text-ink-400 select-none">
+                {blockLabel || `${blockNumber || 1}.`}
+              </span>
+              <Tag
+                ref={contentRef}
+                contentEditable={!isLocked}
+                suppressContentEditableWarning
+                onClick={handleTagClick}
+                onInput={handleInput}
+                onKeyDown={handleKeyDown}
+                onFocus={() => onSelect(block.id)}
+                data-placeholder={numberLevel > 0 ? "Sub-list item" : placeholders.number}
+                className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.number} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+                  isLocked ? "cursor-default select-text" : ""
+                }`}
+              />
+            </div>
+          );
+        })()
       ) : block.type === "todo" ? (
         /* 5. To-Do List */
         <div className="flex items-start gap-2.5">
@@ -5058,7 +5089,7 @@ function TextSelectionToolbar({
             setVisible(false);
           }
         }}
-        title="Explain highlighted text with Socratic AI"
+        title="Explain highlighted text with AI"
         className="flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-ink-200 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
       >
         <span>✨</span>
@@ -5096,7 +5127,6 @@ export default function BlockNoteEditor({
   spaceId = "",
   onExplainBlock,
   onQuizBlock,
-  onTriggerSocratic,
   onSwitchTab,
   initialTitle = "",
   initialBlocks,
@@ -6229,7 +6259,7 @@ export default function BlockNoteEditor({
     }
 
     const defaultExtra = {};
-    if (newType === "bullet" && currentBlock && currentBlock.type === "bullet" && (currentBlock.level || 0) > 0) {
+    if ((newType === "bullet" || newType === "number") && currentBlock && currentBlock.type === newType && (currentBlock.level || 0) > 0) {
       defaultExtra.level = currentBlock.level;
     }
 
@@ -6252,6 +6282,48 @@ export default function BlockNoteEditor({
         focusBlock(newBlock, "start");
       }, 30);
     });
+  }, [focusBlock, triggerDebouncedSave]);
+
+  const handleAddBefore = useCallback((beforeId, content = "", typeToUse = "text", extraProps = {}, focusTarget = "original") => {
+    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
+    setFutureBlocks([]);
+    
+    const count = extraProps?.columnCount || 2;
+    const extra =
+      typeToUse === "columns"
+        ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
+        : { ...(extraProps || {}) };
+    const newBlock = createBlock(typeToUse, content, extra);
+    setBlocks((prev) => {
+      const idx = prev.findIndex((b) => b.id === beforeId);
+      const next = [...prev];
+      if (idx !== -1) {
+        next.splice(idx, 0, newBlock);
+      } else {
+        next.unshift(newBlock);
+      }
+      triggerDebouncedSave({ blocks: next });
+      return next;
+    });
+
+    if (focusTarget === "original") {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const origBlock = blocksRef.current.find((b) => b.id === beforeId);
+          if (origBlock) {
+            setSelectedId(origBlock.id);
+            focusBlock(origBlock, "start");
+          }
+        }, 20);
+      });
+    } else {
+      setSelectedId(newBlock.id);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          focusBlock(newBlock, "start");
+        }, 20);
+      });
+    }
   }, [focusBlock, triggerDebouncedSave]);
 
   const handleExitDown = useCallback(
@@ -6599,7 +6671,7 @@ export default function BlockNoteEditor({
 
   const handleKeyDown = useCallback(
 
-    (e, blockId) => {
+    (e, blockId, domEl = null) => {
       if (selectedBlockIdsRef.current?.size > 0) {
         setSelectedBlockIds(new Set());
       }
@@ -6609,9 +6681,11 @@ export default function BlockNoteEditor({
         const idx = blocks.findIndex((b) => b.id === blockId);
 
         // Check if caret is at the start (offset 0) of the current block
-        const el = blockRefs.current[blockId]?.current;
-        let isAtStart = false;
-        if (el) {
+        const el = domEl || blockRefs.current[blockId]?.current;
+        const currentDOMText = el ? getBlockTextFromDOM(el) : (block.content || "");
+        const isDomEmpty = !cleanZeroWidth(currentDOMText).trim();
+        let isAtStart = isDomEmpty;
+        if (!isAtStart && el) {
           isAtStart = isCaretAtLogicalStart(el);
           if (!isAtStart) {
             const sel = window.getSelection();
@@ -6619,13 +6693,14 @@ export default function BlockNoteEditor({
               const range = sel.getRangeAt(0);
               if (range.collapsed) {
                 const split = splitBlockDOMAtRange(el, range);
-                if (cleanZeroWidth(split.textBefore).length === 0) {
+                if (cleanZeroWidth(split.textBefore).trim().length === 0) {
                   isAtStart = true;
                 }
               }
             }
           }
-        } else if (!block.content || cleanZeroWidth(block.content) === "") {
+        }
+        if (!isAtStart && (!block.content || cleanZeroWidth(block.content).trim() === "")) {
           isAtStart = true;
         }
 
@@ -6633,8 +6708,8 @@ export default function BlockNoteEditor({
         // If current block is a list or formatted type (bullet, number, todo, toggle, heading, quote, callout)
         // AND (caret is at offset 0 OR the block content is empty):
         // Convert block to a plain "text" paragraph first without deleting or merging!
-        if (block.type !== "text" && (isAtStart || block.content === "")) {
-          if (block.type === "bullet" && (block.level || 0) > 0) {
+        if (block.type !== "text" && (isAtStart || isDomEmpty || block.content === "" || !block.content)) {
+          if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
             e.preventDefault();
             handleUpdateBlock(blockId, { level: (block.level || 0) - 1 }, false, true);
             return;
@@ -6655,8 +6730,7 @@ export default function BlockNoteEditor({
         // 2. EMPTY PLAIN TEXT BLOCK DELETION:
         // When Backspace is pressed on an empty plain text line, delete the empty line itself
         // and cleanly place the caret at the end of the block above (never deleting the block above)!
-        const currentDOMText = el ? getBlockTextFromDOM(el) : "";
-        if (block.type === "text" && (block.content === "" || currentDOMText === "")) {
+        if (block.type === "text" && (block.content === "" || isDomEmpty || currentDOMText === "")) {
           if (blocks.length > 1) {
             e.preventDefault();
             const prevBlock = idx > 0 ? blocks[idx - 1] : (blocks[1] || null);
@@ -6916,9 +6990,6 @@ export default function BlockNoteEditor({
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);
-
-  // Compute sequential numbered list indices
-  let currentNumber = 0;
 
   return (
     <div
@@ -7331,53 +7402,64 @@ export default function BlockNoteEditor({
 
         {/* Notion Blocks */}
         <div className="space-y-2 pl-8">
-          {blocks.map((block, index) => {
-            if (block.type === "number") {
-              currentNumber += 1;
-            } else {
-              currentNumber = 0;
-            }
+          {(() => {
+            let numberCounters = [0];
+            return blocks.map((block, index) => {
+              let blockNumberLabel = null;
+              if (block.type === "number") {
+                const level = Math.max(0, Math.min(4, Number(block.level) || 0));
+                numberCounters = numberCounters.slice(0, level + 1);
+                while (numberCounters.length <= level) {
+                  numberCounters.push(0);
+                }
+                numberCounters[level] += 1;
+                blockNumberLabel = formatNumberMarker(level, numberCounters[level]);
+              } else {
+                numberCounters = [0];
+              }
 
-            return (
-              <EditorBlock
-                key={block.id}
-                block={block}
-                index={index}
-                totalBlocks={blocks.length}
-                blockNumber={currentNumber}
-                isLast={index === blocks.length - 1}
-                isSelected={selectedId === block.id}
-                onSelect={setSelectedId}
-                setSelectedBlockIds={setSelectedBlockIds}
-                selectedBlockIds={selectedBlockIds}
-                onChange={handleChange}
-                onChangeType={handleChangeType}
-                onUpdateBlock={handleUpdateBlock}
-                onDelete={handleDeleteBlock}
-                onDuplicate={() => handleDuplicateBlock(block.id)}
-                onMoveUp={() => handleMoveBlock(index, index - 1)}
-                onMoveDown={() => handleMoveBlock(index, index + 1)}
-                onKeyDown={handleKeyDown}
-                onAddAfter={handleAddAfter}
-                onExplainBlock={onExplainBlock}
-                onQuizBlock={onQuizBlock}
-                onTriggerSocratic={onTriggerSocratic}
-                onSwitchTab={onSwitchTab}
-                dragHandlers={dragHandlers}
-                isDragTarget={dragOver === block.id && dragging !== block.id}
-                isMultiSelected={selectedBlockIds.has(block.id)}
-                isLocked={isLocked}
-                allBlocks={blocks}
-                onSelectHeading={handleSelectHeading}
-                notesBySpace={notesBySpace}
-                onSelectNote={onSelectNote}
-                registerRef={registerRef}
-                onSaveNote={() => performSave()}
-                onExitDown={handleExitDown}
-                onExitUp={handleExitUp}
-              />
-            );
-          })}
+              return (
+                <EditorBlock
+                  key={block.id}
+                  block={block}
+                  index={index}
+                  totalBlocks={blocks.length}
+                  blockNumber={numberCounters[0]}
+                  blockLabel={blockNumberLabel}
+                  isLast={index === blocks.length - 1}
+                  isSelected={selectedId === block.id}
+                  onSelect={setSelectedId}
+                  setSelectedBlockIds={setSelectedBlockIds}
+                  selectedBlockIds={selectedBlockIds}
+                  onChange={handleChange}
+                  onChangeType={handleChangeType}
+                  onUpdateBlock={handleUpdateBlock}
+                  onDelete={handleDeleteBlock}
+                  onDuplicate={() => handleDuplicateBlock(block.id)}
+                  onMoveUp={() => handleMoveBlock(index, index - 1)}
+                  onMoveDown={() => handleMoveBlock(index, index + 1)}
+                  onKeyDown={handleKeyDown}
+                  onAddBefore={handleAddBefore}
+                  onAddAfter={handleAddAfter}
+                  onExplainBlock={onExplainBlock}
+                  onQuizBlock={onQuizBlock}
+                  onSwitchTab={onSwitchTab}
+                  dragHandlers={dragHandlers}
+                  isDragTarget={dragOver === block.id && dragging !== block.id}
+                  isMultiSelected={selectedBlockIds.has(block.id)}
+                  isLocked={isLocked}
+                  allBlocks={blocks}
+                  onSelectHeading={handleSelectHeading}
+                  notesBySpace={notesBySpace}
+                  onSelectNote={onSelectNote}
+                  registerRef={registerRef}
+                  onSaveNote={() => performSave()}
+                  onExitDown={handleExitDown}
+                  onExitUp={handleExitUp}
+                />
+              );
+            });
+          })()}
         </div>
       </div>
 

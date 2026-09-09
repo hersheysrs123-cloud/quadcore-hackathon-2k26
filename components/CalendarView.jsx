@@ -15,7 +15,7 @@ import { useGlobalTimer } from "@/lib/timerStore";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const EVENT_TYPES = [
-  { id: "socratic", label: "Socratic Drill", icon: "🦆", badge: "bg-duck-500/20 text-duck-300 border-duck-500/30" },
+  { id: "socratic", label: "Quiz Drill", icon: "🦆", badge: "bg-duck-500/20 text-duck-300 border-duck-500/30" },
   { id: "study", label: "Study Session", icon: "📚", badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
   { id: "deadline", label: "Deadline", icon: "⏰", badge: "bg-rose-500/20 text-rose-300 border-rose-500/30" },
   { id: "pomodoro", label: "Pomodoro Focus", icon: "🍅", badge: "bg-amber-500/20 text-amber-300 border-amber-500/30" },

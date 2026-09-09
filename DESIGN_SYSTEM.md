@@ -167,8 +167,23 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
   - Headers (`th`): `border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 bg-ink-900` with hover delete column button (`text-rose-400 hover:bg-rose-500/20`).
   - Cells (`td`): `border-r border-ink-800/70 px-3 py-1.5 text-ink-100` hosting rich `TableCell` `contentEditable` elements with live Markdown (bold, italic, code, strikethrough, highlight) and KaTeX equation formatting, focus highlights (`focus:text-duck-200 focus:bg-ink-900/80`), and hover row deletion controls (`text-rose-400 hover:bg-rose-500/20`).
   - Keyboard Navigation: `Tab` / `Shift+Tab` across cells/rows with automatic row creation on bottom right cell; `Enter` to step down columns.
-- **Slash Menu (`/`)**: Floating block-type picker menu.
-- **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>, <s>S</s>, $x$).
+- **Hierarchical Multi-Tier Lists (Bullets & Numbered Items)**:
+  - **Bullet List Hierarchy**:
+    - Level 0: Solid disc (`●`), `pl-0` / `0rem` indent
+    - Level 1: Hollow ring (`○`), `pl-6` / `1.5rem` indent
+    - Level 2: Solid square (`■`), `pl-12` / `3.0rem` indent
+    - Level 3+: Hollow square (`□`), `pl-18` / `4.5rem` indent
+  - **Numbered List Hierarchy**:
+    - Level 0: Decimal numerals (`1.`, `2.`, `3.`), `pl-0` / `0rem` indent
+    - Level 1: Lowercase alphabet (`a.`, `b.`, `c.`), `pl-6` / `1.5rem` indent
+    - Level 2: Lowercase Roman numerals (`i.`, `ii.`, `iii.`), `pl-12` / `3.0rem` indent
+    - Level 3+: Uppercase alphabet (`A.`, `B.`, `C.`), `pl-18` / `4.5rem` indent
+  - **Keyboard Interaction**:
+    - `Tab`: Indents bullet or number item by 1 level (`level = level + 1`, capped at level 4).
+    - `Shift+Tab`: Outdents item by 1 level; if at level 0 on empty item, converts cleanly to paragraph.
+    - `Backspace`: Decrements level if indented, or un-lists empty items to plain text.
+- **Heading Block Notion-Grade Downward Flow**:
+  - Pressing `Enter` at the logical start (offset 0) of any heading (`h1`–`h4`) prepends a new blank text paragraph above and moves the heading and all downstream blocks down, preserving heading style and content.
 - **Draggable 6-Dots Handle (`⠿`)**: Drag to reorder blocks with `duck-400` drop target; click to open the context menu.
 
 

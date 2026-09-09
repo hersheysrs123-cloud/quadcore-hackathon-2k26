@@ -73,6 +73,14 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 66. [Quiz Making Interface Lag Elimination & Cambridge IGCSE Grade 10 Math & STEM Question Engine Integration](#66-quiz-making-interface-lag-elimination--cambridge-igcse-grade-10-math--stem-question-engine-integration)
 67. [Performance-Optimized Rendering Pipeline for Complex 3D Anatomical Structures](#67-performance-optimized-rendering-pipeline-for-complex-3d-anatomical-structures)
 68. [Pre-Download Document Export Previews for Word (.docx), HTML (.html), Plain Text (.txt), and Markdown (.md)](#68-pre-download-document-export-previews-for-word-docx-html-html-plain-text-txt-and-markdown-md)
+69. [Export Document Preview Scroll Container Repair & Seamless Full-File Navigation](#69-export-document-preview-scroll-container-repair--seamless-full-file-navigation)
+70. [Editor Lasso Marquee Selection & Side Margin Click Cursor Jump Repair](#70-editor-lasso-marquee-selection--side-margin-click-cursor-jump-repair)
+71. [AI Explain LaTeX \frac & \ext Rendering Healing, Bare Math Prose Extraction & KaTeX Global Macro](#71-ai-explain-latex-frac--ext-rendering-healing-bare-math-prose-extraction--katex-global-macro)
+72. [Click-to-Append Strict Screen Sides Disabling & Bottom Whitespace Boundary Constraint](#72-click-to-append-strict-screen-sides-disabling--bottom-whitespace-boundary-constraint)
+73. [Multi-Note Selection & Bulk Actions Suite (Move to Space, Delete to Trash with Confirmation, Star, Duplicate)](#73-multi-note-selection--bulk-actions-suite-move-to-space-delete-to-trash-with-confirmation-star-duplicate)
+74. [Numbered and Bullet List Indentation, Sub-Bullet Numbering (a., b., c.), and Caret Backspace Handling](#74-numbered-and-bullet-list-indentation-sub-bullet-numbering-a-b-c-and-caret-backspace-handling)
+75. [Heading Block Enter-at-Start Prepending & Downward Block Flow (Notion Parity)](#75-heading-block-enter-at-start-prepending--downward-block-flow-notion-parity)
+76. [Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up](#76-socratic-duck-conversational-bot-removal-from-quiz-panel--system-clean-up)
 
 ---
 
@@ -4608,5 +4616,95 @@ Users identified two visual inconsistencies during print and PDF export:
    - Created `tests/unit/multi-note-selection.test.mjs` verifying individual selection toggles, Select All / Deselect All, confirmation dialog abort/confirm behavior, batch move, batch star/unstar, and batch duplicate.
    - All 6 unit tests passing (512 total test suite passing).
 
+---
 
+## 74. Numbered and Bullet List Indentation, Sub-Bullet Numbering (a., b., c.), and Caret Backspace Handling
 
+### Problem Statement
+1. **Numbered List Tab Creates Whitespace**:
+   - In `components/BlockNoteEditor.jsx`, pressing `Tab` while on a numbered list (`number`) item failed to indent the list item; instead, it fell through to the plain-text soft tab branch and inserted two literal whitespace characters (`"  "`).
+2. **Missing Hierarchical Numbered Sub-Bullets**:
+   - Numbered list blocks only supported single-level decimal numbers (`1.`, `2.`, `3.`), with no sub-bullet numbering scheme (`a.`, `b.`, `c.`, `i.`, `ii.`, `A.`, `B.`) when indented.
+3. **Bullet Backspace Intermittent Failure**:
+   - In standard bullet lists (`bullet`) and empty list items, pressing `Backspace` at offset 0 sometimes failed to un-indent or convert the item to a paragraph, swallowing keystrokes when internal DOM artifacts (`<br>`, whitespace) or stale ref state occurred.
+
+### Root Cause Analysis
+1. **Incomplete Tab Key Filter**:
+   - In `BlockNoteEditor.jsx`, `handleKeyDown` checked `if (block.type === "bullet")` for list indentation. Block type `"number"` was missing from this guard, causing `Tab` on numbered items to bypass indentation logic and execute `document.createTextNode("  ")`.
+2. **Absence of Multi-Tier Number Formatting Functions**:
+   - Number sequence counters were strictly computed as a single flat `index + 1`. There were no converters for alphabetic (`a.`, `b.`, `c.`) or roman numeral (`i.`, `ii.`, `iii.`) progressions based on hierarchy level (`block.level`).
+   - Export serializers (`editorBlocksToText`, `blocksToHTMLLossy`) lacked indentation and CSS list-style-type handling for indented numbered lists.
+3. **Stale DOM Caret Start Detection**:
+   - `isCaretAtLogicalStart` in `lib/editorCaret.js` returned `false` on empty blocks if browser `<br>` tags or zero-width spaces produced non-zero container offsets.
+   - `handleKeyDown` also relied on `blockRefs.current[blockId]` lookup, which could be out-of-sync with the active contentEditable element receiving the event.
+
+### Resolution & Architectural Enhancements
+1. **Tab & Shift+Tab Indentation for Numbered Items (`components/BlockNoteEditor.jsx`)**:
+   - Expanded list indentation condition to `if (block.type === "bullet" || block.type === "number")`.
+   - Pressing `Tab` increments `block.level = Math.min((block.level || 0) + 1, 4)` and preserves focus.
+   - Pressing `Shift+Tab` decrements `block.level` down to 0, and if pressed at level 0 on an empty item, cleanly converts to plain text.
+2. **Hierarchical Multi-Tier Sub-Numbering Engine (`lib/blocks.js` & `components/BlockNoteEditor.jsx`)**:
+   - Added `toAlpha(num, upper = false)`: maps 1-based index to alphabetic sequences (`a`, `b`, ... `z`, `aa`, etc.).
+   - Added `toRoman(num, upper = false)`: maps 1-based index to standard Roman numerals (`i`, `ii`, ... `x`, etc.).
+   - Added `formatNumberMarker(level, index)`:
+     - Level 0: decimal (`1.`, `2.`, `3.`)
+     - Level 1: lower-alpha (`a.`, `b.`, `c.`)
+     - Level 2: lower-roman (`i.`, `ii.`, `iii.`)
+     - Level 3+: upper-alpha (`A.`, `B.`, `C.`)
+   - Implemented hierarchical stack tracking (`numberCounters = []`) in `BlockNoteEditor.jsx` when scanning sequential `number` blocks, resetting deeper levels when shallower levels increment, and generating contextual `blockLabel`.
+   - Added proportional indentation padding: `style={{ paddingLeft: `${(block.level || 0) * 1.5}rem` }}`.
+3. **Lossless Multi-Level Serialization (`lib/blocks.js` & `lib/exportImport.js`)**:
+   - Updated `editorBlocksToText` to prepend `  ` indentations and format hierarchical number markers in AI context exports.
+   - Updated `blocksToHTMLLossy` to emit CSS `list-style-type` (`lower-alpha` for level 1, `lower-roman` for level 2, `upper-alpha` for level 3) in standalone HTML exports.
+4. **Reliable Backspace Un-Indenting & DOM Empty Guard (`components/BlockNoteEditor.jsx` & `lib/editorCaret.js`)**:
+   - Updated `isCaretAtLogicalStart` in `lib/editorCaret.js` with an empty block shortcut: `if (!cleanZeroWidth(full).trim()) return true;`.
+   - In `BlockNoteEditor.jsx`, passed active `domEl` directly into `handleKeyDown(e, block, domEl)` and evaluated `isDomEmpty = !cleanZeroWidth(domEl?.innerText || block.content || "").trim();`.
+   - When Backspace is pressed on any empty bullet or number, or when caret is at offset 0, it unconditionally decrements `level` or converts the block to a normal text block without dropping keystrokes.
+5. **Automated Verification**:
+   - Added unit tests in `tests/unit/bullet-number-heading-fixes.test.mjs` verifying marker formatting across all 4 levels, sequence continuity, sub-bullet resets, markdown/HTML serialization, and empty block caret detection.
+   - All 523 unit & integration tests passing cleanly.
+
+---
+
+## 75. Heading Block Enter-at-Start Prepending & Downward Block Flow (Notion Parity)
+
+### Problem Statement
+- In Notion, placing the caret at the very beginning (offset 0) of a heading block (`h1`, `h2`, `h3`, `h4`) and pressing `Enter` creates a new blank paragraph block *above* the heading, pushing the heading and all following blocks down by one position while keeping the heading intact and focused.
+- In SocraticOS, pressing `Enter` at offset 0 of a heading previously either split the heading into two heading blocks or converted/reset the heading block unpredictably.
+
+### Root Cause Analysis
+- In `components/BlockNoteEditor.jsx`, the Enter keydown handler (`splitBlockDOMAtRange`) checked if caret was at offset 0 and called `onAdd(block.id, "", block.type)`.
+- This appended a new block *after* the current block (or below it), failing to shift the heading itself down, or spawned an extraneous duplicate heading element instead of prepending an empty text paragraph above.
+
+### Resolution & Architectural Enhancements
+1. **`handleAddBefore` Dispatcher (`components/BlockNoteEditor.jsx`)**:
+   - Added `handleAddBefore(beforeId, initialContent = "", type = "text", customProps = {}, focusTarget = "before")`:
+     - Locates target block index in state.
+     - Creates a new block with `uuidv4()` and prepends it immediately before `beforeId` (`splice(targetIdx, 0, newBlock)`).
+     - Updates block positions and captures history state (`pushHistory`).
+     - If `focusTarget === "original"`, smoothly focuses the original heading block at `"start"` using `requestAnimationFrame`.
+2. **Heading Enter-at-Start Interception (`EditorBlock` in `BlockNoteEditor.jsx`)**:
+   - In `handleKeyDown`, added special handling for heading blocks (`block.type === "h1" || block.type === "h2" || block.type === "h3" || block.type === "h4"`):
+     - When `isCaretAtLogicalStart(el)` is true, intercepts Enter and calls `onAddBefore(block.id, "", "text", {}, "original")`.
+     - Completely bypasses standard downstream splitting, immediately prepending a new empty text block above the heading and pushing the heading and all blocks below downward, matching Notion's exact behavior.
+3. **Automated Verification**:
+   - Added unit tests in `tests/unit/bullet-number-heading-fixes.test.mjs` asserting that prepending creates a new text block at index 0, shifts the heading to index 1, and preserves heading content and block types.
+
+---
+
+## 76. Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up
+
+### Problem Statement
+- The Quiz side drawer previously housed two tabs: "Quiz" and "Socratic Duck" (`SocraticSession`).
+- The user requested complete removal of the "Socratic Bot" conversational interface to streamline the quiz experience and reduce visual and operational clutter.
+
+### Resolution & Architectural Enhancements
+1. **Streamlined Quiz Side Drawer (`components/QuizPanel.jsx`)**:
+   - Removed `SocraticSession` component, conversation state hooks (`sessionState`, `dialogueHistory`, `socraticScores`), mode tab switcher (`ModeTab`), and unused dependencies (`WidgetCanvas`, `socraticChat`, `socraticWidget`).
+   - `QuizPanel` now directly mounts `QuizRunner` within an uncluttered, focused study drawer.
+2. **Header & Context Menu Action Button Clean-up**:
+   - Updated `MasteryDashboard.jsx`: renamed "Start a Socratic Drill" action button to "Start a Quiz".
+   - Updated `CalendarView.jsx`: renamed study drill labels to "Quiz Drill".
+   - Updated `BlockNoteEditor.jsx`: removed unused `onTriggerSocratic` props and updated floating selection toolbar tooltip to "Quiz me on Selection".
+3. **Automated Verification**:
+   - Ran complete test suite: all 523 tests across 135 test suites pass cleanly with 0 regressions.

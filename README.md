@@ -30,13 +30,16 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 ## ✨ Key Features & Capabilities
 
 ### 📝 1. Notion-Style Block Note Editor
-- **19 Block Types Supported**: Text, Heading 1 (`h1`), Heading 2 (`h2`), Heading 3 (`h3`), Heading 4 (`h4`), Bullet List (with multi-level sub-bullet nesting), Numbered List (dynamic sequential indexing `1.`, `2.`), To-Do List (interactive checkboxes with strikethrough), Toggle List (collapsible arrow `▶`/`▼` with auto-expanding details textarea and interactive status toggle badge), Callout Box (with 8 icon presets), Multi-Column Layout Block (`columns` 2 to 5 columns split layout with dynamic column count selector pills), Table (interactive grid table with streamlined Notion header, dynamic cell editing, `+ Column`/`+ Row`, delete row/col, and `Tab` navigation), Quote (thick accent border), LaTeX Math Equation block (live KaTeX rendering, quick Presets toggle & symbols tray), Inline LaTeX Equation (`inlinemath` clear Notion-style `$formula$`), Divider (`hr`), Site Bookmark Embed (clickable card with live favicon), Media & YouTube Video Embed (Images and YouTube video players with 16:9 responsive embeds, timestamp support & **`25%` / `50%` / `100%` width resize presets**), and Code Snippet (10-language syntax highlighting).
-- **Hierarchical Sub-Bullets & Multi-Level Lists**:
-  - `Tab`: Indent active bullet (empty or with content) to a sub-bullet (`level = level + 1`, up to level 4).
-  - `Shift+Tab`: Outdent sub-bullet (`level = level - 1`). If unindented at level 0 while empty, converts into a normal paragraph text block.
-  - `Enter`: Pressing Enter on an empty sub-bullet unindents by 1 level before exiting; pressing Enter on a populated sub-bullet inherits the current level.
-  - `Backspace`: Pressing Backspace at offset 0 unindents sub-bullets by 1 level.
-  - **Hierarchical Visual Glyphs**: Level 0 renders a solid filled circle (`●`), Level 1 renders a hollow ring (`○`) with `1.5rem` indent, Level 2 renders a solid square (`■`) with `3.0rem` indent, and Level 3+ renders a hollow square with `4.5rem+` indent.
+- **19 Block Types Supported**: Text, Heading 1 (`h1`), Heading 2 (`h2`), Heading 3 (`h3`), Heading 4 (`h4`), Bullet List (with multi-level sub-bullet nesting), Numbered List (dynamic sequential & hierarchical indexing `1.`, `2.` with sub-bullets `a.`, `b.`, `c.`, etc.), To-Do List (interactive checkboxes with strikethrough), Toggle List (collapsible arrow `▶`/`▼` with auto-expanding details textarea and interactive status toggle badge), Callout Box (with 8 icon presets), Multi-Column Layout Block (`columns` 2 to 5 columns split layout with dynamic column count selector pills), Table (interactive grid table with streamlined Notion header, dynamic cell editing, `+ Column`/`+ Row`, delete row/col, and `Tab` navigation), Quote (thick accent border), LaTeX Math Equation block (live KaTeX rendering, quick Presets toggle & symbols tray), Inline LaTeX Equation (`inlinemath` clear Notion-style `$formula$`), Divider (`hr`), Site Bookmark Embed (clickable card with live favicon), Media & YouTube Video Embed (Images and YouTube video players with 16:9 responsive embeds, timestamp support & **`25%` / `50%` / `100%` width resize presets**), and Code Snippet (10-language syntax highlighting).
+- **Hierarchical Sub-Bullets & Multi-Level Lists (Bullets & Numbers)**:
+  - `Tab`: Indent active bullet or numbered item (empty or with content) to a sub-bullet (`level = level + 1`, up to level 4).
+  - `Shift+Tab`: Outdent item (`level = level - 1`). If unindented at level 0 while empty, converts into a normal paragraph text block.
+  - `Enter`: Pressing Enter on an empty sub-bullet unindents by 1 level before exiting; pressing Enter on a populated item inherits the current level.
+  - `Backspace`: Pressing Backspace at offset 0 (or on an empty item) unindents by 1 level or converts to plain text.
+  - **Hierarchical Numbering Sequence**: Level 0 renders decimal numbers (`1.`, `2.`), Level 1 renders lowercase letters (`a.`, `b.`) with `1.5rem` indent, Level 2 renders lowercase Roman numerals (`i.`, `ii.`) with `3.0rem` indent, and Level 3+ renders uppercase letters (`A.`, `B.`) with `4.5rem+` indent.
+  - **Hierarchical Bullet Glyphs**: Level 0 renders a solid filled circle (`●`), Level 1 renders a hollow ring (`○`) with `1.5rem` indent, Level 2 renders a solid square (`■`) with `3.0rem` indent, and Level 3+ renders a hollow square with `4.5rem+` indent.
+- **Notion-Grade Heading Block Downward Flow**:
+  - Pressing `Enter` at the start of any heading (`h1`–`h4`) creates a new blank paragraph above and shifts the heading and all following blocks downward, maintaining caret focus on the heading (Notion behavior).
 - **Multi-Column Layout Block (`/2 columns` - `/5 columns`, `/split`, `/compare`)**: Dynamic 2 to 5 column split container for side-by-side concept comparisons (e.g. Mitosis vs Meiosis, Conductors vs Insulators, Cornell notes) with segmented column switcher pills (`[ 2 Cols ]` - `[ 5 Cols ]`), responsive grid cards, header titles, and auto-growing multi-line body.
 - **Notion-Style Right-Side Outline (Minimap Ticks & Floating Card)**: Floating right-side outline panel with live `h1`–`h4` heading scanning, minimap dash strip with real-time scroll spy active-section tracking, and one-click smooth jumping with highlight ring pulse.
 - **Inline Image & Video Resize Presets**: Width toggle pills (`25%`, `50%`, `100%`) for balanced diagram and video embedding into text flow.
@@ -129,8 +132,7 @@ A comprehensive suite of 25 real-time interactive 3D STEM simulations built usin
 
 ### 🦆 5. Socratic AI Tutor, Explain, Reformat & 3D Interactive Widgets
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
-- **Intelligent Note Reformatting (`POST /api/reformat`)**: Analyzes whole notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with contextual emojis, hierarchical sub-bullets with multi-level nesting, LaTeX math formulas, collapsible toggles, checklists, code blocks, and dividers) with instantaneous `Ctrl+Z` undo and offline fallback.
-- **Socratic Rubber Duck Assistant (`POST /api/socratic/chat`)**: Guided dialogue tutor that probes understanding using the Feynman technique without spoiling answers.
+- **Diagnostic Quiz Drawer (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions and recording session scores directly into the mastery analytics store.
 - **3D Socratic Canvas Widgets (`POST /api/socratic/widget` & [`WidgetCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/WidgetCanvas.jsx)): Generates interactive 3D concept widgets with drag-orbit controls, custom sliders, camera zoom, and sub-topic gap repair hints.
 
 
@@ -212,7 +214,7 @@ components/
   ThreeDView.jsx                3D visualization studio container & control HUD
   WidgetCanvas.jsx              Interactive Socratic 3D canvas widget renderer
   ExplainPanel.jsx              Structured LLM explanation drawer
-  QuizPanel.jsx                 Graded quiz & Socratic Rubber Duck dialogue drawer
+  QuizPanel.jsx                 Graded quiz drawer & knowledge assessment runner
   ConfidenceHeatmap.jsx         Per-session sub-topic confidence heatmap
   MasteryDashboard.jsx          Aggregate topic mastery analytics dashboard
   ExportImportModal.jsx         .socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT & MD export/import modal

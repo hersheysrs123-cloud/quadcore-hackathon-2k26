@@ -492,7 +492,7 @@ function EmptyState({ notes = [], spaceName = "this space", onStudy }) {
               className="inline-flex items-center gap-2 rounded-xl bg-duck-400 px-4 py-2.5 text-xs font-bold text-ink-950 shadow-md hover:bg-duck-300 transition-colors cursor-pointer"
             >
               <span>🦆</span>
-              <span>Start a Socratic Drill</span>
+              <span>Start a Quiz</span>
             </button>
           </div>
         )}
