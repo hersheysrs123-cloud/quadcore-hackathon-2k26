@@ -225,7 +225,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 
 - **Floating Text Selection Popover Toolbar (`TextSelectionToolbar`)**:
   - Automatically appears above any highlighted text across any editable block, list, heading, quote, callout, or table cell.
-  - Action buttons: **Bold** (`B`), **Italic** (`I`), **Underline** (`U`), **Cross / Strikethrough** (`S`), **Convert to Code** (`</>`), **Convert to Formula** (`$x$`), ✨ **Explain with Socratic AI**, and 🦆 **Quiz me on Selection**.
+  - Action buttons: **Bold** (`B`), **Italic** (`I`), **Underline** (`U`), **Cross / Strikethrough** (`S`), **Convert to Code** (`</>`), **Convert to Formula** (`$x$`), ✨ **Explain**, and 🦆 **Quiz me on Selection**.
   - **Focus & Caret Retention**: Converting text to math or code synchronously compiles into rich elements and re-focuses without losing document focus.
   - **Underline Persistence**: Underline `<u>` elements are preserved losslessly across DOM serialization, inline formatting, and editor state updates.
   - **Formatting Boundary Caret Escaping**: Setting the caret at the boundary end of formatted spans places the caret in a trailing text node outside the formatting element, preventing subsequent typing from being inadvertently styled.
