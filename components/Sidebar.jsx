@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical, Star, Trash2, FolderInput, Copy, ListChecks } from "lucide-react";
+import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical, Star, Trash2, FolderInput, Copy, ListChecks, Pencil } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, detectHardwareGraphics } from "@/lib/db.js";
@@ -9,7 +9,7 @@ import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement } from "@/
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
-import { SPACES } from "@/lib/constants";
+import { SPACES, SPACE_ICON_OPTIONS } from "@/lib/constants";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -1150,12 +1150,14 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
   const inputRef = useRef(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📂");
+  const [blurb, setBlurb] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setName("");
       setIcon("📂");
+      setBlurb("");
       setError("");
       setTimeout(() => inputRef.current?.focus(), 60);
     }
@@ -1176,13 +1178,11 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
       setError(`A space named "${trimmed}" already exists.`);
       return;
     }
-    onCreate({ name: trimmed, icon, blurb: "" });
+    onCreate({ name: trimmed, icon: icon || "📂", blurb: blurb.trim() });
     onClose();
   }
 
   if (!open) return null;
-
-  const ICON_OPTIONS = ["📂", "🎓", "🌱", "📦", "🧪", "🎨", "🏋️", "💼", "🎯", "🔬"];
 
   return (
     <>
@@ -1198,7 +1198,10 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
         className="fixed left-1/2 top-1/2 z-[210] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
-          <h2 className="text-sm font-semibold text-ink-100">Create New Space</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-base">{icon || "📂"}</span>
+            <h2 className="text-sm font-semibold text-ink-100">Create New Space</h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -1209,18 +1212,29 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
           </button>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-5 px-5 py-5">
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
           <div>
-            <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
-              Icon
+            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
+              Space Emoji
             </label>
-            <div className="flex flex-wrap gap-1.5">
-              {ICON_OPTIONS.map((emoji) => (
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                maxLength={4}
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="📂"
+                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+              <span className="text-xs text-ink-400">Pick below or type any custom emoji</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-0.5">
+              {SPACE_ICON_OPTIONS.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => setIcon(emoji)}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg transition-all ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all ${
                     icon === emoji
                       ? "bg-duck-500/20 ring-2 ring-duck-400"
                       : "bg-ink-850 hover:bg-ink-800"
@@ -1234,14 +1248,14 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
 
           <div>
             <label
-              htmlFor="space-name"
-              className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+              htmlFor="create-space-name"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
             >
               Name
             </label>
             <input
               ref={inputRef}
-              id="space-name"
+              id="create-space-name"
               type="text"
               value={name}
               onChange={(e) => {
@@ -1255,21 +1269,229 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
             {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div>
+            <label
+              htmlFor="create-space-blurb"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+            >
+              Description / Tagline (Optional)
+            </label>
+            <input
+              id="create-space-blurb"
+              type="text"
+              value={blurb}
+              onChange={(e) => setBlurb(e.target.value)}
+              placeholder="e.g. Courses, problem sets & exam preparation"
+              maxLength={80}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-ink-800">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-3.5 py-2 text-sm text-ink-400 transition-colors hover:text-ink-200"
+              className="rounded-lg px-3.5 py-1.5 text-xs text-ink-400 transition-colors hover:text-ink-200"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
-              className="rounded-lg bg-duck-400 px-4 py-2 text-sm font-medium text-ink-950 transition-opacity disabled:opacity-30"
+              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-duck-300 shadow-sm cursor-pointer"
             >
               Create
             </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+// ─── Edit Space Modal ───────────────────────────────────────────────
+function EditSpaceModal({
+  open,
+  onClose,
+  space,
+  onSave,
+  onDelete,
+  canDelete = false,
+  spaces = [],
+}) {
+  const inputRef = useRef(null);
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("📂");
+  const [blurb, setBlurb] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open && space) {
+      setName(space.name || "");
+      setIcon(space.icon || "📂");
+      setBlurb(space.blurb || "");
+      setError("");
+      setTimeout(() => inputRef.current?.focus(), 60);
+    }
+  }, [open, space]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (
+      trimmed.toLowerCase() !== (space?.name || "").toLowerCase() &&
+      spaces.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      setError(`A space named "${trimmed}" already exists.`);
+      return;
+    }
+    onSave?.(space.name, { name: trimmed, icon: icon || "📂", blurb: blurb.trim() });
+    onClose();
+  }
+
+  if (!open || !space) return null;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        className="fixed inset-0 z-[200] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit Space"
+        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+      >
+        <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-base">{icon || "📂"}</span>
+            <h2 className="text-sm font-semibold text-ink-100">Edit Space</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md px-2 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+          >
+            ✕
+          </button>
+        </header>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
+          <div>
+            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
+              Space Emoji
+            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                maxLength={4}
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="📂"
+                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+              <span className="text-xs text-ink-400">Pick below or type any custom emoji</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-0.5">
+              {SPACE_ICON_OPTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => setIcon(emoji)}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all ${
+                    icon === emoji
+                      ? "bg-duck-500/20 ring-2 ring-duck-400"
+                      : "bg-ink-850 hover:bg-ink-800"
+                  }`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="edit-space-name"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+            >
+              Name
+            </label>
+            <input
+              ref={inputRef}
+              id="edit-space-name"
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError("");
+              }}
+              placeholder="e.g. Research"
+              maxLength={32}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            />
+            {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
+          </div>
+
+          <div>
+            <label
+              htmlFor="edit-space-blurb"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+            >
+              Description / Tagline (Optional)
+            </label>
+            <input
+              id="edit-space-blurb"
+              type="text"
+              value={blurb}
+              onChange={(e) => setBlurb(e.target.value)}
+              placeholder="e.g. Courses, problem sets & exam preparation"
+              maxLength={80}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-ink-800">
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete?.(space.name);
+                }}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/15 transition-colors"
+              >
+                Delete Space
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-3 py-1.5 text-xs text-ink-400 transition-colors hover:text-ink-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim()}
+                className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-duck-300 shadow-sm cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -1566,6 +1788,8 @@ function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSel
 export default function Sidebar({
   spaces,
   setSpaces,
+  onEditSpace,
+  onRenameSpace,
   handleDeleteSpace,
   activeSpace,
   onSelectSpace,
@@ -1603,6 +1827,7 @@ export default function Sidebar({
   onDuplicateMultipleNotes,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingSpace, setEditingSpace] = useState(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
@@ -1863,19 +2088,32 @@ export default function Sidebar({
                       <span className="truncate text-xs">{space.name}</span>
                     </button>
 
-                    {spaces.length > 1 && (
+                    <div className="flex items-center shrink-0 ml-1">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteSpace(space.name);
+                          setEditingSpace(space);
                         }}
-                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all shrink-0 ml-1"
-                        title="Delete space"
+                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-ink-700/60 text-ink-400 hover:text-duck-300 transition-all cursor-pointer"
+                        title="Edit space (name & emoji)"
                       >
-                        ✕
+                        <Pencil className="w-3 h-3" />
                       </button>
-                    )}
+                      {spaces.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSpace(space.name);
+                          }}
+                          className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-0.5 cursor-pointer"
+                          title="Delete space"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1931,7 +2169,7 @@ export default function Sidebar({
                               onSelectSpace(space.name);
                               setSpacesDropdownOpen(false);
                             }}
-                            className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate"
+                            className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate cursor-pointer"
                           >
                             <div className="flex items-center gap-2 truncate">
                               <span className="text-sm leading-none">{space.icon}</span>
@@ -1942,21 +2180,33 @@ export default function Sidebar({
                             )}
                           </button>
                           
-                          {spaces.length > 1 && (
-                            <div className="flex items-center shrink-0 pr-1">
+                          <div className="flex items-center shrink-0 pr-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSpacesDropdownOpen(false);
+                                setEditingSpace(space);
+                              }}
+                              className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-ink-700/60 text-ink-400 hover:text-duck-300 transition-all cursor-pointer"
+                              title="Edit space (name & emoji)"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            {spaces.length > 1 && (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteSpace(space.name);
                                 }}
-                                className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-1"
+                                className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-0.5 cursor-pointer"
                                 title="Delete space"
                               >
                                 ✕
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -2363,6 +2613,16 @@ export default function Sidebar({
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreate={handleCreateSpace}
+        spaces={spaces}
+      />
+
+      <EditSpaceModal
+        open={Boolean(editingSpace)}
+        space={editingSpace}
+        onClose={() => setEditingSpace(null)}
+        onSave={(spaceName, updates) => onEditSpace?.(spaceName, updates)}
+        onDelete={(spaceName) => handleDeleteSpace(spaceName)}
+        canDelete={spaces.length > 1}
         spaces={spaces}
       />
 

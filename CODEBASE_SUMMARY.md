@@ -65,8 +65,8 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── QuizPanel.jsx                     # Study sidebar drawer: Dynamic AI diagnostic quiz runner, assessment evaluator & mastery tracker
 │   ├── QuizStudioView.jsx                # Dedicated Quizzes Studio tab: 2-column exam runner, review reports, draft auto-save, trash management
 │   ├── ScoreRing.jsx                     # Animated SVG score dial with status coloring
-│   ├── Sidebar.jsx                       # Spaces selector, note list, multi-note bulk toolbar, 24h trash drawer, Settings modal & Typed RESET modal
-│   ├── SpaceHubView.jsx                  # Dedicated Space Hub dashboard: per-space curriculum docs with active toggles & AI pedagogy settings
+│   ├── Sidebar.jsx                       # Spaces selector (Grid & Dropdown views with EditSpaceModal), note list, multi-note bulk toolbar, 24h trash drawer, Settings modal & Typed RESET modal
+│   ├── SpaceHubView.jsx                  # Dedicated Space Hub dashboard: per-space curriculum docs with active toggles, space renaming, 26 emoji presets & AI pedagogy settings
 │   ├── ThreeDView.jsx                    # 3D studio container with 27 interactive scientific simulations across 5 STEM domains & resizable HUD
 │   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
@@ -444,13 +444,17 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
 
 ### ⚙️ G. Space Hub & Per-Space Curriculum Management (`components/SpaceHubView.jsx`)
 - **Full-Page Dedicated Curriculum Hub**: Accessible via the `⚙️ Space Hub · Syllabus` button in the sidebar.
+- **Space Editing, Renaming & Emoji Customization**:
+  - **Full Space Identity Editing**: Rename any space, choose from 26 curated emoji presets (`SPACE_ICON_OPTIONS`) or input custom emojis, and edit descriptive taglines.
+  - **Dual Edit Affordances**: Edit spaces directly from the Sidebar (`EditSpaceModal` triggered via hover `Pencil` icon on space items in both Grid and Dropdown views) or from the `SpaceHubView` identity section.
+  - **Cascading Space Renames (`renameSpace` in `lib/storageService.js`)**: Atomically updates space references across 8 IndexedDB stores (`notes`, `trash`, `spaceDocuments`, `spaceSettings`, `folders`, `bookmarks`, `quizzes`, `studySessions`) and `localStorage`.
+  - **Permanent Emoji Persistence (`saveAllSpaces` & `getSavedSpaces`)**: Default spaces (`School`, `Personal`, `Misc`, `Journal`) permanently preserve custom emojis and blurbs across page reloads and note imports without reverting to initial defaults.
 - **Multiple Documents per Space**: Upload and store multiple syllabus documents (`.pdf`, `.docx`, `.txt`, `.md`) directly within each space. Stored in Dexie `spaceDocuments` store.
 - **Active AI Toggles**: Each document features an instant toggle switch (`active` / `inactive`), controlling exactly which curriculum files are concatenated and fed into the AI during quiz generation, grading, and AI Tutor dialogues (`getActiveSyllabusForSpace()`).
 - **AI Pedagogy & Examiner Settings**:
   - **Academic Standard / Grade Level**: General, IGCSE / O-Level, IB Diploma (HL/SL), AP / College Board, University, Olympiad / Competition.
   - **AI Persona & Tone**: Standard Examiner, Strict Examiner, Socratic Guide, Friendly Coach, Olympiad Mentor.
   - **Distractor Toughness & Rigor**: Relaxed, Standard, High Rigor.
-- **Space Customization**: Custom icon emoji, descriptive tagline/blurb, and space accent color tint.
 - **Quick 1-Click Presets**: Instant load presets for Cambridge IGCSE, IB Diploma HL, AP Prep, and Foundational mastery.
 - **General Settings Integration (`components/Sidebar.jsx`)**: Legacy / workspace-wide curriculum statement toggle (`socratic_syllabus_enabled`, `socratic_syllabus_statement`) with presets (*🎓 IGCSE Gr.10*, *📚 GCSE / O-Level*, *🏛️ IB MYP 4-5*, *🧬 AP / A-Level Gr.11-12*, *🔬 Middle School Gr.6-8*).
 

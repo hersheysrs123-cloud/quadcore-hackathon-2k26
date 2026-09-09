@@ -4908,3 +4908,43 @@ Users identified two visual inconsistencies during print and PDF export:
 4. **Automated Unit Testing (`tests/unit/table-block.test.mjs`)**:
    - Added 4 test cases verifying column moving across multiple headers/rows with undo/redo, row moving up/down with undo/redo, boundary out-of-bounds guards, and cell-focus handle visibility resolution.
    - All 532 tests pass with 0 failures.
+
+---
+
+## 82. Space Customization: Full Editing, Space Renaming, Emoji Presets & Permanent Persistence
+
+### Problem Statement
+- Users could not edit space names or easily select custom space emojis from standard presets.
+- Space emojis for default spaces (School, Personal, Misc, Journal) would occasionally revert to hardcoded defaults (🎓, 🌱, 📦, 📓) upon browser refresh or note import.
+- Renaming a space required cascading updates across all dependent data stores (notes, trash, spaceDocuments, spaceSettings, Web Saver folders & bookmarks, quizzes, study sessions) to prevent orphaned records.
+
+### Root Cause Analysis
+1. **Default Space Overwriting on Hydration**:
+   - In `Workspace.jsx`, `spaces.filter(s => !SPACES.find(bs => bs.name === s.name))` explicitly excluded default spaces from `socratic_custom_spaces`.
+   - When default spaces were customized (e.g. changing School's icon from 🎓 to 🏫 or 🪐), the custom emoji was omitted from storage.
+   - On reload or note import, `SPACES.forEach(s => merged.set(s.name, s))` re-applied default emojis, reverting user customizations.
+2. **Missing Edit Affordances in Sidebar**:
+   - The Sidebar only allowed creating new spaces or deleting them; there was no edit trigger or modal to rename spaces or change emojis.
+3. **Limited Customization in Space Hub**:
+   - `SpaceHubView.jsx` only offered a small text field for emoji with no preset buttons, and lacked a space renaming mechanism.
+
+### Resolution & Architectural Enhancements
+1. **Shared Emoji Presets (`lib/constants.js`)**:
+   - Exported `SPACE_ICON_OPTIONS` containing 26 curated emojis across academics, STEM, humanities, creativity, and lifestyle (`📂`, `🎓`, `🌱`, `📦`, `📓`, `🧪`, `🎨`, `🏋️`, `💼`, `🎯`, `🔬`, `💻`, `📚`, `💡`, `⚡`, `🚀`, `🧠`, `🌎`, `🎵`, `🛠️`, `🪐`, `🧬`, `📐`, `📝`, `☕`, `🎮`).
+2. **Unified Persistence Layer (`lib/storageService.js`)**:
+   - `saveAllSpaces(spaces)`: Writes the complete spaces array to `localStorage.getItem("socratic_spaces")`, maintains backward compatibility via `socratic_custom_spaces`, and mirrors each space's `icon` and `blurb` to Dexie IndexedDB `db.spaceSettings`.
+   - `getSavedSpaces()`: Restores spaces by merging base `SPACES`, `socratic_spaces`, `socratic_custom_spaces`, and Dexie `db.spaceSettings`, ensuring custom emojis on default spaces are never overwritten.
+   - `renameSpace(oldSpaceName, newSpaceName, newIcon, newBlurb)`: Atomically renames spaces across 8 data stores in Dexie IndexedDB (`notes`, `trash`, `spaceDocuments`, `spaceSettings`, `folders`, `bookmarks`, `quizzes`, `studySessions`) and updates `localStorage`.
+3. **Workspace Handlers & Hydration (`components/Workspace.jsx`)**:
+   - Implemented `handleRenameSpace` and `handleEditSpace` updating in-memory `spaces`, `notesBySpace`, and `sessions`.
+   - Updated `loadLocalWorkspace` and `handleImportSuccess` to restore spaces via `getSavedSpaces()`.
+   - Passed `onEditSpace` and `onRenameSpace` down to `<Sidebar />` and `<SpaceHubView />`.
+4. **Interactive Sidebar Space Editing (`components/Sidebar.jsx`)**:
+   - Created `EditSpaceModal` with custom emoji text input, 26 preset emoji buttons, space name input with duplicate validation, optional blurb, save and delete buttons.
+   - Added `Pencil` edit button to each space item in both Grid View and Dropdown View with hover disclosure.
+5. **Space Hub Branding Upgrades (`components/SpaceHubView.jsx`)**:
+   - Added Space Name input with duplicate validation and "Rename" action button.
+   - Added 26 quick-pick emoji buttons under the emoji input with active selection highlighting.
+6. **Automated Verification (`tests/unit/space-hub.test.mjs`)**:
+   - Added 4 test cases verifying preset exports, emoji persistence without default reversion, cascading rename, and name validation. All 536 tests pass. Production Next.js build compiled successfully. Production server active on port 3000.
+

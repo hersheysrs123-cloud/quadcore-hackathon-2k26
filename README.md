@@ -72,7 +72,7 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
   - **Academic Standard / Grade Level**: General, IGCSE / O-Level, IB Diploma (HL/SL), AP / College Board, University, Olympiad.
   - **AI Examiner Persona**: Standard Examiner, Strict Examiner, Socratic Guide, Friendly Coach, Olympiad Mentor.
   - **Distractor Toughness & Rigor**: Relaxed, Standard, High Rigor.
-  - **Custom Space Identity**: Space icon emoji and descriptive tagline.
+  - **Custom Space Identity & Full Editing**: Rename any space, pick from 26 curated emoji presets or type custom emojis, and customize descriptive taglines with permanent persistence across default and custom spaces. Dual edit triggers available via hover pencil in Sidebar (Grid and Dropdown views) and within the Space Hub.
 - **1-Click Subject Presets**: Rapidly load Cambridge IGCSE Gr.10, IB Diploma HL, AP College Board, or Foundational mastery presets.
 
 ### 🧑‍🏫 4. Interactive AI Tutor Doubt-Clearing Suite

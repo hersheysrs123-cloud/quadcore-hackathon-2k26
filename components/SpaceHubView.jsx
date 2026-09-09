@@ -20,7 +20,9 @@ import {
   Palette,
   ExternalLink,
   ChevronDown,
+  Pencil,
 } from "lucide-react";
+import { SPACE_ICON_OPTIONS } from "@/lib/constants";
 import {
   getSpaceDocuments,
   addSpaceDocument,
@@ -91,6 +93,7 @@ export default function SpaceHubView({
   onSelectSpace,
   spaces = [],
   onUpdateSpace,
+  onRenameSpace,
   onBack,
   notesCount = 0,
   quizzesCount = 0,
@@ -101,6 +104,11 @@ export default function SpaceHubView({
   const [uploadError, setUploadError] = useState(null);
   const [saveToast, setSaveToast] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
+
+  // Space Rename State
+  const [spaceNameInput, setSpaceNameInput] = useState(activeSpace || "");
+  const [renameError, setRenameError] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   // Settings State
   const [settings, setSettings] = useState({
@@ -113,6 +121,11 @@ export default function SpaceHubView({
   });
 
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    setSpaceNameInput(activeSpace || "");
+    setRenameError("");
+  }, [activeSpace]);
 
   // Load documents and space settings when activeSpace changes
   const loadSpaceData = useCallback(async () => {
@@ -248,6 +261,31 @@ export default function SpaceHubView({
       onUpdateSpace?.(activeSpace, { [key]: val });
     }
     triggerToast();
+  };
+
+  const handleRename = async (e) => {
+    e?.preventDefault?.();
+    const trimmed = spaceNameInput.trim();
+    if (!trimmed) {
+      setRenameError("Space name cannot be empty");
+      return;
+    }
+    if (
+      trimmed.toLowerCase() !== activeSpace.toLowerCase() &&
+      spaces.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      setRenameError(`A space named "${trimmed}" already exists.`);
+      return;
+    }
+    setRenaming(true);
+    try {
+      await onRenameSpace?.(activeSpace, trimmed, settings.icon, settings.blurb);
+      triggerToast();
+    } catch (err) {
+      setRenameError(err.message || "Failed to rename space");
+    } finally {
+      setRenaming(false);
+    }
   };
 
   const triggerToast = () => {
@@ -693,34 +731,89 @@ export default function SpaceHubView({
               </h2>
             </div>
             <p className="text-xs text-ink-400 mt-1 max-w-xl">
-              Customize the icon emoji and descriptive tagline for this space.
+              Customize the name, icon emoji, and descriptive tagline for this space. All changes are saved across the app.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink-300">Space Icon / Emoji</label>
-              <div className="flex items-center gap-2">
+          <div className="space-y-5">
+            {/* Space Name */}
+            <form onSubmit={handleRename} className="space-y-1.5">
+              <label className="text-xs font-semibold text-ink-300 flex items-center gap-1.5">
+                <Pencil className="w-3.5 h-3.5 text-duck-400" />
+                <span>Space Name</span>
+              </label>
+              <div className="flex items-center gap-2 max-w-md">
                 <input
                   type="text"
-                  maxLength={4}
-                  value={settings.icon}
-                  onChange={(e) => updateSetting("icon", e.target.value)}
-                  className="w-16 rounded-xl border border-ink-700 bg-ink-850 py-2 text-center text-xl font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                  maxLength={32}
+                  value={spaceNameInput}
+                  onChange={(e) => {
+                    setSpaceNameInput(e.target.value);
+                    if (renameError) setRenameError("");
+                  }}
+                  placeholder="Space Name"
+                  className="flex-1 rounded-xl border border-ink-700 bg-ink-850 py-2 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
                 />
-                <span className="text-xs text-ink-400">Shown in sidebar, switcher &amp; quiz reports</span>
+                <button
+                  type="submit"
+                  disabled={renaming || !spaceNameInput.trim() || spaceNameInput.trim() === activeSpace}
+                  className="rounded-xl bg-duck-400 hover:bg-duck-300 text-ink-950 px-4 py-2 text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-sm"
+                >
+                  {renaming ? "Saving..." : "Rename"}
+                </button>
               </div>
-            </div>
+              {renameError && (
+                <p className="text-xs font-medium text-rose-400 animate-fade-in mt-1">{renameError}</p>
+              )}
+            </form>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink-300">Description Tagline</label>
-              <input
-                type="text"
-                placeholder="e.g. Courses, problem sets & exam preparation"
-                value={settings.blurb}
-                onChange={(e) => updateSetting("blurb", e.target.value)}
-                className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
+              {/* Space Icon & Presets */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-ink-300">Space Icon / Emoji</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={settings.icon}
+                    onChange={(e) => updateSetting("icon", e.target.value)}
+                    className="w-14 rounded-xl border border-ink-700 bg-ink-850 py-2 text-center text-xl font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                  />
+                  <span className="text-xs text-ink-400">Type custom emoji or pick preset below</span>
+                </div>
+                {/* Emoji Preset Buttons */}
+                <div className="flex flex-wrap gap-1.5 p-2 rounded-2xl border border-ink-800/80 bg-ink-950/50 max-h-32 overflow-y-auto">
+                  {SPACE_ICON_OPTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => updateSetting("icon", emoji)}
+                      className={`h-8 w-8 flex items-center justify-center rounded-xl text-base transition-all cursor-pointer ${
+                        settings.icon === emoji
+                          ? "bg-duck-500/20 ring-2 ring-duck-400"
+                          : "bg-ink-850 hover:bg-ink-800"
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description Tagline */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-ink-300">Description Tagline</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Courses, problem sets & exam preparation"
+                  value={settings.blurb}
+                  onChange={(e) => updateSetting("blurb", e.target.value)}
+                  className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+                />
+                <p className="text-[11px] text-ink-500 mt-1">
+                  Shown as the subtitle for this space across headers and dashboards.
+                </p>
+              </div>
             </div>
           </div>
         </section>

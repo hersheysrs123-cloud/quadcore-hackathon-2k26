@@ -38,6 +38,10 @@ import {
   factoryResetWorkspace,
   clearTrash,
   seedDemoContent,
+  renameSpace,
+  saveAllSpaces,
+  getSavedSpaces,
+  saveSpaceSettings,
 } from "@/lib/storageService";
 import { PanelLeftClose, Maximize2, Minimize2, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -287,14 +291,11 @@ export default function Workspace() {
 
           setNotesBySpace(spaceMap);
 
-          let savedCustomSpaces = [];
-          try { savedCustomSpaces = JSON.parse(localStorage.getItem("socratic_custom_spaces")) || []; } catch(e){}
-          
+          const resolvedSpaces = await getSavedSpaces();
           const merged = new Map();
-          SPACES.forEach(s => merged.set(s.name, s));
-          savedCustomSpaces.forEach(s => merged.set(s.name, s));
-          Object.keys(spaceMap).forEach(sp => {
-             if (!merged.has(sp)) merged.set(sp, { name: sp, icon: "📂" });
+          resolvedSpaces.forEach((s) => merged.set(s.name, s));
+          Object.keys(spaceMap).forEach((sp) => {
+            if (!merged.has(sp)) merged.set(sp, { name: sp, icon: "📂", blurb: "" });
           });
           setSpaces(Array.from(merged.values()));
 
@@ -398,8 +399,7 @@ export default function Workspace() {
 
   useEffect(() => {
     if (mounted && typeof window !== "undefined") {
-      const custom = spaces.filter(s => !SPACES.find(bs => bs.name === s.name));
-      localStorage.setItem("socratic_custom_spaces", JSON.stringify(custom));
+      saveAllSpaces(spaces);
     }
   }, [spaces, mounted]);
 
@@ -601,19 +601,113 @@ export default function Workspace() {
     [activeSpace, notesBySpace, activeNoteId]
   );
 
+  const handleRenameSpace = useCallback(
+    async (oldName, newName, newIcon, newBlurb) => {
+      const trimmedNew = (newName || "").trim();
+      if (!oldName || !trimmedNew) return;
+
+      try {
+        await renameSpace(oldName, trimmedNew, newIcon, newBlurb);
+
+        setSpaces((prev) => {
+          const next = prev.map((s) => {
+            if (s.name === oldName) {
+              return {
+                ...s,
+                name: trimmedNew,
+                icon: newIcon || s.icon || "📂",
+                blurb: newBlurb !== undefined ? newBlurb : (s.blurb || ""),
+              };
+            }
+            return s;
+          });
+          saveAllSpaces(next);
+          return next;
+        });
+
+        setNotesBySpace((prev) => {
+          const next = { ...prev };
+          const notesToMove = next[oldName] || [];
+          next[trimmedNew] = notesToMove.map((n) => ({
+            ...n,
+            space: trimmedNew,
+            spaceId: trimmedNew,
+          }));
+          delete next[oldName];
+          return next;
+        });
+
+        if (activeSpace === oldName) {
+          setActiveSpace(trimmedNew);
+        }
+
+        setSessions((prev) =>
+          prev.map((s) => (s.space === oldName ? { ...s, space: trimmedNew } : s))
+        );
+
+        setSaveStatus(`✓ Space updated to "${trimmedNew}"`);
+        setTimeout(() => setSaveStatus(""), 3000);
+      } catch (err) {
+        console.error("Failed to rename space:", err);
+      }
+    },
+    [activeSpace]
+  );
+
+  const handleEditSpace = useCallback(
+    async (spaceName, updates) => {
+      if (!spaceName || !updates) return;
+      const trimmedNewName = updates.name ? updates.name.trim() : null;
+      if (trimmedNewName && trimmedNewName !== spaceName) {
+        await handleRenameSpace(spaceName, trimmedNewName, updates.icon, updates.blurb);
+        return;
+      }
+
+      setSpaces((prev) => {
+        const next = prev.map((s) => {
+          if (s.name === spaceName) {
+            return {
+              ...s,
+              ...updates,
+              icon: updates.icon || s.icon || "📂",
+              blurb: updates.blurb !== undefined ? updates.blurb : (s.blurb || ""),
+            };
+          }
+          return s;
+        });
+        saveAllSpaces(next);
+        return next;
+      });
+
+      if (updates.icon || updates.blurb !== undefined) {
+        await saveSpaceSettings(spaceName, {
+          icon: updates.icon,
+          blurb: updates.blurb,
+        });
+      }
+      setSaveStatus(`✓ Space "${spaceName}" updated`);
+      setTimeout(() => setSaveStatus(""), 3000);
+    },
+    [handleRenameSpace]
+  );
+
   const handleDeleteSpace = useCallback(async (spaceName) => {
     if (confirm(`Are you sure you want to delete the space "${spaceName}" and ALL notes inside it?`)) {
        const notesToDelete = notesBySpace[spaceName] || [];
        for (const note of notesToDelete) {
            await handleDeleteNote(note.id, spaceName); // move to trash
        }
-        setSpaces(prev => prev.filter(s => s.name !== spaceName));
-        if (activeSpace === spaceName) {
-          const fallbackSpace = SPACES[0].name;
-          setActiveSpace(fallbackSpace);
-          const firstInFallback = (notesBySpace[fallbackSpace] || [])[0];
-          setActiveNoteId(firstInFallback ? firstInFallback.id : null);
-        }
+       setSpaces(prev => {
+         const next = prev.filter(s => s.name !== spaceName);
+         saveAllSpaces(next);
+         return next;
+       });
+       if (activeSpace === spaceName) {
+         const fallbackSpace = SPACES[0].name;
+         setActiveSpace(fallbackSpace);
+         const firstInFallback = (notesBySpace[fallbackSpace] || [])[0];
+         setActiveNoteId(firstInFallback ? firstInFallback.id : null);
+       }
     }
   }, [notesBySpace, activeSpace, handleDeleteNote]);
 
@@ -1105,16 +1199,11 @@ export default function Workspace() {
 
       setNotesBySpace(spaceMap);
 
-      let savedCustomSpaces = [];
-      try {
-        savedCustomSpaces = JSON.parse(localStorage.getItem("socratic_custom_spaces")) || [];
-      } catch (e) {}
-
+      const resolvedSpaces = await getSavedSpaces();
       const merged = new Map();
-      SPACES.forEach((s) => merged.set(s.name, s));
-      savedCustomSpaces.forEach((s) => merged.set(s.name, s));
+      resolvedSpaces.forEach((s) => merged.set(s.name, s));
       Object.keys(spaceMap).forEach((noteSp) => {
-        if (!merged.has(noteSp)) merged.set(noteSp, { name: noteSp, icon: "📂" });
+        if (!merged.has(noteSp)) merged.set(noteSp, { name: noteSp, icon: "📂", blurb: "" });
       });
       setSpaces(Array.from(merged.values()));
 
@@ -1267,6 +1356,8 @@ export default function Workspace() {
         <Sidebar
           spaces={spaces}
           setSpaces={setSpaces}
+          onEditSpace={handleEditSpace}
+          onRenameSpace={handleRenameSpace}
           handleDeleteSpace={handleDeleteSpace}
           activeSpace={activeSpace}
           onSelectSpace={(spaceName) => {
@@ -1652,11 +1743,8 @@ export default function Workspace() {
               activeSpace={activeSpace}
               onSelectSpace={setActiveSpace}
               spaces={spaces}
-              onUpdateSpace={(spaceName, updates) => {
-                setSpaces((prev) =>
-                  prev.map((s) => (s.name === spaceName ? { ...s, ...updates } : s))
-                );
-              }}
+              onUpdateSpace={handleEditSpace}
+              onRenameSpace={handleRenameSpace}
               onBack={() => setActiveTab("notes")}
               notesCount={(notesBySpace[activeSpace] || []).length}
             />
