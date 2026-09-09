@@ -2232,6 +2232,7 @@ function TableCell({
   onKeyDown,
   onDelete,
   onMathClick,
+  onFocus,
   rowIdx,
   colIdx,
   isLocked = false,
@@ -2301,6 +2302,7 @@ function TableCell({
         suppressContentEditableWarning
         onInput={handleInput}
         onBlur={handleBlur}
+        onFocus={() => onFocus?.(rowIdx, colIdx, isHeader)}
         onKeyDown={handleKeyDownInternal}
         onClick={handleClick}
         data-placeholder={placeholder}
@@ -2403,6 +2405,13 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
   const [activeCellEl, setActiveCellEl] = useState(null);
   const [activeFormulaIndex, setActiveFormulaIndex] = useState(-1);
 
+  // Column & Row drag/reorder & focus state
+  const [focusedCell, setFocusedCell] = useState(null); // { rowIdx, colIdx, isHeader }
+  const [draggedCol, setDraggedCol] = useState(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
+  const [draggedRow, setDraggedRow] = useState(null);
+  const [dragOverRow, setDragOverRow] = useState(null);
+
   useEffect(() => {
     setTableData(normData);
   }, [normData]);
@@ -2411,6 +2420,107 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
     if (isLocked) return;
     setTableData(newData);
     onUpdateBlock(block.id, { tableData: newData, content: "" }, true, recordHistory);
+  };
+
+  const moveColumn = (fromIndex, toIndex) => {
+    if (isLocked) return;
+    if (
+      fromIndex < 0 ||
+      fromIndex >= tableData.headers.length ||
+      toIndex < 0 ||
+      toIndex >= tableData.headers.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    const newHeaders = [...tableData.headers];
+    const [movedHeader] = newHeaders.splice(fromIndex, 1);
+    newHeaders.splice(toIndex, 0, movedHeader);
+
+    const newRows = tableData.rows.map((row) => {
+      const newRow = Array.isArray(row) ? [...row] : [];
+      while (newRow.length < tableData.headers.length) newRow.push("");
+      const [movedCell] = newRow.splice(fromIndex, 1);
+      newRow.splice(toIndex, 0, movedCell);
+      return newRow;
+    });
+
+    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows }, true);
+    setFocusedCell((prev) => (prev ? { ...prev, colIdx: toIndex } : null));
+  };
+
+  const moveRow = (fromIndex, toIndex) => {
+    if (isLocked) return;
+    if (
+      fromIndex < 0 ||
+      fromIndex >= tableData.rows.length ||
+      toIndex < 0 ||
+      toIndex >= tableData.rows.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    const newRows = [...tableData.rows];
+    const [movedRow] = newRows.splice(fromIndex, 1);
+    newRows.splice(toIndex, 0, movedRow);
+
+    updateAndSave({ ...tableData, rows: newRows }, true);
+    setFocusedCell((prev) => (prev ? { ...prev, rowIdx: toIndex } : null));
+  };
+
+  const handleColDragStart = (e, colIdx) => {
+    if (isLocked) return;
+    e.dataTransfer.setData("text/plain", `col:${colIdx}`);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedCol(colIdx);
+  };
+
+  const handleColDragOver = (e, colIdx) => {
+    if (isLocked || draggedCol === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverCol !== colIdx) setDragOverCol(colIdx);
+  };
+
+  const handleColDrop = (e, colIdx) => {
+    if (isLocked) return;
+    e.preventDefault();
+    if (draggedCol !== null && draggedCol !== colIdx) {
+      moveColumn(draggedCol, colIdx);
+    }
+    setDraggedCol(null);
+    setDragOverCol(null);
+  };
+
+  const handleRowDragStart = (e, rowIdx) => {
+    if (isLocked) return;
+    e.dataTransfer.setData("text/plain", `row:${rowIdx}`);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedRow(rowIdx);
+  };
+
+  const handleRowDragOver = (e, rowIdx) => {
+    if (isLocked || draggedRow === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverRow !== rowIdx) setDragOverRow(rowIdx);
+  };
+
+  const handleRowDrop = (e, rowIdx) => {
+    if (isLocked) return;
+    e.preventDefault();
+    if (draggedRow !== null && draggedRow !== rowIdx) {
+      moveRow(draggedRow, rowIdx);
+    }
+    setDraggedRow(null);
+    setDragOverRow(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedCol(null);
+    setDragOverCol(null);
+    setDraggedRow(null);
+    setDragOverRow(null);
   };
 
   const handleCellChange = (rowIndex, colIndex, value, isHeader = false, recordHistory = false) => {
@@ -2800,62 +2910,163 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
       </div>
 
       {/* Interactive Table Grid Container */}
-      <div className="overflow-x-auto p-3">
+      <div
+        className="overflow-x-auto p-3"
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            setFocusedCell(null);
+          }
+        }}
+      >
         <table className="w-full border-collapse rounded-lg overflow-hidden border border-ink-800 bg-ink-950/60 text-xs">
           {tableData.hasHeaderRow !== false && (
             <thead>
               <tr className="border-b border-ink-700 bg-ink-900">
-                {tableData.headers.map((head, colIdx) => (
-                  <th
-                    key={`h-${colIdx}`}
-                    className="group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 last:border-r-0"
-                  >
-                    <TableCell
-                      id={`tbl_${block.id}_h_${colIdx}`}
-                      value={head}
-                      isHeader={true}
-                      placeholder={`Header ${colIdx + 1}`}
-                      onChange={(val) => handleCellChange(0, colIdx, val, true)}
-                      onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
-                      onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
-                      onMathClick={handleMathClick}
-                      rowIdx={0}
-                      colIdx={colIdx}
-                      isLocked={isLocked}
-                    />
-                  </th>
-                ))}
+                {/* Row handle gutter corner */}
+                <th className="w-8 min-w-[32px] max-w-[32px] px-1 py-2 text-center text-[10px] font-mono font-medium text-ink-600 bg-ink-950/80 border-r border-ink-800 select-none print:hidden">
+                  #
+                </th>
+                {tableData.headers.map((head, colIdx) => {
+                  const isColActive = focusedCell?.colIdx === colIdx;
+                  return (
+                    <th
+                      key={`h-${colIdx}`}
+                      onDragOver={(e) => handleColDragOver(e, colIdx)}
+                      onDragLeave={() => {
+                        if (dragOverCol === colIdx) setDragOverCol(null);
+                      }}
+                      onDrop={(e) => handleColDrop(e, colIdx)}
+                      className={`group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 last:border-r-0 transition-colors ${
+                        dragOverCol === colIdx && draggedCol !== colIdx
+                          ? "bg-duck-500/25 ring-2 ring-inset ring-duck-400/80"
+                          : ""
+                      }`}
+                    >
+                      {/* Column Drag Handle (appears when focusing any cell in this column or hovering header) */}
+                      {!isLocked && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleColDragStart(e, colIdx)}
+                          onDragEnd={handleDragEnd}
+                          title="Drag to move column"
+                          className={`absolute top-0.5 left-1/2 -translate-x-1/2 z-20 flex h-3.5 w-6 items-center justify-center rounded text-[9px] cursor-grab active:cursor-grabbing select-none transition-all ${
+                            isColActive
+                              ? "opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40"
+                              : "opacity-0 group-hover/th:opacity-100 text-ink-400 hover:text-duck-300 hover:bg-ink-800/90"
+                          }`}
+                        >
+                          ⠿
+                        </div>
+                      )}
+                      <TableCell
+                        id={`tbl_${block.id}_h_${colIdx}`}
+                        value={head}
+                        isHeader={true}
+                        placeholder={`Header ${colIdx + 1}`}
+                        onChange={(val) => handleCellChange(0, colIdx, val, true)}
+                        onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
+                        onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
+                        onMathClick={handleMathClick}
+                        onFocus={() => setFocusedCell({ rowIdx: 0, colIdx, isHeader: true })}
+                        rowIdx={0}
+                        colIdx={colIdx}
+                        isLocked={isLocked}
+                      />
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
           )}
           <tbody>
-            {tableData.rows.map((row, rowIdx) => (
-              <tr
-                key={`r-${rowIdx}`}
-                className="group/tr border-b border-ink-800/70 transition-colors hover:bg-ink-900/40 last:border-b-0"
-              >
-                {tableData.headers.map((_, colIdx) => (
-                  <td
-                    key={`c-${colIdx}`}
-                    className="group/td relative border-r border-ink-800/70 px-3 py-1.5 text-ink-100 last:border-r-0"
-                  >
-                    <TableCell
-                      id={`tbl_${block.id}_r_${rowIdx}_c_${colIdx}`}
-                      value={row[colIdx] || ""}
-                      isHeader={false}
-                      placeholder="..."
-                      onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
-                      onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
-                      onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
-                      onMathClick={handleMathClick}
-                      rowIdx={rowIdx}
-                      colIdx={colIdx}
-                      isLocked={isLocked}
-                    />
+            {tableData.rows.map((row, rowIdx) => {
+              const isRowActive = focusedCell?.rowIdx === rowIdx && !focusedCell?.isHeader;
+              return (
+                <tr
+                  key={`r-${rowIdx}`}
+                  onDragOver={(e) => handleRowDragOver(e, rowIdx)}
+                  onDragLeave={() => {
+                    if (dragOverRow === rowIdx) setDragOverRow(null);
+                  }}
+                  onDrop={(e) => handleRowDrop(e, rowIdx)}
+                  className={`group/tr border-b border-ink-800/70 transition-colors hover:bg-ink-900/40 last:border-b-0 ${
+                    dragOverRow === rowIdx && draggedRow !== rowIdx
+                      ? "bg-duck-500/25 ring-2 ring-inset ring-duck-400/80"
+                      : ""
+                  }`}
+                >
+                  {/* Row Drag Handle Gutter Cell */}
+                  <td className="w-8 min-w-[32px] max-w-[32px] p-0 text-center border-r border-ink-800/70 select-none bg-ink-950/40 print:hidden relative">
+                    <div className="relative flex h-full min-h-[28px] items-center justify-center">
+                      <span
+                        className={`text-[10px] font-mono text-ink-600 transition-opacity ${
+                          isRowActive ? "opacity-0" : "group-hover/tr:opacity-0"
+                        }`}
+                      >
+                        {rowIdx + 1}
+                      </span>
+                      {!isLocked && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleRowDragStart(e, rowIdx)}
+                          onDragEnd={handleDragEnd}
+                          title="Drag to move row"
+                          className={`absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity ${
+                            isRowActive
+                              ? "opacity-100 text-duck-400 font-bold"
+                              : "opacity-0 group-hover/tr:opacity-100 text-ink-400 hover:text-duck-300"
+                          }`}
+                        >
+                          <span className="flex h-5 w-5 items-center justify-center rounded hover:bg-ink-800 text-xs">
+                            ⠿
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </td>
-                ))}
-              </tr>
-            ))}
+
+                  {tableData.headers.map((_, colIdx) => (
+                    <td
+                      key={`c-${colIdx}`}
+                      className={`group/td relative border-r border-ink-800/70 px-3 py-1.5 text-ink-100 last:border-r-0 transition-colors ${
+                        dragOverCol === colIdx && draggedCol !== colIdx ? "bg-duck-500/10" : ""
+                      }`}
+                    >
+                      {/* If header row is disabled, show column handle on first row */}
+                      {tableData.hasHeaderRow === false && rowIdx === 0 && !isLocked && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleColDragStart(e, colIdx)}
+                          onDragEnd={handleDragEnd}
+                          title="Drag to move column"
+                          className={`absolute top-0.5 left-1/2 -translate-x-1/2 z-20 flex h-3.5 w-6 items-center justify-center rounded text-[9px] cursor-grab active:cursor-grabbing select-none transition-all ${
+                            focusedCell?.colIdx === colIdx
+                              ? "opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40"
+                              : "opacity-0 group-hover/td:opacity-100 text-ink-400 hover:text-duck-300 hover:bg-ink-800/90"
+                          }`}
+                        >
+                          ⠿
+                        </div>
+                      )}
+                      <TableCell
+                        id={`tbl_${block.id}_r_${rowIdx}_c_${colIdx}`}
+                        value={row[colIdx] || ""}
+                        isHeader={false}
+                        placeholder="..."
+                        onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
+                        onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
+                        onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
+                        onMathClick={handleMathClick}
+                        onFocus={() => setFocusedCell({ rowIdx, colIdx, isHeader: false })}
+                        rowIdx={rowIdx}
+                        colIdx={colIdx}
+                        isLocked={isLocked}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

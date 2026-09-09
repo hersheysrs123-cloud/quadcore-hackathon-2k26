@@ -300,6 +300,222 @@ describe("Table Block Column & Row Undo/Redo State Machine", () => {
     assert.deepEqual(current.tableData.rows[1], ["Biology", "88"]);
   });
 
+  it("moves column left and right across all headers and rows losslessly with undo/redo", () => {
+    function moveColumn(tableData, fromIndex, toIndex) {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= tableData.headers.length ||
+        toIndex < 0 ||
+        toIndex >= tableData.headers.length ||
+        fromIndex === toIndex
+      ) {
+        return tableData;
+      }
+      const newHeaders = [...tableData.headers];
+      const [movedHeader] = newHeaders.splice(fromIndex, 1);
+      newHeaders.splice(toIndex, 0, movedHeader);
+
+      const newRows = tableData.rows.map((row) => {
+        const newRow = Array.isArray(row) ? [...row] : [];
+        while (newRow.length < tableData.headers.length) newRow.push("");
+        const [movedCell] = newRow.splice(fromIndex, 1);
+        newRow.splice(toIndex, 0, movedCell);
+        return newRow;
+      });
+
+      return { ...tableData, headers: newHeaders, rows: newRows };
+    }
+
+    const initialTable = {
+      headers: ["Col A", "Col B", "Col C"],
+      rows: [
+        ["A1", "B1", "C1"],
+        ["A2", "B2", "C2"],
+      ],
+    };
+
+    const past = [];
+    const future = [];
+    let current = JSON.parse(JSON.stringify(initialTable));
+
+    // Move Col A (index 0) to Col C position (index 2)
+    past.push(JSON.parse(JSON.stringify(current)));
+    future.length = 0;
+    current = moveColumn(current, 0, 2);
+
+    assert.deepEqual(current.headers, ["Col B", "Col C", "Col A"]);
+    assert.deepEqual(current.rows[0], ["B1", "C1", "A1"]);
+    assert.deepEqual(current.rows[1], ["B2", "C2", "A2"]);
+
+    // Move Col C (index 1) to index 0
+    past.push(JSON.parse(JSON.stringify(current)));
+    current = moveColumn(current, 1, 0);
+
+    assert.deepEqual(current.headers, ["Col C", "Col B", "Col A"]);
+    assert.deepEqual(current.rows[0], ["C1", "B1", "A1"]);
+    assert.deepEqual(current.rows[1], ["C2", "B2", "A2"]);
+
+    // Undo (Ctrl+Z)
+    const undo1 = past.pop();
+    future.unshift(JSON.parse(JSON.stringify(current)));
+    current = JSON.parse(JSON.stringify(undo1));
+
+    assert.deepEqual(current.headers, ["Col B", "Col C", "Col A"]);
+    assert.deepEqual(current.rows[0], ["B1", "C1", "A1"]);
+
+    // Undo again (Ctrl+Z) -> back to initial
+    const undo2 = past.pop();
+    future.unshift(JSON.parse(JSON.stringify(current)));
+    current = JSON.parse(JSON.stringify(undo2));
+
+    assert.deepEqual(current.headers, ["Col A", "Col B", "Col C"]);
+    assert.deepEqual(current.rows[0], ["A1", "B1", "C1"]);
+
+    // Redo (Ctrl+Y)
+    const redo1 = future.shift();
+    past.push(JSON.parse(JSON.stringify(current)));
+    current = JSON.parse(JSON.stringify(redo1));
+
+    assert.deepEqual(current.headers, ["Col B", "Col C", "Col A"]);
+    assert.deepEqual(current.rows[0], ["B1", "C1", "A1"]);
+  });
+
+  it("moves row up and down across rows losslessly with undo/redo", () => {
+    function moveRow(tableData, fromIndex, toIndex) {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= tableData.rows.length ||
+        toIndex < 0 ||
+        toIndex >= tableData.rows.length ||
+        fromIndex === toIndex
+      ) {
+        return tableData;
+      }
+      const newRows = [...tableData.rows];
+      const [movedRow] = newRows.splice(fromIndex, 1);
+      newRows.splice(toIndex, 0, movedRow);
+      return { ...tableData, rows: newRows };
+    }
+
+    const initialTable = {
+      headers: ["City", "Country"],
+      rows: [
+        ["Paris", "France"],
+        ["Tokyo", "Japan"],
+        ["Nairobi", "Kenya"],
+      ],
+    };
+
+    const past = [];
+    const future = [];
+    let current = JSON.parse(JSON.stringify(initialTable));
+
+    // Move Nairobi (index 2) to top (index 0)
+    past.push(JSON.parse(JSON.stringify(current)));
+    future.length = 0;
+    current = moveRow(current, 2, 0);
+
+    assert.deepEqual(current.rows[0], ["Nairobi", "Kenya"]);
+    assert.deepEqual(current.rows[1], ["Paris", "France"]);
+    assert.deepEqual(current.rows[2], ["Tokyo", "Japan"]);
+
+    // Undo
+    const undo = past.pop();
+    future.unshift(JSON.parse(JSON.stringify(current)));
+    current = JSON.parse(JSON.stringify(undo));
+
+    assert.deepEqual(current.rows[0], ["Paris", "France"]);
+    assert.deepEqual(current.rows[1], ["Tokyo", "Japan"]);
+    assert.deepEqual(current.rows[2], ["Nairobi", "Kenya"]);
+
+    // Redo
+    const redo = future.shift();
+    past.push(JSON.parse(JSON.stringify(current)));
+    current = JSON.parse(JSON.stringify(redo));
+
+    assert.deepEqual(current.rows[0], ["Nairobi", "Kenya"]);
+    assert.deepEqual(current.rows[1], ["Paris", "France"]);
+  });
+
+  it("guards against invalid column and row move operations", () => {
+    function moveColumn(tableData, fromIndex, toIndex) {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= tableData.headers.length ||
+        toIndex < 0 ||
+        toIndex >= tableData.headers.length ||
+        fromIndex === toIndex
+      ) {
+        return tableData;
+      }
+      const newHeaders = [...tableData.headers];
+      const [movedHeader] = newHeaders.splice(fromIndex, 1);
+      newHeaders.splice(toIndex, 0, movedHeader);
+      return { ...tableData, headers: newHeaders };
+    }
+
+    function moveRow(tableData, fromIndex, toIndex) {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= tableData.rows.length ||
+        toIndex < 0 ||
+        toIndex >= tableData.rows.length ||
+        fromIndex === toIndex
+      ) {
+        return tableData;
+      }
+      const newRows = [...tableData.rows];
+      const [movedRow] = newRows.splice(fromIndex, 1);
+      newRows.splice(toIndex, 0, movedRow);
+      return { ...tableData, rows: newRows };
+    }
+
+    const table = {
+      headers: ["H1", "H2"],
+      rows: [["R1C1", "R1C2"]],
+    };
+
+    // No-op for same index
+    assert.strictEqual(moveColumn(table, 0, 0), table);
+    assert.strictEqual(moveRow(table, 0, 0), table);
+
+    // No-op for out-of-bounds
+    assert.strictEqual(moveColumn(table, -1, 1), table);
+    assert.strictEqual(moveColumn(table, 0, 5), table);
+    assert.strictEqual(moveRow(table, -1, 0), table);
+    assert.strictEqual(moveRow(table, 0, 3), table);
+  });
+
+  it("determines column and row drag handle visibility when focused on a cell", () => {
+    function getHandleVisibility(focusedCell, colIdx, rowIdx, isHeaderRow = false) {
+      const isColHandleVisible = focusedCell?.colIdx === colIdx;
+      const isRowHandleVisible = !isHeaderRow && focusedCell?.rowIdx === rowIdx && !focusedCell?.isHeader;
+      return { isColHandleVisible, isRowHandleVisible };
+    }
+
+    // When focused on body cell row 1, col 2:
+    const focusBodyCell = { rowIdx: 1, colIdx: 2, isHeader: false };
+    const visCell = getHandleVisibility(focusBodyCell, 2, 1);
+    assert.equal(visCell.isColHandleVisible, true);
+    assert.equal(visCell.isRowHandleVisible, true);
+
+    // Other column/row handles are not visible
+    const visOther = getHandleVisibility(focusBodyCell, 0, 0);
+    assert.equal(visOther.isColHandleVisible, false);
+    assert.equal(visOther.isRowHandleVisible, false);
+
+    // When focused on header cell col 1:
+    const focusHeaderCell = { rowIdx: 0, colIdx: 1, isHeader: true };
+    const visHeader = getHandleVisibility(focusHeaderCell, 1, 0, true);
+    assert.equal(visHeader.isColHandleVisible, true);
+    assert.equal(visHeader.isRowHandleVisible, false);
+
+    // When blur (no cell focused):
+    const visBlur = getHandleVisibility(null, 1, 1);
+    assert.equal(visBlur.isColHandleVisible, false);
+    assert.equal(visBlur.isRowHandleVisible, false);
+  });
+
   it("deletes formulas cleanly from cell text with single or surrounding text", () => {
     function removeFormulaFromCellText(text, formula) {
       if (!text || !formula) return (text || "").trim();

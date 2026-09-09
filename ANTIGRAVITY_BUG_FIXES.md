@@ -4842,3 +4842,68 @@ Users identified two visual inconsistencies during print and PDF export:
    - `README.md`: Removed widget references from project description, updated Section 5 header to "Socratic AI Tutor, Explain & Reformat", removed widget bullet, and pruned file tree (`socratic/chat` replaced by `tutor/chat`) and test suite list.
 5. **Automated Verification**:
    - All 528 tests across 136 suites pass cleanly with zero errors.
+
+---
+
+## 80. Shadow Lab 3D Visualization: Light Rays, Toggle, and Bench Ruler Scale Streamlining
+
+### Problem Statement
+- In the "Light, Shadows & Straight Lines" optical bench 3D visualization (`ShadowLabCanvas.jsx`), light rays were drawn as thin yellow/blue lines connecting the lamp, object perimeter, and projection screen (`LightRays`).
+- A toggle button in the HUD controls ("Show light rays") controlled their visibility.
+- Additionally, the apparatus base rendered an artificial printed centimetre ruler strip (`#e7e3d6`), tick marks, centimeter numerical labels (`0 cm`, `40 cm`, etc.), and a 10cm grid overlay on top of the bench surface.
+- The user requested completely removing the light rays and the ray toggle, as well as removing the ruler scale and grid at the bottom to render the bench as a clean, normal apparatus base.
+
+### Root Cause Analysis
+- The ray vector lines and measurement tick scale were intended as an educational visualization aid, but added unnecessary visual clutter to the 3D scene and HUD control panel.
+- The primary focus of the simulation is the dynamic, physically accurate shadow formation directly projected onto the screen canvas (umbra/penumbra calculations, magnification, and material transmission).
+
+### Resolution & Architectural Enhancements
+1. **Removed Ray Geometry & Components (`components/visualizations/ShadowLabCanvas.jsx`)**:
+   - Completely removed the `LightRays` React component and its memoized ray geometry calculation.
+   - Removed `Line` and `Grid` imports from `@react-three/drei`.
+   - Removed unused `PALETTE` import from `scene-kit`.
+   - Removed `<LightRays ... />` from `SceneCanvas`.
+   - Removed "Edge rays" and "Centre ray" from `SceneLegend` items.
+2. **HUD Controls Panel Simplification**:
+   - Removed `showRays` state hook and its default reset assignment in `reset()`.
+   - Removed `<Toggle label="Show light rays" checked={showRays} onChange={setShowRays} />` from the HUD controls panel.
+3. **Bench Apparatus Base Streamlining**:
+   - Stripped the floor ruler mesh, tick marks (`ticks.map`), and centimetre `SceneLabel` elements from `function Bench()`.
+   - Removed the `<Grid ... />` surface overlay from `SceneCanvas`.
+   - Retained the clean, dark slate platform base (`#252c38`) with physical depth and shadow reception.
+4. **Verification**:
+   - All 136 unit and integration test suites pass with 0 failures.
+   - Production Next.js build compiles without errors.
+
+---
+
+## 81. Table Block: Focus-Activated Drag Handles for Column and Row Reordering
+
+### Problem Statement
+- In the Table Block component (`TableBlock` in `components/BlockNoteEditor.jsx`), users could add columns/rows and delete them, but could not reorder or move existing columns or rows.
+- Re-arranging matrix data, comparison tables, or scientific observations required tedious manual copy-pasting across cells.
+- The user requested allowing moving columns and rows using handles that appear when focusing on a cell of that column or row, without cluttering the UI with buttons or keyboard shortcuts.
+
+### Root Cause Analysis
+- `TableBlock` previously only provided static `+ Column` / `+ Row` and hover delete (`removeColumn` / `removeRow`) operations.
+- There was no cell focus detection mechanism linking table data cells with column/row reorder actions.
+- Moving columns required an immutable 2D array transformation (moving the header item and every corresponding row element at that column index) while maintaining table data normalization and undo/redo history.
+
+### Resolution & Architectural Enhancements
+1. **Focus Tracking & Drag State Engine (`components/BlockNoteEditor.jsx`)**:
+   - Added `focusedCell: { rowIdx, colIdx, isHeader } | null` state to `TableBlock`.
+   - Enhanced `TableCell` with `onFocus` callback wired to its `contentEditable` div.
+   - Added table container `onBlur` guard with `contains(e.relatedTarget)` to cleanly clear `focusedCell` only when focus exits the table entirely.
+   - Added HTML5 drag state: `draggedCol`, `dragOverCol`, `draggedRow`, `dragOverRow`.
+2. **Column & Row Move State Mutation (`moveColumn` & `moveRow`)**:
+   - `moveColumn(fromIndex, toIndex)`: Splices and re-inserts the header in `tableData.headers`, and splices/re-inserts the cell value at `fromIndex` into `toIndex` across all rows in `tableData.rows`.
+   - `moveRow(fromIndex, toIndex)`: Splices and re-inserts the row at `fromIndex` into `toIndex` in `tableData.rows`.
+   - Calls `updateAndSave` with `recordHistory = true`, enabling instantaneous, lossless Undo (`Ctrl+Z`) and Redo (`Ctrl+Y`).
+   - Updates `focusedCell` to match the new position to preserve visual continuity.
+3. **Focus-Activated Drag Handles (`⠿`) & Visual Feedback**:
+   - **Column Handle**: Rendered at the top center of each column header `th` (`top-0.5 left-1/2 -translate-x-1/2`). Becomes visible (`opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40`) when any cell in that column is focused (or hovered).
+   - **Row Handle**: Rendered in a dedicated non-printing left gutter column (`w-8 min-w-[32px] select-none print:hidden`). Smoothly transforms from row index (`1, 2, 3...`) into an interactive duck-gold drag handle (`⠿`) when any cell in that row is focused (or hovered).
+   - **Visual Drag Indicators**: Target columns/rows highlight with `bg-duck-500/25 ring-2 ring-inset ring-duck-400/80` during drag-over.
+4. **Automated Unit Testing (`tests/unit/table-block.test.mjs`)**:
+   - Added 4 test cases verifying column moving across multiple headers/rows with undo/redo, row moving up/down with undo/redo, boundary out-of-bounds guards, and cell-focus handle visibility resolution.
+   - All 532 tests pass with 0 failures.
