@@ -23,7 +23,7 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000) for the marketing landing page, or launch the app directly at [/workspace](http://localhost:3000/workspace).
 
-> **Note**: `GOOGLE_API_KEY` is the only required key. Get one for free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). You can also provide your key directly inside the in-app Settings modal, where it is stored 100% privately in your browser's IndexedDB. Without an API key, the note editor, 14 3D simulations, multi-timer HUD system, export/import, and local mastery heatmaps function normally offline; AI tutoring endpoints will gracefully report missing credentials.
+> **Note**: `GOOGLE_API_KEY` is the only required key. Get one for free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). You can also provide your key directly inside the in-app Settings modal, where it is stored 100% privately in your browser's IndexedDB. Without an API key, the note editor, 27 3D simulations across 5 STEM domains, multi-timer HUD system, export/import, and local mastery heatmaps function normally offline; AI tutoring endpoints will gracefully report missing credentials.
 
 ---
 
@@ -50,7 +50,7 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 - **Draggable 6-Dots Handles (`⠿`) & Context Formatting**: Hovering blocks displays aligned delete (`🗑️`) and draggable `⠿` handles. Context popovers feature:
   - ✨ **Explain** / 🦆 **Quiz me** for that specific block.
   - **Inline Text Formatting**: Bold (`B`), Italic (`I`), Underline (`U`), Strikethrough (`S`), LaTeX Math ($x$).
-  - 🔄 **Turn Into Submenu**: Convert block into any of the 20 block types.
+  - 🔄 **Turn Into Submenu**: Convert block into any of the 19 block types.
   - 📋 **Duplicate Block**, ⬆️/⬇️ **Move Up/Down**, 📄 **Copy Content**.
 - **Cover Banners**: Full horizontal width note headers with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*).
 - **Custom Emoji Picker & Star Favorites (`⭐`)**: Assign note emojis and toggle star favorites to pin notes in the sidebar.
@@ -85,9 +85,9 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
 - **Quick Doubt Starters**: 1-click query pills for step-by-step derivations, common exam traps, and real-world intuition.
 
 ### 🧪 5. Interactive 3D Visualization Studio
-A comprehensive suite of 25 real-time interactive 3D STEM simulations built using Three.js, `@react-three/fiber`, and custom WebGL Canvas engines with live calculated Details and complete Visual Color Keys:
+A comprehensive suite of 27 real-time interactive 3D STEM simulations built using Three.js, `@react-three/fiber`, and custom WebGL Canvas engines with live calculated Details and complete Visual Color Keys:
 
-- ⚛️ **Physics Engine** ([`PhysicsCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/PhysicsCanvas.jsx)):
+- ⚛️ **Physics Engine** ([`PhysicsCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/PhysicsCanvas.jsx) & [`ShadowLabCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ShadowLabCanvas.jsx)):
   - **Wave Refraction & Snell's Law**: Multi-medium ray tracing (Air, Water, Glass, Diamond, Perspex), critical angle, total internal reflection, and Fresnel reflection rays.
   - **Motor Effect & Fleming's Left-Hand Rule**: Magnetic flux lines, current conductors, Lorentz force vectors, and Fleming's left-hand rule.
   - **Thin Lens Optics & Ray Diagrams**: Convex/concave lenses, focal length controls, real/virtual images, and principal ray tracing.
@@ -96,6 +96,7 @@ A comprehensive suite of 25 real-time interactive 3D STEM simulations built usin
   - **2D Projectile Motion**: Ballistic trajectory with quadratic air resistance, ideal parabola comparison, and velocity/weight vectors.
   - **Wave Interference & Double Slits**: Two-source wave interference ripples, coherent slit emitters, double-slit barrier, and screen intensity fringe maxima.
   - **Keplerian Orbits & Gravity Wells**: Gravitational spacetime potential well ($-GM/r$), central massive body, and orbiting satellites.
+  - **Light, Shadows & Straight Lines**: Optical bench simulation with point and broad light sources, draggable torch/stand/screen, umbra & penumbra calculations, 3D solids, and material transmission (opaque, translucent, transparent).
 
 - 🧪 **Chemistry Engine** ([`ChemistryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ChemistryCanvas.jsx)):
   - **Bohr Atom & Emission Spectra**: Quantized electron shells, core/valence electrons, and photon emission spectral wave packets.
@@ -106,8 +107,9 @@ A comprehensive suite of 25 real-time interactive 3D STEM simulations built usin
   - **VSEPR Molecular Geometry**: Steric numbers 2–6, central atom, bonded ligands, non-bonding lone pair electron clouds, and bond angle arcs.
   - **Reaction Energetics & Catalysis**: Exothermic/endothermic energy profile curves, transition states, forward/reverse activation energy $E_a$, enthalpy change $\Delta H$, and catalysed pathways.
 
-- 🧬 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx) & [`RespiratoryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/RespiratoryCanvas.jsx)):
+- 🧬 **Biology Engine** ([`BiologyCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BiologyCanvas.jsx), [`EyeCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/EyeCanvas.jsx) & [`RespiratoryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/RespiratoryCanvas.jsx)):
   - **Respiratory Mechanics & Thoracic Physics**: Genuine clinical CT-derived thoracic skeleton (`skeleton_ct.glb`; isolated 24 ribs, T1–T12 vertebrae, L1–L3 crura anchors, sternum, and clavicles) with bucket-handle and pump-handle breathing kinematics, photorealistic medical lungs scan (`lung.glb`), multi-layer antagonistic intercostal muscle bands spanning all 11 intercostal spaces (superficial external $+35^\circ$ vs deep internal $-45^\circ$ layers with layer isolation) with active scarlet vs relaxed deep crimson tension shaders, muscular diaphragm dome flattening dynamically ($Y = 1.05 \to 0.63$) with trifoliate central tendon (*centrum tendineum*), 3 anatomical apertures (Caval T8, Esophageal T10, Aortic T12), bilateral vertebral crura, Boyle's Law pressure gradients, dynamic airway particle vectors, 3-state phase selector, collapsible HUD, live SVG gauges, and an interactive **Open-Source Model Credits Suite** (`RESPIRATORY_MODEL_CREDITS`) detailing upstream MIT/AGPL licenses and direct links to upstream repositories.
+  - **The Human Eye — Accommodation & Pupil Reflex**: Anatomical and physiological cutaway eyeball simulation with dynamic ciliary accommodation, crystalline lens curvature morphing, pupil light reflex, Gullstrand equivalent power calculations, and refractive error corrections.
   - **Plant & Animal Cell Explorer**: High-detail organelles (nucleus, mitochondria, chloroplasts, ER, Golgi, vacuoles, membrane, cell wall) with osmotic tonicity states.
   - **Enzyme Kinetics & Lock-and-Key Model**: Substrate binding, active catalytic cleft, thermal denaturation cliffs, and pH stress curves.
   - **DNA Double Helix**: Antiparallel sugar-phosphate backbones, major/minor grooves, and A-T / G-C complementary base pairing.
@@ -123,7 +125,7 @@ A comprehensive suite of 25 real-time interactive 3D STEM simulations built usin
   - **Trigonometric Unit Circle & Wave Synthesis**: Unit circle orbital motion $(x, y) = (\cos\theta, \sin\theta)$, projected sinusoidal time traces, and Fourier square wave harmonic synthesis with Gibbs overshoot.
 
 - 🧭 **Dual-Tab HUD, Speed Control & Authoritative Visual Keys** ([`VisualizationHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/VisualizationHUD.jsx)):
-  - **Universal Animation Speed Slider**: Placed prominently directly below the Controls vs Details tab switcher on all 24 scenes (including Binary Search Trees) for instant $0.1\times$ to $3.0\times$ pacing control.
+  - **Universal Animation Speed Slider**: Placed prominently directly below the Controls vs Details tab switcher on all 27 scenes (including Binary Search Trees) for instant $0.1\times$ to $3.0\times$ pacing control.
   - Parameter controls, camera resets, category filters, and Socratic Quiz drawer.
   - Live **Details** tab with live calculated scientific state metrics, formula subtitles, and complete **Visual Keys** (color legends) documenting every line, ray, vector, and object in the scene.
 
