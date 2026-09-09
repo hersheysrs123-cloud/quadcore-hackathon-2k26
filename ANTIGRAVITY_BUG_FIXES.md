@@ -4867,10 +4867,11 @@ Users identified two visual inconsistencies during print and PDF export:
 2. **HUD Controls Panel Simplification**:
    - Removed `showRays` state hook and its default reset assignment in `reset()`.
    - Removed `<Toggle label="Show light rays" checked={showRays} onChange={setShowRays} />` from the HUD controls panel.
-3. **Bench Apparatus Base Streamlining**:
+3. **Bench Apparatus Base Streamlining & Rescaling**:
    - Stripped the floor ruler mesh, tick marks (`ticks.map`), and centimetre `SceneLabel` elements from `function Bench()`.
    - Removed the `<Grid ... />` surface overlay from `SceneCanvas`.
-   - Retained the clean, dark slate platform base (`#252c38`) with physical depth and shadow reception.
+   - Rescaled the base to an expansive, squarer $160\text{ cm} \times 160\text{ cm}$ footprint (`args={[cm(160), 0.14, cm(160)]}`) centered on the optical axis with $20\text{ cm}$ of breathing room beyond the bench limits.
+   - Finished with a lighter, matte titanium slate material (`#8c9cb3`, `roughness={0.65}`, `metalness={0.1}`) providing clear contrast against the studio background and receiving 3D object contact shadows.
 4. **Verification**:
    - All 136 unit and integration test suites pass with 0 failures.
    - Production Next.js build compiles without errors.

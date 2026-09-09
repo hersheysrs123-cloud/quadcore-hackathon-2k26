@@ -256,9 +256,9 @@ function useScreenCanvas(solved, letter, guides) {
 function Bench() {
   return (
     <group>
-      <mesh position={[0, -0.06, 0]} receiveShadow>
-        <boxGeometry args={[cm(52), 0.12, cm(BENCH.max + 14)]} />
-        <meshStandardMaterial color="#252c38" roughness={0.85} metalness={0.05} />
+      <mesh position={[0, -0.07, 0]} receiveShadow>
+        <boxGeometry args={[cm(160), 0.14, cm(160)]} />
+        <meshStandardMaterial color="#8c9cb3" roughness={0.65} metalness={0.1} />
       </mesh>
     </group>
   );
