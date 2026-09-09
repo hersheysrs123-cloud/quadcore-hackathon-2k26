@@ -1616,7 +1616,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         handleSave();
         onExitDown?.(block.id);
       }
-    } else if (e.key === "Backspace" && !formula.trim()) {
+    } else if (e.key === "Backspace" && (!formula || formula.length === 0)) {
       if (!isLocked) {
         e.preventDefault();
         setIsEditing(false);
@@ -2015,7 +2015,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           }
         }, 0);
       }
-    } else if (e.key === "Backspace" && (!block.content || !block.content.trim())) {
+    } else if (e.key === "Backspace" && (!block.content || block.content.length === 0)) {
       if (!isLocked) {
         e.preventDefault();
         onDelete?.(block.id);
@@ -4489,7 +4489,7 @@ const EditorBlock = memo(function EditorBlock({
       // Notion behavior: Pressing enter at the start of a heading block keeps heading intact,
       // shifts heading and all blocks below down, and inserts a new empty block above
       if (["h1", "h2", "h3", "h4"].includes(block.type)) {
-        const isHeadingAtStart = cleanZeroWidth(textBefore).trim().length === 0;
+        const isHeadingAtStart = cleanZeroWidth(textBefore).length === 0;
         if (isHeadingAtStart) {
           if (cleanZeroWidth(textAfter).length === 0) {
             onChangeType?.(block.id, "text");
@@ -4503,7 +4503,7 @@ const EditorBlock = memo(function EditorBlock({
       // Notion behavior: Pressing enter at the start of a bullet (or numbered) block inserts a bullet above
       // and moves the current bullet with its content to the next line, keeping focus on the moved bullet
       if (block.type === "bullet" || block.type === "number") {
-        const isListAtStart = cleanZeroWidth(textBefore).trim().length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
+        const isListAtStart = cleanZeroWidth(textBefore).length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
         if (isListAtStart) {
           if (cleanZeroWidth(textAfter).length > 0) {
             onAddBefore?.(block.id, "", block.type, { level: block.level || 0 }, "original");
@@ -6984,8 +6984,10 @@ export default function BlockNoteEditor({
         // Check if caret is at the start (offset 0) of the current block
         const el = domEl || blockRefs.current[blockId]?.current;
         const currentDOMText = el ? getBlockTextFromDOM(el) : (block.content || "");
-        const isDomEmpty = !cleanZeroWidth(currentDOMText).trim();
-        let isAtStart = isDomEmpty;
+        const cleanDOM = cleanZeroWidth(currentDOMText);
+        const cleanContent = cleanZeroWidth(block.content || "");
+        const isDomEmpty = cleanDOM.length === 0 && cleanContent.length === 0;
+        let isAtStart = cleanDOM.length === 0;
         if (!isAtStart && el) {
           isAtStart = isCaretAtLogicalStart(el);
           if (!isAtStart) {
@@ -6994,14 +6996,14 @@ export default function BlockNoteEditor({
               const range = sel.getRangeAt(0);
               if (range.collapsed) {
                 const split = splitBlockDOMAtRange(el, range);
-                if (cleanZeroWidth(split.textBefore).trim().length === 0) {
+                if (cleanZeroWidth(split.textBefore).length === 0) {
                   isAtStart = true;
                 }
               }
             }
           }
         }
-        if (!isAtStart && (!block.content || cleanZeroWidth(block.content).trim() === "")) {
+        if (!isAtStart && cleanDOM.length === 0 && cleanContent.length === 0) {
           isAtStart = true;
         }
 
@@ -7009,7 +7011,7 @@ export default function BlockNoteEditor({
         // If current block is a list or formatted type (bullet, number, todo, toggle, heading, quote, callout)
         // AND (caret is at offset 0 OR the block content is empty):
         // Convert block to a plain "text" paragraph first without deleting or merging!
-        if (block.type !== "text" && (isAtStart || isDomEmpty || block.content === "" || !block.content)) {
+        if (block.type !== "text" && (isAtStart || isDomEmpty)) {
           if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
             e.preventDefault();
             handleUpdateBlock(blockId, { level: (block.level || 0) - 1 }, false, true);
@@ -7031,7 +7033,7 @@ export default function BlockNoteEditor({
         // 2. EMPTY PLAIN TEXT BLOCK DELETION:
         // When Backspace is pressed on an empty plain text line, delete the empty line itself
         // and cleanly place the caret at the end of the block above (never deleting the block above)!
-        if (block.type === "text" && (block.content === "" || isDomEmpty || currentDOMText === "")) {
+        if (block.type === "text" && isDomEmpty) {
           if (blocks.length > 1) {
             e.preventDefault();
             const prevBlock = idx > 0 ? blocks[idx - 1] : (blocks[1] || null);
@@ -7148,7 +7150,7 @@ export default function BlockNoteEditor({
                     return;
                   }
                   // 2. Empty text block: delete it!
-                  if (targetBlock?.type === "text" && (!targetBlock.content || targetBlock.content.trim() === "")) {
+                  if (targetBlock?.type === "text" && (!targetBlock.content || cleanZeroWidth(targetBlock.content).length === 0)) {
                     e.preventDefault();
                     pushHistorySnapshot();
                     setBlocks((prev) => {

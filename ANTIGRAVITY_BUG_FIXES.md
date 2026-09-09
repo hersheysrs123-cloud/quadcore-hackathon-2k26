@@ -4948,3 +4948,70 @@ Users identified two visual inconsistencies during print and PDF export:
 6. **Automated Verification (`tests/unit/space-hub.test.mjs`)**:
    - Added 4 test cases verifying preset exports, emoji persistence without default reversion, cascading rename, and name validation. All 536 tests pass. Production Next.js build compiled successfully. Production server active on port 3000.
 
+---
+
+## 83. Editor Whitespace Backspace Bug: Preventing Accidental Block Deletion When Space is Typed
+
+### Problem Statement
+- In any block (plain text paragraph, bullet list, numbered list, heading, math, or code), when a user typed a space (`" "`) and then immediately pressed Backspace, the editor did not delete the space character. Instead, it deleted the entire block (or converted a list/heading to plain text immediately) and moved the caret to the block above.
+- Users expect pressing Backspace after typing a space to delete the space character naturally, deleting the block only when the block is truly empty (0 characters).
+
+### Root Cause Analysis
+1. **Aggressive Trimming in `isCaretAtLogicalStart` (`lib/editorCaret.js`)**:
+   - `isCaretAtLogicalStart(el)` contained `if (!cleanZeroWidth(full).trim()) return true;`. Because `trim()` converts `" "` into `""`, any block containing only whitespace was considered to have caret at offset 0 (logical start) even when the caret was positioned after the typed space at offset 1!
+2. **Aggressive Trimming in Main KeyDown Handler (`components/BlockNoteEditor.jsx`)**:
+   - In `handleKeyDown` (Backspace):
+     - `const isDomEmpty = !cleanZeroWidth(currentDOMText).trim();`
+     - `if (cleanZeroWidth(split.textBefore).trim().length === 0) { isAtStart = true; }`
+     - `if (!isAtStart && (!block.content || cleanZeroWidth(block.content).trim() === "")) { isAtStart = true; }`
+     - `if (block.type === "text" && (block.content === "" || isDomEmpty || currentDOMText === "")) { ... setBlocks(prev => prev.filter(b => b.id !== blockId)); }`
+   - Because `trim()` was called on `currentDOMText`, `isDomEmpty` evaluated to `true` when the DOM contained `" "`.
+   - Consequently, `isAtStart` was marked `true`, and the plain text block deletion branch executed `e.preventDefault()`, removing the block from state instead of allowing the browser to delete the space character natively.
+3. **Aggressive Trimming in MathBlock & CodeBlock**:
+   - `MathBlock` checked `(!formula || !formula.trim())` on Backspace.
+   - `CodeBlock` checked `(!block.content || !block.content.trim())` on Backspace.
+   - Both erroneously deleted the block when whitespace was present.
+4. **Enter Key Caret Start Checks**:
+   - In `handleKeyDown` (Enter), `isHeadingAtStart` and `isListAtStart` used `.trim().length === 0` on `textBefore`, which treated having a space before the caret as being at offset 0.
+
+### Resolution & Architectural Enhancements
+1. **Accurate Whitespace Preservation in Caret Utilities (`lib/editorCaret.js`)**:
+   - Updated `isCaretAtLogicalStart(el)`: replaced `if (!cleanZeroWidth(full).trim()) return true;` with `if (cleanZeroWidth(full).length === 0) return true;`.
+   - Normal whitespace characters (`" "`, `\t`, `\n`) retain their positive length, ensuring caret after a space returns `false` (not at start).
+2. **Strict Empty-Check Architecture in Editor (`components/BlockNoteEditor.jsx`)**:
+   - In `handleKeyDown` (Backspace):
+     - Compute clean strings without trimming:
+       ```javascript
+       const cleanDOM = cleanZeroWidth(currentDOMText);
+       const cleanContent = cleanZeroWidth(block.content || "");
+       const isDomEmpty = cleanDOM.length === 0 && cleanContent.length === 0;
+       ```
+     - Initialize `isAtStart` strictly based on zero-length:
+       ```javascript
+       let isAtStart = cleanDOM.length === 0;
+       ```
+     - Check caret range without `.trim()`:
+       ```javascript
+       if (cleanZeroWidth(split.textBefore).length === 0) { isAtStart = true; }
+       ```
+     - Update plain text block deletion to only trigger when truly empty:
+       ```javascript
+       if (block.type === "text" && isDomEmpty)
+       ```
+     - Update list/heading un-formatting to only trigger when caret is at offset 0 or block is truly empty:
+       ```javascript
+       if (block.type !== "text" && (isAtStart || isDomEmpty))
+       ```
+3. **Specialized Block Cleanups (`MathBlock` & `CodeBlock`)**:
+   - `MathBlock`: changed backspace guard to `(!formula || formula.length === 0)`.
+   - `CodeBlock`: changed backspace guard to `(!block.content || block.content.length === 0)`.
+4. **Forward Delete Refactoring**:
+   - In forward Delete key handling, changed `(!targetBlock.content || targetBlock.content.trim() === "")` to `(!targetBlock.content || cleanZeroWidth(targetBlock.content).length === 0)`.
+5. **Automated Unit Testing (`tests/unit/bullet-number-heading-fixes.test.mjs`)**:
+   - Added test cases verifying:
+     - `isCaretAtLogicalStart` returns `false` when caret is after typed space in input, textarea, and contenteditable elements.
+     - `cleanZeroWidth` preserves whitespace lengths (`" ".length === 1`).
+     - Block deletion simulation ensures Backspace on `" "` is not prevented and does not delete the block, while Backspace on `""` cleanly deletes the empty block.
+   - All **539 unit and integration tests** pass with 0 errors.
+
+

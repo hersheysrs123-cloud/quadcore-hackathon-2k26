@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { formatNumberMarker, editorBlocksToText } from "../../lib/blocks.js";
-import { isCaretAtLogicalStart } from "../../lib/editorCaret.js";
+import { isCaretAtLogicalStart, cleanZeroWidth } from "../../lib/editorCaret.js";
 import { blocksToHTMLLossy } from "../../lib/exportImport.js";
 
 describe("Bullet, Number List, Heading Enter & Socratic Bot Fixes", () => {
@@ -248,6 +248,65 @@ describe("Bullet, Number List, Heading Enter & Socratic Bot Fixes", () => {
 
       const fakeNonZeroInput = { tagName: "INPUT", selectionStart: 2, selectionEnd: 2 };
       assert.strictEqual(isCaretAtLogicalStart(fakeNonZeroInput), false);
+    });
+
+    it("isCaretAtLogicalStart returns false when caret is after typed space in input or element", () => {
+      // Input with typed space, caret at index 1
+      const fakeInputAfterSpace = { tagName: "INPUT", selectionStart: 1, selectionEnd: 1 };
+      assert.strictEqual(isCaretAtLogicalStart(fakeInputAfterSpace), false);
+
+      // Textarea with typed space, caret at index 1
+      const fakeTextareaAfterSpace = { tagName: "TEXTAREA", selectionStart: 1, selectionEnd: 1 };
+      assert.strictEqual(isCaretAtLogicalStart(fakeTextareaAfterSpace), false);
+    });
+
+    it("verifies cleanZeroWidth preserves normal whitespace and only treats length === 0 as empty", () => {
+      // Whitespace characters have length > 0 and must not be treated as empty
+      assert.strictEqual(cleanZeroWidth(" ").length, 1);
+      assert.strictEqual(cleanZeroWidth("  ").length, 2);
+      assert.strictEqual(cleanZeroWidth("\t").length, 1);
+
+      // Truly empty strings or only zero-width characters have length 0
+      assert.strictEqual(cleanZeroWidth("").length, 0);
+      assert.strictEqual(cleanZeroWidth("\u200B").length, 0);
+      assert.strictEqual(cleanZeroWidth("\uFEFF").length, 0);
+    });
+
+    it("simulates block deletion condition: does NOT delete block when space is typed, deletes only when truly empty", () => {
+      let blocks = [
+        { id: "b1", type: "text", content: "Existing content" },
+        { id: "b2", type: "text", content: " " }, // user pressed space once
+      ];
+
+      function simulateBackspace(blockId, currentDOMText) {
+        const block = blocks.find((b) => b.id === blockId);
+        if (!block) return { deleted: false, prevented: false };
+
+        const cleanDOM = cleanZeroWidth(currentDOMText);
+        const cleanContent = cleanZeroWidth(block.content || "");
+        const isDomEmpty = cleanDOM.length === 0 && cleanContent.length === 0;
+
+        if (block.type === "text" && isDomEmpty) {
+          blocks = blocks.filter((b) => b.id !== blockId);
+          return { deleted: true, prevented: true };
+        }
+        // Native backspace deletes character (not block)
+        return { deleted: false, prevented: false };
+      }
+
+      // 1. User presses space once: DOM has " "
+      const firstPress = simulateBackspace("b2", " ");
+      assert.strictEqual(firstPress.deleted, false, "Block b2 must NOT be deleted when it contains a space");
+      assert.strictEqual(firstPress.prevented, false, "Event must not be prevented so browser can delete the space");
+      assert.strictEqual(blocks.length, 2, "Both blocks must remain intact");
+
+      // 2. Native backspace deletes the space character, so now content is ""
+      blocks = blocks.map((b) => (b.id === "b2" ? { ...b, content: "" } : b));
+      const secondPress = simulateBackspace("b2", "");
+      assert.strictEqual(secondPress.deleted, true, "Block b2 must be deleted when it is truly empty");
+      assert.strictEqual(secondPress.prevented, true);
+      assert.strictEqual(blocks.length, 1);
+      assert.strictEqual(blocks[0].id, "b1");
     });
   });
 });
