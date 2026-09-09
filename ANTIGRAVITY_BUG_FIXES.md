@@ -4831,6 +4831,7 @@ Users identified two visual inconsistencies during print and PDF export:
 2. **ThreeDView Viewport Clean-Up (`components/ThreeDView.jsx`)**:
    - Removed `WidgetCanvas` import, `customWidgets` and `selectedWidgetId` state hooks, and `/api/visualizations` fetch effect.
    - Removed `isCustomSelected` topic active checks, simplifying topic selection to `active = topicId === t.id`.
+   - Purged all lingering `isCustomSelected`, `selectedWidgetId`, and `activeWidgetObj` references from `selectTopic`, `handleOpenStudy`, the header topic `<select>` dropdown, and syllabus `<span />`, preventing browser runtime `ReferenceError: isCustomSelected is not defined`.
    - Eliminated conditional widget branching in the main viewport, directly rendering `CanvasComponent`, `VisualizationHUD`, and `ViewportHint`.
 3. **AI Service & Schemas Clean-Up (`lib/aiService.js` & `lib/schemas.js`)**:
    - Removed `socraticChat`, `socraticWidget`, `normalizeWidget`, `normalizeDiagnostic`, `buildSocraticPrompt`, and related prompt templates from `lib/aiService.js`.
