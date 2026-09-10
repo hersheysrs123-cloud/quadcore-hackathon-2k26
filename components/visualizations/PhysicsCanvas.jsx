@@ -27,6 +27,8 @@ import SimpleMachinesCanvas from "@/components/visualizations/SimpleMachinesCanv
 import RollerCoasterCanvas from "@/components/visualizations/RollerCoasterCanvas";
 import CircuitBoardCanvas from "@/components/visualizations/CircuitBoardCanvas";
 import StaticElectricityCanvas from "@/components/visualizations/StaticElectricityCanvas";
+import BuoyancyCanvas from "@/components/visualizations/BuoyancyCanvas";
+import HeatTransferCanvas from "@/components/visualizations/HeatTransferCanvas";
 
 // ─── IGCSE Physics · five scenes ────────────────────────────────────
 // Refraction, the motor effect, thin lenses, electromagnetic induction
@@ -3180,6 +3182,8 @@ const SCENES = {
   roller_coaster_energy: RollerCoasterCanvas,
   circuits_breadboard: CircuitBoardCanvas,
   static_electricity: StaticElectricityCanvas,
+  buoyancy: BuoyancyCanvas,
+  heat_transfer: HeatTransferCanvas,
 };
 
 export default function PhysicsCanvas({ topicId, params, setParam, onOpenQuiz }) {

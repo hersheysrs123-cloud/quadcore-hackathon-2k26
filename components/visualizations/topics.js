@@ -20,6 +20,7 @@ import {
   CloudLightning,
   Cylinder,
   Dna,
+  Droplets,
   Flame,
   FlaskConical,
   GitBranch,
@@ -34,11 +35,13 @@ import {
   Scale,
   Scissors,
   Shapes,
+  Ship,
   Shuffle,
   Sigma,
   Sparkles,
   Spline,
   Thermometer,
+  ThermometerSun,
   TrainFront,
   Triangle,
   TrendingDown,
@@ -53,15 +56,22 @@ import {
   ALGORITHM_OPTIONS,
   CIRCUIT_TOPOLOGY_OPTIONS,
   CURVE_OPTIONS,
+  FLUID_OPTIONS,
   FRICTION_SURFACE_OPTIONS,
   GRAVITY_OPTIONS,
+  HEAT_VIEW_OPTIONS,
+  ROD_MATERIAL_OPTIONS,
+  SOLID_PRESET_OPTIONS,
+  SPECIMEN_SHAPE_OPTIONS,
   STATIC_TARGET_OPTIONS,
   STRUCTURE_OPTIONS,
   SURFACE_OPTIONS,
   VSEPR_PRESETS,
   vseprPresetFor,
 } from "@/components/visualizations/topic-options";
+import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
 import { leakTimeConstant } from "@/lib/electrostatics";
+import { flameIsLit, flameTemperature } from "@/lib/heatTransfer";
 
 export const CATEGORIES = [
   { id: "all", label: "All" },
@@ -1125,6 +1135,216 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Humid air is not itself much of a conductor. What happens is that a thin layer of water condenses on both surfaces and gives the separated charge a conducting path to creep away along. The transfer still occurs; the charge simply does not stay put long enough to demonstrate anything, which is why electrostatics experiments are a winter activity.",
+      },
+    ],
+  },
+  {
+    id: "buoyancy",
+    category: "physics",
+    icon: Ship,
+    title: "Archimedes' Principle, Density & Buoyant Force",
+    blurb: "Why a steel ship floats and a steel pebble sinks",
+    syllabus: "Physics 1.4 · Density & Pressure",
+    keywords:
+      "archimedes principle buoyancy upthrust buoyant force density relative density displacement displaced volume overflow can eureka floating sinking flotation apparent weight spring balance hull ship pebble mercury saltwater honey gasoline plimsoll line submarine iceberg",
+    defaults: {
+      objectDensity: 2.7,
+      densityPreset: "aluminium",
+      objectVolume: 200,
+      fluid: "freshwater",
+      solidShape: "cube",
+      showForces: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "densityPreset",
+        label: "Material",
+        columns: 5,
+        options: SOLID_PRESET_OPTIONS,
+        patch: (v) => ({ densityPreset: v, objectDensity: SOLIDS[v].density }),
+      },
+      {
+        type: "slider",
+        key: "objectDensity",
+        label: "Object density ρ",
+        min: MIN_DENSITY,
+        max: MAX_DENSITY,
+        step: 0.05,
+        format: (v) => `${Number(v).toFixed(2)} g/cm³`,
+        // Dragging off a preset has to clear the preset, or the highlighted
+        // button goes on claiming the specimen is steel when it is not.
+        patch: (v) => ({ objectDensity: v, densityPreset: solidPresetFor(v) }),
+      },
+      {
+        type: "slider",
+        key: "objectVolume",
+        label: "Object volume V — of the material itself",
+        min: 50,
+        max: 500,
+        step: 10,
+        format: (v) => `${Number(v).toFixed(0)} cm³`,
+      },
+      {
+        type: "choice",
+        key: "fluid",
+        label: "Fluid medium",
+        columns: 3,
+        options: FLUID_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "solidShape",
+        label: "On the hook",
+        columns: 4,
+        options: SPECIMEN_SHAPE_OPTIONS,
+      },
+      { type: "toggle", key: "showForces", label: "Show force vectors" },
+    ],
+    concepts: [
+      "The upthrust on anything in a fluid equals the weight of the fluid it pushes out of the way — that is Archimedes' principle, and the overflow can measures it directly. It is not a separate force that fluids happen to exert: pressure grows with depth, so the push upward on an object's underside is larger than the push downward on its top, and the difference is ρVg. That also settles the question students ask next — once an object is fully under, taking it deeper changes nothing, because both faces gain pressure equally and only the difference between them matters.",
+      "Whether something floats has nothing to do with how heavy it is and everything to do with its density — mass divided by the volume of fluid it can push aside. A steel pebble and a steel ship are made of the same 7.85 g/cm³ metal, but the ship's hull encloses a great deal of air, so the mass of the whole vessel spread over the volume it displaces comes out below 1.00 g/cm³ and it floats. Punch a hole in that hull and the air is replaced by water: the mean density jumps back to steel's, and the ship goes down.",
+      "A floating object sinks until it has displaced exactly its own weight of fluid, and no further — so the fraction submerged is simply ρ_object ÷ ρ_fluid. Ice at 0.92 g/cm³ floats with 92% of itself below the waterline in fresh water, which is why an iceberg is mostly invisible. Move to the sea at 1.03 and everything floats a little higher, because each cubic centimetre displaced is now worth 3% more upthrust.",
+    ],
+    quiz: [
+      {
+        question:
+          "A solid steel pebble sinks, but a ship built from the same steel floats. What is the essential difference?",
+        options: [
+          "The ship's hull encloses air, so its mass ÷ displaced volume is below the water's density",
+          "The ship is much heavier, and heavier objects displace more water",
+          "The ship's paint and coatings stop water reaching the steel",
+          "The ship's shape lets water flow around it instead of pressing down on it",
+        ],
+        answer: 0,
+        explanation:
+          "Floating is decided by mean density, not by material or by weight. The pebble's mass is spread over the volume of steel alone, so its mean density is 7.85 g/cm³ and it goes down. The hull spreads its mass over the whole volume of the vessel — steel plus the air inside — which brings the mean below 1.00 g/cm³. Being heavier is irrelevant: an object that weighs a thousand times more simply needs to displace a thousand times more water, and a large enough hull can do exactly that.",
+      },
+      {
+        question:
+          "A wooden block floats in fresh water with 60% of its volume below the surface. What is the block's density?",
+        options: ["0.60 g/cm³", "1.60 g/cm³", "0.40 g/cm³", "It cannot be found without knowing the block's size"],
+        answer: 0,
+        explanation:
+          "A floating object displaces exactly its own weight, so ρ_object·V·g = ρ_fluid·V_submerged·g. The volumes cancel down to a ratio: the fraction submerged IS ρ_object ÷ ρ_fluid. Sixty per cent under fresh water means 0.60 × 1.00 = 0.60 g/cm³. The size never enters it, which is why the same timber floats at the same waterline whether it is a matchstick or a log.",
+      },
+      {
+        question:
+          "A fully submerged metal cube hanging from a spring balance is lowered from 10 cm deep to 40 cm deep. What happens to the buoyant force on it?",
+        options: [
+          "It is unchanged — the same volume of water is displaced at both depths",
+          "It quadruples, because the pressure at 40 cm is four times that at 10 cm",
+          "It increases slightly, because deeper water is more compressed",
+          "It falls, because there is more water above the cube pushing it down",
+        ],
+        answer: 0,
+        explanation:
+          "Upthrust is ρVg and depth appears nowhere in it. Both faces of the cube do feel much larger pressures at 40 cm, but the buoyant force comes from the DIFFERENCE between them, and that difference is set by the cube's own height, which has not changed. The balance reading is identical at both depths — the classic experiment that separates pressure, which grows with depth, from upthrust, which does not.",
+      },
+      {
+        question:
+          "An object weighs 5.00 N in air and 3.00 N when fully immersed in water. What volume of water has it displaced? (ρ_water = 1000 kg/m³, g = 9.81 m/s²)",
+        options: ["About 204 cm³", "About 306 cm³", "About 510 cm³", "About 20 cm³"],
+        answer: 0,
+        explanation:
+          "The apparent loss in weight IS the upthrust: 5.00 − 3.00 = 2.00 N. Archimedes' principle says that is the weight of the displaced water, so its mass is 2.00 ÷ 9.81 = 0.204 kg, and at 1000 kg/m³ that is 2.04 × 10⁻⁴ m³, or 204 cm³. Because the object was fully immersed, that is also the object's own volume — which is precisely how the density of an awkwardly shaped object is measured in the lab.",
+      },
+    ],
+  },
+  {
+    id: "heat_transfer",
+    category: "physics",
+    icon: ThermometerSun,
+    title: "Thermal Heat Transfer — Conduction, Convection & Radiation",
+    blurb: "One bench, three ways for heat to move, all running at once",
+    syllabus: "Physics 2.3 · Thermal Energy Transfer",
+    keywords:
+      "conduction convection radiation thermal conductivity heat transfer copper iron glass wood insulator conductor free electrons lattice vibration convection current density difference potassium permanganate dye tracer bunsen burner beaker infrared electromagnetic wave emission absorption black surface stefan boltzmann vacuum flask thermal imaging FLIR",
+    defaults: {
+      flameIntensity: 55,
+      rodMaterial: "copper",
+      viewMode: "flir",
+      dyeDrop: 0,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "flameIntensity",
+        label: "Flame intensity",
+        min: 0,
+        max: 100,
+        step: 1,
+        format: (v) =>
+          flameIsLit(v) ? `${Number(v).toFixed(0)}% · ${flameTemperature(v).toFixed(0)} °C` : "out",
+      },
+      {
+        type: "choice",
+        key: "rodMaterial",
+        label: "Rod material — the one being probed",
+        columns: 4,
+        options: ROD_MATERIAL_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "viewMode",
+        label: "View mode",
+        columns: 2,
+        options: HEAT_VIEW_OPTIONS,
+      },
+      { type: "action", key: "dyeDrop", label: "Drop a KMnO₄ crystal", icon: Droplets },
+    ],
+    concepts: [
+      "Conduction passes energy along without anything travelling: a hot particle vibrates harder, jostles its neighbour, and the disturbance moves through a lattice that stays exactly where it is. Metals do it far better than anything else because they have free electrons as well, which drift through the whole structure carrying energy with them — copper's k of 385 W/m·K against wood's 0.15 is a factor of two and a half thousand. That is why the copper rod's far end becomes too hot to hold while the wooden one beside it, in the same beaker for the same time, never leaves room temperature.",
+      "Convection needs the material itself to move, so it happens only in fluids. Water at the bottom of the beaker is heated, expands, becomes less dense than the water above it, and is pushed up by that colder water sinking to take its place — the dye traces the resulting loop. This is also why kettles and radiators are heated from below: heat the top of a beaker and the warm, less dense layer simply stays where it is, and the water underneath can sit near room temperature indefinitely.",
+      "Radiation is electromagnetic wave — infrared, mostly — and it is the only mode that needs no material at all, which is how the Sun's energy crosses 150 million kilometres of vacuum. Emission follows the Stefan–Boltzmann law and goes as the FOURTH power of absolute temperature, so a flame at 1500 °C radiates roughly ninety times as strongly as the same flame at 300 °C. Dull black surfaces are the best emitters and the best absorbers, which is why the plate in this scene is blackened and why a vacuum flask is silvered.",
+    ],
+    quiz: [
+      {
+        question:
+          "Copper and glass rods of identical size are left in the same beaker of hot water. After a minute the copper's far end is hot and the glass's is still cold. Why?",
+        options: [
+          "Copper has free electrons that carry energy through it as well as passing it between vibrating atoms",
+          "Copper absorbs more heat from the water because metals are better absorbers",
+          "The glass rod is reflecting the heat back into the water",
+          "Copper has a lower specific heat capacity, so the same energy raises its temperature further",
+        ],
+        answer: 0,
+        explanation:
+          "Both rods conduct by the same lattice mechanism — vibrating particles jostling their neighbours — but a metal has a second channel that an insulator does not: a sea of delocalised electrons free to move through the whole structure, carrying kinetic energy from the hot end to the cold one directly. That is the difference between k = 385 and k = 0.8. Specific heat capacity affects how quickly a rod warms, not how far along it the heat gets, and at the steady state the glass rod's far end is simply losing to the air everything the glass manages to deliver.",
+      },
+      {
+        question:
+          "Why is a beaker of water heated from underneath rather than from the top?",
+        options: [
+          "Heating the bottom makes the warm water rise and sets up a convection current that stirs the whole beaker",
+          "The glass at the bottom of a beaker is thinner, so heat gets in faster",
+          "Heat naturally travels upward, so heating the top would send it out of the beaker",
+          "Water conducts heat well downward but poorly upward",
+        ],
+        answer: 0,
+        explanation:
+          "Water heated at the bottom expands, becomes less dense than the water above it and is displaced upward by colder water sinking past it — the loop carries the heat through the whole beaker in seconds. Heat the top instead and the warm layer is already the least dense, so it stays put, no current forms, and you are left with conduction alone through water that conducts about as well as glass. The classic demonstration is a test tube of water boiled at the top while ice sits unmelted at the bottom.",
+      },
+      {
+        question:
+          "The blackened plate in this scene warms up although nothing touches it and it sits to the side of the rising hot air. Which mode is responsible, and what rules the others out?",
+        options: [
+          "Radiation — conduction needs contact and convection needs the air to carry heat to it, and the plate is neither touching nor downstream of the flame",
+          "Conduction, through the layer of air between the flame and the plate",
+          "Convection, because the hot air spreads out in all directions from the flame",
+          "All three equally, since heat always travels by every mode at once",
+        ],
+        answer: 0,
+        explanation:
+          "Conduction requires a material path in contact, and the plate is mounted on its own stand with only still air in between — air being one of the poorest conductors there is. Convection carries heat with moving fluid, and the flame's hot gases rise straight up into the beaker rather than sideways to the plate. What is left is infrared radiation, which travels in straight lines from the flame, passes through air without warming it appreciably, and is absorbed by the black surface. Blocking the line of sight with a card stops it at once, which is the experiment that proves it.",
+      },
+      {
+        question:
+          "A hot object's absolute temperature is doubled. By what factor does the power it radiates increase?",
+        options: ["16", "2", "4", "8"],
+        answer: 0,
+        explanation:
+          "The Stefan–Boltzmann law gives P = εσAT⁴, so doubling T multiplies the radiated power by 2⁴ = 16. The fourth power is why radiation is almost negligible for warm objects and utterly dominant for hot ones: it is barely worth mentioning for a radiator at 60 °C, but it is how essentially all of a filament lamp's — and the Sun's — energy leaves. Note that T must be in kelvin, since the law is about absolute temperature; doubling a Celsius reading is not doubling T.",
       },
     ],
   },

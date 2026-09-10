@@ -16,6 +16,7 @@ import { solveIncline, surfaceFor } from "@/lib/inclineForces";
 import { loadForce, solveSpring } from "@/lib/hookesLaw";
 import { isLever, solveMachine } from "@/lib/simpleMachines";
 import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
+import { FLUIDS, fluidComparison, solveBuoyancy } from "@/lib/buoyancy";
 import { FUSE_A, solveCircuit } from "@/lib/circuits";
 import {
   CHARGE_PER_MARKER,
@@ -25,6 +26,12 @@ import {
   leakTimeConstant,
   solveStatic,
 } from "@/lib/electrostatics";
+import {
+  ROD_MATERIALS,
+  TIME_LAPSE,
+  WAX_MELTING_C,
+  solveHeatTransfer,
+} from "@/lib/heatTransfer";
 
 // ─── Visualization HUD ──────────────────────────────────────────────
 // One overlay drives all thirteen scenes: parameter controls rendered
@@ -985,6 +992,154 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#34d399", label: "Attraction", note: "charged to neutral, via induction — always" },
           { color: "#5eead4", label: "Water in the air", note: `leaks the charge away with a ${tau.toFixed(0)} s time constant` },
           { color: "#e8ebf0", label: "Conservation", note: "the + count and the − count are always equal" },
+        ],
+      };
+      break;
+    }
+
+    case "buoyancy": {
+      const density = num(params.objectDensity, 2.7);
+      const volume = num(params.objectVolume, 200);
+      const fluidKey = params.fluid || "freshwater";
+      const shape = params.solidShape || "cube";
+      const b = solveBuoyancy({ density, volume, fluid: fluidKey, shape });
+
+      // Which of the six it would float in. The single most useful thing the
+      // panel can add to the tank, because the tank only ever shows one.
+      const floatsIn = fluidComparison({ density, volume, shape })
+        .filter((f) => f.floats)
+        .map((f) => f.label);
+
+      const hull = b.shape.envelope > 1;
+
+      readout = {
+        title: "Archimedes' Principle",
+        subtitle: `${b.shape.label} of ${density.toFixed(2)} g/cm³ in ${b.fluid.label.toLowerCase()}`,
+        rows: [
+          ["Material volume V", `${volume.toFixed(0)} cm³`],
+          ...(hull ? [["Hull envelope", `${b.metrics.envelopeCC.toFixed(0)} cm³ — ${b.shape.envelope}× the steel`, "gold"]] : []),
+          ["Mass m = ρV", `${b.massG.toFixed(0)} g`],
+          ["True weight W = mg", `${b.weight.toFixed(2)} N`, "gold"],
+          ["Mean density m ÷ V_env", `${b.meanDensity.toFixed(3)} g/cm³`, b.floats ? "good" : "bad"],
+          ["Fluid density ρ_f", `${b.fluidDensity} g/cm³`],
+          ["Density ratio ρ_mean/ρ_f", b.densityRatio.toFixed(3), b.floats ? "good" : "bad"],
+          ["Fluid displaced", `${b.overflowML.toFixed(0)} cm³ = ${b.displacedMassG.toFixed(0)} g`],
+          ["Buoyant force F_b = ρVg", `${b.upthrust.toFixed(2)} N`, "good"],
+          ["…from the pressure difference", `${b.pressureUpthrust.toFixed(2)} N`],
+          ["Apparent weight", `${b.apparentWeight.toFixed(2)} N`, b.floats ? "good" : "default"],
+          ["Weight apparently lost", `${(b.weightLostFraction * 100).toFixed(1)}%`],
+          ["Resultant F_b − W", `${b.netForce.toFixed(2)} N`, Math.abs(b.netForce) < 0.005 ? "good" : b.netForce > 0 ? "good" : "bad"],
+          ...(b.floats
+            ? [
+                ["Submerged", `${(b.submergedFraction * 100).toFixed(1)}% by volume`, "good"],
+                ["Draft", `${b.draftCm.toFixed(2)} cm of ${b.metrics.height.toFixed(2)} cm`],
+                ["Freeboard", `${b.freeboardCm.toFixed(2)} cm`, b.freeboardCm < 0.4 ? "warn" : "good"],
+              ]
+            : [
+                ["Pressure on the top face", `${(b.pressureTop / 1000).toFixed(3)} kPa`],
+                ["Pressure on the base", `${(b.pressureBottom / 1000).toFixed(3)} kPa`],
+                ["Difference across it", `${(b.pressureDifference / 1000).toFixed(3)} kPa`, "gold"],
+                ["Released, it would accelerate", `${Math.abs(b.acceleration).toFixed(2)} m/s² ${b.acceleration > 0 ? "up" : "down"}`, "bad"],
+              ]),
+          ["Floats in", floatsIn.length ? floatsIn.join(", ") : "none of the six", floatsIn.length ? "good" : "bad"],
+        ],
+        note: b.swamped
+          ? `The hull has gone under, and a swamped hull displaces only the steel it is made of — ${b.overflowML.toFixed(0)} cm³ instead of the ${b.metrics.envelopeCC.toFixed(0)} cm³ it displaced while it floated. That is why a breach is fatal so quickly: the buoyancy does not fall off gradually, it collapses to a twelfth as soon as the air is replaced by water.`
+          : b.floats
+            ? hull
+              ? `The steel is still ${density.toFixed(2)} g/cm³ — nothing about the material changed. What changed is the volume it pushes aside: spread over the hull's ${b.metrics.envelopeCC.toFixed(0)} cm³ envelope the SAME ${b.massG.toFixed(0)} g comes out at ${b.meanDensity.toFixed(2)} g/cm³, below the fluid's ${b.fluidDensity}, so it floats with ${(b.freeboardCm).toFixed(1)} cm of freeboard. Switch the shape to a rock and watch the identical metal sink.`
+              : `Floating, and it has sunk until it displaced exactly its own weight: ${b.overflowML.toFixed(0)} cm³ of ${b.fluid.label.toLowerCase()} weighs ${b.upthrust.toFixed(2)} N, which is W to the last decimal. The fraction submerged is just ρ_object ÷ ρ_fluid = ${b.densityRatio.toFixed(2)}, so the string is slack and the scale reads nothing at all.`
+            : `Sinking: at ${b.meanDensity.toFixed(2)} g/cm³ it cannot displace its own weight even fully under. The scale still reads ${b.apparentWeight.toFixed(2)} N rather than ${b.weight.toFixed(2)} N, and that missing ${b.upthrust.toFixed(2)} N is exactly the weight of the ${b.overflowML.toFixed(0)} cm³ in the measuring cylinder. Lower it deeper and the reading will not budge — both faces gain pressure equally, and only the difference lifts.`,
+        noteTone: b.swamped ? "bad" : b.floats ? "good" : "warn",
+      };
+
+      legend = {
+        title: "Buoyancy Key",
+        items: [
+          { color: "#fb7185", label: "Weight W = mg", note: `${b.weight.toFixed(2)} N of material, always straight down` },
+          { color: "#38bdf8", label: "Upthrust F_b = ρVg", note: `${b.upthrust.toFixed(2)} N — the weight of the ${b.overflowML.toFixed(0)} cm³ in the cylinder` },
+          { color: "#fbbf24", label: "Tension T", note: `${b.apparentWeight.toFixed(2)} N — whatever the fluid did not carry` },
+          { color: "#34d399", label: "Mean density", note: `${b.meanDensity.toFixed(2)} g/cm³ against the fluid's ${b.fluidDensity} — this decides it` },
+          { color: FLUIDS[fluidKey]?.colour ?? "#38bdf8", label: b.fluid.label, note: b.fluid.title },
+        ],
+      };
+      break;
+    }
+
+    case "heat_transfer": {
+      const intensity = num(params.flameIntensity, 55);
+      const material = params.rodMaterial || "copper";
+      // No clock in the Details panel, so this describes where the apparatus
+      // SETTLES rather than where it currently is — the scene shows it getting
+      // there, and the note says which of the two is on screen.
+      const h = solveHeatTransfer({ intensity, material });
+      const probe = h.selected;
+      const copper = h.rods.find((r) => r.key === "copper");
+      const wood = h.rods.find((r) => r.key === "wood");
+
+      readout = {
+        title: "Conduction · Convection · Radiation",
+        subtitle: h.lit ? `Bunsen at ${intensity.toFixed(0)}% — steady state` : "burner out — everything at room temperature",
+        rows: [
+          ["Flame temperature", h.lit ? `${h.flameC.toFixed(0)} °C` : "out", "gold"],
+          ["Flame output", `${h.flamePower.toFixed(0)} W`],
+          ["— CONDUCTION —", `${probe.spec.label}, k = ${probe.spec.k} W/m·K`, "gold"],
+          ["Rod hot end (in the water)", `${probe.hotC.toFixed(1)} °C`],
+          ["Rod tip, 20 cm away", `${probe.tipC.toFixed(1)} °C`, probe.tipC > 50 ? "good" : probe.tipC > 25 ? "warn" : "bad"],
+          ["Decay length 1/m", `${(probe.decayLength * 100).toFixed(1)} cm`],
+          ["Heat it carries", `${probe.rate.toFixed(2)} W`],
+          ["Wax melted along it", `${(probe.waxFront * 100).toFixed(0)}% of the rod`, probe.waxFront > 0.5 ? "good" : "warn"],
+          ["Copper tip vs wood tip", `${copper.tipC.toFixed(1)} °C vs ${wood.tipC.toFixed(1)} °C`, "gold"],
+          ["— CONVECTION —", h.water.boiling ? "rolling boil" : "density current", "gold"],
+          ["Water, bottom", `${h.water.bottom.toFixed(1)} °C`, "bad"],
+          ["Water, top", `${h.water.top.toFixed(1)} °C`, "good"],
+          ["Difference Δθ", `${h.water.delta.toFixed(2)} K`],
+          ["Density, bottom vs top", `${h.water.densityBottom.toFixed(2)} vs ${h.water.densityTop.toFixed(2)} kg/m³`],
+          ["Current speed", h.water.speed > 1e-6 ? `${(h.water.speed * 100).toFixed(2)} cm/s` : "still"],
+          ["One circuit of the loop", Number.isFinite(h.water.loopSeconds) ? `${h.water.loopSeconds.toFixed(1)} s` : "—"],
+          ["— RADIATION —", "no medium required", "gold"],
+          ["Radiated by the flame", `${h.radiatedPower.toFixed(1)} W`],
+          ["Reaching the plate", `${h.irradiance.toFixed(0)} W/m² at 15 cm`],
+          ["Absorbed by the plate", `${(h.absorbedPower * 1000).toFixed(0)} mW`],
+          ["Plate temperature", `${h.plateC.toFixed(1)} °C`, h.plateC > 35 ? "warn" : "good"],
+          ["Plate rise above room", `${(h.plateC - h.ambientC).toFixed(1)} K`, "gold"],
+        ],
+        note: !h.lit
+          ? "The burner is out, so all three transfers have nothing to move: the rods, the water and the plate are all at room temperature. Open the gas and watch which one responds first — the plate, at the speed of light, before the water has warmed at all."
+          : h.water.boiling
+            ? `At a rolling boil the water stops getting hotter however much more heat goes in — the energy is going into latent heat of vaporisation instead — so the top and bottom thermometers have converged. Conduction along the rods has therefore also topped out: the copper tip holds at ${copper.tipC.toFixed(0)} °C and the wood at ${wood.tipC.toFixed(0)} °C. Only radiation is still climbing, because it depends on the FLAME's temperature and not on the water's.`
+            : `All three are running at once and each is doing something the others cannot. The rods carry ${probe.rate.toFixed(1)} W to a tip that nothing has travelled to — the metal has not moved. The water carries its heat by physically going there at ${(h.water.speed * 100).toFixed(1)} cm/s, driven by a density difference of ${Math.abs(h.water.densityDifference).toFixed(2)} kg/m³. And the plate, touching nothing and out of the path of the hot gases, is ${(h.plateC - h.ambientC).toFixed(1)} K above the room on ${(h.absorbedPower * 1000).toFixed(0)} mW of infrared that crossed the gap without warming the air on the way.`,
+        noteTone: !h.lit ? "neutral" : h.water.boiling ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Heat Transfer Key",
+        items: [
+          {
+            color: ROD_MATERIALS.copper.colour,
+            label: "Conduction",
+            note: `k = 385 vs wood's 0.15 — a factor of ${(ROD_MATERIALS.copper.k / ROD_MATERIALS.wood.k).toFixed(0)}, and no material moves`,
+          },
+          {
+            color: "#a78bfa",
+            label: "Convection",
+            note: `the dye IS the current — hot water rises because it is ${Math.abs(h.water.densityDifference).toFixed(1)} kg/m³ lighter`,
+          },
+          {
+            color: "#fb923c",
+            label: "Radiation",
+            note: `${h.radiatedPower.toFixed(0)} W leaving the flame, spreading as 1/r² and needing no medium`,
+          },
+          {
+            color: "#f5e6c8",
+            label: "Wax beads",
+            note: `let go at ${WAX_MELTING_C} °C — four rods, one race, run side by side`,
+          },
+          {
+            color: "#e8ebf0",
+            label: `${TIME_LAPSE}× time lapse`,
+            note: "every rate scaled by the same factor, so the ratios are the real ones",
+          },
         ],
       };
       break;
