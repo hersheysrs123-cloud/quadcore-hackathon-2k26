@@ -8,6 +8,12 @@
 // behind their dynamic imports.
 // ─────────────────────────────────────────────────────────────────────
 
+import { FLUIDS, SHAPES, SOLIDS } from "@/lib/buoyancy";
+import { TOPOLOGIES } from "@/lib/circuits";
+import { TARGETS } from "@/lib/electrostatics";
+import { ROD_MATERIALS } from "@/lib/heatTransfer";
+import { FRICTION_SURFACES } from "@/lib/inclineForces";
+
 // ─── Mathematics ────────────────────────────────────────────────────
 
 export const SURFACE_OPTIONS = [
@@ -49,6 +55,19 @@ export const ALGORITHM_OPTIONS = Object.entries(ALGORITHM_META).map(([value, a])
 
 // ─── Physics ────────────────────────────────────────────────────────
 
+/**
+ * The surface pairings on the friction ramp.
+ *
+ * Derived from the coefficient table rather than retyped beside it: a label
+ * here that disagreed with the μ the solver uses would be a scene quietly
+ * teaching the wrong number.
+ */
+export const FRICTION_SURFACE_OPTIONS = Object.entries(FRICTION_SURFACES).map(([value, s]) => ({
+  value,
+  label: s.short,
+  title: `${s.label} — μs = ${s.muS}, μk = ${s.muK}`,
+}));
+
 export const GRAVITY_OPTIONS = [
   { value: 1.62, label: "Moon", title: "1.62 m/s²" },
   { value: 3.72, label: "Mars", title: "3.72 m/s²" },
@@ -84,3 +103,76 @@ export const STRUCTURE_OPTIONS = Object.entries(STRUCTURE_META).map(([value, s])
   value,
   label: s.label,
 }));
+
+// ─── Electrical ─────────────────────────────────────────────────────
+
+/** The three wiring patterns the breadboard can be snapped into. */
+export const CIRCUIT_TOPOLOGY_OPTIONS = Object.entries(TOPOLOGIES).map(([value, t]) => ({
+  value,
+  label: t.label,
+  title: t.summary,
+}));
+
+/** What the charged balloon is being held near. */
+export const STATIC_TARGET_OPTIONS = Object.entries(TARGETS).map(([value, t]) => ({
+  value,
+  label: t.label,
+  title: t.title,
+}));
+
+// ─── Fluids and thermal ─────────────────────────────────────────────
+
+/** What the overflow can is filled with. Air is on the list on purpose. */
+export const FLUID_OPTIONS = Object.entries(FLUIDS).map(([value, f]) => ({
+  value,
+  label: f.label,
+  title: f.title,
+}));
+
+/**
+ * The density presets, named rather than numeric.
+ *
+ * Paired with the density slider through a `patch` the same way the optical
+ * media are: picking Steel writes 7.85 into the slider, and dragging the
+ * slider away from 7.85 clears the button. Neither can be left asserting
+ * something the other disagrees with.
+ */
+export const SOLID_PRESET_OPTIONS = Object.entries(SOLIDS).map(([value, s]) => ({
+  value,
+  label: s.label,
+  title: s.title,
+}));
+
+/** Which solid is on the hook — including the hull that makes ships float. */
+export const SPECIMEN_SHAPE_OPTIONS = Object.entries(SHAPES).map(([value, s]) => ({
+  value,
+  label: s.label,
+  title: s.title,
+}));
+
+/** The four rods leaning out of the beaker. */
+export const ROD_MATERIAL_OPTIONS = Object.entries(ROD_MATERIALS).map(([value, m]) => ({
+  value,
+  label: m.label,
+  title: m.title,
+}));
+
+/**
+ * How the heat is drawn — never WHICH heat is drawn.
+ *
+ * Both modes show all three transfer mechanisms; the toggle only changes
+ * whether temperature is rendered as false colour or as the amplitude of the
+ * lattice's own vibration.
+ */
+export const HEAT_VIEW_OPTIONS = [
+  {
+    value: "flir",
+    label: "Thermal (FLIR)",
+    title: "False colour on the ironbow ramp a thermal imager uses",
+  },
+  {
+    value: "atomic",
+    label: "Atomic vibration",
+    title: "The lattice itself, shaking harder wherever it is hotter",
+  },
+];

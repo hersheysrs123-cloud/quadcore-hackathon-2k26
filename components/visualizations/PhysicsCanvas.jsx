@@ -21,6 +21,14 @@ import {
 } from "@/components/visualizations/scene-kit";
 import { mediumColour, mediumName } from "@/components/visualizations/media";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
+import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
+import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
+import SimpleMachinesCanvas from "@/components/visualizations/SimpleMachinesCanvas";
+import RollerCoasterCanvas from "@/components/visualizations/RollerCoasterCanvas";
+import CircuitBoardCanvas from "@/components/visualizations/CircuitBoardCanvas";
+import StaticElectricityCanvas from "@/components/visualizations/StaticElectricityCanvas";
+import BuoyancyCanvas from "@/components/visualizations/BuoyancyCanvas";
+import HeatTransferCanvas from "@/components/visualizations/HeatTransferCanvas";
 
 // ─── IGCSE Physics · five scenes ────────────────────────────────────
 // Refraction, the motor effect, thin lenses, electromagnetic induction
@@ -3168,6 +3176,14 @@ const SCENES = {
   interference: InterferenceScene,
   orbits: OrbitScene,
   shadows: ShadowLabCanvas,
+  incline_friction: InclineFrictionCanvas,
+  hookes_law: HookesLawCanvas,
+  simple_machines: SimpleMachinesCanvas,
+  roller_coaster_energy: RollerCoasterCanvas,
+  circuits_breadboard: CircuitBoardCanvas,
+  static_electricity: StaticElectricityCanvas,
+  buoyancy: BuoyancyCanvas,
+  heat_transfer: HeatTransferCanvas,
 };
 
 export default function PhysicsCanvas({ topicId, params, setParam, onOpenQuiz }) {

@@ -16,8 +16,11 @@ import {
   AudioWaveform,
   BatteryCharging,
   Boxes,
+  CircuitBoard,
+  CloudLightning,
   Cylinder,
   Dna,
+  Droplets,
   Flame,
   FlaskConical,
   GitBranch,
@@ -29,27 +32,46 @@ import {
   Puzzle,
   Rocket,
   RotateCcw,
+  Scale,
   Scissors,
   Shapes,
+  Ship,
   Shuffle,
   Sigma,
+  Sparkles,
   Spline,
   Thermometer,
+  ThermometerSun,
+  TrainFront,
+  Triangle,
   TrendingDown,
+  Unplug,
   Waves,
+  Weight,
   Wind,
   Zap,
 } from "lucide-react";
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
 import {
   ALGORITHM_OPTIONS,
+  CIRCUIT_TOPOLOGY_OPTIONS,
   CURVE_OPTIONS,
+  FLUID_OPTIONS,
+  FRICTION_SURFACE_OPTIONS,
   GRAVITY_OPTIONS,
+  HEAT_VIEW_OPTIONS,
+  ROD_MATERIAL_OPTIONS,
+  SOLID_PRESET_OPTIONS,
+  SPECIMEN_SHAPE_OPTIONS,
+  STATIC_TARGET_OPTIONS,
   STRUCTURE_OPTIONS,
   SURFACE_OPTIONS,
   VSEPR_PRESETS,
   vseprPresetFor,
 } from "@/components/visualizations/topic-options";
+import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
+import { leakTimeConstant } from "@/lib/electrostatics";
+import { flameIsLit, flameTemperature } from "@/lib/heatTransfer";
 
 export const CATEGORIES = [
   { id: "all", label: "All" },
@@ -557,7 +579,323 @@ export const TOPICS = [
       },
     ],
   },
-  // ═══ Chemistry ═════════════════════════════════════════════════════
+  {
+    id: "incline_friction",
+    category: "physics",
+    icon: Triangle,
+    title: "Incline Plane — Newton's Laws & Friction",
+    blurb: "Resolving weight on a ramp, and the moment static friction runs out",
+    syllabus: "Physics 1.5 · Forces & Motion",
+    keywords:
+      "inclined plane ramp friction static kinetic coefficient mu normal force resolving components mg sin theta mg cos theta free body diagram newton second law angle of repose limiting friction net force acceleration slope",
+    defaults: {
+      rampAngle: 20,
+      surface: "wood",
+      blockMass: 10,
+      appliedForce: 0,
+      showComponents: true,
+      showNet: true,
+      running: true,
+      reset: 0,
+    },
+    controls: [
+      { type: "slider", key: "rampAngle", label: "Ramp angle θ", min: 0, max: 90, step: 1, format: (v) => `${v}°` },
+      { type: "choice", key: "surface", label: "Surface material", columns: 3, options: FRICTION_SURFACE_OPTIONS },
+      { type: "slider", key: "blockMass", label: "Block mass m", min: 1, max: 50, step: 1, format: (v) => `${v} kg` },
+      {
+        type: "slider",
+        key: "appliedForce",
+        label: "External applied pull",
+        min: -500,
+        max: 500,
+        step: 5,
+        format: (v) => (v === 0 ? "none" : v > 0 ? `${v} N up the ramp` : `${-v} N down the ramp`),
+      },
+      { type: "toggle", key: "showComponents", label: "Resolve weight into components" },
+      { type: "toggle", key: "showNet", label: "Show resultant force" },
+      { type: "toggle", key: "running", label: "Let the block move" },
+      { type: "action", key: "reset", label: "Put the block back", icon: RotateCcw },
+    ],
+    concepts: [
+      "Weight always points straight down, but on a slope it is easier to handle as two pieces: mg sinθ down the surface and mg cosθ pressing into it. Steepen the ramp and the first grows while the second shrinks — a steeper slope pulls harder AND grips less, which is why the effect runs away with itself.",
+      "Static friction is not a fixed force. It takes whatever value is needed to hold the block still, up to a ceiling of μs·N — so f ≤ μs·N is an inequality, not an equation. Quoting μs·N for a block that is sitting still is the single most common mistake in this topic.",
+      "The angle at which an unhelped block lets go obeys tanθ = μs, and the mass cancels out entirely: doubling the mass doubles the pull down the slope and doubles the grip holding it. A grain of sand and a shipping container slip at the same angle.",
+    ],
+    quiz: [
+      {
+        question:
+          "A 10 kg crate rests, motionless, on a ramp tilted at 15°. The surfaces have μs = 0.50. What is the friction force acting on the crate?",
+        options: [
+          "About 25 N — exactly enough to balance mg sin 15°",
+          "About 47 N — the maximum, μs mg cos 15°",
+          "About 98 N — equal to the crate's weight",
+          "Zero, because the crate is not moving",
+        ],
+        answer: 0,
+        explanation:
+          "Static friction is a reaction: it supplies exactly what is needed and no more. The crate is in equilibrium, so friction must equal the component of weight down the slope, mg sin 15° ≈ 25 N. The 47 N figure is the ceiling it has not yet reached — the crate is using about half its available grip.",
+      },
+      {
+        question:
+          "A block just begins to slide when a ramp reaches 27°. You replace it with a block of twice the mass. At what angle does the heavier block begin to slide?",
+        options: [
+          "The same 27°",
+          "About 13.5°, because it is heavier",
+          "About 54°, because it presses down harder",
+          "It depends on the surface area in contact",
+        ],
+        answer: 0,
+        explanation:
+          "Slipping starts when mg sinθ exceeds μs mg cosθ, and the mass appears on both sides. Cancel it and the condition is just tanθ = μs — independent of mass, and of contact area too. Doubling the mass doubles the pull down the slope and doubles the grip in exactly the same proportion.",
+      },
+      {
+        question:
+          "For most surfaces μk is smaller than μs. What does a student actually SEE because of that?",
+        options: [
+          "The block lurches suddenly once it starts, instead of easing into motion",
+          "The block slides at a perfectly constant speed",
+          "The block needs a larger force to keep it going than to start it",
+          "Nothing — the difference is only theoretical",
+        ],
+        answer: 0,
+        explanation:
+          "The instant the block breaks away, the friction opposing it drops from μs·N to the smaller μk·N. The forces no longer balance, so there is a sudden net force and the block jerks into motion. It is also why keeping something sliding takes less push than starting it.",
+      },
+    ],
+  },
+  {
+    id: "hookes_law",
+    category: "physics",
+    icon: Weight,
+    title: "Hooke's Law & the Elastic Limit",
+    blurb: "Where F = kx stops being true, and what the spring is like afterwards",
+    syllabus: "Physics 1.6 · Forces & Deformation",
+    keywords:
+      "hooke law spring constant extension elastic limit limit of proportionality plastic deformation permanent set force extension graph gradient elastic potential energy strain stress yield load slotted masses retort stand",
+    defaults: {
+      hangingMass: 0.5,
+      springConstant: 80,
+      overload: 0,
+      newSpring: 0,
+      showGraph: true,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "hangingMass",
+        label: "Add slotted masses",
+        min: 0.05,
+        max: 2.5,
+        step: 0.05,
+        format: (v) => (v < 1 ? `${(v * 1000).toFixed(0)} g` : `${v.toFixed(2)} kg`),
+      },
+      { type: "slider", key: "springConstant", label: "Spring constant k", min: 10, max: 150, step: 5, format: (v) => `${v} N/m` },
+      { type: "toggle", key: "showGraph", label: "Show force–extension graph" },
+      { type: "action", key: "overload", label: "Exceed the elastic limit", icon: TrendingDown, variant: "danger" },
+      { type: "action", key: "newSpring", label: "Fit a fresh spring", icon: RotateCcw },
+    ],
+    concepts: [
+      "F = kx is not a law about springs — it is a description of what a spring does BELOW a threshold. The gradient of the straight part of a force–extension graph is the spring constant k, and the graph only stays straight up to the limit of proportionality.",
+      "Below the elastic limit the deformation is elastic: take the load off and the spring returns to its original length L₀. Past it, some of the deformation is plastic. Unloading runs back down a line of the same gradient k, but it arrives at a permanent set instead of at zero.",
+      "The elastic potential energy stored is ½kx², which is the area under the straight line. Beyond the elastic limit that formula over-states what you get back, because part of the work went into permanently rearranging the metal and is never returned.",
+    ],
+    quiz: [
+      {
+        question:
+          "A spring obeying Hooke's law stretches by 4.0 cm when a 2.0 N weight hangs from it. It is still elastic. What load produces an extension of 6.0 cm?",
+        options: ["3.0 N", "4.0 N", "2.7 N", "6.0 N"],
+        answer: 0,
+        explanation:
+          "Below the limit, extension is proportional to load, so 6.0 ÷ 4.0 = 1.5 times the extension needs 1.5 times the force: 3.0 N. In passing, k = F ÷ x = 2.0 ÷ 0.040 = 50 N/m, and 50 × 0.060 = 3.0 N.",
+      },
+      {
+        question:
+          "A spring is loaded well past its elastic limit, then every weight is taken off. What do you find?",
+        options: [
+          "It is permanently longer than it started, though it still springs when you pull it",
+          "It returns exactly to its original length, just more slowly",
+          "It has become permanently softer — its k is now smaller",
+          "It snaps back past its original length and becomes shorter",
+        ],
+        answer: 0,
+        explanation:
+          "Unloading follows a line of the ORIGINAL gradient k, so the spring is just as stiff as before — but that line no longer passes through the origin. The offset is the permanent set: the spring has a new, longer natural length. Plastic flow moves where a spring starts from without changing how stiff it is.",
+      },
+      {
+        question: "What does the gradient of a force–extension graph tell you, and what does the area under it tell you?",
+        options: [
+          "Gradient is the spring constant k; area is the elastic energy stored",
+          "Gradient is the energy stored; area is the spring constant k",
+          "Gradient is the extension; area is the force applied",
+          "Gradient is the elastic limit; area is the permanent set",
+        ],
+        answer: 0,
+        explanation:
+          "Gradient = ΔF ÷ Δx, which is the definition of k. Area under a straight line from the origin = ½ × base × height = ½ × x × kx = ½kx², the elastic potential energy. Watching the gradient collapse past the elastic limit is how you see the spring stop obeying Hooke's law.",
+      },
+    ],
+  },
+  {
+    id: "simple_machines",
+    category: "physics",
+    icon: Scale,
+    title: "Simple Machines & Mechanical Advantage",
+    blurb: "Levers and a block and tackle — less force, but never less work",
+    syllabus: "Physics 1.7 · Work, Energy & Machines",
+    keywords:
+      "simple machines lever class 1 2 3 fulcrum effort load arm mechanical advantage velocity ratio distance ratio pulley block and tackle sheaves work input output efficiency wheelbarrow tweezers crowbar moment principle of moments",
+    defaults: {
+      machineType: "lever1",
+      armPosition: 0.35,
+      sheaves: 2,
+      loadN: 300,
+      running: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "machineType",
+        label: "Machine type",
+        columns: 2,
+        options: [
+          { value: "lever1", label: "Class 1 lever", title: "load — fulcrum — effort · see-saw, crowbar" },
+          { value: "lever2", label: "Class 2 lever", title: "fulcrum — load — effort · wheelbarrow" },
+          { value: "lever3", label: "Class 3 lever", title: "fulcrum — effort — load · tweezers, forearm" },
+          { value: "pulley", label: "Block & tackle", title: "n sheaves sharing the load between n ropes" },
+        ],
+      },
+      {
+        type: "slider",
+        key: "armPosition",
+        label: "Fulcrum position",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        format: (v) => `${(v * 100).toFixed(0)}% along the bar`,
+        when: (params) => (params?.machineType ?? "lever1") !== "pulley",
+      },
+      {
+        type: "slider",
+        key: "sheaves",
+        label: "Sheaves in the tackle",
+        min: 1,
+        max: 4,
+        step: 1,
+        format: (v) => `${v} rope${v === 1 ? "" : "s"} supporting the load`,
+        when: (params) => params?.machineType === "pulley",
+      },
+      { type: "slider", key: "loadN", label: "Load weight", min: 10, max: 500, step: 10, format: (v) => `${v} N` },
+      { type: "toggle", key: "running", label: "Animate the stroke" },
+    ],
+    concepts: [
+      "A machine changes the force you need, never the work you do. Work in = work out (plus whatever friction takes), so cutting the effort force to a third means moving your hand three times as far. That trade is the whole of what a simple machine is.",
+      "The three classes of lever are defined by which of the three points is in the middle. Class 2 always has the effort arm longer, so its advantage is always above 1. Class 3 always has it shorter, so its advantage is always below 1 — your forearm gives up force to gain speed and reach.",
+      "In a block and tackle the load is shared between the rope segments supporting it, so n ropes need one nth of the force — and n metres of rope hauled through for every metre the load rises. Adding sheaves keeps paying, but each one adds friction, so efficiency falls as the advantage grows.",
+    ],
+    quiz: [
+      {
+        question:
+          "A pulley system lets you raise a 400 N crate using an effort of 100 N. Ignoring friction, how far must you pull the rope to raise the crate by 0.5 m?",
+        options: ["2.0 m", "0.5 m", "0.125 m", "4.0 m"],
+        answer: 0,
+        explanation:
+          "Work in must equal work out: 100 × d = 400 × 0.5 = 200 J, so d = 2.0 m. The force went down by a factor of four, so the distance goes up by the same factor of four — that is the trade, and no arrangement of pulleys escapes it.",
+      },
+      {
+        question:
+          "For a real machine, the distance ratio d_effort ÷ d_load and the force ratio F_load ÷ F_effort are not quite equal. What is the relationship between them?",
+        options: [
+          "The force ratio is smaller, and dividing it by the distance ratio gives the efficiency",
+          "The force ratio is larger, because friction helps lift the load",
+          "They are always exactly equal — any difference is measurement error",
+          "The distance ratio changes with friction; the force ratio does not",
+        ],
+        answer: 0,
+        explanation:
+          "The distance ratio is fixed by the machine's geometry — friction cannot change the shape of a lever. But friction means some input work never reaches the load, so the effort force must be larger than the ideal, and the measured force ratio comes out smaller. Efficiency = MA ÷ VR is exactly that shortfall.",
+      },
+      {
+        question:
+          "Your forearm is a class 3 lever: the biceps attaches about 4 cm from the elbow, and you hold a load about 32 cm from it. What does this arrangement buy you?",
+        options: [
+          "Speed and range — your hand moves eight times as far as the muscle contracts",
+          "Force — the muscle only needs an eighth of the load's weight",
+          "Nothing; the body is simply badly designed",
+          "Efficiency — no energy is wasted in a class 3 lever",
+        ],
+        answer: 0,
+        explanation:
+          "The effort arm is the shorter one, so the mechanical advantage is 4 ÷ 32 = 0.125 — the biceps must pull about eight times the load's weight. In exchange, a small, slow muscle contraction becomes a large, fast hand movement. For throwing and reaching, that is the better bargain.",
+      },
+    ],
+  },
+  {
+    id: "roller_coaster_energy",
+    category: "physics",
+    icon: TrainFront,
+    title: "Energy Conservation — Loop-the-Loop",
+    blurb: "GPE into KE and back, and the least height that survives the loop",
+    syllabus: "Physics 1.7 · Energy Stores & Transfers",
+    keywords:
+      "conservation of energy gravitational potential kinetic energy roller coaster loop the loop centripetal force minimum speed root gR g-force normal reaction thermal dissipation friction brakes mgh half mv squared energy transfer",
+    defaults: {
+      releaseHeight: 25,
+      loopRadius: 8,
+      cartMass: 500,
+      friction: false,
+      running: true,
+      relaunch: 0,
+    },
+    controls: [
+      { type: "slider", key: "releaseHeight", label: "Initial release height", min: 5, max: 50, step: 1, format: (v) => `${v} m` },
+      { type: "slider", key: "loopRadius", label: "Loop radius R", min: 3, max: 15, step: 1, format: (v) => `${v} m · needs ${(2.5 * v).toFixed(1)} m of drop` },
+      { type: "slider", key: "cartMass", label: "Cart mass", min: 200, max: 1000, step: 50, format: (v) => `${v} kg` },
+      { type: "toggle", key: "friction", label: "Realistic steel-on-steel friction" },
+      { type: "toggle", key: "running", label: "Run the cart" },
+      { type: "action", key: "relaunch", label: "Send it round again", icon: RotateCcw },
+    ],
+    concepts: [
+      "On a frictionless track GPE + KE never changes. Every metre of height the cart gives up buys exactly the same amount of kinetic energy, so mgh = ½mv² and the speed at any point depends only on how far it has descended — not on the shape of the track it took to get there.",
+      "The cart's mass cancels out of that equation entirely. A full train and a single empty car released from the same height arrive at the bottom at the same speed, and need the same minimum height to survive the loop. The mass changes every energy in the budget and none of the conclusions.",
+      "At the top of the loop gravity has to supply the centripetal force by itself, which needs v² ≥ gR. Working back through conservation gives a minimum release height of 2.5R. Below it the rail would have to pull the cart inward to hold it on, and a wheel on the inside of a rail cannot pull.",
+    ],
+    quiz: [
+      {
+        question:
+          "A coaster has a vertical loop of radius 10 m. Ignoring friction, what is the lowest height the cart can be released from and still make it round?",
+        options: ["25 m", "20 m", "10 m", "12.5 m"],
+        answer: 0,
+        explanation:
+          "At the top of the loop the cart needs v² ≥ gR to stay on the rail. The top is at a height of 2R = 20 m, so conservation gives ½v² = g(h − 20), and v² = gR = 10g requires h − 20 ≥ 5, so h ≥ 25 m. The general result is h ≥ 2.5R, and the mass never enters it.",
+      },
+      {
+        question:
+          "Two identical carts are released from the same height on the same frictionless track, but one carries four passengers and the other is empty. Which is travelling faster at the bottom?",
+        options: [
+          "Neither — they arrive at exactly the same speed",
+          "The heavier one, because it has more gravitational potential energy",
+          "The lighter one, because it has less inertia to accelerate",
+          "It depends on the shape of the drop",
+        ],
+        answer: 0,
+        explanation:
+          "mgh = ½mv² has m on both sides, so it cancels: v = √(2gh) regardless of mass. The loaded cart does start with more energy, but it also has proportionally more to move, and the two effects exactly balance. It is the same reason all objects fall at the same rate.",
+      },
+      {
+        question:
+          "With friction switched on, what happens to the total of GPE + KE + thermal energy as the cart runs?",
+        options: [
+          "It stays constant — friction moves energy into the thermal store, it does not destroy it",
+          "It falls steadily, because friction removes energy from the system",
+          "It rises, because the brakes add energy",
+          "It stays constant only until the brakes engage",
+        ],
+        answer: 0,
+        explanation:
+          "Energy is conserved whether or not friction acts. What friction changes is where the energy is: it moves out of the mechanical stores and into thermal energy in the wheels, rails and air. That store is the one the cart cannot draw back on, which is why the ride ends — but the total never budges.",
+      },
+    ],
+  },
   {
     id: "shadows",
     category: "physics",
@@ -604,6 +942,413 @@ export const TOPICS = [
       },
     ],
   },
+  {
+    id: "circuits_breadboard",
+    category: "physics",
+    icon: CircuitBoard,
+    title: "Series vs Parallel Circuits",
+    blurb: "Unscrew one bulb and watch which circuit survives it",
+    syllabus: "Physics 4.3 · Electric Circuits",
+    keywords:
+      "series parallel circuit equivalent resistance R1 + R2 reciprocal branch current ammeter voltmeter kirchhoff junction rule loop rule potential difference bulb filament brightness short circuit internal resistance drift velocity electrons breadboard ohm law V=IR",
+    defaults: {
+      topology: "series",
+      voltage: 6,
+      bulbR: 10,
+      unscrewA: 0,
+      shortCircuit: 0,
+      running: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "topology",
+        label: "Circuit topology",
+        columns: 3,
+        options: CIRCUIT_TOPOLOGY_OPTIONS,
+      },
+      {
+        type: "slider",
+        key: "voltage",
+        label: "Battery voltage",
+        min: 1.5,
+        max: 24,
+        step: 0.5,
+        format: (v) => `${Number(v).toFixed(1)} V`,
+      },
+      {
+        type: "slider",
+        key: "bulbR",
+        label: "Bulb resistance",
+        min: 2,
+        max: 50,
+        step: 1,
+        format: (v) => `${v} Ω each`,
+      },
+      { type: "action", key: "unscrewA", label: "Unscrew / replace bulb A", icon: Unplug, variant: "ghost" },
+      { type: "action", key: "shortCircuit", label: "Add / remove short circuit", icon: Zap, variant: "danger" },
+      { type: "toggle", key: "running", label: "Animate the drift electrons" },
+    ],
+    concepts: [
+      "A series circuit is one loop, so the same current passes through every component in it — and the resistances simply add, R_eq = R₁ + R₂. Because the two bulbs share the supply voltage between them, each gets half of it and runs at a quarter of the power a single bulb would. Break the loop anywhere and everything stops, because there is no longer any path back to the battery.",
+      "In parallel each branch sits across the full supply, so each bulb gets the whole voltage and runs at full brightness, and the branch currents add up to the total. Adding a branch adds a path rather than an obstacle, so the equivalent resistance goes DOWN — 1/R_eq = 1/R₁ + 1/R₂ — and the battery has to deliver more current, not less. That is why house wiring is parallel and why a circuit can be overloaded.",
+      "The electrons in the wire are not consumed. Watch the streams: every conductor carries the same spacing of carriers and only their speed changes, and at every junction the current arriving equals the current leaving. Charge is not used up by a bulb — energy is. That is the difference between current, which is the same on both sides of a lamp, and potential difference, which is not.",
+    ],
+    quiz: [
+      {
+        question:
+          "Two identical 10 Ω bulbs are wired in series across a 12 V supply. One bulb is unscrewed. What happens, and why?",
+        options: [
+          "Both go out — removing the bulb breaks the single loop, so no current flows anywhere",
+          "The other bulb gets brighter, because it now has all 12 V to itself",
+          "The other bulb is unaffected — it has its own path to the battery",
+          "The other bulb dims but stays lit, at half its previous brightness",
+        ],
+        answer: 0,
+        explanation:
+          "A series circuit has exactly one path. An unscrewed bulb is an infinite resistance in that path, so the current everywhere in the loop falls to zero and the remaining bulb goes dark too. The full supply voltage appears across the empty socket — which is why old fairy lights all failed together, and why a voltmeter across the gap reads 12 V while an ammeter reads nothing.",
+      },
+      {
+        question:
+          "The same two 10 Ω bulbs are re-wired in parallel across the same 12 V supply. Compared with the series arrangement, what happens to the total current drawn from the battery?",
+        options: [
+          "It rises by about four times, because R_eq falls from 20 Ω to 5 Ω",
+          "It halves, because the current now splits between two branches",
+          "It is unchanged — the same two bulbs are connected to the same battery",
+          "It doubles, because there are two branches instead of one",
+        ],
+        answer: 0,
+        explanation:
+          "Series gives R_eq = 10 + 10 = 20 Ω. Parallel gives 1/R_eq = 1/10 + 1/10, so R_eq = 5 Ω — a quarter of the resistance, and therefore about four times the current. The trap is thinking that splitting the current between branches must reduce the total; each branch draws what it would have drawn alone, so the total is their sum.",
+      },
+      {
+        question:
+          "A wire of almost no resistance is connected directly across the two bulbs in a parallel circuit. What do the bulbs do, and what does the battery do?",
+        options: [
+          "The bulbs go out and the battery delivers a very large current through the wire",
+          "The bulbs get much brighter, because the extra wire lets more current reach them",
+          "Nothing changes — the wire is just another parallel branch",
+          "The bulbs flicker, because the current alternates between paths",
+        ],
+        answer: 0,
+        explanation:
+          "The jumper is a parallel branch of about 0.01 Ω, so almost the entire current takes it and the voltage across the network — and therefore across the bulbs — collapses to nearly nothing. The current is limited only by the battery's own internal resistance, which is why a shorted cell gets hot: with almost no external resistance, the power is being dissipated inside the battery itself.",
+      },
+    ],
+  },
+  {
+    id: "static_electricity",
+    category: "physics",
+    icon: CloudLightning,
+    title: "Static Electricity & Charge Transfer",
+    blurb: "Rub a balloon on wool and count the electrons that moved",
+    syllabus: "Physics 4.2 · Electric Charge",
+    keywords:
+      "static electricity electrostatic charge friction triboelectric electron transfer positive negative attraction repulsion induction polarisation dipole neutral wall balloon wool coulomb law inverse square van de graaff earthing humidity charge leakage",
+    defaults: {
+      target: "wall",
+      separation: 0.12,
+      humidity: 40,
+      rubs: 0,
+      discharge: 0,
+      vdg: false,
+    },
+    controls: [
+      { type: "action", key: "rubs", label: "Rub the balloon on the sweater", icon: Sparkles },
+      {
+        type: "choice",
+        key: "target",
+        label: "Hold the balloon near",
+        columns: 3,
+        options: STATIC_TARGET_OPTIONS,
+      },
+      {
+        type: "slider",
+        key: "separation",
+        label: "Position — gap to the object",
+        min: 0.01,
+        max: 0.4,
+        step: 0.005,
+        format: (v) => `${(Number(v) * 100).toFixed(1)} cm · or drag the balloon`,
+      },
+      {
+        type: "slider",
+        key: "humidity",
+        label: "Air humidity",
+        min: 10,
+        max: 95,
+        step: 1,
+        format: (v) => `${v}% RH · charge half-life ${(0.693 * leakTimeConstant(v)).toFixed(1)} s`,
+      },
+      { type: "toggle", key: "vdg", label: "Run the Van de Graaff" },
+      { type: "action", key: "discharge", label: "Earth everything", icon: Waves, variant: "ghost" },
+    ],
+    concepts: [
+      "Rubbing does not create charge — it moves electrons. Wool holds its outer electrons loosely and latex grips them tightly, so every electron that crosses leaves a matching positive behind on the sweater. The two counts on screen are always equal and opposite, which is what conservation of charge means: the pair was there all along, and rubbing only separated them.",
+      "A charged object attracts a NEUTRAL one. The balloon's field pulls the wall's electrons back and leaves the near surface positive, and since the attracted charge is closer than the repelled charge, attraction always wins. That is induction, and it is why a charged balloon picks up paper, bends a stream of water and sticks to a wall that has no charge of its own.",
+      "Coulomb's law is an inverse square: F = k·q₁q₂/r². Halving the gap quadruples the force, which is why the balloon snaps in over the last centimetre. Damp air ends the demonstration by giving the charge a conducting film of water to leak away along — the physics has not changed, the charge has simply gone.",
+    ],
+    quiz: [
+      {
+        question:
+          "After rubbing a balloon on a wool sweater, the balloon carries a negative charge. What is the sweater's charge, and why?",
+        options: [
+          "Equally positive — it lost exactly the electrons the balloon gained",
+          "Also negative, because rubbing creates charge on both surfaces",
+          "Neutral, because the charge all went onto the balloon",
+          "Positive, but smaller, because some charge is lost to the air during rubbing",
+        ],
+        answer: 0,
+        explanation:
+          "Charge is conserved: rubbing separates existing charges rather than making new ones. Every electron the latex gained is one the wool no longer has, so the two objects carry equal and opposite charges. Nothing was created, and if you brought them back together they would neutralise exactly.",
+      },
+      {
+        question:
+          "A negatively charged balloon is held near a neutral wall and sticks to it. Why does a neutral object attract a charged one?",
+        options: [
+          "The wall polarises — positives are drawn to the near surface, and being closer, they win",
+          "The wall must have been positively charged already",
+          "The balloon's charge flows into the wall and pulls it along",
+          "Neutral objects are always attracted to charged ones by gravity",
+        ],
+        answer: 0,
+        explanation:
+          "The balloon's field shifts charge within each molecule of the wall, leaving the near surface slightly positive and the far side slightly negative. The wall is still neutral overall, but the attracted positives sit closer than the repelled negatives, and because the force falls off as 1/r² the nearer charges dominate. Induction always produces attraction — never repulsion.",
+      },
+      {
+        question:
+          "Two balloons carrying the same charge repel each other with a force F when their centres are 20 cm apart. They are moved to 10 cm apart. What is the force now?",
+        options: ["4F", "2F", "F/2", "F/4"],
+        answer: 0,
+        explanation:
+          "Coulomb's law goes as 1/r², so halving the separation multiplies the force by 2² = 4. This is the same inverse square behaviour as gravity, and it is why electrostatic effects seem to switch on suddenly as objects get close — most of the force appears over the last short distance.",
+      },
+      {
+        question:
+          "The same demonstration works beautifully on a dry winter day and barely at all in a humid bathroom. What has changed?",
+        options: [
+          "A film of water on the surfaces conducts the charge away almost as fast as rubbing puts it there",
+          "Water molecules block the electric field between the objects",
+          "Humid air stops electrons being transferred by rubbing in the first place",
+          "The balloon becomes heavier when damp, so the force cannot lift it",
+        ],
+        answer: 0,
+        explanation:
+          "Humid air is not itself much of a conductor. What happens is that a thin layer of water condenses on both surfaces and gives the separated charge a conducting path to creep away along. The transfer still occurs; the charge simply does not stay put long enough to demonstrate anything, which is why electrostatics experiments are a winter activity.",
+      },
+    ],
+  },
+  {
+    id: "buoyancy",
+    category: "physics",
+    icon: Ship,
+    title: "Archimedes' Principle, Density & Buoyant Force",
+    blurb: "Why a steel ship floats and a steel pebble sinks",
+    syllabus: "Physics 1.4 · Density & Pressure",
+    keywords:
+      "archimedes principle buoyancy upthrust buoyant force density relative density displacement displaced volume overflow can eureka floating sinking flotation apparent weight spring balance hull ship pebble mercury saltwater honey gasoline plimsoll line submarine iceberg",
+    defaults: {
+      objectDensity: 2.7,
+      densityPreset: "aluminium",
+      objectVolume: 200,
+      fluid: "freshwater",
+      solidShape: "cube",
+      showForces: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "densityPreset",
+        label: "Material",
+        columns: 5,
+        options: SOLID_PRESET_OPTIONS,
+        patch: (v) => ({ densityPreset: v, objectDensity: SOLIDS[v].density }),
+      },
+      {
+        type: "slider",
+        key: "objectDensity",
+        label: "Object density ρ",
+        min: MIN_DENSITY,
+        max: MAX_DENSITY,
+        step: 0.05,
+        format: (v) => `${Number(v).toFixed(2)} g/cm³`,
+        // Dragging off a preset has to clear the preset, or the highlighted
+        // button goes on claiming the specimen is steel when it is not.
+        patch: (v) => ({ objectDensity: v, densityPreset: solidPresetFor(v) }),
+      },
+      {
+        type: "slider",
+        key: "objectVolume",
+        label: "Object volume V — of the material itself",
+        min: 50,
+        max: 500,
+        step: 10,
+        format: (v) => `${Number(v).toFixed(0)} cm³`,
+      },
+      {
+        type: "choice",
+        key: "fluid",
+        label: "Fluid medium",
+        columns: 3,
+        options: FLUID_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "solidShape",
+        label: "On the hook",
+        columns: 4,
+        options: SPECIMEN_SHAPE_OPTIONS,
+      },
+      { type: "toggle", key: "showForces", label: "Show force vectors" },
+    ],
+    concepts: [
+      "The upthrust on anything in a fluid equals the weight of the fluid it pushes out of the way — that is Archimedes' principle, and the overflow can measures it directly. It is not a separate force that fluids happen to exert: pressure grows with depth, so the push upward on an object's underside is larger than the push downward on its top, and the difference is ρVg. That also settles the question students ask next — once an object is fully under, taking it deeper changes nothing, because both faces gain pressure equally and only the difference between them matters.",
+      "Whether something floats has nothing to do with how heavy it is and everything to do with its density — mass divided by the volume of fluid it can push aside. A steel pebble and a steel ship are made of the same 7.85 g/cm³ metal, but the ship's hull encloses a great deal of air, so the mass of the whole vessel spread over the volume it displaces comes out below 1.00 g/cm³ and it floats. Punch a hole in that hull and the air is replaced by water: the mean density jumps back to steel's, and the ship goes down.",
+      "A floating object sinks until it has displaced exactly its own weight of fluid, and no further — so the fraction submerged is simply ρ_object ÷ ρ_fluid. Ice at 0.92 g/cm³ floats with 92% of itself below the waterline in fresh water, which is why an iceberg is mostly invisible. Move to the sea at 1.03 and everything floats a little higher, because each cubic centimetre displaced is now worth 3% more upthrust.",
+    ],
+    quiz: [
+      {
+        question:
+          "A solid steel pebble sinks, but a ship built from the same steel floats. What is the essential difference?",
+        options: [
+          "The ship's hull encloses air, so its mass ÷ displaced volume is below the water's density",
+          "The ship is much heavier, and heavier objects displace more water",
+          "The ship's paint and coatings stop water reaching the steel",
+          "The ship's shape lets water flow around it instead of pressing down on it",
+        ],
+        answer: 0,
+        explanation:
+          "Floating is decided by mean density, not by material or by weight. The pebble's mass is spread over the volume of steel alone, so its mean density is 7.85 g/cm³ and it goes down. The hull spreads its mass over the whole volume of the vessel — steel plus the air inside — which brings the mean below 1.00 g/cm³. Being heavier is irrelevant: an object that weighs a thousand times more simply needs to displace a thousand times more water, and a large enough hull can do exactly that.",
+      },
+      {
+        question:
+          "A wooden block floats in fresh water with 60% of its volume below the surface. What is the block's density?",
+        options: ["0.60 g/cm³", "1.60 g/cm³", "0.40 g/cm³", "It cannot be found without knowing the block's size"],
+        answer: 0,
+        explanation:
+          "A floating object displaces exactly its own weight, so ρ_object·V·g = ρ_fluid·V_submerged·g. The volumes cancel down to a ratio: the fraction submerged IS ρ_object ÷ ρ_fluid. Sixty per cent under fresh water means 0.60 × 1.00 = 0.60 g/cm³. The size never enters it, which is why the same timber floats at the same waterline whether it is a matchstick or a log.",
+      },
+      {
+        question:
+          "A fully submerged metal cube hanging from a spring balance is lowered from 10 cm deep to 40 cm deep. What happens to the buoyant force on it?",
+        options: [
+          "It is unchanged — the same volume of water is displaced at both depths",
+          "It quadruples, because the pressure at 40 cm is four times that at 10 cm",
+          "It increases slightly, because deeper water is more compressed",
+          "It falls, because there is more water above the cube pushing it down",
+        ],
+        answer: 0,
+        explanation:
+          "Upthrust is ρVg and depth appears nowhere in it. Both faces of the cube do feel much larger pressures at 40 cm, but the buoyant force comes from the DIFFERENCE between them, and that difference is set by the cube's own height, which has not changed. The balance reading is identical at both depths — the classic experiment that separates pressure, which grows with depth, from upthrust, which does not.",
+      },
+      {
+        question:
+          "An object weighs 5.00 N in air and 3.00 N when fully immersed in water. What volume of water has it displaced? (ρ_water = 1000 kg/m³, g = 9.81 m/s²)",
+        options: ["About 204 cm³", "About 306 cm³", "About 510 cm³", "About 20 cm³"],
+        answer: 0,
+        explanation:
+          "The apparent loss in weight IS the upthrust: 5.00 − 3.00 = 2.00 N. Archimedes' principle says that is the weight of the displaced water, so its mass is 2.00 ÷ 9.81 = 0.204 kg, and at 1000 kg/m³ that is 2.04 × 10⁻⁴ m³, or 204 cm³. Because the object was fully immersed, that is also the object's own volume — which is precisely how the density of an awkwardly shaped object is measured in the lab.",
+      },
+    ],
+  },
+  {
+    id: "heat_transfer",
+    category: "physics",
+    icon: ThermometerSun,
+    title: "Thermal Heat Transfer — Conduction, Convection & Radiation",
+    blurb: "One bench, three ways for heat to move, all running at once",
+    syllabus: "Physics 2.3 · Thermal Energy Transfer",
+    keywords:
+      "conduction convection radiation thermal conductivity heat transfer copper iron glass wood insulator conductor free electrons lattice vibration convection current density difference potassium permanganate dye tracer bunsen burner beaker infrared electromagnetic wave emission absorption black surface stefan boltzmann vacuum flask thermal imaging FLIR",
+    defaults: {
+      flameIntensity: 55,
+      rodMaterial: "copper",
+      viewMode: "flir",
+      dyeDrop: 0,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "flameIntensity",
+        label: "Flame intensity",
+        min: 0,
+        max: 100,
+        step: 1,
+        format: (v) =>
+          flameIsLit(v) ? `${Number(v).toFixed(0)}% · ${flameTemperature(v).toFixed(0)} °C` : "out",
+      },
+      {
+        type: "choice",
+        key: "rodMaterial",
+        label: "Rod material — the one being probed",
+        columns: 4,
+        options: ROD_MATERIAL_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "viewMode",
+        label: "View mode",
+        columns: 2,
+        options: HEAT_VIEW_OPTIONS,
+      },
+      { type: "action", key: "dyeDrop", label: "Drop a KMnO₄ crystal", icon: Droplets },
+    ],
+    concepts: [
+      "Conduction passes energy along without anything travelling: a hot particle vibrates harder, jostles its neighbour, and the disturbance moves through a lattice that stays exactly where it is. Metals do it far better than anything else because they have free electrons as well, which drift through the whole structure carrying energy with them — copper's k of 385 W/m·K against wood's 0.15 is a factor of two and a half thousand. That is why the copper rod's far end becomes too hot to hold while the wooden one beside it, in the same beaker for the same time, never leaves room temperature.",
+      "Convection needs the material itself to move, so it happens only in fluids. Water at the bottom of the beaker is heated, expands, becomes less dense than the water above it, and is pushed up by that colder water sinking to take its place — the dye traces the resulting loop. This is also why kettles and radiators are heated from below: heat the top of a beaker and the warm, less dense layer simply stays where it is, and the water underneath can sit near room temperature indefinitely.",
+      "Radiation is electromagnetic wave — infrared, mostly — and it is the only mode that needs no material at all, which is how the Sun's energy crosses 150 million kilometres of vacuum. Emission follows the Stefan–Boltzmann law and goes as the FOURTH power of absolute temperature, so a flame at 1500 °C radiates roughly ninety times as strongly as the same flame at 300 °C. Dull black surfaces are the best emitters and the best absorbers, which is why the plate in this scene is blackened and why a vacuum flask is silvered.",
+    ],
+    quiz: [
+      {
+        question:
+          "Copper and glass rods of identical size are left in the same beaker of hot water. After a minute the copper's far end is hot and the glass's is still cold. Why?",
+        options: [
+          "Copper has free electrons that carry energy through it as well as passing it between vibrating atoms",
+          "Copper absorbs more heat from the water because metals are better absorbers",
+          "The glass rod is reflecting the heat back into the water",
+          "Copper has a lower specific heat capacity, so the same energy raises its temperature further",
+        ],
+        answer: 0,
+        explanation:
+          "Both rods conduct by the same lattice mechanism — vibrating particles jostling their neighbours — but a metal has a second channel that an insulator does not: a sea of delocalised electrons free to move through the whole structure, carrying kinetic energy from the hot end to the cold one directly. That is the difference between k = 385 and k = 0.8. Specific heat capacity affects how quickly a rod warms, not how far along it the heat gets, and at the steady state the glass rod's far end is simply losing to the air everything the glass manages to deliver.",
+      },
+      {
+        question:
+          "Why is a beaker of water heated from underneath rather than from the top?",
+        options: [
+          "Heating the bottom makes the warm water rise and sets up a convection current that stirs the whole beaker",
+          "The glass at the bottom of a beaker is thinner, so heat gets in faster",
+          "Heat naturally travels upward, so heating the top would send it out of the beaker",
+          "Water conducts heat well downward but poorly upward",
+        ],
+        answer: 0,
+        explanation:
+          "Water heated at the bottom expands, becomes less dense than the water above it and is displaced upward by colder water sinking past it — the loop carries the heat through the whole beaker in seconds. Heat the top instead and the warm layer is already the least dense, so it stays put, no current forms, and you are left with conduction alone through water that conducts about as well as glass. The classic demonstration is a test tube of water boiled at the top while ice sits unmelted at the bottom.",
+      },
+      {
+        question:
+          "The blackened plate in this scene warms up although nothing touches it and it sits to the side of the rising hot air. Which mode is responsible, and what rules the others out?",
+        options: [
+          "Radiation — conduction needs contact and convection needs the air to carry heat to it, and the plate is neither touching nor downstream of the flame",
+          "Conduction, through the layer of air between the flame and the plate",
+          "Convection, because the hot air spreads out in all directions from the flame",
+          "All three equally, since heat always travels by every mode at once",
+        ],
+        answer: 0,
+        explanation:
+          "Conduction requires a material path in contact, and the plate is mounted on its own stand with only still air in between — air being one of the poorest conductors there is. Convection carries heat with moving fluid, and the flame's hot gases rise straight up into the beaker rather than sideways to the plate. What is left is infrared radiation, which travels in straight lines from the flame, passes through air without warming it appreciably, and is absorbed by the black surface. Blocking the line of sight with a card stops it at once, which is the experiment that proves it.",
+      },
+      {
+        question:
+          "A hot object's absolute temperature is doubled. By what factor does the power it radiates increase?",
+        options: ["16", "2", "4", "8"],
+        answer: 0,
+        explanation:
+          "The Stefan–Boltzmann law gives P = εσAT⁴, so doubling T multiplies the radiated power by 2⁴ = 16. The fourth power is why radiation is almost negligible for warm objects and utterly dominant for hot ones: it is barely worth mentioning for a radiator at 60 °C, but it is how essentially all of a filament lamp's — and the Sun's — energy leaves. Note that T must be in kelvin, since the law is about absolute temperature; doubling a Celsius reading is not doubling T.",
+      },
+    ],
+  },
+  // ═══ Chemistry ═════════════════════════════════════════════════════
   {
     id: "bohr",
     category: "chemistry",

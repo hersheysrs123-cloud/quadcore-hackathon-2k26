@@ -12,6 +12,26 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { solveIncline, surfaceFor } from "@/lib/inclineForces";
+import { loadForce, solveSpring } from "@/lib/hookesLaw";
+import { isLever, solveMachine } from "@/lib/simpleMachines";
+import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
+import { FLUIDS, fluidComparison, solveBuoyancy } from "@/lib/buoyancy";
+import { FUSE_A, solveCircuit } from "@/lib/circuits";
+import {
+  CHARGE_PER_MARKER,
+  MAX_MARKERS,
+  chargeOf,
+  electronCount,
+  leakTimeConstant,
+  solveStatic,
+} from "@/lib/electrostatics";
+import {
+  ROD_MATERIALS,
+  TIME_LAPSE,
+  WAX_MELTING_C,
+  solveHeatTransfer,
+} from "@/lib/heatTransfer";
 
 // ─── Visualization HUD ──────────────────────────────────────────────
 // One overlay drives all thirteen scenes: parameter controls rendered
@@ -643,6 +663,483 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#34d399", shape: "dot", label: "Orbiting Satellite", note: "Body in continuous gravitational free-fall" },
           { color: "#34d399", shape: "line", label: "Orbital Path Trail", note: "Closed elliptical or open escape trajectory" },
           { color: "#38bdf8", shape: "line", label: "Spacetime Potential Sheet", note: "Depth represents −GM/r potential energy" },
+        ],
+      };
+      break;
+    }
+
+    case "incline_friction": {
+      const angle = num(params.rampAngle, 20);
+      const mass = num(params.blockMass, 10);
+      const applied = num(params.appliedForce, 0);
+      const key = params.surface || "wood";
+      const s = surfaceFor(key);
+      // Solved at rest: the panel describes the situation the block is IN,
+      // and re-deriving it here rather than mirroring the scene's arithmetic
+      // is what stops the two drifting apart.
+      const f = solveIncline({ massKg: mass, angleDeg: angle, surface: key, appliedForce: applied });
+      const slips = angle > f.reposeAngle + 1e-9;
+
+      readout = {
+        title: "Block on an Incline",
+        subtitle: `${s.label} · μs = ${s.muS}, μk = ${s.muK}`,
+        rows: [
+          ["Weight W = mg", `${f.weight.toFixed(1)} N`],
+          ["W∥ = mg sinθ", `${f.weightParallel.toFixed(1)} N`, "gold"],
+          ["W⊥ = mg cosθ", `${f.weightPerpendicular.toFixed(1)} N`],
+          ["Normal force N", `${f.normal.toFixed(1)} N`, "good"],
+          ["Friction acting", `${f.frictionMagnitude.toFixed(1)} N`, f.isStatic ? "good" : "warn"],
+          ["Maximum grip μs·N", `${f.grip.toFixed(1)} N`],
+          ["Grip in use", `${(f.gripUsed * 100).toFixed(0)}%`, f.onTheVerge ? "warn" : f.isStatic ? "good" : "bad"],
+          ["Kinetic friction μk·N", `${f.slidingFriction.toFixed(1)} N`],
+          ["Applied force F", applied === 0 ? "none" : `${applied.toFixed(0)} N ${applied > 0 ? "up" : "down"} the ramp`],
+          ["Resultant ΣF", `${f.netForce.toFixed(1)} N`, Math.abs(f.netForce) < 0.05 ? "good" : "warn"],
+          ["Acceleration a", `${f.acceleration.toFixed(2)} m/s²`, f.isStatic ? "good" : "bad"],
+          ["State", f.isStatic ? "in equilibrium" : "sliding", f.isStatic ? "good" : "bad"],
+          ["Angle of repose", `${f.reposeAngle.toFixed(1)}°`, slips ? "bad" : "good"],
+        ],
+        note: f.isStatic
+          ? f.onTheVerge
+            ? `On the verge: friction is supplying ${f.frictionMagnitude.toFixed(1)} N of the ${f.grip.toFixed(1)} N available. One more degree and it goes.`
+            : `Static friction is supplying exactly ${f.frictionMagnitude.toFixed(1)} N — no more than the ${f.demand.toFixed(1)} N being asked of it. It could supply up to ${f.grip.toFixed(1)} N, so f ≤ μs·N still holds with room to spare.`
+          : `Sliding, so friction is now fixed at μk·N = ${f.slidingFriction.toFixed(1)} N and no longer adjusts. The resultant ${Math.abs(f.netForce).toFixed(1)} N gives a = ${Math.abs(f.acceleration).toFixed(2)} m/s² ${f.acceleration < 0 ? "down" : "up"} the slope.`,
+        noteTone: f.isStatic ? (f.onTheVerge ? "warn" : "good") : "bad",
+      };
+
+      legend = {
+        title: "Free-Body Diagram Key",
+        items: [
+          { color: "#fb7185", label: "Weight W = mg", note: "vertically down, whatever the slope does" },
+          { color: "#fb923c", label: "W∥ = mg sinθ", note: `${f.weightParallel.toFixed(1)} N down the surface` },
+          { color: "#a78bfa", label: "W⊥ = mg cosθ", note: `${f.weightPerpendicular.toFixed(1)} N into the surface` },
+          { color: "#38bdf8", label: "Normal force N", note: "equal and opposite to W⊥ — they cancel" },
+          { color: "#2dd4bf", label: "Friction f", note: f.isStatic ? "a reaction, ≤ μs·N" : "fixed at μk·N once sliding" },
+          { color: "#fbbf24", label: "Applied force F", note: "acts along the ramp, so N is unchanged" },
+          { color: "#34d399", label: "Resultant ΣF", note: "whatever is left over — this is ma" },
+        ],
+      };
+      break;
+    }
+
+    case "hookes_law": {
+      const massKg = num(params.hangingMass, 0.5);
+      const k = num(params.springConstant, 80);
+      const force = loadForce(massKg);
+      // The Details panel has no access to the spring's history — that lives
+      // in the scene, because it is a property of the spring rather than a
+      // setting. So this describes the spring as if freshly fitted, and says so.
+      const sp = solveSpring({ massKg, k });
+      const cm = (m) => (m * 100).toFixed(2);
+
+      readout = {
+        title: "Spring Under Load",
+        subtitle: "F = kx · below the elastic limit only",
+        rows: [
+          ["Hanging mass", massKg < 1 ? `${(massKg * 1000).toFixed(0)} g` : `${massKg.toFixed(2)} kg`],
+          ["Applied force F = mg", `${force.toFixed(2)} N`, "gold"],
+          ["Spring constant k", `${k} N/m`],
+          ["Extension x", `${cm(sp.extension)} cm`, sp.elastic ? "good" : "warn"],
+          ["Spring length", `${cm(sp.length)} cm`],
+          ["Natural length L₀", `${cm(sp.naturalLength)} cm`],
+          ["Gradient ΔF/Δx", `${sp.stiffness.toFixed(0)} N/m`, sp.elastic ? "good" : "bad"],
+          ["Elastic limit at", `${sp.limitForce.toFixed(2)} N (${cm(sp.limitExtension)} cm)`],
+          ["Heaviest safe mass", `${sp.safeMassKg.toFixed(2)} kg`, "good"],
+          ["Limit used", `${(sp.limitUsed * 100).toFixed(0)}%`, sp.limitUsed > 0.95 ? "bad" : sp.limitUsed > 0.75 ? "warn" : "good"],
+          ["Energy ½kx²", `${sp.elasticEnergy.toFixed(3)} J`],
+          ["Recoverable energy", `${sp.recoverableEnergy.toFixed(3)} J`, sp.elastic ? "good" : "warn"],
+          ["Permanent set", sp.permanentSet > 0 ? `${cm(sp.permanentSet)} cm` : "none", sp.permanentSet > 0 ? "bad" : "good"],
+        ],
+        note: sp.failed
+          ? `Far too much: at ${force.toFixed(1)} N this ${k} N/m spring has had its coils pulled straight and is scrap. It gives way at ${sp.failureForce.toFixed(1)} N.`
+          : sp.yielding
+            ? `Past the elastic limit. The graph has bent over — the gradient has fallen from ${k} to about ${sp.stiffness.toFixed(0)} N/m — and the spring will not return to L₀ when this load comes off.`
+            : `Elastic: x = F ÷ k = ${force.toFixed(2)} ÷ ${k} = ${cm(sp.extension)} cm, and the spring returns to L₀ when unloaded. It stays proportional up to ${sp.limitForce.toFixed(2)} N, which is ${sp.safeMassKg.toFixed(2)} kg.`,
+        noteTone: sp.failed ? "bad" : sp.yielding ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Force–Extension Graph Key",
+        items: [
+          { color: "#38bdf8", label: "Hooke's law region", note: "straight line through the origin, gradient k" },
+          { color: "#fbbf24", label: "Plastic region", note: "graph bends over — the spring is yielding" },
+          { color: "#f43f5e", label: "Elastic limit", note: `${sp.limitForce.toFixed(2)} N for this spring` },
+          { color: "#34d399", label: "Measured gradient", note: "ΔF/Δx drawn where the load currently sits" },
+          { color: "#cbd5e1", label: "Working point", note: `${cm(sp.extension)} cm at ${force.toFixed(2)} N` },
+        ],
+      };
+      break;
+    }
+
+    case "simple_machines": {
+      const type = params.machineType || "lever1";
+      const p = num(params.armPosition, 0.35);
+      const sheaves = num(params.sheaves, 2);
+      const loadN = num(params.loadN, 300);
+      const m = solveMachine({ type, p, sheaves, loadN });
+      const lever = isLever(type);
+
+      readout = {
+        title: m.machine.label,
+        subtitle: m.machine.order,
+        rows: [
+          ["Load", `${loadN.toFixed(0)} N (${m.loadMassKg.toFixed(1)} kg)`, "gold"],
+          ["Effort needed", `${m.effortForce.toFixed(1)} N`, m.losesForce ? "bad" : "good"],
+          ...(lever
+            ? [
+                ["Effort arm", `${m.layout.effortArm.toFixed(2)} m`],
+                ["Load arm", `${m.layout.loadArm.toFixed(2)} m`],
+              ]
+            : [["Supporting ropes", `${m.ropes}`]]),
+          ["Distance ratio d_e/d_l", `${m.velocityRatio.toFixed(2)}`],
+          ["Mechanical advantage", `${m.mechanicalAdvantage.toFixed(2)}`, m.losesForce ? "warn" : "good"],
+          ["Load moves", `${(m.loadDistance * 100).toFixed(1)} cm`],
+          ["Effort moves", `${(m.effortDistance * 100).toFixed(1)} cm`],
+          ["Work in", `${m.workIn.toFixed(1)} J`],
+          ["Work out", `${m.workOut.toFixed(1)} J`, "good"],
+          ["Wasted as heat", `${m.wasted.toFixed(1)} J`, m.wasted > 0 ? "warn" : "good"],
+          ["Efficiency", `${(m.efficiency * 100).toFixed(1)}%`, m.efficiency > 0.9 ? "good" : "warn"],
+        ],
+        note: m.losesForce
+          ? `This machine costs force rather than saving it: ${m.effortForce.toFixed(0)} N of effort to lift ${loadN.toFixed(0)} N. What you get back is speed and reach — the load moves ${(1 / m.velocityRatio).toFixed(1)}× further than your hand does. Your forearm is built this way.`
+          : `The effort is ${m.mechanicalAdvantage.toFixed(2)}× smaller than the load, and has to move ${m.velocityRatio.toFixed(2)}× further. Multiply those and you are back where you started — no machine reduces the work, only the force.`,
+        noteTone: m.losesForce ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Work Bookkeeping Key",
+        items: [
+          { color: "#fbbf24", label: "Work in", note: `${m.effortForce.toFixed(1)} N × ${(m.effortDistance * 100).toFixed(1)} cm = ${m.workIn.toFixed(1)} J` },
+          { color: "#34d399", label: "Work out", note: `${loadN.toFixed(0)} N × ${(m.loadDistance * 100).toFixed(1)} cm = ${m.workOut.toFixed(1)} J` },
+          { color: "#fb7185", label: "Wasted as heat", note: `${m.wasted.toFixed(1)} J at the ${lever ? "pivot" : "sheaves"}` },
+          { color: "#e8ebf0", label: "Distance ratio", note: "geometry only — friction cannot change it" },
+        ],
+      };
+      break;
+    }
+
+    case "roller_coaster_energy": {
+      const h0 = num(params.releaseHeight, 25);
+      const R = num(params.loopRadius, 8);
+      const mass = num(params.cartMass, 500);
+      const rough = Boolean(params.friction);
+      const g = 9.81;
+
+      const minH = minimumReleaseHeight(R);
+      const vNeeded = minimumTopSpeed(R);
+      // Ideal figures: what conservation alone predicts, before any friction.
+      const vGround = Math.sqrt(2 * g * h0);
+      const vTop = Math.sqrt(Math.max(2 * g * (h0 - 2 * R), 0));
+      const clears = h0 >= minH;
+      const startEnergy = mass * g * h0;
+      const track = buildTrack({ releaseHeight: h0, loopRadius: R });
+
+      readout = {
+        title: "Roller Coaster Energy",
+        subtitle: rough ? "steel on steel — some energy is lost" : "frictionless ideal",
+        rows: [
+          ["Release height h₀", `${h0.toFixed(0)} m`, clears ? "good" : "bad"],
+          ["Loop radius R", `${R.toFixed(0)} m`],
+          ["Loop top height 2R", `${(2 * R).toFixed(0)} m`],
+          ["Cart mass", `${mass.toFixed(0)} kg`],
+          ["Starting GPE", `${(startEnergy / 1000).toFixed(1)} kJ`, "gold"],
+          ["Speed at the ground", `${vGround.toFixed(1)} m/s`],
+          ["Speed at the loop top", `${vTop.toFixed(1)} m/s`, clears ? "good" : "bad"],
+          ["Needed at the top √(gR)", `${vNeeded.toFixed(1)} m/s`],
+          ["Minimum height 2.5R", `${minH.toFixed(1)} m`, clears ? "good" : "bad"],
+          ["g-force at the loop top", `${(vTop * vTop / (g * R) - 1).toFixed(2)} g`, clears ? "good" : "bad"],
+          ["g-force at the loop foot", `${(2 * g * h0 / (g * R) + 1).toFixed(2)} g`, 2 * h0 / R + 1 > 5 ? "warn" : "good"],
+          ["Track length", `${track.length.toFixed(0)} m`],
+        ],
+        note: !clears
+          ? `Below the threshold. At the top of the loop the cart would only have ${vTop.toFixed(1)} m/s, and it needs √(gR) = ${vNeeded.toFixed(1)} m/s for gravity alone to supply the centripetal force. Any slower and the rail would have to pull the cart inward, which it cannot — so the cart falls away from the track. Raise the release height above ${minH.toFixed(1)} m.`
+          : rough
+            ? `Clears the loop, and note the mass is irrelevant to that: it appears on both sides of ½mv² = mgh and cancels. With friction on, some of the starting ${(startEnergy / 1000).toFixed(0)} kJ ends up as heat in the wheels and brakes — the three bars still add to the same total, but the heat bar never gives anything back.`
+            : `Clears the loop with ${vTop.toFixed(1)} m/s against the ${vNeeded.toFixed(1)} m/s needed. With no friction, GPE and KE simply trade places: every metre of height lost buys exactly ½v² of speed, whatever the cart weighs.`,
+        noteTone: !clears ? "bad" : rough ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Energy & Forces Key",
+        items: [
+          { color: "#a78bfa", label: "GPE = mgh", note: `${(startEnergy / 1000).toFixed(1)} kJ at the top of the drop` },
+          { color: "#38bdf8", label: "KE = ½mv²", note: `all ${(startEnergy / 1000).toFixed(1)} kJ of it at ground level` },
+          { color: "#fb7185", label: "Thermal", note: rough ? "friction and brakes — one-way" : "none: the ideal track wastes nothing" },
+          { color: "#e8ebf0", label: "Total", note: "constant — that is what conservation means" },
+          { color: "#fbbf24", label: "The cart", note: `${mass.toFixed(0)} kg, and the mass changes nothing about the loop` },
+        ],
+      };
+      break;
+    }
+
+    case "circuits_breadboard": {
+      const topology = params.topology || "series";
+      const voltage = num(params.voltage, 6);
+      const bulbR = num(params.bulbR, 10);
+      const unscrewed = Math.round(num(params.unscrewA, 0)) % 2 === 1;
+      const shorted = Math.round(num(params.shortCircuit, 0)) % 2 === 1;
+      const c = solveCircuit({ topology, voltage, bulbR, unscrewed, shorted });
+
+      const ohms = (r) => (Number.isFinite(r) ? `${r.toFixed(2)} Ω` : "∞ — open");
+      const lit = c.bulbs.filter((b) => b.lit).length;
+
+      readout = {
+        title: `${c.spec.label} circuit`,
+        subtitle: c.spec.summary,
+        rows: [
+          ["Supply emf", `${voltage.toFixed(1)} V`, "gold"],
+          ["Each bulb", `${bulbR.toFixed(0)} Ω`],
+          [c.formula, c.worked, "gold"],
+          ["R of the network", ohms(c.networkR)],
+          ...(shorted ? [["With the short fitted", ohms(c.externalR), "bad"]] : []),
+          ["Total current from the pack", `${c.totalCurrent.toFixed(3)} A`, c.overCurrent ? "bad" : "default"],
+          ...c.branches.map((b, i) => [
+            `I${i + 1} — branch ${b.id}`,
+            b.open ? "0 A — branch open" : `${b.current.toFixed(3)} A`,
+            b.open ? "bad" : "good",
+          ]),
+          ...(shorted ? [["Through the jumper", `${c.shortCurrent.toFixed(2)} A`, "bad"]] : []),
+          ["Volts across the network", `${c.networkVoltage.toFixed(2)} V`],
+          ["Terminal voltage", `${c.terminalVoltage.toFixed(2)} V`, c.terminalVoltage < voltage * 0.85 ? "warn" : "good"],
+          ...c.bulbs.map((b) => [
+            `Bulb ${b.id}`,
+            b.removed
+              ? "unscrewed — infinite resistance"
+              : `${b.voltage.toFixed(2)} V · ${b.power.toFixed(2)} W · ${(b.brightness * 100).toFixed(0)}% bright`,
+            b.removed ? "bad" : b.lit ? "good" : "warn",
+          ]),
+          ["Bulbs lit", `${lit} of ${c.bulbs.length}`, lit === 0 ? "bad" : "good"],
+          ["Wasted inside the pack", `${c.internalLoss.toFixed(2)} W`, c.overCurrent ? "bad" : "default"],
+        ],
+        note: c.dead
+          ? `No current anywhere. The loop is broken at bulb A's socket, and in a series circuit there is only one loop — so every component is dead and the whole ${voltage.toFixed(1)} V sits across the empty socket. Switch to parallel and unscrew it again: the other branch will not notice.`
+          : shorted
+            ? `The jumper is a ${c.externalR.toFixed(3)} Ω path in parallel with the bulbs, so ${((c.shortCurrent / c.totalCurrent) * 100).toFixed(0)}% of the ${c.totalCurrent.toFixed(1)} A takes it and the bulbs are left with ${c.networkVoltage.toFixed(2)} V. The current is limited only by the pack's own 0.5 Ω, which is why ${c.internalLoss.toFixed(1)} W is now being dissipated inside the battery itself.`
+            : unscrewed
+              ? `Bulb A is out of its socket and its branch is open, but the rest of the board is unaffected — each parallel branch is its own loop back to the battery. Note the total current has FALLEN to ${c.totalCurrent.toFixed(2)} A: one fewer path means more resistance, not less.`
+              : topology === "parallel"
+                ? `Each branch sits across the supply, so both bulbs run at ${(c.bulbs[0].brightness * 100).toFixed(0)}% and the branch currents add to ${c.totalCurrent.toFixed(2)} A. In series the same two bulbs would draw ${solveCircuit({ topology: "series", voltage, bulbR }).totalCurrent.toFixed(2)} A and run at a quarter of the power — adding a parallel branch lowers R_eq and raises the demand on the supply.`
+                : topology === "series"
+                  ? `One loop, so the same ${c.totalCurrent.toFixed(2)} A passes through both bulbs, and they split the supply between them — ${c.bulbs[0].voltage.toFixed(1)} V each, giving a quarter of the power a single bulb would take. Rewire in parallel and the current rises to ${solveCircuit({ topology: "parallel", voltage, bulbR }).totalCurrent.toFixed(2)} A.`
+                  : `A and B share their branch's ${c.branches[0].current.toFixed(2)} A between them, so each drops ${c.bulbs[0].voltage.toFixed(1)} V; C has the whole ${c.networkVoltage.toFixed(1)} V to itself and is correspondingly brighter. Reduce it in stages — series first, then parallel.`,
+        noteTone: c.dead || shorted ? "bad" : unscrewed ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Circuit Key",
+        items: [
+          { color: "#38bdf8", label: "Drift electrons", note: "same spacing on every wire — only the SPEED tracks the current" },
+          { color: "#c2703b", label: "Copper trace", note: `carrying up to ${c.totalCurrent.toFixed(2)} A` },
+          { color: "#fbbf24", label: "Filament", note: c.allDark ? "cold — no bulb is lit" : `hotter with power: P = I²R` },
+          { color: "#fb7185", label: "Short circuit", note: shorted ? `${c.shortCurrent.toFixed(1)} A bypassing the bulbs` : "not fitted" },
+          { color: "#e8ebf0", label: "Junction rule", note: "current in = current out, at every node on the board" },
+        ],
+      };
+      break;
+    }
+
+    case "static_electricity": {
+      const target = params.target || "wall";
+      const separation = num(params.separation, 0.12);
+      const humidity = num(params.humidity, 40);
+      // The live counts are drawn on the surfaces themselves, where they can
+      // be counted. What belongs here is the model behind them — and the
+      // clearest way to show an inverse square is the pair of figures for
+      // this gap and for half of it.
+      const full = solveStatic({ markers: MAX_MARKERS, domeMarkers: 45, separation, target, humidity });
+      const half = solveStatic({ markers: MAX_MARKERS, domeMarkers: 45, separation: separation / 2, target, humidity });
+      const tau = leakTimeConstant(humidity);
+      const fmt = (n) =>
+        n >= 1 ? `${n.toFixed(2)} N` : n >= 1e-3 ? `${(n * 1e3).toFixed(1)} mN` : `${(n * 1e6).toFixed(0)} µN`;
+
+      readout = {
+        title: "Static Electricity",
+        subtitle: `balloon held near the ${full.spec.label.toLowerCase()}`,
+        rows: [
+          ["Gap r", `${(separation * 100).toFixed(1)} cm`, "gold"],
+          ["Charge per marker", `${(CHARGE_PER_MARKER * 1e9).toFixed(0)} nC`],
+          ["Balloon at full charge", `${MAX_MARKERS} markers · ${(chargeOf(MAX_MARKERS) * 1e9).toFixed(0)} nC`],
+          ["Electrons that moved", electronCount(MAX_MARKERS).toExponential(2)],
+          ["Left behind on the wool", `${MAX_MARKERS} unpaired +`, "warn"],
+          [
+            target === "wall" ? "Induced on the wall" : "On the other object",
+            `${Math.round(full.otherMarkers)} markers`,
+          ],
+          ["F at this gap", fmt(full.force), full.attracts ? "good" : "bad"],
+          ["…as a multiple of its weight", `${full.forceInWeights.toFixed(1)}×`],
+          ["F at half the gap", `${fmt(half.force)} — 4× larger`, "gold"],
+          ["Direction", full.attracts ? "attraction" : "repulsion", full.attracts ? "good" : "bad"],
+          ...(target === "wall"
+            ? [["Sticks to the wall?", full.sticks ? "yes — friction holds it" : "no — it slides down", full.sticks ? "good" : "warn"]]
+            : []),
+          ["Air humidity", `${humidity.toFixed(0)}% RH`],
+          ["Charge time constant", `${tau.toFixed(1)} s`, humidity > 70 ? "bad" : humidity > 45 ? "warn" : "good"],
+          ["Half the charge gone in", `${(0.693 * tau).toFixed(1)} s`],
+        ],
+        note:
+          target === "wall"
+            ? `The wall has no charge of its own. The balloon's field pulls its electrons back and leaves the near surface positive, and because those induced positives are closer than the pushed-back negatives, the 1/r² law makes attraction win. That is why a charged object attracts anything neutral — whichever sign the charge is.`
+            : target === "balloon"
+              ? `Both balloons were rubbed on the same wool, so both carry the same sign and repel: F = k·q₁q₂/r² = ${fmt(full.force)} at ${(separation * 100).toFixed(1)} cm, which is ${full.forceInWeights.toFixed(0)} times the balloon's own weight. Halve the gap and it quadruples — that is what an inverse square feels like.`
+              : `The dome and the balloon are both negative, so the dome pushes the balloon away hard. The dome reaches about ${(full.domeVolts / 1000).toFixed(0)} kV — a large voltage on a tiny charge, which is why it makes hair stand up but cannot deliver a dangerous current.`,
+        noteTone: humidity > 75 ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Charge Key",
+        items: [
+          { color: "#38bdf8", label: "− electrons", note: "the only thing that actually moves" },
+          { color: "#fb7185", label: "+ unpaired", note: "not added — simply left behind where an electron used to be" },
+          { color: "#34d399", label: "Attraction", note: "charged to neutral, via induction — always" },
+          { color: "#5eead4", label: "Water in the air", note: `leaks the charge away with a ${tau.toFixed(0)} s time constant` },
+          { color: "#e8ebf0", label: "Conservation", note: "the + count and the − count are always equal" },
+        ],
+      };
+      break;
+    }
+
+    case "buoyancy": {
+      const density = num(params.objectDensity, 2.7);
+      const volume = num(params.objectVolume, 200);
+      const fluidKey = params.fluid || "freshwater";
+      const shape = params.solidShape || "cube";
+      const b = solveBuoyancy({ density, volume, fluid: fluidKey, shape });
+
+      // Which of the six it would float in. The single most useful thing the
+      // panel can add to the tank, because the tank only ever shows one.
+      const floatsIn = fluidComparison({ density, volume, shape })
+        .filter((f) => f.floats)
+        .map((f) => f.label);
+
+      const hull = b.shape.envelope > 1;
+
+      readout = {
+        title: "Archimedes' Principle",
+        subtitle: `${b.shape.label} of ${density.toFixed(2)} g/cm³ in ${b.fluid.label.toLowerCase()}`,
+        rows: [
+          ["Material volume V", `${volume.toFixed(0)} cm³`],
+          ...(hull ? [["Hull envelope", `${b.metrics.envelopeCC.toFixed(0)} cm³ — ${b.shape.envelope}× the steel`, "gold"]] : []),
+          ["Mass m = ρV", `${b.massG.toFixed(0)} g`],
+          ["True weight W = mg", `${b.weight.toFixed(2)} N`, "gold"],
+          ["Mean density m ÷ V_env", `${b.meanDensity.toFixed(3)} g/cm³`, b.floats ? "good" : "bad"],
+          ["Fluid density ρ_f", `${b.fluidDensity} g/cm³`],
+          ["Density ratio ρ_mean/ρ_f", b.densityRatio.toFixed(3), b.floats ? "good" : "bad"],
+          ["Fluid displaced", `${b.overflowML.toFixed(0)} cm³ = ${b.displacedMassG.toFixed(0)} g`],
+          ["Buoyant force F_b = ρVg", `${b.upthrust.toFixed(2)} N`, "good"],
+          ["…from the pressure difference", `${b.pressureUpthrust.toFixed(2)} N`],
+          ["Apparent weight", `${b.apparentWeight.toFixed(2)} N`, b.floats ? "good" : "default"],
+          ["Weight apparently lost", `${(b.weightLostFraction * 100).toFixed(1)}%`],
+          ["Resultant F_b − W", `${b.netForce.toFixed(2)} N`, Math.abs(b.netForce) < 0.005 ? "good" : b.netForce > 0 ? "good" : "bad"],
+          ...(b.floats
+            ? [
+                ["Submerged", `${(b.submergedFraction * 100).toFixed(1)}% by volume`, "good"],
+                ["Draft", `${b.draftCm.toFixed(2)} cm of ${b.metrics.height.toFixed(2)} cm`],
+                ["Freeboard", `${b.freeboardCm.toFixed(2)} cm`, b.freeboardCm < 0.4 ? "warn" : "good"],
+              ]
+            : [
+                ["Pressure on the top face", `${(b.pressureTop / 1000).toFixed(3)} kPa`],
+                ["Pressure on the base", `${(b.pressureBottom / 1000).toFixed(3)} kPa`],
+                ["Difference across it", `${(b.pressureDifference / 1000).toFixed(3)} kPa`, "gold"],
+                ["Released, it would accelerate", `${Math.abs(b.acceleration).toFixed(2)} m/s² ${b.acceleration > 0 ? "up" : "down"}`, "bad"],
+              ]),
+          ["Floats in", floatsIn.length ? floatsIn.join(", ") : "none of the six", floatsIn.length ? "good" : "bad"],
+        ],
+        note: b.swamped
+          ? `The hull has gone under, and a swamped hull displaces only the steel it is made of — ${b.overflowML.toFixed(0)} cm³ instead of the ${b.metrics.envelopeCC.toFixed(0)} cm³ it displaced while it floated. That is why a breach is fatal so quickly: the buoyancy does not fall off gradually, it collapses to a twelfth as soon as the air is replaced by water.`
+          : b.floats
+            ? hull
+              ? `The steel is still ${density.toFixed(2)} g/cm³ — nothing about the material changed. What changed is the volume it pushes aside: spread over the hull's ${b.metrics.envelopeCC.toFixed(0)} cm³ envelope the SAME ${b.massG.toFixed(0)} g comes out at ${b.meanDensity.toFixed(2)} g/cm³, below the fluid's ${b.fluidDensity}, so it floats with ${(b.freeboardCm).toFixed(1)} cm of freeboard. Switch the shape to a rock and watch the identical metal sink.`
+              : `Floating, and it has sunk until it displaced exactly its own weight: ${b.overflowML.toFixed(0)} cm³ of ${b.fluid.label.toLowerCase()} weighs ${b.upthrust.toFixed(2)} N, which is W to the last decimal. The fraction submerged is just ρ_object ÷ ρ_fluid = ${b.densityRatio.toFixed(2)}, so the string is slack and the scale reads nothing at all.`
+            : `Sinking: at ${b.meanDensity.toFixed(2)} g/cm³ it cannot displace its own weight even fully under. The scale still reads ${b.apparentWeight.toFixed(2)} N rather than ${b.weight.toFixed(2)} N, and that missing ${b.upthrust.toFixed(2)} N is exactly the weight of the ${b.overflowML.toFixed(0)} cm³ in the measuring cylinder. Lower it deeper and the reading will not budge — both faces gain pressure equally, and only the difference lifts.`,
+        noteTone: b.swamped ? "bad" : b.floats ? "good" : "warn",
+      };
+
+      legend = {
+        title: "Buoyancy Key",
+        items: [
+          { color: "#fb7185", label: "Weight W = mg", note: `${b.weight.toFixed(2)} N of material, always straight down` },
+          { color: "#38bdf8", label: "Upthrust F_b = ρVg", note: `${b.upthrust.toFixed(2)} N — the weight of the ${b.overflowML.toFixed(0)} cm³ in the cylinder` },
+          { color: "#fbbf24", label: "Tension T", note: `${b.apparentWeight.toFixed(2)} N — whatever the fluid did not carry` },
+          { color: "#34d399", label: "Mean density", note: `${b.meanDensity.toFixed(2)} g/cm³ against the fluid's ${b.fluidDensity} — this decides it` },
+          { color: FLUIDS[fluidKey]?.colour ?? "#38bdf8", label: b.fluid.label, note: b.fluid.title },
+        ],
+      };
+      break;
+    }
+
+    case "heat_transfer": {
+      const intensity = num(params.flameIntensity, 55);
+      const material = params.rodMaterial || "copper";
+      // No clock in the Details panel, so this describes where the apparatus
+      // SETTLES rather than where it currently is — the scene shows it getting
+      // there, and the note says which of the two is on screen.
+      const h = solveHeatTransfer({ intensity, material });
+      const probe = h.selected;
+      const copper = h.rods.find((r) => r.key === "copper");
+      const wood = h.rods.find((r) => r.key === "wood");
+
+      readout = {
+        title: "Conduction · Convection · Radiation",
+        subtitle: h.lit ? `Bunsen at ${intensity.toFixed(0)}% — steady state` : "burner out — everything at room temperature",
+        rows: [
+          ["Flame temperature", h.lit ? `${h.flameC.toFixed(0)} °C` : "out", "gold"],
+          ["Flame output", `${h.flamePower.toFixed(0)} W`],
+          ["— CONDUCTION —", `${probe.spec.label}, k = ${probe.spec.k} W/m·K`, "gold"],
+          ["Rod hot end (in the water)", `${probe.hotC.toFixed(1)} °C`],
+          ["Rod tip, 20 cm away", `${probe.tipC.toFixed(1)} °C`, probe.tipC > 50 ? "good" : probe.tipC > 25 ? "warn" : "bad"],
+          ["Decay length 1/m", `${(probe.decayLength * 100).toFixed(1)} cm`],
+          ["Heat it carries", `${probe.rate.toFixed(2)} W`],
+          ["Wax melted along it", `${(probe.waxFront * 100).toFixed(0)}% of the rod`, probe.waxFront > 0.5 ? "good" : "warn"],
+          ["Copper tip vs wood tip", `${copper.tipC.toFixed(1)} °C vs ${wood.tipC.toFixed(1)} °C`, "gold"],
+          ["— CONVECTION —", h.water.boiling ? "rolling boil" : "density current", "gold"],
+          ["Water, bottom", `${h.water.bottom.toFixed(1)} °C`, "bad"],
+          ["Water, top", `${h.water.top.toFixed(1)} °C`, "good"],
+          ["Difference Δθ", `${h.water.delta.toFixed(2)} K`],
+          ["Density, bottom vs top", `${h.water.densityBottom.toFixed(2)} vs ${h.water.densityTop.toFixed(2)} kg/m³`],
+          ["Current speed", h.water.speed > 1e-6 ? `${(h.water.speed * 100).toFixed(2)} cm/s` : "still"],
+          ["One circuit of the loop", Number.isFinite(h.water.loopSeconds) ? `${h.water.loopSeconds.toFixed(1)} s` : "—"],
+          ["— RADIATION —", "no medium required", "gold"],
+          ["Radiated by the flame", `${h.radiatedPower.toFixed(1)} W`],
+          ["Reaching the plate", `${h.irradiance.toFixed(0)} W/m² at 15 cm`],
+          ["Absorbed by the plate", `${(h.absorbedPower * 1000).toFixed(0)} mW`],
+          ["Plate temperature", `${h.plateC.toFixed(1)} °C`, h.plateC > 35 ? "warn" : "good"],
+          ["Plate rise above room", `${(h.plateC - h.ambientC).toFixed(1)} K`, "gold"],
+        ],
+        note: !h.lit
+          ? "The burner is out, so all three transfers have nothing to move: the rods, the water and the plate are all at room temperature. Open the gas and watch which one responds first — the plate, at the speed of light, before the water has warmed at all."
+          : h.water.boiling
+            ? `At a rolling boil the water stops getting hotter however much more heat goes in — the energy is going into latent heat of vaporisation instead — so the top and bottom thermometers have converged. Conduction along the rods has therefore also topped out: the copper tip holds at ${copper.tipC.toFixed(0)} °C and the wood at ${wood.tipC.toFixed(0)} °C. Only radiation is still climbing, because it depends on the FLAME's temperature and not on the water's.`
+            : `All three are running at once and each is doing something the others cannot. The rods carry ${probe.rate.toFixed(1)} W to a tip that nothing has travelled to — the metal has not moved. The water carries its heat by physically going there at ${(h.water.speed * 100).toFixed(1)} cm/s, driven by a density difference of ${Math.abs(h.water.densityDifference).toFixed(2)} kg/m³. And the plate, touching nothing and out of the path of the hot gases, is ${(h.plateC - h.ambientC).toFixed(1)} K above the room on ${(h.absorbedPower * 1000).toFixed(0)} mW of infrared that crossed the gap without warming the air on the way.`,
+        noteTone: !h.lit ? "neutral" : h.water.boiling ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Heat Transfer Key",
+        items: [
+          {
+            color: ROD_MATERIALS.copper.colour,
+            label: "Conduction",
+            note: `k = 385 vs wood's 0.15 — a factor of ${(ROD_MATERIALS.copper.k / ROD_MATERIALS.wood.k).toFixed(0)}, and no material moves`,
+          },
+          {
+            color: "#a78bfa",
+            label: "Convection",
+            note: `the dye IS the current — hot water rises because it is ${Math.abs(h.water.densityDifference).toFixed(1)} kg/m³ lighter`,
+          },
+          {
+            color: "#fb923c",
+            label: "Radiation",
+            note: `${h.radiatedPower.toFixed(0)} W leaving the flame, spreading as 1/r² and needing no medium`,
+          },
+          {
+            color: "#f5e6c8",
+            label: "Wax beads",
+            note: `let go at ${WAX_MELTING_C} °C — four rods, one race, run side by side`,
+          },
+          {
+            color: "#e8ebf0",
+            label: `${TIME_LAPSE}× time lapse`,
+            note: "every rate scaled by the same factor, so the ratios are the real ones",
+          },
         ],
       };
       break;
@@ -1649,6 +2146,11 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
               <div className="space-y-3">
                 {topic.controls
                   .filter((control) => control.key !== "speed")
+                  // A control may only apply to some of a topic's modes — the
+                  // simple-machines bench needs a fulcrum slider for levers and
+                  // a sheave count for the tackle, and showing both at once
+                  // invites a student to set the one that does nothing.
+                  .filter((control) => (typeof control.when === "function" ? control.when(params) : true))
                   .map((control) => (
                     <ControlField
                       key={control.key}

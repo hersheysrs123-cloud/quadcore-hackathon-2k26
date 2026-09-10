@@ -72,15 +72,25 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
 │   └── visualizations/
 │       ├── BinaryTree3D.jsx              # 3D Binary Search Tree / AVL tree with animated operations
-│       ├── BiologyCanvas.jsx             # Cell explorer with organelle cutaways, enzyme kinetics, DNA helix, and protein folding
+│       ├── BiologyCanvas.jsx             # Cell explorer with organelle cutaways & enzyme kinetics
+│       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, lattices, electrolysis
+│       ├── PhysicsCanvas.jsx             # Wave refraction, motor effect, thin lenses, induction, kinetic gas laws + dispatcher for the split-out physics scenes
+│       ├── EyeCanvas.jsx                 # Cutaway human eye: accommodation, pupil reflex & anatomy mode
+│       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; shadow painted onto the screen as a canvas texture
+│       ├── InclineFrictionCanvas.jsx     # Ramp free-body diagram, static/kinetic friction & velocity trace
+│       ├── HookesLawCanvas.jsx           # Spring, ruler & slotted masses with a live force-extension graph
+│       ├── SimpleMachinesCanvas.jsx      # Class 1/2/3 levers & block-and-tackle with a work bar chart
+│       ├── RollerCoasterCanvas.jsx       # Drop, vertical loop & brakes with a GPE/KE/thermal bar chart
+│       ├── force-diagram.jsx             # SHARED: free-body arrows on one force scale, GraphPanel, rolling traces, slope frames
+│       ├── energy-bars.jsx               # SHARED: energy/work column charts (grouped + stacked total) & needle DialGauge
 │       ├── cell-organelles.jsx           # Procedural 3D organelle geometry (nucleus, mitochondria, chloroplast, etc.)
 │       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, crystal lattices, electrolysis, VSEPR, energetics
 │       ├── CSCanvas.jsx                  # Computer Science canvas dispatcher (BST / AVL tree and 3D sorting visualizer)
 │       ├── EyeCanvas.jsx                 # Anatomical & physiological cutaway eyeball simulation with dynamic ciliary accommodation & pupil reflex
 │       ├── MathCanvas.jsx                # Gradient descent on loss surfaces, solids of revolution, unit circle & Fourier series
 │       ├── media.js                      # Refractive index presets (air, water, glass, diamond, perspex)
-│       ├── PhysicsCanvas.jsx             # Wave refraction, motor effect, thin lenses, induction, kinetic gas, projectile, interference, orbits
-│       ├── RespiratoryCanvas.jsx         # Clinical CT-derived thoracic skeleton & lungs breathing kinematics simulation
+│       ├── topic-options.js              # Choice lists for the HUD schema, kept free of three.js
+│       ├── topics.js                     # Topic registry: category, controls schema, concepts & quiz for all 31 scenes
 │       ├── scene-kit.jsx                 # Shared Three.js lighting, camera, grid, bounding box & label helpers
 │       ├── ShadowLabCanvas.jsx           # Optical bench simulation: straight-line light, point/broad lamps, umbra/penumbra, 3D solids
 │       ├── topic-options.js              # Presets and options for VSEPR, 3D sorting, surface functions, and revolution curves
@@ -94,8 +104,13 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── db.js                             # Dexie.js IndexedDB schema v7 (11 stores), auto-seeding & graphics detection
 │   ├── demoNotes.js                      # 7 comprehensive seeded notes across all 4 spaces with full 19-block suites
 │   ├── editorCaret.js                    # Notion-grade caret navigation, visual line calculations, inline math compilation & boundary traversal
+│   ├── coasterEnergy.js                  # PURE PHYSICS: coaster track builder, energy budget, rail force & g-force
 │   ├── exportImport.js                   # Full export/import engine for Netscape HTML Bookmarks, PDF, DOCX, HTML, MD, TXT
-│   ├── eyeOptics.js                      # Optical and physiological mathematical model for 3D eye accommodation & Gullstrand power
+│   ├── eyeOptics.js                      # PURE PHYSICS: Gullstrand schematic eye, accommodation & pupil reflex
+│   ├── hookesLaw.js                      # PURE PHYSICS: Hooke's law, elastic limit, plastic branch & permanent set
+│   ├── inclineForces.js                  # PURE PHYSICS: weight resolution, static/kinetic friction & angle of repose
+│   ├── shadowOptics.js                   # PURE PHYSICS: shadow magnification, umbra/penumbra bands & scene framing
+│   ├── simpleMachines.js                 # PURE PHYSICS: lever classes, block-and-tackle, distance ratio vs MA
 │   ├── gemini.js                         # Direct REST Gemini client with structured outputs & usage tracking
 │   ├── mastery.js                        # Mastery status vocabulary (Solid ● / Shaky ◐ / Gap ○) & rollup algorithms
 │   ├── mathUtils.js                      # LaTeX delimiter parsing & regex segmentation for MathText
