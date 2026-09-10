@@ -320,6 +320,21 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
   - Blockquotes: Left border accents (`border-l-2 border-duck-400/80 bg-ink-950/60 pl-3 py-1`).
 - **Quick Doubt Starters**: `rounded-full border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100`.
 
+### 22. Physics Diagram Tokens (`force-diagram.jsx` / `energy-bars.jsx`)
+
+Two shared modules own the colour vocabulary for the mechanics scenes, so the same quantity is the same colour in every scene, in its in-scene arrow, in its bar and in the HUD's Details colour key.
+
+- **Free-body forces** (`FORCE_COLOURS`): Weight `#fb7185` (rose) · W∥ = mg sinθ `#fb923c` (orange) · W⊥ = mg cosθ `#a78bfa` (violet) · Normal `#38bdf8` (sky) · Friction `#2dd4bf` (teal) · Applied `#fbbf24` (gold) · Resultant `#34d399` (emerald) · Elastic limit `#f43f5e`.
+  - The two components of the weight are deliberately different hues from each other but both warm, so they read as halves of the red weight vector they were resolved from.
+- **Energy & work stores** (`ENERGY_COLOURS`): GPE `#a78bfa` (violet) · KE `#38bdf8` (sky) · Thermal / wasted `#fb7185` (rose) · Work in `#fbbf24` (gold) · Work out `#34d399` (emerald) · Total `#e8ebf0` (bone).
+- **Arrow scaling**: `useForceScale` normalises the largest force in a diagram to a fixed 1.7 world units. Fixing the scale instead sends arrows off-screen when the mass slider moves; scaling each arrow to its own length destroys the comparison a free-body diagram exists for.
+- **Panel chrome**: instrument backings are `#0d121c` at `0.88`–`0.90` opacity; gridlines and axes use `PALETTE.line` / `PALETTE.slate`; every panel is titled with an `accent` `SceneLabel` and captioned with a `text-ink-400` one.
+- **`DialGauge`**: 240° sweep, needle in the series colour, and an optional `redline` arc in the thermal rose — a reading past the redline recolours the needle, so a dangerous value says so without a caption.
+
+### 23. Contextual Controls in the HUD Schema (`when`)
+
+A topic's `controls` entry may carry `when: (params) => boolean`. `VisualizationHUD` filters on it before rendering, so a control that only applies to one of a topic's modes is hidden rather than shown inert — the simple-machines bench swaps its fulcrum-position slider for a sheave count when the machine type changes to the block and tackle. Controls without a `when` are always shown, so the field is fully backwards-compatible.
+
 ### 21. 3D Respiratory Mechanics & Thoracic Physics Tokens
 - **Antagonistic Intercostal Tension Shaders**:
   - Active Contraction: Glowing scarlet crimson (`#ef4444` / `#f43f5e`, emissive intensity `1.7`–`1.8`) with active myofibril swelling signaling energetic recruitment (+35° external on inspiration; -45° internal on forced expiration).

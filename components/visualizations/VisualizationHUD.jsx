@@ -12,6 +12,10 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { solveIncline, surfaceFor } from "@/lib/inclineForces";
+import { loadForce, solveSpring } from "@/lib/hookesLaw";
+import { isLever, solveMachine } from "@/lib/simpleMachines";
+import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
 
 // ─── Visualization HUD ──────────────────────────────────────────────
 // One overlay drives all thirteen scenes: parameter controls rendered
@@ -643,6 +647,209 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#34d399", shape: "dot", label: "Orbiting Satellite", note: "Body in continuous gravitational free-fall" },
           { color: "#34d399", shape: "line", label: "Orbital Path Trail", note: "Closed elliptical or open escape trajectory" },
           { color: "#38bdf8", shape: "line", label: "Spacetime Potential Sheet", note: "Depth represents −GM/r potential energy" },
+        ],
+      };
+      break;
+    }
+
+    case "incline_friction": {
+      const angle = num(params.rampAngle, 20);
+      const mass = num(params.blockMass, 10);
+      const applied = num(params.appliedForce, 0);
+      const key = params.surface || "wood";
+      const s = surfaceFor(key);
+      // Solved at rest: the panel describes the situation the block is IN,
+      // and re-deriving it here rather than mirroring the scene's arithmetic
+      // is what stops the two drifting apart.
+      const f = solveIncline({ massKg: mass, angleDeg: angle, surface: key, appliedForce: applied });
+      const slips = angle > f.reposeAngle + 1e-9;
+
+      readout = {
+        title: "Block on an Incline",
+        subtitle: `${s.label} · μs = ${s.muS}, μk = ${s.muK}`,
+        rows: [
+          ["Weight W = mg", `${f.weight.toFixed(1)} N`],
+          ["W∥ = mg sinθ", `${f.weightParallel.toFixed(1)} N`, "gold"],
+          ["W⊥ = mg cosθ", `${f.weightPerpendicular.toFixed(1)} N`],
+          ["Normal force N", `${f.normal.toFixed(1)} N`, "good"],
+          ["Friction acting", `${f.frictionMagnitude.toFixed(1)} N`, f.isStatic ? "good" : "warn"],
+          ["Maximum grip μs·N", `${f.grip.toFixed(1)} N`],
+          ["Grip in use", `${(f.gripUsed * 100).toFixed(0)}%`, f.onTheVerge ? "warn" : f.isStatic ? "good" : "bad"],
+          ["Kinetic friction μk·N", `${f.slidingFriction.toFixed(1)} N`],
+          ["Applied force F", applied === 0 ? "none" : `${applied.toFixed(0)} N ${applied > 0 ? "up" : "down"} the ramp`],
+          ["Resultant ΣF", `${f.netForce.toFixed(1)} N`, Math.abs(f.netForce) < 0.05 ? "good" : "warn"],
+          ["Acceleration a", `${f.acceleration.toFixed(2)} m/s²`, f.isStatic ? "good" : "bad"],
+          ["State", f.isStatic ? "in equilibrium" : "sliding", f.isStatic ? "good" : "bad"],
+          ["Angle of repose", `${f.reposeAngle.toFixed(1)}°`, slips ? "bad" : "good"],
+        ],
+        note: f.isStatic
+          ? f.onTheVerge
+            ? `On the verge: friction is supplying ${f.frictionMagnitude.toFixed(1)} N of the ${f.grip.toFixed(1)} N available. One more degree and it goes.`
+            : `Static friction is supplying exactly ${f.frictionMagnitude.toFixed(1)} N — no more than the ${f.demand.toFixed(1)} N being asked of it. It could supply up to ${f.grip.toFixed(1)} N, so f ≤ μs·N still holds with room to spare.`
+          : `Sliding, so friction is now fixed at μk·N = ${f.slidingFriction.toFixed(1)} N and no longer adjusts. The resultant ${Math.abs(f.netForce).toFixed(1)} N gives a = ${Math.abs(f.acceleration).toFixed(2)} m/s² ${f.acceleration < 0 ? "down" : "up"} the slope.`,
+        noteTone: f.isStatic ? (f.onTheVerge ? "warn" : "good") : "bad",
+      };
+
+      legend = {
+        title: "Free-Body Diagram Key",
+        items: [
+          { color: "#fb7185", label: "Weight W = mg", note: "vertically down, whatever the slope does" },
+          { color: "#fb923c", label: "W∥ = mg sinθ", note: `${f.weightParallel.toFixed(1)} N down the surface` },
+          { color: "#a78bfa", label: "W⊥ = mg cosθ", note: `${f.weightPerpendicular.toFixed(1)} N into the surface` },
+          { color: "#38bdf8", label: "Normal force N", note: "equal and opposite to W⊥ — they cancel" },
+          { color: "#2dd4bf", label: "Friction f", note: f.isStatic ? "a reaction, ≤ μs·N" : "fixed at μk·N once sliding" },
+          { color: "#fbbf24", label: "Applied force F", note: "acts along the ramp, so N is unchanged" },
+          { color: "#34d399", label: "Resultant ΣF", note: "whatever is left over — this is ma" },
+        ],
+      };
+      break;
+    }
+
+    case "hookes_law": {
+      const massKg = num(params.hangingMass, 0.5);
+      const k = num(params.springConstant, 80);
+      const force = loadForce(massKg);
+      // The Details panel has no access to the spring's history — that lives
+      // in the scene, because it is a property of the spring rather than a
+      // setting. So this describes the spring as if freshly fitted, and says so.
+      const sp = solveSpring({ massKg, k });
+      const cm = (m) => (m * 100).toFixed(2);
+
+      readout = {
+        title: "Spring Under Load",
+        subtitle: "F = kx · below the elastic limit only",
+        rows: [
+          ["Hanging mass", massKg < 1 ? `${(massKg * 1000).toFixed(0)} g` : `${massKg.toFixed(2)} kg`],
+          ["Applied force F = mg", `${force.toFixed(2)} N`, "gold"],
+          ["Spring constant k", `${k} N/m`],
+          ["Extension x", `${cm(sp.extension)} cm`, sp.elastic ? "good" : "warn"],
+          ["Spring length", `${cm(sp.length)} cm`],
+          ["Natural length L₀", `${cm(sp.naturalLength)} cm`],
+          ["Gradient ΔF/Δx", `${sp.stiffness.toFixed(0)} N/m`, sp.elastic ? "good" : "bad"],
+          ["Elastic limit at", `${sp.limitForce.toFixed(2)} N (${cm(sp.limitExtension)} cm)`],
+          ["Heaviest safe mass", `${sp.safeMassKg.toFixed(2)} kg`, "good"],
+          ["Limit used", `${(sp.limitUsed * 100).toFixed(0)}%`, sp.limitUsed > 0.95 ? "bad" : sp.limitUsed > 0.75 ? "warn" : "good"],
+          ["Energy ½kx²", `${sp.elasticEnergy.toFixed(3)} J`],
+          ["Recoverable energy", `${sp.recoverableEnergy.toFixed(3)} J`, sp.elastic ? "good" : "warn"],
+          ["Permanent set", sp.permanentSet > 0 ? `${cm(sp.permanentSet)} cm` : "none", sp.permanentSet > 0 ? "bad" : "good"],
+        ],
+        note: sp.failed
+          ? `Far too much: at ${force.toFixed(1)} N this ${k} N/m spring has had its coils pulled straight and is scrap. It gives way at ${sp.failureForce.toFixed(1)} N.`
+          : sp.yielding
+            ? `Past the elastic limit. The graph has bent over — the gradient has fallen from ${k} to about ${sp.stiffness.toFixed(0)} N/m — and the spring will not return to L₀ when this load comes off.`
+            : `Elastic: x = F ÷ k = ${force.toFixed(2)} ÷ ${k} = ${cm(sp.extension)} cm, and the spring returns to L₀ when unloaded. It stays proportional up to ${sp.limitForce.toFixed(2)} N, which is ${sp.safeMassKg.toFixed(2)} kg.`,
+        noteTone: sp.failed ? "bad" : sp.yielding ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Force–Extension Graph Key",
+        items: [
+          { color: "#38bdf8", label: "Hooke's law region", note: "straight line through the origin, gradient k" },
+          { color: "#fbbf24", label: "Plastic region", note: "graph bends over — the spring is yielding" },
+          { color: "#f43f5e", label: "Elastic limit", note: `${sp.limitForce.toFixed(2)} N for this spring` },
+          { color: "#34d399", label: "Measured gradient", note: "ΔF/Δx drawn where the load currently sits" },
+          { color: "#cbd5e1", label: "Working point", note: `${cm(sp.extension)} cm at ${force.toFixed(2)} N` },
+        ],
+      };
+      break;
+    }
+
+    case "simple_machines": {
+      const type = params.machineType || "lever1";
+      const p = num(params.armPosition, 0.35);
+      const sheaves = num(params.sheaves, 2);
+      const loadN = num(params.loadN, 300);
+      const m = solveMachine({ type, p, sheaves, loadN });
+      const lever = isLever(type);
+
+      readout = {
+        title: m.machine.label,
+        subtitle: m.machine.order,
+        rows: [
+          ["Load", `${loadN.toFixed(0)} N (${m.loadMassKg.toFixed(1)} kg)`, "gold"],
+          ["Effort needed", `${m.effortForce.toFixed(1)} N`, m.losesForce ? "bad" : "good"],
+          ...(lever
+            ? [
+                ["Effort arm", `${m.layout.effortArm.toFixed(2)} m`],
+                ["Load arm", `${m.layout.loadArm.toFixed(2)} m`],
+              ]
+            : [["Supporting ropes", `${m.ropes}`]]),
+          ["Distance ratio d_e/d_l", `${m.velocityRatio.toFixed(2)}`],
+          ["Mechanical advantage", `${m.mechanicalAdvantage.toFixed(2)}`, m.losesForce ? "warn" : "good"],
+          ["Load moves", `${(m.loadDistance * 100).toFixed(1)} cm`],
+          ["Effort moves", `${(m.effortDistance * 100).toFixed(1)} cm`],
+          ["Work in", `${m.workIn.toFixed(1)} J`],
+          ["Work out", `${m.workOut.toFixed(1)} J`, "good"],
+          ["Wasted as heat", `${m.wasted.toFixed(1)} J`, m.wasted > 0 ? "warn" : "good"],
+          ["Efficiency", `${(m.efficiency * 100).toFixed(1)}%`, m.efficiency > 0.9 ? "good" : "warn"],
+        ],
+        note: m.losesForce
+          ? `This machine costs force rather than saving it: ${m.effortForce.toFixed(0)} N of effort to lift ${loadN.toFixed(0)} N. What you get back is speed and reach — the load moves ${(1 / m.velocityRatio).toFixed(1)}× further than your hand does. Your forearm is built this way.`
+          : `The effort is ${m.mechanicalAdvantage.toFixed(2)}× smaller than the load, and has to move ${m.velocityRatio.toFixed(2)}× further. Multiply those and you are back where you started — no machine reduces the work, only the force.`,
+        noteTone: m.losesForce ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Work Bookkeeping Key",
+        items: [
+          { color: "#fbbf24", label: "Work in", note: `${m.effortForce.toFixed(1)} N × ${(m.effortDistance * 100).toFixed(1)} cm = ${m.workIn.toFixed(1)} J` },
+          { color: "#34d399", label: "Work out", note: `${loadN.toFixed(0)} N × ${(m.loadDistance * 100).toFixed(1)} cm = ${m.workOut.toFixed(1)} J` },
+          { color: "#fb7185", label: "Wasted as heat", note: `${m.wasted.toFixed(1)} J at the ${lever ? "pivot" : "sheaves"}` },
+          { color: "#e8ebf0", label: "Distance ratio", note: "geometry only — friction cannot change it" },
+        ],
+      };
+      break;
+    }
+
+    case "roller_coaster_energy": {
+      const h0 = num(params.releaseHeight, 25);
+      const R = num(params.loopRadius, 8);
+      const mass = num(params.cartMass, 500);
+      const rough = Boolean(params.friction);
+      const g = 9.81;
+
+      const minH = minimumReleaseHeight(R);
+      const vNeeded = minimumTopSpeed(R);
+      // Ideal figures: what conservation alone predicts, before any friction.
+      const vGround = Math.sqrt(2 * g * h0);
+      const vTop = Math.sqrt(Math.max(2 * g * (h0 - 2 * R), 0));
+      const clears = h0 >= minH;
+      const startEnergy = mass * g * h0;
+      const track = buildTrack({ releaseHeight: h0, loopRadius: R });
+
+      readout = {
+        title: "Roller Coaster Energy",
+        subtitle: rough ? "steel on steel — some energy is lost" : "frictionless ideal",
+        rows: [
+          ["Release height h₀", `${h0.toFixed(0)} m`, clears ? "good" : "bad"],
+          ["Loop radius R", `${R.toFixed(0)} m`],
+          ["Loop top height 2R", `${(2 * R).toFixed(0)} m`],
+          ["Cart mass", `${mass.toFixed(0)} kg`],
+          ["Starting GPE", `${(startEnergy / 1000).toFixed(1)} kJ`, "gold"],
+          ["Speed at the ground", `${vGround.toFixed(1)} m/s`],
+          ["Speed at the loop top", `${vTop.toFixed(1)} m/s`, clears ? "good" : "bad"],
+          ["Needed at the top √(gR)", `${vNeeded.toFixed(1)} m/s`],
+          ["Minimum height 2.5R", `${minH.toFixed(1)} m`, clears ? "good" : "bad"],
+          ["g-force at the loop top", `${(vTop * vTop / (g * R) - 1).toFixed(2)} g`, clears ? "good" : "bad"],
+          ["g-force at the loop foot", `${(2 * g * h0 / (g * R) + 1).toFixed(2)} g`, 2 * h0 / R + 1 > 5 ? "warn" : "good"],
+          ["Track length", `${track.length.toFixed(0)} m`],
+        ],
+        note: !clears
+          ? `Below the threshold. At the top of the loop the cart would only have ${vTop.toFixed(1)} m/s, and it needs √(gR) = ${vNeeded.toFixed(1)} m/s for gravity alone to supply the centripetal force. Any slower and the rail would have to pull the cart inward, which it cannot — so the cart falls away from the track. Raise the release height above ${minH.toFixed(1)} m.`
+          : rough
+            ? `Clears the loop, and note the mass is irrelevant to that: it appears on both sides of ½mv² = mgh and cancels. With friction on, some of the starting ${(startEnergy / 1000).toFixed(0)} kJ ends up as heat in the wheels and brakes — the three bars still add to the same total, but the heat bar never gives anything back.`
+            : `Clears the loop with ${vTop.toFixed(1)} m/s against the ${vNeeded.toFixed(1)} m/s needed. With no friction, GPE and KE simply trade places: every metre of height lost buys exactly ½v² of speed, whatever the cart weighs.`,
+        noteTone: !clears ? "bad" : rough ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Energy & Forces Key",
+        items: [
+          { color: "#a78bfa", label: "GPE = mgh", note: `${(startEnergy / 1000).toFixed(1)} kJ at the top of the drop` },
+          { color: "#38bdf8", label: "KE = ½mv²", note: `all ${(startEnergy / 1000).toFixed(1)} kJ of it at ground level` },
+          { color: "#fb7185", label: "Thermal", note: rough ? "friction and brakes — one-way" : "none: the ideal track wastes nothing" },
+          { color: "#e8ebf0", label: "Total", note: "constant — that is what conservation means" },
+          { color: "#fbbf24", label: "The cart", note: `${mass.toFixed(0)} kg, and the mass changes nothing about the loop` },
         ],
       };
       break;
@@ -1649,6 +1856,11 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
               <div className="space-y-3">
                 {topic.controls
                   .filter((control) => control.key !== "speed")
+                  // A control may only apply to some of a topic's modes — the
+                  // simple-machines bench needs a fulcrum slider for levers and
+                  // a sheave count for the tackle, and showing both at once
+                  // invites a student to set the one that does nothing.
+                  .filter((control) => (typeof control.when === "function" ? control.when(params) : true))
                   .map((control) => (
                     <ControlField
                       key={control.key}

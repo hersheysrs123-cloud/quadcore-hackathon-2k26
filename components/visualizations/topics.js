@@ -29,14 +29,18 @@ import {
   Puzzle,
   Rocket,
   RotateCcw,
+  Scale,
   Scissors,
   Shapes,
   Shuffle,
   Sigma,
   Spline,
   Thermometer,
+  TrainFront,
+  Triangle,
   TrendingDown,
   Waves,
+  Weight,
   Wind,
   Zap,
 } from "lucide-react";
@@ -44,6 +48,7 @@ import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/med
 import {
   ALGORITHM_OPTIONS,
   CURVE_OPTIONS,
+  FRICTION_SURFACE_OPTIONS,
   GRAVITY_OPTIONS,
   STRUCTURE_OPTIONS,
   SURFACE_OPTIONS,
@@ -557,7 +562,323 @@ export const TOPICS = [
       },
     ],
   },
-  // ═══ Chemistry ═════════════════════════════════════════════════════
+  {
+    id: "incline_friction",
+    category: "physics",
+    icon: Triangle,
+    title: "Incline Plane — Newton's Laws & Friction",
+    blurb: "Resolving weight on a ramp, and the moment static friction runs out",
+    syllabus: "Physics 1.5 · Forces & Motion",
+    keywords:
+      "inclined plane ramp friction static kinetic coefficient mu normal force resolving components mg sin theta mg cos theta free body diagram newton second law angle of repose limiting friction net force acceleration slope",
+    defaults: {
+      rampAngle: 20,
+      surface: "wood",
+      blockMass: 10,
+      appliedForce: 0,
+      showComponents: true,
+      showNet: true,
+      running: true,
+      reset: 0,
+    },
+    controls: [
+      { type: "slider", key: "rampAngle", label: "Ramp angle θ", min: 0, max: 90, step: 1, format: (v) => `${v}°` },
+      { type: "choice", key: "surface", label: "Surface material", columns: 3, options: FRICTION_SURFACE_OPTIONS },
+      { type: "slider", key: "blockMass", label: "Block mass m", min: 1, max: 50, step: 1, format: (v) => `${v} kg` },
+      {
+        type: "slider",
+        key: "appliedForce",
+        label: "External applied pull",
+        min: -500,
+        max: 500,
+        step: 5,
+        format: (v) => (v === 0 ? "none" : v > 0 ? `${v} N up the ramp` : `${-v} N down the ramp`),
+      },
+      { type: "toggle", key: "showComponents", label: "Resolve weight into components" },
+      { type: "toggle", key: "showNet", label: "Show resultant force" },
+      { type: "toggle", key: "running", label: "Let the block move" },
+      { type: "action", key: "reset", label: "Put the block back", icon: RotateCcw },
+    ],
+    concepts: [
+      "Weight always points straight down, but on a slope it is easier to handle as two pieces: mg sinθ down the surface and mg cosθ pressing into it. Steepen the ramp and the first grows while the second shrinks — a steeper slope pulls harder AND grips less, which is why the effect runs away with itself.",
+      "Static friction is not a fixed force. It takes whatever value is needed to hold the block still, up to a ceiling of μs·N — so f ≤ μs·N is an inequality, not an equation. Quoting μs·N for a block that is sitting still is the single most common mistake in this topic.",
+      "The angle at which an unhelped block lets go obeys tanθ = μs, and the mass cancels out entirely: doubling the mass doubles the pull down the slope and doubles the grip holding it. A grain of sand and a shipping container slip at the same angle.",
+    ],
+    quiz: [
+      {
+        question:
+          "A 10 kg crate rests, motionless, on a ramp tilted at 15°. The surfaces have μs = 0.50. What is the friction force acting on the crate?",
+        options: [
+          "About 25 N — exactly enough to balance mg sin 15°",
+          "About 47 N — the maximum, μs mg cos 15°",
+          "About 98 N — equal to the crate's weight",
+          "Zero, because the crate is not moving",
+        ],
+        answer: 0,
+        explanation:
+          "Static friction is a reaction: it supplies exactly what is needed and no more. The crate is in equilibrium, so friction must equal the component of weight down the slope, mg sin 15° ≈ 25 N. The 47 N figure is the ceiling it has not yet reached — the crate is using about half its available grip.",
+      },
+      {
+        question:
+          "A block just begins to slide when a ramp reaches 27°. You replace it with a block of twice the mass. At what angle does the heavier block begin to slide?",
+        options: [
+          "The same 27°",
+          "About 13.5°, because it is heavier",
+          "About 54°, because it presses down harder",
+          "It depends on the surface area in contact",
+        ],
+        answer: 0,
+        explanation:
+          "Slipping starts when mg sinθ exceeds μs mg cosθ, and the mass appears on both sides. Cancel it and the condition is just tanθ = μs — independent of mass, and of contact area too. Doubling the mass doubles the pull down the slope and doubles the grip in exactly the same proportion.",
+      },
+      {
+        question:
+          "For most surfaces μk is smaller than μs. What does a student actually SEE because of that?",
+        options: [
+          "The block lurches suddenly once it starts, instead of easing into motion",
+          "The block slides at a perfectly constant speed",
+          "The block needs a larger force to keep it going than to start it",
+          "Nothing — the difference is only theoretical",
+        ],
+        answer: 0,
+        explanation:
+          "The instant the block breaks away, the friction opposing it drops from μs·N to the smaller μk·N. The forces no longer balance, so there is a sudden net force and the block jerks into motion. It is also why keeping something sliding takes less push than starting it.",
+      },
+    ],
+  },
+  {
+    id: "hookes_law",
+    category: "physics",
+    icon: Weight,
+    title: "Hooke's Law & the Elastic Limit",
+    blurb: "Where F = kx stops being true, and what the spring is like afterwards",
+    syllabus: "Physics 1.6 · Forces & Deformation",
+    keywords:
+      "hooke law spring constant extension elastic limit limit of proportionality plastic deformation permanent set force extension graph gradient elastic potential energy strain stress yield load slotted masses retort stand",
+    defaults: {
+      hangingMass: 0.5,
+      springConstant: 80,
+      overload: 0,
+      newSpring: 0,
+      showGraph: true,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "hangingMass",
+        label: "Add slotted masses",
+        min: 0.05,
+        max: 2.5,
+        step: 0.05,
+        format: (v) => (v < 1 ? `${(v * 1000).toFixed(0)} g` : `${v.toFixed(2)} kg`),
+      },
+      { type: "slider", key: "springConstant", label: "Spring constant k", min: 10, max: 150, step: 5, format: (v) => `${v} N/m` },
+      { type: "toggle", key: "showGraph", label: "Show force–extension graph" },
+      { type: "action", key: "overload", label: "Exceed the elastic limit", icon: TrendingDown, variant: "danger" },
+      { type: "action", key: "newSpring", label: "Fit a fresh spring", icon: RotateCcw },
+    ],
+    concepts: [
+      "F = kx is not a law about springs — it is a description of what a spring does BELOW a threshold. The gradient of the straight part of a force–extension graph is the spring constant k, and the graph only stays straight up to the limit of proportionality.",
+      "Below the elastic limit the deformation is elastic: take the load off and the spring returns to its original length L₀. Past it, some of the deformation is plastic. Unloading runs back down a line of the same gradient k, but it arrives at a permanent set instead of at zero.",
+      "The elastic potential energy stored is ½kx², which is the area under the straight line. Beyond the elastic limit that formula over-states what you get back, because part of the work went into permanently rearranging the metal and is never returned.",
+    ],
+    quiz: [
+      {
+        question:
+          "A spring obeying Hooke's law stretches by 4.0 cm when a 2.0 N weight hangs from it. It is still elastic. What load produces an extension of 6.0 cm?",
+        options: ["3.0 N", "4.0 N", "2.7 N", "6.0 N"],
+        answer: 0,
+        explanation:
+          "Below the limit, extension is proportional to load, so 6.0 ÷ 4.0 = 1.5 times the extension needs 1.5 times the force: 3.0 N. In passing, k = F ÷ x = 2.0 ÷ 0.040 = 50 N/m, and 50 × 0.060 = 3.0 N.",
+      },
+      {
+        question:
+          "A spring is loaded well past its elastic limit, then every weight is taken off. What do you find?",
+        options: [
+          "It is permanently longer than it started, though it still springs when you pull it",
+          "It returns exactly to its original length, just more slowly",
+          "It has become permanently softer — its k is now smaller",
+          "It snaps back past its original length and becomes shorter",
+        ],
+        answer: 0,
+        explanation:
+          "Unloading follows a line of the ORIGINAL gradient k, so the spring is just as stiff as before — but that line no longer passes through the origin. The offset is the permanent set: the spring has a new, longer natural length. Plastic flow moves where a spring starts from without changing how stiff it is.",
+      },
+      {
+        question: "What does the gradient of a force–extension graph tell you, and what does the area under it tell you?",
+        options: [
+          "Gradient is the spring constant k; area is the elastic energy stored",
+          "Gradient is the energy stored; area is the spring constant k",
+          "Gradient is the extension; area is the force applied",
+          "Gradient is the elastic limit; area is the permanent set",
+        ],
+        answer: 0,
+        explanation:
+          "Gradient = ΔF ÷ Δx, which is the definition of k. Area under a straight line from the origin = ½ × base × height = ½ × x × kx = ½kx², the elastic potential energy. Watching the gradient collapse past the elastic limit is how you see the spring stop obeying Hooke's law.",
+      },
+    ],
+  },
+  {
+    id: "simple_machines",
+    category: "physics",
+    icon: Scale,
+    title: "Simple Machines & Mechanical Advantage",
+    blurb: "Levers and a block and tackle — less force, but never less work",
+    syllabus: "Physics 1.7 · Work, Energy & Machines",
+    keywords:
+      "simple machines lever class 1 2 3 fulcrum effort load arm mechanical advantage velocity ratio distance ratio pulley block and tackle sheaves work input output efficiency wheelbarrow tweezers crowbar moment principle of moments",
+    defaults: {
+      machineType: "lever1",
+      armPosition: 0.35,
+      sheaves: 2,
+      loadN: 300,
+      running: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "machineType",
+        label: "Machine type",
+        columns: 2,
+        options: [
+          { value: "lever1", label: "Class 1 lever", title: "load — fulcrum — effort · see-saw, crowbar" },
+          { value: "lever2", label: "Class 2 lever", title: "fulcrum — load — effort · wheelbarrow" },
+          { value: "lever3", label: "Class 3 lever", title: "fulcrum — effort — load · tweezers, forearm" },
+          { value: "pulley", label: "Block & tackle", title: "n sheaves sharing the load between n ropes" },
+        ],
+      },
+      {
+        type: "slider",
+        key: "armPosition",
+        label: "Fulcrum position",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        format: (v) => `${(v * 100).toFixed(0)}% along the bar`,
+        when: (params) => (params?.machineType ?? "lever1") !== "pulley",
+      },
+      {
+        type: "slider",
+        key: "sheaves",
+        label: "Sheaves in the tackle",
+        min: 1,
+        max: 4,
+        step: 1,
+        format: (v) => `${v} rope${v === 1 ? "" : "s"} supporting the load`,
+        when: (params) => params?.machineType === "pulley",
+      },
+      { type: "slider", key: "loadN", label: "Load weight", min: 10, max: 500, step: 10, format: (v) => `${v} N` },
+      { type: "toggle", key: "running", label: "Animate the stroke" },
+    ],
+    concepts: [
+      "A machine changes the force you need, never the work you do. Work in = work out (plus whatever friction takes), so cutting the effort force to a third means moving your hand three times as far. That trade is the whole of what a simple machine is.",
+      "The three classes of lever are defined by which of the three points is in the middle. Class 2 always has the effort arm longer, so its advantage is always above 1. Class 3 always has it shorter, so its advantage is always below 1 — your forearm gives up force to gain speed and reach.",
+      "In a block and tackle the load is shared between the rope segments supporting it, so n ropes need one nth of the force — and n metres of rope hauled through for every metre the load rises. Adding sheaves keeps paying, but each one adds friction, so efficiency falls as the advantage grows.",
+    ],
+    quiz: [
+      {
+        question:
+          "A pulley system lets you raise a 400 N crate using an effort of 100 N. Ignoring friction, how far must you pull the rope to raise the crate by 0.5 m?",
+        options: ["2.0 m", "0.5 m", "0.125 m", "4.0 m"],
+        answer: 0,
+        explanation:
+          "Work in must equal work out: 100 × d = 400 × 0.5 = 200 J, so d = 2.0 m. The force went down by a factor of four, so the distance goes up by the same factor of four — that is the trade, and no arrangement of pulleys escapes it.",
+      },
+      {
+        question:
+          "For a real machine, the distance ratio d_effort ÷ d_load and the force ratio F_load ÷ F_effort are not quite equal. What is the relationship between them?",
+        options: [
+          "The force ratio is smaller, and dividing it by the distance ratio gives the efficiency",
+          "The force ratio is larger, because friction helps lift the load",
+          "They are always exactly equal — any difference is measurement error",
+          "The distance ratio changes with friction; the force ratio does not",
+        ],
+        answer: 0,
+        explanation:
+          "The distance ratio is fixed by the machine's geometry — friction cannot change the shape of a lever. But friction means some input work never reaches the load, so the effort force must be larger than the ideal, and the measured force ratio comes out smaller. Efficiency = MA ÷ VR is exactly that shortfall.",
+      },
+      {
+        question:
+          "Your forearm is a class 3 lever: the biceps attaches about 4 cm from the elbow, and you hold a load about 32 cm from it. What does this arrangement buy you?",
+        options: [
+          "Speed and range — your hand moves eight times as far as the muscle contracts",
+          "Force — the muscle only needs an eighth of the load's weight",
+          "Nothing; the body is simply badly designed",
+          "Efficiency — no energy is wasted in a class 3 lever",
+        ],
+        answer: 0,
+        explanation:
+          "The effort arm is the shorter one, so the mechanical advantage is 4 ÷ 32 = 0.125 — the biceps must pull about eight times the load's weight. In exchange, a small, slow muscle contraction becomes a large, fast hand movement. For throwing and reaching, that is the better bargain.",
+      },
+    ],
+  },
+  {
+    id: "roller_coaster_energy",
+    category: "physics",
+    icon: TrainFront,
+    title: "Energy Conservation — Loop-the-Loop",
+    blurb: "GPE into KE and back, and the least height that survives the loop",
+    syllabus: "Physics 1.7 · Energy Stores & Transfers",
+    keywords:
+      "conservation of energy gravitational potential kinetic energy roller coaster loop the loop centripetal force minimum speed root gR g-force normal reaction thermal dissipation friction brakes mgh half mv squared energy transfer",
+    defaults: {
+      releaseHeight: 25,
+      loopRadius: 8,
+      cartMass: 500,
+      friction: false,
+      running: true,
+      relaunch: 0,
+    },
+    controls: [
+      { type: "slider", key: "releaseHeight", label: "Initial release height", min: 5, max: 50, step: 1, format: (v) => `${v} m` },
+      { type: "slider", key: "loopRadius", label: "Loop radius R", min: 3, max: 15, step: 1, format: (v) => `${v} m · needs ${(2.5 * v).toFixed(1)} m of drop` },
+      { type: "slider", key: "cartMass", label: "Cart mass", min: 200, max: 1000, step: 50, format: (v) => `${v} kg` },
+      { type: "toggle", key: "friction", label: "Realistic steel-on-steel friction" },
+      { type: "toggle", key: "running", label: "Run the cart" },
+      { type: "action", key: "relaunch", label: "Send it round again", icon: RotateCcw },
+    ],
+    concepts: [
+      "On a frictionless track GPE + KE never changes. Every metre of height the cart gives up buys exactly the same amount of kinetic energy, so mgh = ½mv² and the speed at any point depends only on how far it has descended — not on the shape of the track it took to get there.",
+      "The cart's mass cancels out of that equation entirely. A full train and a single empty car released from the same height arrive at the bottom at the same speed, and need the same minimum height to survive the loop. The mass changes every energy in the budget and none of the conclusions.",
+      "At the top of the loop gravity has to supply the centripetal force by itself, which needs v² ≥ gR. Working back through conservation gives a minimum release height of 2.5R. Below it the rail would have to pull the cart inward to hold it on, and a wheel on the inside of a rail cannot pull.",
+    ],
+    quiz: [
+      {
+        question:
+          "A coaster has a vertical loop of radius 10 m. Ignoring friction, what is the lowest height the cart can be released from and still make it round?",
+        options: ["25 m", "20 m", "10 m", "12.5 m"],
+        answer: 0,
+        explanation:
+          "At the top of the loop the cart needs v² ≥ gR to stay on the rail. The top is at a height of 2R = 20 m, so conservation gives ½v² = g(h − 20), and v² = gR = 10g requires h − 20 ≥ 5, so h ≥ 25 m. The general result is h ≥ 2.5R, and the mass never enters it.",
+      },
+      {
+        question:
+          "Two identical carts are released from the same height on the same frictionless track, but one carries four passengers and the other is empty. Which is travelling faster at the bottom?",
+        options: [
+          "Neither — they arrive at exactly the same speed",
+          "The heavier one, because it has more gravitational potential energy",
+          "The lighter one, because it has less inertia to accelerate",
+          "It depends on the shape of the drop",
+        ],
+        answer: 0,
+        explanation:
+          "mgh = ½mv² has m on both sides, so it cancels: v = √(2gh) regardless of mass. The loaded cart does start with more energy, but it also has proportionally more to move, and the two effects exactly balance. It is the same reason all objects fall at the same rate.",
+      },
+      {
+        question:
+          "With friction switched on, what happens to the total of GPE + KE + thermal energy as the cart runs?",
+        options: [
+          "It stays constant — friction moves energy into the thermal store, it does not destroy it",
+          "It falls steadily, because friction removes energy from the system",
+          "It rises, because the brakes add energy",
+          "It stays constant only until the brakes engage",
+        ],
+        answer: 0,
+        explanation:
+          "Energy is conserved whether or not friction acts. What friction changes is where the energy is: it moves out of the mechanical stores and into thermal energy in the wheels, rails and air. That store is the one the cart cannot draw back on, which is why the ride ends — but the total never budges.",
+      },
+    ],
+  },
   {
     id: "shadows",
     category: "physics",
@@ -604,6 +925,7 @@ export const TOPICS = [
       },
     ],
   },
+  // ═══ Chemistry ═════════════════════════════════════════════════════
   {
     id: "bohr",
     category: "chemistry",

@@ -8,6 +8,8 @@
 // behind their dynamic imports.
 // ─────────────────────────────────────────────────────────────────────
 
+import { FRICTION_SURFACES } from "@/lib/inclineForces";
+
 // ─── Mathematics ────────────────────────────────────────────────────
 
 export const SURFACE_OPTIONS = [
@@ -48,6 +50,19 @@ export const ALGORITHM_OPTIONS = Object.entries(ALGORITHM_META).map(([value, a])
 }));
 
 // ─── Physics ────────────────────────────────────────────────────────
+
+/**
+ * The surface pairings on the friction ramp.
+ *
+ * Derived from the coefficient table rather than retyped beside it: a label
+ * here that disagreed with the μ the solver uses would be a scene quietly
+ * teaching the wrong number.
+ */
+export const FRICTION_SURFACE_OPTIONS = Object.entries(FRICTION_SURFACES).map(([value, s]) => ({
+  value,
+  label: s.short,
+  title: `${s.label} — μs = ${s.muS}, μk = ${s.muK}`,
+}));
 
 export const GRAVITY_OPTIONS = [
   { value: 1.62, label: "Moon", title: "1.62 m/s²" },
