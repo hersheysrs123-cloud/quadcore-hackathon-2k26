@@ -107,6 +107,43 @@ export function getHydrocarbonFormula(series, carbonCount) {
   }
 }
 
+// 5. Faraday's Law & Electromagnetic Induction Solver
+export const COIL_W = 1.5;
+export const COIL_H = 1.0;
+export const COIL_AREA = 2 * COIL_W * 2 * COIL_H; // 6.0 m²
+
+export const omegaOf = (speed) => (speed || 0) * 1.7;
+export const peakEmf = (field, omega, turns = 1) => turns * field * COIL_AREA * omega;
+export const fluxAt = (field, angle) => field * COIL_AREA * Math.sin(angle);
+export const emfAt = (field, omega, angle, turns = 1) =>
+  -turns * field * COIL_AREA * omega * Math.cos(angle);
+
+export function solveInduction({ speed = 1.0, field = 1.0, turns = 1, angle = 0 } = {}) {
+  const safeTurns = Math.max(1, Math.round(turns || 1));
+  const omega = omegaOf(speed);
+  const peak = peakEmf(field, omega, safeTurns);
+  const flux = fluxAt(field, angle);
+  const rawEmf = emfAt(field, omega, angle, safeTurns);
+  const emf = Object.is(rawEmf, -0) || Math.abs(rawEmf) < 1e-12 ? 0 : rawEmf;
+  return {
+    coilArea: COIL_AREA,
+    omega,
+    peakEmf: peak,
+    flux: Object.is(flux, -0) || Math.abs(flux) < 1e-12 ? 0 : flux,
+    emf,
+    frequencyHz: speed,
+    cuttingRate: Math.abs(Math.cos(angle)),
+  };
+}
+
+// 6. Electrostatic Force Formatter
+export function formatForce(newtons = 0) {
+  const n = Number.isFinite(newtons) ? Math.abs(newtons) : 0;
+  if (n >= 1) return `${n.toFixed(2)} N`;
+  if (n >= 1e-3) return `${(n * 1e3).toFixed(1)} mN`;
+  return `${(n * 1e6).toFixed(0)} µN`;
+}
+
 // ─── TEST SUITE ─────────────────────────────────────────────────────────────
 
 describe("Physics & Chemistry Mathematical Solvers", () => {
@@ -208,6 +245,64 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
     it("generates correct Alcohols and Carboxylic Acids", () => {
       assert.deepStrictEqual(getHydrocarbonFormula("alcohol", 2), { carbons: 2, hydrogens: 5, oxygens: 1, formula: "C2H5OH" });
       assert.deepStrictEqual(getHydrocarbonFormula("carboxylic", 2), { carbons: 2, hydrogens: 4, oxygens: 2, formula: "C2H4O2" });
+    });
+  });
+
+  describe("Electromagnetic Induction & Faraday's Law", () => {
+    it("computes zero induced EMF and zero omega when stationary (speed = 0)", () => {
+      const res = solveInduction({ speed: 0, field: 1.5, turns: 5, angle: 0 });
+      assert.strictEqual(res.omega, 0);
+      assert.strictEqual(res.peakEmf, 0);
+      assert.strictEqual(res.emf, 0);
+    });
+
+    it("doubles peak EMF when turns N or speed or field B is doubled", () => {
+      const base = solveInduction({ speed: 1.0, field: 1.0, turns: 2 });
+      const doubleTurns = solveInduction({ speed: 1.0, field: 1.0, turns: 4 });
+      const doubleSpeed = solveInduction({ speed: 2.0, field: 1.0, turns: 2 });
+      const doubleField = solveInduction({ speed: 1.0, field: 2.0, turns: 2 });
+
+      assert.strictEqual(doubleTurns.peakEmf, base.peakEmf * 2);
+      assert.strictEqual(doubleSpeed.peakEmf, base.peakEmf * 2);
+      assert.strictEqual(doubleField.peakEmf, base.peakEmf * 2);
+    });
+
+    it("shows peak EMF occurs at edge-on rotation (cos θ = ±1) and zero flux", () => {
+      // At angle = 0, coil lies in XY, normal along Z, cutting lines fastest
+      const edgeOn = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: 0 });
+      assert.strictEqual(edgeOn.cuttingRate, 1);
+      assert.strictEqual(edgeOn.flux, 0);
+      assert.strictEqual(Math.abs(edgeOn.emf), edgeOn.peakEmf);
+
+      // At angle = π/2, coil faces field: maximum flux, zero EMF
+      const faceOn = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: Math.PI / 2 });
+      assert.ok(Math.abs(faceOn.cuttingRate) < 1e-6);
+      assert.ok(Math.abs(faceOn.emf) < 1e-6);
+      assert.ok(Math.abs(faceOn.flux - 6.0) < 1e-6); // 1.0 * 6.0 m² * sin(π/2) = 6.0 Wb
+    });
+
+    it("clamps safe turns to minimum 1 for undefined or zero inputs", () => {
+      const res1 = solveInduction({ speed: 1.0, field: 1.0, turns: 0 });
+      const res2 = solveInduction({ speed: 1.0, field: 1.0, turns: undefined });
+      assert.ok(res1.peakEmf > 0);
+      assert.ok(res2.peakEmf > 0);
+      assert.strictEqual(res1.peakEmf, res2.peakEmf);
+    });
+  });
+
+  describe("Electrostatic Force Formatting & Safety", () => {
+    it("formats newtons, millinewtons, and micronewtons appropriately", () => {
+      assert.strictEqual(formatForce(2.45), "2.45 N");
+      assert.strictEqual(formatForce(0.015), "15.0 mN");
+      assert.strictEqual(formatForce(0.000045), "45 µN");
+      assert.strictEqual(formatForce(0), "0 µN");
+    });
+
+    it("safely handles undefined, null, NaN, and negative force inputs", () => {
+      assert.strictEqual(formatForce(undefined), "0 µN");
+      assert.strictEqual(formatForce(null), "0 µN");
+      assert.strictEqual(formatForce(NaN), "0 µN");
+      assert.strictEqual(formatForce(-0.025), "25.0 mN");
     });
   });
 });

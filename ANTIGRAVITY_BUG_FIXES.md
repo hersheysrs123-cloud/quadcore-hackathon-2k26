@@ -5108,4 +5108,165 @@ Users identified two visual inconsistencies during print and PDF export:
    - Added unit test cases in `tests/unit/space-hub.test.mjs` verifying permanent default space deletion across hydration simulation, safe fallback space assignment, and quick quiz zero-math question constraints.
    - All 551 tests pass.
 
+---
 
+## 86. 3D Visualizations "Application Error" Resolution (Faraday's Law & Static Electricity)
+
+### Problem Statement
+1. **Faraday's Law 3D Scene Fatal Crash (`induction`)**:
+   - Selecting "Electromagnetic Induction & Faraday's Law" from the 3D Visualization Hub (`/visualizations?vis=induction`) immediately crashed with a fatal Next.js client-side exception: *"Application error: a client-side exception has occurred (see the browser console for more information)"*. The 3D canvas failed to mount and the simulation was entirely unavailable.
+2. **Static Electricity 3D Scene Fatal Crash (`static_electricity`)**:
+   - Selecting "Static Electricity & Charge Transfer" from the 3D Visualization Hub (`/visualizations?vis=static_electricity`) similarly threw an immediate unhandled client-side runtime exception on mount, displaying the same fatal Application Error and preventing the balloon, wool sweater, and Van de Graaff models from loading.
+
+### Root Cause Analysis
+1. **Undefined Component Reference (`ReferenceError: MagnetPole is not defined`)**:
+   - In `components/visualizations/PhysicsCanvas.jsx` (`InductionScene`), lines 2029–2030 rendered `<MagnetPole position={[-3.4, 0, 0]} pole="N" />` and `<MagnetPole position={[3.4, 0, 0]} pole="S" />`.
+   - However, `MagnetPole` was never declared or imported anywhere in the codebase (the pole assembly had been implemented under the identifier `PolePlate` at line 1136).
+   - As a result, when React evaluated `InductionScene`, JavaScript threw a fatal `ReferenceError: MagnetPole is not defined`, crashing the component tree before WebGL compilation could begin.
+2. **React Three Fiber Hook Called Outside Canvas Context (`Error: [useThree] can only be used within the Canvas component!`)**:
+   - In `components/visualizations/StaticElectricityCanvas.jsx`, the custom dragging hook `useBalloonDrag` called `const controls = useThree((state) => state.controls)` in order to disable `OrbitControls` while the user was actively dragging the charged balloon.
+   - However, `useBalloonDrag` was being executed at the top level of `StaticElectricityCanvas`, which is an outer DOM component that renders `<SceneCanvas>` rather than a descendant inside `<Canvas>`.
+   - In `@react-three/fiber`, calling `useThree` (or any R3F context hook) outside of the Canvas context throws an immediate fatal exception: `[useThree] can only be used within the Canvas component!`. This caused `StaticElectricityCanvas` to crash during initial evaluation before `<SceneCanvas>` could mount.
+3. **Missing Parameter Boundary & Formatting Safety**:
+   - In `StaticElectricityCanvas.jsx`, `Room` and `HumidityHaze` lacked defensive checks for non-finite `humidity`, `ChargeClock` accessed `restPosition[0]` without checking for undefined vectors, and `formatForce` could yield `NaN µN` if called with undefined force values.
+   - In `PhysicsCanvas.jsx` (`RotatingCoil` and `EmfTrace`), `turns` was not clamped to an integer >= 1, risking empty arrays or NaN calculations if HUD slider parameters drifted.
+
+### Resolution & Architectural Enhancements
+1. **Defined & Exported `MagnetPole` Alias (`components/visualizations/PhysicsCanvas.jsx`)**:
+   - Exported `export const MagnetPole = PolePlate;` immediately following `PolePlate`, properly linking the North/South magnetic pole block, metallic yoke, and bevel cap to `InductionScene`.
+   - Added `safeTurns = Math.max(1, Math.round(turns || 1))` guards to `RotatingCoil` and `EmfTrace` to safeguard against invalid turn counts.
+2. **Encapsulated 3D Dragging in `DraggableBalloon` (`components/visualizations/StaticElectricityCanvas.jsx`)**:
+   - Created an internal 3D child component `DraggableBalloon` containing `useBalloonDrag` and rendered it strictly as a descendant inside `<SceneCanvas>`.
+   - Removed the illegal top-level `useBalloonDrag` invocation from `StaticElectricityCanvas`, ensuring that `useThree((state) => state.controls)` only runs within the active Fiber Canvas context.
+   - Guarded pointer capture operations in `useBalloonDrag` with safe `try...catch` and validated ray intersection before vector access.
+   - Fortified `Room`, `HumidityHaze`, and `ChargeClock` with safe defaults (`humidity = 40`, `restPosition = [0, 0, 0]`).
+   - Hardened `formatForce` to safely handle non-finite or negative force inputs.
+3. **Automated Verification & Unit Tests**:
+   - Added unit test suites to `tests/unit/physics-solvers.test.mjs` verifying:
+     - Faraday's Law peak EMF $\varepsilon_0 = N B A \omega$ and induced EMF $\varepsilon = -N B A \omega \cos\theta$.
+     - Angular speed scaling and edge-on vs face-on flux/EMF relationships.
+     - Safe turns clamping and electrostatic force formatting.
+   - All **788 unit and integration tests** pass with 0 errors across 194 test suites.
+   - Next.js production build (`npm run build`) completed successfully with 0 errors.
+
+---
+
+## 87. Universal Animation Speed Slider Support Across 8 3D Visualizations
+
+### Problem Statement
+- In commit `10e79ce`, eight advanced 3D interactive visualizations were integrated into SocraticOS:
+  1. `incline_friction` (`InclineFrictionCanvas.jsx`)
+  2. `hookes_law` (`HookesLawCanvas.jsx`)
+  3. `simple_machines` (`SimpleMachinesCanvas.jsx`)
+  4. `roller_coaster_energy` (`RollerCoasterCanvas.jsx`)
+  5. `circuits_breadboard` (`CircuitBoardCanvas.jsx`)
+  6. `static_electricity` (`StaticElectricityCanvas.jsx`)
+  7. `buoyancy` (`BuoyancyCanvas.jsx`)
+  8. `heat_transfer` (`HeatTransferCanvas.jsx`)
+- Although `VisualizationHUD.jsx` renders a prominent universal Animation Speed slider right below the tab switcher (`⚡ Animation Speed` with range 0.1× to 3.0×), changing the slider had zero effect in any of these 8 scenes. The simulations ran at an immutable fixed rate and completely ignored the user's selected animation speed.
+
+### Root Cause Analysis
+1. **Missing `speed` Defaults in Topic Catalog (`components/visualizations/topics.js`)**:
+   - The topic definitions in `topics.js` for all 8 topics lacked a `speed: 1` entry in their `defaults` dictionaries. Consequently, when mounting the scenes, `params.speed` was uninitialized or not tracked in the topic parameter baseline.
+2. **Missing `speed` Timestep Scaling in Force Diagram Hook (`components/visualizations/force-diagram.jsx`)**:
+   - `useBodyMotion` in `force-diagram.jsx` (which steps the rigid-body dynamics for `InclineFrictionCanvas`) did not accept a `speed` parameter, integrating strictly with `const dt = Math.min(delta, 0.05)`.
+3. **Missing Prop Destructuring & Clock Wiring Across the 8 Canvas Components**:
+   - Each of the 8 canvas components received `params` from `TopicViewer` but failed to destructure or forward `speed` into their respective simulation loops, physics runners, and particle streams:
+     - `InclineFrictionCanvas.jsx`: `BlockMotion` did not pass `speed` to `useBodyMotion`.
+     - `HookesLawCanvas.jsx`: The spring and weight hanger were static meshes with no dynamic damped harmonic oscillation loop responding to load changes or animation speed.
+     - `SimpleMachinesCanvas.jsx`: `StrokeClock` advanced the lift-and-lower cycle with unscaled `Math.min(delta, 0.05)`.
+     - `RollerCoasterCanvas.jsx`: `CartRunner` integrated track run-steps with unscaled `Math.min(delta, 0.04)`.
+     - `CircuitBoardCanvas.jsx`: `FlowSegment` computed electron drift speed strictly with `driftSpeed(segment.current)` without multiplying by the animation speed factor.
+     - `StaticElectricityCanvas.jsx`: `HumidityHaze`, `ChargeClock`, `VanDeGraaff`, `PieStack`, and `ChargeFlow` used unscaled `delta` and raw `clock.elapsedTime`.
+     - `BuoyancyCanvas.jsx`: `MeasuringCylinder` water fill rate and `OverflowStream` falling droplets were hardcoded, and the floating specimen lacked buoyant bobbing.
+     - `HeatTransferCanvas.jsx`: `ThermalDriver` conduction/convection integration `dt`, `BunsenBurner` flame flicker, `DyeTracers` convection loop, `Rod` lattice vibration, and `RadiationRings`/`RadiationBeam` wave propagation all ignored `speed`.
+
+### Resolution & Architectural Enhancements
+1. **Default Registration in `components/visualizations/topics.js`**:
+   - Added `speed: 1` to `defaults` across all 8 target topics in `topics.js`.
+2. **`useBodyMotion` Timestep Scaling (`components/visualizations/force-diagram.jsx`)**:
+   - Updated `useBodyMotion` signature to accept `speed = 1.0` and scaled integration: `const dt = Math.min(delta, 0.05) * speed;` with `if (running && speed > 0)`.
+3. **Complete Clock & Simulation Wiring Across All 8 Canvases**:
+   - **`InclineFrictionCanvas.jsx`**: Destructured `speed = 1` and passed to `BlockMotion` -> `useBodyMotion`.
+   - **`HookesLawCanvas.jsx`**: Introduced `OscillatingSpringRig` using damped harmonic motion scaled by `dt = Math.min(delta, 0.05) * speed` and natural frequency $\omega = \sqrt{k/m}$, dynamically oscillating the spring, pointer, weight hanger, and force vectors on load changes and ambient flutter.
+   - **`SimpleMachinesCanvas.jsx`**: Updated `StrokeClock` to advance stroke phase by `Math.min(delta, 0.05) * speed`.
+   - **`RollerCoasterCanvas.jsx`**: Updated `CartRunner` to step coaster physics with `Math.min(delta, 0.04) * speed` and skip integration when `speed <= 0`.
+   - **`CircuitBoardCanvas.jsx`**: Updated `FlowSegment` to compute `speed = driftSpeed(segment.current) * animSpeed`, dynamically accelerating or decelerating electron drift.
+   - **`StaticElectricityCanvas.jsx`**: Wired `animSpeed={speed}` into `HumidityHaze`, `ChargeClock`, `VanDeGraaff`, `PieStack`, and `ChargeFlow`.
+   - **`BuoyancyCanvas.jsx`**: Wired `animSpeed={speed}` into `MeasuringCylinder`, `OverflowStream`, and created `FloatingSpecimenRig` to bob floating hulls dynamically at `speed`.
+   - **`HeatTransferCanvas.jsx`**: Wired `animSpeed={speed}` into `ThermalDriver`, `BunsenBurner`, `DyeTracers`, `Rod`, `RadiationRings`, and `RadiationBeam`.
+4. **Automated Verification & Unit Tests**:
+   - Created `tests/unit/topic-animation-speed.test.mjs` verifying:
+     - All 8 topics in `topics.js` register `speed: 1` in their `defaults`.
+     - Physics timestep `dt` scales linearly with speed factor.
+     - Paused/frozen state behavior when `speed = 0`.
+   - All **791 unit and integration tests** pass with 0 errors across 195 test suites.
+
+---
+
+## 88. Universal 3D Visualization Sidebar Controls Resizability Standard (`ShadowLabCanvas.jsx` & `EyeCanvas.jsx`)
+
+### Problem Statement
+- In the "Light, Shadows & Straight Lines" optical bench 3D visualization ([`ShadowLabCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ShadowLabCanvas.jsx)), the sidebar controls panel was hardcoded to a static width of `w-[288px]` and lacked any drag-to-resize handle or width responsiveness.
+- A comprehensive audit of all 36 3D interactive visualizations in SocraticOS revealed that while 32 topics driven by [`VisualizationHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/VisualizationHUD.jsx), [`BinaryTree3D.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BinaryTree3D.jsx) (`binary_tree`), and [`RespiratoryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/RespiratoryCanvas.jsx) (`respiratory`) possessed drag-to-resize sidebar capabilities, both `ShadowLabCanvas.jsx` (`shadows`) and [`EyeCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/EyeCanvas.jsx) (`eye`) were constrained to static non-resizable containers (`w-[288px]` and `w-[286px]`).
+
+### Root Cause Analysis
+1. **Dedicated HUD Routing (`ownHud: true`)**:
+   - In [`components/visualizations/topics.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/topics.js), 4 specialized topics specify `ownHud: true`: `shadows`, `eye`, `respiratory`, and `binary_tree`.
+   - Because `app/visualizations/page.jsx` and `components/ThreeDView.jsx` bypass the shared `VisualizationHUD` when `topic.ownHud === true`, each of these dedicated scenes is responsible for rendering its own control overlay.
+2. **Missing Resize State & Handle Elements**:
+   - `BinaryTree3D.jsx` and `RespiratoryCanvas.jsx` had been updated with dynamic width states and drag-to-resize handles.
+   - However, `ShadowLabCanvas.jsx` and `EyeCanvas.jsx` still used legacy fixed Tailwind width classes (`w-[288px]` and `w-[286px]`) and omitted pointer drag handlers, edge resize handles, and bottom-right corner grip indicators.
+
+### Resolution & Architectural Enhancements
+1. **Dynamic Width State & LocalStorage Persistence**:
+   - Added `panelWidth` state initialized to 288px in `ShadowLabCanvas.jsx` and 286px in `EyeCanvas.jsx` for SSR consistency.
+   - On client mount, hydrated saved width preferences from `localStorage.getItem("socratic_hud_panel_width")` clamped within safe bounds (180px to 85% window width).
+2. **Smooth Pointer Drag Handler (`handleResizePointerDown`)**:
+   - Attached global `pointermove`, `pointerup`, and `pointercancel` listeners on pointer down to dynamically scale the panel width based on cursor displacement.
+   - Clamped panel width dynamically to viewport bounds (`Math.max(180, Math.floor(window.innerWidth * 0.10))` up to `Math.floor(window.innerWidth * 0.80)`).
+   - Saved final resized width to `localStorage` on drag release so user layout preferences persist across page reloads and topic transitions.
+3. **Interactive Resize Handles & Layout Styling**:
+   - Wrapped inner HUD panels in a flex container with `max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5 flex flex-col gap-3`.
+   - Added right-edge drag bar with `cursor-ew-resize`, hover highlighting (`group-hover:bg-duck-400/80`), and active styling.
+   - Added bottom-right corner grip SVG indicator (`cursor-nwse-resize`) matching `VisualizationHUD.jsx` and `BinaryTree3D.jsx`.
+4. **Automated Verification & Unit Tests**:
+   - Created [`tests/unit/topic-sidebar-resize.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/topic-sidebar-resize.test.mjs) verifying:
+     - All 36 topics have valid HUD routing (32 via `VisualizationHUD` and 4 via dedicated scenes).
+     - `VisualizationHUD.jsx`, `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx` all implement resizable width states and resize handles.
+     - Mathematical width clamping correctly respects the 10% to 80% viewport limits.
+   - All **798 unit and integration tests** pass with 0 errors across 196 test suites.
+
+---
+
+## 89. 3D Studio Top Bar Clean-up & Subject-Separated Model Selector Dropdown
+
+### Problem Statement
+- In the 3D Studio (both within the Workspace 3D tab and the standalone `/visualizations` route), a redundant second top bar was rendered directly below the main header: the "Category & Topic Quick Switch Strip". This horizontal scrolling bar duplicated the topic navigation options, occupied excessive vertical viewport space needed by 3D interactive canvases, and caused visual clutter.
+- In addition, the topic selector was a rudimentary native HTML `<select>` element with generic browser styling that lacked discipline/subject grouping, search capabilities, visual icons, syllabus badges, or cohesive alignment with SocraticOS's dark ink design system.
+
+### Root Cause Analysis
+1. **Redundant Horizontal Navigation Strip (`Category & Topic Quick Switch Strip`)**:
+   - Both [`components/ThreeDView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ThreeDView.jsx) and [`app/visualizations/page.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/app/visualizations/page.jsx) rendered a secondary horizontal bar with category filter chips and horizontally scrolling topic buttons.
+   - This secondary strip consumed 40px+ of vertical space and introduced redundant topic selection state (`category`, `visibleTopics`).
+2. **Unstyled Native `<select>` Selector**:
+   - The topic selector was rendered as a plain `<select>` dropdown with `appearance-none` and basic borders.
+   - It could not support rich metadata (category emojis, subject grouping headers, syllabus codes, interactive filtering, or custom icons).
+
+### Resolution & Architectural Enhancements
+1. **Creation of Reusable `TopicSelectorDropdown` (`components/visualizations/TopicSelectorDropdown.jsx`)**:
+   - **Trigger Button**: Displays current subject badge (`CATEGORY_EMOJI` + capitalized subject label), vertical separator, topic Lucide icon, truncated topic title, and an animated rotating chevron. Styled with dark ink theme (`bg-ink-850`, `border-ink-700`, `ring-duck-500/20`).
+   - **Internal Search & Filtering**: Features an embedded search input with real-time keyword filtering across topic titles, syllabus codes, blurbs, and keywords.
+   - **Subject Quick Filter Tabs**: High-contrast filter pills for `All (35)`, `⚛️ Physics (17)`, `🧪 Chemistry (7)`, `🧬 Biology (6)`, `💻 CS (2)`, and `📐 Math (3)` allowing students to filter the dropdown by discipline.
+   - **Subject-Separated Grouped Sections**: Topics are grouped into sticky discipline headers with subject emojis, titles, and model count badges. Each topic item displays its custom icon, title, syllabus code, active state styling (`bg-duck-500/15`, `border-l-2 border-duck-400`), and checkmark indicator.
+   - **Accessibility & Focus Management**: Implements `role="listbox"`, `role="option"`, `aria-selected`, focus trapping on search input when opened, Escape key listener to close, and outside click/touch dismissal via ref listeners.
+2. **Elimination of Second Top Bar Across 3D Surfaces**:
+   - **`components/ThreeDView.jsx`**: Removed the second horizontal scroll bar completely. Replaced unstyled `<select>` with `<TopicSelectorDropdown currentTopicId={topicId} onSelectTopic={selectTopic} />`. Cleaned up unused `category` and `visibleTopics` state. Moved the floating "Show top bars" button into the main body for fullscreen focus mode.
+   - **`app/visualizations/page.jsx`**: Removed the second horizontal scroll bar completely. Replaced `<select>` and redundant header search input with `<TopicSelectorDropdown currentTopicId={topicId} onSelectTopic={selectTopic} />`. Repositioned floating "Show top bars" button in the canvas viewport.
+3. **Automated Verification & Unit Tests**:
+   - Created [`tests/unit/topic-selector-dropdown.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/topic-selector-dropdown.test.mjs) verifying:
+     - `TopicSelectorDropdown.jsx` implements subject grouping, quick filter pills, search input, click-outside dismissal, and Escape key handling.
+     - All 35 topics across the 5 scientific disciplines (`physics`: 17, `chemistry`: 7, `biology`: 6, `cs`: 2, `math`: 3) are mapped and cataloged.
+     - Both `ThreeDView.jsx` and `app/visualizations/page.jsx` integrate `TopicSelectorDropdown` and have the legacy second horizontal scrolling strip completely removed.
+   - Full test suite execution: **802 unit and integration tests passed** across 197 test suites (0 failures).
+   - Production build (`npm run build`) succeeded with code 0 and production server is running smoothly on port 3000.

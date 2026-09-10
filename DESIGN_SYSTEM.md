@@ -380,6 +380,14 @@ Two shared modules own the colour vocabulary for the mechanics scenes, so the sa
 
 A topic's `controls` entry may carry `when: (params) => boolean`. `VisualizationHUD` filters on it before rendering, so a control that only applies to one of a topic's modes is hidden rather than shown inert — the simple-machines bench swaps its fulcrum-position slider for a sheave count when the machine type changes to the block and tackle. Controls without a `when` are always shown, so the field is fully backwards-compatible.
 
+### 24. Universal 3D Visualization Sidebar Controls Resizability Standard
+All 3D interactive visualizations across SocraticOS (including shared `VisualizationHUD.jsx`, dedicated `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx`) implement a unified, responsive drag-to-resize sidebar pattern:
+- **Panel Width Range**: Dynamically clamped between `Math.max(180, Math.floor(window.innerWidth * 0.10))` (minimum 10% viewport / 180px) and `Math.floor(window.innerWidth * 0.80)` (maximum 80% viewport).
+- **Persistent Width Storage**: Persisted under `localStorage.getItem("socratic_hud_panel_width")` with SSR-safe initial mount fallback (286px–300px).
+- **Right Edge Drag Handle**: `cursor-ew-resize` pill element (`h-14 w-1 rounded-full bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20`) with active drag scaling (`bg-duck-400 shadow-md scale-y-110`).
+- **Bottom-Right Corner Grip Indicator**: `cursor-nwse-resize` 3-dot SVG grip pattern (`text-ink-600 hover:text-duck-400`).
+- **Scroll Container**: Inner content is encased in a flex column with `max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5` preventing viewport overflow.
+
 ### 21. 3D Respiratory Mechanics & Thoracic Physics Tokens
 - **Antagonistic Intercostal Tension Shaders**:
   - Active Contraction: Glowing scarlet crimson (`#ef4444` / `#f43f5e`, emissive intensity `1.7`–`1.8`) with active myofibril swelling signaling energetic recruitment (+35° external on inspiration; -45° internal on forced expiration).
@@ -542,5 +550,26 @@ A topic's `controls` entry may carry `when: (params) => boolean`. `Visualization
       - Mini-Quiz Feedback Tokens: Correct option turns emerald (`border-emerald-500 bg-emerald-500/20 text-emerald-200`); incorrect option turns rose (`border-rose-500 bg-rose-500/20 text-rose-200`).
       - Pomodoro Visualizer: Live circular timer dial (`bg-ink-900 border-ink-700 text-duck-300 font-mono text-2xl font-black`) and tab notification badge preview.
       - Shortcut Buttons: Interactive hotkey pills with click-to-try or clipboard feedback tooltip (`kbd.bg-ink-950 text-duck-300`).
+
+15. **3D Studio Single Top Bar & TopicSelectorDropdown Architecture (`TopicSelectorDropdown.jsx`)**:
+    - **Single Distraction-Free Header**: Eliminates redundant secondary horizontal category scroll strips, maximizing viewport height for 3D canvases across both Workspace and `/visualizations` routes.
+    - **Trigger Button Design Tokens**:
+      - Shell: `rounded-xl border py-1.5 pl-2.5 pr-3 text-xs font-semibold cursor-pointer select-none transition-all`.
+      - Closed State: `border-ink-700 bg-ink-850 text-ink-100 hover:border-duck-500/40 hover:bg-ink-800 shadow-sm`.
+      - Active/Open State: `border-duck-500/60 bg-ink-800 text-duck-300 ring-2 ring-duck-500/20 shadow-md`.
+      - Discipline Badge: `rounded-md bg-ink-900/90 px-1.5 py-0.5 text-[10.5px] font-bold text-ink-300 border border-ink-800 shadow-inner shrink-0` showing subject emoji + capitalized title.
+      - Topic Title: Truncated max-width (`max-w-[160px] sm:max-w-[220px] md:max-w-[280px]`) accompanied by rotating chevron (`transition-transform duration-200`).
+    - **Dropdown Popover Design Tokens**:
+      - Shell: `w-[340px] sm:w-[420px] rounded-2xl border border-ink-750 bg-ink-900/98 shadow-2xl backdrop-blur-2xl z-50 ring-1 ring-black/40 overflow-hidden`.
+      - Search Input Header: `p-2.5 border-b border-ink-800 bg-ink-900/90` with embedded `Search` and clear `X` buttons, `bg-ink-950/80 border-ink-750 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50`.
+      - Subject Quick-Filter Pills: Horizontal pill strip (`bg-ink-950/50 border-b border-ink-800/80 px-2.5 py-1.5`) supporting 1-click discipline filtering:
+        - Active Pill: `bg-duck-500/20 text-duck-300 border border-duck-500/50 shadow-sm`.
+        - Inactive Pill: `text-ink-400 hover:text-ink-200 hover:bg-ink-850 border border-transparent`.
+      - Sticky Discipline Headers: `sticky top-0 z-10 bg-ink-900/95 backdrop-blur-md border-b border-ink-800/80 px-3 py-1.5 text-[11px] font-bold text-ink-300 shadow-sm` with model count badge (`bg-ink-800/80 px-2 py-0.5 rounded-full border border-ink-700/60`).
+      - Topic Item Rows: `group flex w-full items-center justify-between gap-3 px-3 py-2 text-left cursor-pointer transition-all`:
+        - Active Option: `bg-duck-500/15 border-l-2 border-duck-400 text-duck-200` with `Check` icon in `text-duck-400`.
+        - Inactive Option: `hover:bg-ink-850/80 text-ink-300 hover:text-ink-100 border-l-2 border-transparent`.
+      - Popover Footer: `px-3 py-2 border-t border-ink-800 bg-ink-950/70 text-[10px] text-ink-500` displaying model counts across 5 disciplines and `Esc to close` shortcut hint.
+
 
 

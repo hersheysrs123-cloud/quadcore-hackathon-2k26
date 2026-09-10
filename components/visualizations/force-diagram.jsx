@@ -318,15 +318,15 @@ export function useRollingTrace(capacity = 220, hz = 24) {
  * fixed-ish timestep, a guard against the enormous `delta` a backgrounded tab
  * hands back on return, and a readout that updates slowly enough to read.
  */
-export function useBodyMotion({ step, onSample, running = true, sampleHz = 12 }) {
+export function useBodyMotion({ step, onSample, running = true, sampleHz = 12, speed = 1.0 }) {
   const motion = useRef({ position: 0, velocity: 0 });
   const since = useRef(0);
 
   useFrame((_, delta) => {
     // A tab that has been hidden for a minute reports a minute-long frame.
     // Integrating that in one go teleports the body through the whole scene.
-    const dt = Math.min(delta, 0.05);
-    if (running) motion.current = step(motion.current, dt);
+    const dt = Math.min(delta, 0.05) * speed;
+    if (running && speed > 0) motion.current = step(motion.current, dt);
 
     since.current += delta;
     if (since.current >= 1 / sampleHz) {

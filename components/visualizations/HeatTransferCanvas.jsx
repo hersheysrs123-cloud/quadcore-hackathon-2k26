@@ -149,14 +149,14 @@ const SAMPLE_HZ = 6;
  * components that read what it writes — a one-frame lag would be harmless, but
  * there is no reason to have one.
  */
-function ThermalDriver({ modelRef, intensity, onSample }) {
+function ThermalDriver({ modelRef, intensity, onSample, animSpeed = 1 }) {
   const since = useRef(0);
 
   useFrame((_, delta) => {
     const m = modelRef.current;
     // A backgrounded tab hands back a frame that lasted a minute. Integrated
     // in one go at 8× that would boil the beaker between two paints.
-    const dt = Math.min(delta, 0.05);
+    const dt = Math.min(delta, 0.05) * animSpeed;
     m.seconds += dt;
 
     // Water: one first-order lag toward wherever this flame would take it,
@@ -244,14 +244,14 @@ function Bench() {
  * wide open — and the flicker is deterministic noise rather than a random
  * walk, so it never drifts into a shape the eye reads as a bug.
  */
-function BunsenBurner({ modelRef }) {
+function BunsenBurner({ modelRef, animSpeed = 1 }) {
   const outer = useRef(null);
   const inner = useRef(null);
   const glow = useRef(null);
 
   useFrame((state) => {
     const m = modelRef.current;
-    const t = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime * animSpeed;
     const h = m.flame.height;
     const flicker = 1 + 0.06 * Math.sin(t * 11.3) + 0.035 * Math.sin(t * 19.7 + 1.1);
 
@@ -471,7 +471,7 @@ function BeakerGlass() {
  * there are none in this file, and the two in the buoyancy scene each carry
  * their own disposal effect.
  */
-function DyeTracers({ modelRef, dropSignal }) {
+function DyeTracers({ modelRef, dropSignal, animSpeed = 1 }) {
   const meshRef = useRef(null);
   const count = 170;
 
@@ -520,7 +520,7 @@ function DyeTracers({ modelRef, dropSignal }) {
     const mesh = meshRef.current;
     if (!mesh) return;
     const m = modelRef.current;
-    const dt = Math.min(delta, 0.05);
+    const dt = Math.min(delta, 0.05) * animSpeed;
 
     // Angular rate straight from the modelled flow: one lap of the real
     // 26 cm loop at the real speed, replayed at the scene's time lapse.
@@ -623,7 +623,7 @@ function ConvectionArrows() {
  * whole story, because the colour has fallen back to room temperature within
  * about half a centimetre of the water.
  */
-function Rod({ materialKey, angle, modelRef, flir, atomic, tipC, selected }) {
+function Rod({ materialKey, angle, modelRef, flir, atomic, tipC, selected, animSpeed = 1 }) {
   const spec = ROD_MATERIALS[materialKey];
   const bodyRef = useRef(null);
   const atomRef = useRef(null);
@@ -696,7 +696,7 @@ function Rod({ materialKey, angle, modelRef, flir, atomic, tipC, selected }) {
   useFrame((state) => {
     const m = modelRef.current;
     const rod = m.rods[materialKey];
-    const t = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime * animSpeed;
 
     // Skipped entirely in atomic view, where the solid body is hidden: there
     // is no sense re-uploading an instance colour buffer nobody can see.
@@ -937,14 +937,14 @@ function Thermometer({ position, read, modelRef, label, maxC = 120 }) {
  * a low flame they are barely there and at full gas they are unmissable —
  * the fourth-power law, drawn.
  */
-function RadiationRings({ modelRef }) {
+function RadiationRings({ modelRef, animSpeed = 1 }) {
   const refs = useRef([]);
   const rings = 5;
   const maxR = 5.6;
 
   useFrame((state) => {
     const m = modelRef.current;
-    const t = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime * animSpeed;
     // Normalised against the strongest flame the burner has, so the ramp the
     // eye sees is the ramp the physics gives.
     const strength = clamp(m.radiated / 370, 0, 1);
@@ -985,7 +985,7 @@ function RadiationRings({ modelRef }) {
  * that something is crossing the gap — through air that stays cold, with
  * nothing touching and nothing flowing.
  */
-function RadiationBeam({ modelRef }) {
+function RadiationBeam({ modelRef, animSpeed = 1 }) {
   const meshRef = useRef(null);
   const count = 18;
   const from = useMemo(() => new THREE.Vector3(-cm(2), FLAME_Y + 0.35, 0), []);
@@ -999,7 +999,7 @@ function RadiationBeam({ modelRef }) {
     mesh.visible = strength > 0.01;
     if (!mesh.visible) return;
 
-    const t = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime * animSpeed;
     const rays = 3;
     for (let i = 0; i < count; i += 1) {
       const ray = i % rays;
@@ -1114,6 +1114,7 @@ export default function HeatTransferCanvas({ params = {} }) {
     rodMaterial = "copper",
     viewMode = "flir",
     dyeDrop = 0,
+    speed = 1,
   } = params || {};
 
   const modelRef = useRef(null);
@@ -1139,15 +1140,15 @@ export default function HeatTransferCanvas({ params = {} }) {
       controls={{ minDistance: 5, maxDistance: 32, target: [0, 1.5, 0] }}
       lights={{ ambient: flir ? 0.4 : 0.6, keyLight: flir ? 0.75 : 1.2 }}
     >
-      <ThermalDriver modelRef={modelRef} intensity={flameIntensity} onSample={setSample} />
+      <ThermalDriver modelRef={modelRef} intensity={flameIntensity} onSample={setSample} animSpeed={speed} />
 
       <Bench />
-      <BunsenBurner modelRef={modelRef} />
+      <BunsenBurner modelRef={modelRef} animSpeed={speed} />
       <Tripod />
 
       {/* ── Convection ── */}
       <WaterColumn modelRef={modelRef} flir={flir} />
-      <DyeTracers modelRef={modelRef} dropSignal={dyeDrop} />
+      <DyeTracers modelRef={modelRef} dropSignal={dyeDrop} animSpeed={speed} />
       <ConvectionArrows />
       <BeakerGlass />
 
@@ -1180,12 +1181,13 @@ export default function HeatTransferCanvas({ params = {} }) {
           atomic={atomic}
           tipC={sample.tips[key] ?? AMBIENT_C}
           selected={key === rodMaterial}
+          animSpeed={speed}
         />
       ))}
 
       {/* ── Radiation ── */}
-      <RadiationRings modelRef={modelRef} />
-      <RadiationBeam modelRef={modelRef} />
+      <RadiationRings modelRef={modelRef} animSpeed={speed} />
+      <RadiationBeam modelRef={modelRef} animSpeed={speed} />
       <RadiationPlate modelRef={modelRef} flir={flir} plateC={sample.plateC} />
 
       <ThermalScaleBar hottestC={sample.hottestC} visible={flir} />

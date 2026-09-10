@@ -1358,6 +1358,66 @@ export default function EyeCanvas({ onOpenQuiz }) {
   const [showRays, setShowRays] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
 
+  // Resizable panel width state (10% to 80% screen width)
+  // Default to 286 to match SSR markup, then hydrate saved width on client mount
+  const [panelWidth, setPanelWidth] = useState(286);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("socratic_hud_panel_width");
+        if (saved) {
+          const parsed = parseInt(saved, 10);
+          if (!isNaN(parsed) && parsed >= 180 && parsed <= (window.innerWidth || 1920) * 0.85) {
+            setPanelWidth(parsed);
+          }
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const isResizingRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizePointerDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    setIsResizing(true);
+
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    const onPointerMove = (moveEvent) => {
+      if (!isResizingRef.current) return;
+      const deltaX = moveEvent.clientX - startX;
+      const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
+      const maxW = Math.floor(window.innerWidth * 0.80);
+      const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
+      setPanelWidth(clamped);
+    };
+
+    const cleanup = () => {
+      isResizingRef.current = false;
+      setIsResizing(false);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+      try {
+        if (typeof window !== "undefined") {
+          setPanelWidth((curr) => {
+            localStorage.setItem("socratic_hud_panel_width", String(curr));
+            return curr;
+          });
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  };
+
   const lux = useMemo(() => 10 ** logLux, [logLux]);
 
   const solved = useMemo(
@@ -1496,9 +1556,14 @@ export default function EyeCanvas({ onOpenQuiz }) {
         <div
           onWheel={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[286px] flex-col gap-3 overflow-y-auto pr-0.5"
+          style={{ width: `${panelWidth}px`, maxWidth: "80vw", minWidth: "10vw" }}
+          className={`pointer-events-auto absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] flex-col gap-3 ${
+            isResizing ? "select-none" : ""
+          }`}
         >
-          <HudPanel
+          <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl">
+            <div className="max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5 flex flex-col gap-3">
+              <HudPanel
             title="Human eye"
             icon={Eye}
             action={
@@ -1722,6 +1787,34 @@ export default function EyeCanvas({ onOpenQuiz }) {
               </p>
             </HudPanel>
           )}
+            </div>
+
+            {/* ─── Right Edge Drag-To-Resize Handle (10% to 80% screen width) ─── */}
+            <div
+              onPointerDown={handleResizePointerDown}
+              className="absolute -right-1 top-0 bottom-0 z-30 flex w-3.5 cursor-ew-resize items-center justify-center select-none group"
+              title="Drag to resize panel (10% to 80% screen width)"
+            >
+              <div
+                className={`h-14 w-1 rounded-full transition-all ${
+                  isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+                }`}
+              />
+            </div>
+
+            {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
+            <div
+              onPointerDown={handleResizePointerDown}
+              className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+              title="Drag to resize panel width"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">
+                <circle cx="8" cy="8" r="1.2" />
+                <circle cx="8" cy="4" r="1.2" />
+                <circle cx="4" cy="8" r="1.2" />
+              </svg>
+            </div>
+          </div>
         </div>
       )}
     </div>

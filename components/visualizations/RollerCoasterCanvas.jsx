@@ -139,7 +139,7 @@ function Supports({ track, scale }) {
  * what makes switching topics clean: the run state lives in a ref inside here,
  * so nothing survives the switch to keep stepping a track that has gone.
  */
-function CartRunner({ track, mass, friction, running, resetKey, scale, onSample }) {
+function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale, onSample }) {
   const cart = useRef(null);
   const state = useRef(startRun({ track, mass }));
   const since = useRef(0);
@@ -154,8 +154,8 @@ function CartRunner({ track, mass, friction, running, resetKey, scale, onSample 
   useFrame((_, delta) => {
     // A backgrounded tab hands back one enormous frame on return; integrating
     // it in a single step would teleport the cart through the loop.
-    const dt = Math.min(delta, 0.04);
-    if (running) {
+    const dt = Math.min(delta, 0.04) * speed;
+    if (running && speed > 0) {
       // Sub-stepping keeps the loop accurate at speed without needing the
       // renderer to run any faster than it already is.
       for (let i = 0; i < 4; i += 1) state.current = stepRun(state.current, track, { mass, friction }, dt / 4);
@@ -214,6 +214,7 @@ export default function RollerCoasterCanvas({ params = {} }) {
     cartMass = 500,
     friction = false,
     running = true,
+    speed = 1,
     relaunch = 0,
   } = params || {};
 
@@ -270,6 +271,7 @@ export default function RollerCoasterCanvas({ params = {} }) {
           mass={cartMass}
           friction={friction}
           running={running}
+          speed={speed}
           resetKey={relaunch}
           scale={scale}
           onSample={onSample}

@@ -68,7 +68,8 @@ const LATEX = "#d9455a";
 
 // ─── Room ───────────────────────────────────────────────────────────
 
-function Room({ humidity }) {
+function Room({ humidity = 40 }) {
+  const safeHumidity = Number.isFinite(humidity) ? humidity : 40;
   return (
     <group>
       <Grid
@@ -91,7 +92,7 @@ function Room({ humidity }) {
         <meshStandardMaterial color="#141a24" roughness={0.95} />
       </mesh>
       <SceneLabel position={[-5.4, 3.3, WALL_Z + 0.05]} tone="text-ink-400">
-        {`neutral wall · ${humidity.toFixed(0)}% humidity`}
+        {`neutral wall · ${safeHumidity.toFixed(0)}% humidity`}
       </SceneLabel>
     </group>
   );
@@ -105,10 +106,11 @@ function Room({ humidity }) {
  * a slider students do not connect to anything. A visibly damp room that
  * drains the balloon in seconds makes the mechanism obvious.
  */
-function HumidityHaze({ humidity }) {
+function HumidityHaze({ humidity = 40, animSpeed = 1 }) {
+  const safeHumidity = Number.isFinite(humidity) ? humidity : 40;
   const ref = useRef(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const count = Math.round(clamp((humidity - 10) / 85, 0, 1) * 70);
+  const count = Math.round(clamp((safeHumidity - 10) / 85, 0, 1) * 70);
 
   const seeds = useMemo(
     () =>
@@ -124,7 +126,7 @@ function HumidityHaze({ humidity }) {
   useFrame((state) => {
     const mesh = ref.current;
     if (!mesh || count === 0) return;
-    const t = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime * animSpeed;
     for (let i = 0; i < count; i += 1) {
       const s = seeds[i];
       dummy.position.set(s.x, s.y + Math.sin(t * 0.35 + s.phase) * 0.22, s.z);
@@ -257,7 +259,7 @@ function Balloon({ markers, tint = LATEX, showLabel = true, label, tone = "text-
  * Van de Graaff is a mechanical current: a rubber belt physically carrying
  * charge up to the dome, at a few microamps, instead of a wire conducting it.
  */
-function VanDeGraaff({ on, markers, pans }) {
+function VanDeGraaff({ on, markers, pans, animSpeed = 1 }) {
   const beltPath = useMemo(
     () =>
       makeFlowPath(
@@ -295,7 +297,7 @@ function VanDeGraaff({ on, markers, pans }) {
       <ChargeFlow
         path={beltPath}
         count={14}
-        speed={on ? 3.2 : 0}
+        speed={on ? 3.2 * animSpeed : 0}
         running={on}
         colour={CHARGE_COLOURS.electron}
         radius={0.052}
@@ -319,7 +321,7 @@ function VanDeGraaff({ on, markers, pans }) {
         />
       )}
 
-      <PieStack launched={pans} />
+      <PieStack launched={pans} animSpeed={animSpeed} />
 
       <SceneLabel position={[DOME_X, DOME_Y + 1.9, 0]} tone={on ? "text-sky-300" : "text-ink-500"}>
         {on ? `Van de Graaff running · ${Math.round(markers)} charges on the dome` : "Van de Graaff · off"}
@@ -334,7 +336,7 @@ function VanDeGraaff({ on, markers, pans }) {
  * They leave one at a time from the top, because the topmost pan is the one
  * with the least holding it down and the most charge below it pushing.
  */
-function PieStack({ launched }) {
+function PieStack({ launched, animSpeed = 1 }) {
   const refs = useRef([]);
   const PANS = 4;
 
@@ -344,10 +346,10 @@ function PieStack({ launched }) {
       if (!g) continue;
       const isLaunched = i >= PANS - launched;
       const rest = DOME_Y + DOME_R + 0.06 + i * 0.09;
-      const flying = rest + 1.5 + i * 0.55 + Math.sin(state.clock.elapsedTime * 1.6 + i) * 0.28;
+      const flying = rest + 1.5 + i * 0.55 + Math.sin(state.clock.elapsedTime * animSpeed * 1.6 + i) * 0.28;
       const target = isLaunched ? flying : rest;
-      g.position.y += (target - g.position.y) * Math.min(delta * 3.2, 1);
-      g.rotation.z = isLaunched ? Math.sin(state.clock.elapsedTime * 2.1 + i) * 0.32 : 0;
+      g.position.y += (target - g.position.y) * Math.min(delta * 3.2 * animSpeed, 1);
+      g.rotation.z = isLaunched ? Math.sin(state.clock.elapsedTime * animSpeed * 2.1 + i) * 0.32 : 0;
     }
   });
 
@@ -381,7 +383,8 @@ const RUBBING_AT = new THREE.Vector3(SWEATER_X + 1.15, 0.4, 0.05);
  * written straight to the group's transform and never goes through React
  * at all.
  */
-function ChargeClock({ humidity, rubs, discharge, vdgOn, restPosition, balloonRef, onSample, onRubPhase }) {
+function ChargeClock({ humidity = 40, rubs = 0, discharge = 0, vdgOn = false, restPosition = [0, 0, 0], balloonRef, onSample, onRubPhase, animSpeed = 1 }) {
+  const safeHumidity = Number.isFinite(humidity) ? humidity : 40;
   const markers = useRef(0);
   const dome = useRef(0);
   const rubPhase = useRef(0);
@@ -390,7 +393,7 @@ function ChargeClock({ humidity, rubs, discharge, vdgOn, restPosition, balloonRe
   const sampleAt = useRef(0);
 
   useFrame((state, rawDelta) => {
-    const delta = Math.min(rawDelta, 0.05);
+    const delta = Math.min(rawDelta, 0.05) * animSpeed;
 
     // A press of the rub button starts a stroke; the transfer itself lands
     // at the moment the balloon is actually against the wool.
@@ -423,7 +426,7 @@ function ChargeClock({ humidity, rubs, discharge, vdgOn, restPosition, balloonRe
     }
 
     // Leakage never stops, which is the point of the humidity control.
-    markers.current = leak(markers.current, delta, humidity);
+    markers.current = leak(markers.current, delta, safeHumidity);
     if (markers.current < 0.05) markers.current = 0;
 
     if (vdgOn) {
@@ -431,7 +434,7 @@ function ChargeClock({ humidity, rubs, discharge, vdgOn, restPosition, balloonRe
       // same time, so it settles at whatever the humidity allows.
       dome.current += (DOME_MAX_MARKERS - dome.current) * Math.min(delta * 0.55, 1);
     }
-    dome.current = leak(dome.current, delta, humidity);
+    dome.current = leak(dome.current, delta, safeHumidity);
     if (dome.current < 0.05) dome.current = 0;
 
     // Balloon transform: at the sweater during a stroke, at its rest place
@@ -439,12 +442,13 @@ function ChargeClock({ humidity, rubs, discharge, vdgOn, restPosition, balloonRe
     const g = balloonRef.current;
     if (g) {
       const toward = rubPhase.current > 0 ? Math.sin(rubPhase.current * Math.PI) : 0;
-      REST.set(restPosition[0], restPosition[1], restPosition[2]);
+      const rest = restPosition || [0, 0, 0];
+      REST.set(rest[0] ?? 0, rest[1] ?? 0, rest[2] ?? 0);
       g.position.lerpVectors(REST, RUBBING_AT, toward);
       // The scrub itself.
       if (toward > 0.05) {
-        g.position.y += Math.sin(state.clock.elapsedTime * 22) * 0.09 * toward;
-        g.rotation.z = Math.sin(state.clock.elapsedTime * 22) * 0.13 * toward;
+        g.position.y += Math.sin(state.clock.elapsedTime * animSpeed * 22) * 0.09 * toward;
+        g.rotation.z = Math.sin(state.clock.elapsedTime * animSpeed * 22) * 0.13 * toward;
       } else {
         g.rotation.z *= 0.9;
       }
@@ -490,8 +494,9 @@ function useBalloonDrag({ axis, restCoord, factor, balloonCoord, planeY, onSepar
 
   const coordOf = useCallback(
     (ray) => {
+      if (!ray) return null;
       DRAG_PLANE.set(UP, -planeY);
-      if (!ray?.intersectPlane(DRAG_PLANE, HIT)) return null;
+      if (!ray.intersectPlane(DRAG_PLANE, HIT)) return null;
       return axis === "x" ? HIT.x : HIT.z;
     },
     [axis, planeY],
@@ -506,7 +511,9 @@ function useBalloonDrag({ axis, restCoord, factor, balloonCoord, planeY, onSepar
       // Where on the balloon it was grabbed, so it does not snap to the cursor.
       grab.current = c - live.current;
       if (controls) controls.enabled = false;
-      e.target?.setPointerCapture?.(e.pointerId);
+      try {
+        e.target?.setPointerCapture?.(e.pointerId);
+      } catch (_) {}
     },
     [coordOf, controls],
   );
@@ -517,7 +524,7 @@ function useBalloonDrag({ axis, restCoord, factor, balloonCoord, planeY, onSepar
       e.stopPropagation();
       const c = coordOf(e.ray);
       if (c === null) return;
-      onSeparation((c - grab.current - restCoord) * factor);
+      onSeparation?.((c - grab.current - restCoord) * factor);
     },
     [coordOf, onSeparation, restCoord, factor],
   );
@@ -527,12 +534,45 @@ function useBalloonDrag({ axis, restCoord, factor, balloonCoord, planeY, onSepar
       if (!dragging.current) return;
       dragging.current = false;
       if (controls) controls.enabled = true;
-      e.target?.releasePointerCapture?.(e.pointerId);
+      try {
+        e.target?.releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
     },
     [controls],
   );
 
   return { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel: end };
+}
+
+function DraggableBalloon({
+  geometry,
+  onSeparation,
+  balloonRef,
+  balloonMarkers,
+  balloonCharge,
+}) {
+  const drag = useBalloonDrag({
+    axis: geometry.axis,
+    factor: geometry.factor,
+    restCoord: geometry.restCoord,
+    balloonCoord: geometry.balloonCoord,
+    planeY: geometry.rest[1],
+    onSeparation,
+  });
+
+  return (
+    <group ref={balloonRef} position={geometry.rest} {...drag}>
+      <Balloon
+        markers={balloonMarkers}
+        label={
+          balloonMarkers > 0.5
+            ? `${Math.round(balloonMarkers)} extra electrons · ${(balloonCharge * 1e9).toFixed(0)} nC`
+            : "neutral — rub it on the wool"
+        }
+        tone={balloonMarkers > 0.5 ? "text-sky-300" : "text-ink-400"}
+      />
+    </group>
+  );
 }
 
 // ─── The scene ──────────────────────────────────────────────────────
@@ -545,6 +585,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
     rubs = 0,
     discharge = 0,
     vdg = false,
+    speed = 1,
   } = params || {};
 
   const [charge, setCharge] = useState({ markers: 0, dome: 0 });
@@ -623,15 +664,6 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
     [setParam],
   );
 
-  const drag = useBalloonDrag({
-    axis: geometry.axis,
-    factor: geometry.factor,
-    restCoord: geometry.restCoord,
-    balloonCoord: geometry.balloonCoord,
-    planeY: geometry.rest[1],
-    onSeparation,
-  });
-
   // Induced charge on the wall: positives pulled to the near face, negatives
   // pushed to the back of the same patch. Equal counts — the wall stays neutral.
   const wallSigns = useMemo(() => {
@@ -689,7 +721,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
       fog={[18, 44]}
     >
       <Room humidity={humidity} />
-      <HumidityHaze humidity={humidity} />
+      <HumidityHaze humidity={humidity} animSpeed={speed} />
 
       <ChargeClock
         humidity={humidity}
@@ -700,6 +732,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         balloonRef={balloonRef}
         onSample={onSample}
         onRubPhase={setRubPhase}
+        animSpeed={speed}
       />
 
       <Sweater markers={solved.sweaterMarkers} />
@@ -709,7 +742,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         <ChargeFlow
           path={rubPath}
           count={9}
-          speed={2.4}
+          speed={2.4 * speed}
           spread={0.85}
           colour={CHARGE_COLOURS.electron}
           radius={0.06}
@@ -724,17 +757,13 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         color="#4b5563"
         lineWidth={1.2}
       />
-      <group ref={balloonRef} position={geometry.rest} {...drag}>
-        <Balloon
-          markers={solved.balloonMarkers}
-          label={
-            solved.balloonMarkers > 0.5
-              ? `${Math.round(solved.balloonMarkers)} extra electrons · ${(solved.balloonCharge * 1e9).toFixed(0)} nC`
-              : "neutral — rub it on the wool"
-          }
-          tone={solved.balloonMarkers > 0.5 ? "text-sky-300" : "text-ink-400"}
-        />
-      </group>
+      <DraggableBalloon
+        geometry={geometry}
+        onSeparation={onSeparation}
+        balloonRef={balloonRef}
+        balloonMarkers={solved.balloonMarkers}
+        balloonCharge={solved.balloonCharge}
+      />
 
       {/* The second balloon, charged the same way and therefore repelled. */}
       {target === "balloon" && geometry.partner && (
@@ -765,7 +794,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         </SceneLabel>
       )}
 
-      <VanDeGraaff on={Boolean(vdg)} markers={solved.domeMarkers} pans={solved.pans} />
+      <VanDeGraaff on={Boolean(vdg)} markers={solved.domeMarkers} pans={solved.pans} animSpeed={speed} />
 
       {/* The Coulomb force. */}
       {arrow && rubPhase < 0.02 && (
@@ -818,8 +847,9 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
 }
 
 /** Newtons, in whichever unit keeps the number readable. */
-function formatForce(newtons) {
-  if (newtons >= 1) return `${newtons.toFixed(2)} N`;
-  if (newtons >= 1e-3) return `${(newtons * 1e3).toFixed(1)} mN`;
-  return `${(newtons * 1e6).toFixed(0)} µN`;
+function formatForce(newtons = 0) {
+  const n = Number.isFinite(newtons) ? Math.abs(newtons) : 0;
+  if (n >= 1) return `${n.toFixed(2)} N`;
+  if (n >= 1e-3) return `${(n * 1e3).toFixed(1)} mN`;
+  return `${(n * 1e6).toFixed(0)} µN`;
 }

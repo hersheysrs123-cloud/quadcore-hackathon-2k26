@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -73,7 +74,7 @@ function Spring({ lengthM, setM, failed }) {
       const t = i / steps;
       const drop = Math.pow(t, bias);
       const a = t * COIL_TURNS * Math.PI * 2;
-      points.push(new THREE.Vector3(Math.cos(a) * radius, TOP_Y - drop * length, Math.sin(a) * radius));
+      points.push(new THREE.Vector3(Math.cos(a) * radius, -drop * length, Math.sin(a) * radius));
     }
 
     const curve = new THREE.CatmullRomCurve3(points);
@@ -217,6 +218,92 @@ function WeightHanger({ topY, massKg }) {
   );
 }
 
+function OscillatingSpringRig({ solved, hangingMass, springConstant, speed = 1, scale }) {
+  const springGroupRef = useRef();
+  const hangerGroupRef = useRef();
+  const pointerGroupRef = useRef();
+
+  const yOffset = useRef(0);
+  const yVel = useRef(0);
+  const prevMass = useRef(hangingMass);
+  const clock = useRef(0);
+
+  useEffect(() => {
+    if (prevMass.current !== hangingMass) {
+      const deltaM = hangingMass - prevMass.current;
+      prevMass.current = hangingMass;
+      yOffset.current += (deltaM * 9.80665) / Math.max(springConstant, 1);
+    }
+  }, [hangingMass, springConstant]);
+
+  useFrame((_, delta) => {
+    if (speed <= 0) return;
+    const dt = Math.min(delta, 0.05) * speed;
+    clock.current += dt;
+
+    const omega = Math.sqrt(Math.max(springConstant / Math.max(hangingMass, 0.05), 4));
+    const accel = -omega * omega * yOffset.current - 2.8 * yVel.current;
+    yVel.current += accel * dt;
+    yOffset.current += yVel.current * dt;
+
+    // Small persistent ambient flutter
+    const ambient = Math.sin(clock.current * omega) * 0.0012;
+    const totalOffset = yOffset.current + ambient;
+
+    const curLength = Math.max(0.02, solved.length + totalOffset);
+    const stretchRatio = curLength / Math.max(solved.length, 0.001);
+    const curY = TOP_Y - curLength * S;
+
+    if (springGroupRef.current) {
+      springGroupRef.current.scale.y = stretchRatio;
+    }
+    if (hangerGroupRef.current) {
+      hangerGroupRef.current.position.y = curY;
+    }
+    if (pointerGroupRef.current) {
+      pointerGroupRef.current.position.y = curY;
+    }
+  });
+
+  const pointerY = TOP_Y - solved.length * S;
+
+  return (
+    <>
+      <group ref={springGroupRef} position={[0, TOP_Y, 0]}>
+        <Spring lengthM={solved.length} setM={solved.permanentSet} failed={solved.failed} />
+      </group>
+
+      <group ref={hangerGroupRef} position={[0, pointerY, 0]}>
+        <WeightHanger topY={0} massKg={hangingMass} />
+      </group>
+
+      <group ref={pointerGroupRef} position={[0, pointerY, 0]}>
+        <Line
+          points={[
+            [RULER_X, 0, 0.06],
+            [0.42, 0, 0.06],
+          ]}
+          color={PALETTE.gold}
+          lineWidth={2}
+          transparent
+          opacity={0.9}
+        />
+        <SceneLabel position={[0.95, 0.3, 0]} accent>
+          {`x = ${cmOf(solved.extension).toFixed(1)} cm`}
+        </SceneLabel>
+        <ForceVector
+          at={[0, -1.35, 0]}
+          direction={[0, -1, 0]}
+          newtons={solved.force}
+          scale={scale}
+          colour={FORCE_COLOURS.weight}
+          symbol="F = mg"
+        />
+      </group>
+    </>
+  );
+}
+
 // ─── The scene ──────────────────────────────────────────────────────
 
 export default function HookesLawCanvas({ params = {} }) {
@@ -226,6 +313,7 @@ export default function HookesLawCanvas({ params = {} }) {
     overload = 0,
     newSpring = 0,
     showGraph = true,
+    speed = 1,
   } = params || {};
 
   /**
@@ -337,32 +425,12 @@ export default function HookesLawCanvas({ params = {} }) {
         </>
       )}
 
-      <Spring lengthM={solved.length} setM={solved.permanentSet} failed={solved.failed} />
-      <WeightHanger topY={pointerY} massKg={hangingMass} />
-
-      {/* Pointer across to the ruler — how the extension is actually read. */}
-      <Line
-        points={[
-          [RULER_X, pointerY, 0.06],
-          [0.42, pointerY, 0.06],
-        ]}
-        color={PALETTE.gold}
-        lineWidth={2}
-        transparent
-        opacity={0.9}
-      />
-      <SceneLabel position={[0.95, pointerY + 0.3, 0]} accent>
-        {`x = ${cmOf(solved.extension).toFixed(1)} cm`}
-      </SceneLabel>
-
-      {/* The load itself, as a force vector on the hanger. */}
-      <ForceVector
-        at={[0, pointerY - 1.35, 0]}
-        direction={[0, -1, 0]}
-        newtons={solved.force}
+      <OscillatingSpringRig
+        solved={solved}
+        hangingMass={hangingMass}
+        springConstant={springConstant}
+        speed={speed}
         scale={scale}
-        colour={FORCE_COLOURS.weight}
-        symbol="F = mg"
       />
 
       {showGraph && (

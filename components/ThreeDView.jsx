@@ -8,12 +8,12 @@ import {
   VisualizationHUD,
 } from "@/components/visualizations/VisualizationHUD";
 import {
-  CATEGORIES,
   CATEGORY_EMOJI,
   TOPICS,
   TOPICS_BY_ID,
   formatTopicStudyContext,
 } from "@/components/visualizations/topics";
+import TopicSelectorDropdown from "@/components/visualizations/TopicSelectorDropdown";
 import { CANVAS_BG } from "@/components/visualizations/scene-kit";
 
 // ─── 3D Visualizations Studio ─────────────────────────────────────────
@@ -55,8 +55,6 @@ const CANVASES = {
 
 
 export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStudyTopic }) {
-  const [category, setCategory] = useState("all");
-  const [query, setQuery] = useState("");
   const [topicId, setTopicId] = useState(TOPICS[0].id);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -71,7 +69,6 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
     const targetVis = urlVis || fallback?.topicId || TOPICS[0].id;
     if (TOPICS_BY_ID[targetVis]) {
        setTopicId(targetVis);
-       setCategory(TOPICS_BY_ID[targetVis].category);
     }
     setIsHydrated(true);
   }, []);
@@ -96,17 +93,6 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
   const topic = TOPICS_BY_ID[topicId] || TOPICS[0];
   const params = paramsByTopic[topic.id] || topic.defaults;
   const CanvasComponent = CANVASES[topic.category];
-
-  const visibleTopics = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return TOPICS.filter((t) => {
-      if (category !== "all" && t.category !== category) return false;
-      if (!needle) return true;
-      return `${t.title} ${t.blurb} ${t.syllabus} ${t.keywords}`
-        .toLowerCase()
-        .includes(needle);
-    });
-  }, [category, query]);
 
   /** Merge a patch of several keys at once — see ControlField's `patch`. */
   const setParams = useCallback(
@@ -153,116 +139,39 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
           <div className="flex items-center justify-between gap-3">
             {/* Left: Title & Dropdown Selector */}
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-duck-500/30 bg-duck-500/10 text-base">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-duck-500/30 bg-duck-500/10 text-base shadow-inner">
                 🧊
               </div>
 
-              <div className="relative min-w-0">
-                <select
-                  value={topicId}
-                  onChange={(e) => selectTopic(e.target.value)}
-                  className="appearance-none rounded-lg border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none cursor-pointer truncate max-w-[260px]"
-                >
-                  <optgroup label="Standard 3D Models">
-                    {TOPICS.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {CATEGORY_EMOJI[t.category]} {t.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" />
-              </div>
+              <TopicSelectorDropdown
+                currentTopicId={topicId}
+                onSelectTopic={selectTopic}
+              />
 
-              <span className="hidden md:inline-block rounded border border-ink-800 bg-ink-850 px-2 py-0.5 text-[10px] text-ink-400 font-mono shrink-0">
+              <span className="hidden md:inline-block rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-1 text-[11px] text-ink-400 font-mono shrink-0">
                 {topic.syllabus}
               </span>
             </div>
 
-            {/* Right: Search */}
+            {/* Right: Model Count */}
             <div className="flex items-center gap-2 shrink-0">
-              <div className="relative w-36 sm:w-52">
-                <Search
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-500"
-                  strokeWidth={2}
-                />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search topics…"
-                  aria-label="Search visualizations"
-                  suppressHydrationWarning
-                  className="w-full rounded-lg border border-ink-700 bg-ink-850 py-1 pl-8 pr-6 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50 focus:outline-none"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    aria-label="Clear search"
-                    suppressHydrationWarning
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-500 hover:text-ink-200"
-                  >
-                    <X className="h-3 w-3" strokeWidth={2.5} />
-                  </button>
-                )}
-              </div>
+              <span className="text-[11px] font-medium text-ink-500 hidden sm:inline">
+                {TOPICS.length} models
+              </span>
             </div>
           </div>
         </header>
       )}
 
-      {/* ─── Category Quick Switch Strip (Solid opaque header in Focus Mode) ── */}
-      <div className="shrink-0 border-b border-ink-800 bg-ink-900 px-3 py-1.5 flex items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto no-scrollbar py-0.5">
-          <div className="flex shrink-0 items-center gap-1.5 border-r border-ink-800 pr-2">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setCategory(cat.id)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold whitespace-nowrap transition-all ${
-                  category === cat.id
-                    ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
-                    : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
-                }`}
-              >
-                <span>{cat.emoji || "🌐"}</span>
-                <span>{cat.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {visibleTopics.map((t) => {
-              const active = topicId === t.id;
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => selectTopic(t.id)}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-all ${
-                    active
-                      ? "border-duck-500/50 bg-duck-500/15 text-duck-300 shadow-sm"
-                      : "border-transparent text-ink-400 hover:border-ink-800 hover:bg-ink-850 hover:text-ink-200"
-                  }`}
-                >
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-duck-300" : "text-ink-500"}`} />
-                  <span className="whitespace-nowrap">{t.title}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* In-Tab Reopen Button (ONLY displayed when top bars are hidden) */}
+      {/* ─── Body ────────────────────────────────────────── */}
+      <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
+        {/* Floating Reopen Button (ONLY displayed when top bars are hidden) */}
         {hideTopBars && onToggleTopBars && (
-          <div className="flex shrink-0 items-center pl-2 ml-auto">
+          <div className="absolute top-3 right-3 z-30 pointer-events-auto">
             <button
               type="button"
               onClick={onToggleTopBars}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-duck-500/50 bg-duck-500/20 px-2.5 py-1 text-xs font-semibold text-duck-300 hover:bg-duck-500/30 transition-all shadow-sm ring-1 ring-duck-400/20 whitespace-nowrap"
+              className="flex items-center gap-1.5 rounded-lg border border-duck-500/50 bg-duck-500/20 px-2.5 py-1 text-xs font-semibold text-duck-300 hover:bg-duck-500/30 transition-all shadow-sm ring-1 ring-duck-400/20 whitespace-nowrap cursor-pointer"
               title="Show all top bars"
             >
               <ChevronDown className="h-3.5 w-3.5 text-duck-400 shrink-0" />
@@ -270,10 +179,6 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
             </button>
           </div>
         )}
-      </div>
-
-      {/* ─── Body ────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Viewport + overlaid HUD */}
         <main className="relative flex-1 h-full w-full min-h-0" style={{ backgroundColor: CANVAS_BG }}>
           {CanvasComponent && (

@@ -1165,6 +1165,8 @@ function PolePlate({ position, pole }) {
   );
 }
 
+export const MagnetPole = PolePlate;
+
 // The conductor is taken to be one metre of wire inside the field, so the
 // numbers in the readout are a real F = BIL and not I × B with a silent unit.
 const WIRE_LENGTH = 1;
@@ -1749,13 +1751,14 @@ function RotatingCoil({ speed, field, turns, showCurrent, angleRef, onSample }) 
 
   const w = COIL_W;
   const hh = COIL_H;
+  const safeTurns = Math.max(1, Math.round(turns || 1));
 
   useFrame((_, delta) => {
     const step = Math.min(delta, 0.05);
     const omega = omegaOf(speed);
     angleRef.current += step * omega;
 
-    const emf = emfAt(field, omega, angleRef.current, turns);
+    const emf = emfAt(field, omega, angleRef.current, safeTurns);
 
     if (coil.current) coil.current.rotation.y = angleRef.current;
     if (needle.current) needle.current.rotation.z = clamp(-emf * 0.05, -1.1, 1.1);
@@ -1778,7 +1781,7 @@ function RotatingCoil({ speed, field, turns, showCurrent, angleRef, onSample }) 
   // Real generator coils are wound many times round the same former. Drawing
   // the turns as a stack makes N a thing you can count rather than a number
   // in a panel.
-  const windings = Array.from({ length: turns }, (_, k) => (k - (turns - 1) / 2) * 0.13);
+  const windings = Array.from({ length: safeTurns }, (_, k) => (k - (safeTurns - 1) / 2) * 0.13);
 
   return (
     <>
@@ -1911,7 +1914,8 @@ const TRACE = { width: 5.6, height: 0.82, turns: 2 };
 function EmfTrace({ speed, field, turns, angleRef }) {
   const marker = useRef(null);
   const omega = omegaOf(speed);
-  const peak = peakEmf(field, omega, turns);
+  const safeTurns = Math.max(1, Math.round(turns || 1));
+  const peak = peakEmf(field, omega, safeTurns);
 
   // Height tracks ε₀ linearly — a weak field really should draw a shallow
   // wave — and is capped so the strongest setting still fits the frame.

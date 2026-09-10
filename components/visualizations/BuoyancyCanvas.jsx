@@ -230,7 +230,7 @@ function CylinderGraduations() {
  * second or two before the reading settles. Animating it in a ref keeps that
  * at sixty frames a second without re-rendering the scene for each one.
  */
-function MeasuringCylinder({ targetML, spec, onLevel }) {
+function MeasuringCylinder({ targetML, spec, onLevel, animSpeed = 1 }) {
   const columnRef = useRef(null);
   const shown = useRef(0);
   const fillHeight = cm(CYL.height) * 0.86;
@@ -239,7 +239,7 @@ function MeasuringCylinder({ targetML, spec, onLevel }) {
   useFrame((_, delta) => {
     const mesh = columnRef.current;
     if (!mesh) return;
-    const dt = Math.min(delta, 0.05);
+    const dt = Math.min(delta, 0.05) * animSpeed;
     const target = empty ? 0 : clamp(targetML, 0, CYL.capacity);
     // Exponential settle: fast while the gap is large, gentle as it arrives.
     shown.current += (target - shown.current) * Math.min(dt * 3.2, 1);
@@ -298,7 +298,7 @@ function MeasuringCylinder({ targetML, spec, onLevel }) {
  * be a scene quietly asserting that an object goes on displacing water for as
  * long as it sits there, which is the opposite of what settles.
  */
-function OverflowStream({ spec, activeRef }) {
+function OverflowStream({ spec, activeRef, animSpeed = 1 }) {
   const group = useRef(null);
   const count = 14;
 
@@ -313,7 +313,7 @@ function OverflowStream({ spec, activeRef }) {
     if (!g) return;
     g.visible = Boolean(activeRef?.current);
     if (!g.visible) return;
-    const t = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime * animSpeed;
     for (let i = 0; i < count; i += 1) {
       const child = g.children[i];
       if (!child) continue;
@@ -661,6 +661,26 @@ function DensityScale({ solved }) {
   );
 }
 
+function FloatingSpecimenRig({ position, floats, speed = 1, children }) {
+  const ref = useRef();
+  useFrame((state) => {
+    if (!ref.current) return;
+    if (floats && speed > 0) {
+      const t = state.clock.elapsedTime * speed;
+      ref.current.position.y = position[1] + Math.sin(t * 2.4) * cm(0.25);
+      ref.current.rotation.z = Math.sin(t * 1.6) * 0.015;
+    } else {
+      ref.current.position.y = position[1];
+      ref.current.rotation.z = 0;
+    }
+  });
+  return (
+    <group ref={ref} position={position}>
+      {children}
+    </group>
+  );
+}
+
 // ─── The scene ──────────────────────────────────────────────────────
 
 export default function BuoyancyCanvas({ params = {} }) {
@@ -670,6 +690,7 @@ export default function BuoyancyCanvas({ params = {} }) {
     fluid = "freshwater",
     solidShape = "cube",
     showForces = true,
+    speed = 1,
   } = params || {};
 
   const solved = useMemo(
@@ -735,20 +756,20 @@ export default function BuoyancyCanvas({ params = {} }) {
       <Gantry />
       <OverflowCan />
       <Fluid spec={solved.fluid} />
-      <MeasuringCylinder targetML={solved.overflowML} spec={solved.fluid} onLevel={handleLevel} />
-      <OverflowStream spec={solved.fluid} activeRef={pouring} />
+      <MeasuringCylinder targetML={solved.overflowML} spec={solved.fluid} onLevel={handleLevel} animSpeed={speed} />
+      <OverflowStream spec={solved.fluid} activeRef={pouring} animSpeed={speed} />
 
       <SpringScale reading={solved.apparentWeight} full={solved.weight} hookY={hookY} />
       <Line points={linePoints} color="#cbd5e1" lineWidth={1.6} transparent opacity={0.9} />
 
-      <group position={[TANK_X, centreY, 0]}>
+      <FloatingSpecimenRig position={[TANK_X, centreY, 0]} floats={solved.floats} speed={speed}>
         <Specimen
           metrics={metrics}
           colour={colour}
           swamped={solved.swamped}
           fluidSpec={solved.fluid}
         />
-      </group>
+      </FloatingSpecimenRig>
 
       {/* The waterline, called out on the specimen itself. */}
       {solved.fluid.density > 0.01 && (

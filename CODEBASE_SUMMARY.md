@@ -39,7 +39,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── layout.js                         # Root layout, metadata & pre-paint theme bootstrap script
 │   ├── page.js                           # Marketing landing page (Server Component, CSS-only animations)
 │   ├── visualizations/
-│   │   └── page.jsx                      # Standalone 3D visualizer page with topic selector & control HUD
+│   │   └── page.jsx                      # Standalone 3D visualizer page with TopicSelectorDropdown, clean single header, & control HUD
 │   └── workspace/
 │       └── page.js                       # Main application page (renders <Workspace />)
 ├── components/
@@ -68,35 +68,35 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── ScoreRing.jsx                     # Animated SVG score dial with status coloring
 │   ├── Sidebar.jsx                       # Spaces selector (Grid & Dropdown views with EditSpaceModal), note list, multi-note bulk toolbar, 24h trash drawer, Settings modal & Typed RESET modal
 │   ├── SpaceHubView.jsx                  # Dedicated Space Hub dashboard: per-space curriculum docs with active toggles, space renaming, 26 emoji presets & AI pedagogy settings
-│   ├── ThreeDView.jsx                    # 3D studio container with 27 interactive scientific simulations across 5 STEM domains & resizable HUD
+│   ├── ThreeDView.jsx                    # 3D studio container with 35 interactive scientific simulations across 5 STEM domains, TopicSelectorDropdown & resizable HUD
 │   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
 │   └── visualizations/
-│       ├── BinaryTree3D.jsx              # 3D Binary Search Tree / AVL tree with animated operations
 │       ├── BiologyCanvas.jsx             # Cell explorer with organelle cutaways & enzyme kinetics
 │       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, lattices, electrolysis
 │       ├── PhysicsCanvas.jsx             # Wave refraction, motor effect, thin lenses, induction, kinetic gas laws + dispatcher for the split-out physics scenes
-│       ├── EyeCanvas.jsx                 # Cutaway human eye: accommodation, pupil reflex & anatomy mode
-│       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; shadow painted onto the screen as a canvas texture
-│       ├── InclineFrictionCanvas.jsx     # Ramp free-body diagram, static/kinetic friction & velocity trace
-│       ├── HookesLawCanvas.jsx           # Spring, ruler & slotted masses with a live force-extension graph
-│       ├── SimpleMachinesCanvas.jsx      # Class 1/2/3 levers & block-and-tackle with a work bar chart
-│       ├── RollerCoasterCanvas.jsx       # Drop, vertical loop & brakes with a GPE/KE/thermal bar chart
-│       ├── force-diagram.jsx             # SHARED: free-body arrows on one force scale, GraphPanel, rolling traces, slope frames
+│       ├── EyeCanvas.jsx                 # Cutaway human eye: accommodation, pupil reflex & anatomy mode with resizable controls HUD
+│       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; shadow painted onto the screen as a canvas texture with resizable controls HUD
+│       ├── InclineFrictionCanvas.jsx     # Ramp free-body diagram, static/kinetic friction & velocity trace (speed-scaled)
+│       ├── HookesLawCanvas.jsx           # Spring, ruler & slotted masses with live force-extension graph & dynamic harmonic bounce (speed-scaled)
+│       ├── SimpleMachinesCanvas.jsx      # Class 1/2/3 levers & block-and-tackle with a work bar chart & stroke cycle (speed-scaled)
+│       ├── RollerCoasterCanvas.jsx       # Drop, vertical loop & brakes with GPE/KE/thermal bar chart & coaster physics (speed-scaled)
+│       ├── CircuitBoardCanvas.jsx        # 3D breadboard circuits, bulbs, resistors, meters & electron drift flow (speed-scaled)
+│       ├── StaticElectricityCanvas.jsx   # Balloon, wool sweater, wall induction & Van de Graaff charge transfers (speed-scaled)
+│       ├── BuoyancyCanvas.jsx            # Overflow can, measuring cylinder, spring scale & floating hull bobbing (speed-scaled)
+│       ├── HeatTransferCanvas.jsx        # Conduction rods, convection currents/dye, & radiation plate/beam (speed-scaled)
+│       ├── TopicSelectorDropdown.jsx     # Custom styled subject-separated 3D model selector dropdown with instant search, discipline quick-filters & dark ink styling
+│       ├── force-diagram.jsx             # SHARED: free-body arrows on one force scale, GraphPanel, rolling traces, slope frames & speed integration
+│       ├── charge-carriers.jsx           # SHARED: electron & charge flow paths, carrier instancing, charge signs
 │       ├── energy-bars.jsx               # SHARED: energy/work column charts (grouped + stacked total) & needle DialGauge
 │       ├── cell-organelles.jsx           # Procedural 3D organelle geometry (nucleus, mitochondria, chloroplast, etc.)
-│       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, crystal lattices, electrolysis, VSEPR, energetics
 │       ├── CSCanvas.jsx                  # Computer Science canvas dispatcher (BST / AVL tree and 3D sorting visualizer)
-│       ├── EyeCanvas.jsx                 # Anatomical & physiological cutaway eyeball simulation with dynamic ciliary accommodation & pupil reflex
 │       ├── MathCanvas.jsx                # Gradient descent on loss surfaces, solids of revolution, unit circle & Fourier series
 │       ├── media.js                      # Refractive index presets (air, water, glass, diamond, perspex)
-│       ├── topic-options.js              # Choice lists for the HUD schema, kept free of three.js
-│       ├── topics.js                     # Topic registry: category, controls schema, concepts & quiz for all 31 scenes
-│       ├── scene-kit.jsx                 # Shared Three.js lighting, camera, grid, bounding box & label helpers
-│       ├── ShadowLabCanvas.jsx           # Optical bench simulation: straight-line light, point/broad lamps, umbra/penumbra, 3D solids
 │       ├── topic-options.js              # Presets and options for VSEPR, 3D sorting, surface functions, and revolution curves
-│       ├── topics.js                     # Authoritative 27-topic registry, category metadata, controls schemas, and visual color keys
-│       └── VisualizationHUD.jsx          # Resizable HUD control overlays, parameter sliders, camera reset & quiz overlays
+│       ├── topics.js                     # Topic registry: category, controls schema, concepts & quiz for all 35 scenes with speed: 1 defaults
+│       ├── scene-kit.jsx                 # Shared Three.js lighting, camera, grid, bounding box & label helpers
+│       └── VisualizationHUD.jsx          # Resizable HUD control overlays, universal animation speed slider (0.1×–3×), camera reset & quiz overlays
 ├── lib/
 │   ├── aiService.js                      # Isomorphic client-side AI service coordinating Gemini API & user keys
 │   ├── backup.js                         # .socratic JSON workspace & space backup packager with folder/bookmark support
@@ -325,19 +325,20 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 
 ---
 
-### 🧪 C. Interactive 3D Visualization Studio (`components/ThreeDView.jsx`, `topics.js`, `VisualizationHUD.jsx`)
-A comprehensive suite of **27 real-time interactive 3D simulations** across 5 STEM domains with dual-tab HUD (Controls & live Details readout with complete Visual Color Keys):
+### 🧪 C. Interactive 3D Visualization Studio (`components/ThreeDView.jsx`, `topics.js`, `VisualizationHUD.jsx`, `TopicSelectorDropdown.jsx`)
+A comprehensive suite of **35 real-time interactive 3D simulations** across 5 STEM domains with a unified, distraction-free single top header, custom subject-separated `TopicSelectorDropdown` (with live search, discipline filter chips, and category groupings), dual-tab HUD (Controls & live Details readout with complete Visual Color Keys), resizable HUD panels (10%–80% viewport), and speed-scaled physics engines (0.1×–3.0×):
 
 1. **Physics Engine** (`PhysicsCanvas.jsx` & `ShadowLabCanvas.jsx`):
    - **Wave Refraction & Snell's Law** (`refraction`): Multi-medium light ray refraction, critical angle calculation, total internal reflection, Fresnel reflection rays, and lateral displacement.
    - **The Motor Effect & Fleming's Left-Hand Rule** (`motor`): Magnetic field lines ($N \to S$), current flow wire, Lorentz force vector, and Fleming's left hand orientation.
    - **Thin Lens Optics & Ray Diagrams** (`lenses`): Convex/concave lenses, principal axis, focal points, parallel/center rays, real/virtual images, and virtual ray back-extensions.
-   - **Electromagnetic Induction** (`induction`): Faraday/Lenz's law, rotating copper coil, magnetic pole blocks, induced AC current pulses, and real-time EMF waveform trace.
+   - **Electromagnetic Induction & Faraday's Law** (`induction`): Faraday/Lenz's law, rotating copper coil, magnetic pole blocks (`MagnetPole`), induced AC current pulses, and real-time EMF waveform trace.
+   - **Static Electricity & Charge Transfer** (`static_electricity`): Triboelectric charge transfer, Countable $+/-$ electron carriers, Coulomb inverse-square forces ($F = k q_1 q_2 / r^2$), neutral wall polarisation via induction, Van de Graaff generator with repelling aluminum pie pan stack, air humidity leakage, and interactive 3D balloon raycast dragging (`DraggableBalloon`).
    - **Kinetic Gas Laws ($PV=nRT$)** (`gas`): Bounded cylinder with hot/cold kinetic gas particles, moveable piston, and wall collision impulses.
    - **2D Projectile Motion** (`projectile`): Ballistic flight with quadratic drag, ideal parabolic trajectory comparison, tangent velocity $\vec{v}$, and gravity weight $\vec{W}$.
    - **Wave Interference & Double Slits** (`interference`): Wave crests/troughs, coherent slit emitters, double-slit barrier, and screen intensity fringe maxima.
    - **Keplerian Orbits & Gravity Wells** (`orbits`): Gravitational spacetime potential well ($-GM/r$), central massive body, orbiting satellite, and elliptical/hyperbolic orbital trails.
-   - **Light, Shadows & Straight Lines** (`shadows`): Primary optical bench simulation powered by `ShadowLabCanvas.jsx` and `lib/shadowOptics.js`. Features draggable bench elements (light source, stand, screen), pinpoint bulb vs wide lamp penumbra/umbra calculations, 3D solids (cube, sphere, cylinder, ring, cone, duck silhouette), and material transmission (opaque, translucent, transparent).
+   - **Light, Shadows & Straight Lines** (`shadows`): Primary optical bench simulation powered by `ShadowLabCanvas.jsx` and `lib/shadowOptics.js`. Features draggable bench elements (light source, stand, screen), pinpoint bulb vs wide lamp penumbra/umbra calculations, 3D solids (cube, sphere, cylinder, ring, cone, duck silhouette), material transmission (opaque, translucent, transparent), and a 10%–80% resizable sidebar HUD with edge drag bar and corner grip.
 
 2. **Chemistry Engine** (`ChemistryCanvas.jsx`):
    - **Bohr Atom & Emission Spectra** (`bohr`): Quantized electron shells, core/valence electrons, and photon emission spectral wave packets.
@@ -353,7 +354,7 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
    - **Enzyme Kinetics & Denaturation** (`enzyme`): Lock-and-key substrate binding, active catalytic cleft, thermal/pH denaturation, and released product molecules.
    - **DNA Double Helix Structure** (`dna`): Antiparallel sugar-phosphate backbones, complementary base pairs (Adenine, Thymine, Guanine, Cytosine), and hydrogen bond rungs.
    - **Protein Secondary Structure & Folding** (`protein`): $\alpha$-Helix ($i \to i+4$ H-bonds, 3.6 residues/turn), $\beta$-Pleated Sheet, random coils, hydrophobic core packing vs hydrophilic surface residues, and thermal denaturation.
-   - **The Human Eye — Accommodation & Pupil Reflex** (`eye`): Anatomical and physiological cutaway eyeball simulation powered by `EyeCanvas.jsx` and `lib/eyeOptics.js`. Features dynamic ciliary accommodation, crystalline lens curvature morphing, pupil light reflex, Gullstrand equivalent power calculations, and refractive error corrections.
+   - **The Human Eye — Accommodation & Pupil Reflex** (`eye`): Anatomical and physiological cutaway eyeball simulation powered by `EyeCanvas.jsx` and `lib/eyeOptics.js`. Features dynamic ciliary accommodation, crystalline lens curvature morphing, pupil light reflex, Gullstrand equivalent power calculations, refractive error corrections, and a 10%–80% resizable sidebar HUD with edge drag bar and corner grip.
    - **Respiratory Mechanics & Thoracic Physics** (`respiratory`): Photorealistic 3D anatomical and physiological thoracic simulation powered by genuine clinical CT-derived thoracic skeleton (`skeleton_ct.glb`, 16.3 MB; isolated 24 ribs, T1–T12 thoracic vertebrae, L1–L3 lumbar crura anchors, sternum, xiphoid, and clavicles) with active bucket-handle lateral elevation and pump-handle AP sternal elevation, photorealistic medical lungs scan (`lung.glb`, 17.1 MB), multi-layer antagonistic intercostal muscle bands (superficial external $+35^\circ$ inspiratory and deep internal $-45^\circ$ forced expiratory), muscular diaphragm dome morphing, dynamic airway particle stream vectors driven by Boyle's Law pressure gradients ($P_1 V_1 = P_2 V_2$), 3-state phase selector, live SVG physics gauges, and open-source model attribution modal.
 
 4. **Computer Science Engine** (`CSCanvas.jsx` & `BinaryTree3D.jsx`):
@@ -368,7 +369,7 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
 6. **HUD Controls, Live Details Readout & Authoritative Visual Keys (`VisualizationHUD.jsx`)**:
    - Universal HUD header with category filters (Physics, Chemistry, Biology, CS, Math), parameter sliders, toggles, resets, and AI Explain & Quiz drawer integrations.
    - **Direct AI Explain, Quiz & Mastery Pipeline**: The "AI Concept Breakdown & Quiz" button in the HUD Details tab triggers `formatTopicStudyContext(topic, params)` to synthesize rich 3D topic details directly into the `ExplainPanel` drawer. Handover to `QuizPanel` ("🦆 Test me on this") generates dynamic AI questions and logs scores to the **Mastery Dashboard**.
-   - **Draggable Resizable HUD Panel**: Draggable horizontally from 10% (180px) to 80% screen width via grab bar and bottom-right corner grip, with persistent `localStorage` (`socratic_hud_panel_width`).
+   - **Universal Draggable Resizable HUD Panels**: 100% of all 36 3D visualisations support horizontal drag-to-resize sidebar controls from 10% (180px) to 80% screen width via grab bar and bottom-right corner grip, with persistent `localStorage` (`socratic_hud_panel_width`).
    - **Universal Animation Speed Slider**: Mounted directly below the tab switcher across every 3D scene, providing fine-grained $0.1\times$ to $3.0\times$ speed control (with paused/frozen states).
    - **Hardware Graphics Adaptation**: Device capability detection (`detectHardwareGraphics`) managing DPR (1.0–2.0), shadows, antialiasing, and dynamic `"demand"` vs `"always"` frameloops.
    - **Zen Focus Mode & Minimalist View**: 1-click toggle button (`Ctrl+Shift+F`) collapses the sidebar and hides top bars, leaving only an edge-to-edge canvas with a floating glassmorphic exit pill.

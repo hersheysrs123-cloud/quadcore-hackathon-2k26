@@ -193,7 +193,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
  * sees throttled samples, which is what keeps a sixty-hertz simulation from
  * re-rendering a HUD sixty times a second.
  */
-function BlockMotion({ options, running, resetKey, onSample, onTrace }) {
+function BlockMotion({ options, running, speed = 1, resetKey, onSample, onTrace }) {
   const elapsed = useRef(0);
 
   const step = useCallback(
@@ -206,7 +206,7 @@ function BlockMotion({ options, running, resetKey, onSample, onTrace }) {
     [options, onTrace],
   );
 
-  const motion = useBodyMotion({ step, onSample, running });
+  const motion = useBodyMotion({ step, onSample, running, speed });
 
   // A reset puts the crate back in the middle of the ramp with the clock and
   // the trace both wiped, rather than leaving a stale curve on the graph.
@@ -278,6 +278,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
     showComponents = true,
     showNet = true,
     running = true,
+    speed = 1,
     reset = 0,
   } = params || {};
 
@@ -432,6 +433,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
       <BlockMotion
         options={options}
         running={running}
+        speed={speed}
         resetKey={`${reset}-${rampAngle}-${surface}-${blockMass}-${appliedForce}`}
         onSample={onSample}
         onTrace={onTrace}

@@ -391,9 +391,9 @@ function Meter({ position, value, unit, label, tone = "amber", warn = false }) {
 }
 
 /** One conductor's worth of drift electrons. */
-function FlowSegment({ segment, running }) {
+function FlowSegment({ segment, running, animSpeed = 1 }) {
   const path = useMemo(() => makeFlowPath(segment.points), [segment.points]);
-  const speed = driftSpeed(segment.current);
+  const speed = driftSpeed(segment.current) * animSpeed;
   const count = Math.max(2, Math.round(path.length / CARRIER_SPACING));
 
   if (segment.open || speed <= 0) return null;
@@ -422,6 +422,7 @@ export default function CircuitBoardCanvas({ params = {} }) {
     unscrewA = 0,
     shortCircuit = 0,
     running = true,
+    speed = 1,
   } = params || {};
 
   // The two action buttons are latches: pressing again puts the bulb back or
@@ -490,7 +491,7 @@ export default function CircuitBoardCanvas({ params = {} }) {
 
       {/* Drift electrons, one stream per conductor. */}
       {segments.map((seg) => (
-        <FlowSegment key={seg.key} segment={seg} running={running} />
+        <FlowSegment key={seg.key} segment={seg} running={running} animSpeed={speed} />
       ))}
 
       <BatteryPack volts={solved.emf} current={solved.totalCurrent} overCurrent={solved.overCurrent} />

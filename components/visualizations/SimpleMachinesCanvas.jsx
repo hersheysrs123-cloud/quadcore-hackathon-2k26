@@ -277,11 +277,11 @@ function Pulley({ solved, phase, loadN }) {
  * frame while the React tree above only re-renders at the sample rate — and so
  * `useFrame` unsubscribes with it when the topic is switched away.
  */
-function StrokeClock({ running, onPhase }) {
+function StrokeClock({ running, speed = 1, onPhase }) {
   const t = useRef(0);
   useFrame((_, delta) => {
-    if (!running) return;
-    t.current += Math.min(delta, 0.05);
+    if (!running || speed <= 0) return;
+    t.current += Math.min(delta, 0.05) * speed;
     // A raised cosine, so the stroke eases at both ends instead of snapping.
     onPhase((1 - Math.cos((t.current / STROKE_PERIOD) * Math.PI * 2)) / 2);
   });
@@ -297,6 +297,7 @@ export default function SimpleMachinesCanvas({ params = {} }) {
     sheaves = 2,
     loadN = 300,
     running = true,
+    speed = 1,
   } = params || {};
 
   const [phase, setPhase] = useState(0);
@@ -344,7 +345,7 @@ export default function SimpleMachinesCanvas({ params = {} }) {
         <meshStandardMaterial color="#252c38" roughness={0.85} metalness={0.05} />
       </mesh>
 
-      <StrokeClock running={running} onPhase={setPhase} />
+      <StrokeClock running={running} speed={speed} onPhase={setPhase} />
 
       <group position={[0.7, 0, 0]}>
         {lever ? (

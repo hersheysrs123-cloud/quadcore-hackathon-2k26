@@ -597,6 +597,7 @@ export const TOPICS = [
       showNet: true,
       running: true,
       reset: 0,
+      speed: 1,
     },
     controls: [
       { type: "slider", key: "rampAngle", label: "Ramp angle θ", min: 0, max: 90, step: 1, format: (v) => `${v}°` },
@@ -678,6 +679,7 @@ export const TOPICS = [
       overload: 0,
       newSpring: 0,
       showGraph: true,
+      speed: 1,
     },
     controls: [
       {
@@ -750,6 +752,7 @@ export const TOPICS = [
       sheaves: 2,
       loadN: 300,
       running: true,
+      speed: 1,
     },
     controls: [
       {
@@ -845,6 +848,7 @@ export const TOPICS = [
       friction: false,
       running: true,
       relaunch: 0,
+      speed: 1,
     },
     controls: [
       { type: "slider", key: "releaseHeight", label: "Initial release height", min: 5, max: 50, step: 1, format: (v) => `${v} m` },
@@ -958,6 +962,7 @@ export const TOPICS = [
       unscrewA: 0,
       shortCircuit: 0,
       running: true,
+      speed: 1,
     },
     controls: [
       {
@@ -1052,6 +1057,7 @@ export const TOPICS = [
       rubs: 0,
       discharge: 0,
       vdg: false,
+      speed: 1,
     },
     controls: [
       { type: "action", key: "rubs", label: "Rub the balloon on the sweater", icon: Sparkles },
@@ -1154,6 +1160,7 @@ export const TOPICS = [
       fluid: "freshwater",
       solidShape: "cube",
       showForces: true,
+      speed: 1,
     },
     controls: [
       {
@@ -1265,6 +1272,7 @@ export const TOPICS = [
       rodMaterial: "copper",
       viewMode: "flir",
       dyeDrop: 0,
+      speed: 1,
     },
     controls: [
       {
