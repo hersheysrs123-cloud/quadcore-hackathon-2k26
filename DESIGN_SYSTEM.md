@@ -417,7 +417,7 @@ A topic's `controls` entry may carry `when: (params) => boolean`. `Visualization
   - Unselected Card: `flex w-full items-start gap-3 rounded-xl border border-ink-800 bg-ink-850 text-ink-300 hover:border-ink-700 hover:text-ink-200 px-3.5 py-3 text-left text-[13px] transition-colors`.
   - Selected Card: `border-duck-500/60 bg-duck-500/10 text-ink-100`.
   - Checkbox Pill: `mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors`. Selected: `border-duck-400 bg-duck-400 text-ink-950`; Unselected: `border-ink-600 text-transparent`.
-- **Step Ordering Parsons Cards (`step_ordering`)**:
+- **Step Ordering Cards (`step_ordering`)**:
   - Step Card: `flex items-center gap-2 p-2.5 rounded-xl border border-ink-800 bg-ink-850 text-[13px] text-ink-200`.
   - Index Badge: `w-5 h-5 rounded-full bg-ink-800 border border-ink-700 text-ink-400 text-[10px] font-bold flex items-center justify-center shrink-0`.
   - Directional Action Buttons: `p-1 rounded bg-ink-800 text-ink-400 hover:text-ink-100 disabled:opacity-20 cursor-pointer`.
@@ -534,5 +534,13 @@ A topic's `controls` entry may carry `when: (params) => boolean`. `Visualization
 13. **Editor Click-to-Append & Side Margin Boundary Constraints (`components/BlockNoteEditor.jsx`)**:
     - When 'Click anywhere to place block' (`clickToAppend`) is enabled, clicking on the outer sides of the screen (outside the note reading column, `clientX < rootRect.left || clientX > rootRect.right`) and clicking on side margins beside existing blocks (`clientY <= contentBottom + 8`) is completely disabled from appending or focusing.
     - Click-to-append strictly operates within the note column in the empty bottom whitespace below the final block.
+14. **Interactive Onboarding Tutorial Modal Architecture (`components/InteractiveTutorial.jsx`)**:
+    - **Layering & Modal Framing**: Uses fixed viewport positioning (`z-[300]`) with glassmorphic backdrop blur (`bg-ink-950/85 backdrop-blur-md`) and elevated modal shell (`z-[310] max-w-4xl max-h-[92vh] rounded-2xl border-ink-700/80 bg-ink-900 shadow-2xl`).
+    - **Dynamic Progress Indicator**: Integrated top accent bar featuring a smooth gradient progress fill (`from-duck-500 to-duck-300 h-1.5 transition-all duration-300 ease-out`) calculating percentage from current step index.
+    - **Interactive Sandboxes**: Every chapter includes live test widgets with standard design tokens:
+      - Category & Step Dots: Clickable step dots (`h-2 rounded-full w-2 bg-ink-700 hover:bg-ink-500`, active `w-6 bg-duck-400`).
+      - Mini-Quiz Feedback Tokens: Correct option turns emerald (`border-emerald-500 bg-emerald-500/20 text-emerald-200`); incorrect option turns rose (`border-rose-500 bg-rose-500/20 text-rose-200`).
+      - Pomodoro Visualizer: Live circular timer dial (`bg-ink-900 border-ink-700 text-duck-300 font-mono text-2xl font-black`) and tab notification badge preview.
+      - Shortcut Buttons: Interactive hotkey pills with click-to-try or clipboard feedback tooltip (`kbd.bg-ink-950 text-duck-300`).
 
 

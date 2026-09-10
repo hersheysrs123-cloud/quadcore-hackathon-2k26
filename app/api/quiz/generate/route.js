@@ -230,12 +230,12 @@ Calibrate question depth, expected mathematical precision (e.g. 3 significant fi
     shortAnswerCount !== undefined ||
     longAnswerCount !== undefined;
 
-  const numMCQ = Number.isInteger(Number(mcqCount)) ? Math.max(0, Number(mcqCount)) : 3;
-  const numMulti = Number.isInteger(Number(multiSelectCount)) ? Math.max(0, Number(multiSelectCount)) : 1;
-  const numValue = Number.isInteger(Number(valueInputCount)) ? Math.max(0, Number(valueInputCount)) : 2;
-  const numStep = Number.isInteger(Number(stepOrderingCount)) ? Math.max(0, Number(stepOrderingCount)) : 1;
+  const numMCQ = Number.isInteger(Number(mcqCount)) ? Math.max(0, Number(mcqCount)) : (countsSpecified ? 0 : 3);
+  const numMulti = Number.isInteger(Number(multiSelectCount)) ? Math.max(0, Number(multiSelectCount)) : (countsSpecified ? 0 : 1);
+  const numValue = Number.isInteger(Number(valueInputCount)) ? Math.max(0, Number(valueInputCount)) : (countsSpecified ? 0 : 2);
+  const numStep = Number.isInteger(Number(stepOrderingCount)) ? Math.max(0, Number(stepOrderingCount)) : (countsSpecified ? 0 : 1);
   const numCode = Number.isInteger(Number(codeInputCount)) ? Math.max(0, Number(codeInputCount)) : 0;
-  const numShort = Number.isInteger(Number(shortAnswerCount)) ? Math.max(0, Number(shortAnswerCount)) : 1;
+  const numShort = Number.isInteger(Number(shortAnswerCount)) ? Math.max(0, Number(shortAnswerCount)) : (countsSpecified ? 0 : 1);
   const numLong = Number.isInteger(Number(longAnswerCount)) ? Math.max(0, Number(longAnswerCount)) : 0;
   const totalCount = numMCQ + numMulti + numValue + numStep + numCode + numShort + numLong;
 

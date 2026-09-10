@@ -12,6 +12,7 @@ export default function CommandPalette({
   setActiveTab,
   setActiveNoteId,
   onOpenSettings,
+  onStartTutorial,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -38,6 +39,10 @@ export default function CommandPalette({
       { id: "action_quizzes", type: "View", title: "Open Quizzes Studio", icon: <span>🎯</span>, onSelect: () => setActiveTab("quizzes") },
       { id: "action_mastery", type: "View", title: "Open Mastery Dashboard", icon: <Activity size={16} />, onSelect: () => setActiveTab("mastery") },
     ];
+
+    if (onStartTutorial) {
+      list.push({ id: "action_tutorial", type: "Help", title: "Open Onboarding Tutorial & Guide", icon: <span>🎓</span>, onSelect: () => onStartTutorial() });
+    }
 
     if (onOpenSettings) {
       list.push({ id: "action_settings", type: "Settings", title: "Open Settings", icon: <Settings size={16} />, onSelect: () => onOpenSettings() });

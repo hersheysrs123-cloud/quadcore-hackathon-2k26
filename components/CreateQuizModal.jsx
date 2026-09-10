@@ -910,7 +910,7 @@ export default function CreateQuizModal({
                   disabled={generating}
                 />
                 <QuestionCountSlider
-                  label="Step Ordering (Parsons)"
+                  label="Step Ordering"
                   desc="Derivations, proofs, or algorithm steps to rearrange"
                   value={stepOrderingCount}
                   onChange={setStepOrderingCount}

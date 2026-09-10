@@ -19,6 +19,7 @@ import MasteryDashboard from "@/components/MasteryDashboard";
 import ExportImportModal from "@/components/ExportImportModal";
 import NoteMenu from "@/components/NoteMenu";
 import CommandPalette from "@/components/CommandPalette";
+import InteractiveTutorial from "@/components/InteractiveTutorial";
 import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { summariseMastery } from "@/lib/mastery";
@@ -40,6 +41,7 @@ import {
   seedDemoContent,
   renameSpace,
   saveAllSpaces,
+  deleteSpace,
   getSavedSpaces,
   saveSpaceSettings,
 } from "@/lib/storageService";
@@ -66,6 +68,7 @@ export default function Workspace() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
   const [exportImportOpen, setExportImportOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [isZenMode, setIsZenMode] = useState(false);
   const [isReformattingNote, setIsReformattingNote] = useState(false);
@@ -262,9 +265,14 @@ export default function Workspace() {
             allDbNotes = await getAllNotes();
           }
 
-          const spaceMap = { School: [], Personal: [], Misc: [], Journal: [] };
+          const resolvedSpaces = await getSavedSpaces();
+          const spaceMap = {};
+          resolvedSpaces.forEach((s) => {
+            spaceMap[s.name] = [];
+          });
+
           allDbNotes.forEach((n) => {
-            const sp = n.spaceId || n.space || "School";
+            const sp = n.spaceId || n.space || resolvedSpaces[0]?.name || "School";
             if (!spaceMap[sp]) spaceMap[sp] = [];
             spaceMap[sp].push({
               id: n.id,
@@ -291,17 +299,24 @@ export default function Workspace() {
 
           setNotesBySpace(spaceMap);
 
-          const resolvedSpaces = await getSavedSpaces();
           const merged = new Map();
           resolvedSpaces.forEach((s) => merged.set(s.name, s));
           Object.keys(spaceMap).forEach((sp) => {
-            if (!merged.has(sp)) merged.set(sp, { name: sp, icon: "📂", blurb: "" });
+            if (!merged.has(sp) && (spaceMap[sp] || []).length > 0) {
+              merged.set(sp, { name: sp, icon: "📂", blurb: "" });
+            }
           });
-          setSpaces(Array.from(merged.values()));
+          const finalSpaces = Array.from(merged.values());
+          setSpaces(finalSpaces);
 
           const params = new URLSearchParams(window.location.search);
           const urlNoteId = params.get("noteId");
           const urlTab = params.get("tab");
+          const urlTour = params.get("tour");
+          const tourCompleted = localStorage.getItem("socratic_tutorial_completed") === "true";
+          if (urlTour === "true" || !tourCompleted) {
+            setTutorialOpen(true);
+          }
           
           let fallback = null;
           try { fallback = JSON.parse(localStorage.getItem("socratic_last_workspace_state")); } catch(e){}
@@ -309,7 +324,7 @@ export default function Workspace() {
           const targetNoteId = urlNoteId || fallback?.activeNoteId;
           const targetTab = urlTab || fallback?.activeTab || "notes";
 
-          let foundSpace = SPACES[0].name;
+          let foundSpace = finalSpaces[0]?.name || "School";
           let foundNoteId = null;
           
           if (targetNoteId) {
@@ -697,19 +712,25 @@ export default function Workspace() {
        for (const note of notesToDelete) {
            await handleDeleteNote(note.id, spaceName); // move to trash
        }
-       setSpaces(prev => {
-         const next = prev.filter(s => s.name !== spaceName);
-         saveAllSpaces(next);
+       const nextSpaces = spaces.filter((s) => s.name !== spaceName);
+       setSpaces(nextSpaces);
+       await deleteSpace(spaceName);
+       await saveAllSpaces(nextSpaces);
+
+       setNotesBySpace((prev) => {
+         const next = { ...prev };
+         delete next[spaceName];
          return next;
        });
+
        if (activeSpace === spaceName) {
-         const fallbackSpace = SPACES[0].name;
+         const fallbackSpace = nextSpaces[0]?.name || "School";
          setActiveSpace(fallbackSpace);
          const firstInFallback = (notesBySpace[fallbackSpace] || [])[0];
          setActiveNoteId(firstInFallback ? firstInFallback.id : null);
        }
     }
-  }, [notesBySpace, activeSpace, handleDeleteNote]);
+  }, [spaces, notesBySpace, activeSpace, handleDeleteNote]);
 
   const handleSaveNote = useCallback(
     async (noteToSave) => {
@@ -1165,9 +1186,13 @@ export default function Workspace() {
 
     try {
       const allDbNotes = await getAllNotes();
-      const spaceMap = { School: [], Personal: [], Misc: [] };
+      const resolvedSpaces = await getSavedSpaces();
+      const spaceMap = {};
+      resolvedSpaces.forEach((s) => {
+        spaceMap[s.name] = [];
+      });
       allDbNotes.forEach((n) => {
-        const noteSp = n.spaceId || n.space || "School";
+        const noteSp = n.spaceId || n.space || resolvedSpaces[0]?.name || "School";
         if (!spaceMap[noteSp]) spaceMap[noteSp] = [];
         spaceMap[noteSp].push({
           id: n.id,
@@ -1199,11 +1224,12 @@ export default function Workspace() {
 
       setNotesBySpace(spaceMap);
 
-      const resolvedSpaces = await getSavedSpaces();
       const merged = new Map();
       resolvedSpaces.forEach((s) => merged.set(s.name, s));
       Object.keys(spaceMap).forEach((noteSp) => {
-        if (!merged.has(noteSp)) merged.set(noteSp, { name: noteSp, icon: "📂", blurb: "" });
+        if (!merged.has(noteSp) && (spaceMap[noteSp] || []).length > 0) {
+          merged.set(noteSp, { name: noteSp, icon: "📂", blurb: "" });
+        }
       });
       setSpaces(Array.from(merged.values()));
 
@@ -1406,6 +1432,7 @@ export default function Workspace() {
           onReformatNote={() => reformatNoteRef.current?.()}
           onNavigateCalendar={() => setActiveTab("calendar")}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          onStartTutorial={() => setTutorialOpen(true)}
         />
       </div>
 
@@ -1848,6 +1875,24 @@ export default function Workspace() {
         setActiveSpace={setActiveSpace}
         setActiveTab={setActiveTab}
         setActiveNoteId={setActiveNoteId}
+        onStartTutorial={() => setTutorialOpen(true)}
+      />
+
+      <InteractiveTutorial
+        isOpen={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setTutorialOpen(false);
+        }}
+        onOpenInstantNote={() => {
+          setInstantNoteOpen(true);
+          setTutorialOpen(false);
+        }}
+        onOpenCommandPalette={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+          setTutorialOpen(false);
+        }}
       />
     </div>
   );

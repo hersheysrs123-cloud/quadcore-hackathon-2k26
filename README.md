@@ -74,6 +74,7 @@ Open [localhost:3000](http://localhost:3000) for the marketing landing page, or 
   - **AI Examiner Persona**: Standard Examiner, Strict Examiner, Socratic Guide, Friendly Coach, Olympiad Mentor.
   - **Distractor Toughness & Rigor**: Relaxed, Standard, High Rigor.
   - **Custom Space Identity & Full Editing**: Rename any space, pick from 26 curated emoji presets or type custom emojis, and customize descriptive taglines with permanent persistence across default and custom spaces. Dual edit triggers available via hover pencil in Sidebar (Grid and Dropdown views) and within the Space Hub.
+  - **Permanent Default & Custom Space Deletion**: Deleting any space (including defaults like School, Personal, Misc, Journal) permanently removes it and related metadata across browser reloads without automatic recreation.
 - **1-Click Subject Presets**: Rapidly load Cambridge IGCSE Gr.10, IB Diploma HL, AP College Board, or Foundational mastery presets.
 
 ### 🧑‍🏫 4. Interactive AI Tutor Doubt-Clearing Suite
@@ -143,7 +144,7 @@ A comprehensive suite of 31 real-time interactive 3D STEM simulations built usin
 
 ### 🦆 5. Socratic AI Tutor, Explain & Reformat
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
-- **Diagnostic Quiz Drawer (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions and recording session scores directly into the mastery analytics store.
+- **Diagnostic Quiz Drawer (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions (5 multiple-choice, 3 short-answers; math block / value_input questions excluded from quick quizzes) and recording session scores directly into the mastery analytics store.
 
 
 ### 📊 6. Graded Quizzes, Quizzes Studio & Sub-Topic Mastery Heatmap
@@ -154,10 +155,10 @@ A comprehensive suite of 31 real-time interactive 3D STEM simulations built usin
   - **Multi-Note Quiz Cards & Interactive Navigation**: Interactive quiz cards show multi-source badge indicators (`📚 X notes`) with quick-jump navigation links into each source note.
   - **Deletion Confirmation Modal**: Accessible confirmation dialog (`DeleteQuizConfirmModal`) guarding against accidental deletion when trashing quizzes, permanently deleting items, or emptying the 24-hour trash bin.
   - **Cambridge IGCSE Grade 10 Math & STEM Question Suite**:
-    - **7 Supported Question Types**: Multiple Choice, Multi-Select ("Select all that apply"), Value Input (exact numerical/algebraic formula with virtual math symbol keyboard and live KaTeX preview), Code Input (inbuilt editor with Tab 2-space indentation and language tags), Step Ordering (Parsons problem scrambled proofs & derivations), Short Answer, and Long Essay.
+    - **7 Supported Question Types**: Multiple Choice, Multi-Select ("Select all that apply"), Value Input (exact numerical/algebraic formula with virtual math symbol keyboard and live KaTeX preview), Code Input (inbuilt editor with Tab 2-space indentation and language tags), Step Ordering (scrambled proofs & derivations), Short Answer, and Long Essay.
     - **Virtual Math Symbol Keyboard & Live KaTeX Preview**: Real-time formula entry with quick symbol insertion (`\frac{a}{b}`, `\sqrt{x}`, `x^2`, `\pi`, `\pm`, `\theta`, `\le`, `\ge`, `\approx`, `\infty`, `\times`, `\div`, `^\circ`) for students unfamiliar with raw LaTeX.
     - **Inbuilt Code Editor**: Interactive code writing environment with Tab key 2-space indentation interception, language badging, and starter code.
-    - **Parsons Problem Step Ordering**: Interactive proof/derivation cards with ▲/▼ reordering controls and auto-scrambling.
+    - **Step Ordering**: Interactive proof/derivation cards with ▲/▼ reordering controls and auto-scrambling.
     - **1-Click STEM Presets**: Instant configuration presets: 🎓 *IGCSE Gr.10 STEM*, 🧮 *Pure Math & Derivations*, 💻 *Computer Science*, and ⚡ *Quick 5 MCQ*.
   - **Redesigned Decluttered Quiz Runner**: Split-screen 2-column layout offering an expansive, distraction-free Q&A canvas (`max-w-4xl`) on the left and a dedicated Control & Navigation Station on the right (`w-80 lg:w-88`), equipped with an interactive 5-column question palette matrix, prominent next/skip/submit buttons, instant answer clearing (`Eraser`), and keyboard hotkey navigation (`ArrowLeft`/`ArrowRight`, `A`-`D`/`1`-`4`).
   - **Live Quiz Progress Auto-Saving & Resumption**: Continuous real-time auto-saving of answers and question index to IndexedDB on every option click, debounced text answer, and question navigation. In-progress quizzes display a `⏳ In Progress (X/Y)` badge and one-click "Resume Quiz" action, while the runner header features a live `✓ Progress saved` indicator.
@@ -182,11 +183,19 @@ A comprehensive suite of 31 real-time interactive 3D STEM simulations built usin
 - **Multi-Format Note Export with Pre-Download Preview** ([`ExportPreview.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ExportPreview.jsx)): Preview files before downloading for **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), and **Markdown** (`.md`). Features authentic Microsoft Word sheet layouts with heading colors, browser mockup frames with dynamic auto-height sandbox iframes & embedded KaTeX math formulas, monospace text editors, dedicated full-document scroll container with wheel forwarding, and rendered/source code view toggles. **PDF** directly launches the native browser print preview dialog (`window.print()`).
 - **Drag-and-Drop Import**: Drag and drop `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, or `.md` files directly into target spaces.
 
-### 🗑️ 10. 24-Hour Soft-Delete Trash, Custom Spaces & Privacy Settings
-- **24-Hour Auto-Purge Trash** ([`Sidebar.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/Sidebar.jsx)): Soft-delete notes into a Trash drawer with automatic 1-minute interval background purging for notes older than 24 hours. Features individual and batch recovery controls.
-- **Graphics & Privacy Settings** ([`SettingsModal.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/Sidebar.jsx)): Personal Gemini API Key management (100% private IndexedDB storage), 3D graphics quality presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
-- **Factory Reset Verification**: Targeted table purging with typed `RESET` double-confirmation safety verification.
-- **First-Run Demo Content** ([`demoNotes.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/lib/demoNotes.js)): Ships with seeded notes and curated study resource bookmarks (3Blue1Brown, Desmos, MDN, MIT OCW, arXiv).
+### 🎓 11. Interactive Onboarding Tutorial & Feature Walkthrough
+- **9 Interactive Chapters Covering 100+ Capabilities** ([`InteractiveTutorial.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/InteractiveTutorial.jsx)):
+  - **Philosophy & 100% Local-First Architecture**: Active retrieval vs rereading, 11-table Dexie.js v7 storage, and spaces workflow with interactive concept cards.
+  - **19-Block Editor & KaTeX Studio**: Interactive category filter across all 19 block types and live typography font switcher (`Default Sans`, `Classic Serif`, `Developer Mono`, `Script`, `Grotesk`).
+  - **AI Study Suite**: Interactive 3-way drawer preview (AI Tutor Socratic chat, Explain Panel structured breakdown, and an **interactive live mini-quiz** with real-time feedback).
+  - **Quizzes Studio & 7 Question Types**: Interactive question type explorer and live step-ordering puzzle.
+  - **Space Hub & Curriculum Grounding**: Interactive academic standard simulator (IGCSE, IB, AP, University).
+  - **27-Topic 3D Simulation Studio**: Interactive domain switcher across Physics, Chemistry, Biology, CS, and Mathematics.
+  - **Pomodoro Rhythm & Study Calendar**: Multi-timer HUD, study schedule agenda, and interactive Pomodoro cycle simulator.
+  - **Web Saver & Bookmarks**: Dual-pane folder tree preview and live Google favicon resolution.
+  - **Power Shortcuts & Data Safety**: Clickable hotkey grid (`Ctrl+K`, `Ctrl+I`, `Ctrl+S`, `Alt+←`/`Alt+→`, `/`, `$$`) and 24h trash auto-purge protection.
+- **First-Time Visitor Auto-Start**: Automatically triggers on initial visit if `localStorage.getItem("socratic_tutorial_completed")` is not set or via URL parameter `?tour=true`.
+- **Settings & Command Palette Replay**: Re-triggerable anytime via the "Restart Tutorial" action card in Settings (General tab) or via Command Palette (`Ctrl+K` → "Open Onboarding Tutorial & Guide").
 
 ---
 
@@ -217,6 +226,7 @@ components/
   NoteMenu.jsx                  Note options dropdown (Favorite ⭐, 3-Font Typography, Stats, Export, Delete)
   CommandPalette.jsx            Ctrl+K global fuzzy search modal
   InstantNoteModal.jsx          Ctrl+I 75% screen quick note capture window
+  InteractiveTutorial.jsx       9-chapter interactive onboarding walkthrough modal with live sandboxes
   CalendarView.jsx              Study schedule calendar & recurring alarm scheduler
   GlobalTimerHUD.jsx            Unified top HUD multi-timer manager
   AlarmOverlay.jsx              Calming study break alert modal with gentle chime
@@ -276,6 +286,24 @@ scripts/
 - **IndexedDB via Dexie.js**: Primary user data resides locally in the browser (`SocraticOS_LocalDB`).
 - **Graceful Cloud Route Resiliency**: All API endpoints support local-first operation (`200 { success: true, offline: true, localFirst: true }`), enabling uninterrupted offline editing.
 - **Client-Side API Key Storage**: Personal Gemini API keys are saved exclusively in IndexedDB (Dexie) and never transmitted to external servers.
+
+---
+
+## 🎓 Interactive Onboarding Walkthrough & Guide
+
+SocraticOS features an interactive onboarding walkthrough (`components/InteractiveTutorial.jsx`) that starts automatically on a student's first visit (`localStorage.getItem("socratic_tutorial_completed")`) or when navigating to `?tour=true`:
+
+- **9 Comprehensive Interactive Chapters**:
+  1. **Philosophy & Active Retrieval**: Core cognitive science foundations and 100% local-first storage model.
+  2. **19-Block Notion-Grade Studio**: Slash menu (`/`), 6-dots drag handles, KaTeX equations, and live 3-font typography switcher (`sans`, `serif`, `mono`).
+  3. **AI Study Suite**: Structured Explain Panel (4-part breakdown) and live interactive mini-quiz sandbox with instant grading.
+  4. **Quizzes Studio**: 2-column test runner, draft answer persistence, 7 question types, and interactive step ordering puzzle.
+  5. **Space Hub & Document Grounding**: Multi-discipline spaces, custom syllabus uploads, and interactive curriculum standard personas.
+  6. **3D Scientific Simulation Studio**: 27 interactive simulations across Physics, Chemistry, Biology, CS, and Mathematics.
+  7. **Focus Hub & Pomodoro Cycles**: Study calendar, multi-timer HUD, and interactive Pomodoro cycle visualizer with tab title notification preview (`🦆` ↔ `❗️`).
+  8. **Web Saver & Bookmark Manager**: Dual-pane folder trees, Google favicon resolvers, and Netscape HTML import/export.
+  9. **Power Shortcuts & Bulk Operations**: Multi-note bulk actions, 24h auto-purging trash, note navigation history (`Alt+←`/`Alt+→`), and clickable shortcut pills.
+- **Restart Anytime**: Re-open the tutorial at any time via **Settings $\rightarrow$ General $\rightarrow$ "Restart Tutorial"** or via the **Command Palette (`Ctrl+K`)**.
 
 ---
 

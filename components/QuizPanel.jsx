@@ -110,6 +110,10 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
           mcqCount: 5,
           shortAnswerCount: 3,
           longAnswerCount: 0,
+          valueInputCount: 0,
+          stepOrderingCount: 0,
+          codeInputCount: 0,
+          multiSelectCount: 0,
           syllabus: enabled ? syllabus : "",
           spaceId,
           aiPersona: spaceConfig?.aiPersona || "examiner",
@@ -124,7 +128,9 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
         // Discard out-of-order responses or superseded requests
         if (genSeqRef.current !== seq) return;
 
-        setQuiz(data.quiz);
+        const rawQuestions = Array.isArray(data?.quiz?.questions) ? data.quiz.questions : [];
+        const safeQuestions = rawQuestions.filter((q) => q.type !== "value_input");
+        setQuiz({ ...data.quiz, questions: safeQuestions });
         setPhase("answering");
       } catch (err) {
         if (genSeqRef.current !== seq) return;

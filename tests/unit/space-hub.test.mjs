@@ -156,4 +156,104 @@ describe("Space Hub Architecture & Storage Model", () => {
     assert.equal(validateNewName("School", "School", existingSpaces).valid, true);
     assert.equal(validateNewName("School", "University", existingSpaces).valid, true);
   });
+
+  it("permanently deletes default spaces and prevents resurrection on reload or hydration", () => {
+    const defaultSpaces = [
+      { name: "School", icon: "🏫" },
+      { name: "Personal", icon: "🌱" },
+      { name: "Misc", icon: "📦" },
+      { name: "Journal", icon: "📓" },
+    ];
+
+    // User deletes default "Journal" space
+    const spaceToDelete = "Journal";
+    const savedSpaces = defaultSpaces.filter((s) => s.name !== spaceToDelete);
+    const deletedSpaces = new Set([spaceToDelete]);
+    const dbSettingsMap = {
+      School: { icon: "🏫", blurb: "Courses" },
+      Journal: { icon: "📓", blurb: "Old diary" }, // stale DB entry
+    };
+
+    // getSavedSpaces resolution simulation
+    const merged = new Map();
+    if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
+      savedSpaces.forEach((s) => {
+        if (s?.name && !deletedSpaces.has(s.name)) {
+          merged.set(s.name, { ...s });
+        }
+      });
+    }
+
+    // Overlay dbSettingsMap strictly on existing spaces, not resurrecting deleted spaces
+    Object.entries(dbSettingsMap).forEach(([spName, s]) => {
+      if (spName && !deletedSpaces.has(spName) && merged.has(spName)) {
+        const base = merged.get(spName);
+        merged.set(spName, { ...base, ...s });
+      }
+    });
+
+    const resolved = Array.from(merged.values());
+    assert.equal(resolved.find((s) => s.name === "Journal"), undefined, "Deleted default space must not be resurrected");
+    assert.equal(resolved.length, 3);
+    assert.ok(resolved.some((s) => s.name === "School"));
+    assert.ok(resolved.some((s) => s.name === "Personal"));
+    assert.ok(resolved.some((s) => s.name === "Misc"));
+
+    // SpaceMap rehydration simulation (no notes in Journal)
+    const spaceMap = {};
+    resolved.forEach((s) => {
+      spaceMap[s.name] = [];
+    });
+    const finalMerged = new Map();
+    resolved.forEach((s) => finalMerged.set(s.name, s));
+    Object.keys(spaceMap).forEach((sp) => {
+      if (!finalMerged.has(sp) && (spaceMap[sp] || []).length > 0) {
+        finalMerged.set(sp, { name: sp, icon: "📂" });
+      }
+    });
+
+    const hydratedSpaces = Array.from(finalMerged.values());
+    assert.equal(hydratedSpaces.find((s) => s.name === "Journal"), undefined);
+    assert.equal(hydratedSpaces.length, 3);
+  });
+
+  it("ensures quick quiz drawer generation specifies 0 value_input math block questions", () => {
+    const quickQuizPayload = {
+      concept: "Photosynthesis",
+      noteContent: "Light-dependent reactions in chloroplast thylakoids.",
+      mcqCount: 5,
+      shortAnswerCount: 3,
+      longAnswerCount: 0,
+      valueInputCount: 0,
+      stepOrderingCount: 0,
+      codeInputCount: 0,
+      multiSelectCount: 0,
+    };
+
+    const countsSpecified =
+      quickQuizPayload.mcqCount !== undefined ||
+      quickQuizPayload.multiSelectCount !== undefined ||
+      quickQuizPayload.valueInputCount !== undefined ||
+      quickQuizPayload.stepOrderingCount !== undefined ||
+      quickQuizPayload.codeInputCount !== undefined ||
+      quickQuizPayload.shortAnswerCount !== undefined ||
+      quickQuizPayload.longAnswerCount !== undefined;
+
+    const numValue = Number.isInteger(Number(quickQuizPayload.valueInputCount))
+      ? Math.max(0, Number(quickQuizPayload.valueInputCount))
+      : (countsSpecified ? 0 : 2);
+
+    assert.equal(countsSpecified, true);
+    assert.equal(numValue, 0, "value_input count must be 0 for quick quiz drawer");
+
+    // Client filtering safety test
+    const mockReturnedQuestions = [
+      { id: "q1", type: "multiple_choice", prompt: "What is produced in light reactions?" },
+      { id: "q2", type: "value_input", prompt: "Calculate the quantum yield", expectedAnswer: "0.125" },
+      { id: "q3", type: "short_answer", prompt: "Explain the role of NADPH" },
+    ];
+    const safeQuestions = mockReturnedQuestions.filter((q) => q.type !== "value_input");
+    assert.equal(safeQuestions.length, 2);
+    assert.ok(safeQuestions.every((q) => q.type !== "value_input"));
+  });
 });

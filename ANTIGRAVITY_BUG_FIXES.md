@@ -5014,4 +5014,98 @@ Users identified two visual inconsistencies during print and PDF export:
      - Block deletion simulation ensures Backspace on `" "` is not prevented and does not delete the block, while Backspace on `""` cleanly deletes the empty block.
    - All **539 unit and integration tests** pass with 0 errors.
 
+---
+
+## 84. Interactive Onboarding Tutorial Subsystem: Restoration, 100+ Feature Coverage & Interactive Sandboxes
+
+### Problem Statement
+1. **Missing Onboarding & Complex Feature Discovery**: SocraticOS features a rich ecosystem of tools (19-block editor, Quizzes Studio, Space Hub syllabus manager, 27 3D simulations, multi-timer HUD, Web Saver, and bulk operations). A previously deleted onboarding tutorial left first-time visitors with no introduction to the operating system's features or active retrieval philosophy.
+2. **Settings Inability to Redo Tutorial**: Users had no option within Settings or Command Palette to replay the tutorial once dismissed.
+3. **Desire for Interactive Engagement**: Rather than static text cards, onboarding requires interactive sandboxes so users can experience the features firsthand.
+
+### Root Cause Analysis
+- `InteractiveTutorial.jsx` had been removed in commit `35f45929870433e1bd127e6aaf56d1eb4dfb32c7` along with its wiring in `Workspace.jsx` and `Sidebar.jsx`.
+- Subsequent features (Space Hub, Quizzes Studio 7 question types, multi-note synthesis, 27 3D simulations, and bulk operations) were completely undocumented in the onboarding flow.
+
+### Resolution & Architectural Enhancements
+1. **Re-Architected Interactive Tutorial (`components/InteractiveTutorial.jsx` & `lib/tutorialData.js`)**:
+   - Built a comprehensive 9-chapter interactive tutorial modal covering all core pillars:
+     1. `philosophy`: Active Retrieval vs rereading illusion, 100% local-first IndexedDB (Dexie.js v7 with 11 stores), and Spaces isolation.
+     2. `editor`: 19-block Notion-grade editor, 22-item slash menu (`/`), 6-dots handle (`⠿`), KaTeX equations, table drag handles, and an **interactive 3-font typography switcher** (`sans`, `serif`, `mono`).
+     3. `ai_suite`: Persistent side-by-side study drawers with tabbed preview for the Structured Explain Panel (4-part breakdown) and an **interactive live mini-quiz** with real-time feedback and mastery heatmap logging (Feynman technique dialogue and extra non-canonical fonts removed).
+     4. `quizzes`: Dedicated Quizzes Studio 2-column exam runner, 7 question types, draft auto-save, review reports, and an **interactive step-ordering puzzle**.
+     5. `spacehub`: Space Hub per-space syllabus doc uploads, active AI toggles, and an **interactive academic standard selector** (IGCSE, IB, AP, University) previewing AI personas and distractor strictness in real time.
+     6. `visualizations`: 27 interactive 3D simulations across 5 STEM domains with interactive domain filters, parameter sliders, and OrbitControls.
+     7. `timers`: Multi-Timer HUD, study calendar agenda, and an **interactive Pomodoro Cycle & Study Rhythm Simulator** with clickable 4-phase cycle states (25m Focus, 5m Short Break, 15m Long Break, Custom Timer), animated timer progress display, and tab notification preview (`🦆` ↔ `❗️`).
+     8. `websaver`: Dual-pane Web Saver, drag-and-drop folder tree, live Google favicons, and Netscape HTML import/export.
+     9. `shortcuts`: Multi-note bulk toolbar (Star, Copy, Move, 24h Trash with confirmation), interactive power shortcuts grid (clicking `Ctrl+K` launches Command Palette, `Ctrl+I` launches Instant Note, others copy with feedback), and `.socratic` complete workspace backups.
+2. **First-Visit Auto-Launch Engine (`components/Workspace.jsx`)**:
+   - In the client-side hydration mount effect, checks `localStorage.getItem("socratic_tutorial_completed")` and URL query parameter `?tour=true`. If uncompleted or explicitly requested, auto-opens the tutorial modal.
+3. **Settings Replay Action Card (`components/Sidebar.jsx`)**:
+   - Added a prominent "Interactive Tutorial & Feature Guide" action card in `SettingsModal` under the General tab with a "Restart Tutorial" button that closes the modal and starts the tour.
+4. **Command Palette Integration (`components/CommandPalette.jsx`)**:
+   - Added "Open Onboarding Tutorial & Guide" (`action_tutorial`) to the Command Palette catalog so users can type `Ctrl+K` from anywhere to launch the walkthrough.
+5. **Automated Verification (`tests/unit/interactive-tutorial.test.mjs`)**:
+   - Added 10 automated unit test cases verifying step definitions, 19 block types coverage, 5 STEM 3D domain coverage, 7 quiz question types, and Pomodoro study flow.
+   - All **549 unit and integration tests** pass with 0 errors across 137 test suites.
+
+---
+
+## 85. Default Space Deletion Persistence, Quick Quiz Math Block Exclusion & Step Ordering Label Cleanup
+
+### Problem Statement
+1. **Default Space Deletion Reversion on Reload**:
+   - When a user deleted one of the default spaces (`School`, `Personal`, `Misc`, or `Journal`), it was removed from in-memory state during the active session. However, upon browser reload, note import, or session recovery, the deleted default space automatically returned.
+2. **Unwanted Math Block Question Type in Quick Quiz Drawer**:
+   - Clicking the "Quiz me" button (`🦆 Quiz me`) in the workspace top bar opens the quick quiz side drawer (`components/QuizPanel.jsx`). The quick quiz generated unwanted `value_input` math block questions with LaTeX keyboards and formula previews rather than focusing on conceptual multiple choice and short answer questions.
+3. **Redundant "Parsons" Term in Step Ordering Question Selector**:
+   - In `components/CreateQuizModal.jsx`, the question count slider beside the step ordering number input displayed `Step Ordering (Parsons)`, presenting redundant academic jargon rather than a clean, intuitive label.
+
+### Root Cause Analysis
+1. **Aggressive Default Merging & Hardcoded Space Initialization**:
+   - In `lib/storageService.js` (`getSavedSpaces`), `SPACES.forEach((s) => merged.set(s.name, { ...s }))` always populated the map with all 4 default spaces before examining `localStorage.socratic_spaces`. When looping through `saved`, keys were merged into the existing map without removing deleted defaults. Additionally, Dexie `db.spaceSettings` resurrected deleted spaces, and there was no persistent deletion tracking (`socratic_deleted_spaces`).
+   - In `components/Workspace.jsx` (`loadLocalWorkspace`), `spaceMap` was hardcoded to `{ School: [], Personal: [], Misc: [], Journal: [] }`. When looping over `Object.keys(spaceMap)`, any missing space was forcibly re-inserted into `spaces` with `{ name: sp, icon: "📂", blurb: "" }`.
+   - In `Workspace.jsx` (`handleDeleteSpace`), `notesBySpace` retained the deleted space key, and `fallbackSpace` was hardcoded to `SPACES[0].name`, failing if `School` itself was deleted.
+2. **Unspecified Count Fallbacks Defaulting to Math Input in Quiz Generator**:
+   - In `lib/aiService.js` and `app/api/quiz/generate/route.js`, the question distribution generator evaluated `countsSpecified`. However, if individual counts were not specified, `valueInputCount` defaulted to 2 (`numValue = 2`). Because `QuizPanel.jsx` only passed `mcqCount: 5, shortAnswerCount: 3`, `valueInputCount` fell back to 2, causing the AI to inject 2 math block calculation questions into every quick quiz.
+3. **Explicit Label String in CreateQuizModal**:
+   - `CreateQuizModal.jsx` rendered `<QuestionCountSlider label="Step Ordering (Parsons)" ... />`.
+
+### Resolution & Architectural Enhancements
+1. **Permanent Space Deletion Architecture (`lib/storageService.js`)**:
+   - Implemented `deleteSpace(spaceName)`:
+     - Atomically filters `socratic_spaces` and `socratic_custom_spaces`.
+     - Records tombstones in `socratic_deleted_spaces` in `localStorage`.
+     - Deletes space records from Dexie IndexedDB `db.spaceSettings`.
+     - Bulk-deletes associated records from `db.spaceDocuments`, `db.folders`, `db.bookmarks`, `db.quizzes`, and `db.studySessions`.
+   - Updated `getSavedSpaces()`:
+     - Evaluates `socratic_deleted_spaces` as a set.
+     - When `socratic_spaces` exists, uses it as the authoritative active spaces list (filtering any tombstoned spaces) rather than blindly seeding all default `SPACES`.
+     - Only overlays `db.spaceSettings` onto spaces already present in `merged`, preventing zombie resurrection.
+   - Updated `saveAllSpaces(spaces)`:
+     - Automatically cleans up `socratic_deleted_spaces` when an active space is intentionally recreated or restored.
+   - Updated `resetNotesData()`:
+     - Clears `socratic_deleted_spaces` and `socratic_spaces` on workspace factory reset.
+2. **Dynamic SpaceMap Hydration & Workspace Handlers (`components/Workspace.jsx` & `Sidebar.jsx`)**:
+   - In `loadLocalWorkspace` and `handleImportSuccess`:
+     - Resolves `getSavedSpaces()` first.
+     - Dynamically initializes `spaceMap` strictly from `resolvedSpaces`.
+     - Guards space resurrection: only keys with actual notes `(spaceMap[sp] || []).length > 0` are registered.
+     - Uses safe dynamic fallback `finalSpaces[0]?.name || "School"`.
+   - In `handleDeleteSpace`:
+     - Calls `await deleteSpace(spaceName)` and `await saveAllSpaces(nextSpaces)`.
+     - Cleans `notesBySpace` by removing the deleted space key.
+     - Selects dynamic fallback from `nextSpaces[0]?.name`.
+   - In `Sidebar.jsx`:
+     - Wrapped `handleCreateSpace` to call `saveAllSpaces(next)`.
+3. **Quick Quiz Math Question Exclusion (`components/QuizPanel.jsx`, `lib/aiService.js`, `app/api/quiz/generate/route.js`)**:
+   - Updated `QuizPanel.jsx` to explicitly pass `valueInputCount: 0, stepOrderingCount: 0, codeInputCount: 0, multiSelectCount: 0` in the generation payload.
+   - Added client-side filtering guard: `safeQuestions = rawQuestions.filter((q) => q.type !== "value_input")` ensuring zero math block questions are rendered in the quick quiz runner.
+   - In `aiService.js` and `api/quiz/generate/route.js`, updated count resolution so that when `countsSpecified` is true, omitted counts default to 0 rather than non-zero fallbacks.
+4. **Clean Step Ordering UI Label (`components/CreateQuizModal.jsx`)**:
+   - Changed `label="Step Ordering (Parsons)"` to `label="Step Ordering"`.
+5. **Automated Verification**:
+   - Added unit test cases in `tests/unit/space-hub.test.mjs` verifying permanent default space deletion across hydration simulation, safe fallback space assignment, and quick quiz zero-math question constraints.
+   - All 551 tests pass.
+
 

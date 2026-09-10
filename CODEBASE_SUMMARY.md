@@ -58,6 +58,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── FeatureRequestModal.jsx           # User feedback & feature request submission modal
 │   ├── GlobalTimerHUD.jsx                # Unified header multi-timer dropdown with Pomodoro, breaks & custom timers
 │   ├── InstantNoteModal.jsx              # Ctrl+I 75% screen quick note capture window with space selection
+│   ├── InteractiveTutorial.jsx           # 9-chapter interactive onboarding walkthrough modal with live sandboxes & shortcuts
 │   ├── MarkdownRenderer.jsx              # Universal rich Markdown renderer (headings, syntax-highlighted code, KaTeX math, tables, lists)
 │   ├── MasteryDashboard.jsx              # Space-scoped topic mastery analytics dashboard, interactive space switcher & study recommendations
 │   ├── MathText.jsx                      # Universal KaTeX LaTeX & chemical formula renderer for quiz prompts, options & rubrics
@@ -119,6 +120,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── storageService.js                 # Dexie CRUD service for notes, folders, bookmarks, trash, calendar, alarms, quizzes, space documents & reset
 │   ├── syntaxHighlighter.js              # Tokenizer & syntax highlighter for 10 programming languages
 │   ├── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
+│   ├── tutorialData.js                   # Authoritative registry of 9 onboarding tutorial chapters & 19 editor blocks
 │   └── urlUtils.js                       # URL normalization, domain extraction, Google favicon generator & title heuristics
 ├── tests/
 │   ├── unit/
@@ -131,6 +133,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── export-preview.test.mjs       # Interactive pre-download export preview formatting and scroll mechanics
 │   │   ├── eye-optics.test.mjs           # Eye optical model: Gullstrand equivalent power, accommodation, and retina focus
 │   │   ├── inline-math-navigation.test.mjs # Seamless block navigation, math pill boundary traversal & auto-compilation
+│   │   ├── interactive-tutorial.test.mjs # 9-step tutorial metadata, 19-block registry, and interactive state tests
 │   │   ├── markdown-bullets-formatting.test.mjs # Markdown nested bold/italic compiler and bullet prefix preservation
 │   │   ├── mastery-analytics.test.mjs    # Mastery rollup algorithms, trends, and weakest-first sorting
 │   │   ├── math-question-types.test.mjs  # Value input, step ordering, and code input evaluation math
@@ -390,7 +393,7 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
   - Clear history, copy responses, and unconstrained doubt dialogue.
 - **Structured Concept Explainer (`app/api/explain/route.js`, `lib/aiService.js` & `components/ExplainPanel.jsx`)**: Generates structured breakdowns containing TL;DR summaries, mechanism steps, analogies with explicit breakdown boundaries, common misconceptions, worked examples, and check-yourself questions, rendered with rich inline Markdown (**bold**, *italic*, `code`) and live KaTeX LaTeX mathematical/scientific equations. Features robust mathematical healing including JSON wire single-backslash escape repair (`repairJsonLatexEscapes`), control character healing (`sanitizeMathText` repairing `\f` form-feed `\frac` and `\t` tab `\text` corruptions), discrete bare LaTeX extraction in prose without delimiters (`BARE_INLINE_LATEX_REGEX`), and global KaTeX macro registration (`"\\ext": "\\text{#1}"`).
 - **Intelligent Note Reformatting (`app/api/reformat/route.js` & `lib/aiService.js`)**: Analyzes notes and restructures them into high-yield SocraticOS blocks (headings, callout cards with emoji icons, hierarchical sub-bullets with multi-level nesting via `level` schema, LaTeX display/inline math, collapsible toggles, code snippets, checklists, tables, and dividers) with automatic multi-chunk segmentation for long notes (`chunkNoteBlocks`), live progress updates (`Part X/Y...`), strict LaTeX formula enforcement across all equations, markdown preservation inside bullets and all blocks, instantaneous `Ctrl+Z` undo stack tracking, offline heuristic fallback recognizing indented markdown sub-bullets, and a top-center floating glassmorphic status banner with live progress indicator.
-- **Quiz Drawer Assessment Engine (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions and recording session scores directly into the mastery analytics store.
+- **Quiz Drawer Assessment Engine (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions (5 multiple-choice, 3 short-answers; math block / value_input questions excluded from quick quizzes) and recording session scores directly into the mastery analytics store.
 - **Client-Side AI Orchestration (`lib/aiService.js`)**: Allows users to provide their own Gemini API key stored privately in IndexedDB, calling Gemini directly from the client or falling back to server routes.
 
 ---
@@ -465,6 +468,7 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
   - **Dual Edit Affordances**: Edit spaces directly from the Sidebar (`EditSpaceModal` triggered via hover `Pencil` icon on space items in both Grid and Dropdown views) or from the `SpaceHubView` identity section.
   - **Cascading Space Renames (`renameSpace` in `lib/storageService.js`)**: Atomically updates space references across 8 IndexedDB stores (`notes`, `trash`, `spaceDocuments`, `spaceSettings`, `folders`, `bookmarks`, `quizzes`, `studySessions`) and `localStorage`.
   - **Permanent Emoji Persistence (`saveAllSpaces` & `getSavedSpaces`)**: Default spaces (`School`, `Personal`, `Misc`, `Journal`) permanently preserve custom emojis and blurbs across page reloads and note imports without reverting to initial defaults.
+  - **Permanent Space Deletion (`deleteSpace`)**: Deleting any space (including defaults) persists permanently across reloads, cleaning Dexie `spaceSettings`, `spaceDocuments`, `folders`, `bookmarks`, `quizzes`, and `studySessions`, and registering deletion tombstones in `socratic_deleted_spaces` to prevent unwanted resurrection.
 - **Multiple Documents per Space**: Upload and store multiple syllabus documents (`.pdf`, `.docx`, `.txt`, `.md`) directly within each space. Stored in Dexie `spaceDocuments` store.
 - **Active AI Toggles**: Each document features an instant toggle switch (`active` / `inactive`), controlling exactly which curriculum files are concatenated and fed into the AI during quiz generation, grading, and AI Tutor dialogues (`getActiveSyllabusForSpace()`).
 - **AI Pedagogy & Examiner Settings**:
@@ -527,7 +531,24 @@ A comprehensive suite of **27 real-time interactive 3D simulations** across 5 ST
 
 ---
 
-### ⚡ K. Performance & Runtime Optimization Architecture
+### 🎓 K. Interactive Onboarding Tutorial Subsystem (`components/InteractiveTutorial.jsx` & `lib/tutorialData.js`)
+- **9 Interactive Chapters Covering 100+ Features**:
+  1. `philosophy`: Active Retrieval vs rereading illusion, 100% local-first IndexedDB (Dexie.js v7), and Spaces architecture with interactive concept selector.
+  2. `editor`: 19-block Notion-grade studio, 22-item slash menu (`/`), 6-dots handle (`⠿`), KaTeX LaTeX equations, table row/col drag handles, and interactive 3-font typography switcher (`sans`, `serif`, `mono`).
+  3. `ai_suite`: Persistent side-by-side study drawers with tabbed preview of the Explain Panel (4-part breakdown) and an **interactive live mini-quiz** with real-time answer checking, feedback, and mastery heatmap explanation.
+  4. `quizzes`: Dedicated Quizzes Studio 2-column exam runner, question matrix, draft auto-save, comprehensive review reports, 7 question types, and an **interactive step-ordering puzzle**.
+  5. `spacehub`: Space Hub per-space syllabus doc uploads (.pdf, .docx, .txt, .md), active AI toggles, and an **interactive curriculum standard selector** (IGCSE, IB, AP, University) previewing AI personas and distractor strictness in real time.
+  6. `visualizations`: 27 interactive 3D simulations across 5 STEM domains (Physics, Chemistry, Biology, CS, Math) with interactive domain filters, parameter sliders, and OrbitControls.
+  7. `timers`: Multi-Timer HUD, study calendar agenda, and an **interactive Pomodoro Cycle & Study Rhythm Simulator** with clickable 4-phase cycle states (25m Focus, 5m Short Break, 15m Long Break, Custom Timer), animated timer progress display, and tab notification preview (`🦆` ↔ `❗️`).
+  8. `websaver`: Dual-pane Web Saver, drag-and-drop folder tree, live Google favicons, and Netscape HTML import/export.
+  9. `shortcuts`: Multi-note bulk toolbar (Star, Copy, Move, 24h Trash with confirmation), interactive power shortcuts grid (clicking `Ctrl+K` launches Command Palette, `Ctrl+I` launches Instant Note, others copy with feedback), and `.socratic` complete workspace backups.
+- **First-Visit Auto-Launch**: Automatically checks `localStorage.getItem("socratic_tutorial_completed")` and URL parameter `?tour=true` on initial site visit to guide new students through the application.
+- **Settings & Command Palette Replay**: Re-triggerable anytime via the "Restart Tutorial" action card in `SettingsModal` (General tab) or via Command Palette (`Ctrl+K` → "Open Onboarding Tutorial & Guide").
+- **Keyboard Navigation**: Fully accessible with `ArrowLeft`/`ArrowRight` step navigation, `Escape` dismissal, progress bar, and clickable step dots.
+
+---
+
+### ⚡ L. Performance & Runtime Optimization Architecture
 - **$O(1)$ Block-Level Re-render Isolation**: `EditorBlock` and heavy child containers are wrapped in `React.memo` with custom comparator guards, ensuring single-character edits in one block never cause full-document re-renders across other blocks.
 - **KaTeX LRU String Memoization**: Math pills and block equations use an in-memory LRU Map cache (`renderKatexToStringMemoized`) to avoid redundant KaTeX lexing/AST rebuilds on identical LaTeX formulas.
 - **Singleton Timer Store Clock & Auto-Sleep**: Multi-timer polling is consolidated into a single external store ticker (`multiTimerStore`), running only 1 shared timer interval when active and automatically clearing intervals when all timers are idle (0% idle background CPU usage).

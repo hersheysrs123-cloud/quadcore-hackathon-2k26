@@ -5,7 +5,7 @@ import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Ey
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, detectHardwareGraphics } from "@/lib/db.js";
-import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement } from "@/lib/storageService.js";
+import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement, saveAllSpaces } from "@/lib/storageService.js";
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
@@ -177,6 +177,7 @@ function SettingsModal({
   spaces = [],
   spaceSwitcherLayout = "dropdown",
   onSpaceSwitcherLayoutChange,
+  onStartTutorial,
 }) {
   const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
   const [resetTarget, setResetTarget] = useState(null);
@@ -811,6 +812,33 @@ function SettingsModal({
                 )}
               </div>
 
+
+              {/* Interactive Tutorial Replay */}
+              <div className="border-t border-ink-800/80 pt-5 space-y-3">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-duck-400" />
+                  Interactive Tutorial &amp; Feature Guide
+                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-duck-500/30 bg-duck-500/10">
+                  <div className="space-y-0.5 pr-2">
+                    <p className="text-sm font-semibold text-ink-100">Take the SocraticOS Onboarding Tour</p>
+                    <p className="text-xs text-ink-300">
+                      Explore all 19 editor blocks, Quizzes Studio, Space Hub syllabus, 27 3D simulations, multi-timer HUD, and power shortcuts.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onStartTutorial) onStartTutorial();
+                    }}
+                    className="flex items-center gap-2 rounded-lg bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-duck-300 shadow-sm shrink-0 whitespace-nowrap cursor-pointer"
+                  >
+                    <span>🎓</span>
+                    <span>Restart Tutorial</span>
+                  </button>
+                </div>
+              </div>
 
               {/* Local-First Dexie Storage Status */}
               <div className="border-t border-ink-800/80 pt-4">
@@ -1825,6 +1853,7 @@ export default function Sidebar({
   onMoveMultipleNotes,
   onToggleFavoriteMultipleNotes,
   onDuplicateMultipleNotes,
+  onStartTutorial,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState(null);
@@ -1898,10 +1927,14 @@ export default function Sidebar({
 
   const handleCreateSpace = useCallback(
     (newSpace) => {
-      setSpaces((prev) => [...prev, newSpace]);
+      setSpaces((prev) => {
+        const next = [...prev, newSpace];
+        saveAllSpaces(next);
+        return next;
+      });
       onSelectSpace(newSpace.name);
     },
-    [onSelectSpace]
+    [setSpaces, onSelectSpace]
   );
 
   const currentNotes = (notesBySpace && notesBySpace[activeSpace]) || [];
@@ -2646,6 +2679,7 @@ export default function Sidebar({
         spaces={spaces}
         spaceSwitcherLayout={spaceSwitcherLayout}
         onSpaceSwitcherLayoutChange={handleSpaceSwitcherLayoutChange}
+        onStartTutorial={onStartTutorial}
       />
 
       <FeatureRequestModal
