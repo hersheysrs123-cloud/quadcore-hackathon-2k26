@@ -12,6 +12,7 @@ import {
 } from "@/lib/syntaxHighlighter";
 import { reformatNoteContent } from "@/lib/aiService";
 import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow } from "@/lib/exportImport";
+import { formatNumberMarker } from "@/lib/blocks";
 
 
 
@@ -1615,7 +1616,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         handleSave();
         onExitDown?.(block.id);
       }
-    } else if (e.key === "Backspace" && !formula.trim()) {
+    } else if (e.key === "Backspace" && (!formula || formula.length === 0)) {
       if (!isLocked) {
         e.preventDefault();
         setIsEditing(false);
@@ -2014,7 +2015,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           }
         }, 0);
       }
-    } else if (e.key === "Backspace" && (!block.content || !block.content.trim())) {
+    } else if (e.key === "Backspace" && (!block.content || block.content.length === 0)) {
       if (!isLocked) {
         e.preventDefault();
         onDelete?.(block.id);
@@ -2231,6 +2232,7 @@ function TableCell({
   onKeyDown,
   onDelete,
   onMathClick,
+  onFocus,
   rowIdx,
   colIdx,
   isLocked = false,
@@ -2300,6 +2302,7 @@ function TableCell({
         suppressContentEditableWarning
         onInput={handleInput}
         onBlur={handleBlur}
+        onFocus={() => onFocus?.(rowIdx, colIdx, isHeader)}
         onKeyDown={handleKeyDownInternal}
         onClick={handleClick}
         data-placeholder={placeholder}
@@ -2402,6 +2405,13 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
   const [activeCellEl, setActiveCellEl] = useState(null);
   const [activeFormulaIndex, setActiveFormulaIndex] = useState(-1);
 
+  // Column & Row drag/reorder & focus state
+  const [focusedCell, setFocusedCell] = useState(null); // { rowIdx, colIdx, isHeader }
+  const [draggedCol, setDraggedCol] = useState(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
+  const [draggedRow, setDraggedRow] = useState(null);
+  const [dragOverRow, setDragOverRow] = useState(null);
+
   useEffect(() => {
     setTableData(normData);
   }, [normData]);
@@ -2410,6 +2420,107 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
     if (isLocked) return;
     setTableData(newData);
     onUpdateBlock(block.id, { tableData: newData, content: "" }, true, recordHistory);
+  };
+
+  const moveColumn = (fromIndex, toIndex) => {
+    if (isLocked) return;
+    if (
+      fromIndex < 0 ||
+      fromIndex >= tableData.headers.length ||
+      toIndex < 0 ||
+      toIndex >= tableData.headers.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    const newHeaders = [...tableData.headers];
+    const [movedHeader] = newHeaders.splice(fromIndex, 1);
+    newHeaders.splice(toIndex, 0, movedHeader);
+
+    const newRows = tableData.rows.map((row) => {
+      const newRow = Array.isArray(row) ? [...row] : [];
+      while (newRow.length < tableData.headers.length) newRow.push("");
+      const [movedCell] = newRow.splice(fromIndex, 1);
+      newRow.splice(toIndex, 0, movedCell);
+      return newRow;
+    });
+
+    updateAndSave({ ...tableData, headers: newHeaders, rows: newRows }, true);
+    setFocusedCell((prev) => (prev ? { ...prev, colIdx: toIndex } : null));
+  };
+
+  const moveRow = (fromIndex, toIndex) => {
+    if (isLocked) return;
+    if (
+      fromIndex < 0 ||
+      fromIndex >= tableData.rows.length ||
+      toIndex < 0 ||
+      toIndex >= tableData.rows.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    const newRows = [...tableData.rows];
+    const [movedRow] = newRows.splice(fromIndex, 1);
+    newRows.splice(toIndex, 0, movedRow);
+
+    updateAndSave({ ...tableData, rows: newRows }, true);
+    setFocusedCell((prev) => (prev ? { ...prev, rowIdx: toIndex } : null));
+  };
+
+  const handleColDragStart = (e, colIdx) => {
+    if (isLocked) return;
+    e.dataTransfer.setData("text/plain", `col:${colIdx}`);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedCol(colIdx);
+  };
+
+  const handleColDragOver = (e, colIdx) => {
+    if (isLocked || draggedCol === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverCol !== colIdx) setDragOverCol(colIdx);
+  };
+
+  const handleColDrop = (e, colIdx) => {
+    if (isLocked) return;
+    e.preventDefault();
+    if (draggedCol !== null && draggedCol !== colIdx) {
+      moveColumn(draggedCol, colIdx);
+    }
+    setDraggedCol(null);
+    setDragOverCol(null);
+  };
+
+  const handleRowDragStart = (e, rowIdx) => {
+    if (isLocked) return;
+    e.dataTransfer.setData("text/plain", `row:${rowIdx}`);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedRow(rowIdx);
+  };
+
+  const handleRowDragOver = (e, rowIdx) => {
+    if (isLocked || draggedRow === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverRow !== rowIdx) setDragOverRow(rowIdx);
+  };
+
+  const handleRowDrop = (e, rowIdx) => {
+    if (isLocked) return;
+    e.preventDefault();
+    if (draggedRow !== null && draggedRow !== rowIdx) {
+      moveRow(draggedRow, rowIdx);
+    }
+    setDraggedRow(null);
+    setDragOverRow(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedCol(null);
+    setDragOverCol(null);
+    setDraggedRow(null);
+    setDragOverRow(null);
   };
 
   const handleCellChange = (rowIndex, colIndex, value, isHeader = false, recordHistory = false) => {
@@ -2799,62 +2910,163 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
       </div>
 
       {/* Interactive Table Grid Container */}
-      <div className="overflow-x-auto p-3">
+      <div
+        className="overflow-x-auto p-3"
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            setFocusedCell(null);
+          }
+        }}
+      >
         <table className="w-full border-collapse rounded-lg overflow-hidden border border-ink-800 bg-ink-950/60 text-xs">
           {tableData.hasHeaderRow !== false && (
             <thead>
               <tr className="border-b border-ink-700 bg-ink-900">
-                {tableData.headers.map((head, colIdx) => (
-                  <th
-                    key={`h-${colIdx}`}
-                    className="group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 last:border-r-0"
-                  >
-                    <TableCell
-                      id={`tbl_${block.id}_h_${colIdx}`}
-                      value={head}
-                      isHeader={true}
-                      placeholder={`Header ${colIdx + 1}`}
-                      onChange={(val) => handleCellChange(0, colIdx, val, true)}
-                      onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
-                      onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
-                      onMathClick={handleMathClick}
-                      rowIdx={0}
-                      colIdx={colIdx}
-                      isLocked={isLocked}
-                    />
-                  </th>
-                ))}
+                {/* Row handle gutter corner */}
+                <th className="w-8 min-w-[32px] max-w-[32px] px-1 py-2 text-center text-[10px] font-mono font-medium text-ink-600 bg-ink-950/80 border-r border-ink-800 select-none print:hidden">
+                  #
+                </th>
+                {tableData.headers.map((head, colIdx) => {
+                  const isColActive = focusedCell?.colIdx === colIdx;
+                  return (
+                    <th
+                      key={`h-${colIdx}`}
+                      onDragOver={(e) => handleColDragOver(e, colIdx)}
+                      onDragLeave={() => {
+                        if (dragOverCol === colIdx) setDragOverCol(null);
+                      }}
+                      onDrop={(e) => handleColDrop(e, colIdx)}
+                      className={`group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 last:border-r-0 transition-colors ${
+                        dragOverCol === colIdx && draggedCol !== colIdx
+                          ? "bg-duck-500/25 ring-2 ring-inset ring-duck-400/80"
+                          : ""
+                      }`}
+                    >
+                      {/* Column Drag Handle (appears when focusing any cell in this column or hovering header) */}
+                      {!isLocked && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleColDragStart(e, colIdx)}
+                          onDragEnd={handleDragEnd}
+                          title="Drag to move column"
+                          className={`absolute top-0.5 left-1/2 -translate-x-1/2 z-20 flex h-3.5 w-6 items-center justify-center rounded text-[9px] cursor-grab active:cursor-grabbing select-none transition-all ${
+                            isColActive
+                              ? "opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40"
+                              : "opacity-0 group-hover/th:opacity-100 text-ink-400 hover:text-duck-300 hover:bg-ink-800/90"
+                          }`}
+                        >
+                          ⠿
+                        </div>
+                      )}
+                      <TableCell
+                        id={`tbl_${block.id}_h_${colIdx}`}
+                        value={head}
+                        isHeader={true}
+                        placeholder={`Header ${colIdx + 1}`}
+                        onChange={(val) => handleCellChange(0, colIdx, val, true)}
+                        onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
+                        onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
+                        onMathClick={handleMathClick}
+                        onFocus={() => setFocusedCell({ rowIdx: 0, colIdx, isHeader: true })}
+                        rowIdx={0}
+                        colIdx={colIdx}
+                        isLocked={isLocked}
+                      />
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
           )}
           <tbody>
-            {tableData.rows.map((row, rowIdx) => (
-              <tr
-                key={`r-${rowIdx}`}
-                className="group/tr border-b border-ink-800/70 transition-colors hover:bg-ink-900/40 last:border-b-0"
-              >
-                {tableData.headers.map((_, colIdx) => (
-                  <td
-                    key={`c-${colIdx}`}
-                    className="group/td relative border-r border-ink-800/70 px-3 py-1.5 text-ink-100 last:border-r-0"
-                  >
-                    <TableCell
-                      id={`tbl_${block.id}_r_${rowIdx}_c_${colIdx}`}
-                      value={row[colIdx] || ""}
-                      isHeader={false}
-                      placeholder="..."
-                      onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
-                      onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
-                      onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
-                      onMathClick={handleMathClick}
-                      rowIdx={rowIdx}
-                      colIdx={colIdx}
-                      isLocked={isLocked}
-                    />
+            {tableData.rows.map((row, rowIdx) => {
+              const isRowActive = focusedCell?.rowIdx === rowIdx && !focusedCell?.isHeader;
+              return (
+                <tr
+                  key={`r-${rowIdx}`}
+                  onDragOver={(e) => handleRowDragOver(e, rowIdx)}
+                  onDragLeave={() => {
+                    if (dragOverRow === rowIdx) setDragOverRow(null);
+                  }}
+                  onDrop={(e) => handleRowDrop(e, rowIdx)}
+                  className={`group/tr border-b border-ink-800/70 transition-colors hover:bg-ink-900/40 last:border-b-0 ${
+                    dragOverRow === rowIdx && draggedRow !== rowIdx
+                      ? "bg-duck-500/25 ring-2 ring-inset ring-duck-400/80"
+                      : ""
+                  }`}
+                >
+                  {/* Row Drag Handle Gutter Cell */}
+                  <td className="w-8 min-w-[32px] max-w-[32px] p-0 text-center border-r border-ink-800/70 select-none bg-ink-950/40 print:hidden relative">
+                    <div className="relative flex h-full min-h-[28px] items-center justify-center">
+                      <span
+                        className={`text-[10px] font-mono text-ink-600 transition-opacity ${
+                          isRowActive ? "opacity-0" : "group-hover/tr:opacity-0"
+                        }`}
+                      >
+                        {rowIdx + 1}
+                      </span>
+                      {!isLocked && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleRowDragStart(e, rowIdx)}
+                          onDragEnd={handleDragEnd}
+                          title="Drag to move row"
+                          className={`absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity ${
+                            isRowActive
+                              ? "opacity-100 text-duck-400 font-bold"
+                              : "opacity-0 group-hover/tr:opacity-100 text-ink-400 hover:text-duck-300"
+                          }`}
+                        >
+                          <span className="flex h-5 w-5 items-center justify-center rounded hover:bg-ink-800 text-xs">
+                            ⠿
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </td>
-                ))}
-              </tr>
-            ))}
+
+                  {tableData.headers.map((_, colIdx) => (
+                    <td
+                      key={`c-${colIdx}`}
+                      className={`group/td relative border-r border-ink-800/70 px-3 py-1.5 text-ink-100 last:border-r-0 transition-colors ${
+                        dragOverCol === colIdx && draggedCol !== colIdx ? "bg-duck-500/10" : ""
+                      }`}
+                    >
+                      {/* If header row is disabled, show column handle on first row */}
+                      {tableData.hasHeaderRow === false && rowIdx === 0 && !isLocked && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleColDragStart(e, colIdx)}
+                          onDragEnd={handleDragEnd}
+                          title="Drag to move column"
+                          className={`absolute top-0.5 left-1/2 -translate-x-1/2 z-20 flex h-3.5 w-6 items-center justify-center rounded text-[9px] cursor-grab active:cursor-grabbing select-none transition-all ${
+                            focusedCell?.colIdx === colIdx
+                              ? "opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40"
+                              : "opacity-0 group-hover/td:opacity-100 text-ink-400 hover:text-duck-300 hover:bg-ink-800/90"
+                          }`}
+                        >
+                          ⠿
+                        </div>
+                      )}
+                      <TableCell
+                        id={`tbl_${block.id}_r_${rowIdx}_c_${colIdx}`}
+                        value={row[colIdx] || ""}
+                        isHeader={false}
+                        placeholder="..."
+                        onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
+                        onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
+                        onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
+                        onMathClick={handleMathClick}
+                        onFocus={() => setFocusedCell({ rowIdx, colIdx, isHeader: false })}
+                        rowIdx={rowIdx}
+                        colIdx={colIdx}
+                        isLocked={isLocked}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -3874,6 +4086,7 @@ const EditorBlock = memo(function EditorBlock({
   index = 0,
   totalBlocks = 1,
   blockNumber,
+  blockLabel,
   isLast,
   isSelected,
   onSelect,
@@ -3887,6 +4100,7 @@ const EditorBlock = memo(function EditorBlock({
   onMoveUp,
   onMoveDown,
   onKeyDown,
+  onAddBefore,
   onAddAfter,
   onExplainBlock,
   onQuizBlock,
@@ -4203,20 +4417,20 @@ const EditorBlock = memo(function EditorBlock({
       return;
     }
 
-    // Sub-bullet Tab / Shift+Tab indentation & unindentation for bullet lists
-    if (e.key === "Tab" && block.type === "bullet") {
+    // Sub-bullet Tab / Shift+Tab indentation & unindentation for bullet & numbered lists
+    if (e.key === "Tab" && (block.type === "bullet" || block.type === "number")) {
       e.preventDefault();
       const currentLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
+      const currentText = contentRef.current ? getBlockTextFromDOM(contentRef.current) : (block.content || "");
       if (!e.shiftKey) {
         if (currentLevel < 4) {
-          onUpdateBlock?.(block.id, { level: currentLevel + 1 }, false, true);
+          onUpdateBlock?.(block.id, { level: currentLevel + 1, content: currentText }, false, true);
         }
       } else {
         if (currentLevel > 0) {
-          onUpdateBlock?.(block.id, { level: currentLevel - 1 }, false, true);
+          onUpdateBlock?.(block.id, { level: currentLevel - 1, content: currentText }, false, true);
         } else {
-          const text = contentRef.current ? getBlockTextFromDOM(contentRef.current) : (block.content || "");
-          if (!text.trim()) {
+          if (!currentText.trim()) {
             onChangeType?.(block.id, "text");
           }
         }
@@ -4225,7 +4439,7 @@ const EditorBlock = memo(function EditorBlock({
     }
 
     // BUG-TAB-01: Soft tab indentation / outdent without losing focus
-    if (e.key === "Tab" && block.type !== "code" && block.type !== "table") {
+    if (e.key === "Tab" && block.type !== "code" && block.type !== "table" && block.type !== "bullet" && block.type !== "number") {
       e.preventDefault();
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount || !contentRef.current) return;
@@ -4270,19 +4484,41 @@ const EditorBlock = memo(function EditorBlock({
         const split = splitBlockDOMAtRange(contentRef.current, range);
         textBefore = split.textBefore;
         textAfter = split.textAfter;
-        
-        onChange(block.id, textBefore);
-        if (contentRef.current) {
-          setBlockDOMFromText(contentRef.current, textBefore);
+      }
+
+      // Notion behavior: Pressing enter at the start of a heading block keeps heading intact,
+      // shifts heading and all blocks below down, and inserts a new empty block above
+      if (["h1", "h2", "h3", "h4"].includes(block.type)) {
+        const isHeadingAtStart = cleanZeroWidth(textBefore).length === 0;
+        if (isHeadingAtStart) {
+          if (cleanZeroWidth(textAfter).length === 0) {
+            onChangeType?.(block.id, "text");
+            return;
+          }
+          onAddBefore?.(block.id, "", "text", {}, "original");
+          return;
         }
       }
 
+      // Notion behavior: Pressing enter at the start of a bullet (or numbered) block inserts a bullet above
+      // and moves the current bullet with its content to the next line, keeping focus on the moved bullet
+      if (block.type === "bullet" || block.type === "number") {
+        const isListAtStart = cleanZeroWidth(textBefore).length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
+        if (isListAtStart) {
+          if (cleanZeroWidth(textAfter).length > 0) {
+            onAddBefore?.(block.id, "", block.type, { level: block.level || 0 }, "original");
+            return;
+          }
+        }
+      }
+
+      // Empty list / callout / quote block exit:
       if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim() && !textAfter.trim()) {
-        if (block.type === "bullet" && (block.level || 0) > 0) {
+        if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
           onUpdateBlock?.(block.id, { level: (block.level || 0) - 1 }, false, true);
           return;
         }
-        onChangeType(block.id, "text");
+        onChangeType?.(block.id, "text");
         return;
       }
 
@@ -4301,6 +4537,11 @@ const EditorBlock = memo(function EditorBlock({
         return;
       }
 
+      // Synchronously update local DOM text so there's no visual stutter
+      if (contentRef.current) {
+        setBlockDOMFromText(contentRef.current, textBefore, block.type);
+      }
+
       // Pressing Enter in headings, callouts, quotes, and toggles spawns a standard paragraph text block below
       const nextType = ["h1", "h2", "h3", "h4", "callout", "quote", "toggle"].includes(block.type) ? "text" : block.type;
       
@@ -4309,8 +4550,14 @@ const EditorBlock = memo(function EditorBlock({
         textAfter = textAfter.replace(/^(\*|-|\u2022|\d+\.|\\[[ xX]?\\])\s+/, "");
       }
 
-      const extraProps = nextType === "todo" ? { checked: false } : nextType === "bullet" ? { level: block.level || 0 } : {};
-      onAddAfter(block.id, textAfter, nextType, extraProps);
+      const extraProps = nextType === "todo" 
+        ? { checked: false } 
+        : (nextType === "bullet" || nextType === "number") 
+          ? { level: block.level || 0 } 
+          : {};
+
+      // Atomically split block in a single history snapshot
+      onAddAfter(block.id, textAfter, nextType, extraProps, textBefore);
       return;
     }
 
@@ -4552,25 +4799,33 @@ const EditorBlock = memo(function EditorBlock({
           );
         })()
       ) : block.type === "number" ? (
-        /* 4. Numbered List */
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 w-5 font-mono text-sm font-semibold text-ink-400">
-            {blockNumber || 1}.
-          </span>
-          <Tag
-            ref={contentRef}
-            contentEditable={!isLocked}
-            suppressContentEditableWarning
-            onClick={handleTagClick}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            onFocus={() => onSelect(block.id)}
-            data-placeholder={placeholders.number}
-            className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.number} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
-              isLocked ? "cursor-default select-text" : ""
-            }`}
-          />
-        </div>
+        /* 4. Numbered List (Hierarchical with a., b., c. sub-bullets) */
+        (() => {
+          const numberLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
+          return (
+            <div
+              className="flex items-start gap-2.5 transition-all"
+              style={numberLevel > 0 ? { paddingLeft: `${numberLevel * 1.5}rem` } : undefined}
+            >
+              <span className="mt-0.5 min-w-5 shrink-0 font-mono text-sm font-semibold text-ink-400 select-none">
+                {blockLabel || `${blockNumber || 1}.`}
+              </span>
+              <Tag
+                ref={contentRef}
+                contentEditable={!isLocked}
+                suppressContentEditableWarning
+                onClick={handleTagClick}
+                onInput={handleInput}
+                onKeyDown={handleKeyDown}
+                onFocus={() => onSelect(block.id)}
+                data-placeholder={numberLevel > 0 ? "Sub-list item" : placeholders.number}
+                className={`min-h-[1.5em] flex-1 outline-none ${typeStyles.number} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+                  isLocked ? "cursor-default select-text" : ""
+                }`}
+              />
+            </div>
+          );
+        })()
       ) : block.type === "todo" ? (
         /* 5. To-Do List */
         <div className="flex items-start gap-2.5">
@@ -5058,7 +5313,7 @@ function TextSelectionToolbar({
             setVisible(false);
           }
         }}
-        title="Explain highlighted text with Socratic AI"
+        title="Explain highlighted text with AI"
         className="flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-ink-200 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
       >
         <span>✨</span>
@@ -5096,7 +5351,6 @@ export default function BlockNoteEditor({
   spaceId = "",
   onExplainBlock,
   onQuizBlock,
-  onTriggerSocratic,
   onSwitchTab,
   initialTitle = "",
   initialBlocks,
@@ -5151,6 +5405,16 @@ export default function BlockNoteEditor({
       : [{ id: "blk_default_init_0", type: "text", content: "" }]
   );
   const [selectedId, setSelectedId] = useState(null);
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  const handleSelectBlock = useCallback((id) => {
+    selectedIdRef.current = id;
+    setSelectedId(id);
+  }, []);
+
   const [selectedBlockIds, setSelectedBlockIds] = useState(new Set());
   const selectedBlockIdsRef = useRef(selectedBlockIds);
   useEffect(() => {
@@ -5159,6 +5423,8 @@ export default function BlockNoteEditor({
 
   const [marqueeBox, setMarqueeBox] = useState(null);
   const isDraggingMarquee = useRef(false);
+  const justFinishedMarquee = useRef(false);
+  const lastWhitespaceClickHandledTime = useRef(0);
   const marqueeStartClient = useRef({ x: 0, y: 0 });
   const marqueeStartEditor = useRef({ x: 0, y: 0 });
   const currentMousePos = useRef({ clientX: 0, clientY: 0 });
@@ -5203,8 +5469,10 @@ export default function BlockNoteEditor({
         : blocksRef.current.find((b) => b.id === blockOrId);
     if (!block) return;
 
+    selectedIdRef.current = block.id;
     setSelectedId(block.id);
     setSelectedBlockIds(new Set());
+    selectedBlockIdsRef.current = new Set();
 
     const performFocus = () => {
       // 1. CodeBlock
@@ -5637,15 +5905,57 @@ export default function BlockNoteEditor({
 
       isDraggingMarquee.current = false;
       setMarqueeBox(null);
-      if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) {
+
+      const hadSelection = Boolean(
+        selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0
+      );
+
+      if (dist >= 6 || hadSelection) {
+        justFinishedMarquee.current = true;
+        setTimeout(() => {
+          justFinishedMarquee.current = false;
+        }, 150);
+      }
+
+      if (hadSelection) {
         if (document.activeElement && document.activeElement.blur) {
           document.activeElement.blur();
         }
       }
 
-      // Simple click on empty canvas area -> create or focus last block
-      if (dist < 6) {
+      // Simple click on empty canvas area -> create or focus last block only if in bottom whitespace
+      if (dist < 6 && !hadSelection) {
         if (!clickToAppend) return;
+
+        const editorEl = editorContainerRef.current;
+        if (!editorEl) return;
+
+        // 1. Check horizontal boundaries: if click is on the side margins of the screen outside the note column, DO NOT append
+        const rootEl = editorEl.querySelector("[data-editor-root]");
+        if (rootEl) {
+          const rootRect = rootEl.getBoundingClientRect();
+          if (clientX < rootRect.left || clientX > rootRect.right) {
+            return;
+          }
+        }
+
+        // 2. Check vertical boundaries: click must be strictly below the last block in the bottom whitespace
+        const blockEls = editorEl.querySelectorAll("[data-block-id]");
+        let contentBottom = -Infinity;
+        if (blockEls && blockEls.length > 0) {
+          const lastBlockEl = blockEls[blockEls.length - 1];
+          contentBottom = lastBlockEl.getBoundingClientRect().bottom;
+        } else if (rootEl) {
+          contentBottom = rootEl.getBoundingClientRect().top + 100;
+        }
+
+        if (clientY <= contentBottom + 8) {
+          // Clicked on side margin/padding beside existing blocks or header, not in bottom whitespace
+          return;
+        }
+
+        lastWhitespaceClickHandledTime.current = Date.now();
+
         const lastBlock = blocksRef.current[blocksRef.current.length - 1];
         if (!lastBlock || (lastBlock.content !== "" && lastBlock.content !== undefined)) {
           const newBlock = createBlock("text", "");
@@ -5727,6 +6037,15 @@ export default function BlockNoteEditor({
     };
   }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
+  const pushHistorySnapshot = useCallback(() => {
+    const snapshot = JSON.parse(JSON.stringify(blocksRef.current));
+    pastBlocksRef.current = [...pastBlocksRef.current.slice(-30), snapshot];
+    setPastBlocks(pastBlocksRef.current);
+    futureBlocksRef.current = [];
+    setFutureBlocks([]);
+    lastHistoryPush.current = Date.now();
+  }, []);
+
   // Drag-to-reorder, driven by each block's ⠿ handle.
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
@@ -5742,8 +6061,7 @@ export default function BlockNoteEditor({
       },
       onDrop: () => {
         if (dragging && dragOver && dragging !== dragOver) {
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
         }
         setBlocks((prev) => {
           if (!dragging || !dragOver || dragging === dragOver) return prev;
@@ -5754,6 +6072,7 @@ export default function BlockNoteEditor({
           const [moved] = next.splice(from, 1);
           const insertAt = from < to ? to - 1 : to;
           next.splice(insertAt, 0, moved);
+          blocksRef.current = next;
           performSave({ blocks: next });
           return next;
         });
@@ -5761,7 +6080,7 @@ export default function BlockNoteEditor({
         setDragOver(null);
       },
     }),
-    [dragging, dragOver, performSave],
+    [dragging, dragOver, performSave, pushHistorySnapshot],
   );
 
   const { totalCharacters, totalWords } = useMemo(() => {
@@ -5791,17 +6110,16 @@ export default function BlockNoteEditor({
     (id, content) => {
       const now = Date.now();
       if (now - lastHistoryPush.current > 600) {
-        setPastBlocks((p) => [...p.slice(-30), blocksRef.current]);
-        setFutureBlocks([]);
-        lastHistoryPush.current = now;
+        pushHistorySnapshot();
       }
       setBlocks((prev) => {
         const next = prev.map((b) => (b.id === id ? { ...b, content } : b));
+        blocksRef.current = next;
         triggerDebouncedSave({ blocks: next });
         return next;
       });
     },
-    [triggerDebouncedSave]
+    [pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const handleTitleChange = useCallback(
@@ -5823,56 +6141,99 @@ export default function BlockNoteEditor({
 
       if (!inEditor) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        if (e.shiftKey) {
-          if (futureBlocksRef.current.length > 0) {
-            e.preventDefault();
-            const next = futureBlocksRef.current[0];
-            setFutureBlocks((f) => f.slice(1));
-            setPastBlocks((p) => [
-              ...p,
-              JSON.parse(JSON.stringify(blocksRef.current)),
-            ]);
-            const clonedNext = JSON.parse(JSON.stringify(next));
-            setBlocks(clonedNext);
-            performSave({ blocks: clonedNext });
-          }
-        } else {
-          if (pastBlocksRef.current.length > 0) {
-            e.preventDefault();
-            const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
-            setPastBlocks((p) => p.slice(0, p.length - 1));
-            setFutureBlocks((f) => [
-              JSON.parse(JSON.stringify(blocksRef.current)),
-              ...f,
-            ]);
-            const clonedPrevious = JSON.parse(JSON.stringify(previous));
-            setBlocks(clonedPrevious);
-            performSave({ blocks: clonedPrevious });
-            const targetId = selectedId || clonedPrevious[0]?.id;
-            if (targetId) {
-              requestAnimationFrame(() => {
-                focusBlock(targetId, "end");
-              });
+      const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey;
+      const isRedo =
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey);
+
+      if (isUndo) {
+        if (pastBlocksRef.current.length > 0) {
+          e.preventDefault();
+          const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
+          const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
+          const clonedPrevious = JSON.parse(JSON.stringify(previous));
+
+          pastBlocksRef.current = pastBlocksRef.current.slice(0, -1);
+          futureBlocksRef.current = [currentBlocks, ...futureBlocksRef.current];
+          blocksRef.current = clonedPrevious;
+
+          setPastBlocks(pastBlocksRef.current);
+          setFutureBlocks(futureBlocksRef.current);
+          setBlocks(clonedPrevious);
+          performSave({ blocks: clonedPrevious });
+
+          const currentSelected = selectedIdRef.current;
+          let targetBlock = null;
+
+          if (currentSelected && clonedPrevious.some((b) => b.id === currentSelected)) {
+            targetBlock = clonedPrevious.find((b) => b.id === currentSelected);
+          } else {
+            const prevIdx = currentBlocks.findIndex((b) => b.id === currentSelected);
+            if (prevIdx !== -1) {
+              const targetIdx = Math.max(0, Math.min(prevIdx, clonedPrevious.length - 1));
+              targetBlock = clonedPrevious[targetIdx];
+            } else {
+              const diffIdx = clonedPrevious.findIndex(
+                (b, i) =>
+                  !currentBlocks[i] ||
+                  b.id !== currentBlocks[i].id ||
+                  b.content !== currentBlocks[i].content ||
+                  b.level !== currentBlocks[i].level ||
+                  b.type !== currentBlocks[i].type
+              );
+              targetBlock = diffIdx !== -1 ? clonedPrevious[diffIdx] : clonedPrevious[0];
             }
           }
+
+          if (targetBlock) {
+            selectedIdRef.current = targetBlock.id;
+            setSelectedId(targetBlock.id);
+            requestAnimationFrame(() => {
+              focusBlock(targetBlock, "end");
+            });
+          }
         }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+      } else if (isRedo) {
         if (futureBlocksRef.current.length > 0) {
           e.preventDefault();
+          const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
           const next = futureBlocksRef.current[0];
-          setFutureBlocks((f) => f.slice(1));
-          setPastBlocks((p) => [
-            ...p,
-            JSON.parse(JSON.stringify(blocksRef.current)),
-          ]);
           const clonedNext = JSON.parse(JSON.stringify(next));
+
+          futureBlocksRef.current = futureBlocksRef.current.slice(1);
+          pastBlocksRef.current = [...pastBlocksRef.current, currentBlocks];
+          blocksRef.current = clonedNext;
+
+          setFutureBlocks(futureBlocksRef.current);
+          setPastBlocks(pastBlocksRef.current);
           setBlocks(clonedNext);
           performSave({ blocks: clonedNext });
-          const targetId = selectedId || clonedNext[0]?.id;
-          if (targetId) {
+
+          const currentSelected = selectedIdRef.current;
+          let targetBlock = null;
+
+          const newlyAdded = clonedNext.find((b) => !currentBlocks.some((cb) => cb.id === b.id));
+          if (newlyAdded) {
+            targetBlock = newlyAdded;
+          } else if (currentSelected && clonedNext.some((b) => b.id === currentSelected)) {
+            targetBlock = clonedNext.find((b) => b.id === currentSelected);
+          } else {
+            const diffIdx = clonedNext.findIndex(
+              (b, i) =>
+                !currentBlocks[i] ||
+                b.id !== currentBlocks[i].id ||
+                b.content !== currentBlocks[i].content ||
+                b.level !== currentBlocks[i].level ||
+                b.type !== currentBlocks[i].type
+            );
+            targetBlock = diffIdx !== -1 ? clonedNext[diffIdx] : clonedNext[clonedNext.length - 1];
+          }
+
+          if (targetBlock) {
+            selectedIdRef.current = targetBlock.id;
+            setSelectedId(targetBlock.id);
             requestAnimationFrame(() => {
-              focusBlock(targetId, "end");
+              focusBlock(targetBlock, "end");
             });
           }
         }
@@ -5880,7 +6241,7 @@ export default function BlockNoteEditor({
     };
     window.addEventListener("keydown", handleGlobalUndoRedo);
     return () => window.removeEventListener("keydown", handleGlobalUndoRedo);
-  }, [performSave]);
+  }, [focusBlock, performSave]);
 
   // Multi-Block Selection Keyboard Shortcuts: Ctrl+A, Ctrl+C, Ctrl+X, Delete/Backspace
 
@@ -5923,24 +6284,27 @@ export default function BlockNoteEditor({
           const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
           const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
           navigator.clipboard.writeText(md);
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
           setBlocks((prev) => {
             const next = prev.filter((b) => !effectiveIds.has(b.id));
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
+            blocksRef.current = safeNext;
             triggerDebouncedSave({ blocks: safeNext });
             return safeNext;
           });
           setSelectedBlockIds(new Set());
-          if (selectedId) setSelectedId(null);
+          selectedBlockIdsRef.current = new Set();
+          if (selectedIdRef.current) {
+            selectedIdRef.current = null;
+            setSelectedId(null);
+          }
           return;
         }
 
         // Enter on Selected Blocks
         if (e.key === "Enter" && !isInput) {
           e.preventDefault();
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
           setBlocks((prev) => {
             let lastSelectedIdx = -1;
             prev.forEach((b, i) => {
@@ -5956,7 +6320,11 @@ export default function BlockNoteEditor({
             const newBlock = createBlock("text", "");
             next.splice(insertIdxInNext, 0, newBlock);
 
+            blocksRef.current = next;
             triggerDebouncedSave({ blocks: next });
+
+            selectedIdRef.current = newBlock.id;
+            setSelectedId(newBlock.id);
 
             setTimeout(() => {
               const el = blockRefs.current[newBlock.id]?.current;
@@ -5965,7 +6333,7 @@ export default function BlockNoteEditor({
             return next;
           });
           setSelectedBlockIds(new Set());
-          if (selectedId) setSelectedId(null);
+          selectedBlockIdsRef.current = new Set();
           return;
         }
 
@@ -5973,8 +6341,7 @@ export default function BlockNoteEditor({
         if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
           e.stopPropagation();
-          setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-          setFutureBlocks([]);
+          pushHistorySnapshot();
           let focusTarget = null;
           setBlocks((prev) => {
             const firstSelectedIdx = prev.findIndex((b) => effectiveIds.has(b.id));
@@ -5982,11 +6349,14 @@ export default function BlockNoteEditor({
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
             const targetIdx = Math.max(0, Math.min(firstSelectedIdx >= 0 ? firstSelectedIdx : 0, safeNext.length - 1));
             focusTarget = safeNext[targetIdx];
+            blocksRef.current = safeNext;
             triggerDebouncedSave({ blocks: safeNext });
             return safeNext;
           });
           setSelectedBlockIds(new Set());
+          selectedBlockIdsRef.current = new Set();
           if (focusTarget) {
+            selectedIdRef.current = focusTarget.id;
             setSelectedId(focusTarget.id);
             requestAnimationFrame(() => {
               focusBlock(focusTarget, "end");
@@ -6004,8 +6374,7 @@ export default function BlockNoteEditor({
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
     const caretTarget = typeof extraOrCaret === "string" ? extraOrCaret : "start";
-    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-    setFutureBlocks([]);
+    pushHistorySnapshot();
     setBlocks((prev) => {
       const next = prev.map((b) => {
         if (b.id !== id) return b;
@@ -6059,9 +6428,11 @@ export default function BlockNoteEditor({
         }
         return { ...b, type };
       });
+      blocksRef.current = next;
       triggerDebouncedSave({ blocks: next });
       return next;
     });
+    selectedIdRef.current = id;
     setSelectedId(id);
     requestAnimationFrame(() => {
       setTimeout(() => {
@@ -6071,16 +6442,12 @@ export default function BlockNoteEditor({
         }
       }, 15);
     });
-  }, [focusBlock, triggerDebouncedSave]);
+  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
 
   const handleUpdateBlock = useCallback(
     (id, patch, shouldSaveNote = false, recordHistory = false) => {
       if (recordHistory) {
-        setPastBlocks((p) => [
-          ...p.slice(-25),
-          JSON.parse(JSON.stringify(blocksRef.current)),
-        ]);
-        setFutureBlocks([]);
+        pushHistorySnapshot();
       }
       setBlocks((prev) => {
         const next = prev.map((b) => {
@@ -6091,6 +6458,7 @@ export default function BlockNoteEditor({
           }
           return updated;
         });
+        blocksRef.current = next;
         if (shouldSaveNote) {
           performSave({ blocks: next });
         } else {
@@ -6099,21 +6467,16 @@ export default function BlockNoteEditor({
         return next;
       });
     },
-    [performSave, triggerDebouncedSave]
+    [performSave, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const recordHistorySnapshot = useCallback(() => {
-    setPastBlocks((p) => [
-      ...p.slice(-25),
-      JSON.parse(JSON.stringify(blocksRef.current)),
-    ]);
-    setFutureBlocks([]);
-  }, []);
+    pushHistorySnapshot();
+  }, [pushHistorySnapshot]);
 
   const handleDeleteBlock = useCallback(
     (id) => {
-      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
       let focusTarget = null;
       setBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
@@ -6121,23 +6484,24 @@ export default function BlockNoteEditor({
         const safeNext = next.length > 0 ? next : [createBlock("text", "")];
         const targetIdx = Math.max(0, Math.min(idx > 0 ? idx - 1 : 0, safeNext.length - 1));
         focusTarget = safeNext[targetIdx];
+        blocksRef.current = safeNext;
         performSave({ blocks: safeNext });
         return safeNext;
       });
       if (focusTarget) {
+        selectedIdRef.current = focusTarget.id;
         setSelectedId(focusTarget.id);
         requestAnimationFrame(() => {
           focusBlock(focusTarget, "end");
         });
       }
     },
-    [performSave, focusBlock]
+    [focusBlock, performSave, pushHistorySnapshot]
   );
 
   const handleDuplicateBlock = useCallback(
     (id) => {
-      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
       setBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
         if (idx === -1) return prev;
@@ -6147,68 +6511,121 @@ export default function BlockNoteEditor({
           id: Math.random().toString(36).slice(2, 10),
         };
         const next = [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+        blocksRef.current = next;
         performSave({ blocks: next });
         return next;
       });
     },
-    [performSave]
+    [performSave, pushHistorySnapshot]
   );
 
   const handleMoveBlock = useCallback(
     (fromIndex, toIndex) => {
-      setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
       setBlocks((prev) => {
         if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev;
         const next = [...prev];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
+        blocksRef.current = next;
         performSave({ blocks: next });
         return next;
       });
     },
-    [performSave]
+    [performSave, pushHistorySnapshot]
   );
 
-  const handleAddAfter = useCallback((afterId, content = "", typeToInherit = null, extraProps = {}) => {
-    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-    setFutureBlocks([]);
-    
-    const currentBlock = blocksRef.current.find((b) => b.id === afterId);
-    let newType = "text";
-    if (typeToInherit) {
-      newType = typeToInherit;
-    } else {
-      if (currentBlock && ["bullet", "number", "todo", "toggle"].includes(currentBlock.type)) {
-        newType = currentBlock.type;
+  const handleAddAfter = useCallback(
+    (afterId, content = "", typeToInherit = null, extraProps = {}, splitBeforeContent = null) => {
+      pushHistorySnapshot();
+      
+      const currentBlock = blocksRef.current.find((b) => b.id === afterId);
+      let newType = "text";
+      if (typeToInherit) {
+        newType = typeToInherit;
+      } else {
+        if (currentBlock && ["bullet", "number", "todo", "toggle"].includes(currentBlock.type)) {
+          newType = currentBlock.type;
+        }
       }
-    }
 
-    const defaultExtra = {};
-    if (newType === "bullet" && currentBlock && currentBlock.type === "bullet" && (currentBlock.level || 0) > 0) {
-      defaultExtra.level = currentBlock.level;
-    }
+      const defaultExtra = {};
+      if ((newType === "bullet" || newType === "number") && currentBlock && currentBlock.type === newType && (currentBlock.level || 0) > 0) {
+        defaultExtra.level = currentBlock.level;
+      }
 
+      const count = extraProps?.columnCount || 2;
+      const extra =
+        newType === "columns"
+          ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
+          : { ...defaultExtra, ...(extraProps || {}) };
+      const newBlock = createBlock(newType, content, extra);
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === afterId);
+        const next = [...prev];
+        if (splitBeforeContent !== null && idx !== -1) {
+          next[idx] = { ...next[idx], content: splitBeforeContent };
+        }
+        next.splice(idx + 1, 0, newBlock);
+        blocksRef.current = next;
+        triggerDebouncedSave({ blocks: next });
+        return next;
+      });
+      selectedIdRef.current = newBlock.id;
+      setSelectedId(newBlock.id);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          focusBlock(newBlock, "start");
+        }, 30);
+      });
+    },
+    [focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+  );
+
+  const handleAddBefore = useCallback((beforeId, content = "", typeToUse = "text", extraProps = {}, focusTarget = "original") => {
+    pushHistorySnapshot();
+    
     const count = extraProps?.columnCount || 2;
     const extra =
-      newType === "columns"
+      typeToUse === "columns"
         ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
-        : { ...defaultExtra, ...(extraProps || {}) };
-    const newBlock = createBlock(newType, content, extra);
+        : { ...(extraProps || {}) };
+    const newBlock = createBlock(typeToUse, content, extra);
     setBlocks((prev) => {
-      const idx = prev.findIndex((b) => b.id === afterId);
+      const idx = prev.findIndex((b) => b.id === beforeId);
       const next = [...prev];
-      next.splice(idx + 1, 0, newBlock);
+      if (idx !== -1) {
+        next.splice(idx, 0, newBlock);
+      } else {
+        next.unshift(newBlock);
+      }
+      blocksRef.current = next;
       triggerDebouncedSave({ blocks: next });
       return next;
     });
-    setSelectedId(newBlock.id);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        focusBlock(newBlock, "start");
-      }, 30);
-    });
-  }, [focusBlock, triggerDebouncedSave]);
+
+    if (focusTarget === "original") {
+      selectedIdRef.current = beforeId;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const origBlock = blocksRef.current.find((b) => b.id === beforeId);
+          if (origBlock) {
+            selectedIdRef.current = origBlock.id;
+            setSelectedId(origBlock.id);
+            focusBlock(origBlock, "start");
+          }
+        }, 20);
+      });
+    } else {
+      selectedIdRef.current = newBlock.id;
+      setSelectedId(newBlock.id);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          focusBlock(newBlock, "start");
+        }, 20);
+      });
+    }
+  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
 
   const handleExitDown = useCallback(
     (blockId) => {
@@ -6279,10 +6696,9 @@ export default function BlockNoteEditor({
 
       if (parsedBlocks.length > 0) {
         e.preventDefault();
-        setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-        setFutureBlocks([]);
+        pushHistorySnapshot();
         setBlocks((prev) => {
-          const activeIdx = prev.findIndex((b) => b.id === selectedId);
+          const activeIdx = prev.findIndex((b) => b.id === (selectedIdRef.current || selectedId));
           let next;
           if (activeIdx !== -1) {
             const activeBlock = prev[activeIdx];
@@ -6329,6 +6745,7 @@ export default function BlockNoteEditor({
               focusBlock(lastInserted, "end");
             }
           }
+          blocksRef.current = next;
           triggerDebouncedSave({ blocks: next });
           return next;
         });
@@ -6350,8 +6767,7 @@ export default function BlockNoteEditor({
             const block = blocksRef.current?.find((b) => b.id === blockId);
             const bType = block?.type || "text";
 
-            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-            setFutureBlocks([]);
+            pushHistorySnapshot();
 
             // Format DOM immediately with inline markdown (handles bold, italic, code, math)
             setBlockDOMFromText(activeBlockEl, fullText, bType);
@@ -6362,6 +6778,7 @@ export default function BlockNoteEditor({
               handleChange(blockId, fullText);
               setBlocks((prev) => {
                 const next = prev.map((b) => (b.id === blockId ? { ...b, content: fullText } : b));
+                blocksRef.current = next;
                 triggerDebouncedSave({ blocks: next });
                 return next;
               });
@@ -6370,7 +6787,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [selectedId, handleChange, focusBlock, triggerDebouncedSave]
+    [selectedId, handleChange, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const headings = useMemo(() => {
@@ -6489,8 +6906,7 @@ export default function BlockNoteEditor({
     setReformatToast(null);
 
     try {
-      setPastBlocks((p) => [...p.slice(-30), currentBlocks]);
-      setFutureBlocks([]);
+      pushHistorySnapshot();
 
       const res = await reformatNoteContent({
         title,
@@ -6504,6 +6920,7 @@ export default function BlockNoteEditor({
         const { title: newTitle, emoji: newEmoji, blocks: newBlocks } = res.reformatted;
 
         if (newBlocks && newBlocks.length > 0) {
+          blocksRef.current = newBlocks;
           setBlocks(newBlocks);
         }
         if (newTitle) {
@@ -6542,7 +6959,7 @@ export default function BlockNoteEditor({
       setIsReformatting(false);
       setReformatProgress(null);
     }
-  }, [isReformatting, title, emoji, performSave]);
+  }, [isReformatting, title, emoji, performSave, pushHistorySnapshot]);
 
   useEffect(() => {
     onRegisterReformat?.(handleIntelligentReformat);
@@ -6555,7 +6972,7 @@ export default function BlockNoteEditor({
 
   const handleKeyDown = useCallback(
 
-    (e, blockId) => {
+    (e, blockId, domEl = null) => {
       if (selectedBlockIdsRef.current?.size > 0) {
         setSelectedBlockIds(new Set());
       }
@@ -6565,9 +6982,13 @@ export default function BlockNoteEditor({
         const idx = blocks.findIndex((b) => b.id === blockId);
 
         // Check if caret is at the start (offset 0) of the current block
-        const el = blockRefs.current[blockId]?.current;
-        let isAtStart = false;
-        if (el) {
+        const el = domEl || blockRefs.current[blockId]?.current;
+        const currentDOMText = el ? getBlockTextFromDOM(el) : (block.content || "");
+        const cleanDOM = cleanZeroWidth(currentDOMText);
+        const cleanContent = cleanZeroWidth(block.content || "");
+        const isDomEmpty = cleanDOM.length === 0 && cleanContent.length === 0;
+        let isAtStart = cleanDOM.length === 0;
+        if (!isAtStart && el) {
           isAtStart = isCaretAtLogicalStart(el);
           if (!isAtStart) {
             const sel = window.getSelection();
@@ -6581,7 +7002,8 @@ export default function BlockNoteEditor({
               }
             }
           }
-        } else if (!block.content || cleanZeroWidth(block.content) === "") {
+        }
+        if (!isAtStart && cleanDOM.length === 0 && cleanContent.length === 0) {
           isAtStart = true;
         }
 
@@ -6589,8 +7011,8 @@ export default function BlockNoteEditor({
         // If current block is a list or formatted type (bullet, number, todo, toggle, heading, quote, callout)
         // AND (caret is at offset 0 OR the block content is empty):
         // Convert block to a plain "text" paragraph first without deleting or merging!
-        if (block.type !== "text" && (isAtStart || block.content === "")) {
-          if (block.type === "bullet" && (block.level || 0) > 0) {
+        if (block.type !== "text" && (isAtStart || isDomEmpty)) {
+          if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
             e.preventDefault();
             handleUpdateBlock(blockId, { level: (block.level || 0) - 1 }, false, true);
             return;
@@ -6611,21 +7033,21 @@ export default function BlockNoteEditor({
         // 2. EMPTY PLAIN TEXT BLOCK DELETION:
         // When Backspace is pressed on an empty plain text line, delete the empty line itself
         // and cleanly place the caret at the end of the block above (never deleting the block above)!
-        const currentDOMText = el ? getBlockTextFromDOM(el) : "";
-        if (block.type === "text" && (block.content === "" || currentDOMText === "")) {
+        if (block.type === "text" && isDomEmpty) {
           if (blocks.length > 1) {
             e.preventDefault();
             const prevBlock = idx > 0 ? blocks[idx - 1] : (blocks[1] || null);
             
-            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-            setFutureBlocks([]);
+            pushHistorySnapshot();
             setBlocks((prev) => {
               const next = prev.filter((b) => b.id !== blockId);
+              blocksRef.current = next;
               triggerDebouncedSave({ blocks: next });
               return next;
             });
 
             if (prevBlock) {
+              selectedIdRef.current = prevBlock.id;
               focusBlock(prevBlock, idx > 0 ? "end" : "start");
               requestAnimationFrame(() => {
                 focusBlock(prevBlock, idx > 0 ? "end" : "start");
@@ -6650,8 +7072,7 @@ export default function BlockNoteEditor({
             const currentContent = block.content || "";
             const mergedContent = prevContent + currentContent;
 
-            setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-            setFutureBlocks([]);
+            pushHistorySnapshot();
 
             // Measure DOM text length before merge to avoid markdown syntax offset overshooting
             const prevEl = blockRefs.current[prevBlock.id]?.current;
@@ -6670,10 +7091,12 @@ export default function BlockNoteEditor({
               if (targetIdx !== -1) {
                 next[targetIdx] = { ...next[targetIdx], content: mergedContent };
               }
+              blocksRef.current = next;
               triggerDebouncedSave({ blocks: next });
               return next;
             });
 
+            selectedIdRef.current = prevBlock.id;
             setSelectedId(prevBlock.id);
             const focusJoin = () => {
               const targetElRef = blockRefs.current[prevBlock.id]?.current;
@@ -6717,22 +7140,22 @@ export default function BlockNoteEditor({
                   // 1. Standalone embed block (divider, site, media, canvas): delete it!
                   if (standaloneEmbedTypes.includes(targetBlock?.type)) {
                     e.preventDefault();
-                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                    setFutureBlocks([]);
+                    pushHistorySnapshot();
                     setBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
+                      blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
                       return next;
                     });
                     return;
                   }
                   // 2. Empty text block: delete it!
-                  if (targetBlock?.type === "text" && (!targetBlock.content || targetBlock.content.trim() === "")) {
+                  if (targetBlock?.type === "text" && (!targetBlock.content || cleanZeroWidth(targetBlock.content).length === 0)) {
                     e.preventDefault();
-                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                    setFutureBlocks([]);
+                    pushHistorySnapshot();
                     setBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
+                      blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
                       return next;
                     });
@@ -6745,8 +7168,7 @@ export default function BlockNoteEditor({
                     const nextContent = targetBlock.content || "";
                     const mergedContent = currentContent + nextContent;
 
-                    setPastBlocks((p) => [...p.slice(-25), blocksRef.current]);
-                    setFutureBlocks([]);
+                    pushHistorySnapshot();
 
                     const domCaretOffset = getDOMCaretLength(el);
 
@@ -6759,9 +7181,13 @@ export default function BlockNoteEditor({
                       if (targetIdx !== -1) {
                         next[targetIdx] = { ...next[targetIdx], content: mergedContent };
                       }
+                      blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
                       return next;
                     });
+
+                    selectedIdRef.current = blockId;
+                    setSelectedId(blockId);
 
                     requestAnimationFrame(() => {
                       const targetEl = blockRefs.current[blockId]?.current;
@@ -6868,13 +7294,10 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, triggerDebouncedSave]
+    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);
-
-  // Compute sequential numbered list indices
-  let currentNumber = 0;
 
   return (
     <div
@@ -7059,13 +7482,31 @@ export default function BlockNoteEditor({
       {/* Main Note Content Container */}
       <div
         data-editor-root
-        className={`relative mx-auto ${fullWidth ? "w-full max-w-none px-6 md:px-12" : "max-w-3xl px-10"} ${banner ? "pt-6" : "pt-8"} pb-20 cursor-text print:px-0 print:pt-0 print:pb-0`}
+        className={`relative mx-auto ${fullWidth ? "w-full max-w-none px-6 md:px-12" : "max-w-3xl px-10"} ${banner ? "pt-6" : "pt-8"} pb-20 print:px-0 print:pt-0 print:pb-0`}
         onClick={(e) => {
           if (isLocked) return;
+          if (!clickToAppend) return;
+          if (justFinishedMarquee.current) return;
+          if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) return;
+          if (Date.now() - lastWhitespaceClickHandledTime.current < 250) return;
+
           if (e.target === e.currentTarget && blocks.length > 0) {
+            const blockEls = e.currentTarget.querySelectorAll("[data-block-id]");
+            if (!blockEls || blockEls.length === 0) return;
+            const lastBlockEl = blockEls[blockEls.length - 1];
+            const lastBottom = lastBlockEl.getBoundingClientRect().bottom;
+            // Only focus last block if click was strictly in bottom whitespace below the last block
+            if (e.clientY <= lastBottom + 8) {
+              return;
+            }
+            const rootRect = e.currentTarget.getBoundingClientRect();
+            if (e.clientX < rootRect.left || e.clientX > rootRect.right) {
+              return;
+            }
+
             const lastBlock = blocks[blocks.length - 1];
-            setSelectedId(lastBlock.id);
             const el = blockRefs.current[lastBlock.id]?.current;
+            setSelectedId(lastBlock.id);
             if (el) {
               el.focus();
               const range = document.createRange();
@@ -7269,53 +7710,64 @@ export default function BlockNoteEditor({
 
         {/* Notion Blocks */}
         <div className="space-y-2 pl-8">
-          {blocks.map((block, index) => {
-            if (block.type === "number") {
-              currentNumber += 1;
-            } else {
-              currentNumber = 0;
-            }
+          {(() => {
+            let numberCounters = [0];
+            return blocks.map((block, index) => {
+              let blockNumberLabel = null;
+              if (block.type === "number") {
+                const level = Math.max(0, Math.min(4, Number(block.level) || 0));
+                numberCounters = numberCounters.slice(0, level + 1);
+                while (numberCounters.length <= level) {
+                  numberCounters.push(0);
+                }
+                numberCounters[level] += 1;
+                blockNumberLabel = formatNumberMarker(level, numberCounters[level]);
+              } else {
+                numberCounters = [0];
+              }
 
-            return (
-              <EditorBlock
-                key={block.id}
-                block={block}
-                index={index}
-                totalBlocks={blocks.length}
-                blockNumber={currentNumber}
-                isLast={index === blocks.length - 1}
-                isSelected={selectedId === block.id}
-                onSelect={setSelectedId}
-                setSelectedBlockIds={setSelectedBlockIds}
-                selectedBlockIds={selectedBlockIds}
-                onChange={handleChange}
-                onChangeType={handleChangeType}
-                onUpdateBlock={handleUpdateBlock}
-                onDelete={handleDeleteBlock}
-                onDuplicate={() => handleDuplicateBlock(block.id)}
-                onMoveUp={() => handleMoveBlock(index, index - 1)}
-                onMoveDown={() => handleMoveBlock(index, index + 1)}
-                onKeyDown={handleKeyDown}
-                onAddAfter={handleAddAfter}
-                onExplainBlock={onExplainBlock}
-                onQuizBlock={onQuizBlock}
-                onTriggerSocratic={onTriggerSocratic}
-                onSwitchTab={onSwitchTab}
-                dragHandlers={dragHandlers}
-                isDragTarget={dragOver === block.id && dragging !== block.id}
-                isMultiSelected={selectedBlockIds.has(block.id)}
-                isLocked={isLocked}
-                allBlocks={blocks}
-                onSelectHeading={handleSelectHeading}
-                notesBySpace={notesBySpace}
-                onSelectNote={onSelectNote}
-                registerRef={registerRef}
-                onSaveNote={() => performSave()}
-                onExitDown={handleExitDown}
-                onExitUp={handleExitUp}
-              />
-            );
-          })}
+              return (
+                <EditorBlock
+                  key={block.id}
+                  block={block}
+                  index={index}
+                  totalBlocks={blocks.length}
+                  blockNumber={numberCounters[0]}
+                  blockLabel={blockNumberLabel}
+                  isLast={index === blocks.length - 1}
+                  isSelected={selectedId === block.id}
+                  onSelect={handleSelectBlock}
+                  setSelectedBlockIds={setSelectedBlockIds}
+                  selectedBlockIds={selectedBlockIds}
+                  onChange={handleChange}
+                  onChangeType={handleChangeType}
+                  onUpdateBlock={handleUpdateBlock}
+                  onDelete={handleDeleteBlock}
+                  onDuplicate={() => handleDuplicateBlock(block.id)}
+                  onMoveUp={() => handleMoveBlock(index, index - 1)}
+                  onMoveDown={() => handleMoveBlock(index, index + 1)}
+                  onKeyDown={handleKeyDown}
+                  onAddBefore={handleAddBefore}
+                  onAddAfter={handleAddAfter}
+                  onExplainBlock={onExplainBlock}
+                  onQuizBlock={onQuizBlock}
+                  onSwitchTab={onSwitchTab}
+                  dragHandlers={dragHandlers}
+                  isDragTarget={dragOver === block.id && dragging !== block.id}
+                  isMultiSelected={selectedBlockIds.has(block.id)}
+                  isLocked={isLocked}
+                  allBlocks={blocks}
+                  onSelectHeading={handleSelectHeading}
+                  notesBySpace={notesBySpace}
+                  onSelectNote={onSelectNote}
+                  registerRef={registerRef}
+                  onSaveNote={() => performSave()}
+                  onExitDown={handleExitDown}
+                  onExitUp={handleExitUp}
+                />
+              );
+            });
+          })()}
         </div>
       </div>
 

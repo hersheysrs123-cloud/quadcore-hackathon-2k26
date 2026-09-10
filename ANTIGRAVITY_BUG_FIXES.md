@@ -73,6 +73,16 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 66. [Quiz Making Interface Lag Elimination & Cambridge IGCSE Grade 10 Math & STEM Question Engine Integration](#66-quiz-making-interface-lag-elimination--cambridge-igcse-grade-10-math--stem-question-engine-integration)
 67. [Performance-Optimized Rendering Pipeline for Complex 3D Anatomical Structures](#67-performance-optimized-rendering-pipeline-for-complex-3d-anatomical-structures)
 68. [Pre-Download Document Export Previews for Word (.docx), HTML (.html), Plain Text (.txt), and Markdown (.md)](#68-pre-download-document-export-previews-for-word-docx-html-html-plain-text-txt-and-markdown-md)
+69. [Export Document Preview Scroll Container Repair & Seamless Full-File Navigation](#69-export-document-preview-scroll-container-repair--seamless-full-file-navigation)
+70. [Editor Lasso Marquee Selection & Side Margin Click Cursor Jump Repair](#70-editor-lasso-marquee-selection--side-margin-click-cursor-jump-repair)
+71. [AI Explain LaTeX \frac & \ext Rendering Healing, Bare Math Prose Extraction & KaTeX Global Macro](#71-ai-explain-latex-frac--ext-rendering-healing-bare-math-prose-extraction--katex-global-macro)
+72. [Click-to-Append Strict Screen Sides Disabling & Bottom Whitespace Boundary Constraint](#72-click-to-append-strict-screen-sides-disabling--bottom-whitespace-boundary-constraint)
+73. [Multi-Note Selection & Bulk Actions Suite (Move to Space, Delete to Trash with Confirmation, Star, Duplicate)](#73-multi-note-selection--bulk-actions-suite-move-to-space-delete-to-trash-with-confirmation-star-duplicate)
+74. [Numbered and Bullet List Indentation, Sub-Bullet Numbering (a., b., c.), and Caret Backspace Handling](#74-numbered-and-bullet-list-indentation-sub-bullet-numbering-a-b-c-and-caret-backspace-handling)
+75. [Heading Block Enter-at-Start Prepending & Downward Block Flow (Notion Parity)](#75-heading-block-enter-at-start-prepending--downward-block-flow-notion-parity)
+76. [Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up](#76-socratic-duck-conversational-bot-removal-from-quiz-panel--system-clean-up)
+77. [Bullet & Numbered List Enter-at-Start Prepending & Downward Flow (Specifically First Bullet)](#77-bullet--numbered-list-enter-at-start-prepending--downward-flow-specifically-first-bullet)
+78. [Bullet & List Block Undo / Redo State Machine & Focus Target Overhaul](#78-bullet--list-block-undo--redo-state-machine--focus-target-overhaul)
 
 ---
 
@@ -4430,4 +4440,578 @@ Users identified two visual inconsistencies during print and PDF export:
 3. **Verification**:
    - Added automated unit test verifying that long 50-block documents produce full, unclipped content across Markdown, HTML, and Plain text exports.
    - 396 unit tests passing cleanly across 106 suites.
+
+---
+
+## 70. Editor Lasso Marquee Selection & Side Margin Click Cursor Jump Repair
+
+### Problem Statement
+1. **Unwanted Cursor Jump on Side Margin Click**:
+   - Clicking on the side margin of the note (left or right padding beside blocks) caused the text cursor to jump directly into the last block at the bottom of the document, even when the setting *"Click anywhere to place block"* (`clickToAppend`) was toggled OFF in Settings.
+2. **Lasso Selection Disrupted by Cursor Jump**:
+   - Starting a marquee drag from the left-hand side of the screen to lasso-select multiple blocks caused the cursor to jump into the last block upon mouse release (`mouseup`), deselecting the lassoed blocks and stealing focus away from the multi-block selection.
+
+### Root Cause Analysis
+1. **Unchecked `onClick` on `data-editor-root`**:
+   - In `components/BlockNoteEditor.jsx`, the document container `<div data-editor-root className="... px-10 pb-20 cursor-text ...">` had an `onClick` handler:
+     ```jsx
+     if (e.target === e.currentTarget && blocks.length > 0) {
+       const lastBlock = blocks[blocks.length - 1];
+       setSelectedId(lastBlock.id);
+       el.focus();
+     }
+     ```
+   - This handler completely ignored the `clickToAppend` prop (`clickToAppend === false`).
+   - Because `data-editor-root` spans the note container with `px-10` lateral padding, clicking anywhere on the side margins matched `e.target === e.currentTarget`.
+   - The handler also lacked any vertical coordinate check (`e.clientY`), meaning a click horizontally aligned with Heading 1 or Paragraph 2 still triggered `lastBlock.id` selection.
+2. **Synthetic Browser Click Following Marquee Drag**:
+   - When users dragged a marquee selection from the side margin across blocks (`isDraggingMarquee`), `handleGlobalMouseUp` cleared the marquee box on `mouseup`.
+   - Under standard DOM event sequencing, the browser immediately dispatches a synthetic `click` event to `data-editor-root` following `mouseup`.
+   - `data-editor-root`'s `onClick` received this event, saw `e.target === e.currentTarget`, and immediately focused the last block, clearing `selectedBlockIds` and destroying the lasso selection.
+3. **Missing Y-Coordinate Boundary Check in `handleGlobalMouseUp`**:
+   - While `handleGlobalMouseUp` checked `if (!clickToAppend) return;`, for `dist < 6` (clicks) it did not verify whether `clientY` occurred in the empty whitespace *below* the last block versus the side margin beside content.
+
+### Resolution & Architectural Enhancements
+1. **Marquee Completion & Re-entrance Guard (`components/BlockNoteEditor.jsx`)**:
+   - Added `justFinishedMarquee = useRef(false)` and `lastWhitespaceClickHandledTime = useRef(0)`.
+   - In `handleGlobalMouseUp`:
+     - If `dist >= 6` or `selectedBlockIdsRef.current.size > 0`, activates `justFinishedMarquee.current = true` with a debounce timer (150ms), suppressing subsequent click events.
+     - For `dist < 6`, verifies that `clientY >= lastRect.bottom` before creating or focusing an empty block. Clicks on side margins beside existing content (`clientY < lastRect.bottom`) return immediately.
+2. **Defensive Guard on `data-editor-root` `onClick` (`components/BlockNoteEditor.jsx`)**:
+   - Added comprehensive guards to the container `onClick`:
+     ```jsx
+     if (isLocked) return;
+     if (!clickToAppend) return;
+     if (justFinishedMarquee.current) return;
+     if (selectedBlockIdsRef.current && selectedBlockIdsRef.current.size > 0) return;
+     if (Date.now() - lastWhitespaceClickHandledTime.current < 250) return;
+     if (lastRect && e.clientY < lastRect.bottom) return;
+     ```
+   - Removed `cursor-text` from `data-editor-root`, ensuring the text I-beam only appears over actual editable block content while margins retain the standard pointer cursor.
+3. **Automated Unit Testing (`tests/unit/editor-marquee-click.test.mjs`)**:
+   - Created 7 unit test assertions verifying:
+     - Side margin clicks with `clickToAppend=false` never focus the last block.
+     - Lasso marquee drags from the left margin preserve all selected block IDs without jumping caret to the last block.
+     - Lasso drags with `clickToAppend=true` preserve multi-block selection.
+     - Side margin clicks beside content with `clickToAppend=true` do not jump to the bottom.
+     - Bottom whitespace clicks below the last block with `clickToAppend=true` properly focus/append.
+     - Bottom whitespace clicks with `clickToAppend=false` strictly do nothing.
+     - Outer side clicks on the left or right of the screen never append or focus.
+
+---
+
+## 71. AI Explain LaTeX \frac & \ext Rendering Healing, Bare Math Prose Extraction & KaTeX Global Macro
+
+### Problem Statement
+- In the AI Explain drawer (opened via the "Explain" button on study notes, text selections, and study recommendations), mathematical fractions like `\frac` and text macros like `\ext` failed to render properly:
+  - Raw `\frac{...}{...}` formulas inside explanatory prose remained unparsed as literal text or caused the entire surrounding sentence to be smushed into KaTeX math mode as italic multiplied variables.
+  - Text labels containing `\ext` or `\text` either failed to render, displayed raw `\ext{...}`, or caused KaTeX red parse errors (`Undefined control sequence: \ext`).
+
+### Root Cause Analysis
+1. **JSON Escape Control Character Mangling (`\f` & `\t`)**:
+   - In standard JSON syntax, single-backslash escape sequences `\f` and `\t` are legal escapes for form-feed (`\u000c`) and horizontal tab (`\u0009`).
+   - When Gemini or LLM structured output returned JSON containing LaTeX commands with single backslashes (e.g. `"\frac{a}{b}"` or `"\text{unit}"`), `JSON.parse` evaluated `\f` as byte `0x0c` (leaving `\u000crac{a}{b}`) and `\t` as byte `0x09` (leaving `\u0009ext{unit}`).
+   - KaTeX throws a fatal syntax parse error on `\u000c`, failing the formula completely, while `\u0009` turns `\text` into plain `ext`, rendering as italic variables $e \cdot x \cdot t$.
+2. **Whole-Sentence Math Misclassification in `parseMathSegments` (`lib/mathUtils.js`)**:
+   - Previously, if a sentence lacked standard math delimiters (`$`, `$$`, `\(`, `\[`) but contained a LaTeX command like `\frac`, `parseMathSegments` returned the *entire string* as a single `inline_math` segment.
+   - KaTeX then attempted to parse normal English prose ("The formula for acceleration is \frac{\Delta v}{\Delta t} where...") in math mode, destroying the layout.
+   - If delimiters were present elsewhere in the text, bare `\frac` commands in the surrounding text were emitted as plain `text`, where inline Markdown ignored them and left them as raw literal `\frac{...}` characters.
+3. **KaTeX Missing `\ext` Macro**:
+   - In KaTeX, `\ext` is not a standard primitive. When LLM outputs produced `\ext` (either via single-backslash tab stripping or prompt confusion), KaTeX rendered a red error element `<span style="color:#cc0000">\ext</span>`.
+
+### Resolution & Architectural Enhancements
+1. **KaTeX Global Macro Registration (`lib/editorCaret.js`)**:
+   - Added `"\\ext": "\\text{#1}"` to `KATEX_GLOBAL_MACROS`, guaranteeing that any `\ext{...}` expression is seamlessly rendered as standard KaTeX `\text{...}` without error.
+2. **JSON Wire Escape Repair (`lib/gemini.js`)**:
+   - Implemented `repairJsonLatexEscapes(rawJson)` in `lib/gemini.js` which sanitizes unescaped single backslashes before common LaTeX keywords (`frac`, `text`, `rho`, `beta`, `times`, etc.) prior to `JSON.parse`, preventing control character conversion at the source.
+3. **Universal Math Text Sanitization (`lib/mathUtils.js`)**:
+   - Implemented and exported `sanitizeMathText(text)` which heals corrupted JSON control characters (`\u000crac` -> `\frac`, `\u0009ext` -> `\text`, `\u0009au` -> `\tau`, `\r` -> `\rho`, etc.) and normalizes `\ext` to `\text`.
+   - Wired `sanitizeMathText` into `normalizeExplanation` across both `app/api/explain/route.js` and `lib/aiService.js`.
+4. **Prose Bare Math Extraction (`lib/mathUtils.js`)**:
+   - Added `BARE_INLINE_LATEX_REGEX` with nested brace support for `\frac`, `\sqrt`, and `\text`, along with Greek letters and operators.
+   - Added `isPureMathString(str)` heuristic to preserve single-formula quiz options as pure `inline_math` without regressing existing quiz test suites.
+   - Enhanced `parseMathSegments(text)` to automatically extract bare LaTeX commands embedded within prose slices (both between delimiters and in standalone sentences) into discrete `inline_math` segments.
+5. **AI Prompt Directives**:
+   - Updated `PERSONA` in `app/api/explain/route.js` and `EXPLAIN_PERSONA` in `lib/aiService.js` to enforce wrapping all formulas in `$...$` or `$$...$$` with double-escaped backslashes in JSON output.
+6. **Automated Verification**:
+   - Expanded `tests/unit/math-text.test.mjs` with 5 new assertions testing:
+     - Extraction of bare `\frac` inside prose sentences into `inline_math` and clean KaTeX rendering.
+     - Healing and error-free rendering of `\ext` as `\text`.
+     - Healing of corrupted form-feed (`\u000crac`) and tab (`\u0009ext`) characters.
+     - Pre-parse wire repair of single-backslash LaTeX keywords.
+     - Mixed delimited and bare math coexistence.
+   - All 11 math unit tests passing.
+
+---
+
+## 72. Click-to-Append Strict Screen Sides Disabling & Bottom Whitespace Boundary Constraint
+
+### Problem Statement
+- When the setting *"Click anywhere to place block"* (`clickToAppend`) was enabled, clicking on the left or right side margins of the screen (or the lateral padding beside existing blocks) still triggered block append or focused the last block.
+- The user directive required that when click-to-append is enabled, clicking on the sides of the screen must be completely disabled from appending, and click-to-append should strictly work only in the bottom whitespace beneath all notes content.
+
+### Root Cause Analysis
+- In `components/BlockNoteEditor.jsx`:
+  1. `handleGlobalMouseUp` previously only checked vertical `clientY` against `lastRect.bottom` if `lastRect` existed. If the last block was a math block, table, or divider (which does not register a standard `contentRef`), `lastRect` was undefined.
+  2. There was no horizontal boundary check (`clientX`) against the note content column (`[data-editor-root]`), allowing clicks far out in the screen margins to trigger append.
+  3. `data-editor-root`'s `onClick` lacked strict bounding rectangle checks for `blockEls` and horizontal note column bounds.
+
+### Resolution & Architectural Enhancements
+1. **Dual-Axis Boundary Enforcement in `handleGlobalMouseUp` (`components/BlockNoteEditor.jsx`)**:
+   - **Horizontal Side Check**: Queries `[data-editor-root]` and verifies `if (clientX < rootRect.left || clientX > rootRect.right) return;`. Clicks in the wide screen margins outside the note column are completely discarded.
+   - **Vertical Bottom Whitespace Check**: Queries `querySelectorAll("[data-block-id]")` to find the true DOM bottom of the last block (`lastBottom`). Verifies `if (clientY <= lastBottom + 8) return;`. Clicks beside existing blocks or in header areas never append or focus.
+2. **Synchronized Guard in `data-editor-root` `onClick` (`components/BlockNoteEditor.jsx`)**:
+   - Replaced weak `lastRect` checks with authoritative `querySelectorAll("[data-block-id]")` bottom resolution and `rootRect` horizontal boundary checking.
+3. **Automated Verification**:
+   - Updated `tests/unit/editor-marquee-click.test.mjs` with test assertions verifying that clicking anywhere on the outer sides of the screen (`clientX < rootRect.left` or `clientX > rootRect.right`) never appends or focuses, even when `clickToAppend` is true.
+   - All 7 tests passing.
+
+---
+
+## 73. Multi-Note Selection & Bulk Actions Suite (Move to Space, Delete to Trash with Confirmation, Star, Duplicate)
+
+### Problem Statement
+- In the sidebar notes list, users previously had to manage notes strictly one-by-one via individual note menus. There was no way to select multiple notes simultaneously to organize, move, clean up, favorite, or clone notes in bulk.
+- Specific requirements:
+  1. Add a multi-note selection mode triggered by a "Select" button in the notes list header.
+  2. In selection mode, clicking notes one-by-one toggles their selection state with clear visual indicators without inadvertently opening or navigating the editor.
+  3. Provide 4 bulk operations:
+     - **Move to Space**: Move all selected notes into any destination space.
+     - **Delete to Trash with Confirmation**: Mandatory confirmation dialog asking user to confirm before moving multiple notes into Trash (24h recovery).
+     - **Star / Favorite**: Star (or toggle favorite) on all selected notes in bulk.
+     - **Duplicate**: Clone all selected notes with unique IDs, "Copy of [note name]" titles, and preserved block structures.
+
+### Root Cause & UX Analysis
+- Notes in `Sidebar.jsx` were hard-wired to `onSelectNote(n)` on click and drag-and-drop event listeners.
+- No selection state or bulk operation handlers existed in `Workspace.jsx` or `Sidebar.jsx`.
+- Moving multiple notes to trash without a confirmation dialog risked accidental data loss when multiple notes were selected.
+
+### Resolution & Architectural Enhancements
+1. **Multi-Selection Mode & Header Bar (`components/Sidebar.jsx`)**:
+   - Added `isMultiSelecting`, `selectedNoteIds`, `batchDeleteOpen`, and `batchMoveOpen` state hooks.
+   - Header `{activeSpace} · Notes` features an inline "Select" / "Done" toggle button with `ListChecks` icon.
+   - When active, displays live `{selectedCount} of {total} selected` count and a "Select All" / "Deselect All" quick toggle.
+   - Automatically resets selection on space change and auto-exits if the space becomes empty.
+2. **Click-to-Toggle Item Interaction (`components/Sidebar.jsx`)**:
+   - When `isMultiSelecting` is true, clicking anywhere on a note row toggles its selection in `selectedNoteIds` instead of navigating or switching the active editor note.
+   - Displays a custom rounded checkbox on the left (`Check` on `bg-duck-500` when selected, hollow border when unselected).
+   - Suppresses drag-and-drop handles (`GripVertical`) and hides individual `NoteMenu` buttons during selection mode to prevent misclicks.
+   - Highlights selected rows with `bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200`.
+3. **Bulk Action Toolbar (`components/Sidebar.jsx`)**:
+   - Features 4 action buttons docked in the multi-select header box:
+     - ⭐ **Star / Unstar**: Bulk stars all selected notes (or unstars if all selected are already starred).
+     - 📋 **Copy**: Clones all selected notes with `"Copy of [note name]"` titles and cloned block hierarchies.
+     - 📁 **Move**: Opens `BatchMoveModal` to select a destination space (excluding current space).
+     - 🗑️ **Delete**: Opens `BatchDeleteConfirmModal` with mandatory confirmation.
+4. **Mandatory Batch Delete Confirmation Modal (`BatchDeleteConfirmModal`)**:
+   - Prevents accidental bulk deletion by displaying:
+     - Warning header: *"Move {N} Notes to Trash?"*
+     - Scrollable preview box listing up to 5 note titles with emojis (`+ X more notes...` if greater).
+     - Warning explaining notes can be restored within 24 hours.
+     - "Cancel" button and prominent red "Move {N} Notes to Trash" button.
+5. **Batch State Handlers in `Workspace.jsx`**:
+   - `handleDeleteMultipleNotes(noteIds)`: removes from `notesBySpace`, updates `trashNotes`, calls `deleteNoteToTrash(id)` for each, and smoothly selects first remaining note if active note was deleted.
+   - `handleMoveMultipleNotes(noteIds, targetSpaceName)`: moves notes to target space with sequential orders, sets `space` and `spaceId`, and saves each note.
+   - `handleToggleFavoriteMultipleNotes(noteIds, forceFavorite)`: updates `isFavorite` on all notes and saves to DB.
+   - `handleDuplicateMultipleNotes(noteIds)`: clones blocks with fresh IDs, creates `"Copy of [note name]"` duplicates, appends to space, and saves to DB.
+6. **Automated Verification**:
+   - Created `tests/unit/multi-note-selection.test.mjs` verifying individual selection toggles, Select All / Deselect All, confirmation dialog abort/confirm behavior, batch move, batch star/unstar, and batch duplicate.
+   - All 6 unit tests passing (512 total test suite passing).
+
+---
+
+## 74. Numbered and Bullet List Indentation, Sub-Bullet Numbering (a., b., c.), and Caret Backspace Handling
+
+### Problem Statement
+1. **Numbered List Tab Creates Whitespace**:
+   - In `components/BlockNoteEditor.jsx`, pressing `Tab` while on a numbered list (`number`) item failed to indent the list item; instead, it fell through to the plain-text soft tab branch and inserted two literal whitespace characters (`"  "`).
+2. **Missing Hierarchical Numbered Sub-Bullets**:
+   - Numbered list blocks only supported single-level decimal numbers (`1.`, `2.`, `3.`), with no sub-bullet numbering scheme (`a.`, `b.`, `c.`, `i.`, `ii.`, `A.`, `B.`) when indented.
+3. **Bullet Backspace Intermittent Failure**:
+   - In standard bullet lists (`bullet`) and empty list items, pressing `Backspace` at offset 0 sometimes failed to un-indent or convert the item to a paragraph, swallowing keystrokes when internal DOM artifacts (`<br>`, whitespace) or stale ref state occurred.
+
+### Root Cause Analysis
+1. **Incomplete Tab Key Filter**:
+   - In `BlockNoteEditor.jsx`, `handleKeyDown` checked `if (block.type === "bullet")` for list indentation. Block type `"number"` was missing from this guard, causing `Tab` on numbered items to bypass indentation logic and execute `document.createTextNode("  ")`.
+2. **Absence of Multi-Tier Number Formatting Functions**:
+   - Number sequence counters were strictly computed as a single flat `index + 1`. There were no converters for alphabetic (`a.`, `b.`, `c.`) or roman numeral (`i.`, `ii.`, `iii.`) progressions based on hierarchy level (`block.level`).
+   - Export serializers (`editorBlocksToText`, `blocksToHTMLLossy`) lacked indentation and CSS list-style-type handling for indented numbered lists.
+3. **Stale DOM Caret Start Detection**:
+   - `isCaretAtLogicalStart` in `lib/editorCaret.js` returned `false` on empty blocks if browser `<br>` tags or zero-width spaces produced non-zero container offsets.
+   - `handleKeyDown` also relied on `blockRefs.current[blockId]` lookup, which could be out-of-sync with the active contentEditable element receiving the event.
+
+### Resolution & Architectural Enhancements
+1. **Tab & Shift+Tab Indentation for Numbered Items (`components/BlockNoteEditor.jsx`)**:
+   - Expanded list indentation condition to `if (block.type === "bullet" || block.type === "number")`.
+   - Pressing `Tab` increments `block.level = Math.min((block.level || 0) + 1, 4)` and preserves focus.
+   - Pressing `Shift+Tab` decrements `block.level` down to 0, and if pressed at level 0 on an empty item, cleanly converts to plain text.
+2. **Hierarchical Multi-Tier Sub-Numbering Engine (`lib/blocks.js` & `components/BlockNoteEditor.jsx`)**:
+   - Added `toAlpha(num, upper = false)`: maps 1-based index to alphabetic sequences (`a`, `b`, ... `z`, `aa`, etc.).
+   - Added `toRoman(num, upper = false)`: maps 1-based index to standard Roman numerals (`i`, `ii`, ... `x`, etc.).
+   - Added `formatNumberMarker(level, index)`:
+     - Level 0: decimal (`1.`, `2.`, `3.`)
+     - Level 1: lower-alpha (`a.`, `b.`, `c.`)
+     - Level 2: lower-roman (`i.`, `ii.`, `iii.`)
+     - Level 3+: upper-alpha (`A.`, `B.`, `C.`)
+   - Implemented hierarchical stack tracking (`numberCounters = []`) in `BlockNoteEditor.jsx` when scanning sequential `number` blocks, resetting deeper levels when shallower levels increment, and generating contextual `blockLabel`.
+   - Added proportional indentation padding: `style={{ paddingLeft: `${(block.level || 0) * 1.5}rem` }}`.
+3. **Lossless Multi-Level Serialization (`lib/blocks.js` & `lib/exportImport.js`)**:
+   - Updated `editorBlocksToText` to prepend `  ` indentations and format hierarchical number markers in AI context exports.
+   - Updated `blocksToHTMLLossy` to emit CSS `list-style-type` (`lower-alpha` for level 1, `lower-roman` for level 2, `upper-alpha` for level 3) in standalone HTML exports.
+4. **Reliable Backspace Un-Indenting & DOM Empty Guard (`components/BlockNoteEditor.jsx` & `lib/editorCaret.js`)**:
+   - Updated `isCaretAtLogicalStart` in `lib/editorCaret.js` with an empty block shortcut: `if (!cleanZeroWidth(full).trim()) return true;`.
+   - In `BlockNoteEditor.jsx`, passed active `domEl` directly into `handleKeyDown(e, block, domEl)` and evaluated `isDomEmpty = !cleanZeroWidth(domEl?.innerText || block.content || "").trim();`.
+   - When Backspace is pressed on any empty bullet or number, or when caret is at offset 0, it unconditionally decrements `level` or converts the block to a normal text block without dropping keystrokes.
+5. **Automated Verification**:
+   - Added unit tests in `tests/unit/bullet-number-heading-fixes.test.mjs` verifying marker formatting across all 4 levels, sequence continuity, sub-bullet resets, markdown/HTML serialization, and empty block caret detection.
+   - All 523 unit & integration tests passing cleanly.
+
+---
+
+## 75. Heading Block Enter-at-Start Prepending & Downward Block Flow (Notion Parity)
+
+### Problem Statement
+- In Notion, placing the caret at the very beginning (offset 0) of a heading block (`h1`, `h2`, `h3`, `h4`) and pressing `Enter` creates a new blank paragraph block *above* the heading, pushing the heading and all following blocks down by one position while keeping the heading intact and focused.
+- In SocraticOS, pressing `Enter` at offset 0 of a heading previously either split the heading into two heading blocks or converted/reset the heading block unpredictably.
+
+### Root Cause Analysis
+- In `components/BlockNoteEditor.jsx`, the Enter keydown handler (`splitBlockDOMAtRange`) checked if caret was at offset 0 and called `onAdd(block.id, "", block.type)`.
+- This appended a new block *after* the current block (or below it), failing to shift the heading itself down, or spawned an extraneous duplicate heading element instead of prepending an empty text paragraph above.
+
+### Resolution & Architectural Enhancements
+1. **`handleAddBefore` Dispatcher (`components/BlockNoteEditor.jsx`)**:
+   - Added `handleAddBefore(beforeId, initialContent = "", type = "text", customProps = {}, focusTarget = "before")`:
+     - Locates target block index in state.
+     - Creates a new block with `uuidv4()` and prepends it immediately before `beforeId` (`splice(targetIdx, 0, newBlock)`).
+     - Updates block positions and captures history state (`pushHistory`).
+     - If `focusTarget === "original"`, smoothly focuses the original heading block at `"start"` using `requestAnimationFrame`.
+2. **Heading Enter-at-Start Interception (`EditorBlock` in `BlockNoteEditor.jsx`)**:
+   - In `handleKeyDown`, added special handling for heading blocks (`block.type === "h1" || block.type === "h2" || block.type === "h3" || block.type === "h4"`):
+     - When `isCaretAtLogicalStart(el)` is true, intercepts Enter and calls `onAddBefore(block.id, "", "text", {}, "original")`.
+     - Completely bypasses standard downstream splitting, immediately prepending a new empty text block above the heading and pushing the heading and all blocks below downward, matching Notion's exact behavior.
+3. **Automated Verification**:
+   - Added unit tests in `tests/unit/bullet-number-heading-fixes.test.mjs` asserting that prepending creates a new text block at index 0, shifts the heading to index 1, and preserves heading content and block types.
+
+---
+
+## 76. Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up
+
+### Problem Statement
+- The Quiz side drawer previously housed two tabs: "Quiz" and "Socratic Duck" (`SocraticSession`).
+- The user requested complete removal of the "Socratic Bot" conversational interface to streamline the quiz experience and reduce visual and operational clutter.
+
+### Resolution & Architectural Enhancements
+1. **Streamlined Quiz Side Drawer (`components/QuizPanel.jsx`)**:
+   - Removed `SocraticSession` component, conversation state hooks (`sessionState`, `dialogueHistory`, `socraticScores`), mode tab switcher (`ModeTab`), and unused dependencies (`WidgetCanvas`, `socraticChat`, `socraticWidget`).
+   - `QuizPanel` now directly mounts `QuizRunner` within an uncluttered, focused study drawer.
+2. **Header & Context Menu Action Button Clean-up**:
+   - Updated `MasteryDashboard.jsx`: renamed "Start a Socratic Drill" action button to "Start a Quiz".
+   - Updated `CalendarView.jsx`: renamed study drill labels to "Quiz Drill".
+   - Updated `BlockNoteEditor.jsx`: removed unused `onTriggerSocratic` props and updated floating selection toolbar tooltip to "Quiz me on Selection".
+3. **Automated Verification**:
+   - Ran complete test suite: all 523 tests across 135 test suites pass cleanly with 0 regressions.
+
+---
+
+## 77. Bullet & Numbered List Enter-at-Start Prepending & Downward Flow (Specifically First Bullet)
+
+### Problem Statement
+- When pressing `Enter` at the beginning (offset 0) of a bullet list item (`bullet`) or numbered list item (`number`), specifically the first bullet in a list or note, the editor previously wiped the current item's text via `onChange(block.id, "")` and spawned a new block below via `onAddAfter`.
+- This corrupted the list structure, caused race conditions between React state batching and ref synchronization, and failed to cleanly insert an empty bullet above the first item while preserving the original bullet and its content on the next line.
+
+### Root Cause Analysis
+- In `components/BlockNoteEditor.jsx`, the Enter key handler in `EditorBlock` only intercepted headings (`h1`–`h4`) for `onAddBefore`.
+- Bullets fell through to standard downstream splitting (`splitBlockDOMAtRange`), which replaced `block.id`'s content with `textBefore` (`""`) and called `onAddAfter` with `textAfter`.
+- For the first bullet in a list, there was no way to prepend a bullet above it without mutating or corrupting the existing bullet block.
+
+### Resolution & Architectural Enhancements
+1. **Bullet & Number Enter-at-Start Interception (`EditorBlock` in `BlockNoteEditor.jsx`)**:
+   - Added logical start detection for list blocks:
+     ```javascript
+     if (block.type === "bullet" || block.type === "number") {
+       const isListAtStart = cleanZeroWidth(textBefore).trim().length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
+       if (isListAtStart) {
+         if (cleanZeroWidth(textAfter).length > 0) {
+           onAddBefore?.(block.id, "", block.type, { level: block.level || 0 }, "original");
+           return;
+         }
+       }
+     }
+     ```
+   - When Enter is pressed at the start of any bullet or number item with content, it calls `onAddBefore`, prepending a new empty list item of the identical type and indent `level` above the target.
+   - The original item and all blocks below move down by one line with their content, bullet glyph, and `id` intact.
+   - Caret focus is placed at `"start"` of the original item on the next line via `focusTarget === "original"`.
+2. **Synchronous `blocksRef.current` State Synchronization (`handleAddBefore`)**:
+   - Updated `handleAddBefore` to synchronously assign `blocksRef.current = next;` inside `setBlocks`, guaranteeing that `focusBlock` immediately resolves `origBlock` in the next frame.
+3. **Automated Verification**:
+   - Expanded `tests/unit/bullet-number-heading-fixes.test.mjs` with test assertions for prepending empty bullets above first bullets, preserving nested sub-bullet levels, and pushing numbered items down.
+   - All 526 unit and integration tests passing.
+
+---
+
+## 78. Bullet & List Block Undo / Redo State Machine & Focus Target Overhaul
+
+### Problem Statement
+- Pressing `Ctrl+Z` (Undo) and `Ctrl+Y` / `Ctrl+Shift+Z` (Redo) exhibited unpredictable, erratic behavior in bullet and list blocks:
+  1. Undoing a bullet indentation (`Tab`), text edit, or block creation frequently jumped focus and scroll position to the very first block at the top of the note (or note title), or dropped focus completely to `document.body` leaving the user without a cursor.
+  2. Undoing an `Enter` keypress required multiple `Ctrl+Z` strokes, often restoring truncated text without the latter half of the split bullet or losing history states.
+  3. Undoing after rapid keystrokes (`Tab`, typing, `Backspace`) frequently skipped edits or failed to restore indentation levels (`level: 0`, `level: 1`, `level: 2`).
+  4. Redoing via `Ctrl+Shift+Z` never restored caret focus to any block.
+
+### Root Cause Analysis
+1. **Uncloned History Objects Across 19 Block Mutations**:
+   - Across `BlockNoteEditor.jsx`, `setPastBlocks((p) => [...p.slice(-25), blocksRef.current])` pushed `blocksRef.current` directly without deep cloning (`JSON.parse(JSON.stringify)`). Because JavaScript objects share memory references, subsequent block mutations (e.g. `block.level`, `block.content`, `block.meta`) mutated objects already pushed to `pastBlocks`. Undoing therefore restored already-mutated objects.
+2. **Asynchronous Stale Refs in Undo/Redo Engine**:
+   - `handleGlobalUndoRedo` read from `pastBlocksRef.current`, `futureBlocksRef.current`, and `blocksRef.current`. These refs were only synchronized inside post-render `useEffect` hooks. Rapid `Ctrl+Z` / `Ctrl+Y` keystrokes read stale history stacks before React flushed updates, popping duplicate states or dropping history entries.
+3. **Stale Closure & Phantom Focus Target**:
+   - `handleGlobalUndoRedo` was registered in a `useEffect` with dependency `[performSave]`, permanently capturing `selectedId = null` from mount.
+   - In `const targetId = selectedId || clonedPrevious[0]?.id;`, `selectedId` was always `null` (falling back to block 0 at the top of the document) or pointed to a newly undone/destroyed block ID. When `targetId` was not in `clonedPrevious`, `focusBlock` failed silently, dropping focus to `document.body`.
+4. **Non-Atomic Block Splitting on Enter**:
+   - Pressing Enter in `EditorBlock` called `onChange(block.id, textBefore)` followed by `onAddAfter(block.id, textAfter, ...)`. If the 600ms history push interval elapsed, two separate history snapshots were pushed for a single Enter keypress, requiring two `Ctrl+Z` presses to undo and leaving truncated intermediate states.
+5. **Redo Focus Disconnect (`Ctrl+Shift+Z`)**:
+   - The `Ctrl+Shift+Z` branch in `handleGlobalUndoRedo` lacked focus targeting code altogether, leaving focus orphaned.
+
+### Resolution & Architectural Enhancements
+1. **Centralized History Engine (`pushHistorySnapshot`)**:
+   - Implemented a single centralized snapshot function with deep cloning and synchronous ref synchronization:
+     ```javascript
+     const pushHistorySnapshot = useCallback(() => {
+       const snapshot = JSON.parse(JSON.stringify(blocksRef.current));
+       pastBlocksRef.current = [...pastBlocksRef.current.slice(-30), snapshot];
+       setPastBlocks(pastBlocksRef.current);
+       futureBlocksRef.current = [];
+       setFutureBlocks([]);
+       lastHistoryPush.current = Date.now();
+     }, []);
+     ```
+   - Replaced all 19 uncloned `setPastBlocks` calls across the editor (`handleChange`, `handleChangeType`, `handleUpdateBlock`, `handleDeleteBlock`, `handleDuplicateBlock`, `handleMoveBlock`, `handleAddAfter`, `handleAddBefore`, `handleSmartPaste`, `handleIntelligentReformat`, `onDrop`, multi-block selection actions, Backspace/Delete) with `pushHistorySnapshot()`.
+2. **Synchronous Ref State Synchronization**:
+   - In `handleGlobalUndoRedo`, `pastBlocksRef.current`, `futureBlocksRef.current`, and `blocksRef.current` are updated synchronously prior to calling React `setPastBlocks`, `setFutureBlocks`, and `setBlocks`. Rapid undo/redo keystrokes always read fresh, accurate history stacks.
+3. **Smart Focus Target Resolution**:
+   - Replaced stale closure variable with `selectedIdRef = useRef(selectedId)`.
+   - On Undo: checks if `selectedIdRef.current` exists in `clonedPrevious`. If the target was destroyed by the undo (e.g. undone block creation), it calculates the neighboring index in `clonedPrevious` (`targetIdx = Math.max(0, Math.min(prevIdx, clonedPrevious.length - 1))`) and seamlessly focuses the adjacent surviving block.
+   - On Redo: detects newly added blocks in `clonedNext` and automatically focuses the new block. Focus is symmetrically supported on both `Ctrl+Y` and `Ctrl+Shift+Z`.
+4. **Atomic Block Splitting via `splitBeforeContent`**:
+   - Updated `handleAddAfter` to accept `splitBeforeContent = null`. On Enter, `EditorBlock` synchronously sets DOM text and calls `onAddAfter` with `textBefore`.
+   - `handleAddAfter` executes a single `pushHistorySnapshot()`, updates `afterId`'s content to `textBefore`, and inserts `newBlock` with `textAfter` within a single state update, ensuring 1-press clean undo/redo.
+5. **Automated Verification**:
+   - Created comprehensive unit test suite `tests/unit/bullet-list-undo-redo.test.mjs` verifying:
+     - Snapshot integrity via deep cloning without mutation leakage.
+     - Single-step atomic Enter split undo/redo.
+     - Sub-bullet Tab indentation (`level: 0 -> 1 -> 2`) and Shift+Tab outdent undo/redo.
+     - Backspace un-listing undo/redo.
+     - Enter-at-start prepending undo/redo with valid focus.
+     - Rapid alternating undo/redo stress sequences.
+   - All 532 tests across 137 suites pass cleanly with 0 failures.
+
+---
+
+## 79. Complete Decommissioning of Scrapped Socratic Duck Endpoints (`/api/socratic/chat` & `/api/socratic/widget`) & Documentation Audit
+
+### Problem Statement
+- Early iterations of SocraticOS experimented with a "Socratic Rubber Duck" diagnostic chat dialogue (`/api/socratic/chat`) and dynamic 3D WebGL widget generator (`/api/socratic/widget` and `components/WidgetCanvas.jsx`) designed to probe misconceptions and generate vector simulations.
+- When the Socratic duck mode was replaced by the dedicated, space-grounded `AITutorPanel` (`/api/tutor/chat` and `tutorChat`) and the 3D studio focused on 27 curated Three.js scientific simulations (`ThreeDView.jsx`), the legacy Socratic Duck pipeline was scrapped.
+- However, obsolete code artifacts, test files, and documentation references remained:
+  1. `components/WidgetCanvas.jsx` (230-line obsolete Three.js canvas component).
+  2. `app/api/socratic/widget/route.js` and `app/api/socratic/chat/route.js` (unsupported backend endpoints under `app/api/socratic/`).
+  3. `tests/integration/ai-widget-resilience.test.mjs` (outdated test suite for deleted widget payloads).
+  4. Dead branching and state hooks in `components/ThreeDView.jsx` (`WidgetCanvas` import, `isCustomSelected`, `activeWidgetObj`).
+  5. Exported `socraticChat` and `socraticWidget` functions, `normalizeWidget`, `normalizeDiagnostic`, and unused schema imports in `lib/aiService.js`.
+  6. Obsolete `DIAGNOSTIC_SCHEMA`, `RECOMMENDED_WIDGETS`, `WIDGET_SCHEMA`, `WIDGET_TYPES`, and `OBJECT_KINDS` in `lib/schemas.js`.
+  7. Outdated references in `CODEBASE_SUMMARY.md` and `README.md` listing `socratic/chat` and `socratic/widget` in Tech Stack fallback routes, File Maps, and feature bullets.
+
+### Root Cause Analysis
+- Code refactoring in prior sprints had decommissioned the frontend invocation of the Socratic Duck without executing a complete repository-wide audit, leaving dormant `/api/socratic/*` routes, dead React state branches, and phantom documentation entries.
+
+### Resolution & Architectural Enhancements
+1. **Repository File Purge**:
+   - Safely removed `components/WidgetCanvas.jsx`.
+   - Safely removed `app/api/socratic/widget/route.js` and `app/api/socratic/chat/route.js`, deleting the entire `app/api/socratic` directory.
+   - Safely removed `tests/integration/ai-widget-resilience.test.mjs`.
+2. **ThreeDView Viewport Clean-Up (`components/ThreeDView.jsx`)**:
+   - Removed `WidgetCanvas` import, `customWidgets` and `selectedWidgetId` state hooks, and `/api/visualizations` fetch effect.
+   - Removed `isCustomSelected` topic active checks, simplifying topic selection to `active = topicId === t.id`.
+   - Purged all lingering `isCustomSelected`, `selectedWidgetId`, and `activeWidgetObj` references from `selectTopic`, `handleOpenStudy`, the header topic `<select>` dropdown, and syllabus `<span />`, preventing browser runtime `ReferenceError: isCustomSelected is not defined`.
+   - Eliminated conditional widget branching in the main viewport, directly rendering `CanvasComponent`, `VisualizationHUD`, and `ViewportHint`.
+3. **AI Service & Schemas Clean-Up (`lib/aiService.js` & `lib/schemas.js`)**:
+   - Removed `socraticChat`, `socraticWidget`, `normalizeWidget`, `normalizeDiagnostic`, `buildSocraticPrompt`, and related prompt templates from `lib/aiService.js`.
+   - Removed unused imports `DIAGNOSTIC_SCHEMA`, `RECOMMENDED_WIDGETS`, `OBJECT_KINDS`, `WIDGET_SCHEMA`, and `WIDGET_TYPES` from `lib/aiService.js`.
+   - Removed `DIAGNOSTIC_SCHEMA`, `RECOMMENDED_WIDGETS`, `WIDGET_SCHEMA`, `WIDGET_TYPES`, and `OBJECT_KINDS` from `lib/schemas.js`.
+4. **Documentation Audit & Synchronization (`CODEBASE_SUMMARY.md` & `README.md`)**:
+   - `CODEBASE_SUMMARY.md`: Removed "dynamic 3D concept widgets" from Executive Summary, removed `socratic/widget` and `socratic/chat` from Tech Stack fallback routes, removed `socratic/` routes and `WidgetCanvas.jsx` from File Map, removed Section 3.E widget bullet, and removed `ai-widget-resilience.test.mjs` from test suite list.
+   - `README.md`: Removed widget references from project description, updated Section 5 header to "Socratic AI Tutor, Explain & Reformat", removed widget bullet, and pruned file tree (`socratic/chat` replaced by `tutor/chat`) and test suite list.
+5. **Automated Verification**:
+   - All 528 tests across 136 suites pass cleanly with zero errors.
+
+---
+
+## 80. Shadow Lab 3D Visualization: Light Rays, Toggle, and Bench Ruler Scale Streamlining
+
+### Problem Statement
+- In the "Light, Shadows & Straight Lines" optical bench 3D visualization (`ShadowLabCanvas.jsx`), light rays were drawn as thin yellow/blue lines connecting the lamp, object perimeter, and projection screen (`LightRays`).
+- A toggle button in the HUD controls ("Show light rays") controlled their visibility.
+- Additionally, the apparatus base rendered an artificial printed centimetre ruler strip (`#e7e3d6`), tick marks, centimeter numerical labels (`0 cm`, `40 cm`, etc.), and a 10cm grid overlay on top of the bench surface.
+- The user requested completely removing the light rays and the ray toggle, as well as removing the ruler scale and grid at the bottom to render the bench as a clean, normal apparatus base.
+
+### Root Cause Analysis
+- The ray vector lines and measurement tick scale were intended as an educational visualization aid, but added unnecessary visual clutter to the 3D scene and HUD control panel.
+- The primary focus of the simulation is the dynamic, physically accurate shadow formation directly projected onto the screen canvas (umbra/penumbra calculations, magnification, and material transmission).
+
+### Resolution & Architectural Enhancements
+1. **Removed Ray Geometry & Components (`components/visualizations/ShadowLabCanvas.jsx`)**:
+   - Completely removed the `LightRays` React component and its memoized ray geometry calculation.
+   - Removed `Line` and `Grid` imports from `@react-three/drei`.
+   - Removed unused `PALETTE` import from `scene-kit`.
+   - Removed `<LightRays ... />` from `SceneCanvas`.
+   - Removed "Edge rays" and "Centre ray" from `SceneLegend` items.
+2. **HUD Controls Panel Simplification**:
+   - Removed `showRays` state hook and its default reset assignment in `reset()`.
+   - Removed `<Toggle label="Show light rays" checked={showRays} onChange={setShowRays} />` from the HUD controls panel.
+3. **Bench Apparatus Base Streamlining & Rescaling**:
+   - Stripped the floor ruler mesh, tick marks (`ticks.map`), and centimetre `SceneLabel` elements from `function Bench()`.
+   - Removed the `<Grid ... />` surface overlay from `SceneCanvas`.
+   - Rescaled the base to an expansive, squarer $160\text{ cm} \times 160\text{ cm}$ footprint (`args={[cm(160), 0.14, cm(160)]}`) centered on the optical axis with $20\text{ cm}$ of breathing room beyond the bench limits.
+   - Finished with a lighter, matte titanium slate material (`#8c9cb3`, `roughness={0.65}`, `metalness={0.1}`) providing clear contrast against the studio background and receiving 3D object contact shadows.
+4. **Verification**:
+   - All 136 unit and integration test suites pass with 0 failures.
+   - Production Next.js build compiles without errors.
+
+---
+
+## 81. Table Block: Focus-Activated Drag Handles for Column and Row Reordering
+
+### Problem Statement
+- In the Table Block component (`TableBlock` in `components/BlockNoteEditor.jsx`), users could add columns/rows and delete them, but could not reorder or move existing columns or rows.
+- Re-arranging matrix data, comparison tables, or scientific observations required tedious manual copy-pasting across cells.
+- The user requested allowing moving columns and rows using handles that appear when focusing on a cell of that column or row, without cluttering the UI with buttons or keyboard shortcuts.
+
+### Root Cause Analysis
+- `TableBlock` previously only provided static `+ Column` / `+ Row` and hover delete (`removeColumn` / `removeRow`) operations.
+- There was no cell focus detection mechanism linking table data cells with column/row reorder actions.
+- Moving columns required an immutable 2D array transformation (moving the header item and every corresponding row element at that column index) while maintaining table data normalization and undo/redo history.
+
+### Resolution & Architectural Enhancements
+1. **Focus Tracking & Drag State Engine (`components/BlockNoteEditor.jsx`)**:
+   - Added `focusedCell: { rowIdx, colIdx, isHeader } | null` state to `TableBlock`.
+   - Enhanced `TableCell` with `onFocus` callback wired to its `contentEditable` div.
+   - Added table container `onBlur` guard with `contains(e.relatedTarget)` to cleanly clear `focusedCell` only when focus exits the table entirely.
+   - Added HTML5 drag state: `draggedCol`, `dragOverCol`, `draggedRow`, `dragOverRow`.
+2. **Column & Row Move State Mutation (`moveColumn` & `moveRow`)**:
+   - `moveColumn(fromIndex, toIndex)`: Splices and re-inserts the header in `tableData.headers`, and splices/re-inserts the cell value at `fromIndex` into `toIndex` across all rows in `tableData.rows`.
+   - `moveRow(fromIndex, toIndex)`: Splices and re-inserts the row at `fromIndex` into `toIndex` in `tableData.rows`.
+   - Calls `updateAndSave` with `recordHistory = true`, enabling instantaneous, lossless Undo (`Ctrl+Z`) and Redo (`Ctrl+Y`).
+   - Updates `focusedCell` to match the new position to preserve visual continuity.
+3. **Focus-Activated Drag Handles (`⠿`) & Visual Feedback**:
+   - **Column Handle**: Rendered at the top center of each column header `th` (`top-0.5 left-1/2 -translate-x-1/2`). Becomes visible (`opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40`) when any cell in that column is focused (or hovered).
+   - **Row Handle**: Rendered in a dedicated non-printing left gutter column (`w-8 min-w-[32px] select-none print:hidden`). Smoothly transforms from row index (`1, 2, 3...`) into an interactive duck-gold drag handle (`⠿`) when any cell in that row is focused (or hovered).
+   - **Visual Drag Indicators**: Target columns/rows highlight with `bg-duck-500/25 ring-2 ring-inset ring-duck-400/80` during drag-over.
+4. **Automated Unit Testing (`tests/unit/table-block.test.mjs`)**:
+   - Added 4 test cases verifying column moving across multiple headers/rows with undo/redo, row moving up/down with undo/redo, boundary out-of-bounds guards, and cell-focus handle visibility resolution.
+   - All 532 tests pass with 0 failures.
+
+---
+
+## 82. Space Customization: Full Editing, Space Renaming, Emoji Presets & Permanent Persistence
+
+### Problem Statement
+- Users could not edit space names or easily select custom space emojis from standard presets.
+- Space emojis for default spaces (School, Personal, Misc, Journal) would occasionally revert to hardcoded defaults (🎓, 🌱, 📦, 📓) upon browser refresh or note import.
+- Renaming a space required cascading updates across all dependent data stores (notes, trash, spaceDocuments, spaceSettings, Web Saver folders & bookmarks, quizzes, study sessions) to prevent orphaned records.
+
+### Root Cause Analysis
+1. **Default Space Overwriting on Hydration**:
+   - In `Workspace.jsx`, `spaces.filter(s => !SPACES.find(bs => bs.name === s.name))` explicitly excluded default spaces from `socratic_custom_spaces`.
+   - When default spaces were customized (e.g. changing School's icon from 🎓 to 🏫 or 🪐), the custom emoji was omitted from storage.
+   - On reload or note import, `SPACES.forEach(s => merged.set(s.name, s))` re-applied default emojis, reverting user customizations.
+2. **Missing Edit Affordances in Sidebar**:
+   - The Sidebar only allowed creating new spaces or deleting them; there was no edit trigger or modal to rename spaces or change emojis.
+3. **Limited Customization in Space Hub**:
+   - `SpaceHubView.jsx` only offered a small text field for emoji with no preset buttons, and lacked a space renaming mechanism.
+
+### Resolution & Architectural Enhancements
+1. **Shared Emoji Presets (`lib/constants.js`)**:
+   - Exported `SPACE_ICON_OPTIONS` containing 26 curated emojis across academics, STEM, humanities, creativity, and lifestyle (`📂`, `🎓`, `🌱`, `📦`, `📓`, `🧪`, `🎨`, `🏋️`, `💼`, `🎯`, `🔬`, `💻`, `📚`, `💡`, `⚡`, `🚀`, `🧠`, `🌎`, `🎵`, `🛠️`, `🪐`, `🧬`, `📐`, `📝`, `☕`, `🎮`).
+2. **Unified Persistence Layer (`lib/storageService.js`)**:
+   - `saveAllSpaces(spaces)`: Writes the complete spaces array to `localStorage.getItem("socratic_spaces")`, maintains backward compatibility via `socratic_custom_spaces`, and mirrors each space's `icon` and `blurb` to Dexie IndexedDB `db.spaceSettings`.
+   - `getSavedSpaces()`: Restores spaces by merging base `SPACES`, `socratic_spaces`, `socratic_custom_spaces`, and Dexie `db.spaceSettings`, ensuring custom emojis on default spaces are never overwritten.
+   - `renameSpace(oldSpaceName, newSpaceName, newIcon, newBlurb)`: Atomically renames spaces across 8 data stores in Dexie IndexedDB (`notes`, `trash`, `spaceDocuments`, `spaceSettings`, `folders`, `bookmarks`, `quizzes`, `studySessions`) and updates `localStorage`.
+3. **Workspace Handlers & Hydration (`components/Workspace.jsx`)**:
+   - Implemented `handleRenameSpace` and `handleEditSpace` updating in-memory `spaces`, `notesBySpace`, and `sessions`.
+   - Updated `loadLocalWorkspace` and `handleImportSuccess` to restore spaces via `getSavedSpaces()`.
+   - Passed `onEditSpace` and `onRenameSpace` down to `<Sidebar />` and `<SpaceHubView />`.
+4. **Interactive Sidebar Space Editing (`components/Sidebar.jsx`)**:
+   - Created `EditSpaceModal` with custom emoji text input, 26 preset emoji buttons, space name input with duplicate validation, optional blurb, save and delete buttons.
+   - Added `Pencil` edit button to each space item in both Grid View and Dropdown View with hover disclosure.
+5. **Space Hub Branding Upgrades (`components/SpaceHubView.jsx`)**:
+   - Added Space Name input with duplicate validation and "Rename" action button.
+   - Added 26 quick-pick emoji buttons under the emoji input with active selection highlighting.
+6. **Automated Verification (`tests/unit/space-hub.test.mjs`)**:
+   - Added 4 test cases verifying preset exports, emoji persistence without default reversion, cascading rename, and name validation. All 536 tests pass. Production Next.js build compiled successfully. Production server active on port 3000.
+
+---
+
+## 83. Editor Whitespace Backspace Bug: Preventing Accidental Block Deletion When Space is Typed
+
+### Problem Statement
+- In any block (plain text paragraph, bullet list, numbered list, heading, math, or code), when a user typed a space (`" "`) and then immediately pressed Backspace, the editor did not delete the space character. Instead, it deleted the entire block (or converted a list/heading to plain text immediately) and moved the caret to the block above.
+- Users expect pressing Backspace after typing a space to delete the space character naturally, deleting the block only when the block is truly empty (0 characters).
+
+### Root Cause Analysis
+1. **Aggressive Trimming in `isCaretAtLogicalStart` (`lib/editorCaret.js`)**:
+   - `isCaretAtLogicalStart(el)` contained `if (!cleanZeroWidth(full).trim()) return true;`. Because `trim()` converts `" "` into `""`, any block containing only whitespace was considered to have caret at offset 0 (logical start) even when the caret was positioned after the typed space at offset 1!
+2. **Aggressive Trimming in Main KeyDown Handler (`components/BlockNoteEditor.jsx`)**:
+   - In `handleKeyDown` (Backspace):
+     - `const isDomEmpty = !cleanZeroWidth(currentDOMText).trim();`
+     - `if (cleanZeroWidth(split.textBefore).trim().length === 0) { isAtStart = true; }`
+     - `if (!isAtStart && (!block.content || cleanZeroWidth(block.content).trim() === "")) { isAtStart = true; }`
+     - `if (block.type === "text" && (block.content === "" || isDomEmpty || currentDOMText === "")) { ... setBlocks(prev => prev.filter(b => b.id !== blockId)); }`
+   - Because `trim()` was called on `currentDOMText`, `isDomEmpty` evaluated to `true` when the DOM contained `" "`.
+   - Consequently, `isAtStart` was marked `true`, and the plain text block deletion branch executed `e.preventDefault()`, removing the block from state instead of allowing the browser to delete the space character natively.
+3. **Aggressive Trimming in MathBlock & CodeBlock**:
+   - `MathBlock` checked `(!formula || !formula.trim())` on Backspace.
+   - `CodeBlock` checked `(!block.content || !block.content.trim())` on Backspace.
+   - Both erroneously deleted the block when whitespace was present.
+4. **Enter Key Caret Start Checks**:
+   - In `handleKeyDown` (Enter), `isHeadingAtStart` and `isListAtStart` used `.trim().length === 0` on `textBefore`, which treated having a space before the caret as being at offset 0.
+
+### Resolution & Architectural Enhancements
+1. **Accurate Whitespace Preservation in Caret Utilities (`lib/editorCaret.js`)**:
+   - Updated `isCaretAtLogicalStart(el)`: replaced `if (!cleanZeroWidth(full).trim()) return true;` with `if (cleanZeroWidth(full).length === 0) return true;`.
+   - Normal whitespace characters (`" "`, `\t`, `\n`) retain their positive length, ensuring caret after a space returns `false` (not at start).
+2. **Strict Empty-Check Architecture in Editor (`components/BlockNoteEditor.jsx`)**:
+   - In `handleKeyDown` (Backspace):
+     - Compute clean strings without trimming:
+       ```javascript
+       const cleanDOM = cleanZeroWidth(currentDOMText);
+       const cleanContent = cleanZeroWidth(block.content || "");
+       const isDomEmpty = cleanDOM.length === 0 && cleanContent.length === 0;
+       ```
+     - Initialize `isAtStart` strictly based on zero-length:
+       ```javascript
+       let isAtStart = cleanDOM.length === 0;
+       ```
+     - Check caret range without `.trim()`:
+       ```javascript
+       if (cleanZeroWidth(split.textBefore).length === 0) { isAtStart = true; }
+       ```
+     - Update plain text block deletion to only trigger when truly empty:
+       ```javascript
+       if (block.type === "text" && isDomEmpty)
+       ```
+     - Update list/heading un-formatting to only trigger when caret is at offset 0 or block is truly empty:
+       ```javascript
+       if (block.type !== "text" && (isAtStart || isDomEmpty))
+       ```
+3. **Specialized Block Cleanups (`MathBlock` & `CodeBlock`)**:
+   - `MathBlock`: changed backspace guard to `(!formula || formula.length === 0)`.
+   - `CodeBlock`: changed backspace guard to `(!block.content || block.content.length === 0)`.
+4. **Forward Delete Refactoring**:
+   - In forward Delete key handling, changed `(!targetBlock.content || targetBlock.content.trim() === "")` to `(!targetBlock.content || cleanZeroWidth(targetBlock.content).length === 0)`.
+5. **Automated Unit Testing (`tests/unit/bullet-number-heading-fixes.test.mjs`)**:
+   - Added test cases verifying:
+     - `isCaretAtLogicalStart` returns `false` when caret is after typed space in input, textarea, and contenteditable elements.
+     - `cleanZeroWidth` preserves whitespace lengths (`" ".length === 1`).
+     - Block deletion simulation ensures Backspace on `" "` is not prevented and does not delete the block, while Backspace on `""` cleanly deletes the empty block.
+   - All **539 unit and integration tests** pass with 0 errors.
+
 

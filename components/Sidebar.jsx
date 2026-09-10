@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical } from "lucide-react";
+import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical, Star, Trash2, FolderInput, Copy, ListChecks, Pencil } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, detectHardwareGraphics } from "@/lib/db.js";
@@ -9,7 +9,7 @@ import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement } from "@/
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
-import { SPACES } from "@/lib/constants";
+import { SPACES, SPACE_ICON_OPTIONS } from "@/lib/constants";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -1150,12 +1150,14 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
   const inputRef = useRef(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📂");
+  const [blurb, setBlurb] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setName("");
       setIcon("📂");
+      setBlurb("");
       setError("");
       setTimeout(() => inputRef.current?.focus(), 60);
     }
@@ -1176,13 +1178,11 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
       setError(`A space named "${trimmed}" already exists.`);
       return;
     }
-    onCreate({ name: trimmed, icon, blurb: "" });
+    onCreate({ name: trimmed, icon: icon || "📂", blurb: blurb.trim() });
     onClose();
   }
 
   if (!open) return null;
-
-  const ICON_OPTIONS = ["📂", "🎓", "🌱", "📦", "🧪", "🎨", "🏋️", "💼", "🎯", "🔬"];
 
   return (
     <>
@@ -1198,7 +1198,10 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
         className="fixed left-1/2 top-1/2 z-[210] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
-          <h2 className="text-sm font-semibold text-ink-100">Create New Space</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-base">{icon || "📂"}</span>
+            <h2 className="text-sm font-semibold text-ink-100">Create New Space</h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -1209,18 +1212,29 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
           </button>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-5 px-5 py-5">
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
           <div>
-            <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
-              Icon
+            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
+              Space Emoji
             </label>
-            <div className="flex flex-wrap gap-1.5">
-              {ICON_OPTIONS.map((emoji) => (
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                maxLength={4}
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="📂"
+                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+              <span className="text-xs text-ink-400">Pick below or type any custom emoji</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-0.5">
+              {SPACE_ICON_OPTIONS.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => setIcon(emoji)}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg transition-all ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all ${
                     icon === emoji
                       ? "bg-duck-500/20 ring-2 ring-duck-400"
                       : "bg-ink-850 hover:bg-ink-800"
@@ -1234,14 +1248,14 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
 
           <div>
             <label
-              htmlFor="space-name"
-              className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+              htmlFor="create-space-name"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
             >
               Name
             </label>
             <input
               ref={inputRef}
-              id="space-name"
+              id="create-space-name"
               type="text"
               value={name}
               onChange={(e) => {
@@ -1255,21 +1269,229 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
             {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div>
+            <label
+              htmlFor="create-space-blurb"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+            >
+              Description / Tagline (Optional)
+            </label>
+            <input
+              id="create-space-blurb"
+              type="text"
+              value={blurb}
+              onChange={(e) => setBlurb(e.target.value)}
+              placeholder="e.g. Courses, problem sets & exam preparation"
+              maxLength={80}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-ink-800">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-3.5 py-2 text-sm text-ink-400 transition-colors hover:text-ink-200"
+              className="rounded-lg px-3.5 py-1.5 text-xs text-ink-400 transition-colors hover:text-ink-200"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
-              className="rounded-lg bg-duck-400 px-4 py-2 text-sm font-medium text-ink-950 transition-opacity disabled:opacity-30"
+              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-duck-300 shadow-sm cursor-pointer"
             >
               Create
             </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+// ─── Edit Space Modal ───────────────────────────────────────────────
+function EditSpaceModal({
+  open,
+  onClose,
+  space,
+  onSave,
+  onDelete,
+  canDelete = false,
+  spaces = [],
+}) {
+  const inputRef = useRef(null);
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("📂");
+  const [blurb, setBlurb] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open && space) {
+      setName(space.name || "");
+      setIcon(space.icon || "📂");
+      setBlurb(space.blurb || "");
+      setError("");
+      setTimeout(() => inputRef.current?.focus(), 60);
+    }
+  }, [open, space]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (
+      trimmed.toLowerCase() !== (space?.name || "").toLowerCase() &&
+      spaces.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      setError(`A space named "${trimmed}" already exists.`);
+      return;
+    }
+    onSave?.(space.name, { name: trimmed, icon: icon || "📂", blurb: blurb.trim() });
+    onClose();
+  }
+
+  if (!open || !space) return null;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        className="fixed inset-0 z-[200] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit Space"
+        className="fixed left-1/2 top-1/2 z-[210] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+      >
+        <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-base">{icon || "📂"}</span>
+            <h2 className="text-sm font-semibold text-ink-100">Edit Space</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md px-2 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+          >
+            ✕
+          </button>
+        </header>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
+          <div>
+            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
+              Space Emoji
+            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                maxLength={4}
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="📂"
+                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              />
+              <span className="text-xs text-ink-400">Pick below or type any custom emoji</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-0.5">
+              {SPACE_ICON_OPTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => setIcon(emoji)}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all ${
+                    icon === emoji
+                      ? "bg-duck-500/20 ring-2 ring-duck-400"
+                      : "bg-ink-850 hover:bg-ink-800"
+                  }`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="edit-space-name"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+            >
+              Name
+            </label>
+            <input
+              ref={inputRef}
+              id="edit-space-name"
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError("");
+              }}
+              placeholder="e.g. Research"
+              maxLength={32}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            />
+            {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
+          </div>
+
+          <div>
+            <label
+              htmlFor="edit-space-blurb"
+              className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-ink-500"
+            >
+              Description / Tagline (Optional)
+            </label>
+            <input
+              id="edit-space-blurb"
+              type="text"
+              value={blurb}
+              onChange={(e) => setBlurb(e.target.value)}
+              placeholder="e.g. Courses, problem sets & exam preparation"
+              maxLength={80}
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-ink-800">
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete?.(space.name);
+                }}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/15 transition-colors"
+              >
+                Delete Space
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-3 py-1.5 text-xs text-ink-400 transition-colors hover:text-ink-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim()}
+                className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-duck-300 shadow-sm cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -1401,10 +1623,173 @@ function TrashModal({
   );
 }
 
+// ─── Batch Delete Confirmation Dialog ────────────────────────────────
+function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
+  if (!open || count === 0) return null;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        className="fixed inset-0 z-[220] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Confirm Move Notes to Trash"
+        className="fixed left-1/2 top-1/2 z-[230] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-rose-500/30 bg-ink-900 shadow-2xl overflow-hidden"
+      >
+        <header className="flex items-center justify-between border-b border-rose-500/20 bg-rose-500/10 px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🗑️</span>
+            <div>
+              <h3 className="text-sm font-bold text-rose-200">
+                Move {count} Note{count === 1 ? "" : "s"} to Trash?
+              </h3>
+              <p className="text-[11px] text-ink-400 mt-0.5">
+                Deleted notes are kept in Trash for 24 hours before permanent removal.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-ink-500 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div className="p-5 space-y-4">
+          {/* Note List Preview */}
+          <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-3 max-h-48 overflow-y-auto space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-ink-500 pb-1 border-b border-ink-800/80">
+              Notes to be moved to trash:
+            </div>
+            {notes.slice(0, 5).map((note) => (
+              <div key={note.id} className="flex items-center gap-2 text-xs text-ink-200 truncate py-0.5">
+                <span className="text-sm shrink-0 leading-none">{note.emoji || "📝"}</span>
+                <span className="truncate font-medium">{note.title || "Untitled Note"}</span>
+              </div>
+            ))}
+            {count > 5 && (
+              <div className="text-[11px] text-ink-500 italic pt-1">
+                ...and {count - 5} more note{count - 5 === 1 ? "" : "s"}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-xs font-medium text-ink-400 hover:bg-ink-800 hover:text-ink-200 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-rose-500 transition-colors cursor-pointer"
+            >
+              Move {count} Note{count === 1 ? "" : "s"} to Trash
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Batch Move to Space Modal ──────────────────────────────────────
+function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
+  if (!open || count === 0) return null;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        className="fixed inset-0 z-[220] bg-ink-950/70 backdrop-blur-sm transition-opacity"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Move Notes to Space"
+        className="fixed left-1/2 top-1/2 z-[230] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl overflow-hidden"
+      >
+        <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <FolderInput className="w-4 h-4 text-duck-400" />
+            <h3 className="text-sm font-bold text-ink-100">
+              Move {count} Note{count === 1 ? "" : "s"} to Space
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-ink-500 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div className="p-4 space-y-3">
+          <p className="text-[11px] font-medium text-ink-400 px-1">
+            Choose destination space:
+          </p>
+
+          <div className="space-y-1 max-h-60 overflow-y-auto">
+            {spaces.map((s) => {
+              const isCurrent = s.name === currentSpace;
+              return (
+                <button
+                  key={s.name}
+                  type="button"
+                  disabled={isCurrent}
+                  onClick={() => onSelectTargetSpace(s.name)}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-all cursor-pointer ${
+                    isCurrent
+                      ? "opacity-40 cursor-not-allowed bg-ink-950/40 text-ink-500 border border-transparent"
+                      : "hover:bg-duck-500/10 hover:text-duck-300 text-ink-200 hover:border-duck-500/30 border border-ink-800/60 bg-ink-850/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="text-sm leading-none shrink-0">{s.icon || "📂"}</span>
+                    <span className="truncate">{s.name}</span>
+                  </div>
+                  {isCurrent ? (
+                    <span className="text-[10px] text-ink-500 shrink-0">(Current)</span>
+                  ) : (
+                    <span className="text-xs text-ink-500 group-hover:text-duck-300 shrink-0">→</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-end pt-2 border-t border-ink-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-3.5 py-1.5 text-xs text-ink-400 hover:bg-ink-800 hover:text-ink-200 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Sidebar (main export) ──────────────────────────────────────────
 export default function Sidebar({
   spaces,
   setSpaces,
+  onEditSpace,
+  onRenameSpace,
   handleDeleteSpace,
   activeSpace,
   onSelectSpace,
@@ -1436,8 +1821,13 @@ export default function Sidebar({
   onDuplicateNote,
   onMoveNote,
   onRenameNote,
+  onDeleteMultipleNotes,
+  onMoveMultipleNotes,
+  onToggleFavoriteMultipleNotes,
+  onDuplicateMultipleNotes,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingSpace, setEditingSpace] = useState(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
@@ -1445,6 +1835,10 @@ export default function Sidebar({
   const [spaceSwitcherLayout, setSpaceSwitcherLayout] = useState("dropdown"); // "dropdown" | "grid"
   const [draggingNoteId, setDraggingNoteId] = useState(null);
   const [dragOverInfo, setDragOverInfo] = useState(null); // { id: string, position: 'top' | 'bottom' }
+  const [isMultiSelecting, setIsMultiSelecting] = useState(false);
+  const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchMoveOpen, setBatchMoveOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -1512,6 +1906,42 @@ export default function Sidebar({
 
   const currentNotes = (notesBySpace && notesBySpace[activeSpace]) || [];
   const currentSpaceObj = spaces.find((s) => s.name === activeSpace) || spaces[0];
+
+  // Reset selection when switching spaces
+  useEffect(() => {
+    setSelectedNoteIds(new Set());
+  }, [activeSpace]);
+
+  // Exit multi-select mode if active space has no notes
+  useEffect(() => {
+    if (currentNotes.length === 0 && isMultiSelecting) {
+      setIsMultiSelecting(false);
+      setSelectedNoteIds(new Set());
+    }
+  }, [currentNotes.length, isMultiSelecting]);
+
+  const handleToggleSelectNote = useCallback((noteId) => {
+    setSelectedNoteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) {
+        next.delete(noteId);
+      } else {
+        next.add(noteId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllToggle = useCallback(() => {
+    if (selectedNoteIds.size === currentNotes.length) {
+      setSelectedNoteIds(new Set());
+    } else {
+      setSelectedNoteIds(new Set(currentNotes.map((n) => n.id)));
+    }
+  }, [selectedNoteIds.size, currentNotes]);
+
+  const selectedNotesList = currentNotes.filter((n) => selectedNoteIds.has(n.id));
+  const allSelectedAreStarred = selectedNotesList.length > 0 && selectedNotesList.every((n) => Boolean(n.isFavorite));
 
   return (
     <>
@@ -1658,19 +2088,32 @@ export default function Sidebar({
                       <span className="truncate text-xs">{space.name}</span>
                     </button>
 
-                    {spaces.length > 1 && (
+                    <div className="flex items-center shrink-0 ml-1">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteSpace(space.name);
+                          setEditingSpace(space);
                         }}
-                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all shrink-0 ml-1"
-                        title="Delete space"
+                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-ink-700/60 text-ink-400 hover:text-duck-300 transition-all cursor-pointer"
+                        title="Edit space (name & emoji)"
                       >
-                        ✕
+                        <Pencil className="w-3 h-3" />
                       </button>
-                    )}
+                      {spaces.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSpace(space.name);
+                          }}
+                          className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-0.5 cursor-pointer"
+                          title="Delete space"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1726,7 +2169,7 @@ export default function Sidebar({
                               onSelectSpace(space.name);
                               setSpacesDropdownOpen(false);
                             }}
-                            className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate"
+                            className="flex-1 flex items-center px-2.5 py-1.5 text-xs text-left truncate cursor-pointer"
                           >
                             <div className="flex items-center gap-2 truncate">
                               <span className="text-sm leading-none">{space.icon}</span>
@@ -1737,21 +2180,33 @@ export default function Sidebar({
                             )}
                           </button>
                           
-                          {spaces.length > 1 && (
-                            <div className="flex items-center shrink-0 pr-1">
+                          <div className="flex items-center shrink-0 pr-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSpacesDropdownOpen(false);
+                                setEditingSpace(space);
+                              }}
+                              className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-ink-700/60 text-ink-400 hover:text-duck-300 transition-all cursor-pointer"
+                              title="Edit space (name & emoji)"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            {spaces.length > 1 && (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteSpace(space.name);
                                 }}
-                                className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-1"
+                                className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-rose-500/20 text-ink-500 hover:text-rose-400 transition-all ml-0.5 cursor-pointer"
                                 title="Delete space"
                               >
                                 ✕
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -1804,9 +2259,115 @@ export default function Sidebar({
 
         {/* ─── Notes list ─────────────────────────────── */}
         <div className="mt-3 flex-1 overflow-y-auto px-3">
-          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">
-            {activeSpace} · Notes
-          </p>
+          <div className="flex items-center justify-between px-2 pb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">
+              {activeSpace} · Notes
+            </p>
+            {currentNotes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMultiSelecting((prev) => {
+                    if (prev) {
+                      setSelectedNoteIds(new Set());
+                    }
+                    return !prev;
+                  });
+                }}
+                className={`text-[11px] px-2 py-0.5 rounded transition-all font-medium flex items-center gap-1 cursor-pointer ${
+                  isMultiSelecting
+                    ? "bg-duck-500/20 text-duck-300 ring-1 ring-duck-400/40 font-semibold"
+                    : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
+                }`}
+                title={isMultiSelecting ? "Exit multi-select mode" : "Select multiple notes"}
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+                <span>{isMultiSelecting ? "Done" : "Select"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Multi-Select Action Bar */}
+          {isMultiSelecting && (
+            <div className="mb-2.5 p-2 rounded-xl bg-ink-850/90 border border-ink-750 shadow-sm space-y-2">
+              <div className="flex items-center justify-between text-xs px-1 font-medium">
+                <span className="text-ink-200">
+                  <strong className="text-duck-300 font-bold">{selectedNoteIds.size}</strong> of {currentNotes.length} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSelectAllToggle}
+                  className="text-[11px] text-duck-400 hover:text-duck-300 hover:underline cursor-pointer font-medium"
+                >
+                  {selectedNoteIds.size === currentNotes.length ? "Deselect All" : "Select All"}
+                </button>
+              </div>
+
+              {/* Bulk Action Buttons Grid */}
+              <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-ink-800/80">
+                {/* Star / Unstar Button */}
+                <button
+                  type="button"
+                  disabled={selectedNoteIds.size === 0}
+                  onClick={async () => {
+                    const ids = Array.from(selectedNoteIds);
+                    if (onToggleFavoriteMultipleNotes) {
+                      await onToggleFavoriteMultipleNotes(ids);
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-ink-300 hover:text-amber-300 hover:bg-ink-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer group"
+                  title={allSelectedAreStarred ? "Unstar selected notes" : "Star selected notes"}
+                >
+                  <Star className={`w-3.5 h-3.5 text-amber-400 ${allSelectedAreStarred ? "fill-amber-400" : ""}`} />
+                  <span className="text-[10px] font-medium leading-none">
+                    {allSelectedAreStarred ? "Unstar" : "Star"}
+                  </span>
+                </button>
+
+                {/* Duplicate Button */}
+                <button
+                  type="button"
+                  disabled={selectedNoteIds.size === 0}
+                  onClick={async () => {
+                    const ids = Array.from(selectedNoteIds);
+                    setSelectedNoteIds(new Set());
+                    if (onDuplicateMultipleNotes) {
+                      await onDuplicateMultipleNotes(ids);
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-ink-300 hover:text-sky-300 hover:bg-ink-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                  title="Duplicate selected notes"
+                >
+                  <Copy className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="text-[10px] font-medium leading-none">Copy</span>
+                </button>
+
+                {/* Move Button */}
+                <button
+                  type="button"
+                  disabled={selectedNoteIds.size === 0}
+                  onClick={() => setBatchMoveOpen(true)}
+                  className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-ink-300 hover:text-duck-300 hover:bg-ink-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                  title="Move selected notes to another space"
+                >
+                  <FolderInput className="w-3.5 h-3.5 text-duck-400" />
+                  <span className="text-[10px] font-medium leading-none">Move</span>
+                </button>
+
+                {/* Delete to Trash Button (requires confirmation) */}
+                <button
+                  type="button"
+                  disabled={selectedNoteIds.size === 0}
+                  onClick={() => setBatchDeleteOpen(true)}
+                  className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                  title="Move selected notes to trash (requires confirmation)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-medium leading-none">Delete</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {currentNotes.length === 0 ? (
             <p className="px-2.5 py-2 text-sm text-ink-500 italic">No notes in this space yet.</p>
@@ -1814,12 +2375,14 @@ export default function Sidebar({
             <ul
               className="space-y-1"
               onDragOver={(e) => {
+                if (isMultiSelecting) return;
                 if (e.target === e.currentTarget) {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "move";
                 }
               }}
               onDrop={(e) => {
+                if (isMultiSelecting) return;
                 if (e.target === e.currentTarget) {
                   e.preventDefault();
                   const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
@@ -1840,11 +2403,13 @@ export default function Sidebar({
                 const isActive = activeNoteId === n.id;
                 const isDragging = draggingNoteId === n.id;
                 const isDragOver = dragOverInfo?.id === n.id;
+                const isSelected = selectedNoteIds.has(n.id);
 
                 return (
                   <li
                     key={n.id}
                     onDragOver={(e) => {
+                      if (isMultiSelecting) return;
                       e.preventDefault();
                       e.stopPropagation();
                       const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
@@ -1859,6 +2424,7 @@ export default function Sidebar({
                       });
                     }}
                     onDragLeave={(e) => {
+                      if (isMultiSelecting) return;
                       e.stopPropagation();
                       if (!e.currentTarget.contains(e.relatedTarget)) {
                         if (dragOverInfo?.id === n.id) {
@@ -1867,6 +2433,7 @@ export default function Sidebar({
                       }
                     }}
                     onDrop={(e) => {
+                      if (isMultiSelecting) return;
                       e.preventDefault();
                       e.stopPropagation();
                       const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
@@ -1904,11 +2471,17 @@ export default function Sidebar({
                       onReorderNotes?.(activeSpace, updated);
                     }}
                     className={`group relative flex items-center justify-between gap-0.5 rounded-lg transition-all ${
-                      isDragging ? "opacity-30 bg-ink-800/50" : "hover:bg-ink-850"
+                      isMultiSelecting
+                        ? isSelected
+                          ? "bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200 shadow-xs"
+                          : "hover:bg-ink-850 text-ink-300"
+                        : isDragging
+                        ? "opacity-30 bg-ink-800/50"
+                        : "hover:bg-ink-850"
                     }`}
                   >
                     {/* Visual Placement Indicator */}
-                    {isDragOver && (
+                    {!isMultiSelecting && isDragOver && (
                       <div
                         className={`absolute left-0 right-0 h-0.5 z-20 bg-duck-400 rounded-full shadow-[0_0_8px_rgba(240,192,74,0.9)] pointer-events-none ${
                           dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
@@ -1916,30 +2489,60 @@ export default function Sidebar({
                       />
                     )}
 
-                    {/* Drag Handle Grip */}
-                    <div
-                      draggable
-                      onDragStart={(e) => {
-                        e.stopPropagation();
-                        setDraggingNoteId(n.id);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("text/plain", n.id);
-                      }}
-                      onDragEnd={() => {
-                        setDraggingNoteId(null);
-                        setDragOverInfo(null);
-                      }}
-                      title="Drag to reorder note"
-                      className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-duck-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <GripVertical className="w-3.5 h-3.5" />
-                    </div>
+                    {/* Drag Handle Grip OR Checkbox indicator in selection mode */}
+                    {isMultiSelecting ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelectNote(n.id);
+                        }}
+                        className="flex items-center justify-center p-1.5 pl-2 shrink-0 cursor-pointer"
+                        title={isSelected ? "Deselect note" : "Select note"}
+                      >
+                        <span
+                          className={`flex items-center justify-center w-4 h-4 rounded transition-all ${
+                            isSelected
+                              ? "border border-duck-400 bg-duck-500 text-ink-950 shadow-xs"
+                              : "border border-ink-600 hover:border-duck-400/70 bg-ink-850"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </span>
+                      </button>
+                    ) : (
+                      <div
+                        draggable
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          setDraggingNoteId(n.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", n.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingNoteId(null);
+                          setDragOverInfo(null);
+                        }}
+                        title="Drag to reorder note"
+                        className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-duck-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </div>
+                    )}
 
                     <button
                       type="button"
-                      onClick={() => onSelectNote?.(n)}
-                      className={`flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm min-w-0 transition-colors ${
-                        isActive
+                      onClick={() => {
+                        if (isMultiSelecting) {
+                          handleToggleSelectNote(n.id);
+                        } else {
+                          onSelectNote?.(n);
+                        }
+                      }}
+                      className={`flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm min-w-0 transition-colors cursor-pointer ${
+                        isMultiSelecting && isSelected
+                          ? "text-duck-200 font-semibold"
+                          : isActive && !isMultiSelecting
                           ? "bg-ink-800 text-ink-100 font-semibold shadow-xs"
                           : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/40 font-medium"
                       }`}
@@ -1951,22 +2554,24 @@ export default function Sidebar({
                       )}
                     </button>
 
-                    <div className="shrink-0 pr-1 flex items-center">
-                      <NoteMenu
-                        mode="sidebar"
-                        note={n}
-                        spaces={spaces}
-                        onSaveNote={onSaveNote}
-                        onToggleFavorite={onToggleFavorite}
-                        onDuplicateNote={onDuplicateNote}
-                        onMoveNote={onMoveNote}
-                        onRenameNote={onRenameNote}
-                        onDeleteNote={onDeleteNote}
-                        variant="icon"
-                        align="right"
-                        className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
-                      />
-                    </div>
+                    {!isMultiSelecting && (
+                      <div className="shrink-0 pr-1 flex items-center">
+                        <NoteMenu
+                          mode="sidebar"
+                          note={n}
+                          spaces={spaces}
+                          onSaveNote={onSaveNote}
+                          onToggleFavorite={onToggleFavorite}
+                          onDuplicateNote={onDuplicateNote}
+                          onMoveNote={onMoveNote}
+                          onRenameNote={onRenameNote}
+                          onDeleteNote={onDeleteNote}
+                          variant="icon"
+                          align="right"
+                          className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                        />
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -2011,6 +2616,16 @@ export default function Sidebar({
         spaces={spaces}
       />
 
+      <EditSpaceModal
+        open={Boolean(editingSpace)}
+        space={editingSpace}
+        onClose={() => setEditingSpace(null)}
+        onSave={(spaceName, updates) => onEditSpace?.(spaceName, updates)}
+        onDelete={(spaceName) => handleDeleteSpace(spaceName)}
+        canDelete={spaces.length > 1}
+        spaces={spaces}
+      />
+
       <TrashModal
         open={trashOpen}
         onClose={() => setTrashOpen(false)}
@@ -2036,6 +2651,38 @@ export default function Sidebar({
       <FeatureRequestModal
         open={featureRequestOpen}
         onClose={() => setFeatureRequestOpen(false)}
+      />
+
+      {/* Batch Operation Modals */}
+      <BatchDeleteConfirmModal
+        open={batchDeleteOpen}
+        count={selectedNoteIds.size}
+        notes={selectedNotesList}
+        onClose={() => setBatchDeleteOpen(false)}
+        onConfirm={async () => {
+          const ids = Array.from(selectedNoteIds);
+          setBatchDeleteOpen(false);
+          setSelectedNoteIds(new Set());
+          if (onDeleteMultipleNotes) {
+            await onDeleteMultipleNotes(ids);
+          }
+        }}
+      />
+
+      <BatchMoveModal
+        open={batchMoveOpen}
+        count={selectedNoteIds.size}
+        currentSpace={activeSpace}
+        spaces={spaces}
+        onClose={() => setBatchMoveOpen(false)}
+        onSelectTargetSpace={async (targetSpace) => {
+          const ids = Array.from(selectedNoteIds);
+          setBatchMoveOpen(false);
+          setSelectedNoteIds(new Set());
+          if (onMoveMultipleNotes) {
+            await onMoveMultipleNotes(ids, targetSpace);
+          }
+        }}
       />
     </>
   );

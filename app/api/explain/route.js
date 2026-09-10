@@ -7,6 +7,7 @@ import {
   readUsage,
 } from "@/lib/gemini";
 import { EXPLAIN_SCHEMA } from "@/lib/schemas";
+import { sanitizeMathText } from "@/lib/mathUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ How to write:
 - If their notes say outright that something confuses them, that is the most
   important thing on the page. Address it directly.
 - Plain language. Define a term the first time you need it, then use it.
-- Format all mathematical expressions, variables, formulas, chemical equations, and units in LaTeX (e.g. $f(x) = 0$, $E = mc^2$, $\\text{H}_2\\text{O}$, $$\\int_a^b f(x)dx$$). Never leave equations in plain unformatted text.
+- Format all mathematical expressions, variables, formulas, chemical equations, and units in LaTeX wrapped in math delimiters (e.g. $f(x) = 0$, $E = mc^2$, $\\text{H}_2\\text{O}$, $\\frac{a}{b}$, $$\\int_a^b f(x)dx$$). Always enclose every formula, fraction ($\\frac{...}{...}$), and text label ($\\text{...}$) inside dollar delimiters ($...$ or $$...$$). In JSON strings, always properly double-escape backslashes (e.g. "\\\\frac{a}{b}", "\\\\text{...}"). Never output raw "\\ext" (use "\\text"). Never leave equations in plain unformatted text.
 - Use clean inline markdown (**bold**, *italic*, \`code\`) for structural emphasis and terminology.
 - Never pad. No "it is important to note", no restating the question, no
   congratulating them on a good question.
@@ -78,9 +79,9 @@ ${noteContent.trim()}
   return sections.join("\n\n");
 }
 
-/** Structured output guarantees the shape; this guards lengths and emptiness. */
+/** Structured output guarantees the shape; this guards lengths, emptiness, and heals math string escapes. */
 function normalizeExplanation(raw) {
-  const str = (v) => String(v ?? "").trim();
+  const str = (v) => sanitizeMathText(String(v ?? "")).trim();
   const list = (v) => (Array.isArray(v) ? v : []);
 
   return {

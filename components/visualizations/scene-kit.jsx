@@ -14,11 +14,10 @@ import { db, DEFAULT_GRAPHICS_SETTINGS } from "@/lib/db";
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * WebGL clear colour. Three.js cannot read Tailwind's `--color-ink-950`,
- * so this must be kept in step with globals.css by hand — otherwise the
- * viewport shows a seam against the page behind it.
+ * WebGL clear colour. Balanced studio slate (#273043): brighter than pitch-black (#090d16),
+ * calibrated to provide rich contrast and depth in both dark mode and light mode.
  */
-export const CANVAS_BG = "#090d16";
+export const CANVAS_BG = "#273043";
 
 export const PALETTE = {
   gold: "#fbbf24",
@@ -29,7 +28,7 @@ export const PALETTE = {
   violet: "#a78bfa",
   slate: "#64748b",
   bone: "#e8ebf0",
-  line: "#333a45",
+  line: "#525e76",
 };
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Grid, Line, RoundedBox } from "@react-three/drei";
+import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
   Eye,
@@ -14,7 +14,6 @@ import {
   Target,
 } from "lucide-react";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
   SceneLegend,
@@ -255,44 +254,12 @@ function useScreenCanvas(solved, letter, guides) {
 // ─── Bench furniture ────────────────────────────────────────────────
 
 function Bench() {
-  // Minor ticks every 10 cm, majors every 20, numbered every 40 — enough to
-  // read the bench by without seven labels floating over the apparatus.
-  const ticks = useMemo(() => {
-    const out = [];
-    for (let v = 0; v <= BENCH.max; v += 10) {
-      out.push({ v, major: v % 20 === 0, labelled: v % 40 === 0 });
-    }
-    return out;
-  }, []);
-
   return (
     <group>
-      <mesh position={[0, -0.06, 0]} receiveShadow>
-        <boxGeometry args={[cm(52), 0.12, cm(BENCH.max + 14)]} />
-        <meshStandardMaterial color="#252c38" roughness={0.85} metalness={0.05} />
+      <mesh position={[0, -0.07, 0]} receiveShadow>
+        <boxGeometry args={[cm(160), 0.14, cm(160)]} />
+        <meshStandardMaterial color="#8c9cb3" roughness={0.65} metalness={0.1} />
       </mesh>
-
-      {/* Floor ruler with printed centimetre marks. */}
-      <mesh position={[cm(-21), 0.01, 0]}>
-        <boxGeometry args={[cm(4.5), 0.02, cm(BENCH.max)]} />
-        <meshStandardMaterial color="#e7e3d6" roughness={0.7} />
-      </mesh>
-      {ticks.map(({ v, major, labelled }) => (
-        <group key={v} position={[cm(-21), 0.03, zAt(v)]}>
-          <mesh>
-            <boxGeometry args={[cm(major ? 3.6 : 2), 0.01, cm(major ? 0.5 : 0.35)]} />
-            <meshBasicMaterial color={major ? "#94a2b5" : "#5b6472"} />
-          </mesh>
-          {/* SceneLabel rather than drei's Text: troika fetches its font data
-              from a CDN at runtime, and nothing else in this app depends on
-              the network to draw a scene. */}
-          {labelled && (
-            <SceneLabel position={[cm(-5.5), 0, 0]} tone="text-ink-400">
-              {`${v} cm`}
-            </SceneLabel>
-          )}
-        </group>
-      ))}
     </group>
   );
 }
@@ -538,71 +505,6 @@ function ProjectionScreen({ benchZ, texture, curtain, overflows }) {
   );
 }
 
-/**
- * The rays themselves — the point of the whole lab.
- *
- * Each one is a single straight segment from the lamp, grazing an edge of the
- * object, continuing to the screen. They are drawn as ONE unbroken line
- * precisely so a child can see there is no bend at the object.
- */
-function LightRays({ lightZ, objectZ, screenZ, solved, visible }) {
-  const rays = useMemo(() => {
-    if (!visible) return [];
-    const { outline, sourceWidth } = solved;
-    const lightY = cm(AXIS_CM);
-    const out = [];
-    const t = (screenZ - lightZ) / Math.max(objectZ - lightZ, 0.1);
-    const edges = [
-      [outline.halfWidth, 0],
-      [-outline.halfWidth, 0],
-      [0, outline.halfHeight],
-      [0, -outline.halfHeight],
-    ];
-
-    // Rays leave the lamp's two EDGES, not its centre. Drawing them from the
-    // centre gave the geometric shadow only, which is narrower than the
-    // penumbra the readout reports — and it hid the very mechanism that makes
-    // a wide lamp blur the border in the first place.
-    const halfSource = sourceWidth / 2;
-    for (const [ex, ey] of edges) {
-      for (const sx of [-halfSource, halfSource]) {
-        // Offset the source point along whichever axis this edge lies on.
-        const sourceX = ex !== 0 ? sx : 0;
-        const sourceY = ey !== 0 ? sx : 0;
-        const landX = sourceX + (ex - sourceX) * t;
-        const landY = sourceY + (ey - sourceY) * t;
-        out.push({
-          points: [
-            [cm(sourceX), lightY + cm(sourceY), zAt(lightZ)],
-            [cm(ex), lightY + cm(ey), zAt(objectZ)],
-            [cm(landX), lightY + cm(landY), zAt(screenZ)],
-          ],
-          colour: ex !== 0 ? PALETTE.gold : PALETTE.sky,
-        });
-        // A pinpoint source's two edge rays sit on top of each other.
-        if (halfSource < 0.15) break;
-      }
-    }
-
-    // The undeviated central ray, straight down the axis.
-    out.push({
-      points: [
-        [0, lightY, zAt(lightZ)],
-        [0, lightY, zAt(screenZ)],
-      ],
-      colour: PALETTE.emerald,
-    });
-    return out;
-  }, [lightZ, objectZ, screenZ, solved, visible]);
-
-  return (
-    <group>
-      {rays.map((ray, i) => (
-        <Line key={i} points={ray.points} color={ray.colour} lineWidth={2.2} transparent opacity={0.9} />
-      ))}
-    </group>
-  );
-}
 
 // ─── Face-on view of the screen ─────────────────────────────────────
 
@@ -677,7 +579,6 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
   const [rotationDeg, setRotationDeg] = useState(0);
   const [material, setMaterial] = useState("opaque");
   const [source, setSource] = useState("point");
-  const [showRays, setShowRays] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
   const [game, setGame] = useState(null);
@@ -712,7 +613,6 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
     setRotationDeg(0);
     setMaterial("opaque");
     setSource("point");
-    setShowRays(true);
     setShowGuides(true);
     setGame(null);
   }, []);
@@ -750,16 +650,6 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
         controls={{ minDistance: 3, maxDistance: 30, target: [0, cm(AXIS_CM - 8), zAt(SCENE.targetBenchZ)] }}
         lights={{ ambient: 0.5, keyLight: 0.55 }}
       >
-        <Grid
-          position={[0, 0.001, 0]}
-          args={[cm(60), cm(BENCH.max + 20)]}
-          cellSize={cm(10)}
-          cellColor="#1e2531"
-          sectionSize={cm(50)}
-          sectionColor="#2b3442"
-          fadeDistance={30}
-          infiniteGrid={false}
-        />
         <Bench />
         <LightSource benchZ={lightZ} source={source} on />
         <TestObject shape={shape} rotation={rotation} material={material} benchZ={objectZ} />
@@ -769,20 +659,11 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
           curtain={curtain}
           overflows={overflows}
         />
-        <LightRays
-          lightZ={lightZ}
-          objectZ={objectZ}
-          screenZ={screenZ}
-          solved={solved}
-          visible={showRays && !curtain}
-        />
 
         <SceneLegend
           corner="top-right"
           title="What to look for"
           items={[
-            { color: PALETTE.gold, shape: "line", label: "Edge rays", note: "dead straight — they never bend round the object" },
-            { color: PALETTE.emerald, shape: "line", label: "Centre ray", note: "straight through the middle" },
             { color: "#05070b", shape: "square", label: "Umbra", note: solved.horizontal.umbraLost ? "gone — the lamp is too wide" : "no light reaches here at all" },
             ...(solved.horizontal.penumbraWidth > 0.01
               ? [{ color: "#4a4f5c", shape: "square", label: "Penumbra", note: `fuzzy edge, ${solved.horizontal.penumbraWidth.toFixed(1)} cm wide` }]
@@ -883,7 +764,6 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
                 />
               </div>
 
-              <Toggle label="Show light rays" checked={showRays} onChange={setShowRays} />
               <Toggle label="Mark umbra / penumbra" checked={showGuides} onChange={setShowGuides} />
 
               <div className="grid grid-cols-1 gap-1 border-t border-ink-800 pt-2.5">

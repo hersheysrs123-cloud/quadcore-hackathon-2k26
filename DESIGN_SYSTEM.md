@@ -46,6 +46,18 @@ Reserved for the mastery heatmap, quiz results, and topic confidence indicators.
 
 The scale's yellow step is deliberately **unused**: it measures 1.08 contrast against `--color-duck-400`, so a "shaky" chip would read as a primary button. The light steps are re-stepped for the light surface rather than flipped, and light-mode shaky avoids the darker orange because it sits $\Delta E \approx 0.1$ from the light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
 
+### 4. 3D Visualization Studio Canvas Palette (`components/visualizations/scene-kit.jsx`)
+
+Three.js / WebGL scenes cannot read Tailwind CSS variables dynamically in the shader pipeline. The 3D viewport canvas clear colour and palette lines are calibrated to sit comfortably in the middle across both **Dark Mode** and **Light Mode**:
+
+| Token | Hex | Usage / Rationale |
+| :--- | :--- | :--- |
+| `CANVAS_BG` | `#273043` | Studio Slate clear colour. Brighter and softer than pitch-black (`#090d16`), providing contrast and depth for glowing vectors, atoms, and labels without harsh glare or looking like an empty black void in light mode. |
+| `PALETTE.line` | `#525e76` | Bonds, coordinate grid axes, and measurement lines. Balanced for clean separation against `#273043`. |
+| `PALETTE.bone` | `#e8ebf0` | Atoms, neutral indicators, and high-contrast meshes. |
+| `PALETTE.gold` | `#fbbf24` | Vector arrows, primary force directions, and energy highlights. |
+| `PALETTE.sky` | `#38bdf8` | Optical rays, magnetic field lines, and cool state readouts. |
+
 ---
 
 ## 📐 Typography & Layout Guidelines
@@ -91,8 +103,22 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **Spaces Section**:
   - **Spaces Selector Dropdown**: Compact button (`text-xs font-medium text-ink-200 border border-ink-700/80 bg-ink-850/90`) displaying current space icon and name with a dropdown popover to choose/switch spaces, create custom spaces, or manage space password locks.
 - **Notes List**: Full-height list per active space.
-  - **Ghost Action Icons**: Drag handle (`GripVertical` `⠿`) and Note Menu (`NoteMenu` `...`) are ghosted (`opacity-0`), seamlessly fading in on row hover (`group-hover:opacity-100 focus-within:opacity-100`) without layout shift.
+  - **Header Controls**: Inline "Select" / "Done" action button (`text-[11px] px-2 py-0.5 rounded font-medium text-ink-400 hover:text-ink-200 hover:bg-ink-800`), turning into active pill `bg-duck-500/20 text-duck-300 ring-1 ring-duck-400/40 font-semibold` when selecting.
+  - **Multi-Selection Mode**:
+    - Header count indicator: `{count} of {total} selected` with duck accent, alongside a `Deselect All` / `Select All` action link (`text-[11px] text-duck-400 hover:text-duck-300 font-medium`).
+    - **Bulk Actions Toolbar**: 4-column compact grid (`p-2 rounded-xl bg-ink-850/90 border border-ink-750`) providing:
+      - Star: `text-amber-400`
+      - Copy (Duplicate): `text-sky-400`
+      - Move: `text-duck-400`
+      - Delete: `text-rose-400 hover:bg-rose-500/20`
+    - **Checkbox Indicators**: Rounded square indicator on the left of each note item (`w-4 h-4 rounded border border-duck-400 bg-duck-500 text-ink-950` when selected, `border-ink-600 bg-ink-850` when idle).
+    - **Selected Row Highlight**: `bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200 shadow-xs`.
+    - **Suppressed Elements**: Drag handles and 3-dots menus are hidden while selection mode is active to prevent accidental clicks.
+  - **Ghost Action Icons**: In normal view, Drag handle (`GripVertical` `⠿`) and Note Menu (`NoteMenu` `...`) are ghosted (`opacity-0`), seamlessly fading in on row hover (`group-hover:opacity-100 focus-within:opacity-100`) without layout shift.
   - Star favorite indicator `⭐` visible on favorited notes.
+- **Confirmation Modals**:
+  - `BatchDeleteConfirmModal`: Double-confirmation dialog for bulk deletion with rose warning badge (`bg-rose-500/10 border-rose-500/20 text-rose-200`), note title preview list, and 24h retention notice.
+  - `BatchMoveModal`: Destination space picker modal with disabled badge for the current active space.
 - **Bottom Trash Tab**: Fixed tab `🗑️ Trash (24h)` showing active deleted notes count with 24-hour auto-purge timer.
 
 ### 2. Top HUD Header (`Workspace.jsx`)
@@ -138,11 +164,30 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
   - Container: `group/tableblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40`.
   - Header Toolbar: `flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none`, with `▦` icon badge (`bg-duck-500/20 text-duck-400`), editable table caption, dimension badge (`{rows} × {cols}`), and `+ Column` / `+ Row` action buttons.
   - Table Grid: `border-collapse rounded-lg overflow-hidden border border-ink-800 bg-ink-950/60 text-xs`.
+  - Column Drag Handles: Positioned top-center of each column (`top-0.5 left-1/2 -translate-x-1/2`), smoothly appearing (`opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40`) when any cell in that column is focused or when hovering the header. Draggable (`⠿`) with drop target highlight indicator (`bg-duck-500/25 ring-2 ring-inset ring-duck-400/80`).
+  - Row Gutter & Drag Handles: Dedicated left gutter column (`w-8 min-w-[32px] max-w-[32px] bg-ink-950/40 select-none print:hidden`) displaying row number (`1, 2, 3...`) in muted mono font (`text-[10px] text-ink-600`), smoothly transforming into an interactive drag handle (`⠿`) highlighted in duck gold (`text-duck-400 font-bold`) when that row's cell is focused or hovered.
   - Headers (`th`): `border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 bg-ink-900` with hover delete column button (`text-rose-400 hover:bg-rose-500/20`).
   - Cells (`td`): `border-r border-ink-800/70 px-3 py-1.5 text-ink-100` hosting rich `TableCell` `contentEditable` elements with live Markdown (bold, italic, code, strikethrough, highlight) and KaTeX equation formatting, focus highlights (`focus:text-duck-200 focus:bg-ink-900/80`), and hover row deletion controls (`text-rose-400 hover:bg-rose-500/20`).
   - Keyboard Navigation: `Tab` / `Shift+Tab` across cells/rows with automatic row creation on bottom right cell; `Enter` to step down columns.
-- **Slash Menu (`/`)**: Floating block-type picker menu.
-- **Floating Action Bar**: Appears above non-empty selected text blocks with formatting triggers (`B`, *I*, <u>U</u>, <s>S</s>, $x$).
+- **Hierarchical Multi-Tier Lists (Bullets & Numbered Items)**:
+  - **Bullet List Hierarchy**:
+    - Level 0: Solid disc (`●`), `pl-0` / `0rem` indent
+    - Level 1: Hollow ring (`○`), `pl-6` / `1.5rem` indent
+    - Level 2: Solid square (`■`), `pl-12` / `3.0rem` indent
+    - Level 3+: Hollow square (`□`), `pl-18` / `4.5rem` indent
+  - **Numbered List Hierarchy**:
+    - Level 0: Decimal numerals (`1.`, `2.`, `3.`), `pl-0` / `0rem` indent
+    - Level 1: Lowercase alphabet (`a.`, `b.`, `c.`), `pl-6` / `1.5rem` indent
+    - Level 2: Lowercase Roman numerals (`i.`, `ii.`, `iii.`), `pl-12` / `3.0rem` indent
+    - Level 3+: Uppercase alphabet (`A.`, `B.`, `C.`), `pl-18` / `4.5rem` indent
+  - **Keyboard Interaction**:
+    - `Tab`: Indents bullet or number item by 1 level (`level = level + 1`, capped at level 4).
+    - `Shift+Tab`: Outdents item by 1 level; if at level 0 on empty item, converts cleanly to paragraph.
+    - `Backspace`: Decrements level if indented, or un-lists empty items to plain text.
+- **Heading & Bullet Notion-Grade Downward Flow**:
+  - Pressing `Enter` at the logical start (offset 0) of any heading (`h1`–`h4`) prepends a new blank text paragraph above and moves the heading and all downstream blocks down, preserving heading style and content.
+  - Pressing `Enter` at the logical start (offset 0) of any bullet (`bullet`) or numbered (`number`) item with content (specifically the first bullet in a list) prepends an empty list item of matching level above and moves the current item down to the next line with its list glyph intact, keeping focus at the start of the item on the next line.
+- **Undo / Redo History Engine (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`)**: Fully deep-cloned immutable snapshots across all block mutations; atomic splitting on Enter; smart focus target restoration ensuring caret is never dropped to `document.body` or jumped to block 0.
 - **Draggable 6-Dots Handle (`⠿`)**: Drag to reorder blocks with `duck-400` drop target; click to open the context menu.
 
 
@@ -469,7 +514,7 @@ A topic's `controls` entry may carry `when: (params) => boolean`. `Visualization
 4. **Local-First Database Persistence**: Ensure new data models sync with Dexie.js (`lib/db.js` & `lib/storageService.js`) and gracefully fall back during offline usage.
 5. **Modal Viewport Bounds**: Modal dialogs must use `max-h-[calc(100vh-2rem)] flex flex-col` and `shrink-0` on headers/footers to prevent clipping on compact displays.
 6. **Print & PDF Content Guarantees**: Any user-created note content (titles, toggle details, LaTeX formulas, code snippets) must render cleanly in `@media print` without reliance on interactive form controls or fixed-height containers.
-7. **KaTeX Extensions & Mathematical Glyphs**: Custom LaTeX macros (such as `\reflectbox{...}`) are supported globally in `lib/editorCaret.js` using `KATEX_GLOBAL_MACROS` and styled via `.reflect-flip` (`display: inline-block; transform: scaleX(-1);`) to ensure proper rendering across both inline and display math blocks.
+7. **KaTeX Extensions & Mathematical Glyphs**: Custom LaTeX macros (such as `\reflectbox{...}` and `\ext{...}`) are supported globally in `lib/editorCaret.js` using `KATEX_GLOBAL_MACROS` (including `"\\ext": "\\text{#1}"` to heal LLM `\ext` and tab-escaped `\text` outputs) and styled via `.reflect-flip` (`display: inline-block; transform: scaleX(-1);`) to ensure proper rendering across both inline and display math blocks.
 8. **Selective Block Insertion Dropzones**: The bottom click-to-insert bar (`data-insert-zone="after"`, `hover:bg-duck-400/20`) is scoped strictly to complex/container blocks (`math`, `code`, `table`, `toggle`, `columns`, `site`, `media`, `divider`) where Enter does not naturally append a block below. Linear content blocks (`text`, `h1`–`h4`, `bullet`, `number`, `todo`, `inlinemath`, `callout`, `quote`) omit the bottom dropzone to preserve clean vertical spacing and avoid visual clutter.
 9. **PDF Export & Print Sheet Color-Scheme Guarantee**: Always ensure `@media print` forces `:root, html, body` and `@page` to `color-scheme: light !important; background-color: #ffffff !important;` with `--color-ink-950: #ffffff !important`, and resets all dark background container utilities (`.bg-ink-950`, `.bg-ink-900`) to `transparent !important`. This prevents Chromium's print engine from rendering dark mode canvas margins (`rgb(18, 18, 18)`) around the printed page.
 10. **Print Layout Rules & Scoped Block Engines**: Never apply layout properties (`display: block !important; width: 100% !important; flex: none !important;`) to universal background color utility selectors (`[class*="bg-ink-950"]`, `[class*="bg-ink-900"]`) in `@media print`. Always scope structural resets strictly to root layout containers (`#__next, main, [data-editor-root]`). For complex blocks (`code`, `table`, `toggle`), provide explicit scoped print rules:
@@ -486,5 +531,8 @@ A topic's `controls` entry may carry `when: (params) => boolean`. `Visualization
     - The top-level modal element must declare an explicit computed height class (e.g. `h-[calc(100vh-4rem)] max-h-[920px] flex flex-col`) rather than only `max-h-...` to establish a definite containing block.
     - Every intermediate child wrapper in the DOM hierarchy between the modal root and the scrollable viewport must preserve `flex flex-col flex-1 h-full min-h-0 overflow-hidden`.
     - Inner iframe sandboxes must compute height dynamically against `doc.documentElement.scrollHeight` and forward `wheel` events to the parent canvas ref to avoid scroll trapping.
+13. **Editor Click-to-Append & Side Margin Boundary Constraints (`components/BlockNoteEditor.jsx`)**:
+    - When 'Click anywhere to place block' (`clickToAppend`) is enabled, clicking on the outer sides of the screen (outside the note reading column, `clientX < rootRect.left || clientX > rootRect.right`) and clicking on side margins beside existing blocks (`clientY <= contentBottom + 8`) is completely disabled from appending or focusing.
+    - Click-to-append strictly operates within the note column in the empty bottom whitespace below the final block.
 
 

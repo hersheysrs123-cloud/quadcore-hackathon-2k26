@@ -716,7 +716,7 @@ describe("Notion-Style Note Menu Actions & Metadata Mechanics", () => {
 
     const duplicatedNote = {
       id: "n_dup_456",
-      title: `${originalNote.title} (Copy)`,
+      title: `Copy of ${originalNote.title}`,
       space: originalNote.space,
       spaceId: originalNote.spaceId,
       banner: originalNote.banner,
@@ -727,7 +727,7 @@ describe("Notion-Style Note Menu Actions & Metadata Mechanics", () => {
       updatedAt: new Date().toISOString(),
     };
 
-    assert.strictEqual(duplicatedNote.title, "Cell Respiration (Copy)");
+    assert.strictEqual(duplicatedNote.title, "Copy of Cell Respiration");
     assert.strictEqual(duplicatedNote.emoji, "🧬");
     assert.strictEqual(duplicatedNote.banner, "linear-gradient(to right, #000, #fff)");
     assert.strictEqual(duplicatedNote.isFavorite, true);
