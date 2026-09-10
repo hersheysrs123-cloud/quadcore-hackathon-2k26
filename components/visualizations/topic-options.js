@@ -8,6 +8,8 @@
 // behind their dynamic imports.
 // ─────────────────────────────────────────────────────────────────────
 
+import { TOPOLOGIES } from "@/lib/circuits";
+import { TARGETS } from "@/lib/electrostatics";
 import { FRICTION_SURFACES } from "@/lib/inclineForces";
 
 // ─── Mathematics ────────────────────────────────────────────────────
@@ -99,3 +101,20 @@ export const STRUCTURE_OPTIONS = Object.entries(STRUCTURE_META).map(([value, s])
   value,
   label: s.label,
 }));
+
+// ─── Electrical ─────────────────────────────────────────────────────
+
+/** The three wiring patterns the breadboard can be snapped into. */
+export const CIRCUIT_TOPOLOGY_OPTIONS = Object.entries(TOPOLOGIES).map(([value, t]) => ({
+  value,
+  label: t.label,
+  title: t.summary,
+}));
+
+/** What the charged balloon is being held near. */
+export const STATIC_TARGET_OPTIONS = Object.entries(TARGETS).map(([value, t]) => ({
+  value,
+  label: t.label,
+  title: t.title,
+}));
+

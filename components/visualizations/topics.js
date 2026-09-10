@@ -16,6 +16,8 @@ import {
   AudioWaveform,
   BatteryCharging,
   Boxes,
+  CircuitBoard,
+  CloudLightning,
   Cylinder,
   Dna,
   Flame,
@@ -34,11 +36,13 @@ import {
   Shapes,
   Shuffle,
   Sigma,
+  Sparkles,
   Spline,
   Thermometer,
   TrainFront,
   Triangle,
   TrendingDown,
+  Unplug,
   Waves,
   Weight,
   Wind,
@@ -47,14 +51,17 @@ import {
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
 import {
   ALGORITHM_OPTIONS,
+  CIRCUIT_TOPOLOGY_OPTIONS,
   CURVE_OPTIONS,
   FRICTION_SURFACE_OPTIONS,
   GRAVITY_OPTIONS,
+  STATIC_TARGET_OPTIONS,
   STRUCTURE_OPTIONS,
   SURFACE_OPTIONS,
   VSEPR_PRESETS,
   vseprPresetFor,
 } from "@/components/visualizations/topic-options";
+import { leakTimeConstant } from "@/lib/electrostatics";
 
 export const CATEGORIES = [
   { id: "all", label: "All" },
@@ -922,6 +929,202 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Frosted glass is translucent: some light passes and some is blocked or scattered. Fewer rays reach the screen there than around it, so the patch is dimmer than its surroundings but nowhere near black.",
+      },
+    ],
+  },
+  {
+    id: "circuits_breadboard",
+    category: "physics",
+    icon: CircuitBoard,
+    title: "Series vs Parallel Circuits",
+    blurb: "Unscrew one bulb and watch which circuit survives it",
+    syllabus: "Physics 4.3 · Electric Circuits",
+    keywords:
+      "series parallel circuit equivalent resistance R1 + R2 reciprocal branch current ammeter voltmeter kirchhoff junction rule loop rule potential difference bulb filament brightness short circuit internal resistance drift velocity electrons breadboard ohm law V=IR",
+    defaults: {
+      topology: "series",
+      voltage: 6,
+      bulbR: 10,
+      unscrewA: 0,
+      shortCircuit: 0,
+      running: true,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "topology",
+        label: "Circuit topology",
+        columns: 3,
+        options: CIRCUIT_TOPOLOGY_OPTIONS,
+      },
+      {
+        type: "slider",
+        key: "voltage",
+        label: "Battery voltage",
+        min: 1.5,
+        max: 24,
+        step: 0.5,
+        format: (v) => `${Number(v).toFixed(1)} V`,
+      },
+      {
+        type: "slider",
+        key: "bulbR",
+        label: "Bulb resistance",
+        min: 2,
+        max: 50,
+        step: 1,
+        format: (v) => `${v} Ω each`,
+      },
+      { type: "action", key: "unscrewA", label: "Unscrew / replace bulb A", icon: Unplug, variant: "ghost" },
+      { type: "action", key: "shortCircuit", label: "Add / remove short circuit", icon: Zap, variant: "danger" },
+      { type: "toggle", key: "running", label: "Animate the drift electrons" },
+    ],
+    concepts: [
+      "A series circuit is one loop, so the same current passes through every component in it — and the resistances simply add, R_eq = R₁ + R₂. Because the two bulbs share the supply voltage between them, each gets half of it and runs at a quarter of the power a single bulb would. Break the loop anywhere and everything stops, because there is no longer any path back to the battery.",
+      "In parallel each branch sits across the full supply, so each bulb gets the whole voltage and runs at full brightness, and the branch currents add up to the total. Adding a branch adds a path rather than an obstacle, so the equivalent resistance goes DOWN — 1/R_eq = 1/R₁ + 1/R₂ — and the battery has to deliver more current, not less. That is why house wiring is parallel and why a circuit can be overloaded.",
+      "The electrons in the wire are not consumed. Watch the streams: every conductor carries the same spacing of carriers and only their speed changes, and at every junction the current arriving equals the current leaving. Charge is not used up by a bulb — energy is. That is the difference between current, which is the same on both sides of a lamp, and potential difference, which is not.",
+    ],
+    quiz: [
+      {
+        question:
+          "Two identical 10 Ω bulbs are wired in series across a 12 V supply. One bulb is unscrewed. What happens, and why?",
+        options: [
+          "Both go out — removing the bulb breaks the single loop, so no current flows anywhere",
+          "The other bulb gets brighter, because it now has all 12 V to itself",
+          "The other bulb is unaffected — it has its own path to the battery",
+          "The other bulb dims but stays lit, at half its previous brightness",
+        ],
+        answer: 0,
+        explanation:
+          "A series circuit has exactly one path. An unscrewed bulb is an infinite resistance in that path, so the current everywhere in the loop falls to zero and the remaining bulb goes dark too. The full supply voltage appears across the empty socket — which is why old fairy lights all failed together, and why a voltmeter across the gap reads 12 V while an ammeter reads nothing.",
+      },
+      {
+        question:
+          "The same two 10 Ω bulbs are re-wired in parallel across the same 12 V supply. Compared with the series arrangement, what happens to the total current drawn from the battery?",
+        options: [
+          "It rises by about four times, because R_eq falls from 20 Ω to 5 Ω",
+          "It halves, because the current now splits between two branches",
+          "It is unchanged — the same two bulbs are connected to the same battery",
+          "It doubles, because there are two branches instead of one",
+        ],
+        answer: 0,
+        explanation:
+          "Series gives R_eq = 10 + 10 = 20 Ω. Parallel gives 1/R_eq = 1/10 + 1/10, so R_eq = 5 Ω — a quarter of the resistance, and therefore about four times the current. The trap is thinking that splitting the current between branches must reduce the total; each branch draws what it would have drawn alone, so the total is their sum.",
+      },
+      {
+        question:
+          "A wire of almost no resistance is connected directly across the two bulbs in a parallel circuit. What do the bulbs do, and what does the battery do?",
+        options: [
+          "The bulbs go out and the battery delivers a very large current through the wire",
+          "The bulbs get much brighter, because the extra wire lets more current reach them",
+          "Nothing changes — the wire is just another parallel branch",
+          "The bulbs flicker, because the current alternates between paths",
+        ],
+        answer: 0,
+        explanation:
+          "The jumper is a parallel branch of about 0.01 Ω, so almost the entire current takes it and the voltage across the network — and therefore across the bulbs — collapses to nearly nothing. The current is limited only by the battery's own internal resistance, which is why a shorted cell gets hot: with almost no external resistance, the power is being dissipated inside the battery itself.",
+      },
+    ],
+  },
+  {
+    id: "static_electricity",
+    category: "physics",
+    icon: CloudLightning,
+    title: "Static Electricity & Charge Transfer",
+    blurb: "Rub a balloon on wool and count the electrons that moved",
+    syllabus: "Physics 4.2 · Electric Charge",
+    keywords:
+      "static electricity electrostatic charge friction triboelectric electron transfer positive negative attraction repulsion induction polarisation dipole neutral wall balloon wool coulomb law inverse square van de graaff earthing humidity charge leakage",
+    defaults: {
+      target: "wall",
+      separation: 0.12,
+      humidity: 40,
+      rubs: 0,
+      discharge: 0,
+      vdg: false,
+    },
+    controls: [
+      { type: "action", key: "rubs", label: "Rub the balloon on the sweater", icon: Sparkles },
+      {
+        type: "choice",
+        key: "target",
+        label: "Hold the balloon near",
+        columns: 3,
+        options: STATIC_TARGET_OPTIONS,
+      },
+      {
+        type: "slider",
+        key: "separation",
+        label: "Position — gap to the object",
+        min: 0.01,
+        max: 0.4,
+        step: 0.005,
+        format: (v) => `${(Number(v) * 100).toFixed(1)} cm · or drag the balloon`,
+      },
+      {
+        type: "slider",
+        key: "humidity",
+        label: "Air humidity",
+        min: 10,
+        max: 95,
+        step: 1,
+        format: (v) => `${v}% RH · charge half-life ${(0.693 * leakTimeConstant(v)).toFixed(1)} s`,
+      },
+      { type: "toggle", key: "vdg", label: "Run the Van de Graaff" },
+      { type: "action", key: "discharge", label: "Earth everything", icon: Waves, variant: "ghost" },
+    ],
+    concepts: [
+      "Rubbing does not create charge — it moves electrons. Wool holds its outer electrons loosely and latex grips them tightly, so every electron that crosses leaves a matching positive behind on the sweater. The two counts on screen are always equal and opposite, which is what conservation of charge means: the pair was there all along, and rubbing only separated them.",
+      "A charged object attracts a NEUTRAL one. The balloon's field pulls the wall's electrons back and leaves the near surface positive, and since the attracted charge is closer than the repelled charge, attraction always wins. That is induction, and it is why a charged balloon picks up paper, bends a stream of water and sticks to a wall that has no charge of its own.",
+      "Coulomb's law is an inverse square: F = k·q₁q₂/r². Halving the gap quadruples the force, which is why the balloon snaps in over the last centimetre. Damp air ends the demonstration by giving the charge a conducting film of water to leak away along — the physics has not changed, the charge has simply gone.",
+    ],
+    quiz: [
+      {
+        question:
+          "After rubbing a balloon on a wool sweater, the balloon carries a negative charge. What is the sweater's charge, and why?",
+        options: [
+          "Equally positive — it lost exactly the electrons the balloon gained",
+          "Also negative, because rubbing creates charge on both surfaces",
+          "Neutral, because the charge all went onto the balloon",
+          "Positive, but smaller, because some charge is lost to the air during rubbing",
+        ],
+        answer: 0,
+        explanation:
+          "Charge is conserved: rubbing separates existing charges rather than making new ones. Every electron the latex gained is one the wool no longer has, so the two objects carry equal and opposite charges. Nothing was created, and if you brought them back together they would neutralise exactly.",
+      },
+      {
+        question:
+          "A negatively charged balloon is held near a neutral wall and sticks to it. Why does a neutral object attract a charged one?",
+        options: [
+          "The wall polarises — positives are drawn to the near surface, and being closer, they win",
+          "The wall must have been positively charged already",
+          "The balloon's charge flows into the wall and pulls it along",
+          "Neutral objects are always attracted to charged ones by gravity",
+        ],
+        answer: 0,
+        explanation:
+          "The balloon's field shifts charge within each molecule of the wall, leaving the near surface slightly positive and the far side slightly negative. The wall is still neutral overall, but the attracted positives sit closer than the repelled negatives, and because the force falls off as 1/r² the nearer charges dominate. Induction always produces attraction — never repulsion.",
+      },
+      {
+        question:
+          "Two balloons carrying the same charge repel each other with a force F when their centres are 20 cm apart. They are moved to 10 cm apart. What is the force now?",
+        options: ["4F", "2F", "F/2", "F/4"],
+        answer: 0,
+        explanation:
+          "Coulomb's law goes as 1/r², so halving the separation multiplies the force by 2² = 4. This is the same inverse square behaviour as gravity, and it is why electrostatic effects seem to switch on suddenly as objects get close — most of the force appears over the last short distance.",
+      },
+      {
+        question:
+          "The same demonstration works beautifully on a dry winter day and barely at all in a humid bathroom. What has changed?",
+        options: [
+          "A film of water on the surfaces conducts the charge away almost as fast as rubbing puts it there",
+          "Water molecules block the electric field between the objects",
+          "Humid air stops electrons being transferred by rubbing in the first place",
+          "The balloon becomes heavier when damp, so the force cannot lift it",
+        ],
+        answer: 0,
+        explanation:
+          "Humid air is not itself much of a conductor. What happens is that a thin layer of water condenses on both surfaces and gives the separated charge a conducting path to creep away along. The transfer still occurs; the charge simply does not stay put long enough to demonstrate anything, which is why electrostatics experiments are a winter activity.",
       },
     ],
   },

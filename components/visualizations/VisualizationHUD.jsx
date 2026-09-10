@@ -16,6 +16,15 @@ import { solveIncline, surfaceFor } from "@/lib/inclineForces";
 import { loadForce, solveSpring } from "@/lib/hookesLaw";
 import { isLever, solveMachine } from "@/lib/simpleMachines";
 import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
+import { FUSE_A, solveCircuit } from "@/lib/circuits";
+import {
+  CHARGE_PER_MARKER,
+  MAX_MARKERS,
+  chargeOf,
+  electronCount,
+  leakTimeConstant,
+  solveStatic,
+} from "@/lib/electrostatics";
 
 // ─── Visualization HUD ──────────────────────────────────────────────
 // One overlay drives all thirteen scenes: parameter controls rendered
@@ -850,6 +859,132 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#fb7185", label: "Thermal", note: rough ? "friction and brakes — one-way" : "none: the ideal track wastes nothing" },
           { color: "#e8ebf0", label: "Total", note: "constant — that is what conservation means" },
           { color: "#fbbf24", label: "The cart", note: `${mass.toFixed(0)} kg, and the mass changes nothing about the loop` },
+        ],
+      };
+      break;
+    }
+
+    case "circuits_breadboard": {
+      const topology = params.topology || "series";
+      const voltage = num(params.voltage, 6);
+      const bulbR = num(params.bulbR, 10);
+      const unscrewed = Math.round(num(params.unscrewA, 0)) % 2 === 1;
+      const shorted = Math.round(num(params.shortCircuit, 0)) % 2 === 1;
+      const c = solveCircuit({ topology, voltage, bulbR, unscrewed, shorted });
+
+      const ohms = (r) => (Number.isFinite(r) ? `${r.toFixed(2)} Ω` : "∞ — open");
+      const lit = c.bulbs.filter((b) => b.lit).length;
+
+      readout = {
+        title: `${c.spec.label} circuit`,
+        subtitle: c.spec.summary,
+        rows: [
+          ["Supply emf", `${voltage.toFixed(1)} V`, "gold"],
+          ["Each bulb", `${bulbR.toFixed(0)} Ω`],
+          [c.formula, c.worked, "gold"],
+          ["R of the network", ohms(c.networkR)],
+          ...(shorted ? [["With the short fitted", ohms(c.externalR), "bad"]] : []),
+          ["Total current from the pack", `${c.totalCurrent.toFixed(3)} A`, c.overCurrent ? "bad" : "default"],
+          ...c.branches.map((b, i) => [
+            `I${i + 1} — branch ${b.id}`,
+            b.open ? "0 A — branch open" : `${b.current.toFixed(3)} A`,
+            b.open ? "bad" : "good",
+          ]),
+          ...(shorted ? [["Through the jumper", `${c.shortCurrent.toFixed(2)} A`, "bad"]] : []),
+          ["Volts across the network", `${c.networkVoltage.toFixed(2)} V`],
+          ["Terminal voltage", `${c.terminalVoltage.toFixed(2)} V`, c.terminalVoltage < voltage * 0.85 ? "warn" : "good"],
+          ...c.bulbs.map((b) => [
+            `Bulb ${b.id}`,
+            b.removed
+              ? "unscrewed — infinite resistance"
+              : `${b.voltage.toFixed(2)} V · ${b.power.toFixed(2)} W · ${(b.brightness * 100).toFixed(0)}% bright`,
+            b.removed ? "bad" : b.lit ? "good" : "warn",
+          ]),
+          ["Bulbs lit", `${lit} of ${c.bulbs.length}`, lit === 0 ? "bad" : "good"],
+          ["Wasted inside the pack", `${c.internalLoss.toFixed(2)} W`, c.overCurrent ? "bad" : "default"],
+        ],
+        note: c.dead
+          ? `No current anywhere. The loop is broken at bulb A's socket, and in a series circuit there is only one loop — so every component is dead and the whole ${voltage.toFixed(1)} V sits across the empty socket. Switch to parallel and unscrew it again: the other branch will not notice.`
+          : shorted
+            ? `The jumper is a ${c.externalR.toFixed(3)} Ω path in parallel with the bulbs, so ${((c.shortCurrent / c.totalCurrent) * 100).toFixed(0)}% of the ${c.totalCurrent.toFixed(1)} A takes it and the bulbs are left with ${c.networkVoltage.toFixed(2)} V. The current is limited only by the pack's own 0.5 Ω, which is why ${c.internalLoss.toFixed(1)} W is now being dissipated inside the battery itself.`
+            : unscrewed
+              ? `Bulb A is out of its socket and its branch is open, but the rest of the board is unaffected — each parallel branch is its own loop back to the battery. Note the total current has FALLEN to ${c.totalCurrent.toFixed(2)} A: one fewer path means more resistance, not less.`
+              : topology === "parallel"
+                ? `Each branch sits across the supply, so both bulbs run at ${(c.bulbs[0].brightness * 100).toFixed(0)}% and the branch currents add to ${c.totalCurrent.toFixed(2)} A. In series the same two bulbs would draw ${solveCircuit({ topology: "series", voltage, bulbR }).totalCurrent.toFixed(2)} A and run at a quarter of the power — adding a parallel branch lowers R_eq and raises the demand on the supply.`
+                : topology === "series"
+                  ? `One loop, so the same ${c.totalCurrent.toFixed(2)} A passes through both bulbs, and they split the supply between them — ${c.bulbs[0].voltage.toFixed(1)} V each, giving a quarter of the power a single bulb would take. Rewire in parallel and the current rises to ${solveCircuit({ topology: "parallel", voltage, bulbR }).totalCurrent.toFixed(2)} A.`
+                  : `A and B share their branch's ${c.branches[0].current.toFixed(2)} A between them, so each drops ${c.bulbs[0].voltage.toFixed(1)} V; C has the whole ${c.networkVoltage.toFixed(1)} V to itself and is correspondingly brighter. Reduce it in stages — series first, then parallel.`,
+        noteTone: c.dead || shorted ? "bad" : unscrewed ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Circuit Key",
+        items: [
+          { color: "#38bdf8", label: "Drift electrons", note: "same spacing on every wire — only the SPEED tracks the current" },
+          { color: "#c2703b", label: "Copper trace", note: `carrying up to ${c.totalCurrent.toFixed(2)} A` },
+          { color: "#fbbf24", label: "Filament", note: c.allDark ? "cold — no bulb is lit" : `hotter with power: P = I²R` },
+          { color: "#fb7185", label: "Short circuit", note: shorted ? `${c.shortCurrent.toFixed(1)} A bypassing the bulbs` : "not fitted" },
+          { color: "#e8ebf0", label: "Junction rule", note: "current in = current out, at every node on the board" },
+        ],
+      };
+      break;
+    }
+
+    case "static_electricity": {
+      const target = params.target || "wall";
+      const separation = num(params.separation, 0.12);
+      const humidity = num(params.humidity, 40);
+      // The live counts are drawn on the surfaces themselves, where they can
+      // be counted. What belongs here is the model behind them — and the
+      // clearest way to show an inverse square is the pair of figures for
+      // this gap and for half of it.
+      const full = solveStatic({ markers: MAX_MARKERS, domeMarkers: 45, separation, target, humidity });
+      const half = solveStatic({ markers: MAX_MARKERS, domeMarkers: 45, separation: separation / 2, target, humidity });
+      const tau = leakTimeConstant(humidity);
+      const fmt = (n) =>
+        n >= 1 ? `${n.toFixed(2)} N` : n >= 1e-3 ? `${(n * 1e3).toFixed(1)} mN` : `${(n * 1e6).toFixed(0)} µN`;
+
+      readout = {
+        title: "Static Electricity",
+        subtitle: `balloon held near the ${full.spec.label.toLowerCase()}`,
+        rows: [
+          ["Gap r", `${(separation * 100).toFixed(1)} cm`, "gold"],
+          ["Charge per marker", `${(CHARGE_PER_MARKER * 1e9).toFixed(0)} nC`],
+          ["Balloon at full charge", `${MAX_MARKERS} markers · ${(chargeOf(MAX_MARKERS) * 1e9).toFixed(0)} nC`],
+          ["Electrons that moved", electronCount(MAX_MARKERS).toExponential(2)],
+          ["Left behind on the wool", `${MAX_MARKERS} unpaired +`, "warn"],
+          [
+            target === "wall" ? "Induced on the wall" : "On the other object",
+            `${Math.round(full.otherMarkers)} markers`,
+          ],
+          ["F at this gap", fmt(full.force), full.attracts ? "good" : "bad"],
+          ["…as a multiple of its weight", `${full.forceInWeights.toFixed(1)}×`],
+          ["F at half the gap", `${fmt(half.force)} — 4× larger`, "gold"],
+          ["Direction", full.attracts ? "attraction" : "repulsion", full.attracts ? "good" : "bad"],
+          ...(target === "wall"
+            ? [["Sticks to the wall?", full.sticks ? "yes — friction holds it" : "no — it slides down", full.sticks ? "good" : "warn"]]
+            : []),
+          ["Air humidity", `${humidity.toFixed(0)}% RH`],
+          ["Charge time constant", `${tau.toFixed(1)} s`, humidity > 70 ? "bad" : humidity > 45 ? "warn" : "good"],
+          ["Half the charge gone in", `${(0.693 * tau).toFixed(1)} s`],
+        ],
+        note:
+          target === "wall"
+            ? `The wall has no charge of its own. The balloon's field pulls its electrons back and leaves the near surface positive, and because those induced positives are closer than the pushed-back negatives, the 1/r² law makes attraction win. That is why a charged object attracts anything neutral — whichever sign the charge is.`
+            : target === "balloon"
+              ? `Both balloons were rubbed on the same wool, so both carry the same sign and repel: F = k·q₁q₂/r² = ${fmt(full.force)} at ${(separation * 100).toFixed(1)} cm, which is ${full.forceInWeights.toFixed(0)} times the balloon's own weight. Halve the gap and it quadruples — that is what an inverse square feels like.`
+              : `The dome and the balloon are both negative, so the dome pushes the balloon away hard. The dome reaches about ${(full.domeVolts / 1000).toFixed(0)} kV — a large voltage on a tiny charge, which is why it makes hair stand up but cannot deliver a dangerous current.`,
+        noteTone: humidity > 75 ? "warn" : "good",
+      };
+
+      legend = {
+        title: "Charge Key",
+        items: [
+          { color: "#38bdf8", label: "− electrons", note: "the only thing that actually moves" },
+          { color: "#fb7185", label: "+ unpaired", note: "not added — simply left behind where an electron used to be" },
+          { color: "#34d399", label: "Attraction", note: "charged to neutral, via induction — always" },
+          { color: "#5eead4", label: "Water in the air", note: `leaks the charge away with a ${tau.toFixed(0)} s time constant` },
+          { color: "#e8ebf0", label: "Conservation", note: "the + count and the − count are always equal" },
         ],
       };
       break;

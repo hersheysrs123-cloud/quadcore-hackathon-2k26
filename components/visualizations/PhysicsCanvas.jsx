@@ -25,6 +25,8 @@ import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCa
 import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
 import SimpleMachinesCanvas from "@/components/visualizations/SimpleMachinesCanvas";
 import RollerCoasterCanvas from "@/components/visualizations/RollerCoasterCanvas";
+import CircuitBoardCanvas from "@/components/visualizations/CircuitBoardCanvas";
+import StaticElectricityCanvas from "@/components/visualizations/StaticElectricityCanvas";
 
 // ─── IGCSE Physics · five scenes ────────────────────────────────────
 // Refraction, the motor effect, thin lenses, electromagnetic induction
@@ -3176,6 +3178,8 @@ const SCENES = {
   hookes_law: HookesLawCanvas,
   simple_machines: SimpleMachinesCanvas,
   roller_coaster_energy: RollerCoasterCanvas,
+  circuits_breadboard: CircuitBoardCanvas,
+  static_electricity: StaticElectricityCanvas,
 };
 
 export default function PhysicsCanvas({ topicId, params, setParam, onOpenQuiz }) {
