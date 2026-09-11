@@ -1858,21 +1858,30 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "unitcircle": {
       const count = num(params.harmonics, 1);
-      const amplitude = num(params.amplitude, 1.8);
+      const amplitude = num(params.amplitude, 1.4);
+      const waveform = params.waveform || "square";
+      const wfLabels = {
+        square: "Square Wave (πA/4)",
+        sawtooth: "Sawtooth Wave (πA/2)",
+        triangle: "Triangle Wave (π²A/8)",
+      };
 
       readout = {
         title: "Unit Circle & Wave Synthesis",
-        subtitle: count === 1 ? "y(t) = A sin(θ) · x(t) = A cos(θ)" : "Fourier Series Square Wave Synthesis",
+        subtitle: count === 1 ? "y(t) = A sin(θ) · x(t) = A cos(θ)" : `Fourier ${wfLabels[waveform] || "Wave"} Synthesis`,
         rows: [
-          ["Amplitude A", amplitude.toFixed(2), "gold"],
+          ["Target Wave", (waveform || "square").toUpperCase(), "gold"],
+          ["Amplitude A", amplitude.toFixed(2)],
           ["Harmonics Count", count],
           ["Coordinates (x, y)", "(cos θ, sin θ) on unit circle"],
-          ["Fourier Limit", count > 1 ? "Converges to πA/4 square wave" : "Pure fundamental sine wave", "good"],
-          ["Gibbs Phenomenon", count > 1 ? "~9% overshoot at step jumps" : "None", count > 1 ? "warn" : "good"],
+          ["Fourier Limit", count > 1 ? `Converges to ${wfLabels[waveform] || "target wave"}` : "Pure fundamental sine wave", "good"],
+          ["Gibbs Phenomenon", count > 1 ? (waveform === "triangle" ? "None (uniform convergence)" : "~9% overshoot at step jumps") : "None", count > 1 && waveform !== "triangle" ? "warn" : "good"],
+          ...(params.showTangent ? [["tan θ", "A · sin(θ)/cos(θ)", "rose"]] : []),
+          ...(params.showHelix ? [["3D Phase Space", "(x, cos θ, sin θ) helix", "sky"]] : []),
         ],
         note: count === 1
-          ? "The sine wave is the vertical projection (y = A sin θ) of a particle moving uniformly along the unit circle, unrolled over time along the z-axis."
-          : "By adding odd Fourier harmonics (sin kθ / k), the waveform squares off, demonstrating how complex periodic signals decompose into pure sinusoidal harmonics.",
+          ? "The sine wave is the vertical projection (y = A sin θ) of a particle moving uniformly along the unit circle, unrolled over time."
+          : `By adding Fourier harmonics with amplitudes and signs tailored for a ${waveform} wave, the waveform shapes towards the target function, demonstrating how complex periodic signals decompose into pure sinusoidal harmonics.`,
         noteTone: "good",
       };
 
@@ -1882,8 +1891,10 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#38bdf8", shape: "line", label: "Unit Circle Orbit", note: "Circle of radius A turning at angle θ" },
           { color: "#fbbf24", shape: "dot", label: "Rotating Tip Point", note: "Position (cos θ, sin θ) on circumference" },
           { color: "#fbbf24", shape: "line", label: "Sine Wave Trace (y)", note: "Vertical displacement unrolled over time" },
-          { color: "#a78bfa", shape: "line", label: "Cosine Wave Trace (x)", note: "Horizontal projection (90° phase shifted)" },
-          { color: "#34d399", shape: "line", label: "Target Square Wave", note: "Fourier series summation limit πA/4" },
+          ...(params.showTangent ? [{ color: "#fb7185", shape: "line", label: "Tangent Line (tan θ)", note: "Vertical projection on x = A touching line" }] : []),
+          ...(params.showCos ? [{ color: "#a78bfa", shape: "line", label: "Cosine Wave Trace (x)", note: "Horizontal projection (90° phase shifted)" }] : []),
+          ...(params.showHelix ? [{ color: "#38bdf8", shape: "line", label: "3D Phase Helix", note: "Unrolled 3D spatial trajectory (x, cos θ, sin θ)" }] : []),
+          ...(params.showTarget ? [{ color: "#34d399", shape: "line", label: `Target ${waveform} wave`, note: `Fourier series target summation limit` }] : []),
         ],
       };
       break;

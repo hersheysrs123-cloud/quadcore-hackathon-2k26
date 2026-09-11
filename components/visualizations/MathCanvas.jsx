@@ -10,7 +10,6 @@ import {
   SceneLabel,
   SceneLegend,
   SceneReadout,
-  VectorArrow,
   clamp,
 } from "@/components/visualizations/scene-kit";
 
@@ -30,8 +29,8 @@ const HEIGHT_CLAMP = [-3, 5];
 const TRAIL_MAX = 900;
 /** Anything drawn on the surface has to obey the same clamp the mesh does. */
 const drawHeight = (y) => clamp(y, HEIGHT_CLAMP[0], HEIGHT_CLAMP[1]);
-/** Descent steps per second — slow enough to read, fast enough to converge. */
-const STEP_RATE = 14;
+/** Descent steps per second — 20 steps/sec provides fluid motion while remaining readable. */
+const STEP_RATE = 20;
 
 /**
  * Each surface carries its own analytic gradient rather than a numerical
@@ -131,39 +130,55 @@ function LossSurface({ surface }) {
   );
 }
 
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const scratchVec = new THREE.Vector3();
+const scratchQuat = new THREE.Quaternion();
+
 /**
  * Owns the descent itself. Position lives in a ref and is written straight to
- * the ball's transform, so the 14-steps-per-second simulation never costs a
- * React render; `onSample` lifts the numbers out at 6 Hz for the readout.
+ * the ball's transform, so the simulation never costs a React render.
+ * The direction indicator updates directly on Three.js objects at full 60 FPS,
+ * completely eliminating React reconciliation stutter and lag.
+ * `onSample` lifts the readout numbers at 6 Hz for the 2D HUD.
  */
 function DescentRunner({ surface, rate, momentum, startX, startZ, running, resetKey, showGradient, onSample, speed = 1 }) {
   const ball = useRef(null);
   const trailLine = useRef(null);
   const trailGeo = useRef(null);
   const trail = useMemo(() => new Float32Array(TRAIL_MAX * 3), []);
-  const [arrow, setArrow] = useState(null);
+
+  const indicatorGroup = useRef(null);
+  const indicatorShaft = useRef(null);
+  const indicatorHead = useRef(null);
 
   const walker = useRef({ x: 0, z: 0, vx: 0, vz: 0, steps: 0, count: 0, stepAcc: 0, sampleAcc: 0, dead: null, startLoss: 0 });
 
   const { f, grad } = SURFACES[surface];
 
-  // Re-seed whenever the run is redefined. Learning rate and momentum are
-  // deliberately absent: nudging them mid-descent to rescue a diverging run
-  // is the most instructive thing you can do with this scene.
+  // Re-seed whenever the run is redefined.
   useEffect(() => {
+    const startLoss = SURFACES[surface].f(startX, startZ);
     walker.current = {
       x: startX,
       z: startZ,
       vx: 0,
       vz: 0,
       steps: 0,
-      count: 0,
+      count: 1,
       stepAcc: 0,
       sampleAcc: 0,
       dead: null,
-      startLoss: SURFACES[surface].f(startX, startZ),
+      startLoss,
     };
-  }, [surface, startX, startZ, resetKey]);
+    trail[0] = startX;
+    trail[1] = drawHeight(startLoss) + 0.08;
+    trail[2] = startZ;
+    if (trailGeo.current) {
+      trailGeo.current.setDrawRange(0, 1);
+      trailGeo.current.attributes.position.needsUpdate = true;
+      if (trailLine.current) trailLine.current.visible = false;
+    }
+  }, [surface, startX, startZ, resetKey, trail]);
 
   useFrame((_, delta) => {
     const w = walker.current;
@@ -171,13 +186,14 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
 
     if (running && !w.dead) {
       w.stepAcc += step * speed;
-      const interval = 1 / STEP_RATE;
-      // A catch-up cap: after a stall (tab hidden, slow frame) we would
-      // otherwise run hundreds of steps in one frame and "teleport".
+      const interval = 1 / STEP_RATE; // 20 Hz simulation rate for fluid, responsive motion
       let budget = 4;
       while (w.stepAcc >= interval && budget > 0) {
         w.stepAcc -= interval;
         budget -= 1;
+
+        const prevX = w.x;
+        const prevZ = w.z;
 
         const [gx, gz] = grad(w.x, w.z);
         // Heavy-ball momentum: velocity carries over, so a ravine is crossed
@@ -194,9 +210,6 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
           w.z = clamp(Number.isFinite(w.z) ? w.z : 0, -DOMAIN, DOMAIN);
           w.vx = 0;
           w.vz = 0;
-          // Leaving the domain uphill is divergence — α is too large. Leaving
-          // it downhill is not: the saddle simply has no minimum that way, and
-          // calling that "diverged" told the student the opposite of the truth.
           w.dead = overshot ? "diverged" : "unbounded";
           break;
         }
@@ -205,19 +218,26 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
           break;
         }
 
-        if (w.count < TRAIL_MAX) {
-          const o = w.count * 3;
-          trail[o] = w.x;
-          trail[o + 1] = drawHeight(f(w.x, w.z)) + 0.09;
-          trail[o + 2] = w.z;
-          w.count += 1;
+        // Subdivide displacement so the yellow trail tightly hugs curved surface geometry
+        const dist = Math.hypot(w.x - prevX, w.z - prevZ);
+        const subSteps = Math.min(4, Math.max(1, Math.ceil(dist / 0.08)));
+        for (let s = 1; s <= subSteps; s += 1) {
+          if (w.count < TRAIL_MAX) {
+            const frac = s / subSteps;
+            const sx = prevX + (w.x - prevX) * frac;
+            const sz = prevZ + (w.z - prevZ) * frac;
+            const sy = drawHeight(f(sx, sz)) + 0.08;
+            const o = w.count * 3;
+            trail[o] = sx;
+            trail[o + 1] = sy;
+            trail[o + 2] = sz;
+            w.count += 1;
+          }
         }
       }
     }
 
     const height = f(w.x, w.z);
-    // The mesh clamps its own height, so the ball has to as well or it floats
-    // off the steep corners of the valley surface.
     const drawY = drawHeight(height);
     if (ball.current) ball.current.position.set(w.x, drawY + 0.19, w.z);
 
@@ -225,6 +245,49 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
       trailGeo.current.setDrawRange(0, w.count);
       trailGeo.current.attributes.position.needsUpdate = true;
       if (trailLine.current) trailLine.current.visible = w.count > 1;
+    }
+
+    // Direct 60 FPS downhill tangent pointer — sleek, perfectly scaled, zero React lag
+    if (indicatorGroup.current) {
+      if (showGradient && !w.dead) {
+        const [gx, gz] = grad(w.x, w.z);
+        const mag = Math.hypot(gx, gz);
+        if (mag > 0.015) {
+          indicatorGroup.current.visible = true;
+          indicatorGroup.current.position.set(w.x, drawY + 0.19, w.z);
+
+          // Downhill 2D direction (-gx, -gz)
+          const dirX = -gx / mag;
+          const dirZ = -gz / mag;
+
+          // Compute surface tangent inclination in 3D
+          const eps = 0.05;
+          const hDrop = drawHeight(f(w.x + dirX * eps, w.z + dirZ * eps)) - drawY;
+          const dirY = hDrop / eps;
+
+          scratchVec.set(dirX, dirY, dirZ).normalize();
+
+          // Refined, proportional scale (0.35 to 0.72) — avoids clumsy, oversized vectors
+          const arrowLen = clamp(0.32 + Math.sqrt(mag) * 0.35, 0.35, 0.72);
+          const headLen = 0.12;
+          const shaftLen = Math.max(0.01, arrowLen - headLen);
+
+          scratchQuat.setFromUnitVectors(Y_AXIS, scratchVec);
+          indicatorGroup.current.quaternion.copy(scratchQuat);
+
+          if (indicatorShaft.current) {
+            indicatorShaft.current.scale.set(1, shaftLen, 1);
+            indicatorShaft.current.position.set(0, shaftLen / 2, 0);
+          }
+          if (indicatorHead.current) {
+            indicatorHead.current.position.set(0, shaftLen + headLen / 2, 0);
+          }
+        } else {
+          indicatorGroup.current.visible = false;
+        }
+      } else {
+        indicatorGroup.current.visible = false;
+      }
     }
 
     w.sampleAcc += step;
@@ -239,14 +302,6 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
         steps: w.steps,
         status: w.dead,
       });
-      // The arrow is the only part that must round-trip through React, so it
-      // updates at sample rate rather than per frame.
-      if (showGradient) {
-        const mag = Math.hypot(gx, gz);
-        setArrow(mag > 0.02 ? { at: [w.x, drawY + 0.19, w.z], gx, gz, mag } : null);
-      } else {
-        setArrow(null);
-      }
     }
   });
 
@@ -271,30 +326,43 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
         />
       </mesh>
 
-      <line ref={trailLine} frustumCulled={false}>
+      {/* Yellow descent path: depthTest=false & depthWrite=false ensure it never dips into or is occluded by curved surface mesh */}
+      <line ref={trailLine} frustumCulled={false} renderOrder={99}>
         <bufferGeometry ref={trailGeo}>
           <bufferAttribute attach="attributes-position" args={[trail, 3]} />
         </bufferGeometry>
-        <lineBasicMaterial color={PALETTE.gold} transparent opacity={0.9} />
+        <lineBasicMaterial
+          color={PALETTE.gold}
+          transparent
+          opacity={0.95}
+          depthTest={false}
+          depthWrite={false}
+        />
       </line>
 
-      {arrow && (
-        <VectorArrow
-          from={arrow.at}
-          // Drawn as −∇f, the direction the step actually takes, and scaled
-          // by √|∇f| so a shallow basin still shows a readable arrow.
-          to={[
-            arrow.at[0] - (arrow.gx / arrow.mag) * clamp(Math.sqrt(arrow.mag) * 1.5, 0.55, 2.1),
-            arrow.at[1],
-            arrow.at[2] - (arrow.gz / arrow.mag) * clamp(Math.sqrt(arrow.mag) * 1.5, 0.55, 2.1),
-          ]}
-          color={PALETTE.emerald}
-          radius={0.045}
-          headLength={0.26}
-          headRadius={0.12}
-          label="−∇f"
-        />
-      )}
+      {/* Direct-ref 60 FPS descent tangent indicator: sleek, slope-aligned, zero lag */}
+      <group ref={indicatorGroup} visible={false}>
+        <mesh ref={indicatorShaft}>
+          <cylinderGeometry args={[0.018, 0.018, 1, 12]} />
+          <meshStandardMaterial
+            color={PALETTE.emerald}
+            emissive={PALETTE.emerald}
+            emissiveIntensity={1.4}
+            roughness={0.25}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh ref={indicatorHead}>
+          <coneGeometry args={[0.052, 0.12, 16]} />
+          <meshStandardMaterial
+            color={PALETTE.emerald}
+            emissive={PALETTE.emerald}
+            emissiveIntensity={1.6}
+            roughness={0.2}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -570,19 +638,18 @@ export function SolidOfRevolutionScene({ params = {} }) {
       {showDiscs &&
         discs.map((d, i) => (
           <mesh key={i} position={[0, d.y, 0]}>
-            {/* Gapped very slightly so the staircase of discs stays countable
-                instead of fusing into one column. */}
+            {/* Flush contiguous Riemann discs with high-contrast alternating gold & bronze layers */}
             <cylinderGeometry
-              args={[d.radius, d.radius, d.thickness * 0.86, 60, 1, false, 0, phiLength]}
+              args={[d.radius, d.radius, d.thickness, 48, 1, false, 0, phiLength]}
             />
             <meshStandardMaterial
-              color={i % 2 ? PALETTE.gold : PALETTE.goldDim}
-              emissive={PALETTE.gold}
-              emissiveIntensity={0.24}
-              roughness={0.42}
-              metalness={0.16}
+              color={i % 2 === 0 ? "#fcd34d" : "#b45309"}
+              emissive={i % 2 === 0 ? "#d97706" : "#78350f"}
+              emissiveIntensity={0.16}
+              roughness={0.38}
+              metalness={0.18}
               transparent
-              opacity={0.9}
+              opacity={0.92}
               side={THREE.DoubleSide}
             />
           </mesh>
@@ -634,32 +701,49 @@ const CIRCLE_X = -5.4;
 const WAVE_END = 5.6;
 /** How many radians of phase one world unit along +x is worth. */
 const WAVE_K = 0.62;
+/** Subtle Z-depth separation between traces (cos and target wave) to prevent z-fighting while maintaining a tight, coherent 3D bundle */
+const COS_Z = -0.22;
+const TARGET_Z = 0.22;
 
-/**
- * Radius of the k-th epicycle, k = 1, 3, 5 … (odd harmonics only).
- *
- * Normalised on the fundamental, so a single circle has radius exactly A and
- * traces y = A sin θ. Scaling instead so the *sum* reached A would have made
- * the one-circle case — the default, and the whole point of the scene — draw
- * a wave of amplitude 4A/π while the panel claimed A.
- */
-const harmonicRadius = (amplitude, index) => amplitude / (2 * index + 1);
-
-/** What Σ (A/k) sin kθ over odd k converges to: a square wave of amplitude πA/4. */
-const squareAmplitude = (amplitude) => (amplitude * Math.PI) / 4;
+const WAVEFORMS = {
+  square: {
+    label: "Square wave",
+    k: (i) => 2 * i + 1,
+    radius: (A, i) => A / (2 * i + 1),
+    sign: () => 1,
+    targetAmp: (A) => (A * Math.PI) / 4,
+    hasGibbs: true,
+  },
+  sawtooth: {
+    label: "Sawtooth wave",
+    k: (i) => i + 1,
+    radius: (A, i) => A / (i + 1),
+    sign: (i) => (i % 2 === 0 ? 1 : -1),
+    targetAmp: (A) => (A * Math.PI) / 2,
+    hasGibbs: true,
+  },
+  triangle: {
+    label: "Triangle wave",
+    k: (i) => 2 * i + 1,
+    radius: (A, i) => A / ((2 * i + 1) * (2 * i + 1)),
+    sign: (i) => (i % 2 === 0 ? 1 : -1),
+    targetAmp: (A) => (A * Math.PI * Math.PI) / 8,
+    hasGibbs: false,
+  },
+};
 
 /**
  * Peak of the partial sum, for the Gibbs overshoot readout.
- *
- * The overshoot sits at θ = π/(2·count), which marches toward zero as
- * harmonics are added. A fixed-resolution grid misses this increasingly
- * narrow spike, so we evaluate directly at the analytical peak instead.
  */
-function partialSumPeak(amplitude, count) {
+function partialSumPeak(waveform, amplitude, count) {
   if (count < 1) return 0;
-  const theta = Math.PI / (2 * count);
+  const wf = WAVEFORMS[waveform] ?? WAVEFORMS.square;
+  if (!wf.hasGibbs) return wf.targetAmp(amplitude);
+  const theta = waveform === "sawtooth" ? Math.PI - Math.PI / count : Math.PI / (2 * count);
   let v = 0;
-  for (let i = 0; i < count; i += 1) v += harmonicRadius(amplitude, i) * Math.sin((2 * i + 1) * theta);
+  for (let i = 0; i < count; i += 1) {
+    v += wf.sign(i) * wf.radius(amplitude, i) * Math.sin(wf.k(i) * theta);
+  }
   return v;
 }
 
@@ -673,47 +757,63 @@ function ringPoints(radius, segments = 72) {
 }
 
 /**
- * The Fourier construction. Each epicycle turns at an odd multiple of the
- * base rate; the chain's tip height is the partial sum, and feeding that
- * height along +x is literally what "unrolling" the circle means.
+ * The Fourier construction with multi-waveform synthesis, 3D phase helix, and tangent geometry.
  */
-function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showCos, onSample }) {
+function Epicycles({
+  waveform = "square",
+  harmonics,
+  amplitude,
+  speed,
+  showCircles,
+  showTarget,
+  showCos,
+  showTangent,
+  showHelix,
+  onSample,
+}) {
   const rings = useRef([]);
   const tip = useRef(null);
   const armGeo = useRef(null);
   const waveGeo = useRef(null);
   const cosGeo = useRef(null);
-  const squareGeo = useRef(null);
+  const helixGeo = useRef(null);
+  const targetGeo = useRef(null);
+  const projGeo = useRef(null);
+  const tangentSegGeo = useRef(null);
+  const tangentRayGeo = useRef(null);
+  const tangentPointRef = useRef(null);
 
   const count = Math.round(harmonics);
+  const wf = WAVEFORMS[waveform] ?? WAVEFORMS.square;
+
   const armBuffer = useMemo(() => new Float32Array((count + 1) * 3), [count]);
   const waveBuffer = useMemo(() => new Float32Array(WAVE_SAMPLES * 3), []);
   const cosBuffer = useMemo(() => new Float32Array(WAVE_SAMPLES * 3), []);
-  const squareBuffer = useMemo(() => new Float32Array(WAVE_SAMPLES * 3), []);
+  const helixBuffer = useMemo(() => new Float32Array(WAVE_SAMPLES * 3), []);
+  const targetBuffer = useMemo(() => new Float32Array(WAVE_SAMPLES * 4 * 3), []);
+  const projBuffer = useMemo(() => new Float32Array(6), []);
+  const tangentSegBuffer = useMemo(() => new Float32Array(6), []);
+  const tangentRayBuffer = useMemo(() => new Float32Array(6), []);
+
   const clock = useRef({ theta: 0, sampleAcc: 0 });
 
   const radii = useMemo(
-    () => Array.from({ length: count }, (_, i) => harmonicRadius(amplitude, i)),
-    [count, amplitude],
+    () => Array.from({ length: count }, (_, i) => wf.radius(amplitude, i)),
+    [count, amplitude, wf],
   );
 
-  const squareAmp = squareAmplitude(amplitude);
-  // The overshoot depends only on how many harmonics are in the sum, not on
-  // the time, so it is computed once rather than at every sample.
+  const targetAmp = wf.targetAmp(amplitude);
   const overshoot = useMemo(() => {
-    if (count < 2) return 0;
-    // Gibbs is quoted as a fraction of the *jump*, which is 2 × the square
-    // wave's amplitude. Measured against the amplitude instead it reads ~18%,
-    // which is why the note used to disagree with the number beside it.
-    return (partialSumPeak(amplitude, count) - squareAmp) / (2 * squareAmp);
-  }, [amplitude, count, squareAmp]);
+    if (count < 2 || !wf.hasGibbs) return 0;
+    return (partialSumPeak(waveform, amplitude, count) - targetAmp) / (2 * targetAmp);
+  }, [waveform, amplitude, count, targetAmp, wf]);
 
   useFrame((_, delta) => {
     const c = clock.current;
     const step = Math.min(delta, 0.05);
     c.theta += step * speed;
 
-    // Walk the chain: ring k sits at the tip of ring k−1.
+    // Walk the epicycle chain
     let px = 0;
     let py = 0;
     armBuffer[0] = CIRCLE_X;
@@ -723,9 +823,10 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
     for (let i = 0; i < count; i += 1) {
       const ring = rings.current[i];
       if (ring) ring.position.set(CIRCLE_X + px, py, 0);
-      const k = 2 * i + 1;
-      px += radii[i] * Math.cos(k * c.theta);
-      py += radii[i] * Math.sin(k * c.theta);
+      const k = wf.k(i);
+      const sign = wf.sign(i);
+      px += sign * radii[i] * Math.cos(k * c.theta);
+      py += sign * radii[i] * Math.sin(k * c.theta);
       const o = (i + 1) * 3;
       armBuffer[o] = CIRCLE_X + px;
       armBuffer[o + 1] = py;
@@ -735,41 +836,135 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
     if (tip.current) tip.current.position.set(CIRCLE_X + px, py, 0);
     if (armGeo.current) armGeo.current.attributes.position.needsUpdate = true;
 
-    // The travelling wave. Phase at the left edge equals the tip's angle, so
-    // the curve meets the chain exactly — the wave is the circle, redrawn.
+    // Laser projection from orbiting tip to wave origin
+    if (projGeo.current) {
+      projBuffer[0] = CIRCLE_X + px;
+      projBuffer[1] = py;
+      projBuffer[2] = 0;
+      projBuffer[3] = CIRCLE_X;
+      projBuffer[4] = py;
+      projBuffer[5] = 0;
+      projGeo.current.attributes.position.needsUpdate = true;
+    }
+
+    // Travelling wave, cosine, and 3D Phase Helix
     for (let s = 0; s < WAVE_SAMPLES; s += 1) {
       const x = CIRCLE_X + ((WAVE_END - CIRCLE_X) * s) / (WAVE_SAMPLES - 1);
       const phase = c.theta - (x - CIRCLE_X) * WAVE_K;
       let y = 0;
       let cosY = 0;
+      let z = 0;
       for (let i = 0; i < count; i += 1) {
-        const k = 2 * i + 1;
-        y += radii[i] * Math.sin(k * phase);
-        cosY += radii[i] * Math.cos(k * phase);
+        const k = wf.k(i);
+        const sign = wf.sign(i);
+        const term = sign * radii[i];
+        y += term * Math.sin(k * phase);
+        cosY += term * Math.cos(k * phase);
+        z += term * Math.cos(k * phase);
       }
       const o = s * 3;
       waveBuffer[o] = x;
       waveBuffer[o + 1] = y;
       waveBuffer[o + 2] = 0;
+
       cosBuffer[o] = x;
       cosBuffer[o + 1] = cosY;
-      cosBuffer[o + 2] = -0.9;
-      // Driven from the same phase as the trace: a static target would drift
-      // out of step the moment the wave started moving, making the comparison
-      // it exists for meaningless.
-      squareBuffer[o] = x;
-      squareBuffer[o + 1] = Math.sign(Math.sin(phase) || 1) * squareAmp;
-      squareBuffer[o + 2] = 0.9;
+      cosBuffer[o + 2] = COS_Z;
+
+      helixBuffer[o] = x;
+      helixBuffer[o + 1] = y;
+      helixBuffer[o + 2] = z;
     }
     if (waveGeo.current) waveGeo.current.attributes.position.needsUpdate = true;
     if (cosGeo.current) cosGeo.current.attributes.position.needsUpdate = true;
-    if (squareGeo.current) squareGeo.current.attributes.position.needsUpdate = true;
+    if (helixGeo.current) helixGeo.current.attributes.position.needsUpdate = true;
+
+    // Target wave synthesis: square (analytical step pairs), sawtooth (ramp), triangle
+    if (showTarget) {
+      let ptr = 0;
+      const addPt = (px, py, pz) => {
+        targetBuffer[ptr++] = px;
+        targetBuffer[ptr++] = py;
+        targetBuffer[ptr++] = pz;
+      };
+
+      if (waveform === "square") {
+        const mMax = Math.floor(c.theta / Math.PI);
+        const mMin = Math.ceil((c.theta - (WAVE_END - CIRCLE_X) * WAVE_K) / Math.PI);
+        let currentY = (Math.sin(c.theta) >= 0 ? 1 : -1) * targetAmp;
+        addPt(CIRCLE_X, currentY, TARGET_Z);
+        for (let m = mMax; m >= mMin; m -= 1) {
+          const x = CIRCLE_X + (c.theta - m * Math.PI) / WAVE_K;
+          if (x > CIRCLE_X + 0.001 && x < WAVE_END - 0.001) {
+            addPt(x, currentY, TARGET_Z);
+            currentY = -currentY;
+            addPt(x, currentY, TARGET_Z);
+          }
+        }
+        addPt(WAVE_END, currentY, TARGET_Z);
+      } else if (waveform === "sawtooth") {
+        const twoPi = Math.PI * 2;
+        for (let s = 0; s < WAVE_SAMPLES; s += 1) {
+          const x = CIRCLE_X + ((WAVE_END - CIRCLE_X) * s) / (WAVE_SAMPLES - 1);
+          const phase = c.theta - (x - CIRCLE_X) * WAVE_K;
+          let norm = (phase + Math.PI) % twoPi;
+          if (norm < 0) norm += twoPi;
+          const y = ((norm - Math.PI) / Math.PI) * targetAmp;
+          addPt(x, y, TARGET_Z);
+        }
+      } else if (waveform === "triangle") {
+        for (let s = 0; s < WAVE_SAMPLES; s += 1) {
+          const x = CIRCLE_X + ((WAVE_END - CIRCLE_X) * s) / (WAVE_SAMPLES - 1);
+          const phase = c.theta - (x - CIRCLE_X) * WAVE_K;
+          const y = ((2 * targetAmp) / Math.PI) * Math.asin(Math.sin(phase));
+          addPt(x, y, TARGET_Z);
+        }
+      }
+
+      if (targetGeo.current) {
+        targetGeo.current.setDrawRange(0, ptr / 3);
+        targetGeo.current.attributes.position.needsUpdate = true;
+      }
+    }
+
+    // Tangent (tan θ) geometric construction
+    const tanVal = Math.tan(c.theta);
+    if (showTangent) {
+      const tanX = CIRCLE_X + amplitude;
+      const tanY = amplitude * tanVal;
+      const clampedTanY = clamp(tanY, -4.5, 4.5);
+
+      if (tangentSegGeo.current) {
+        tangentSegBuffer[0] = tanX;
+        tangentSegBuffer[1] = 0;
+        tangentSegBuffer[2] = 0;
+        tangentSegBuffer[3] = tanX;
+        tangentSegBuffer[4] = clampedTanY;
+        tangentSegBuffer[5] = 0;
+        tangentSegGeo.current.attributes.position.needsUpdate = true;
+      }
+
+      if (tangentRayGeo.current) {
+        tangentRayBuffer[0] = CIRCLE_X;
+        tangentRayBuffer[1] = 0;
+        tangentRayBuffer[2] = 0;
+        tangentRayBuffer[3] = tanX;
+        tangentRayBuffer[4] = clampedTanY;
+        tangentRayBuffer[5] = 0;
+        tangentRayGeo.current.attributes.position.needsUpdate = true;
+      }
+
+      if (tangentPointRef.current) {
+        tangentPointRef.current.position.set(tanX, clampedTanY, 0);
+        tangentPointRef.current.visible = Math.abs(tanVal) < 8;
+      }
+    }
 
     c.sampleAcc += step;
     if (c.sampleAcc >= 0.12) {
       c.sampleAcc = 0;
       const theta = c.theta % (Math.PI * 2);
-      onSample({ theta, height: py, overshoot });
+      onSample({ theta, height: py, tanVal: Math.abs(tanVal) < 50 ? tanVal : undefined, overshoot });
     }
   });
 
@@ -782,6 +977,7 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
           </group>
         ))}
 
+      {/* Epicycle chain radius arms */}
       <line frustumCulled={false}>
         <bufferGeometry ref={armGeo}>
           <bufferAttribute attach="attributes-position" args={[armBuffer, 3]} />
@@ -789,11 +985,21 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
         <lineBasicMaterial color={PALETTE.bone} transparent opacity={0.85} />
       </line>
 
+      {/* Orbiting tip */}
       <mesh ref={tip}>
         <sphereGeometry args={[0.13, 20, 20]} />
         <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={1.7} toneMapped={false} />
       </mesh>
 
+      {/* Horizontal laser projection from tip to wave start */}
+      <line frustumCulled={false}>
+        <bufferGeometry ref={projGeo}>
+          <bufferAttribute attach="attributes-position" args={[projBuffer, 3]} />
+        </bufferGeometry>
+        <lineDashedMaterial color={PALETTE.gold} dashSize={0.12} gapSize={0.08} transparent opacity={0.5} />
+      </line>
+
+      {/* Travelling sine wave trace */}
       <line frustumCulled={false}>
         <bufferGeometry ref={waveGeo}>
           <bufferAttribute attach="attributes-position" args={[waveBuffer, 3]} />
@@ -801,6 +1007,7 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
         <lineBasicMaterial color={PALETTE.gold} />
       </line>
 
+      {/* Cosine wave trace */}
       {showCos && (
         <line frustumCulled={false}>
           <bufferGeometry ref={cosGeo}>
@@ -810,12 +1017,63 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
         </line>
       )}
 
+      {/* 3D Phase Helix and reference cylinder */}
+      {showHelix && (
+        <group>
+          <line frustumCulled={false} renderOrder={20}>
+            <bufferGeometry ref={helixGeo}>
+              <bufferAttribute attach="attributes-position" args={[helixBuffer, 3]} />
+            </bufferGeometry>
+            <lineBasicMaterial color={PALETTE.sky} linewidth={2.5} />
+          </line>
+          <mesh position={[(CIRCLE_X + WAVE_END) / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[amplitude, amplitude, WAVE_END - CIRCLE_X, 36, 1, true]} />
+            <meshBasicMaterial wireframe color={PALETTE.sky} transparent opacity={0.06} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Tangent (tan θ) construction */}
+      {showTangent && (
+        <group>
+          {/* Vertical contact line at x = A */}
+          <Line
+            points={[[CIRCLE_X + amplitude, -4.5, 0], [CIRCLE_X + amplitude, 4.5, 0]]}
+            color={PALETTE.slate}
+            lineWidth={1.2}
+            dashed
+            dashSize={0.12}
+            gapSize={0.08}
+          />
+          {/* Extended ray through tip */}
+          <line frustumCulled={false}>
+            <bufferGeometry ref={tangentRayGeo}>
+              <bufferAttribute attach="attributes-position" args={[tangentRayBuffer, 3]} />
+            </bufferGeometry>
+            <lineBasicMaterial color={PALETTE.rose} transparent opacity={0.4} />
+          </line>
+          {/* Vertical tangent segment */}
+          <line frustumCulled={false}>
+            <bufferGeometry ref={tangentSegGeo}>
+              <bufferAttribute attach="attributes-position" args={[tangentSegBuffer, 3]} />
+            </bufferGeometry>
+            <lineBasicMaterial color={PALETTE.rose} linewidth={3} />
+          </line>
+          {/* Tangent point marker */}
+          <mesh ref={tangentPointRef}>
+            <sphereGeometry args={[0.09, 16, 16]} />
+            <meshStandardMaterial color={PALETTE.rose} emissive={PALETTE.rose} emissiveIntensity={2} toneMapped={false} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Target synthesized waveform */}
       {showTarget && (
         <line frustumCulled={false}>
-          <bufferGeometry ref={squareGeo}>
-            <bufferAttribute attach="attributes-position" args={[squareBuffer, 3]} />
+          <bufferGeometry ref={targetGeo}>
+            <bufferAttribute attach="attributes-position" args={[targetBuffer, 3]} />
           </bufferGeometry>
-          <lineBasicMaterial color={PALETTE.emerald} transparent opacity={0.8} />
+          <lineBasicMaterial color={PALETTE.emerald} transparent opacity={0.85} />
         </line>
       )}
     </group>
@@ -824,37 +1082,48 @@ function Epicycles({ harmonics, amplitude, speed, showCircles, showTarget, showC
 
 export function UnitCircleWaveScene({ params = {} }) {
   const {
+    waveform = "square",
     harmonics = 1,
     amplitude = 1.4,
     speed = 1.1,
     showCircles = true,
     showCos = false,
     showTarget = false,
+    showTangent = false,
+    showHelix = false,
     spin = false,
   } = params || {};
 
-  const [sample, setSample] = useState({ theta: 0, height: 0, overshoot: 0 });
+  const [sample, setSample] = useState({ theta: 0, height: 0, tanVal: 0, overshoot: 0 });
   const count = Math.round(harmonics);
+  const wf = WAVEFORMS[waveform] ?? WAVEFORMS.square;
+  const targetAmp = wf.targetAmp(amplitude);
 
   return (
-    <SceneCanvas camera={{ position: [0, 0.6, 12.5], fov: 48 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+    <SceneCanvas
+      camera={{ position: showHelix ? [3.2, 3.8, 11.2] : [0, 0.6, 12.5], fov: 48 }}
+      controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}
+    >
       {/* Axes for the wave half of the scene. */}
       <Line points={[[CIRCLE_X, 0, 0], [WAVE_END + 0.4, 0, 0]]} color={PALETTE.line} lineWidth={1.4} />
       <Line points={[[CIRCLE_X, -2.6, 0], [CIRCLE_X, 2.6, 0]]} color={PALETTE.line} lineWidth={1.4} />
 
       <Epicycles
-        key={count}
+        key={`${count}-${waveform}`}
+        waveform={waveform}
         harmonics={count}
         amplitude={amplitude}
         speed={speed}
         showCircles={showCircles}
         showTarget={showTarget}
         showCos={showCos}
+        showTangent={showTangent}
+        showHelix={showHelix}
         onSample={setSample}
       />
 
       <SceneLabel position={[CIRCLE_X, -3.1, 0]} accent>
-        {count === 1 ? "one circle, radius A" : `${count} epicycles`}
+        {count === 1 ? "one circle, radius A" : `${count} epicycles (${wf.label})`}
       </SceneLabel>
       <SceneLabel position={[1.6, -3.1, 0]} tone="text-ink-400">
         the same motion, plotted against time →
@@ -863,28 +1132,37 @@ export function UnitCircleWaveScene({ params = {} }) {
       <SceneReadout
         hidden={params?.hideOverlayReadout}
         title="Circular motion"
-        subtitle={count === 1 ? "y = A sin θ" : "y = Σ (A ÷ k) sin kθ, k odd"}
+        subtitle={count === 1 ? "y = A sin θ · x = A cos θ" : `Fourier ${wf.label} synthesis`}
         rows={[
           ["Angle θ", `${((sample.theta * 180) / Math.PI).toFixed(0)}°`],
           ["…in radians", sample.theta.toFixed(2)],
           ["Height y", sample.height.toFixed(2), "gold"],
           ["sin θ", Math.sin(sample.theta).toFixed(3)],
           ["cos θ", Math.cos(sample.theta).toFixed(3)],
+          ...(showTangent && sample.tanVal !== undefined
+            ? [["tan θ", sample.tanVal.toFixed(3), "rose"]]
+            : []),
           ["Amplitude A", amplitude.toFixed(2)],
           ["Harmonics", count],
           ...(count > 1
             ? [
-                ["Square wave πA÷4", squareAmplitude(amplitude).toFixed(2)],
-                ["Overshoot of jump", `${(sample.overshoot * 100).toFixed(1)}%`, "warn"],
+                [`Target ${wf.label}`, targetAmp.toFixed(2)],
+                ...(wf.hasGibbs
+                  ? [["Overshoot of jump", `${(sample.overshoot * 100).toFixed(1)}%`, "warn"]]
+                  : [["Gibbs overshoot", "0% (continuous)", "good"]]),
               ]
             : []),
         ]}
         note={
           count === 1
             ? "The sine wave is not a separate object from the circle — it is the height of a point going round, drawn against time. One full turn is one wavelength."
-            : "Adding odd harmonics of amplitude A÷k squares the wave off, converging on a square wave of amplitude πA÷4. The overshoot at each jump settles at about 9% of the jump however many terms you add — that is the Gibbs phenomenon."
+            : `Adding Fourier harmonics of amplitude scaled for a ${waveform} wave shapes the curve toward the target function. ${
+                wf.hasGibbs
+                  ? "The Gibbs phenomenon overshoot settles at about 9% of the jump however many terms you add."
+                  : "The series converges uniformly with quadratic damping (1/k²) and zero overshoot."
+              }`
         }
-        noteTone={count > 1 ? "warn" : "neutral"}
+        noteTone={count > 1 && wf.hasGibbs ? "warn" : "neutral"}
       />
 
       <SceneLegend
@@ -893,21 +1171,10 @@ export function UnitCircleWaveScene({ params = {} }) {
           { color: PALETTE.sky, shape: "line", label: "Base circle", note: "radius A, turns at θ" },
           { color: PALETTE.gold, label: "Tip", note: "its height is the wave value" },
           { color: PALETTE.gold, shape: "line", label: "sin trace", note: "the tip's height against time" },
-          ...(showCos
-            ? [
-                {
-                  color: PALETTE.violet,
-                  shape: "line",
-                  label: "Horizontal trace",
-                  // Only the single-circle case is literally a cosine: with
-                  // several harmonics the horizontal sum is not the vertical
-                  // one shifted, because each term would shift by a different
-                  // amount.
-                  note: count === 1 ? "cos θ — a quarter turn ahead of the sine" : "the tip's sideways position",
-                },
-              ]
-            : []),
-          ...(showTarget ? [{ color: PALETTE.emerald, shape: "line", label: "Square wave", note: "amplitude πA ÷ 4 — what the series converges to" }] : []),
+          ...(showTangent ? [{ color: PALETTE.rose, shape: "line", label: "Tangent line (tan θ)", note: "height on vertical line touching x = A" }] : []),
+          ...(showCos ? [{ color: PALETTE.violet, shape: "line", label: "Horizontal trace", note: "cos θ — a quarter turn ahead of the sine" }] : []),
+          ...(showHelix ? [{ color: PALETTE.sky, shape: "line", label: "3D Phase Helix", note: "unrolled 3D spatial trajectory (x, cos θ, sin θ)" }] : []),
+          ...(showTarget ? [{ color: PALETTE.emerald, shape: "line", label: `Target ${wf.label}`, note: "what the Fourier series converges to" }] : []),
         ]}
       />
     </SceneCanvas>

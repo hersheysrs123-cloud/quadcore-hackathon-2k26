@@ -5440,3 +5440,124 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 ### Verification
 - All 802 unit and integration tests passing (`npm test`).
 - Verified zero missing React hook imports across all components and libraries.
+
+---
+
+## 93. Math Gradient Descent 60 FPS Refactor, Sleek Tangent Indicator & Curve Trail Occlusion Resolution
+
+### Problem Statement
+1. **Laggy Gradient Descent & Teleporting Arrow**:
+   - The gradient descent simulation in `MathCanvas.jsx` felt laggy and stuttery.
+   - The negative gradient arrow was rendered as a React component (`<VectorArrow>`) controlled by React state (`arrow`), sampled at a 6 Hz interval (`w.sampleAcc >= 0.16`). This caused continuous React component re-renders inside the WebGL frame loop, while the arrow jittered, desynced, and lagged heavily behind the ball at 6 FPS.
+   - The arrow was oversized (length clamped up to 2.1 in a 3.2 domain, thick 0.045 radius, 0.12 head) and pointed horizontally, hovering unphysically above steep curved surfaces.
+2. **Missing/Disappearing Yellow Trail Line**:
+   - While descending curved or concave areas of loss surfaces (bowl, valley, saddle), sections of the yellow path line failed to render or disappeared.
+   - Straight segments between discrete steps dipped beneath the curved surface mesh triangles, failing the WebGL depth test and being occluded by the loss surface.
+
+### Root Cause Analysis
+1. **React State in Render Loop & Oversized Mesh**:
+   - Calling `setArrow` every 160ms inside `useFrame` triggered unnecessary React reconciliation. The arrow only updated at 6 Hz while the ball moved, producing severe visual stutter.
+   - The arrow was mounted as a separate declarative component with DOM-based Drei `<Html>` labels.
+2. **Depth Buffer Occlusion on Curved Surfaces**:
+   - `lineBasicMaterial` performed standard depth testing against the dense surface geometry (`PlaneGeometry` 72x72). A straight chord connecting two discrete surface points cuts beneath the curved surface between them, occluding the line.
+   - Trail points were recorded only once per discrete step without interpolating intermediate surface elevations.
+
+### Resolution & Architectural Enhancements
+1. **Direct-Ref 60 FPS Descent Tangent Indicator**:
+   - Eliminated `setArrow` React state and component reconciliation entirely from `useFrame`.
+   - Created a direct Three.js ref-driven directional indicator (`indicatorGroup`, `indicatorShaft`, `indicatorHead`) updated directly on Three.js objects at full 60 FPS.
+   - Computes the true 3D surface tangent direction (\(dx = -g_x / \|\nabla f\|\), \(dz = -g_z / \|\nabla f\|\), \(dy = \Delta h / \epsilon\)), seamlessly aligning the pointer to the downhill slope.
+   - Refined, proportional dimensions (length 0.35 to 0.72, shaft radius 0.018, cone 0.052) with luminous emerald emissive shading.
+2. **Surface-Hugging Trail & Depth Test Override**:
+   - Added `depthTest={false}`, `depthWrite={false}`, and `renderOrder={99}` to the trail's `lineBasicMaterial`, guaranteeing the path is never occluded or clipped by the surface mesh.
+   - Subdivided step displacements exceeding 0.08 into 1–4 intermediate points sampling the true surface elevation `drawHeight(f(sx, sz)) + 0.08`, ensuring the line tightly hugs surface topography.
+   - Pre-seeded the initial position on reset (`w.count = 1`) so the trail starts cleanly under the ball.
+   - Increased simulation step rate to 20 Hz for responsive, fluid descent motion.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified 60 FPS direct-ref indicator and non-occluded yellow path rendering across all 4 surfaces (`bowl`, `saddle`, `valley`, `wells`).
+
+---
+
+## 94. Solids of Revolution: Flush Riemann Disc Stacking, High-Contrast Alternating Layers & Extended Slider Max
+
+### Problem Statement
+- In `SolidOfRevolutionScene` (`MathCanvas.jsx`), cylindrical Riemann discs had an artificial 14% gap (`thickness * 0.86`), rendering slices as disconnected floating wafers rather than a contiguous calculus partition.
+- The two alternating layer colors (`PALETTE.gold` `#fbbf24` and `PALETTE.goldDim` `#f59e0b`) had near-zero visual contrast, especially when washed out by uniform `emissive={PALETTE.gold}`.
+- The maximum slice slider limit in `topics.js` was capped at 40, limiting student observation of asymptotic convergence towards the true smooth solid of revolution.
+
+### Resolution & Architectural Enhancements
+1. **Flush Riemann Integration Thickness (1.0)**:
+   - Updated `cylinderGeometry` thickness from `d.thickness * 0.86` to `d.thickness * 1.0` in `MathCanvas.jsx`. Discs now touch edge-to-edge as mathematically defined in Riemann integration.
+2. **High-Contrast Alternating Layer Materials**:
+   - Replaced near-identical amber tones with high-contrast alternating materials:
+     - Even slices ($i \% 2 === 0$): Bright luminous gold (`#fcd34d`, emissive `#d97706` at 0.16 intensity).
+     - Odd slices ($i \% 2 === 1$): Deep rich bronze amber (`#b45309`, emissive `#78350f` at 0.16 intensity).
+   - Each individual Riemann slice is immediately distinct, readable, and countable even when flush.
+3. **Extended Slider Range**:
+   - Increased `slices` slider `max` from 40 to 80 in `topics.js` (`min: 3, max: 80, step: 1`), enabling students to visualize dense convergence toward the exact analytical volume.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified flush stacking, enhanced layer contrast, and 80-slice rendering.
+
+---
+
+## 95. Unit Circle & Fourier Synthesis: Square Wave Low-Speed Vibration Resolution via Analytical Transitions
+
+### Problem Statement
+- In `UnitCircleWaveScene` (`MathCanvas.jsx`), when the angular speed $\omega$ was set to low values (such as $0.1\text{ rad/s}$), the target green square wave visibly vibrated and jerked back and forth instead of smoothly translating to the right.
+
+### Root Cause Analysis
+- The square wave was evaluated by sampling $\operatorname{sgn}(\sin(\text{phase}))$ across 260 fixed spatial grid vertices ($x_s = \text{CIRCLE\_X} + s \cdot \Delta x$).
+- A discontinuous step function sampled on a fixed grid cannot render vertical lines; instead, it renders a slanted segment between the sample before the zero-crossing and the sample after it.
+- At low angular velocity ($\omega = 0.1$), the continuous phase shifts by only $\sim 0.0016$ radians per frame, taking $\sim 16$ to $20$ frames to traverse one grid interval ($\Delta x \approx 0.0424$). Consequently, the slanted edge remained pinned at the same $x$ coordinate for multiple frames, and then abruptly snapped forward by an entire grid unit upon crossing a sample. Against the smoothly scrolling sine wave, this discrete spatial quantization produced a severe optical jumping/vibration artifact.
+
+### Resolution & Architectural Enhancements
+- **Exact Analytical Zero-Crossing Geometry**:
+  - Derived the precise floating-point zero-crossing positions directly from the continuous phase angle:
+    $$x_m = \text{CIRCLE\_X} + \frac{\theta - m\pi}{\text{WAVE\_K}}$$
+  - Dynamically constructed line strip vertices with true vertical step pairs:
+    $$(x_m, y_{\text{prev}}) \longrightarrow (x_m, -y_{\text{prev}})$$
+  - Edges now translate with exact sub-pixel precision in 60 FPS lockstep with $\theta$, completely eliminating quantization stutter, slanted line artifacts, and low-speed vibration.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified smooth, continuous motion at $\omega = 0.1\text{ rad/s}$ and zero vibration across all harmonics settings.
+
+---
+
+## 96. Unit Circle Visualizer: Multi-Waveform Fourier Synthesis, Tangent ($\tan \theta$) Geometry & 3D Phase Helix Suite
+
+### Problem Statement
+- The Unit Circle & Sine Wave visualization was limited to a single Fourier target (odd-harmonic square wave), lacked geometric representation for the third fundamental trigonometric ratio ($\tan \theta$), did not visually link the circular rotating tip to the travelling wave start, and flattened the wave trajectory onto the 2D XY plane rather than demonstrating its true 3D spatial helical nature.
+
+### Resolution & Architectural Enhancements
+1. **Multi-Waveform Fourier Synthesis (Square, Sawtooth, Triangle)**:
+   - Added `waveform` selector to `topics.js` and `MathCanvas.jsx`:
+     - **Square Wave**: Odd harmonics $k = 2i+1$, $r_i = A / (2i+1)$, signs $(+)$, target $\frac{\pi A}{4}$, with analytical vertical zero-crossing steps.
+     - **Sawtooth Wave**: All harmonics $k = i+1$, $r_i = A / (i+1)$, signs $(-1)^i$, target $\frac{\pi A}{2}$, with linear ramps and vertical jump falloffs.
+     - **Triangle Wave**: Odd harmonics $k = 2i+1$, $r_i = A / (2i+1)^2$, signs alternating $(-1)^i$, target $\frac{\pi^2 A}{8}$, with continuous triangle wave synthesis ($0\%$ Gibbs overshoot).
+2. **Tangent ($\tan \theta$) Geometric Construction**:
+   - Added toggle `showTangent` rendering the classic textbook geometric definition of tangent:
+     - Vertical contact tangent line at $x = \text{CIRCLE\_X} + A$.
+     - Extended radius ray passing through the rotating tip $(\cos \theta, \sin \theta)$ out to the vertical line.
+     - Solid glowing rose tangent segment $(\text{CIRCLE\_X} + A, 0) \to (\text{CIRCLE\_X} + A, A \tan \theta)$ and glowing marker point, visually demonstrating why $\tan \theta \to \pm \infty$ at $\theta = 90^\circ, 270^\circ$.
+3. **3D Phase Helix Spatial Unrolling Mode**:
+   - Added toggle `showHelix` unrolling the 3D phase trajectory $(x, \cos \theta, \sin \theta)$ along the spatial axis:
+     - When viewed from the front (XY plane), it projects as a pure sine wave.
+     - When viewed from above (XZ plane), it projects as a pure cosine wave.
+     - In 3D isometric view, it renders as a continuous 3D phase helix rotating inside a translucent cylindrical reference boundary.
+4. **Horizontal Projection Line**:
+   - Rendered an active dashed projection line from the orbiting tip directly across to the wave origin, locking the visual connection between circle height and wave height.
+5. **Tightened Z-Depth Trace Separation**:
+   - Reduced the extreme $1.8$-unit depth gap ($z = -0.9$ to $+0.9$) between the cosine trace, primary sine wave, and target wave down to a compact $\pm 0.22$ offset (`COS_Z = -0.22`, `TARGET_Z = 0.22`). When rotating the camera to oblique side angles in 3D, the waveforms now form an intimate, cohesive bundle centered on $z = 0$ rather than floating far apart in empty space.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified live toggling, accurate mathematics across all 3 waveforms, tangent construction, 3D phase helix mode, and tight spatial trace bundling.
+
+
+
+

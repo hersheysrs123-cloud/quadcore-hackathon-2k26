@@ -91,7 +91,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │       ├── energy-bars.jsx               # SHARED: energy/work column charts (grouped + stacked total) & needle DialGauge
 │       ├── cell-organelles.jsx           # Procedural 3D organelle geometry (nucleus, mitochondria, chloroplast, etc.)
 │       ├── CSCanvas.jsx                  # Computer Science canvas dispatcher (BST / AVL tree and 3D sorting visualizer)
-│       ├── MathCanvas.jsx                # Gradient descent on loss surfaces, solids of revolution, unit circle & Fourier series
+│       ├── MathCanvas.jsx                # Gradient descent on loss surfaces (smooth 60fps direct-ref tangent vector & non-occluded surface-subdivided trail), solids of revolution (flush 1.0 thickness & high-contrast gold/bronze layers), unit circle & Fourier series (multi-waveform Fourier synthesis, tangent geometry & 3D phase helix)
 │       ├── media.js                      # Refractive index presets (air, water, glass, diamond, perspex)
 │       ├── topic-options.js              # Presets and options for VSEPR, 3D sorting, surface functions, and revolution curves
 │       ├── topics.js                     # Topic registry: category, controls schema, concepts & quiz for all 35 scenes with speed: 1 defaults
