@@ -5591,3 +5591,31 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 ### Verification
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
 - Verified fluid 60 FPS transitions between Front, Top, Barrel, and Iso viewpoints.
+
+---
+
+## 98. App Router Error Boundaries & Next.js 15 Windows Build ENOENT Resolution
+
+### Problem Statement
+- During `next build` on Windows, the build process failed during the static export phase with an unhandled exception:
+  ```
+  [Error: ENOENT: no such file or directory, rename '.../.next/export/500.html' -> '.../.next/server/pages/500.html']
+  ```
+- This occurred because Next.js 15 attempted to fall back to legacy Pages Router default error page generation when no explicit App Router error boundaries were present in `app/`. On Windows, attempting to rename non-existent export artifacts into uninitialized `server/pages/` directories threw fatal `ENOENT` errors.
+
+### Root Cause Analysis
+- The project exclusively utilizes Next.js App Router (`app/`) with zero Pages Router directory (`pages/`).
+- Next.js 15 requires explicit error and not-found components (`app/error.jsx`, `app/global-error.jsx`, `app/not-found.jsx`) to handle application boundaries under the App Router paradigm. In their absence, the compiler activates Pages Router fallback routines that attempt to move a static `500.html` file into `.next/server/pages/500.html`, which fails on Windows when the directory does not exist.
+
+### Resolution & Architectural Enhancements
+1. **Created `app/not-found.jsx`**:
+   - High-fidelity branded 404 screen with amber Socratic duck badge and direct link back to `/workspace`.
+2. **Created `app/error.jsx`**:
+   - Client error boundary component capturing runtime exceptions with structured diagnostics and a "Try again" reset handler.
+3. **Created `app/global-error.jsx`**:
+   - Root-level HTML error boundary safeguarding the entire application shell against unhandled top-level crashes.
+
+### Verification
+- `npm run build` executed and passed with exit code 0 in 95 seconds (`✓ Compiled successfully`, `✓ Generating static pages (5/5)`).
+- Production server launched via `npm run start` (`task-931`) and verified responding with HTTP 200 on `/workspace` and `/visualizations`.
+- Working tree clean with zero uncommitted artifacts.

@@ -35,8 +35,11 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   │   ├── reset/route.js                # POST: Local-first factory reset signal route
 │   │   ├── tutor/chat/route.js           # POST: Interactive AI Tutor chat with space syllabus and academic pedagogy
 │   │   └── visualizations/route.js       # Local-first 3D visualizations persistence route
+│   ├── error.jsx                         # App Router root error boundary
+│   ├── global-error.jsx                  # App Router HTML/root error boundary
 │   ├── globals.css                       # Tailwind v4 tokens, light/dark themes, print stylesheet, KaTeX styles
 │   ├── layout.js                         # Root layout, metadata & pre-paint theme bootstrap script
+│   ├── not-found.jsx                     # App Router 404 not found page
 │   ├── page.js                           # Marketing landing page (Server Component, CSS-only animations)
 │   ├── visualizations/
 │   │   └── page.jsx                      # Standalone 3D visualizer page with TopicSelectorDropdown, clean single header, & control HUD
@@ -659,7 +662,9 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
     - When clicking on side margins or dragging marquee selection boxes, `data-editor-root` and `handleGlobalMouseUp` check `justFinishedMarquee.current` and verify whether clicks are vertically below `lastRect.bottom` before appending or focusing blocks. Clicks on side margins or following lasso selections never jump to the last block, strictly honoring the `clickToAppend` setting.
 12. **React Dynamic Component Hook Rules (`InteractiveTutorial.jsx`)**:
     - When rendering dynamically selected components containing React hooks (such as tutorial chapters or step renderers in `TUTORIAL_STEPS`), NEVER execute them as plain function calls (`{step.render({...})}`). Calling functions with hooks executes them in the outer component's fiber, causing hook count mismatches (React Error #310) when switching between steps with different hook counts. Always render as a JSX element (`<StepComponent key={step.id} {...props} />`), which allocates an isolated child fiber and cleanly unmounts and remounts state on step transitions.
-13. **3D Studio Analytical Fourier Discontinuities & Camera View Rig (`MathCanvas.jsx`)**:
+13. **App Router Error Boundaries & Build Artifact Integrity (`app/error.jsx`, `app/global-error.jsx`, `app/not-found.jsx`)**:
+    - In Next.js 15 projects using exclusively the App Router, always provide explicit App Router error boundaries (`app/not-found.jsx`, `app/error.jsx`, `app/global-error.jsx`). Without explicit App Router error files, Next.js defaults to Pages Router fallback static generation, which triggers an `ENOENT: rename export/500.html -> server/pages/500.html` error on Windows platforms where the `server/pages/` directory does not exist.
+14. **3D Studio Analytical Fourier Discontinuities & Camera View Rig (`MathCanvas.jsx`)**:
     - When drawing discontinuous target wave functions (Square, Sawtooth) in Three.js line strips, never sample $\operatorname{sgn}(\sin(\dots))$ or modulo across fixed spatial grid vertices. Fixed sampling causes vertical edges to render as slanted ramps that snap discretely across grid intervals, resulting in severe vibration and jitter at low speed. Instead, compute the exact floating-point discontinuity coordinates $x_m = \text{CIRCLE\_X} + (\theta - \text{offset}) / \text{WAVE\_K}$ and emit exact vertical step pairs $(x_m, y_{\text{prev}}) \to (x_m, y_{\text{next}})$.
     - For 1-click orthogonal camera view transitions (Front, Top, Barrel, Iso), use an in-canvas `<CameraRig>` that lerps both `camera.position` and `controls.target` smoothly with exponential damping (`1 - Math.exp(-delta * 6.5)`), syncing `controls.update()` each frame to allow seamless orbital takeover by the user.
 
