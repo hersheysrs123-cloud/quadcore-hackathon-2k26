@@ -115,36 +115,36 @@ function layoutTree(root) {
 // ─── Scene pieces ───────────────────────────────────────────────────
 
 const NODE_STYLES = {
-  idle: { color: "#2a3447", emissive: "#3b4963", intensity: 0.6, ring: "#475569" },
+  idle: { color: "#141a24", emissive: "#1e293b", intensity: 0.35, ring: "#334155" },
   visited: {
-    color: "#059669",
-    emissive: "#10b981",
-    intensity: 1.0,
-    ring: "#34d399",
+    color: "#065f46",
+    emissive: "#047857",
+    intensity: 0.8,
+    ring: "#10b981",
   },
   current: {
-    color: "#d97706",
-    emissive: "#f59e0b",
-    intensity: 2.2,
-    ring: "#fbbf24",
+    color: "#b45309",
+    emissive: "#d97706",
+    intensity: 1.9,
+    ring: "#f59e0b",
   },
   found: {
-    color: "#059669",
-    emissive: "#34d399",
-    intensity: 2.5,
-    ring: "#6ee7b7",
+    color: "#047857",
+    emissive: "#059669",
+    intensity: 2.2,
+    ring: "#34d399",
   },
   missing: {
-    color: "#e11d48",
-    emissive: "#fb7185",
-    intensity: 2.2,
-    ring: "#fca5a5",
+    color: "#be123c",
+    emissive: "#e11d48",
+    intensity: 1.9,
+    ring: "#fb7185",
   },
   selected: {
-    color: "#0284c7",
-    emissive: "#38bdf8",
-    intensity: 1.8,
-    ring: "#7dd3fc",
+    color: "#0369a1",
+    emissive: "#0284c7",
+    intensity: 1.6,
+    ring: "#38bdf8",
   },
 };
 

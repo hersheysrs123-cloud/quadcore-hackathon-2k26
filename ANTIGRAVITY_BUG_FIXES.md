@@ -5650,3 +5650,27 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 ### Verification
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
 - Verified exact horizontal sliding translation of both waves in lockstep with the rotating tip.
+
+---
+
+## 100. Computer Science Visualizations: Sorting Speed Calibration & 3D Binary Search Tree Darker Palette
+
+### Problem Statement
+1. **Sorting Algorithm Playback Speed**:
+   - The default playback speed for the 3D sorting visualizer (`CSCanvas.jsx`) was set to $1.4\times$ with a high step-rate formula ($3 + \text{speed} \times 26$), advancing $\sim 40\text{ frames/sec}$. For larger arrays, comparisons and partition boundaries flashed by too rapidly to follow each algorithmic decision clearly.
+2. **3D Binary Search Tree (BST) Node Contrast**:
+   - Node spheres in `BinaryTree3D.jsx` used a bright slate-gray idle tone (`#2a3447` with `#3b4963` emissive), which diluted visual contrast against the canvas background and competed with the white numerical labels and active glowing highlight paths.
+
+### Resolution & Architectural Enhancements
+1. **Sorting Speed Calibration (`CSCanvas.jsx` & `topics.js`)**:
+   - Calibrated default playback speed from $1.4\times$ down to a steady $1.0\times$.
+   - Adjusted the internal step clock formula from $3 + \text{speed} \times 26$ to $2 + \text{speed} \times 18$. At $1.0\times$ speed, the simulation now steps at an optimal $\sim 20\text{ ops/sec}$, providing clear, pedagogical visibility into each comparison, swap, pick, and write.
+2. **Deep Slate & High-Contrast 3D BST Sphere Palette (`BinaryTree3D.jsx`)**:
+   - Darkened the idle node sphere material to a rich midnight slate (`#141a24` base, `#1e293b` emissive, intensity $0.35$).
+   - Darkened visited nodes to deep forest emerald (`#065f46`), search targets to deep amber (`#b45309`), found nodes to rich jade (`#047857`), missing nodes to deep crimson (`#be123c`), and selected nodes to deep cobalt (`#0369a1`).
+   - White numerical text labels (`text-white`) now pop with crisp legibility against dark node spheres in full 3D space.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified smooth, legible step playback across Bubble, Insertion, Selection, Quicksort, and Merge sort.
+- Verified enhanced contrast and depth across all 3D BST operations.

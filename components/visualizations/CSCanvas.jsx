@@ -252,7 +252,7 @@ export function SortingScene({ params = {} }) {
   const {
     algorithm = "bubble",
     size = 22,
-    speed = 1.4,
+    speed = 1.0,
     running = true,
     shuffle = 0,
     restart = 0,
@@ -275,7 +275,8 @@ export function SortingScene({ params = {} }) {
 
   useEffect(() => {
     if (!running || cursor >= frames.length - 1) return undefined;
-    const fps = clamp(3 + speed * 26, 3, 120);
+    // Slower, clearer step pacing: 20 steps/sec at 1.0x instead of 40 steps/sec
+    const fps = clamp(2 + speed * 18, 2, 90);
     timer.current = setTimeout(() => setCursor((c) => Math.min(c + 1, frames.length - 1)), 1000 / fps);
     return () => clearTimeout(timer.current);
   }, [running, cursor, frames.length, speed]);

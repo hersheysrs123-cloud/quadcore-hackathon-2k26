@@ -2150,7 +2150,7 @@ export const TOPICS = [
     defaults: {
       algorithm: "bubble",
       size: 22,
-      speed: 1.4,
+      speed: 1.0,
       running: true,
       shuffle: 0,
       restart: 0,
