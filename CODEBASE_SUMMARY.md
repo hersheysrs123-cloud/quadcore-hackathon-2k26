@@ -326,7 +326,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 ---
 
 ### 🧪 C. Interactive 3D Visualization Studio (`components/ThreeDView.jsx`, `topics.js`, `VisualizationHUD.jsx`, `TopicSelectorDropdown.jsx`)
-A comprehensive suite of **35 real-time interactive 3D simulations** across 5 STEM domains with a unified, distraction-free single top header, custom subject-separated `TopicSelectorDropdown` (with live search, discipline filter chips, and category groupings), dual-tab HUD (Controls & live Details readout with complete Visual Color Keys), resizable HUD panels (10%–80% viewport), and speed-scaled physics engines (0.1×–3.0×):
+A comprehensive suite of **35 real-time interactive 3D simulations** across 5 STEM domains with a unified, distraction-free single top header, custom subject-separated `TopicSelectorDropdown` (with live search, discipline filter chips, and category groupings), dual-tab HUD (Controls & live Details readout with complete Visual Color Keys), resizable HUD panels (10%–80% viewport), speed-scaled physics engines (0.1×–3.0×), robust crash isolation via `<WebGLErrorBoundary />`, studio-wide `ACESFilmicToneMapping` with 2048×2048 shadow maps, and strict GPU lifecycle memory disposal:
 
 1. **Physics Engine** (`PhysicsCanvas.jsx` & `ShadowLabCanvas.jsx`):
    - **Wave Refraction & Snell's Law** (`refraction`): Multi-medium light ray refraction, critical angle calculation, total internal reflection, Fresnel reflection rays, and lateral displacement.
@@ -639,8 +639,12 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
    - Always wrap external URLs with `formatUrl(url)` before passing to `href` or `src` attributes to prevent relative path redirection (`http://localhost:3000/google.com`).
 5. **Next.js Dev Cache Corruption**:
    - If running `npm run build` concurrently while a server is active on port 3000, Next.js chunk cache can become corrupted (`MODULE_NOT_FOUND`). Always terminate active port 3000 processes before running `npm run build`.
-6. **WebGL Cleanup & Frameloop**:
-   - Always clean up Three.js materials and geometries on component unmount across all object types (`isMesh || isLine || isPoints`) and restore `document.body.style.cursor = "auto"`.
+6. **WebGL Cleanup, Deep Material Cloning & Frameloop**:
+   - Always clean up Three.js materials, procedural canvas textures (`.dispose()`), and geometries on component unmount across all object types (`isMesh || isLine || isPoints`) and restore `document.body.style.cursor = "auto"`.
+   - In `scene-kit.jsx`, `WebGLCleanup` traverses materials and unbinds and disposes all texture properties (`map`, `normalMap`, `roughnessMap`, `envMap`, etc.).
+   - When customizing materials on cloned GLTF models (`scene.clone(true)`), Three.js does NOT clone materials by default. Always clone `child.material` on traversal before mutating `.opacity` or `.transparent` to avoid corrupting shared cached GLTF assets.
+   - Guard `useFrame` callbacks with `Math.min(rawDelta, 1 / 30)` to avoid delta explosion and object teleportation when returning from a backgrounded browser tab.
+   - Throttled state updates (such as `StrokeClock` or motion samplers) should be throttled to 24–30 Hz with threshold checks to prevent 60–144 Hz React state thrashing and geometry rebuilds.
 7. **Test Suites**:
    - Run `npm test` to execute all unit tests across the entire test suite.
 8. **PDF Export & Chromium Print Canvas Dark Mode Reset**:

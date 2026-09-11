@@ -92,7 +92,7 @@ const BAND_COLOURS = [
 function resistorBands(ohms) {
   const value = Math.max(Math.round(ohms), 1);
   const digits = String(value);
-  if (digits.length === 1) return [BAND_COLOURS[0], BAND_COLOURS[value], "#c9a227"];
+  if (digits.length === 1) return [BAND_COLOURS[value], BAND_COLOURS[0], "#c9a227"];
   const first = Number(digits[0]);
   const second = Number(digits[1]);
   const multiplier = digits.length - 2;

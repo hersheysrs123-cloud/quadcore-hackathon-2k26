@@ -842,6 +842,12 @@ function SculptedDiaphragmDome({
     return geom;
   }, []);
 
+  useEffect(() => {
+    return () => {
+      domeGeometry.dispose();
+    };
+  }, [domeGeometry]);
+
   useFrame(() => {
     if (!meshRef.current) return;
     const pos = meshRef.current.geometry.attributes.position;
@@ -1030,6 +1036,9 @@ function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child.isMesh && child.material) {
+        child.material = Array.isArray(child.material)
+          ? child.material.map((m) => m.clone())
+          : child.material.clone();
         child.castShadow = true;
         child.receiveShadow = true;
       }
@@ -1373,6 +1382,13 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const muscleTexture = useMemo(() => generateStriatedMuscleTexture(), []);
   const tendonTexture = useMemo(() => generatePearlyTendonTexture(), []);
 
+  useEffect(() => {
+    return () => {
+      muscleTexture?.dispose?.();
+      tendonTexture?.dispose?.();
+    };
+  }, [muscleTexture, tendonTexture]);
+
   const handleResizePointerDown = useCallback((e) => {
     e.preventDefault();
     setIsResizing(true);
@@ -1397,7 +1413,8 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   }, [isResizing]);
 
   const handleFrameUpdate = useCallback(
-    (state, delta) => {
+    (state, rawDelta) => {
+      const delta = Math.min(rawDelta, 1 / 30);
       if (autoLoop) {
         const bps = bpm / 60;
         cycleTime.current = (cycleTime.current + delta * bps) % 1.0;
@@ -1407,11 +1424,13 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         let curPhase = RESPIRATORY_PHASES.QUIET_EXPIRATION;
 
         if (t < 0.4) {
-          const inspProgress = Math.sin((t / 0.4) * (Math.PI / 2));
+          // Continuous S-curve whose derivative starts at 0 and matches the mid-inspiration flow sine
+          const inspProgress = 0.5 * (1 - Math.cos((t / 0.4) * Math.PI));
           curExp = inspProgress;
           curPhase = RESPIRATORY_PHASES.INSPIRATION;
         } else {
-          const expProgress = Math.cos(((t - 0.4) / 0.6) * (Math.PI / 2));
+          // Smooth recoil whose derivative matches the expiration flow sine
+          const expProgress = 0.5 * (1 + Math.cos(((t - 0.4) / 0.6) * Math.PI));
           curExp = expProgress;
           curPhase = RESPIRATORY_PHASES.QUIET_EXPIRATION;
         }
@@ -1478,7 +1497,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
       <Canvas
         camera={{ position: [0, 1.45, 6.6], fov: 42 }}
         dpr={[1, 2]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, powerPreference: "high-performance" }}
       >
         <WebGLCleanup />
         <color attach="background" args={[CANVAS_BG]} />

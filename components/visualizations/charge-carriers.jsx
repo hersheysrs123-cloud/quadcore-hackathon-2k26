@@ -86,7 +86,7 @@ export function makeFlowPath(points, { closed = false } = {}) {
 
 // ─── Flowing carriers ───────────────────────────────────────────────
 
-const SCRATCH = new THREE.Vector3();
+// Scratch vector moved into each component instance via useMemo (see ChargeFlow)
 
 /**
  * `count` glowing carriers running along `path` at `speed` world units per
@@ -119,6 +119,7 @@ export function ChargeFlow({
 }) {
   const meshRef = useRef(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const SCRATCH = useMemo(() => new THREE.Vector3(), []);
   const phase = useRef(0);
 
   const n = Math.max(0, Math.round(count));

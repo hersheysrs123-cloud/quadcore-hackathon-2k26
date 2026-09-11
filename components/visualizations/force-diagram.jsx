@@ -331,7 +331,7 @@ export function useBodyMotion({ step, onSample, running = true, sampleHz = 12, s
     since.current += delta;
     if (since.current >= 1 / sampleHz) {
       since.current = 0;
-      onSample(motion.current, dt);
+      if (running) onSample(motion.current, dt);
     }
   });
 

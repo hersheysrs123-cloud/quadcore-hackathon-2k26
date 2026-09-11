@@ -333,7 +333,7 @@ function LightSource({ benchZ, source, on }) {
           </mesh>
         </group>
       )}
-      {on && <pointLight intensity={broad ? 9 : 7} distance={cm(260)} color="#fff3cf" />}
+      {on && <pointLight intensity={broad ? 9 : 7} distance={cm(260)} color="#fff3cf" castShadow />}
       <SceneLabel position={[0, cm(8), 0]} accent>
         {SOURCES[source].label}
       </SceneLabel>
@@ -613,13 +613,17 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
     const startX = e.clientX;
     const startWidth = panelWidth;
 
+    let rafId;
     const onPointerMove = (moveEvent) => {
       if (!isResizingRef.current) return;
-      const deltaX = moveEvent.clientX - startX;
-      const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
-      const maxW = Math.floor(window.innerWidth * 0.80);
-      const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
-      setPanelWidth(clamped);
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startX;
+        const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
+        const maxW = Math.floor(window.innerWidth * 0.80);
+        const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
+        setPanelWidth(clamped);
+      });
     };
 
     const cleanup = () => {

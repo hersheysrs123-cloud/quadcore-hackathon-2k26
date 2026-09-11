@@ -236,10 +236,10 @@ function MeasuringCylinder({ targetML, spec, onLevel, animSpeed = 1 }) {
   const fillHeight = cm(CYL.height) * 0.86;
   const empty = spec.density < 0.01;
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
     const mesh = columnRef.current;
     if (!mesh) return;
-    const dt = Math.min(delta, 0.05) * animSpeed;
+    const dt = Math.min(rawDelta, 1 / 30) * animSpeed;
     const target = empty ? 0 : clamp(targetML, 0, CYL.capacity);
     // Exponential settle: fast while the gap is large, gentle as it arrives.
     shown.current += (target - shown.current) * Math.min(dt * 3.2, 1);

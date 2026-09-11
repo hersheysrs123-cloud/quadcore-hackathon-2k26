@@ -296,6 +296,19 @@ export function RefractionScene({ params = {} }) {
   const name1 = mediumName(medium1, n1);
   const name2 = mediumName(medium2, n2);
 
+  const boxEdgesGeo = useMemo(() => {
+    const box = new THREE.BoxGeometry(halfW * 2, thickness, 6);
+    const edges = new THREE.EdgesGeometry(box);
+    box.dispose();
+    return edges;
+  }, [halfW, thickness]);
+
+  useEffect(() => {
+    return () => {
+      boxEdgesGeo.dispose();
+    };
+  }, [boxEdgesGeo]);
+
   return (
     <SceneCanvas camera={{ position: [1.5, 1.5, 13], fov: 45 }} controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed }} fog={[22, 44]}>
      <group scale={fit}>
@@ -338,8 +351,7 @@ export function RefractionScene({ params = {} }) {
       </mesh>
 
       {/* Hard edges — the single clearest cue that this is a solid block. */}
-      <lineSegments renderOrder={-1}>
-        <edgesGeometry args={[new THREE.BoxGeometry(halfW * 2, thickness, 6)]} />
+      <lineSegments geometry={boxEdgesGeo} renderOrder={-1}>
         <lineBasicMaterial color={blockColour} transparent opacity={0.85} />
       </lineSegments>
 

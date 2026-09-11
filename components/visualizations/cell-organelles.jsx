@@ -304,7 +304,7 @@ export function CutawayProvider({ enabled, children }) {
  * instead. Keying on the plane count remounts them exactly when that number
  * changes, and never otherwise.
  */
-export function MembraneMaterial({ color, opacity = 0.22, selected = false, side }) {
+export function MembraneMaterial({ color, opacity = 0.22, selected = false, side, transmission = 0.35 }) {
   const clip = useClip();
   return (
     <meshPhysicalMaterial
@@ -314,13 +314,14 @@ export function MembraneMaterial({ color, opacity = 0.22, selected = false, side
       emissiveIntensity={selected ? 0.55 : 0.12}
       transparent
       opacity={selected ? Math.min(0.55, opacity + 0.16) : opacity}
-      roughness={0.22}
+      roughness={0.28}
       metalness={0}
       clearcoat={0.85}
       clearcoatRoughness={0.25}
       iridescence={0.45}
       iridescenceIOR={1.35}
-      transmission={0}
+      transmission={transmission}
+      thickness={0.4}
       side={side ?? THREE.DoubleSide}
       depthWrite={false}
       clippingPlanes={clip}
@@ -1382,6 +1383,7 @@ export function Cytoplasm({ count = 140, bounds = [3, 2.2, 2.2], tint = PALETTE.
   const ref = useRef(null);
   const clip = useClip();
   const clock = useRef(0);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
 
   const geometry = useGeometries(() => ({ g: new THREE.SphereGeometry(0.028, 8, 6) }), []);
 
@@ -1406,7 +1408,6 @@ export function Cytoplasm({ count = 140, bounds = [3, 2.2, 2.2], tint = PALETTE.
     if (!mesh) return;
     clock.current += delta * speed;
     const t = clock.current;
-    const dummy = new THREE.Object3D();
     grains.forEach((grain, i) => {
       const drift = t * grain.speed + grain.phase;
       dummy.position.set(
@@ -1471,6 +1472,7 @@ export function FreeRibosomes({ count = 90, bounds = [2.6, 1.7, 1.7], selected, 
   const ref = useRef(null);
   const clip = useClip();
   const clock = useRef(0);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
 
   const geometry = useGeometries(() => ({ g: new THREE.SphereGeometry(0.045, 10, 8) }), []);
 
@@ -1493,7 +1495,6 @@ export function FreeRibosomes({ count = 90, bounds = [2.6, 1.7, 1.7], selected, 
     if (!mesh) return;
     clock.current += delta * speed;
     const t = clock.current;
-    const dummy = new THREE.Object3D();
     seeds.forEach((seed, i) => {
       dummy.position.set(
         seed.origin[0] + Math.sin(t * 0.5 + seed.phase) * 0.05,

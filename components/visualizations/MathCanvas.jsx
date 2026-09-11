@@ -651,20 +651,16 @@ const squareAmplitude = (amplitude) => (amplitude * Math.PI) / 4;
 /**
  * Peak of the partial sum, for the Gibbs overshoot readout.
  *
- * Swept across the whole first quarter-period: the overshoot sits at
- * θ ≈ π/2(2n−1), which marches toward zero as harmonics are added, so a
- * window anchored near π/2 misses it entirely and reports a falling overshoot
- * — the opposite of the phenomenon being demonstrated.
+ * The overshoot sits at θ = π/(2·count), which marches toward zero as
+ * harmonics are added. A fixed-resolution grid misses this increasingly
+ * narrow spike, so we evaluate directly at the analytical peak instead.
  */
-function partialSumPeak(amplitude, count, samples = 720) {
-  let peak = 0;
-  for (let j = 1; j <= samples; j += 1) {
-    const theta = (Math.PI / 2) * (j / samples);
-    let v = 0;
-    for (let i = 0; i < count; i += 1) v += harmonicRadius(amplitude, i) * Math.sin((2 * i + 1) * theta);
-    if (v > peak) peak = v;
-  }
-  return peak;
+function partialSumPeak(amplitude, count) {
+  if (count < 1) return 0;
+  const theta = Math.PI / (2 * count);
+  let v = 0;
+  for (let i = 0; i < count; i += 1) v += harmonicRadius(amplitude, i) * Math.sin((2 * i + 1) * theta);
+  return v;
 }
 
 function ringPoints(radius, segments = 72) {

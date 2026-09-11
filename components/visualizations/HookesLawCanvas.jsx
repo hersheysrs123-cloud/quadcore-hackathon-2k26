@@ -232,17 +232,18 @@ function OscillatingSpringRig({ solved, hangingMass, springConstant, speed = 1, 
     if (prevMass.current !== hangingMass) {
       const deltaM = hangingMass - prevMass.current;
       prevMass.current = hangingMass;
-      yOffset.current += (deltaM * 9.80665) / Math.max(springConstant, 1);
+      yOffset.current -= (deltaM * 9.80665) / Math.max(springConstant, 1);
     }
   }, [hangingMass, springConstant]);
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
     if (speed <= 0) return;
-    const dt = Math.min(delta, 0.05) * speed;
+    const dt = Math.min(rawDelta, 1/30) * speed;
     clock.current += dt;
 
     const omega = Math.sqrt(Math.max(springConstant / Math.max(hangingMass, 0.05), 4));
     const accel = -omega * omega * yOffset.current - 2.8 * yVel.current;
+    // Semi-implicit Euler: update velocity first, then position with NEW velocity
     yVel.current += accel * dt;
     yOffset.current += yVel.current * dt;
 

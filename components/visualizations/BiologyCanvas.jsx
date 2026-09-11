@@ -75,7 +75,8 @@ function EnzymeBody({ denature, wobble, animSpeed = 1.0 }) {
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
+    const delta = Math.min(rawDelta, 1/30);
     time.current += delta * animSpeed;
     const attr = geometry.attributes.position;
     const amount = denature * 0.55;
@@ -121,7 +122,8 @@ function Substrate({ rate, denatured, siteOpen, animSpeed = 1 }) {
   const right = useRef(null);
   const phase = useRef(0);
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
+    const delta = Math.min(rawDelta, 1/30);
     if (!left.current || !right.current) return;
     const speed = (denatured ? 0.18 : 0.22 + rate * 0.5) * animSpeed;
     phase.current = (phase.current + delta * speed) % 1;
@@ -479,7 +481,8 @@ function Helix({ pairs, spin, unzipToken, speed = 1.0 }) {
     return () => clearTimeout(id);
   }, [unzipToken, speed]);
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
+    const delta = Math.min(rawDelta, 1/30);
     if (group.current) group.current.rotation.y += delta * spin * 0.5 * speed;
     unzip.current = lerp(unzip.current, target.current, Math.min(1, delta * 1.1 * speed));
 

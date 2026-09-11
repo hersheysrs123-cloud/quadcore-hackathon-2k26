@@ -71,7 +71,7 @@ function Lever({ type, solved, phase, loadN }) {
   // Angle chosen so the LOAD end travels exactly the stroke this machine is
   // being asked for; the effort end then travels whatever the arms dictate.
   const maxAngle = Math.asin(clamp(solved.loadDistance / Math.max(layout.loadArm, 1e-6), 0, 0.95));
-  const angle = maxAngle * phase;
+  const angle = maxAngle * phase * (layout.load < layout.fulcrum ? -1 : 1);
 
   const at = (metres) => {
     const r = metres * S - (layout.fulcrum * S);
@@ -277,13 +277,25 @@ function Pulley({ solved, phase, loadN }) {
  * frame while the React tree above only re-renders at the sample rate — and so
  * `useFrame` unsubscribes with it when the topic is switched away.
  */
-function StrokeClock({ running, speed = 1, onPhase }) {
+function StrokeClock({ running, speed = 1, onPhase, hz = 30 }) {
   const t = useRef(0);
-  useFrame((_, delta) => {
+  const since = useRef(0);
+  const lastPhase = useRef(-1);
+
+  useFrame((_, rawDelta) => {
     if (!running || speed <= 0) return;
-    t.current += Math.min(delta, 0.05) * speed;
-    // A raised cosine, so the stroke eases at both ends instead of snapping.
-    onPhase((1 - Math.cos((t.current / STROKE_PERIOD) * Math.PI * 2)) / 2);
+    const delta = Math.min(rawDelta, 1 / 30);
+    t.current += delta * speed;
+    since.current += delta;
+    if (since.current >= 1 / hz) {
+      since.current = 0;
+      // A raised cosine, so the stroke eases at both ends instead of snapping.
+      const p = (1 - Math.cos((t.current / STROKE_PERIOD) * Math.PI * 2)) / 2;
+      if (Math.abs(p - lastPhase.current) > 0.002) {
+        lastPhase.current = p;
+        onPhase(p);
+      }
+    }
   });
   return null;
 }

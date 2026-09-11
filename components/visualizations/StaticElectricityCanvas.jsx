@@ -492,6 +492,14 @@ function useBalloonDrag({ axis, restCoord, factor, balloonCoord, planeY, onSepar
   const live = useRef(balloonCoord);
   live.current = balloonCoord;
 
+  useEffect(() => {
+    return () => {
+      if (controls && dragging.current) {
+        controls.enabled = true;
+      }
+    };
+  }, [controls]);
+
   const coordOf = useCallback(
     (ray) => {
       if (!ray) return null;

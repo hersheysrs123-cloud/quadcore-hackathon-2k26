@@ -39,7 +39,7 @@ export function StudioLights({ ambient = 0.55, keyLight = 1.5, rim = PALETTE.sky
   return (
     <>
       <ambientLight intensity={ambient} />
-      <directionalLight position={[6, 9, 6]} intensity={keyLight} castShadow />
+      <directionalLight position={[6, 9, 6]} intensity={keyLight} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} />
       <directionalLight position={[-7, -4, -6]} intensity={0.42} color={rim} />
     </>
   );
@@ -76,15 +76,14 @@ export function WebGLCleanup() {
             try {
               if (object.geometry) object.geometry.dispose();
               if (object.material) {
-                if (Array.isArray(object.material)) {
-                  object.material.forEach((m) => {
-                    m?.dispose?.();
-                    if (m?.map) m.map?.dispose?.();
-                  });
-                } else {
-                  object.material?.dispose?.();
-                  if (object.material?.map) object.material.map?.dispose?.();
+                // Dispose all texture maps
+                for (const key in object.material) {
+                  const value = object.material[key];
+                  if (value && typeof value.dispose === 'function') {
+                    value.dispose();
+                  }
                 }
+                object.material.dispose();
               }
             } catch (_) {
               // Safe geometry/material disposal
@@ -130,7 +129,12 @@ export function SceneCanvas({
       camera={camera}
       dpr={[1, gfx.pixelRatio]}
       shadows={gfx.enableShadows}
-      gl={{ antialias: gfx.enableAntialias, powerPreference: "high-performance" }}
+      gl={{
+        antialias: gfx.enableAntialias,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.05,
+        powerPreference: "high-performance",
+      }}
       onPointerMissed={onPointerMissed}
       frameloop="always"
     >

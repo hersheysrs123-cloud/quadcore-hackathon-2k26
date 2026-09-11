@@ -150,6 +150,7 @@ function buildFrames(values, algorithm) {
     for (let i = 0; i < n; i += 1) sorted.add(i);
   } else if (algorithm === "merge") {
     const buffer = new Array(n);
+    const prevArr = new Array(n);
     const merge = (lo, mid, hi) => {
       for (let i = lo; i <= hi; i += 1) buffer[i] = a[i];
       let l = lo;
@@ -165,7 +166,7 @@ function buildFrames(values, algorithm) {
           comparisons += 1;
           // In the visualization snapshot, ensure unmerged items in [k..hi] reflect buffer elements
           // so comparing l and r highlights the actual candidate values
-          const prevArr = [...a];
+          for (let p = lo; p <= hi; p += 1) prevArr[p] = a[p];
           let fillIdx = k;
           for (let p = l; p <= mid; p += 1) a[fillIdx++] = buffer[p];
           for (let p = r; p <= hi; p += 1) a[fillIdx++] = buffer[p];
@@ -291,7 +292,7 @@ export function SortingScene({ params = {} }) {
   const info = ALGORITHM_META[algorithm] ?? ALGORITHM_META.bubble;
 
   return (
-    <SceneCanvas camera={{ position: [0, 4.6, 12.5], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+    <SceneCanvas camera={{ position: [0, 4.6, 12.5], fov: 46 }} controls={{ minDistance: 3, maxDistance: 30, autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
       <Grid
         args={[count * BAR_SPACING + 2, 6]}
         cellSize={0.46}

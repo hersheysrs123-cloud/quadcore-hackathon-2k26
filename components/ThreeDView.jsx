@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { ChevronDown, Search, X } from "lucide-react";
 import {
@@ -53,6 +53,34 @@ const CANVASES = {
   }),
 };
 
+/** Catches WebGL context loss or rendering errors inside 3D canvases. */
+class WebGLErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-full w-full items-center justify-center" style={{ backgroundColor: CANVAS_BG }}>
+          <div className="flex flex-col items-center gap-3 text-center px-6">
+            <p className="text-sm text-ink-400">3D visualization encountered an error.</p>
+            <button
+              onClick={() => this.setState({ hasError: false })}
+              className="rounded-lg border border-ink-700 bg-ink-800 px-4 py-2 text-xs font-medium text-ink-200 hover:bg-ink-750 transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStudyTopic }) {
   const [topicId, setTopicId] = useState(TOPICS[0].id);
@@ -182,7 +210,9 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
         {/* Viewport + overlaid HUD */}
         <main className="relative flex-1 h-full w-full min-h-0" style={{ backgroundColor: CANVAS_BG }}>
           {CanvasComponent && (
-            <CanvasComponent key={topic.id} topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={handleOpenStudy} />
+            <WebGLErrorBoundary key={topic.id}>
+              <CanvasComponent topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={handleOpenStudy} />
+            </WebGLErrorBoundary>
           )}
 
           {!topic.ownHud && (

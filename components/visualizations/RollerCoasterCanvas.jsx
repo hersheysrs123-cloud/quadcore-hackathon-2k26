@@ -46,7 +46,7 @@ const PANEL_Y = -5.4;
  * Built from the same point list the physics samples, so the cart cannot ride
  * a rail that is a different shape from the one it is being solved against.
  */
-function Track({ track, scale, dangerRange }) {
+function Track({ track, scale, showDanger = false }) {
   const { rails, sleepers } = useMemo(() => {
     const pts = track.points.map(([x, y]) => new THREE.Vector3(x * scale, y * scale, 0));
     const curve = new THREE.CatmullRomCurve3(pts);
@@ -75,15 +75,15 @@ function Track({ track, scale, dangerRange }) {
 
   /** The stretch of loop the cart cannot hold, drawn in warning colour. */
   const danger = useMemo(() => {
-    if (!dangerRange) return null;
+    if (!showDanger) return null;
     const pts = [];
     for (let i = 0; i <= 40; i += 1) {
-      const at = dangerRange[0] + ((dangerRange[1] - dangerRange[0]) * i) / 40;
+      const at = track.loopEntryS + ((track.loopExitS - track.loopEntryS) * i) / 40;
       const [x, y] = positionAt(track, at);
       pts.push([x * scale, y * scale, 0]);
     }
     return pts;
-  }, [dangerRange, track, scale]);
+  }, [showDanger, track, scale]);
 
   return (
     <group>
@@ -151,10 +151,11 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
     onSample(describeRun({ track, state: state.current, mass }), state.current);
   }, [track, mass, resetKey, onSample]);
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
     // A backgrounded tab hands back one enormous frame on return; integrating
     // it in a single step would teleport the cart through the loop.
-    const dt = Math.min(delta, 0.04) * speed;
+    const delta = Math.min(rawDelta, 1 / 30);
+    const dt = delta * speed;
     if (running && speed > 0) {
       // Sub-stepping keeps the loop accurate at speed without needing the
       // renderer to run any faster than it already is.
@@ -177,7 +178,7 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
     since.current += delta;
     if (since.current >= 1 / 15) {
       since.current = 0;
-      onSample(describeRun({ track, state: state.current, mass }), state.current);
+      if (running) onSample(describeRun({ track, state: state.current, mass }), state.current);
     }
   });
 
@@ -263,7 +264,7 @@ export default function RollerCoasterCanvas({ params = {} }) {
         <Track
           track={track}
           scale={scale}
-          dangerRange={live.leftTrack ? [track.loopEntryS, track.loopExitS] : null}
+          showDanger={Boolean(live.leftTrack)}
         />
 
         <CartRunner

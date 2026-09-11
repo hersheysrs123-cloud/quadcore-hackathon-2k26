@@ -283,6 +283,13 @@ export default function BinaryTree3D({ onOpenQuiz }) {
 
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
+  const cleanupRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      cleanupRef.current?.();
+    };
+  }, []);
 
   const handleResizePointerDown = (e) => {
     e.preventDefault();
@@ -293,26 +300,38 @@ export default function BinaryTree3D({ onOpenQuiz }) {
     const startX = e.clientX;
     const startWidth = panelWidth;
 
+    let rafId;
     const onPointerMove = (moveEvent) => {
       if (!isResizingRef.current) return;
-      const deltaX = moveEvent.clientX - startX;
-      const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
-      const maxW = Math.floor(window.innerWidth * 0.80);
-      const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
-      setPanelWidth(clamped);
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startX;
+        const minW = Math.max(180, Math.floor(window.innerWidth * 0.10));
+        const maxW = Math.floor(window.innerWidth * 0.80);
+        const clamped = Math.min(Math.max(startWidth + deltaX, minW), maxW);
+        setPanelWidth(clamped);
+      });
     };
 
     const onPointerUp = () => {
       isResizingRef.current = false;
       setIsResizing(false);
+      cancelAnimationFrame(rafId);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      cleanupRef.current = null;
       if (typeof window !== "undefined") {
         setPanelWidth((curr) => {
           localStorage.setItem("socratic_hud_panel_width", String(curr));
           return curr;
         });
       }
+    };
+
+    cleanupRef.current = () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
     };
 
     window.addEventListener("pointermove", onPointerMove);
