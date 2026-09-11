@@ -5552,7 +5552,7 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 4. **Horizontal Projection Line**:
    - Rendered an active dashed projection line from the orbiting tip directly across to the wave origin, locking the visual connection between circle height and wave height.
 5. **Tightened Z-Depth Trace Separation**:
-   - Reduced the extreme $1.8$-unit depth gap ($z = -0.9$ to $+0.9$) between the cosine trace, primary sine wave, and target wave down to a compact $\pm 0.22$ offset (`COS_Z = -0.22`, `TARGET_Z = 0.22`). When rotating the camera to oblique side angles in 3D, the waveforms now form an intimate, cohesive bundle centered on $z = 0$ rather than floating far apart in empty space.
+   - Reduced the extreme $1.8$-unit depth gap ($z = -0.9$ to $+0.9$) down to an ultra-tight $\pm 0.06$ offset (`COS_Z = -0.06`, `TARGET_Z = 0.06`). When rotating the camera to oblique side angles in 3D, the waveforms now form an intimate, cohesive bundle centered on $z = 0$ with zero perceived offset distortion while avoiding z-fighting.
 
 ### Verification
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.

@@ -701,9 +701,9 @@ const CIRCLE_X = -5.4;
 const WAVE_END = 5.6;
 /** How many radians of phase one world unit along +x is worth. */
 const WAVE_K = 0.62;
-/** Subtle Z-depth separation between traces (cos and target wave) to prevent z-fighting while maintaining a tight, coherent 3D bundle */
-const COS_Z = -0.22;
-const TARGET_Z = 0.22;
+/** Subtle Z-depth separation between traces (cos and target wave) to prevent z-fighting while maintaining an ultra-tight, coherent 3D bundle */
+const COS_Z = -0.06;
+const TARGET_Z = 0.06;
 
 const WAVEFORMS = {
   square: {
