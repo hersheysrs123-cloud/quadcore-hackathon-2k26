@@ -903,41 +903,40 @@ function Epicycles({
         }
         addPt(WAVE_END, currentY, TARGET_Z);
       } else if (waveform === "sawtooth") {
-        // Analytical piecewise ramps with exact vertical falloff pairs at phase = (2m + 1)π.
+        // Analytical piecewise linear ramps with exact vertical falloff pairs at phase = (2m + 1)π.
         // phase = c.theta - (x - CIRCLE_X) * WAVE_K = (2m + 1)π => x = CIRCLE_X + (c.theta - (2m + 1)π) / WAVE_K
         const mMax = Math.floor((c.theta - Math.PI) / (2 * Math.PI));
         const mMin = Math.ceil((c.theta - (WAVE_END - CIRCLE_X) * WAVE_K - Math.PI) / (2 * Math.PI));
 
-        // Evaluate y(phase) for continuous linear ramp in (-π, π)
+        // Evaluate continuous linear ramp in (-π, π)
         const sawY = (ph) => {
           let n = (ph + Math.PI) % (2 * Math.PI);
           if (n < 0) n += 2 * Math.PI;
           return ((n - Math.PI) / Math.PI) * targetAmp;
         };
 
-        // Start point at CIRCLE_X
-        addPt(CIRCLE_X, sawY(c.theta), TARGET_Z);
-
-        // Collect and sort internal jump positions from left (low x) to right (high x)
+        // Collect and sort all jump positions strictly inside (CIRCLE_X, WAVE_END)
         const jumps = [];
         for (let m = mMin; m <= mMax; m += 1) {
           const x = CIRCLE_X + (c.theta - (2 * m + 1) * Math.PI) / WAVE_K;
-          if (x > CIRCLE_X + 0.001 && x < WAVE_END - 0.001) {
+          if (x > CIRCLE_X + 0.0001 && x < WAVE_END - 0.0001) {
             jumps.push(x);
           }
         }
         jumps.sort((a, b) => a - b);
 
-        for (const jx of jumps) {
-          // Linear ramp up to +targetAmp at the jump point
-          addPt(jx, targetAmp, TARGET_Z);
-          // Instantaneous vertical step down to -targetAmp
-          addPt(jx, -targetAmp, TARGET_Z);
-        }
+        // Partition domain into piecewise linear segments: [CIRCLE_X, jump1, jump2, ..., WAVE_END]
+        const boundaries = [CIRCLE_X, ...jumps, WAVE_END];
+        for (let b = 0; b < boundaries.length - 1; b += 1) {
+          const xLeft = boundaries[b];
+          const xRight = boundaries[b + 1];
+          const phLeft = c.theta - (xLeft - CIRCLE_X) * WAVE_K;
+          const phRight = c.theta - (xRight - CIRCLE_X) * WAVE_K;
 
-        // End point at WAVE_END
-        const endPhase = c.theta - (WAVE_END - CIRCLE_X) * WAVE_K;
-        addPt(WAVE_END, sawY(endPhase), TARGET_Z);
+          // Segment start and end on the linear ramp
+          addPt(xLeft, sawY(phLeft + 1e-6), TARGET_Z);
+          addPt(xRight, sawY(phRight - 1e-6), TARGET_Z);
+        }
       } else if (waveform === "triangle") {
         for (let s = 0; s < WAVE_SAMPLES; s += 1) {
           const x = CIRCLE_X + ((WAVE_END - CIRCLE_X) * s) / (WAVE_SAMPLES - 1);
@@ -1093,17 +1092,19 @@ function Epicycles({
         </group>
       )}
 
-      {/* Target synthesized waveform */}
-      {showTarget && (
-        <line frustumCulled={false}>
-          <bufferGeometry ref={targetGeo}>
-            <bufferAttribute attach="attributes-position" args={[targetBuffer, 3]} />
-          </bufferGeometry>
-          <lineBasicMaterial color={PALETTE.emerald} transparent opacity={0.85} />
-        </line>
-      )}
-    </group>
-  );
+        {/* Target synthesized waveform */}
+        {showTarget && (
+          <line frustumCulled={false}>
+            <bufferGeometry ref={targetGeo}>
+              <bufferAttribute attach="attributes-position" args={[targetBuffer, 3]} />
+            </bufferGeometry>
+            <lineBasicMaterial color={PALETTE.emerald} transparent opacity={0.85} />
+          </line>
+        )}
+      </group>
+    );
+  }
+
 function CameraRig({ viewMode = "front", showHelix = false }) {
   const { camera, controls } = useThree();
   const targetPos = useRef(new THREE.Vector3());

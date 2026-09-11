@@ -5519,12 +5519,14 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 ### Resolution & Architectural Enhancements
 - **Exact Analytical Zero-Crossing & Falloff Geometry**:
   - **Square Wave**: Derived exact floating-point step positions $x_m = \text{CIRCLE\_X} + \frac{\theta - m\pi}{\text{WAVE\_K}}$, rendering instant vertical step pairs $(x_m, y_{\text{prev}}) \to (x_m, -y_{\text{prev}})$.
-  - **Sawtooth Wave**: Derived exact jump positions $x_m = \text{CIRCLE\_X} + \frac{\theta - (2m+1)\pi}{\text{WAVE\_K}}$. Sorted all internal falloff points from left to right along the domain, and rendered piecewise linear ramps terminated with instantaneous vertical drop pairs:
-    $$(x_m, +A_{\text{target}}) \longrightarrow (x_m, -A_{\text{target}})$$
+  - **Sawtooth Wave**: Derived exact jump positions $x_m = \text{CIRCLE\_X} + \frac{\theta - (2m+1)\pi}{\text{WAVE\_K}}$. Sorted all internal falloff points along $+X$ and partitioned the domain into piecewise linear segments:
+    $$[\text{CIRCLE\_X}, x_{\text{jump}, 1}, x_{\text{jump}, 2}, \dots, \text{WAVE\_END}]$$
+    For each interval $[x_L, x_R]$, emitted linear ramp vertices from $(x_L, y(x_L^+))$ to $(x_R, y(x_R^-))$, terminating each jump with an instantaneous vertical drop pair $(x_m, +A_{\text{target}}) \to (x_m, -A_{\text{target}})$. This completely prevents cross-boundary skewing as jumps enter or exit the viewport.
   - Edges for both synthesized target waveforms now translate with continuous sub-pixel floating-point precision in 60 FPS lockstep with $\theta$, completely eliminating quantization stutter, slanted line artifacts, and low-speed vibration.
 
 ### Verification
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- `npm run build` completed successfully (`✓ Compiled successfully`, `✓ Generating static pages (5/5)`).
 - Verified smooth, continuous motion at $\omega = 0.1\text{ rad/s}$ and zero vibration across all harmonics and waveform choices.
 
 ---
