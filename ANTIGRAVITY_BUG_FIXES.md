@@ -5351,7 +5351,7 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 
 ---
 
-## 91. React Error #310 ("Rendered more hooks than during previous render") & Missing Favicon 404 Resolution
+## 91. React Error #310 ("Rendered more hooks than during previous render") Resolution & Favicon Preservation
 
 ### Problem Statement
 1. **React Minified Error #310 in Onboarding / Workspace**:
@@ -5363,21 +5363,18 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
      at Object.render
      ```
    - React error #310 indicates that more hooks were rendered than during the previous render, violating the fundamental Rules of Hooks.
-2. **HTTP 404 on `/favicon.ico`**:
-   - The browser automatically issued a `GET /favicon.ico` request upon loading any page, which returned HTTP 404 because no `favicon.ico` asset existed in `public/` or `app/`, and no favicon link was configured in metadata.
+2. **Dynamic Emoji Favicon Preservation**:
+   - The application relies on dynamic SVG data URIs (`DUCK_FAVICON = "data:image/svg+xml,<svg...><text>🦆</text></svg>"`) managed by `AlarmOverlay.jsx` for the Socratic duck tab icon and dynamic alarm swaps (`🦆` $\leftrightarrow$ `❗️`). Static raster/binary icon overrides were reverted to preserve the original native duck emoji presentation.
 
 ### Root Cause Analysis
-1. **Plain Function Execution of Dynamic Tutorial Steps (`components/InteractiveTutorial.jsx`)**:
-   - Tutorial steps defined in `TUTORIAL_STEPS` contained individual React hooks (`useState`, `useMemo`), such as `useState("retrieval")` in Step 1, `useState("All")` and `useState("sans")` in Step 2, and `useState("quiz")` in Step 3.
-   - At line 185 of `InteractiveTutorial.jsx`, the step content was rendered by directly calling the function:
-     ```jsx
-     {step.render({ onNavigateTab, onOpenInstantNote, ... })}
-     ```
-   - When a function containing hooks is called as a regular JavaScript function invocation rather than as a JSX React component element (`<StepComponent />`), its hooks are registered directly onto the parent component's (`InteractiveTutorial`) fiber node.
-   - Because each tutorial step defined a different number of internal hooks (ranging from 0 to 3 hooks), transitioning between steps or re-rendering changed the total number and order of hooks evaluated within `InteractiveTutorial`. React immediately detected this mismatch and threw Error #310.
-2. **Missing Favicon Asset & Layout Metadata**:
-   - Next.js root layout (`app/layout.js`) did not define `icons` in its `metadata` object.
-   - Neither `public/favicon.ico` nor `app/favicon.ico` existed on disk.
+- **Plain Function Execution of Dynamic Tutorial Steps (`components/InteractiveTutorial.jsx`)**:
+  - Tutorial steps defined in `TUTORIAL_STEPS` contained individual React hooks (`useState`, `useMemo`), such as `useState("retrieval")` in Step 1, `useState("All")` and `useState("sans")` in Step 2, and `useState("quiz")` in Step 3.
+  - At line 185 of `InteractiveTutorial.jsx`, the step content was rendered by directly calling the function:
+    ```jsx
+    {step.render({ onNavigateTab, onOpenInstantNote, ... })}
+    ```
+  - When a function containing hooks is called as a regular JavaScript function invocation rather than as a JSX React component element (`<StepComponent />`), its hooks are registered directly onto the parent component's (`InteractiveTutorial`) fiber node.
+  - Because each tutorial step defined a different number of internal hooks (ranging from 0 to 3 hooks), transitioning between steps or re-rendering changed the total number and order of hooks evaluated within `InteractiveTutorial`. React immediately detected this mismatch and threw Error #310.
 
 ### Resolution & Architectural Enhancements
 1. **JSX Component Boundary for Tutorial Step Rendering (`components/InteractiveTutorial.jsx`)**:
@@ -5398,20 +5395,48 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
      - React creates an isolated Fiber node specifically for the step component.
      - All hooks inside `step.render` are attached exclusively to the child component's fiber, maintaining strict Hook stability on the parent `InteractiveTutorial`.
      - The `key={step.id}` attribute guarantees that when switching steps, the previous step's component is unmounted and the new step is cleanly mounted with its own fresh hook list, eliminating hook count divergence.
-2. **Crisp Multi-Resolution Favicon Suite & Metadata Configuration**:
-   - Created a standard 32×32 pixel binary ICO file with SocraticOS brand emblem (amber duck on dark `#12151e` canvas) at `public/favicon.ico` and `app/favicon.ico`.
-   - Generated scalable SVG vectors at `public/icon.svg` and `app/icon.svg`.
-   - Updated `app/layout.js` metadata to explicitly declare icon routes:
-     ```javascript
-     icons: {
-       icon: [
-         { url: "/favicon.ico" },
-         { url: "/icon.svg", type: "image/svg+xml" },
-       ],
-     },
+2. **Reverted Static Icon Files**:
+   - Restored `app/layout.js` metadata to clean defaults without static icon overrides, allowing `AlarmOverlay.jsx` and the client runtime to dynamically control the browser's native duck emoji favicon (`🦆`) and state-driven alarm indicators.
+
+### Verification
+- `GET /workspace` verified returning HTTP 200 OK.
+- All 802 tests passing (`npm test`).
+- Production build (`npm run build`) succeeded with 0 errors.
+
+---
+
+## 92. Static Electricity `useEffect` Missing Import Crash & Topic Selector Double Cross Resolution
+
+### Problem Statement
+1. **Static Electricity Canvas Runtime Crash**:
+   - Selecting the "Static Electricity" 3D visualization (`static_electricity`) consistently threw an error caught by `WebGLErrorBoundary`:
      ```
-3. **Verification**:
-   - `GET /favicon.ico` verified returning HTTP 200 OK with `Content-Type: image/x-icon`.
-   - `GET /workspace` verified returning HTTP 200 OK.
-   - All 802 tests passing (`npm test`).
-   - Production build (`npm run build`) succeeded with 0 errors.
+     ReferenceError: useEffect is not defined
+     at useBalloonDrag (StaticElectricityCanvas.jsx)
+     ```
+   - This prevented the balloon and wool electrostatics simulation from rendering and repeatedly displayed the "3D visualization encountered an error" fallback card.
+2. **Double Cross (X) Icons in 3D Topic Selector Search**:
+   - In `TopicSelectorDropdown.jsx`, when typing any query into the search input, two clear crosses (X) rendered on the right side of the input field simultaneously.
+
+### Root Cause Analysis
+1. **Missing `useEffect` Import in `StaticElectricityCanvas.jsx`**:
+   - The unmount cleanup hook added in `useBalloonDrag` (`useEffect(() => { return () => { if (controls && dragging.current) controls.enabled = true; }; }, [controls]);`) was invoked, but line 3 only imported `{ useCallback, useMemo, useRef, useState } from "react"`.
+2. **Native WebKit Search Cancel Button Collision**:
+   - The input used `type="search"`. Chromium/WebKit browsers automatically display an internal native clear cross (`::-webkit-search-cancel-button`) whenever text is entered.
+   - Concurrently, `TopicSelectorDropdown.jsx` conditionally rendered its own custom `<button onClick={() => setQuery("")}><X className="h-3 w-3" /></button>` on the right edge, resulting in two side-by-side clear crosses.
+
+### Resolution & Architectural Enhancements
+1. **Import `useEffect` in `StaticElectricityCanvas.jsx`**:
+   - Updated the React import statement to:
+     ```javascript
+     import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     ```
+   - Balloon dragging lifecycle cleanup and OrbitControls restoration now execute without reference errors.
+2. **Single Clean Clear Button in `TopicSelectorDropdown.jsx`**:
+   - Changed input `type="search"` to `type="text"`.
+   - Added `[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden` with `autoComplete="off"` and `spellCheck={false}`.
+   - The native duplicate button is suppressed and only the themed Lucide `<X />` button renders when a query is present.
+
+### Verification
+- All 802 unit and integration tests passing (`npm test`).
+- Verified zero missing React hook imports across all components and libraries.

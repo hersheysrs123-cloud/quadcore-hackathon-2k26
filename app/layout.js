@@ -7,12 +7,6 @@ export const metadata = {
   },
   description:
     "An all-in-one productivity and Socratic learning workspace. Take notes, have them explained, then find out what you actually understood.",
-  icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-  },
 };
 
 export const viewport = {

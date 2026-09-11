@@ -160,12 +160,14 @@ export default function TopicSelectorDropdown({
               <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-500" />
               <input
                 ref={searchInputRef}
-                type="search"
+                type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search models by name or keyword…"
                 aria-label="Filter 3D simulations"
-                className="w-full rounded-lg border border-ink-750 bg-ink-950/80 py-1.5 pl-8 pr-7 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50 focus:outline-none focus:ring-1 focus:ring-duck-500/30"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full rounded-lg border border-ink-750 bg-ink-950/80 py-1.5 pl-8 pr-7 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50 focus:outline-none focus:ring-1 focus:ring-duck-500/30 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               />
               {query && (
                 <button
