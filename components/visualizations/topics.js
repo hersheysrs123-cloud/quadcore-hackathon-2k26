@@ -2338,6 +2338,7 @@ export const TOPICS = [
     keywords:
       "unit circle sine cosine wave trigonometry radians amplitude period phase fourier series harmonics square wave epicycle gibbs phenomenon simple harmonic motion",
     defaults: {
+      viewMode: "front",
       waveform: "square",
       harmonics: 1,
       amplitude: 1.4,
@@ -2350,6 +2351,18 @@ export const TOPICS = [
       spin: false,
     },
     controls: [
+      {
+        type: "choice",
+        key: "viewMode",
+        label: "Camera view angle",
+        columns: 4,
+        options: [
+          { value: "front", label: "Front (Sine)" },
+          { value: "top", label: "Top (Cosine)" },
+          { value: "barrel", label: "Barrel (Circle)" },
+          { value: "iso", label: "3D Iso" },
+        ],
+      },
       {
         type: "choice",
         key: "waveform",

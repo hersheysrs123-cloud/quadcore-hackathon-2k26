@@ -5504,27 +5504,28 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 
 ---
 
-## 95. Unit Circle & Fourier Synthesis: Square Wave Low-Speed Vibration Resolution via Analytical Transitions
+## 95. Unit Circle & Fourier Synthesis: Square & Sawtooth Wave Low-Speed Vibration Resolution via Analytical Transitions
 
 ### Problem Statement
-- In `UnitCircleWaveScene` (`MathCanvas.jsx`), when the angular speed $\omega$ was set to low values (such as $0.1\text{ rad/s}$), the target green square wave visibly vibrated and jerked back and forth instead of smoothly translating to the right.
+- In `UnitCircleWaveScene` (`MathCanvas.jsx`), when the angular speed $\omega$ was set to low values (such as $0.1\text{ rad/s}$), the target green square and sawtooth waves visibly vibrated, flickered, and jerked back and forth instead of smoothly translating to the right.
 
 ### Root Cause Analysis
-- The square wave was evaluated by sampling $\operatorname{sgn}(\sin(\text{phase}))$ across 260 fixed spatial grid vertices ($x_s = \text{CIRCLE\_X} + s \cdot \Delta x$).
-- A discontinuous step function sampled on a fixed grid cannot render vertical lines; instead, it renders a slanted segment between the sample before the zero-crossing and the sample after it.
-- At low angular velocity ($\omega = 0.1$), the continuous phase shifts by only $\sim 0.0016$ radians per frame, taking $\sim 16$ to $20$ frames to traverse one grid interval ($\Delta x \approx 0.0424$). Consequently, the slanted edge remained pinned at the same $x$ coordinate for multiple frames, and then abruptly snapped forward by an entire grid unit upon crossing a sample. Against the smoothly scrolling sine wave, this discrete spatial quantization produced a severe optical jumping/vibration artifact.
+- Both square and sawtooth waves possess discontinuous vertical jump edges:
+  - Square wave: jumps between $+A_{\text{target}}$ and $-A_{\text{target}}$ at $\text{phase} = m\pi$.
+  - Sawtooth wave: resets from $+A_{\text{target}}$ down to $-A_{\text{target}}$ at $\text{phase} = (2m+1)\pi$.
+- When evaluated by sampling across 260 fixed spatial grid vertices ($x_s = \text{CIRCLE\_X} + s \cdot \Delta x$), the vertical discontinuity cannot be aligned with grid vertices. Instead, it renders a slanted line between adjacent samples.
+- At low angular velocity ($\omega = 0.1$), the continuous phase shifts by only $\sim 0.0016$ radians per frame, taking $\sim 16$ to $20$ frames to traverse one grid interval ($\Delta x \approx 0.0424$). The slanted vertical edge remained pinned at fixed grid coordinates for dozens of frames before suddenly snapping forward by an entire grid interval, creating a severe vibrating and jittering artifact.
 
 ### Resolution & Architectural Enhancements
-- **Exact Analytical Zero-Crossing Geometry**:
-  - Derived the precise floating-point zero-crossing positions directly from the continuous phase angle:
-    $$x_m = \text{CIRCLE\_X} + \frac{\theta - m\pi}{\text{WAVE\_K}}$$
-  - Dynamically constructed line strip vertices with true vertical step pairs:
-    $$(x_m, y_{\text{prev}}) \longrightarrow (x_m, -y_{\text{prev}})$$
-  - Edges now translate with exact sub-pixel precision in 60 FPS lockstep with $\theta$, completely eliminating quantization stutter, slanted line artifacts, and low-speed vibration.
+- **Exact Analytical Zero-Crossing & Falloff Geometry**:
+  - **Square Wave**: Derived exact floating-point step positions $x_m = \text{CIRCLE\_X} + \frac{\theta - m\pi}{\text{WAVE\_K}}$, rendering instant vertical step pairs $(x_m, y_{\text{prev}}) \to (x_m, -y_{\text{prev}})$.
+  - **Sawtooth Wave**: Derived exact jump positions $x_m = \text{CIRCLE\_X} + \frac{\theta - (2m+1)\pi}{\text{WAVE\_K}}$. Sorted all internal falloff points from left to right along the domain, and rendered piecewise linear ramps terminated with instantaneous vertical drop pairs:
+    $$(x_m, +A_{\text{target}}) \longrightarrow (x_m, -A_{\text{target}})$$
+  - Edges for both synthesized target waveforms now translate with continuous sub-pixel floating-point precision in 60 FPS lockstep with $\theta$, completely eliminating quantization stutter, slanted line artifacts, and low-speed vibration.
 
 ### Verification
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
-- Verified smooth, continuous motion at $\omega = 0.1\text{ rad/s}$ and zero vibration across all harmonics settings.
+- Verified smooth, continuous motion at $\omega = 0.1\text{ rad/s}$ and zero vibration across all harmonics and waveform choices.
 
 ---
 
@@ -5558,6 +5559,33 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
 - Verified live toggling, accurate mathematics across all 3 waveforms, tangent construction, 3D phase helix mode, and tight spatial trace bundling.
 
+---
 
+## 97. Unit Circle & 3D Phase Helix: 1-Click Camera Angle Views (Front, Top, Barrel & 3D Iso)
 
+### Problem Statement
+- Orbiting in Three.js using a trackpad or mouse can be cumbersome when trying to align specific orthogonal projections. In particular, understanding the 3D phase helix requires seeing:
+  1. **Front view (Sine)**: Orthogonal projection onto the XY plane ($y = \sin \theta$).
+  2. **Top view (Cosine)**: Looking straight down onto the XZ plane ($z = \cos \theta$).
+  3. **Barrel view (Circle)**: Looking directly down the wave propagation axis along the $-X$ cylinder so all coils project into a single rotating circle.
+- Users lacked dedicated 1-click controls to smoothly lock into these canonical geometric viewpoints without tedious manual camera positioning.
 
+### Resolution & Architectural Enhancements
+1. **Camera View Angle Control (`topics.js`)**:
+   - Added a `choice` control `viewMode` with 4 dedicated options:
+     - `front`: Front (Sine) — default view.
+     - `top`: Top (Cosine) — bird's-eye view looking down along $+Y$.
+     - `barrel`: Barrel (Circle) — bore-sight view looking straight down $+X$ into the helix cylinder.
+     - `iso`: 3D Iso — angled 3D perspective highlighting depth and spatial coiling.
+2. **Smooth Damped CameraRig (`MathCanvas.jsx`)**:
+   - Implemented an in-canvas `<CameraRig viewMode={viewMode} showHelix={showHelix} />` component using R3F's `useThree()` and `useFrame()`.
+   - Smoothly exponential-lerps (`factor = 1 - Math.exp(-delta * 6.5)`) `camera.position`, `camera.up`, and `controls.target` toward the target view configuration:
+     - **Front view**: `pos = [0, 0.6, 12.5]`, `target = [0, 0, 0]`, `up = [0, 1, 0]`.
+     - **Top view**: `pos = [0.8, 14.5, 0.001]`, `target = [0.8, 0, 0]`, `up = [0, 0, -1]`. Offsets $Z$ by $+0.001$ to prevent OrbitControls gimbal singularity when looking parallel to the Y-axis.
+     - **Barrel view**: `pos = [WAVE_END + 5.5, 0, 0]`, `target = [CIRCLE_X, 0, 0]`, `up = [0, 1, 0]`. Aligns the eye directly along the wave axis so the entire helical coil collapses into an orthogonal circle cross-section.
+     - **3D Iso**: `pos = [4.2, 4.2, 10.8]`, `target = [0.8, 0, 0]`, `up = [0, 1, 0]`.
+   - Calls `controls.update()` synchronously on each frame to maintain full compatibility with user drag-to-orbit interactions after transitioning.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified fluid 60 FPS transitions between Front, Top, Barrel, and Iso viewpoints.

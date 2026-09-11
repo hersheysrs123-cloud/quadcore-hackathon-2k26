@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Grid, Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -903,15 +903,41 @@ function Epicycles({
         }
         addPt(WAVE_END, currentY, TARGET_Z);
       } else if (waveform === "sawtooth") {
-        const twoPi = Math.PI * 2;
-        for (let s = 0; s < WAVE_SAMPLES; s += 1) {
-          const x = CIRCLE_X + ((WAVE_END - CIRCLE_X) * s) / (WAVE_SAMPLES - 1);
-          const phase = c.theta - (x - CIRCLE_X) * WAVE_K;
-          let norm = (phase + Math.PI) % twoPi;
-          if (norm < 0) norm += twoPi;
-          const y = ((norm - Math.PI) / Math.PI) * targetAmp;
-          addPt(x, y, TARGET_Z);
+        // Analytical piecewise ramps with exact vertical falloff pairs at phase = (2m + 1)π.
+        // phase = c.theta - (x - CIRCLE_X) * WAVE_K = (2m + 1)π => x = CIRCLE_X + (c.theta - (2m + 1)π) / WAVE_K
+        const mMax = Math.floor((c.theta - Math.PI) / (2 * Math.PI));
+        const mMin = Math.ceil((c.theta - (WAVE_END - CIRCLE_X) * WAVE_K - Math.PI) / (2 * Math.PI));
+
+        // Evaluate y(phase) for continuous linear ramp in (-π, π)
+        const sawY = (ph) => {
+          let n = (ph + Math.PI) % (2 * Math.PI);
+          if (n < 0) n += 2 * Math.PI;
+          return ((n - Math.PI) / Math.PI) * targetAmp;
+        };
+
+        // Start point at CIRCLE_X
+        addPt(CIRCLE_X, sawY(c.theta), TARGET_Z);
+
+        // Collect and sort internal jump positions from left (low x) to right (high x)
+        const jumps = [];
+        for (let m = mMin; m <= mMax; m += 1) {
+          const x = CIRCLE_X + (c.theta - (2 * m + 1) * Math.PI) / WAVE_K;
+          if (x > CIRCLE_X + 0.001 && x < WAVE_END - 0.001) {
+            jumps.push(x);
+          }
         }
+        jumps.sort((a, b) => a - b);
+
+        for (const jx of jumps) {
+          // Linear ramp up to +targetAmp at the jump point
+          addPt(jx, targetAmp, TARGET_Z);
+          // Instantaneous vertical step down to -targetAmp
+          addPt(jx, -targetAmp, TARGET_Z);
+        }
+
+        // End point at WAVE_END
+        const endPhase = c.theta - (WAVE_END - CIRCLE_X) * WAVE_K;
+        addPt(WAVE_END, sawY(endPhase), TARGET_Z);
       } else if (waveform === "triangle") {
         for (let s = 0; s < WAVE_SAMPLES; s += 1) {
           const x = CIRCLE_X + ((WAVE_END - CIRCLE_X) * s) / (WAVE_SAMPLES - 1);
@@ -1078,10 +1104,60 @@ function Epicycles({
       )}
     </group>
   );
+function CameraRig({ viewMode = "front", showHelix = false }) {
+  const { camera, controls } = useThree();
+  const targetPos = useRef(new THREE.Vector3());
+  const targetLook = useRef(new THREE.Vector3());
+  const targetUp = useRef(new THREE.Vector3(0, 1, 0));
+
+  useEffect(() => {
+    switch (viewMode) {
+      case "top":
+        // Looking straight down onto the XZ plane: +X is right, Z maps to cos.
+        // Tilt slightly off exact 90 deg (0.001) to keep OrbitControls gimbal stable.
+        targetPos.current.set(0.8, 14.5, 0.001);
+        targetLook.current.set(0.8, 0, 0);
+        targetUp.current.set(0, 0, -1);
+        break;
+      case "barrel":
+        // Looking directly down the wave propagation axis (down the helix cylinder).
+        // Coils align into a single circular projection.
+        targetPos.current.set(WAVE_END + 5.5, 0, 0);
+        targetLook.current.set(CIRCLE_X, 0, 0);
+        targetUp.current.set(0, 1, 0);
+        break;
+      case "iso":
+        targetPos.current.set(4.2, 4.2, 10.8);
+        targetLook.current.set(0.8, 0, 0);
+        targetUp.current.set(0, 1, 0);
+        break;
+      case "front":
+      default:
+        targetPos.current.set(0, 0.6, 12.5);
+        targetLook.current.set(0, 0, 0);
+        targetUp.current.set(0, 1, 0);
+        break;
+    }
+  }, [viewMode]);
+
+  useFrame((_, delta) => {
+    const factor = 1 - Math.exp(-delta * 6.5);
+    camera.position.lerp(targetPos.current, factor);
+    camera.up.lerp(targetUp.current, factor);
+    if (controls) {
+      controls.target.lerp(targetLook.current, factor);
+      controls.update();
+    } else {
+      camera.lookAt(targetLook.current);
+    }
+  });
+
+  return null;
 }
 
 export function UnitCircleWaveScene({ params = {} }) {
   const {
+    viewMode = "front",
     waveform = "square",
     harmonics = 1,
     amplitude = 1.4,
@@ -1101,9 +1177,11 @@ export function UnitCircleWaveScene({ params = {} }) {
 
   return (
     <SceneCanvas
-      camera={{ position: showHelix ? [3.2, 3.8, 11.2] : [0, 0.6, 12.5], fov: 48 }}
+      camera={{ position: [0, 0.6, 12.5], fov: 48 }}
       controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}
     >
+      <CameraRig viewMode={viewMode} showHelix={showHelix} />
+
       {/* Axes for the wave half of the scene. */}
       <Line points={[[CIRCLE_X, 0, 0], [WAVE_END + 0.4, 0, 0]]} color={PALETTE.line} lineWidth={1.4} />
       <Line points={[[CIRCLE_X, -2.6, 0], [CIRCLE_X, 2.6, 0]]} color={PALETTE.line} lineWidth={1.4} />
