@@ -657,6 +657,8 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
     - WebGL scenes cannot read dynamic CSS variables in shader pipelines. The clear color in `scene-kit.jsx` is calibrated to `#273043` (mid-tone studio slate) to provide rich contrast and depth for 3D meshes, atoms, and rays in Dark Mode without harsh glare, while avoiding a stark pitch-black void in Light Mode. Applied uniformly across `ThreeDView.jsx`, `app/visualizations/page.jsx`, and `BinaryTree3D.jsx`.
 11. **Editor Lasso Marquee & Side Margin Click Boundary Safety**:
     - When clicking on side margins or dragging marquee selection boxes, `data-editor-root` and `handleGlobalMouseUp` check `justFinishedMarquee.current` and verify whether clicks are vertically below `lastRect.bottom` before appending or focusing blocks. Clicks on side margins or following lasso selections never jump to the last block, strictly honoring the `clickToAppend` setting.
+12. **React Dynamic Component Hook Rules (`InteractiveTutorial.jsx`)**:
+    - When rendering dynamically selected components containing React hooks (such as tutorial chapters or step renderers in `TUTORIAL_STEPS`), NEVER execute them as plain function calls (`{step.render({...})}`). Calling functions with hooks executes them in the outer component's fiber, causing hook count mismatches (React Error #310) when switching between steps with different hook counts. Always render as a JSX element (`<StepComponent key={step.id} {...props} />`), which allocates an isolated child fiber and cleanly unmounts and remounts state on step transitions.
 
 ---
 

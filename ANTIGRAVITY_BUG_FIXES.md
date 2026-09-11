@@ -5348,3 +5348,70 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 - `npm run build` executed and passed with exit code 0; all routes, bundles, and static assets generated without errors.
 - Production server launched via `npm run start` and verified listening on `http://localhost:3000`.
 - All 18 modified visualization and infrastructure files verified for syntactic and runtime stability.
+
+---
+
+## 91. React Error #310 ("Rendered more hooks than during previous render") & Missing Favicon 404 Resolution
+
+### Problem Statement
+1. **React Minified Error #310 in Onboarding / Workspace**:
+   - In production builds, loading `/workspace` or interacting with the onboarding tutorial triggered an unhandled runtime crash:
+     ```
+     Uncaught Error: Minified React error #310; visit https://react.dev/errors/310
+     at Object.useState
+     at t.useState
+     at Object.render
+     ```
+   - React error #310 indicates that more hooks were rendered than during the previous render, violating the fundamental Rules of Hooks.
+2. **HTTP 404 on `/favicon.ico`**:
+   - The browser automatically issued a `GET /favicon.ico` request upon loading any page, which returned HTTP 404 because no `favicon.ico` asset existed in `public/` or `app/`, and no favicon link was configured in metadata.
+
+### Root Cause Analysis
+1. **Plain Function Execution of Dynamic Tutorial Steps (`components/InteractiveTutorial.jsx`)**:
+   - Tutorial steps defined in `TUTORIAL_STEPS` contained individual React hooks (`useState`, `useMemo`), such as `useState("retrieval")` in Step 1, `useState("All")` and `useState("sans")` in Step 2, and `useState("quiz")` in Step 3.
+   - At line 185 of `InteractiveTutorial.jsx`, the step content was rendered by directly calling the function:
+     ```jsx
+     {step.render({ onNavigateTab, onOpenInstantNote, ... })}
+     ```
+   - When a function containing hooks is called as a regular JavaScript function invocation rather than as a JSX React component element (`<StepComponent />`), its hooks are registered directly onto the parent component's (`InteractiveTutorial`) fiber node.
+   - Because each tutorial step defined a different number of internal hooks (ranging from 0 to 3 hooks), transitioning between steps or re-rendering changed the total number and order of hooks evaluated within `InteractiveTutorial`. React immediately detected this mismatch and threw Error #310.
+2. **Missing Favicon Asset & Layout Metadata**:
+   - Next.js root layout (`app/layout.js`) did not define `icons` in its `metadata` object.
+   - Neither `public/favicon.ico` nor `app/favicon.ico` existed on disk.
+
+### Resolution & Architectural Enhancements
+1. **JSX Component Boundary for Tutorial Step Rendering (`components/InteractiveTutorial.jsx`)**:
+   - Extracted `const StepComponent = step?.render;` and updated the JSX render block to mount it as a first-class React component element:
+     ```jsx
+     {StepComponent && (
+       <StepComponent
+         key={step.id}
+         onNavigateTab={onNavigateTab}
+         onOpenInstantNote={onOpenInstantNote}
+         onOpenCommandPalette={onOpenCommandPalette}
+         copiedShortcut={copiedShortcut}
+         setCopiedShortcut={setCopiedShortcut}
+       />
+     )}
+     ```
+   - By rendering as `<StepComponent key={step.id} ... />`:
+     - React creates an isolated Fiber node specifically for the step component.
+     - All hooks inside `step.render` are attached exclusively to the child component's fiber, maintaining strict Hook stability on the parent `InteractiveTutorial`.
+     - The `key={step.id}` attribute guarantees that when switching steps, the previous step's component is unmounted and the new step is cleanly mounted with its own fresh hook list, eliminating hook count divergence.
+2. **Crisp Multi-Resolution Favicon Suite & Metadata Configuration**:
+   - Created a standard 32×32 pixel binary ICO file with SocraticOS brand emblem (amber duck on dark `#12151e` canvas) at `public/favicon.ico` and `app/favicon.ico`.
+   - Generated scalable SVG vectors at `public/icon.svg` and `app/icon.svg`.
+   - Updated `app/layout.js` metadata to explicitly declare icon routes:
+     ```javascript
+     icons: {
+       icon: [
+         { url: "/favicon.ico" },
+         { url: "/icon.svg", type: "image/svg+xml" },
+       ],
+     },
+     ```
+3. **Verification**:
+   - `GET /favicon.ico` verified returning HTTP 200 OK with `Content-Type: image/x-icon`.
+   - `GET /workspace` verified returning HTTP 200 OK.
+   - All 802 tests passing (`npm test`).
+   - Production build (`npm run build`) succeeded with 0 errors.

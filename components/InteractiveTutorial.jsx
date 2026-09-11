@@ -116,6 +116,7 @@ export default function InteractiveTutorial({
   if (!isOpen) return null;
 
   const step = TUTORIAL_STEPS[currentStep];
+  const StepComponent = step?.render;
   const isFirst = currentStep === 0;
   const isLast = currentStep === TUTORIAL_STEPS.length - 1;
   const progressPercent = Math.round(((currentStep + 1) / TUTORIAL_STEPS.length) * 100);
@@ -182,13 +183,16 @@ export default function InteractiveTutorial({
 
           {/* Interactive Step Content */}
           <div className="pt-1">
-            {step.render({
-              onNavigateTab,
-              onOpenInstantNote,
-              onOpenCommandPalette,
-              copiedShortcut,
-              setCopiedShortcut,
-            })}
+            {StepComponent && (
+              <StepComponent
+                key={step.id}
+                onNavigateTab={onNavigateTab}
+                onOpenInstantNote={onOpenInstantNote}
+                onOpenCommandPalette={onOpenCommandPalette}
+                copiedShortcut={copiedShortcut}
+                setCopiedShortcut={setCopiedShortcut}
+              />
+            )}
           </div>
         </div>
 
