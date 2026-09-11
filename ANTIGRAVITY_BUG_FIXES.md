@@ -5581,16 +5581,19 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
      - `iso`: 3D Iso — angled 3D perspective highlighting depth and spatial coiling.
 2. **Smooth Damped CameraRig (`MathCanvas.jsx`)**:
    - Implemented an in-canvas `<CameraRig viewMode={viewMode} showHelix={showHelix} />` component using R3F's `useThree()` and `useFrame()`.
-   - Smoothly exponential-lerps (`factor = 1 - Math.exp(-delta * 6.5)`) `camera.position`, `camera.up`, and `controls.target` toward the target view configuration:
+   - Smoothly exponential-lerps (`factor = 1 - Math.exp(-delta * 7.5)`) `camera.position`, `camera.up`, and `controls.target` toward the target view configuration:
      - **Front view**: `pos = [0, 0.6, 12.5]`, `target = [0, 0, 0]`, `up = [0, 1, 0]`.
      - **Top view**: `pos = [0.8, 14.5, 0.001]`, `target = [0.8, 0, 0]`, `up = [0, 0, -1]`. Offsets $Z$ by $+0.001$ to prevent OrbitControls gimbal singularity when looking parallel to the Y-axis.
      - **Barrel view**: `pos = [WAVE_END + 5.5, 0, 0]`, `target = [CIRCLE_X, 0, 0]`, `up = [0, 1, 0]`. Aligns the eye directly along the wave axis so the entire helical coil collapses into an orthogonal circle cross-section.
      - **3D Iso**: `pos = [4.2, 4.2, 10.8]`, `target = [0.8, 0, 0]`, `up = [0, 1, 0]`.
-   - Calls `controls.update()` synchronously on each frame to maintain full compatibility with user drag-to-orbit interactions after transitioning.
+   - **Non-Locking Animated Positioner**: Previously, lerping continuously every frame locked the camera in place, fighting and overriding the user's manual orbit controls. Fixed by adding an `isTransitioning` state machine:
+     - Toggling a view activates smooth repositioning towards that angle.
+     - Once the camera converges within $\Delta < 0.02$ units of the target position and look-at vector, it snaps exactly to destination and sets `isTransitioning = false`.
+     - Controls are immediately released, allowing users to rotate, orbit, tilt, and pan freely using the trackpad or mouse without resistance.
 
 ### Verification
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
-- Verified fluid 60 FPS transitions between Front, Top, Barrel, and Iso viewpoints.
+- Verified fluid transitions between Front, Top, Barrel, and Iso viewpoints, followed immediately by unrestricted trackpad/mouse orbit control.
 
 ---
 

@@ -1107,9 +1107,10 @@ function Epicycles({
 
 function CameraRig({ viewMode = "front", showHelix = false }) {
   const { camera, controls } = useThree();
-  const targetPos = useRef(new THREE.Vector3());
-  const targetLook = useRef(new THREE.Vector3());
+  const targetPos = useRef(new THREE.Vector3(0, 0.6, 12.5));
+  const targetLook = useRef(new THREE.Vector3(0, 0, 0));
   const targetUp = useRef(new THREE.Vector3(0, 1, 0));
+  const isTransitioning = useRef(false);
 
   useEffect(() => {
     switch (viewMode) {
@@ -1139,10 +1140,14 @@ function CameraRig({ viewMode = "front", showHelix = false }) {
         targetUp.current.set(0, 1, 0);
         break;
     }
+    // Start animated camera positioning on every view toggle click
+    isTransitioning.current = true;
   }, [viewMode]);
 
   useFrame((_, delta) => {
-    const factor = 1 - Math.exp(-delta * 6.5);
+    if (!isTransitioning.current) return;
+
+    const factor = 1 - Math.exp(-delta * 7.5);
     camera.position.lerp(targetPos.current, factor);
     camera.up.lerp(targetUp.current, factor);
     if (controls) {
@@ -1150,6 +1155,20 @@ function CameraRig({ viewMode = "front", showHelix = false }) {
       controls.update();
     } else {
       camera.lookAt(targetLook.current);
+    }
+
+    // When the camera has smoothly arrived at the target viewpoint, release it!
+    // This lets the user immediately rotate, orbit, and pan freely with trackpad/mouse.
+    const posDist = camera.position.distanceTo(targetPos.current);
+    const lookDist = controls ? controls.target.distanceTo(targetLook.current) : 0;
+    if (posDist < 0.02 && lookDist < 0.02) {
+      camera.position.copy(targetPos.current);
+      camera.up.copy(targetUp.current);
+      if (controls) {
+        controls.target.copy(targetLook.current);
+        controls.update();
+      }
+      isTransitioning.current = false;
     }
   });
 
