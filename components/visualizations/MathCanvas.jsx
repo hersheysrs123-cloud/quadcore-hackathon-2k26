@@ -933,9 +933,13 @@ function Epicycles({
           const phLeft = c.theta - (xLeft - CIRCLE_X) * WAVE_K;
           const phRight = c.theta - (xRight - CIRCLE_X) * WAVE_K;
 
-          // Segment start and end on the linear ramp
-          addPt(xLeft, sawY(phLeft + 1e-6), TARGET_Z);
-          addPt(xRight, sawY(phRight - 1e-6), TARGET_Z);
+          // On internal jump boundaries, snap exactly to the theoretical peak and trough
+          // to eliminate epsilon-phase ambiguity across vertical steps
+          const yLeft = b === 0 ? sawY(phLeft) : -targetAmp;
+          const yRight = b === boundaries.length - 2 ? sawY(phRight) : targetAmp;
+
+          addPt(xLeft, yLeft, TARGET_Z);
+          addPt(xRight, yRight, TARGET_Z);
         }
       } else if (waveform === "triangle") {
         for (let s = 0; s < WAVE_SAMPLES; s += 1) {
