@@ -5622,3 +5622,31 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 - `npm run build` executed and passed with exit code 0 in 95 seconds (`✓ Compiled successfully`, `✓ Generating static pages (5/5)`).
 - Production server launched via `npm run start` (`task-931`) and verified responding with HTTP 200 on `/workspace` and `/visualizations`.
 - Working tree clean with zero uncommitted artifacts.
+
+---
+
+## 99. Unit Circle & Fourier Synthesis: Phase Alignment, Wave Vertex Origin Pin & Dynamic Laser Tracer Verification
+
+### Problem Statement & Verification
+- A review of the Unit Circle & Wave synthesis pipeline was requested regarding 5 specific technical items:
+  1. **Phase Alignment**: Verifying whether the target analytical function and Fourier series share the exact same phase offset $\phi$.
+  2. **Scroll Animation**: Verifying that both curves continuously flow along the time axis together via $\text{phase} = \theta - (x - x_0) \cdot k$.
+  3. **Vertex Origin Lock**: Verifying that vertex 0 ($s = 0$) of the wave matches the exact $(x_0, y_0)$ coordinates of the tip of the smallest epicycle.
+  4. **Dynamic Tracer Line**: Verifying that a single moving horizontal connector runs from the epicycle tip to the wave origin rather than a fan of projection rays.
+  5. **Buffer Flag Updates**: Verifying that `needsUpdate = true` is set on line geometry position attributes on every frame.
+
+### Resolution & Code Review Findings
+1. **Phase Alignment**:
+   - Both the Fourier series $\sum \frac{(-1)^i A}{i+1} \sin((i+1) \cdot \text{phase})$ and the ideal sawtooth function evaluate identical phase arguments $\text{phase} = \theta - (x - \text{CIRCLE\_X}) \cdot \text{WAVE\_K}$. Both functions pass through zero at $\text{phase} = 0$, reach $+A_{\text{target}}$ at $\text{phase} = \pi^-$, and jump to $-A_{\text{target}}$ at $\text{phase} = \pi^+$.
+2. **Scroll Animation**:
+   - Time is driven uniformly by $c.\theta \mathrel{+}= \text{step} \cdot \text{speed}$. Both the Fourier wave buffer and the analytical target wave share the identical wave number $\text{WAVE\_K} = 0.62$, translating in lockstep with zero drift.
+3. **Vertex Origin Lock**:
+   - At vertex index $s = 0$, $x = \text{CIRCLE\_X}$ and $\text{phase} = \theta$. Thus, $y(s=0) \equiv \sum r_i \sin(k_i \theta) \equiv y_{\text{tip}}$. Vertex 0 of the travelling wave is locked to the tip's height.
+4. **Dynamic Tracer Line**:
+   - Updated the laser connector to use `lineBasicMaterial` with opacity $0.65$ across buffer coordinates $[(\text{CIRCLE\_X} + p_x, p_y, 0) \to (\text{CIRCLE\_X}, p_y, 0)]$, forming a single crisp horizontal laser tracking from the rotating tip directly to the wave origin without requiring non-portable dashed distance calculations.
+5. **Buffer Updates**:
+   - Confirmed `waveGeo.current.attributes.position.needsUpdate = true`, `targetGeo.current.attributes.position.needsUpdate = true`, and `projGeo.current.attributes.position.needsUpdate = true` are all called unconditionally in `useFrame`.
+
+### Verification
+- `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
+- Verified exact horizontal sliding translation of both waves in lockstep with the rotating tip.

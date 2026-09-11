@@ -1021,10 +1021,10 @@ function Epicycles({
         <bufferGeometry ref={projGeo}>
           <bufferAttribute attach="attributes-position" args={[projBuffer, 3]} />
         </bufferGeometry>
-        <lineDashedMaterial color={PALETTE.gold} dashSize={0.12} gapSize={0.08} transparent opacity={0.5} />
+        <lineBasicMaterial color={PALETTE.gold} transparent opacity={0.65} />
       </line>
 
-      {/* Travelling sine wave trace */}
+      {/* Travelling wave trace */}
       <line frustumCulled={false}>
         <bufferGeometry ref={waveGeo}>
           <bufferAttribute attach="attributes-position" args={[waveBuffer, 3]} />
