@@ -6580,4 +6580,45 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Calibrated `launchSpeed` slider in `topics.js` to `min: 0.2, max: 3.5, step: 0.05` for refined tactile control.
    - Enhanced `SceneReadout` to detect `rimBanking` and display informative pedagogical guidance explaining banked rim containment at extreme launch speeds.
 
+---
 
+## 124. Light, Shadows & Straight Lines: L-Shape Shadow Inversion, Additional Shapes (Ring & Pyramid), Apparatus Detailing & Smooth 3D Rotation
+
+### 🐛 Problem Statement
+1. **L-Shape Shadow Orientation Inversion**:
+   - `LETTER_BARS.L` defined the vertical stem (spine) with positive $x = +0.22$ and horizontal foot with negative $x = -0.08$. In `LetterSolid`, positions were negated (`-b.x`), placing the 3D solid's spine at world $-X$. Because the default camera is stationed at $+X = 92\text{ cm}$ looking towards the bench centerline, world $-X$ projects to the right side of the screen, causing the 3D solid to render as a reversed/backwards letter "⅃". On the 2D canvas texture, `-b.x` flipped it back into an upright "L", meaning the HUD preview showed "L" while the 3D world solid and 3D screen texture showed a backwards "⅃".
+2. **Missing Shapes on the Stand**:
+   - The laboratory apparatus was limited to 6 basic shapes (cylinder, cube, cone, sphere, letter T, letter L). Students lacked classic optical bench test objects such as an annular ring (torus) to demonstrate light passing directly through an open aperture, and a square pyramid to demonstrate transition between a triangular profile and a square base.
+3. **Low-Fidelity Light Source Primitives**:
+   - Pinpoint bulb and wide lamp apparatus models were rudimentary primitives: pinpoint bulb had a single untextured cylinder and oversized sphere; wide lamp had a floating horizontal cylinder with no mounting brackets, troffer reflector hood, end sockets, or realistic laboratory detailing.
+4. **Harsh Transition & Post Clipping on Cylinder Rotation**:
+   - In `silhouette()`, `kind` abruptly stepped from `"rectangle"` to `"capsule"` when $c \le 0.94$, jumping corner radius instantly from 0 to 85% of half-width at $20^\circ$.
+   - In `TestObject`, rotating the cylinder around the X axis caused its bottom rim to dip to $-H\cos\theta - R\sin\theta < -H$, dipping up to $0.58\text{ cm}$ below the top of the stationary pedestal post and causing visual clipping.
+5. **Cone Rotation Axis**:
+   - `TIP_AXIS["cone"]` was undefined, falling back to $[0, \text{rotation}, 0]$ (spinning horizontally about its axis of symmetry). Because a cone is rotationally symmetric around Y, this produced zero change to the shadow outline.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **L-Shape Geometric Normalization & UV Synchronization**:
+   - Normalized `LETTER_BARS.L` to standard geometric coordinates: spine at $x = -0.22, w = 0.24, y = 0, h = 1$; foot at $x = 0.08, w = 0.70, y = -0.38, h = 0.24$.
+   - In `silhouettePath`: mapped coordinates directly with `b.x * W - (b.w * W)/2`, placing the spine on canvas left and foot extending right.
+   - In `LetterSolid`: maintained `-b.x * W` so positive world $X$ projects to screen left from the isometric camera angle.
+   - In `ProjectionScreen`: rotated the paper plane `<mesh rotation={[0, Math.PI, 0]}>` so $U=0$ (canvas left) aligns with world $+X$ (screen left). Solid, 3D shadow texture, and HUD preview inset now consistently agree on a standard upright "L".
+2. **Additional 3D Shapes (`ring` & `pyramid`)**:
+   - Added `"ring"` and `"pyramid"` to `SHAPES` and `SHAPE_LABELS`.
+   - `ring`:
+     - 3D Mesh: `<torusGeometry args={[halfW * 0.72, halfW * 0.22, 24, 48]} />`.
+     - Silhouette: at $0^\circ$, projects circular ring with center hole (`kind: "ring"`); at $90^\circ$ edge-on, projects solid narrow bar (`kind: "capsule"`). In `silhouettePath`, uses counter-clockwise inner ellipse cutout path so light passes cleanly through the hole.
+   - `pyramid`:
+     - 3D Mesh: `<coneGeometry args={[halfW * 1.414, halfH * 2, 4]} />` with $45^\circ$ Y-rotation to align flat face with beam.
+     - Silhouette: at $0^\circ$, projects triangle (`kind: "triangle"`); at $90^\circ$, projects square base (`kind: "rectangle"`). In `silhouettePath`, draws smooth trapezoid profile during intermediate tilt.
+   - Upgraded shape `Choice` layout to `columns={4}` to present all 8 shapes in two balanced rows.
+3. **High-Detail Scientific Laboratory Light Sources**:
+   - **Pinpoint Torch**: Machined aluminum barrel with gunmetal finish, triple knurled grip rings, stepped tailcap with red push button, polished brass retaining collar, specular chrome parabolic reflector dish, transparent convex optical glass lens disc, and glowing pinpoint filament core.
+   - **Wide Lamp**: Stanchion mounting collar with brass locking thumbscrew, dual angled suspension struts/yoke arms, formed dark slate troffer hood canopy, polished aluminum inner reflector trough, bi-pin socket end caps with brass contact collars, frosted fluorescent diffuser tube, and high-intensity glowing cathode core.
+4. **Continuous $\sin(\theta)$ Corner Rounding & Anti-Clipping Clearance**:
+   - Replaced abrupt step function in `silhouette()` and `silhouettePath` with continuous `tiltProgress = s`:
+     $$\text{cornerR} = \min(\text{halfW}, \text{halfH}) \times \sin(\theta)$$
+     Smoothly transitions from a sharp 90° rectangle at $0^\circ$ to a rounded capsule and finally a perfect circle at $90^\circ$ without pops.
+   - Calculated dynamic downward reach $\text{dip} = H|\cos\theta| + R|\sin\theta|$ in `TestObject`, setting dynamic post clearance `clearance = Math.max(sil.halfHeight, dip) + 0.4` with an articulated spindle mount to eliminate pedestal clipping across all $360^\circ$ of rotation.
+5. **Vertical Pitch Axis for Cone**:
+   - Configured `TIP_AXIS = { cylinder: "x", cone: "x", ring: "x", pyramid: "x" }`. Cone now pitches vertically around X, transforming from an upright triangle at $0^\circ$ to a circular base view at $90^\circ$.

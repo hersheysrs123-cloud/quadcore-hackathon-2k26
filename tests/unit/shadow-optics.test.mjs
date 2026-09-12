@@ -236,6 +236,48 @@ describe("3D shape and orientation", () => {
     }
   });
 
+  it("turns an upright cone vertically into a circular base view at 90°", () => {
+    const upright = silhouette("cone", 0);
+    const tipped = silhouette("cone", Math.PI / 2);
+    assert.equal(upright.kind, "triangle");
+    assert.equal(tipped.kind, "circle");
+    assert.ok(upright.description.includes("triangle"));
+    assert.ok(tipped.description.includes("circle"));
+    assert.ok(close(tipped.halfWidth, tipped.halfHeight, 1e-9));
+  });
+
+  it("turns a ring from a circular ring with hole to an edge-on solid narrow bar", () => {
+    const faceOn = silhouette("ring", 0);
+    const edgeOn = silhouette("ring", Math.PI / 2);
+    assert.equal(faceOn.kind, "ring");
+    assert.equal(edgeOn.kind, "capsule");
+    assert.ok(faceOn.description.includes("hole") || faceOn.description.includes("ring"));
+    assert.ok(edgeOn.description.includes("narrow bar"));
+    assert.ok(edgeOn.halfHeight < faceOn.halfHeight * 0.35);
+  });
+
+  it("turns an upright 4-sided pyramid into a square base at 90°", () => {
+    const upright = silhouette("pyramid", 0);
+    const tipped = silhouette("pyramid", Math.PI / 2);
+    assert.equal(upright.kind, "triangle");
+    assert.equal(tipped.kind, "rectangle");
+    assert.ok(upright.description.includes("triangle"));
+    assert.ok(tipped.description.includes("square"));
+    assert.ok(close(tipped.halfWidth, tipped.halfHeight, 1e-9));
+  });
+
+  it("provides continuous corner rounding for cylinder rotation to eliminate harsh transitions", () => {
+    const straight = silhouette("cylinder", 0);
+    const slightTilt = silhouette("cylinder", (15 * Math.PI) / 180);
+    const fullTilt = silhouette("cylinder", Math.PI / 2);
+    assert.equal(straight.tiltProgress, 0);
+    assert.equal(straight.cornerR, 0);
+    assert.ok(slightTilt.tiltProgress > 0 && slightTilt.tiltProgress < 0.3);
+    assert.ok(slightTilt.cornerR > 0 && slightTilt.cornerR < straight.halfWidth * 0.3);
+    assert.ok(close(fullTilt.tiltProgress, 1, 1e-9));
+    assert.ok(close(fullTilt.cornerR, fullTilt.halfWidth, 1e-9));
+  });
+
   it("names and sizes every shape on the shelf", () => {
     for (const shape of SHAPES) {
       const sil = silhouette(shape, 0.4);

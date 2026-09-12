@@ -713,6 +713,24 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Central Mass: Glowing gold sphere (`#fbbf24`, emissive intensity `1.8`) with atmospheric halo ring (`#fbbf24`, opacity `0.1`).
       - Orbiting Satellite: Machined glowing emerald beacon (`#34d399`, emissive intensity `1.4`) with non-wrapping smooth FIFO line trail (`#34d399`, opacity `0.7`).
 
+23. **3D Light, Shadows & Straight Lines Optical Bench Design Tokens (`ShadowLabCanvas.jsx`, `lib/shadowOptics.js`)**:
+    - **Scientific Optical Bench Apparatus**:
+      - Bench Bed: Ruled metric optical bench in brushed aluminum (`#8c9cb3`, metalness `0.1`, roughness `0.65`).
+      - Pedestal Posts: Matte slate column (`#39414f`, metalness `0.4`, roughness `0.6`) on weighted bevelled base (`#2c3340`), with dynamic anti-clipping elevation clearance $\Delta y = \max(H, H|\cos\theta| + R|\sin\theta|) + 0.4\text{ cm}$ and articulated center spindle.
+    - **Detailed Light Sources (`LightSource`)**:
+      - Pinpoint Torch: Dark gunmetal barrel (`#1e293b`, metalness `0.7`, roughness `0.45`) with triple ribbed knurled grip rings (`#0f172a`), stepped tailcap (`#334155`) with red click switch (`#ef4444`), stepped brass retaining collar (`#d4af37`, metalness `0.85`, roughness `0.25`), specular chrome parabolic reflector dish (`#f8fafc`, metalness `0.96`, roughness `0.08`), transparent convex optical glass lens disc (`#e0f2fe`, transmission `0.85`, opacity `0.35`, ior `1.5`), and radiant tungsten filament emitter (`#fffbe8`, emissive `#ffe9a8`, emissiveIntensity `3.4`).
+      - Wide Troffer Lamp: Formed industrial sheet metal reflector hood (`#1e293b`, metalness `0.5`, roughness `0.6`) with polished aluminum inner trough liner (`#cbd5e1`, metalness `0.85`), twin angled tubular stanchion yoke struts (`#334155`, metalness `0.7`), molded ceramic bi-pin socket end caps (`#475569`) with brass terminal rings (`#d4af37`), frosted fluorescent diffuser tube (`#fef9c3`, emissive `#fef08a`, emissiveIntensity `2.5`), and glowing cathode core wire (`#ffffff`, emissive `#fffbeb`, emissiveIntensity `3.5`).
+    - **3D Test Objects & Shelf Registry (8 Shapes)**:
+      - Cylindrical Rod, Cube, Upright Cone, Sphere, Torus Ring, 4-Sided Square Pyramid, Letter T, Letter L.
+      - Torus Ring: Annular torus mesh casting a donut shadow with a clear light aperture at $0^\circ$ and a solid rectangular bar at $90^\circ$ edge-on.
+      - Square Pyramid: 4-sided pyramid transitioning from a triangular silhouette at $0^\circ$ to a square base silhouette at $90^\circ$.
+      - Letter L: Correctly oriented standard upright "L" across 3D solid, 3D projection screen, and 2D HUD preview card.
+    - **Projection Screen & Shadow Rendering Engine**:
+      - Illumination: Inverse-square law $1/d^2$ throw factor with $\cos^3\theta$ angular falloff creating authentic radial vignetting on paper texture.
+      - Measuring Grid: Ruled $10\text{ cm}$ grid lines (`rgba(96,110,132,0.30)`) with high-contrast optical axis crosshair (`rgba(96,110,132,0.55)`).
+      - Measuring Guides: Gold dashed lines (`rgba(251,191,36,0.85)`) for full umbra boundary; cyan dashed lines (`rgba(56,189,248,0.80)`) for outer penumbra boundary.
+      - Smooth Continuous Morphing: Continuous corner rounding $r = \min(w, h) \cdot \sin(\theta)$ eliminating harsh step transitions during cylinder and cone rotation.
+
 
 
 

@@ -91,13 +91,13 @@ const LETTER_BARS = {
     { x: 0, y: -0.06, w: 0.24, h: 0.9 },
   ],
   L: [
-    { x: 0.22, y: 0, w: 0.24, h: 1 },
-    { x: -0.08, y: -0.38, w: 0.7, h: 0.24 },
+    { x: -0.22, y: 0, w: 0.24, h: 1 },
+    { x: 0.08, y: -0.38, w: 0.7, h: 0.24 },
   ],
 };
 
 /** The silhouette as a 2D path, centred on the origin, canvas y pointing down. */
-function silhouettePath(ctx, kind, letter, halfW, halfH) {
+function silhouettePath(ctx, kind, letter, halfW, halfH, tiltProgress = 0) {
   const W = halfW * 2;
   const H = halfH * 2;
   switch (kind) {
@@ -105,25 +105,73 @@ function silhouettePath(ctx, kind, letter, halfW, halfH) {
       ctx.ellipse(0, 0, halfW, halfH, 0, 0, Math.PI * 2);
       return;
     case "triangle":
-      // A cone's outline: apex up, matching the solid on the pedestal.
+      // A cone's or pyramid's outline: apex up, matching the solid on the pedestal.
       ctx.moveTo(0, -halfH);
       ctx.lineTo(halfW, halfH);
       ctx.lineTo(-halfW, halfH);
       ctx.closePath();
       return;
+    case "conical": {
+      // Smooth continuous vertical tilt of cone from triangle (upright) to circular base
+      const s = Math.min(1, Math.max(0, tiltProgress));
+      const c = Math.sqrt(Math.max(0, 1 - s * s));
+      const apexY = -halfH * c;
+      const baseCenterY = halfH * (1 - c) * 0.4;
+      const baseRx = halfW;
+      const baseRy = Math.max(halfW * 0.15, halfW * s);
+      ctx.moveTo(-baseRx, baseCenterY);
+      ctx.lineTo(0, apexY);
+      ctx.lineTo(baseRx, baseCenterY);
+      ctx.ellipse(0, baseCenterY, baseRx, baseRy, 0, 0, Math.PI, false);
+      ctx.closePath();
+      return;
+    }
+    case "ring": {
+      // Outer ellipse
+      ctx.ellipse(0, 0, halfW, halfH, 0, 0, Math.PI * 2);
+      // Inner hole cutout (wound counter-clockwise for cutout hole in canvas)
+      const holeRatio = 0.44;
+      ctx.moveTo(halfW * holeRatio, 0);
+      ctx.ellipse(0, 0, halfW * holeRatio, halfH * holeRatio, 0, 0, Math.PI * 2, true);
+      return;
+    }
+    case "pyramid": {
+      // Tilted 4-sided pyramid: trapezoid silhouette widening into square base
+      const s = Math.min(1, Math.max(0, tiltProgress));
+      const c = Math.sqrt(Math.max(0, 1 - s * s));
+      const topW = halfW * (0.05 + 0.95 * s);
+      const topY = -halfH * c;
+      ctx.moveTo(-topW, topY);
+      ctx.lineTo(topW, topY);
+      ctx.lineTo(halfW, halfH);
+      ctx.lineTo(-halfW, halfH);
+      ctx.closePath();
+      return;
+    }
     case "capsule": {
-      const r = Math.min(halfW, halfH) * 0.85;
-      if (ctx.roundRect) ctx.roundRect(-halfW, -halfH, W, H, r);
+      // Continuous corner radius prevents harsh pop when cylinder or ring begins tilting
+      const maxR = Math.min(halfW, halfH);
+      const r = maxR * (tiltProgress > 0 ? tiltProgress : 0.85);
+      if (ctx.roundRect) ctx.roundRect(-halfW, -halfH, W, H, Math.max(0.1, r));
       else ctx.rect(-halfW, -halfH, W, H);
       return;
     }
     case "letter":
       for (const b of LETTER_BARS[letter] ?? LETTER_BARS.T) {
-        ctx.rect(-b.x * W - (b.w * W) / 2, -b.y * H - (b.h * H) / 2, b.w * W, b.h * H);
+        ctx.rect(b.x * W - (b.w * W) / 2, -b.y * H - (b.h * H) / 2, b.w * W, b.h * H);
       }
       return;
-    default:
+    default: {
+      // For cylinder transitioning from rectangle, use continuous corner radius if tiltProgress > 0
+      if (tiltProgress > 0.005) {
+        const r = Math.min(halfW, halfH) * tiltProgress;
+        if (ctx.roundRect) {
+          ctx.roundRect(-halfW, -halfH, W, H, r);
+          return;
+        }
+      }
       ctx.rect(-halfW, -halfH, W, H);
+    }
   }
 }
 
@@ -194,7 +242,7 @@ function paintScreen(canvas, solved, letter, guides) {
   if (blurPx > 0.4) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   ctx.fillStyle = `rgba(6,8,13,${clamp(darkness, 0, 1).toFixed(3)})`;
   ctx.beginPath();
-  silhouettePath(ctx, outline.kind, letter, halfW, halfH);
+  silhouettePath(ctx, outline.kind, letter, halfW, halfH, outline.tiltProgress);
   ctx.fill();
   ctx.filter = "none";
 
@@ -210,7 +258,7 @@ function paintScreen(canvas, solved, letter, guides) {
       if (band.w <= 0.05) continue;
       ctx.strokeStyle = colour;
       ctx.beginPath();
-      silhouettePath(ctx, outline.kind, letter, band.w * PX_PER_CM, band.h * PX_PER_CM);
+      silhouettePath(ctx, outline.kind, letter, band.w * PX_PER_CM, band.h * PX_PER_CM, outline.tiltProgress);
       ctx.stroke();
     }
     ctx.setLineDash([]);
@@ -294,40 +342,158 @@ function LightSource({ benchZ, source, on }) {
     <group position={[0, cm(AXIS_CM), zAt(benchZ)]}>
       <Post height={AXIS_CM} />
       {broad ? (
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[cm(2.4), cm(2.4), cm(width), 20]} />
-          <meshStandardMaterial
-            color="#fdf6d8"
-            emissive="#ffe9a8"
-            emissiveIntensity={on ? 2.4 : 0.1}
-            toneMapped={false}
-          />
-        </mesh>
+        <group>
+          {/* Stanchion mounting collar gripping the central post */}
+          <mesh position={[0, cm(-1.2), 0]}>
+            <cylinderGeometry args={[cm(1.6), cm(1.6), cm(2.0), 16]} />
+            <meshStandardMaterial color="#2d3748" roughness={0.45} metalness={0.65} />
+          </mesh>
+          {/* Brass locking thumbscrew on collar */}
+          <mesh position={[cm(1.9), cm(-1.2), 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[cm(0.6), cm(0.6), cm(0.7), 12]} />
+            <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
+          </mesh>
+
+          {/* Dual suspension struts/yoke arms connecting mounting collar to troffer hood */}
+          {[-1, 1].map((s) => (
+            <mesh
+              key={s}
+              position={[cm(s * (width * 0.32)), cm(-0.4), 0]}
+              rotation={[0, 0, s * 0.4]}
+            >
+              <cylinderGeometry args={[cm(0.4), cm(0.4), cm(2.4), 12]} />
+              <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.7} />
+            </mesh>
+          ))}
+
+          {/* Industrial troffer reflector hood above and behind the tube */}
+          <mesh position={[0, cm(1.3), cm(-0.8)]}>
+            <boxGeometry args={[cm(width + 3.2), cm(1.6), cm(3.6)]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.6} metalness={0.5} />
+          </mesh>
+          {/* Polished inner reflector trough */}
+          <mesh position={[0, cm(0.7), cm(-0.5)]}>
+            <boxGeometry args={[cm(width + 1.2), cm(0.4), cm(2.8)]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.85} />
+          </mesh>
+
+          {/* Left and right bi-pin socket end-caps */}
+          {[-1, 1].map((s) => (
+            <group key={s} position={[cm(s * (width / 2 + 0.5)), 0, 0]}>
+              <mesh rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[cm(1.7), cm(1.7), cm(1.0), 20]} />
+                <meshStandardMaterial color="#475569" roughness={0.5} metalness={0.5} />
+              </mesh>
+              {/* Brass contact collar ring */}
+              <mesh position={[cm(-s * 0.55), 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[cm(1.5), cm(1.5), cm(0.2), 20]} />
+                <meshStandardMaterial color="#d4af37" roughness={0.25} metalness={0.85} />
+              </mesh>
+            </group>
+          ))}
+
+          {/* Frosted fluorescent diffuser tube */}
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[cm(1.35), cm(1.35), cm(width), 24]} />
+            <meshStandardMaterial
+              color="#fef9c3"
+              emissive="#fef08a"
+              emissiveIntensity={on ? 2.5 : 0.1}
+              roughness={0.35}
+              toneMapped={false}
+            />
+          </mesh>
+
+          {/* Internal glowing cathode filament core visible inside tube */}
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[cm(0.35), cm(0.35), cm(width * 0.94), 16]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#fffbeb"
+              emissiveIntensity={on ? 3.5 : 0.1}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
       ) : (
         <group>
-          <mesh position={[0, 0, cm(-7)]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[cm(3), cm(3.4), cm(9), 20]} />
-            <meshStandardMaterial color="#3b4453" roughness={0.5} metalness={0.6} />
+          {/* Stanchion post mounting clamp with brass thumbscrew */}
+          <mesh position={[0, cm(-1.2), cm(-3.5)]}>
+            <cylinderGeometry args={[cm(1.6), cm(1.6), cm(2.0), 16]} />
+            <meshStandardMaterial color="#2d3748" roughness={0.45} metalness={0.65} />
           </mesh>
-          {/* Reflector, opening toward the bench. */}
+          <mesh position={[cm(1.9), cm(-1.2), cm(-3.5)]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[cm(0.6), cm(0.6), cm(0.7), 12]} />
+            <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
+          </mesh>
+
+          {/* Main machined flashlight barrel */}
+          <mesh position={[0, 0, cm(-6.6)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(2.7), cm(3.1), cm(8.4), 24]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.45} metalness={0.7} />
+          </mesh>
+
+          {/* Knurled grip ribs along barrel */}
+          {[-5.0, -6.4, -7.8].map((zPos, idx) => (
+            <mesh key={idx} position={[0, 0, cm(zPos)]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[cm(2.9), cm(2.9), cm(0.55), 24]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.6} metalness={0.8} />
+            </mesh>
+          ))}
+
+          {/* Tailcap and rear click button */}
+          <mesh position={[0, 0, cm(-11.0)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(3.0), cm(2.6), cm(1.2), 24]} />
+            <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.6} />
+          </mesh>
+          <mesh position={[0, 0, cm(-11.7)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(1.0), cm(1.0), cm(0.4), 16]} />
+            <meshStandardMaterial color="#ef4444" roughness={0.4} metalness={0.2} />
+          </mesh>
+
+          {/* Front brass retaining collar */}
+          <mesh position={[0, 0, cm(-2.0)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(3.4), cm(3.1), cm(1.0), 24]} />
+            <meshStandardMaterial color="#d4af37" roughness={0.25} metalness={0.85} />
+          </mesh>
+
+          {/* Beveled outer lens rim */}
+          <mesh position={[0, 0, cm(-1.2)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(3.6), cm(3.4), cm(0.8), 24]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.35} metalness={0.8} />
+          </mesh>
+
+          {/* Specular chrome parabolic reflector dish */}
           <mesh position={[0, 0, cm(-1.6)]} rotation={[-Math.PI / 2, 0, 0]}>
-            <coneGeometry args={[cm(3.4), cm(3.6), 20, 1, true]} />
+            <coneGeometry args={[cm(3.3), cm(3.6), 24, 1, true]} />
             <meshStandardMaterial
-              color="#8d9aad"
-              roughness={0.25}
-              metalness={0.8}
+              color="#f8fafc"
+              roughness={0.08}
+              metalness={0.96}
               side={THREE.DoubleSide}
             />
           </mesh>
-          {/* The filament, drawn oversize on purpose: a true 2 mm source is
-              invisible at this scale, and the rays still leave from the width
-              the optics module reports, not from what is drawn here. */}
-          <mesh>
-            <sphereGeometry args={[cm(Math.max(width, 1.2)), 16, 16]} />
+
+          {/* Convex optical front glass lens disc */}
+          <mesh position={[0, 0, cm(-0.6)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(3.3), cm(3.3), cm(0.15), 24]} />
+            <meshPhysicalMaterial
+              color="#e0f2fe"
+              roughness={0.05}
+              transmission={0.85}
+              transparent
+              opacity={0.35}
+              ior={1.5}
+            />
+          </mesh>
+
+          {/* Pinpoint filament emitter core */}
+          <mesh position={[0, 0, cm(-0.8)]}>
+            <sphereGeometry args={[cm(Math.max(width, 1.1)), 16, 16]} />
             <meshStandardMaterial
               color="#fffbe8"
               emissive="#ffe9a8"
-              emissiveIntensity={on ? 3 : 0.1}
+              emissiveIntensity={on ? 3.4 : 0.1}
               toneMapped={false}
             />
           </mesh>
@@ -344,13 +510,10 @@ function LightSource({ benchZ, source, on }) {
 /**
  * Which axis a turn of the slider spins each solid about.
  *
- * Not one axis for everything: the outline that `silhouette()` computes is the
- * outline of the turn that actually CHANGES the shadow. Tipping the rod toward
- * the screen is what turns it into a disc; spinning the cube about the upright
- * is what presents its diagonal. A cone spun about its own axis keeps the same
- * triangle, which is the point the lab makes about it.
+ * Tipping the cylinder, cone, ring, or pyramid toward the screen is what changes
+ * its silhouette. Spinning the cube about the upright is what presents its diagonal.
  */
-const TIP_AXIS = { cylinder: "x" };
+const TIP_AXIS = { cylinder: "x", cone: "x", ring: "x", pyramid: "x" };
 
 /** The object on its pedestal, sized from the very silhouette that is cast. */
 function TestObject({ shape, rotation, material, benchZ }) {
@@ -398,6 +561,20 @@ function TestObject({ shape, rotation, material, benchZ }) {
             {surface}
           </mesh>
         );
+      case "ring":
+        return (
+          <mesh>
+            <torusGeometry args={[halfW * 0.72, halfW * 0.22, 24, 48]} />
+            {surface}
+          </mesh>
+        );
+      case "pyramid":
+        return (
+          <mesh rotation={[0, Math.PI / 4, 0]}>
+            <coneGeometry args={[halfW * 1.414, halfH * 2, 4]} />
+            {surface}
+          </mesh>
+        );
       case "letterT":
       case "letterL":
         return (
@@ -422,9 +599,23 @@ function TestObject({ shape, rotation, material, benchZ }) {
 
   const turn = TIP_AXIS[shape] === "x" ? [rotation, 0, 0] : [0, rotation, 0];
 
+  // Dynamic clearance prevents rotating objects from clipping into the pedestal post
+  const clearance = useMemo(() => {
+    if (TIP_AXIS[shape] === "x") {
+      const dip = sil.halfHeight * Math.abs(Math.cos(rotation)) + sil.halfWidth * Math.abs(Math.sin(rotation));
+      return Math.max(sil.halfHeight, dip) + 0.4;
+    }
+    return sil.halfHeight + 0.2;
+  }, [shape, rotation, sil.halfHeight, sil.halfWidth]);
+
   return (
     <group position={[0, cm(AXIS_CM), zAt(benchZ)]}>
-      <Post height={AXIS_CM - sil.halfHeight} top={-sil.halfHeight} radius={1.3} />
+      <Post height={AXIS_CM - clearance} top={-clearance} radius={1.3} />
+      {/* Pivot mount spindle */}
+      <mesh position={[0, cm(-clearance / 2), 0]}>
+        <cylinderGeometry args={[cm(0.6), cm(0.6), cm(clearance), 16]} />
+        <meshStandardMaterial color="#475569" roughness={0.5} metalness={0.6} />
+      </mesh>
       <group rotation={turn}>{body()}</group>
     </group>
   );
@@ -468,7 +659,7 @@ function ProjectionScreen({ benchZ, texture, curtain, overflows }) {
 
       {/* The paper itself. Unlit on purpose: what the child sees is exactly the
           illumination the optics module computed, not that plus a key light. */}
-      <mesh>
+      <mesh rotation={[0, Math.PI, 0]}>
         <planeGeometry args={[cm(SCREEN.halfW * 2), cm(SCREEN.halfH * 2)]} />
         {curtain ? (
           <meshStandardMaterial color="#6d3f8f" roughness={0.9} side={THREE.DoubleSide} />
@@ -804,7 +995,7 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
                   options={SHAPES.map((s) => ({ value: s, label: SHAPE_LABELS[s] }))}
                   value={shape}
                   onChange={setShape}
-                  columns={3}
+                  columns={4}
                 />
               </div>
 
