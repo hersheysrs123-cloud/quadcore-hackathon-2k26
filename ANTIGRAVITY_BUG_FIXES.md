@@ -6658,3 +6658,22 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Set `depth={size * 0.16}` in `TestObject`, matching the $0.16 \times \text{size}$ edge-on optical silhouette thickness exactly.
 4. **Comprehensive Test Suite Coverage (`shadow-optics.test.mjs`)**:
    - Added automated tests verifying orientation, `flipped` flag, `cosTheta`, and pedagogical description across $0^\circ, 90^\circ, 180^\circ, 270^\circ, 360^\circ$. All 836 tests passing across 203 suites.
+
+---
+
+## 126. Light, Shadows & Straight Lines: Wide Lamp Top Rectangular Hood Removal & Sleek Cylindrical Chassis Mount
+
+### 🐛 Problem Statement
+- **Bulky Rectangular Block Above Wide Fluorescent Tube**:
+  - The wide lamp model featured an industrial troffer reflector hood and trough formed from rectangular boxes (`boxGeometry args={[cm(width + 3.2), cm(1.6), cm(3.6)]}` and `boxGeometry args={[cm(width + 1.2), cm(0.4), cm(2.8)]}`) placed at $Y = +1.3\text{ cm}$ directly atop the glowing tube ($Y = 0$).
+  - When viewing the bench from the default camera angle, this rectangular structure appeared heavy, blocky, and obstructed the view of the glowing fluorescent emitter tube.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Removed Top Rectangular Boxes**:
+   - Removed both the dark slate outer troffer box and the inner aluminum reflector trough from `LightSource` in `ShadowLabCanvas.jsx`.
+2. **Integrated Sleek Cylindrical Tubular Chassis & Brackets**:
+   - Replaced the bulky top rectangle with a slender horizontal cylindrical chassis bar (`cylinderGeometry args={[cm(0.35), cm(0.35), cm(width + 1.0), 16]}`) positioned cleanly behind the tube at $Y = -0.2\text{ cm}, Z = -0.4\text{ cm}$.
+   - Positioned dual angled support bracket arms (`cylinderGeometry args={[cm(0.35), cm(0.35), cm(1.6), 12]}`) connecting from the stanchion post mounting collar up to the chassis.
+   - The fluorescent emitter tube, bi-pin socket end-caps, and glowing cathode core are now completely open and unobstructed at the top, delivering a sleek, authentic laboratory optical bench apparatus.
+3. **Verification**:
+   - All 836 test suite specs passing. Build succeeds with exit code 0. Production server verified healthy (HTTP 200).

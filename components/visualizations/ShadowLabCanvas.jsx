@@ -367,27 +367,22 @@ function LightSource({ benchZ, source, on }) {
             <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
           </mesh>
 
-          {/* Dual suspension struts/yoke arms connecting mounting collar to troffer hood */}
+          {/* Support bracket arms connecting stanchion collar to tube chassis */}
           {[-1, 1].map((s) => (
             <mesh
               key={s}
-              position={[cm(s * (width * 0.32)), cm(-0.4), 0]}
-              rotation={[0, 0, s * 0.4]}
+              position={[cm(s * (width * 0.28)), cm(-0.6), cm(-0.15)]}
+              rotation={[0.15, 0, s * 0.38]}
             >
-              <cylinderGeometry args={[cm(0.4), cm(0.4), cm(2.4), 12]} />
+              <cylinderGeometry args={[cm(0.35), cm(0.35), cm(1.6), 12]} />
               <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.7} />
             </mesh>
           ))}
 
-          {/* Industrial troffer reflector hood above and behind the tube */}
-          <mesh position={[0, cm(1.3), cm(-0.8)]}>
-            <boxGeometry args={[cm(width + 3.2), cm(1.6), cm(3.6)]} />
-            <meshStandardMaterial color="#1e293b" roughness={0.6} metalness={0.5} />
-          </mesh>
-          {/* Polished inner reflector trough */}
-          <mesh position={[0, cm(0.7), cm(-0.5)]}>
-            <boxGeometry args={[cm(width + 1.2), cm(0.4), cm(2.8)]} />
-            <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.85} />
+          {/* Slender horizontal cylindrical chassis bar behind the tube */}
+          <mesh position={[0, cm(-0.2), cm(-0.4)]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[cm(0.35), cm(0.35), cm(width + 1.0), 16]} />
+            <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.7} />
           </mesh>
 
           {/* Left and right bi-pin socket end-caps */}
