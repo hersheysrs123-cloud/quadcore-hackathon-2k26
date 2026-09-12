@@ -6622,3 +6622,39 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Calculated dynamic downward reach $\text{dip} = H|\cos\theta| + R|\sin\theta|$ in `TestObject`, setting dynamic post clearance `clearance = Math.max(sil.halfHeight, dip) + 0.4` with an articulated spindle mount to eliminate pedestal clipping across all $360^\circ$ of rotation.
 5. **Vertical Pitch Axis for Cone**:
    - Configured `TIP_AXIS = { cylinder: "x", cone: "x", ring: "x", pyramid: "x" }`. Cone now pitches vertically around X, transforming from an upright triangle at $0^\circ$ to a circular base view at $90^\circ$.
+
+---
+
+## 125. Light, Shadows & Straight Lines: Dynamic 3D Rotation Shadow Projection & Backside Inversion for Letter L & T Shapes
+
+### 🐛 Problem Statement
+1. **L-Shape Shadow Failure to Track 3D Rotation (`rotationDeg` $0^\circ \to 360^\circ$)**:
+   - While the static upright orientation for $\theta = 0^\circ$ was correct, rotating the shape via the "Turn the shape" slider caused the shadow to become out of sync and reversed relative to the 3D solid.
+   - In `lib/shadowOptics.js`, `silhouette()` computed $c = |\cos(\theta)|$ and $s = |\sin(\theta)|$, stripping away the directional sign of $\cos(\theta)$.
+   - In `components/visualizations/ShadowLabCanvas.jsx`, `silhouettePath()` was not passed `rotationRad`. In `case "letter":`, it rendered static bar positions (`b.x * W`).
+   - Because `b.x` was fixed (`-0.22` for the vertical spine and `+0.08` for the horizontal foot) and $W > 0$, the spine was drawn permanently on the canvas left and the foot on the canvas right for all angles $0^\circ \to 360^\circ$.
+   - When the 3D solid turned past $90^\circ$ to $180^\circ$ (turning around to present its backside), the 3D solid rendered as a reversed letter "⅃" (spine on right, foot extending left). However, the shadow on the projection screen and on the HUD preview card remained facing forward as an upright "L", creating a complete reversal between the solid and its shadow.
+   - At $90^\circ$ and $270^\circ$, because `b.x * W` was non-zero, the two bars did not align at the center, casting two disjoint offset thin bars rather than a single unified edge-on vertical bar.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Dynamic Signed Projection & Thickness Extrusion in `silhouettePath` (`ShadowLabCanvas.jsx`)**:
+   - Updated `silhouettePath(ctx, kind, letter, halfW, halfH, tiltProgress = 0, rotationRad = 0)` to accept `rotationRad`.
+   - Replaced static bar rects in `case "letter":` with the exact 3D-to-2D horizontal projection transform:
+     $$\text{denom} = \max(0.01, \text{baseRatio} \cdot |\cos\theta| + \text{depthRatio} \cdot |\sin\theta|)$$
+     $$W_{\text{face}} = W \cdot \frac{\text{baseRatio}}{\text{denom}}$$
+     $$xc = b.x \cdot W_{\text{face}} \cdot \cos\theta$$
+     $$wb = \max(0.5, (b.w \cdot |\cos\theta| + \text{depthFactor} \cdot |\sin\theta|) \cdot W_{\text{face}})$$
+     where $\text{depthFactor} = \text{depthRatio} / \text{baseRatio} = 0.16 / 0.70$.
+   - Passed `outline.rotationRad ?? 0` to `silhouettePath` in both the main shadow fill and the umbra/penumbra guide strokes in `paintScreen`.
+   - **Behavior across rotation**:
+     - At $0^\circ$: $\cos\theta = 1$, spine center is at $-0.22 W$, foot extends right (standard "L").
+     - At $90^\circ$ & $270^\circ$: $\cos\theta = 0$, both spine and foot collapse precisely to $xc = 0$ with matching width $wb = W$, rendering a single, continuous, unified edge-on vertical bar.
+     - At $180^\circ$: $\cos\theta = -1$, spine center flips to $+0.22 W$ (right) and foot extends left (reversed "⅃"), matching the 3D solid's backside view in 100% lockstep.
+2. **Backside Description & Signed Rotation State in `lib/shadowOptics.js`**:
+   - Snapped near-zero $\cos(\theta)$ within $10^{-12}$ to 0 to eliminate floating-point epsilon jitter at $90^\circ$ and $270^\circ$.
+   - Added `rotationRad`, `tiltProgress`, `cosTheta`, and `flipped: cosVal < -1e-9` to the outline metadata returned by `silhouette("letterL")` and `silhouette("letterT")`.
+   - Updated `description` for `letterL` to dynamically distinguish front and rear views: `"the letter L"` when $\cos\theta \ge 0$, `"the reversed letter L (seen from the back)"` when $\cos\theta < 0$, and `"a narrow bar — the L turned edge-on"` when near $90^\circ / 270^\circ$.
+3. **Calibrated 3D Solid Depth (`LetterSolid`)**:
+   - Set `depth={size * 0.16}` in `TestObject`, matching the $0.16 \times \text{size}$ edge-on optical silhouette thickness exactly.
+4. **Comprehensive Test Suite Coverage (`shadow-optics.test.mjs`)**:
+   - Added automated tests verifying orientation, `flipped` flag, `cosTheta`, and pedagogical description across $0^\circ, 90^\circ, 180^\circ, 270^\circ, 360^\circ$. All 836 tests passing across 203 suites.

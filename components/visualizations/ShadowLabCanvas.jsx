@@ -97,7 +97,7 @@ const LETTER_BARS = {
 };
 
 /** The silhouette as a 2D path, centred on the origin, canvas y pointing down. */
-function silhouettePath(ctx, kind, letter, halfW, halfH, tiltProgress = 0) {
+function silhouettePath(ctx, kind, letter, halfW, halfH, tiltProgress = 0, rotationRad = 0) {
   const W = halfW * 2;
   const H = halfH * 2;
   switch (kind) {
@@ -156,11 +156,24 @@ function silhouettePath(ctx, kind, letter, halfW, halfH, tiltProgress = 0) {
       else ctx.rect(-halfW, -halfH, W, H);
       return;
     }
-    case "letter":
+    case "letter": {
+      const cosTheta = Math.cos(rotationRad);
+      const sinTheta = Math.sin(rotationRad);
+      const baseRatio = letter === "L" ? 0.7 : 0.85;
+      const depthRatio = 0.16;
+      const depthFactor = depthRatio / baseRatio;
+      const denom = Math.max(0.01, baseRatio * Math.abs(cosTheta) + depthRatio * Math.abs(sinTheta));
+      const Wface = W * (baseRatio / denom);
+
       for (const b of LETTER_BARS[letter] ?? LETTER_BARS.T) {
-        ctx.rect(b.x * W - (b.w * W) / 2, -b.y * H - (b.h * H) / 2, b.w * W, b.h * H);
+        // Horizontal center rotates with cos(theta), maintaining signed direction
+        const xc = b.x * Wface * cosTheta;
+        // Bar width combines foreshortened face and exposed side thickness
+        const wb = Math.max(0.5, (b.w * Math.abs(cosTheta) + depthFactor * Math.abs(sinTheta)) * Wface);
+        ctx.rect(xc - wb / 2, -b.y * H - (b.h * H) / 2, wb, b.h * H);
       }
       return;
+    }
     default: {
       // For cylinder transitioning from rectangle, use continuous corner radius if tiltProgress > 0
       if (tiltProgress > 0.005) {
@@ -242,7 +255,7 @@ function paintScreen(canvas, solved, letter, guides) {
   if (blurPx > 0.4) ctx.filter = `blur(${blurPx.toFixed(2)}px)`;
   ctx.fillStyle = `rgba(6,8,13,${clamp(darkness, 0, 1).toFixed(3)})`;
   ctx.beginPath();
-  silhouettePath(ctx, outline.kind, letter, halfW, halfH, outline.tiltProgress);
+  silhouettePath(ctx, outline.kind, letter, halfW, halfH, outline.tiltProgress, outline.rotationRad ?? 0);
   ctx.fill();
   ctx.filter = "none";
 
@@ -258,7 +271,7 @@ function paintScreen(canvas, solved, letter, guides) {
       if (band.w <= 0.05) continue;
       ctx.strokeStyle = colour;
       ctx.beginPath();
-      silhouettePath(ctx, outline.kind, letter, band.w * PX_PER_CM, band.h * PX_PER_CM, outline.tiltProgress);
+      silhouettePath(ctx, outline.kind, letter, band.w * PX_PER_CM, band.h * PX_PER_CM, outline.tiltProgress, outline.rotationRad ?? 0);
       ctx.stroke();
     }
     ctx.setLineDash([]);
@@ -582,7 +595,7 @@ function TestObject({ shape, rotation, material, benchZ }) {
             letter={shape === "letterT" ? "T" : "L"}
             halfW={halfW}
             halfH={halfH}
-            depth={size * 0.22}
+            depth={size * 0.16}
             surface={surface}
           />
         );

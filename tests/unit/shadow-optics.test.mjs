@@ -236,6 +236,33 @@ describe("3D shape and orientation", () => {
     }
   });
 
+  it("tracks 3D rotation of letter L and flips silhouette to reversed L when viewed from behind", () => {
+    const front = silhouette("letterL", 0);
+    const edge = silhouette("letterL", Math.PI / 2);
+    const back = silhouette("letterL", Math.PI);
+    const edge2 = silhouette("letterL", (3 * Math.PI) / 2);
+    const full = silhouette("letterL", 2 * Math.PI);
+
+    assert.equal(front.flipped, false);
+    assert.equal(front.cosTheta, 1);
+    assert.ok(front.description.includes("the letter L"));
+
+    assert.equal(edge.flipped, false);
+    assert.ok(Math.abs(edge.cosTheta) < 1e-9);
+    assert.ok(edge.description.includes("narrow bar"));
+
+    assert.equal(back.flipped, true);
+    assert.equal(back.cosTheta, -1);
+    assert.ok(back.description.includes("reversed letter L"));
+
+    assert.equal(edge2.flipped, false);
+    assert.ok(edge2.description.includes("narrow bar"));
+
+    assert.equal(full.flipped, false);
+    assert.equal(full.cosTheta, 1);
+    assert.ok(full.description.includes("the letter L"));
+  });
+
   it("turns an upright cone vertically into a circular base view at 90°", () => {
     const upright = silhouette("cone", 0);
     const tipped = silhouette("cone", Math.PI / 2);
