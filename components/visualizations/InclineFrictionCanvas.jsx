@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Grid, Line, RoundedBox } from "@react-three/drei";
-import * as THREE from "three";
 import {
   PALETTE,
   SceneCanvas,

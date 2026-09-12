@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import ScoreRing from "@/components/ScoreRing";

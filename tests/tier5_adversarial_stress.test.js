@@ -12,9 +12,8 @@
  *   5. Arrow navigation & pill boundary traversal under high-density fuzzing (5,000 ops).
  */
 
-import { describe, it, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import katex from "katex";
 import {
   cleanZeroWidth,
   formatMarkdownInline,
@@ -44,7 +43,7 @@ import {
   blocksToPlainText,
   tryParsePlainTextToBlocks,
 } from "../lib/exportImport.js";
-import { editorBlocksToText, extractHeadingsFromBlocks } from "../lib/blocks.js";
+import { editorBlocksToText } from "../lib/blocks.js";
 
 // ─── 1. SIMULATED BROWSER DOM & SELECTION INFRASTRUCTURE ─────────────────────
 

@@ -7,6 +7,7 @@ import {
   readUsage,
 } from "@/lib/gemini";
 import { QUIZ_SCHEMA } from "@/lib/schemas";
+import { normalizeQuiz } from "@/lib/aiService";
 
 export const dynamic = "force-dynamic";
 
@@ -37,110 +38,6 @@ Rules:
   specific ("Tax incidence", not "Economics").
 - Do not include internal or system XML tags in your response.`;
 
-/** Enforces the invariants the schema cannot express conditionally. */
-function normalizeQuiz(raw, fallbackTopic) {
-  const validTypes = [
-    "multiple_choice",
-    "multi_select",
-    "short_answer",
-    "long_answer",
-    "value_input",
-    "code_input",
-    "step_ordering",
-  ];
-
-  const questions = (Array.isArray(raw?.questions) ? raw.questions : [])
-    .map((q, i) => {
-      let type = q?.type;
-      if (!validTypes.includes(type)) {
-        type = "multiple_choice";
-      }
-      const options = (Array.isArray(q?.options) ? q.options : [])
-        .map((o) => String(o ?? "").trim())
-        .filter(Boolean);
-
-      let steps = (Array.isArray(q?.steps) ? q.steps : [])
-        .map((s) => String(s ?? "").trim())
-        .filter(Boolean);
-
-      // If step_ordering doesn't have steps, or has options instead
-      if (type === "step_ordering") {
-        if (steps.length < 2 && options.length >= 2) {
-          steps = [...options];
-        }
-        if (steps.length < 2) {
-          type = "short_answer";
-        }
-      }
-
-      // For step_ordering, generate scrambled options if empty or matching steps
-      let scrambledOptions = options;
-      if (type === "step_ordering" && steps.length >= 2) {
-        if (scrambledOptions.length !== steps.length || scrambledOptions.every((s, idx) => s === steps[idx])) {
-          scrambledOptions = [...steps].reverse();
-        }
-      }
-
-      // For multi_select, normalize correctIndices
-      let correctIndices = [];
-      if (type === "multi_select") {
-        if (Array.isArray(q?.correctIndices)) {
-          correctIndices = q.correctIndices
-            .map(Number)
-            .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < options.length);
-        }
-        if (correctIndices.length === 0 && Number.isInteger(Number(q?.correctIndex)) && Number(q.correctIndex) >= 0) {
-          correctIndices = [Number(q.correctIndex)];
-        }
-        if (options.length < 2 || correctIndices.length === 0) {
-          type = options.length >= 2 ? "multiple_choice" : "short_answer";
-        }
-      }
-
-      // A multiple-choice question that lost its options degrades to short answer
-      const usable = type === "multiple_choice" && options.length >= 2;
-      const finalType = type === "multiple_choice" ? (usable ? "multiple_choice" : "short_answer") : type;
-      const index = Number(q?.correctIndex);
-
-      const tolerance =
-        finalType === "value_input" && !isNaN(Number(q?.tolerance))
-          ? Math.max(0, Number(q.tolerance))
-          : 0;
-
-      const starterCode = finalType === "code_input" ? String(q?.starterCode ?? "").trim() : "";
-      const language =
-        finalType === "code_input" ? String(q?.language ?? "python").trim().toLowerCase() : "";
-
-      return {
-        id: `q${i}`,
-        subtopic: String(q?.subtopic ?? "").trim() || "General",
-        type: finalType,
-        prompt: String(q?.prompt ?? "").trim(),
-        options:
-          finalType === "multiple_choice" || finalType === "multi_select"
-            ? options
-            : finalType === "step_ordering"
-            ? scrambledOptions
-            : [],
-        correctIndex:
-          finalType === "multiple_choice" && Number.isInteger(index) && index >= 0 && index < options.length
-            ? index
-            : -1,
-        correctIndices: finalType === "multi_select" ? correctIndices : [],
-        steps: finalType === "step_ordering" ? steps : [],
-        starterCode,
-        language,
-        tolerance,
-        expectedAnswer: String(q?.expectedAnswer ?? "").trim(),
-      };
-    })
-    .filter((q) => q.prompt);
-
-  return {
-    topic: String(raw?.topic ?? "").trim() || fallbackTopic,
-    questions,
-  };
-}
 
 /**
  * POST /api/quiz/generate

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { ChevronDown, Search, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import {
   ViewportHint,
   VisualizationHUD,
@@ -82,9 +83,30 @@ class WebGLErrorBoundary extends React.Component {
   }
 }
 
-export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStudyTopic }) {
+export default function ThreeDView({
+  hideTopBars = false,
+  onToggleTopBars,
+  onStudyTopic,
+  isStandalone = false,
+}) {
   const [topicId, setTopicId] = useState(TOPICS[0].id);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [internalHideTopBars, setInternalHideTopBars] = useState(false);
+
+  const effectiveHideTopBars = onToggleTopBars ? hideTopBars : internalHideTopBars;
+  const toggleTopBars = useCallback(() => {
+    if (onToggleTopBars) {
+      onToggleTopBars();
+    } else {
+      setInternalHideTopBars((prev) => {
+        const next = !prev;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("socratic_hide_top_bars", next ? "true" : "false");
+        }
+        return next;
+      });
+    }
+  }, [onToggleTopBars]);
 
   // Hydrate from URL / LocalStorage
   useEffect(() => {
@@ -98,8 +120,12 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
     if (TOPICS_BY_ID[targetVis]) {
        setTopicId(targetVis);
     }
+    if (isStandalone) {
+      const savedHide = localStorage.getItem("socratic_hide_top_bars") === "true";
+      setInternalHideTopBars(savedHide);
+    }
     setIsHydrated(true);
-  }, []);
+  }, [isStandalone]);
 
   // Sync state to URL and localStorage (debounced)
   useEffect(() => {
@@ -154,19 +180,34 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
 
       if (onStudyTopic) {
         onStudyTopic(studyContext, "explain");
+      } else if (typeof window !== "undefined") {
+        window.location.href = `/workspace?tab=3d&vis=${t.id}&study=true`;
       }
     },
     [topic, params, onStudyTopic],
   );
 
   return (
-    <div className="flex flex-1 flex-col h-full w-full bg-ink-950 overflow-hidden min-h-0">
+    <div className={isStandalone ? "flex min-h-screen flex-col bg-ink-950 lg:h-screen lg:overflow-hidden" : "flex flex-1 flex-col h-full w-full bg-ink-950 overflow-hidden min-h-0"}>
       {/* ─── Compact Studio Toolbar (Hidden in Fullscreen Focus Mode) ─ */}
-      {!hideTopBars && (
-        <header className="shrink-0 border-b border-ink-800 bg-ink-900 px-4 py-2.5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+      {!effectiveHideTopBars && (
+        <header className={`shrink-0 border-b border-ink-800 bg-ink-900 ${isStandalone ? "px-5 py-3.5" : "px-4 py-2.5"} shadow-sm`}>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
             {/* Left: Title & Dropdown Selector */}
             <div className="flex items-center gap-3 min-w-0">
+              {isStandalone && (
+                <>
+                  <Link
+                    href="/"
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100"
+                  >
+                    <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+                    Workspace
+                  </Link>
+                  <div className="h-5 w-px bg-ink-800" aria-hidden="true" />
+                </>
+              )}
+
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-duck-500/30 bg-duck-500/10 text-base shadow-inner">
                 🧊
               </div>
@@ -184,7 +225,7 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
             {/* Right: Model Count */}
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-[11px] font-medium text-ink-500 hidden sm:inline">
-                {TOPICS.length} models
+                {TOPICS.length} {isStandalone ? "interactive models" : "models"}
               </span>
             </div>
           </div>
@@ -194,11 +235,11 @@ export default function ThreeDView({ hideTopBars = false, onToggleTopBars, onStu
       {/* ─── Body ────────────────────────────────────────── */}
       <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Floating Reopen Button (ONLY displayed when top bars are hidden) */}
-        {hideTopBars && onToggleTopBars && (
+        {effectiveHideTopBars && (
           <div className="absolute top-3 right-3 z-30 pointer-events-auto">
             <button
               type="button"
-              onClick={onToggleTopBars}
+              onClick={toggleTopBars}
               className="flex items-center gap-1.5 rounded-lg border border-duck-500/50 bg-duck-500/20 px-2.5 py-1 text-xs font-semibold text-duck-300 hover:bg-duck-500/30 transition-all shadow-sm ring-1 ring-duck-400/20 whitespace-nowrap cursor-pointer"
               title="Show all top bars"
             >

@@ -17,7 +17,7 @@ import { loadForce, solveSpring } from "@/lib/hookesLaw";
 import { isLever, solveMachine } from "@/lib/simpleMachines";
 import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
 import { FLUIDS, fluidComparison, solveBuoyancy } from "@/lib/buoyancy";
-import { FUSE_A, solveCircuit } from "@/lib/circuits";
+import { solveCircuit } from "@/lib/circuits";
 import {
   CHARGE_PER_MARKER,
   MAX_MARKERS,

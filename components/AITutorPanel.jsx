@@ -5,7 +5,7 @@ import Drawer, { DrawerError } from "@/components/Drawer";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { tutorChat } from "@/lib/aiService";
 import { getActiveSyllabusForSpace, getSpaceSettings } from "@/lib/storageService";
-import { Send, Sparkles, BookOpen, Trash2, Copy, Check, GraduationCap, ShieldAlert } from "lucide-react";
+import { Send, Trash2, Copy, Check, GraduationCap } from "lucide-react";
 
 export default function AITutorPanel({
   open,

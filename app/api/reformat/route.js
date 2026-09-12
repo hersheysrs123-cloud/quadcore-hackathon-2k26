@@ -6,8 +6,10 @@ import {
   readJson,
   readUsage,
 } from "@/lib/gemini";
-import { REFORMAT_BLOCK_TYPES, REFORMAT_SCHEMA } from "@/lib/schemas";
-import { getNormalizedTableData } from "@/lib/exportImport";
+import { REFORMAT_SCHEMA } from "@/lib/schemas";
+import { normalizeReformattedNote } from "@/lib/aiService";
+
+export { normalizeReformattedNote };
 
 export const dynamic = "force-dynamic";
 
@@ -76,97 +78,6 @@ ${noteContent.trim()}
 }
 
 
-export function normalizeReformattedNote(raw, fallbackTitle = "Untitled Note") {
-  const str = (v) => String(v ?? "").trim();
-  const list = (v) => (Array.isArray(v) ? v : []);
-
-  const now = Date.now();
-  const rawBlocks = list(raw?.blocks);
-
-  const cleanBlocks = rawBlocks
-    .filter((b) => b && (b.content !== undefined || b.type === "divider" || b.type === "table"))
-    .map((b, idx) => {
-      let type = REFORMAT_BLOCK_TYPES.includes(b.type) ? b.type : "text";
-      const id = `blk_reformat_${now}_${idx}`;
-      let content = str(b.content);
-
-      // Auto-heal math if content starts or ends with $$ or contains LaTeX pathway commands
-      if (
-        type === "text" &&
-        (content.endsWith("$$") || content.startsWith("$$") || (/^\\(text|frac|rightarrow|sum|int|sqrt|begin)/.test(content) && content.includes("\\")))
-      ) {
-        type = "math";
-        content = content.replace(/^\$\$+|\$\$+$/g, "").trim();
-      }
-
-      if (type === "math" || type === "inlinemath") {
-        content = content.replace(/^\$\$+|\$\$+$/g, "").replace(/^\$+|\$$/g, "").trim();
-      }
-
-      // Auto-heal headings (strip redundant asterisks / hashes)
-      if (type === "h1" || type === "h2" || type === "h3" || type === "h4") {
-        content = content
-          .replace(/^(\*+|\#+|\s*)+/, "")
-          .replace(/(\*+|\s*)+$/, "")
-          .replace(/[:\s]+$/, "")
-          .trim();
-      }
-
-      // Auto-heal bullets (strip redundant leading bullet markers, only convert to h3 if explicitly ending with colon)
-      if (type === "bullet") {
-        content = content.replace(/^[*•\-+]\s+/, "").trim();
-        const boldHeadingMatch = content.match(/^\*\*([^*:]+)(?::\*\*|\*\*:)[\s]*$/);
-        if (boldHeadingMatch) {
-          type = "h3";
-          content = boldHeadingMatch[1].trim();
-        }
-      }
-
-
-
-      const block = { id, type, content };
-
-      if (type === "bullet") {
-        const rawLvl = b.level !== undefined ? parseInt(b.level, 10) : 0;
-        block.level = Number.isInteger(rawLvl) && rawLvl > 0 ? Math.min(rawLvl, 4) : 0;
-      }
-
-      if (type === "callout") {
-        block.calloutIcon = str(b.calloutIcon) || "💡";
-      } else if (type === "toggle") {
-        block.details = str(b.details);
-        block.open = true;
-      } else if (type === "code") {
-        block.language = str(b.language) || "javascript";
-        block.meta = { language: block.language };
-      } else if (type === "todo") {
-        block.checked = Boolean(b.checked);
-      } else if (type === "site") {
-        block.url = str(b.url);
-      } else if (type === "table") {
-        let headers = Array.isArray(b.tableHeaders) ? b.tableHeaders.map(str) : [];
-        let rows = Array.isArray(b.tableRows) ? b.tableRows.map((r) => (Array.isArray(r) ? r.map(str) : [])) : [];
-        if (headers.length === 0 && (content.includes("|") || (b.tableData && (b.tableData.headers || b.tableData.rows)))) {
-          const norm = getNormalizedTableData(b.tableData, content);
-          headers = norm.headers;
-          rows = norm.rows;
-        }
-        block.tableData = {
-          headers: headers.length > 0 ? headers : ["Column 1", "Column 2", "Column 3"],
-          rows: rows.length > 0 ? rows : [["", "", ""], ["", "", ""]],
-          hasHeaderRow: true,
-        };
-      }
-
-      return block;
-    });
-
-  return {
-    title: str(raw?.title) || str(fallbackTitle) || "Untitled Note",
-    emoji: str(raw?.emoji) || null,
-    blocks: cleanBlocks.length > 0 ? cleanBlocks : [{ id: `blk_reformat_${now}_0`, type: "text", content: "" }],
-  };
-}
 
 
 /**

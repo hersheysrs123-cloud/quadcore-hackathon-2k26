@@ -6705,3 +6705,41 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Raised the floating `SceneLabel` to $Y = cm(\text{lampElevation} + 6.0)$ for optimal vertical clearance.
 4. **Verification**:
    - All 836 unit tests passing. Next.js production build succeeded with exit code 0. Production server verified healthy (HTTP 200).
+
+---
+
+## 128. Comprehensive Codebase Optimization: Dead Code Elimination, Latent Bug Fixes, Disk Waste Purge & DRY Unification
+
+### 🐛 Problem Statement
+1. **Dead Code & Latent Runtime Bugs**:
+   - `components/NoteMenu.jsx` contained an unreferenced `handleSave` callback with an uncaught `ReferenceError` referencing undefined `setSavedFeedback`.
+   - `lib/constants.js` exported an obsolete, unused `BLOCK_CONTENT_SHAPES` constant.
+   - `lib/demoNotes.js` exported an unused `demoNotesBySpace()` function.
+   - Unused imports were present across multiple components and test files (`AITutorPanel.jsx`, `Sidebar.jsx`, `QuizPanel.jsx`, `InclineFrictionCanvas.jsx`, `SimpleMachinesCanvas.jsx`, `VisualizationHUD.jsx`, `scripts/test_exports_visual.mjs`, `tests/tier5_adversarial_stress.test.js`, and `tests/e2e_caret_navigation.test.js`).
+2. **Massive Disk Waste & Orphaned Endpoints**:
+   - Over 75,900 abandoned Chrome and Edge user data and cache files (`cdp_*`, `chrome_temp`, `edge_temp`) lingered inside `tests/export_outputs`, inflating repository file count to 76,000+ files and consuming substantial disk storage.
+   - Legacy placeholder API routes (`app/api/calendar/events/route.js`, `app/api/reset/route.js`, `app/api/visualizations/route.js`) remained in the project despite all storage operations being handled client-side via Dexie.js (IndexedDB).
+3. **DRY (Don't Repeat Yourself) Violations**:
+   - `app/visualizations/page.jsx` duplicated ~225 lines of mounting, hydration, and HUD layout code already present in `components/ThreeDView.jsx`.
+   - AI endpoints (`app/api/quiz/generate/route.js`, `app/api/quiz/grade/route.js`, `app/api/explain/route.js`, `app/api/reformat/route.js`) duplicated hundreds of lines of normalization algorithms, objective grading routines, and schemas already present in `lib/aiService.js`.
+   - File syllabus text extraction (`mammoth`, `pdfjs-dist`, and `file.text()`) was duplicated verbatim (30+ lines) across `components/SpaceHubView.jsx` and `components/Sidebar.jsx`.
+   - Editor block metadata registry (`ALL_19_BLOCKS`) was duplicated across `lib/tutorialData.js` and `components/InteractiveTutorial.jsx`.
+4. **Omitted Test Suites**:
+   - `tests/m1_stress_challenge.test.js`, `tests/tier5_adversarial_stress.test.js`, and `scripts/empirical-stress-test-m1.mjs` were absent from `package.json`'s `npm test` script.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Dead Code Elimination & Bug Removal**:
+   - Removed orphaned `handleSave` with the latent `ReferenceError` from `components/NoteMenu.jsx`.
+   - Removed `BLOCK_CONTENT_SHAPES` from `lib/constants.js` and `demoNotesBySpace()` from `lib/demoNotes.js`.
+   - Purged all unused imports across components, visualizers, and test scripts.
+2. **Disk Waste Cleanup & Endpoint Pruning**:
+   - Purged 75,962 temporary browser cache and profile files from `tests/export_outputs`, restoring the test output directory to 42 static test fixtures and saving hundreds of megabytes.
+   - Removed obsolete dummy API endpoints (`app/api/calendar/events/`, `app/api/reset/`, and `app/api/visualizations/`).
+3. **DRY Architecture Consolidations**:
+   - Updated `components/ThreeDView.jsx` to natively support `isStandalone` mode (Workspace back link, standalone header layout, study navigation fallback). Replaced 225 duplicate lines in `app/visualizations/page.jsx` with a clean 14-line wrapper.
+   - Exported and reused `normalizeQuiz`, `gradeObjectively`, `buildQuizTranscript`, `fallbackHeatmap`, `clampScore`, `normalizeExplanation`, and `normalizeReformattedNote` from `@/lib/aiService` in `app/api/quiz/generate/route.js`, `app/api/quiz/grade/route.js`, `app/api/explain/route.js`, and `app/api/reformat/route.js`.
+   - Created centralized `extractSyllabusTextFromFile(file)` in `lib/storageService.js` and wired it into both `components/SpaceHubView.jsx` and `components/Sidebar.jsx`.
+   - Derived `ALL_19_BLOCKS` in `components/InteractiveTutorial.jsx` from `RAW_BLOCKS` in `lib/tutorialData.js` mapped with Lucide icons.
+4. **Test Suite Integration & Verification**:
+   - Updated `package.json` `scripts.test` to execute all stress challenge suites and the empirical test runner.
+   - Verified 876 tests across 219 suites + 34 empirical challenge tests (910 total tests) passing cleanly with 0 failures.

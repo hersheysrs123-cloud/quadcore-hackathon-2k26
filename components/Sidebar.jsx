@@ -5,11 +5,11 @@ import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Ey
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, detectHardwareGraphics } from "@/lib/db.js";
-import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement, saveAllSpaces } from "@/lib/storageService.js";
+import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement, saveAllSpaces, extractSyllabusTextFromFile } from "@/lib/storageService.js";
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
-import { SPACES, SPACE_ICON_OPTIONS } from "@/lib/constants";
+import { SPACE_ICON_OPTIONS } from "@/lib/constants";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -248,33 +248,7 @@ function SettingsModal({
     if (!file) return;
     setSyllabusFileLoading(true);
     try {
-      let text = "";
-      if (file.name.endsWith(".docx")) {
-        const mammoth = (await import("mammoth")).default;
-        const arrayBuffer = await file.arrayBuffer();
-        const res = await mammoth.extractRawText({ arrayBuffer });
-        text = res.value || "";
-      } else if (file.name.endsWith(".pdf")) {
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.mjs";
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pageTexts = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const pageStr = content.items
-            .map((item) => ("str" in item ? item.str : ""))
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim();
-          if (pageStr) pageTexts.push(pageStr);
-        }
-        text = pageTexts.join("\n\n");
-      } else {
-        text = await file.text();
-      }
-      const cleaned = text.replace(/\r\n/g, "\n").trim();
+      const cleaned = await extractSyllabusTextFromFile(file);
       if (!cleaned) {
         setSyllabusFileName("⚠️ No readable text found in file");
         return;

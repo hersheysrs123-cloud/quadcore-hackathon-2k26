@@ -61,6 +61,7 @@ import {
   Columns,
   Table as TableIcon,
 } from "lucide-react";
+import { ALL_19_BLOCKS as RAW_BLOCKS } from "@/lib/tutorialData.js";
 
 /**
  * 🎓 SocraticOS Interactive Onboarding & Feature Mastery Guide
@@ -272,27 +273,32 @@ export default function InteractiveTutorial({
 }
 
 // ─── 19 Notion Editor Block Registry ─────────────────────────────────
-export const ALL_19_BLOCKS = [
-  { type: "text", cat: "Text", name: "Paragraph", icon: FileText, syntax: "Normal typing", desc: "Body text with smart paste & KaTeX." },
-  { type: "h1", cat: "Text", name: "Heading 1", icon: Layers, syntax: "# + Space", desc: "Large section title." },
-  { type: "h2", cat: "Text", name: "Heading 2", icon: Layers, syntax: "## + Space", desc: "Medium subsection heading." },
-  { type: "h3", cat: "Text", name: "Heading 3", icon: Layers, syntax: "### + Space", desc: "Small sub-topic heading." },
-  { type: "h4", cat: "Text", name: "Heading 4", icon: Layers, syntax: "#### + Space", desc: "Compact sub-heading." },
-  { type: "bullet", cat: "Lists", name: "Bullet List", icon: List, syntax: "- or * + Space", desc: "Hierarchical sub-bullets (Levels 0-4)." },
-  { type: "number", cat: "Lists", name: "Numbered List", icon: ListOrdered, syntax: "1. + Space", desc: "Hierarchical numbering (1., a., i., A.)." },
-  { type: "todo", cat: "Lists", name: "To-Do Checklist", icon: CheckSquare, syntax: "[] + Space", desc: "Interactive tasks with strikethrough." },
-  { type: "toggle", cat: "Lists", name: "Toggle Accordion", icon: ChevronDown, syntax: "> + Space", desc: "Collapsible answers & disclosure blocks." },
-  { type: "callout", cat: "Containers", name: "Callout Box", icon: Sparkles, syntax: "/callout", desc: "Accent highlighted box with 8 emoji presets." },
-  { type: "columns", cat: "Containers", name: "2-5 Columns Grid", icon: Columns, syntax: "/2-5 columns", desc: "Multi-column split layouts with responsive cards." },
-  { type: "table", cat: "Containers", name: "Table Grid", icon: TableIcon, syntax: "/table", desc: "Notion-style grid with drag handles & math cells." },
-  { type: "quote", cat: "Containers", name: "Blockquote", icon: Quote, syntax: "| or \" + Space", desc: "Indented quote with accent border." },
-  { type: "divider", cat: "Containers", name: "Horizontal Divider", icon: Minus, syntax: "---", desc: "Subtle section separator line." },
-  { type: "math", cat: "Math & Code", name: "LaTeX Equation", icon: Binary, syntax: "$$ or /math", desc: "Centered math with formula templates tray." },
-  { type: "inlinemath", cat: "Math & Code", name: "Inline Formula", icon: Binary, syntax: "$E=mc^2$", desc: "In-sentence math with borderless styling." },
-  { type: "code", cat: "Math & Code", name: "Code Snippet", icon: Code, syntax: "``` or /code", desc: "10-language syntax highlighting & copy." },
-  { type: "media", cat: "Media & Web", name: "Image & YouTube", icon: ImageIcon, syntax: "/media", desc: "Visuals & YouTube embeds with 25/50/100% resize." },
-  { type: "site", cat: "Media & Web", name: "Site Bookmark", icon: LinkIcon, syntax: "/site", desc: "Live web card with Google favicon resolution." },
-];
+const BLOCK_ICON_MAP = {
+  text: FileText,
+  h1: Layers,
+  h2: Layers,
+  h3: Layers,
+  h4: Layers,
+  bullet: List,
+  number: ListOrdered,
+  todo: CheckSquare,
+  toggle: ChevronDown,
+  callout: Sparkles,
+  columns: Columns,
+  table: TableIcon,
+  quote: Quote,
+  divider: Minus,
+  math: Binary,
+  inlinemath: Binary,
+  code: Code,
+  media: ImageIcon,
+  site: LinkIcon,
+};
+
+export const ALL_19_BLOCKS = RAW_BLOCKS.map((b) => ({
+  ...b,
+  icon: BLOCK_ICON_MAP[b.type] || FileText,
+}));
 
 // ─── 9 Comprehensive Interactive Tutorial Steps ──────────────────────
 export const TUTORIAL_STEPS = [

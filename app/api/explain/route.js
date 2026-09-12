@@ -7,7 +7,7 @@ import {
   readUsage,
 } from "@/lib/gemini";
 import { EXPLAIN_SCHEMA } from "@/lib/schemas";
-import { sanitizeMathText } from "@/lib/mathUtils";
+import { normalizeExplanation } from "@/lib/aiService";
 
 export const dynamic = "force-dynamic";
 
@@ -77,46 +77,6 @@ ${noteContent.trim()}
   }
 
   return sections.join("\n\n");
-}
-
-/** Structured output guarantees the shape; this guards lengths, emptiness, and heals math string escapes. */
-function normalizeExplanation(raw) {
-  const str = (v) => sanitizeMathText(String(v ?? "")).trim();
-  const list = (v) => (Array.isArray(v) ? v : []);
-
-  return {
-    concept: str(raw.concept),
-    tldr: str(raw.tldr),
-    keyIdeas: list(raw.keyIdeas)
-      .filter((idea) => idea?.heading || idea?.body)
-      .map((idea) => ({ heading: str(idea.heading), body: str(idea.body) })),
-    analogy: {
-      title: str(raw.analogy?.title),
-      body: str(raw.analogy?.body),
-      breaksDown: str(raw.analogy?.breaksDown),
-    },
-    misconceptions: list(raw.misconceptions)
-      .filter((m) => m?.claim)
-      .map((m) => ({ claim: str(m.claim), correction: str(m.correction) })),
-    workedExample: {
-      title: str(raw.workedExample?.title || raw.workedExample?.problem),
-      problem: str(raw.workedExample?.problem || raw.workedExample?.title),
-      takeaway: str(raw.workedExample?.takeaway),
-      steps: list(raw.workedExample?.steps)
-        .map((s) => {
-          if (typeof s === "string") return { step: s.trim(), explanation: "" };
-          if (s && typeof s === "object") {
-            return {
-              step: str(s.step || s.title || s.heading),
-              explanation: str(s.explanation || s.body || s.detail || s.text),
-            };
-          }
-          return { step: "", explanation: "" };
-        })
-        .filter((s) => s.step || s.explanation),
-    },
-    checkYourself: list(raw.checkYourself).map(str).filter(Boolean),
-  };
 }
 
 /**

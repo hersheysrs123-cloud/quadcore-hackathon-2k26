@@ -241,12 +241,6 @@ export default function NoteMenu({
   const totalBlocks = blocks.length;
   const readingTimeMinutes = Math.max(1, Math.ceil(totalWords / 200));
 
-  const handleSave = (e) => {
-    e?.stopPropagation();
-    onSaveNote?.(note);
-    setSavedFeedback(true);
-    setTimeout(() => setSavedFeedback(false), 2000);
-  };
 
   const handleFavoriteToggle = (e) => {
     e?.stopPropagation();

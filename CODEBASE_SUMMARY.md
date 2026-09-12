@@ -27,14 +27,11 @@
 c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 ├── app/
 │   ├── api/
-│   │   ├── calendar/events/route.js      # Local-first calendar events route fallback
-│   │   ├── explain/route.js              # POST: Structured note explanation generator
-│   │   ├── quiz/generate/route.js        # POST: Diagnostic quiz generator with distractors
-│   │   ├── quiz/grade/route.js           # POST: Objective integer MC + LLM short answer grading
-│   │   ├── reformat/route.js             # POST: Intelligent note reformatting & block structuring generator
-│   │   ├── reset/route.js                # POST: Local-first factory reset signal route
-│   │   ├── tutor/chat/route.js           # POST: Interactive AI Tutor chat with space syllabus and academic pedagogy
-│   │   └── visualizations/route.js       # Local-first 3D visualizations persistence route
+│   │   ├── explain/route.js              # POST: Structured note explanation generator (uses normalizeExplanation from lib/aiService)
+│   │   ├── quiz/generate/route.js        # POST: Diagnostic quiz generator with distractors (uses normalizeQuiz from lib/aiService)
+│   │   ├── quiz/grade/route.js           # POST: Objective integer MC + LLM short answer grading (uses lib/aiService)
+│   │   ├── reformat/route.js             # POST: Intelligent note reformatting generator (uses normalizeReformattedNote from lib/aiService)
+│   │   └── tutor/chat/route.js           # POST: Interactive AI Tutor chat with space syllabus and academic pedagogy
 │   ├── error.jsx                         # App Router root error boundary
 │   ├── global-error.jsx                  # App Router HTML/root error boundary
 │   ├── globals.css                       # Tailwind v4 tokens, light/dark themes, print stylesheet, KaTeX styles
@@ -113,14 +110,13 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── eyeOptics.js                      # PURE PHYSICS: Gullstrand schematic eye, accommodation & pupil reflex
 │   ├── hookesLaw.js                      # PURE PHYSICS: Hooke's law, elastic limit, plastic branch & permanent set
 │   ├── inclineForces.js                  # PURE PHYSICS: weight resolution, static/kinetic friction & angle of repose
-│   ├── shadowOptics.js                   # PURE PHYSICS: shadow magnification, umbra/penumbra bands & scene framing
 │   ├── simpleMachines.js                 # PURE PHYSICS: lever classes, block-and-tackle, distance ratio vs MA
 │   ├── gemini.js                         # Direct REST Gemini client with structured outputs & usage tracking
 │   ├── mastery.js                        # Mastery status vocabulary (Solid ● / Shaky ◐ / Gap ○) & rollup algorithms
 │   ├── mathUtils.js                      # LaTeX delimiter parsing & regex segmentation for MathText
 │   ├── schemas.js                        # OpenAPI 3.0 schemas for Gemini structured outputs
 │   ├── shadowOptics.js                   # Geometric shadow formation solver, bench constraints, umbra/penumbra, signed 3D rotation projection & materials
-│   ├── storageService.js                 # Dexie CRUD service for notes, folders, bookmarks, trash, calendar, alarms, quizzes, space documents & reset
+│   ├── storageService.js                 # Dexie CRUD service for notes, folders, bookmarks, trash, calendar, alarms, quizzes, space documents, extractSyllabusTextFromFile & reset
 │   ├── syntaxHighlighter.js              # Tokenizer & syntax highlighter for 10 programming languages
 │   ├── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
 │   ├── tutorialData.js                   # Authoritative registry of 9 onboarding tutorial chapters & 19 editor blocks

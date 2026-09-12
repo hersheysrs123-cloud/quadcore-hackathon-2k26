@@ -32,6 +32,7 @@ import {
   getSpaceSettings,
   saveSpaceSettings,
   getActiveSyllabusForSpace,
+  extractSyllabusTextFromFile,
 } from "@/lib/storageService";
 
 const ACADEMIC_LEVELS = [
@@ -164,34 +165,7 @@ export default function SpaceHubView({
     setUploadError(null);
 
     try {
-      let text = "";
-      if (file.name.endsWith(".docx")) {
-        const mammoth = (await import("mammoth")).default;
-        const arrayBuffer = await file.arrayBuffer();
-        const res = await mammoth.extractRawText({ arrayBuffer });
-        text = res.value || "";
-      } else if (file.name.endsWith(".pdf")) {
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.mjs";
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pageTexts = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const pageStr = content.items
-            .map((item) => ("str" in item ? item.str : ""))
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim();
-          if (pageStr) pageTexts.push(pageStr);
-        }
-        text = pageTexts.join("\n\n");
-      } else {
-        text = await file.text();
-      }
-
-      const cleaned = text.replace(/\r\n/g, "\n").trim();
+      const cleaned = await extractSyllabusTextFromFile(file);
       if (!cleaned) {
         setUploadError("The uploaded file contains no readable text content.");
         return;

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
-    "test": "node --test tests/e2e_caret_navigation.test.js tests/unit/*.test.mjs tests/integration/*.test.mjs tests/e2e/*.spec.mjs scripts/test-inlinemath-roundtrip.mjs"
+    "test": "node --test tests/e2e_caret_navigation.test.js tests/m1_stress_challenge.test.js tests/tier5_adversarial_stress.test.js tests/unit/*.test.mjs tests/integration/*.test.mjs tests/e2e/*.spec.mjs scripts/test-inlinemath-roundtrip.mjs && node scripts/empirical-stress-test-m1.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

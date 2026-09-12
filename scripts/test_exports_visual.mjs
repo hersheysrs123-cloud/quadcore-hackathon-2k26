@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { DEMO_NOTES } from "../lib/demoNotes.js";
 import {
   filterBlocksForExport,
   blocksToMarkdownLossy,
@@ -14,7 +13,6 @@ import {
   exportBookmarksToHtml,
   parseNetscapeBookmarksHtml
 } from "../lib/exportImport.js";
-import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "../lib/backup.js";
 
 // Let's create an ultra-comprehensive demo note that has all 19 block types
 const megaDemoNote = {

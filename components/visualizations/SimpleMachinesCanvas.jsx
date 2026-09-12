@@ -12,7 +12,7 @@ import {
   clamp,
 } from "@/components/visualizations/scene-kit";
 import { ENERGY_COLOURS, EnergyBars } from "@/components/visualizations/energy-bars";
-import { FORCE_COLOURS, ForceVector, useForceScale } from "@/components/visualizations/force-diagram";
+import { FORCE_COLOURS, ForceVector } from "@/components/visualizations/force-diagram";
 import {
   BEAM_LENGTH_M,
   LIFT_M,
