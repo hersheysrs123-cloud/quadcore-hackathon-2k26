@@ -6023,3 +6023,466 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - All 200 test suites passed with **818 tests passing** (0 failures).
    - Production Next.js build completed with 0 errors.
 
+---
+
+## 110. Archimedes Buoyancy Color Palette Lightening & Modern Laboratory Aesthetic
+
+### Problem Statement
+- In the Archimedes' Principle 3D visualization (`components/visualizations/BuoyancyCanvas.jsx`, `lib/buoyancy.js`), colors across materials, apparatus fixtures, and fluids were overly dark, muddy, and low-contrast:
+  1. **Dim Lighting**: Ambient light level was locked at 0.62 and key directional light at 1.15, casting heavy, muddy shadows across the 3D scene.
+  2. **Dark Workbench & Gantry**: The workbench base was rendered as a dark charcoal slab (`#2c333f`) and the gantry frame as dark slate (`#5b6472`), clashing with the modern light laboratory aesthetic introduced in Simple Machines.
+  3. **Murky Liquids**: Honey was rendered as dark opaque brown (`#c98a2b` with 0.78 opacity), Freshwater was low-luminance deep blue (`#38bdf8` at 0.50 opacity), Gasoline was dingy yellow, and Air was dim gray (`#94a3b8`).
+  4. **Low-Luminance Solids**: Steel was a dark metallic blue (`#78909c`), Gold was a dark brass tone (`#eab308`), Ice was dull (`#bae6fd`), and Wood was muddy (`#b45309`).
+  5. **Heavy Boat Materials**: RealisticBoat gunwales, trim, skeg, and ribs were heavy dark charcoal (`#1e2530`), center thwart was muddy brown (`#784528`), and hardware was dull silver (`#cbd5e1`).
+  6. **Scale & Tank Hardware**: Acrylic was cloudy (`#7f8ea3`), scale face was dull gray (`#e2e8f0`), scale casing was dark, and graduation lines were dark `#64748b`.
+
+### Root Cause Analysis
+- The buoyancy scene had inherited legacy dark theme color presets and low ambient/directional illumination levels designed for high-contrast dark rooms rather than the elevated, luminous laboratory workbench design language established for SocraticOS physics models.
+
+### Resolution & Architectural Enhancements
+1. **Luminous Scene Lighting (`BuoyancyCanvas.jsx`)**:
+   - Elevated `ambientLight` intensity from $0.62$ to $0.88$ (+42% illumination boost).
+   - Elevated `directionalLight` (key light) intensity from $1.15$ to $1.45$ (+26% brightness boost) with pure white tint (`#ffffff`).
+2. **Modern Light Laboratory Workbench & Satin Gantry (`BuoyancyCanvas.jsx`)**:
+   - Replaced dark `#2c333f` workbench with light laboratory slate (`#64748b`) featuring a brushed aluminum top surface inlay (`#e2e8f0`).
+   - Upgraded gantry upright columns and crosshead from dark `#5b6472` to bright satin anodized aluminum (`#94a3b8`, metalness 0.8, roughness 0.25).
+3. **Crystalline Acrylic Tank & Measuring Cylinder (`BuoyancyCanvas.jsx`)**:
+   - Replaced dingy `#7f8ea3` acrylic with crystalline laboratory acrylic (`#b8c9dc`, opacity reduced to 0.13, transmission elevated to 0.78, roughness 0.1).
+   - Cylinder foot lightened to `#94a3b8` and graduation tick marks lightened to high-contrast white `#f1f5f9`.
+4. **Bright Modern Spring Scale Assembly (`BuoyancyCanvas.jsx`)**:
+   - Scale casing lightened from dark slate to clean anodized aluminum `#64748b`.
+   - Scale face plate upgraded from dim gray to pure bright white `#f8fafc`.
+   - Slider stem lightened to `#cbd5e1` and suspension hook to polished chrome `#f1f5f9`.
+   - Scale suspension cord lightened from `#cbd5e1` to crisp `#f1f5f9`.
+5. **Light Modern Marine Craft Finishes (`BuoyancyCanvas.jsx`)**:
+   - Gunwale rub-rails, foredeck plate, aft quarterdeck, keel skeg, and transverse ribs lightened from heavy charcoal (`#1e2530`) to titanium marine slate (`#5b6b80`).
+   - Center thwart bench upgraded from muddy brown (`#784528`) to bright blonde teak (`#d4a373`).
+   - Cleats and lifting eyelet ring polished to chrome `#f1f5f9`.
+6. **Radiant Fluid & Solid Color Palette (`lib/buoyancy.js`)**:
+   - **Fluids**: Air (`#cbd5e1`), Gasoline (bright solar yellow `#fef08a`, opacity 0.30), Freshwater (luminous clear sky `#38bdf8`, opacity 0.38), Saltwater (vibrant luminous turquoise `#5eead4`, opacity 0.42), Honey (golden radiant amber `#fbbf24`, opacity reduced from 0.78 to 0.58), Mercury (gleaming liquid silver `#e2e8f0`, roughness 0.15).
+   - **Solids**: Oak Wood (light blonde grain `#d4a373`), Ice (glowing glacial crystal `#e0f2fe`, opacity 0.88), Aluminium (bright billet `#e2e8f0`), Steel (bright stainless steel `#b8c5d6`), Gold (luminous 24k bright yellow gold `#fde047`).
+7. **Automated Verification & Unit Tests**:
+   - Ran `npm test` across all suites — 818 unit tests passed (0 failures).
+   - Production Next.js build completed with 0 errors.
+
+---
+
+## 111. Wave Refraction Optical Media Differentiation & Air Boundary Lightening
+
+### Problem Statement
+- In the Wave Refraction & Snell's Law 3D visualization (`components/visualizations/PhysicsCanvas.jsx`, `components/visualizations/media.js`):
+  1. **Nearly Invisible Air Medium**: Air had $n = 1.0$. The formula for medium 1 opacity was `(n1 - 1) * 0.16`, which evaluated to `0.00` (clamped to a barely perceptible floor of `0.012`), leaving the surrounding space nearly transparent and unseeable against the canvas background.
+  2. **Insufficient Material Color Differentiation**:
+     - Multiple materials shared confusingly similar pastel blue/cyan tones: Air (`#7dd3fc` sky blue), Ice (`#a5f3fc` pale cyan), Water (`#38bdf8` light blue), and Glass (`#93c5fd` cornflower blue). When contrasting a block inside a surrounding medium, materials failed to cleanly differentiate.
+     - Diamond was a pale faint blue-white (`#e0e7ff`), making it look like another glass/ice variant rather than a high refractive index ($n = 2.42$) gemstone.
+  3. **Low Ambient Block Transmission & Border Contrast**:
+     - The refracting surfaces had thin $2.4\text{ px}$ lines at $0.90$ opacity, and block edges were $0.85$ opacity.
+
+### Root Cause Analysis
+- In `PhysicsCanvas.jsx`, `opacity={clamp((n1 - 1) * 0.16, 0.012, 0.24)}` tied outer medium opacity purely to $(n_1 - 1)$. At $n_1 = 1.0$, the opacity collapsed to $0.012$, rendering Air invisible.
+- In `media.js`, the color palette clustered heavily around cyan/light blue hues between `#7dd3fc`, `#a5f3fc`, `#38bdf8`, and `#93c5fd`, leaving poor visual differentiation when different media were selected for Medium 1 vs Medium 2.
+
+### Resolution & Architectural Enhancements
+1. **Air & Surrounding Medium Baseline Opacity Boost (`PhysicsCanvas.jsx`)**:
+   - Updated medium 1 mesh opacity from `clamp((n1 - 1) * 0.16, 0.012, 0.24)` to `clamp(0.12 + (n1 - 1) * 0.16, 0.12, 0.35)`.
+   - Guaranteed a solid minimum $12\%$ baseline opacity for Air ($n = 1.0$), with subtle roughness ($0.1$) and metalness ($0.02$), making the surrounding atmospheric medium immediately visible and luminous without obscuring the beam rays or angle arcs.
+2. **Distinct, High-Contrast Optical Media Color Palette (`media.js`)**:
+   - **Air ($n = 1.0$)**: Lightened to glowing ethereal sky white `#e0f2fe`.
+   - **Ice ($n = 1.31$)**: Crisp glacial cyan `#67e8f9`.
+   - **Water ($n = 1.33$)**: Deep luminous ocean cobalt `#0284c7`.
+   - **Perspex ($n = 1.49$)**: Vibrant optical acrylic violet `#c084fc`.
+   - **Glass ($n = 1.50$)**: Classic bright optical crown blue `#60a5fa`.
+   - **Diamond ($n = 2.42$)**: Radiant prism crystalline gold-yellow `#fef08a` ($n = 2.42$ brilliant fire).
+   - Every medium now occupies a visually distinct, instantly recognizable chromatic identity.
+3. **Enhanced Block Luminescence & Surface Borders (`PhysicsCanvas.jsx`)**:
+   - Increased block opacity floor to `0.16` and emissive intensity to `0.16`.
+   - Increased refracting surface boundary lines to $2.8\text{ px}$ width at $0.95$ opacity and edge outline opacity to $0.92$.
+4. **Automated Verification & Unit Tests**:
+   - Ran `npm test` across all suites — 818 unit tests passed (0 failures).
+   - Production Next.js build completed with 0 errors.
+
+---
+
+## 112. Fleming's Left-Hand Rule & Motor Effect Field Lines Flow Pulses Speed Scaling
+
+### Problem Statement
+- In the Fleming's Left-Hand Rule & Motor Effect 3D visualization (`components/visualizations/PhysicsCanvas.jsx`):
+  - When the universal Animation Speed slider was adjusted (e.g., $0.1\times$ to $3.0\times$), the animated flow pulses along the 3 primary vector arrows (Thumb Force, First Finger Field, Second Finger Current) properly scaled in speed.
+  - However, the animated pulse spheres traveling along the **4 dashed horizontal magnetic field lines** between the North and South magnet pole plates did not respond to the animation speed slider at all. They remained locked at a static rate of `0.1 + field * 0.16`, causing a stark visual mismatch with the rest of the scene.
+
+### Root Cause Analysis
+- In `PhysicsCanvas.jsx`, `MotorEffectScene` omitted `speed` from its extracted `params` object, and the `<FlowPulses>` instance mounted inside the `fieldLines.map` loop had its speed parameter hardcoded to `speed={0.1 + field * 0.16}` without multiplying by `animSpeed` / `params.speed`.
+
+### Resolution & Architectural Enhancements
+1. **Speed Extraction & Scaling (`PhysicsCanvas.jsx`)**:
+   - Extracted `speed = 1.0` from `params` in `MotorEffectScene` and computed safe `animSpeed = typeof speed === "number" && !isNaN(speed) ? speed : 1.0`.
+   - Updated the field lines `<FlowPulses>` speed to:
+     ```jsx
+     speed={(0.1 + field * 0.16) * animSpeed}
+     ```
+   - Standardized all vector arrow flow pulses (Field, Current, Force) to multiply by `animSpeed` directly.
+2. **Automated Verification & Unit Tests**:
+   - Added unit test in `tests/unit/physics-solvers.test.mjs` validating that all flow pulse speeds scale linearly with `animSpeed` across values from $0.5\times$ to $3.0\times$.
+   - Ran `npm test` across all suites — **819 unit tests passed across 201 test suites** (0 failures).
+   - Production Next.js build completed with 0 errors.
+
+---
+
+## 113. Ray Optics Missing Image Bug, Spherical Mirrors (Convex & Concave), Object Height Slider, & UI Toggles
+
+### Problem Statement
+1. **Missing Formed Image Bug**:
+   - In the Ray Optics visualization (`components/visualizations/PhysicsCanvas.jsx`), when selecting a Concave Lens with focal length $f = 2.0\text{ cm}$, object distance $u = 5.1\text{ cm}$, and construction rays turned on, the formed virtual image arrow completely failed to render.
+2. **Missing Mirrors & Element Selection**:
+   - Ray Optics only provided Convex and Concave lenses, lacking Convex and Concave spherical mirrors and reflection physics.
+3. **Fixed Object Height**:
+   - Object height was hardcoded to $h = 1.15\text{ cm}$, with no slider for students to explore how object size affects image height and magnification.
+4. **Superfluous Animation Speed Slider**:
+   - The universal Animation Speed slider was rendered on the Ray Optics visualization despite ray diagrams being static geometric constructions.
+5. **Missing Visibility Toggles**:
+   - Users lacked independent controls to toggle principal ray paths and in-canvas annotations/labels.
+
+### Root Cause Analysis
+1. **`VectorArrow` Threshold Pruning**:
+   - In `components/visualizations/scene-kit.jsx`, `VectorArrow` had an early exit check:
+     ```js
+     if (length < headLength * 1.1) return null; // headLength = 0.34 => threshold = 0.374
+     ```
+   - For a concave lens ($f = -2.0\text{ cm}$, $u = 5.1\text{ cm}$), the image distance is $v = -1.4366\text{ cm}$.
+   - Magnification $m = |v / u| = 1.4366 / 5.1 \approx 0.2817$.
+   - Formed image height $imageHeight = m \times h = 0.2817 \times 1.15 = 0.3239\text{ cm}$.
+   - Because $0.3239 < 0.374$, `VectorArrow` returned `null`, causing the virtual image arrow to completely vanish whenever the image was diminished below $0.374\text{ cm}$!
+2. **Missing Mirror Physics & Geometries**:
+   - Lenses only trace refraction through the optic ($x > 0$ for real, $x < 0$ for virtual). Spherical mirrors operate via reflection:
+     - Mirror equation: $\frac{1}{v} + \frac{1}{u} = \frac{1}{f}$.
+     - Concave mirror: Converging ($f > 0$). Real image forms in front of the mirror ($x = -v < 0$) when $u > f$; virtual image forms behind the mirror ($x = +|v| > 0$) when $u < f$.
+     - Convex mirror: Diverging ($f < 0$). Always produces a virtual, upright, diminished image behind the mirror ($x = +|v| > 0$).
+   - The scene lacked 3D curved reflective dish/dome meshes and reflection ray tracing.
+
+### Resolution & Architectural Enhancements
+1. **Adaptive Vector Arrow Scaling (`scene-kit.jsx`)**:
+   - Replaced the hard pruning threshold in `VectorArrow` with adaptive scaling:
+     ```jsx
+     const effHeadLength = Math.min(headLength, length * 0.45);
+     const headScale = effHeadLength / Math.max(0.001, headLength);
+     const effHeadRadius = Math.max(0.02, headRadius * headScale);
+     const effRadius = Math.max(0.008, Math.min(radius, effHeadRadius * 0.45));
+     const shaft = Math.max(0.001, length - effHeadLength);
+     ```
+   - Arrows of any small height (e.g. $0.1\text{ cm}$ or $0.32\text{ cm}$) now render with proportionally scaled heads and shafts, guaranteeing the formed image is always visible.
+2. **Convex & Concave Spherical Mirrors Implementation (`PhysicsCanvas.jsx` & `VisualizationHUD.jsx`)**:
+   - Added `opticsType` control supporting:
+     - `convex_lens`: Convex Lens (Converging)
+     - `concave_lens`: Concave Lens (Diverging)
+     - `concave_mirror`: Concave Mirror (Converging)
+     - `convex_mirror`: Convex Mirror (Diverging)
+   - Created procedural 3D lathe geometries for curved mirrors (`mirrorProfile`):
+     - Concave mirror: Spherical concave dish opening toward incident light, specular silvered front face, and dark enameled backing.
+     - Convex mirror: Spherical convex dome bulging toward incident light with chrome silver finish.
+     - Anodized aluminum bezel ring, knurled top set screw, and stainless steel post mounted to an optical bench rail.
+   - Implemented mathematically exact ray tracing for mirrors:
+     - Ray 1 (Parallel): Reflects through focal point (concave) or diverges from virtual focus behind mirror (convex).
+     - Ray 2 (Focal Ray): Directed through/toward focal point, reflects parallel to optical axis.
+     - Ray 3 (Pole Reflection): Incident at vertex $[0, 0, 0]$, reflects symmetrically at equal angle of reflection.
+     - Virtual ray back-extensions correctly project behind mirror ($x > 0$) to form virtual images.
+3. **Object Height Slider**:
+   - Added `objectHeight` slider ($0.5\text{ cm}$ to $3.0\text{ cm}$, step $0.1\text{ cm}$, default $1.5\text{ cm}$) in `topics.js`.
+   - Connected `h` across `PhysicsCanvas.jsx` (object arrow, ray traces, image scaling) and `VisualizationHUD.jsx` readout and legend.
+4. **Animation Speed Slider Removal**:
+   - Added `hideSpeedSlider: true` to the `lenses` topic in `topics.js`.
+   - Wrapped the universal speed slider in `VisualizationHUD.jsx` with `{!topic?.hideSpeedSlider && !params?.hideSpeedSlider && ...}`, hiding it cleanly for ray optics.
+5. **Ray and Label Toggles**:
+   - Added `showRays` toggle: conditionally renders principal rays and back-extensions.
+   - Added `showLabels` toggle: conditionally renders floating in-canvas labels (F, 2F/C, object, real/virtual image, screen).
+6. **Detailed 3D Optical Bench Lab Environment**:
+   - Added `OpticalRail`: anodized aluminum track base with dual chrome guide rods and zero mark.
+   - Added `OpticalCarrier`: sliding bench saddles clamped under the object, optical element, and screen.
+7. **Automated Verification & Unit Tests**:
+   - Added comprehensive ray optics solver tests in `tests/unit/physics-solvers.test.mjs` verifying lenses, concave mirror real/virtual images, convex mirror diminished images, and adaptive vector arrow scaling.
+   - All 823 unit tests pass (0 failures).
+
+---
+
+## 114. Ray Optics Horizontal Ring Removal, Apparatus Metal Color Lightening, & Flush Mirror Casing Seating
+
+### Problem Statement
+1. **Unwanted Horizontal Ring Around Lens**:
+   - A stray horizontal ring (`torusGeometry`) bisected the lens horizontally across the XZ plane, causing visual clutter.
+2. **Overly Dark / Black Stand & Apparatus**:
+   - The optical rail track, carrier saddles, support posts, and bezel casing were rendered with dark slate/black colors (`#1e293b`, `#334155`, `#475569`), appearing muddy under default canvas lighting.
+3. **Imperfect Mirror Seating in Casing**:
+   - The curved concave and convex mirrors did not sit flush inside their outer bezel casings. The concave dish rim protruded outside the front of the bezel, while the convex mirror rim projected out the back of the bezel due to uncalibrated axial offsets.
+
+### Root Cause Analysis
+1. **Misaligned Torus Geometry**:
+   - In `DetailedOptic`, `<mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[1.72, 0.04, 16, 48]} /></mesh>` rotated the torus onto the horizontal XZ plane instead of remaining co-axial with the lens.
+2. **Dark Anodized Palette**:
+   - The structural components (`OpticalRail`, `OpticalCarrier`) used low-luminance dark slate materials (`#1e293b`, `#334155`), which lacked contrast against the dark background.
+3. **Axial Casing Misalignment**:
+   - In `mirrorProfile`, the lathe revolved about the Y axis and was turned onto X via `rotation={[0, 0, -Math.PI / 2]}`. The concave dish rim sat at $X = -0.22$, whereas the bezel cylinder was centered at $X = 0$ (extending from $-0.14$ to $+0.14$), leaving the rim protruding $0.08$ units in front of the casing. For the convex mirror, the rim sat at $X = +0.22 \dots +0.30$, floating out the back of the bezel.
+
+### Resolution & Architectural Enhancements
+1. **Elimination of Horizontal Torus (`PhysicsCanvas.jsx`)**:
+   - Completely removed the horizontal torus mesh from `DetailedOptic`. Replaced it with vertical bezel retaining lips (`ringGeometry args={[1.62, 1.70, 48]}`) co-axial with the optical axis.
+2. **Bright Laboratory Metal Palette (`OpticalRail`, `OpticalCarrier`, `DetailedOptic`)**:
+   - Lightened the rail track base to bright anodized aluminum (`#94a3b8`, metalness 0.55, roughness 0.35) with satin center inlay (`#cbd5e1`) and bright chrome guidance rails (`#f1f5f9`, metalness 0.95, roughness 0.1).
+   - Lightened sliding carriers to bright satin aluminum (`#cbd5e1`, roughness 0.3, metalness 0.7) with polished stainless steel clamp knobs (`#f8fafc`).
+   - Upgraded optical posts to bright polished stainless steel rods (`#f8fafc`).
+   - Boosted ambient and key lighting in `LensOpticsScene` (`lights={{ ambient: 0.85, keyLight: 1.8, rim: "#93c5fd" }}`).
+3. **Calibrated Flush Mirror & Casing Seating**:
+   - **Concave Mirror**:
+     - Front face: curves smoothly from rim at $X = 0$ to center bowl at $X = +0.16$ (`axial = sagitta * (1 - u * u)`).
+     - Back face: curves from $X = 0.05$ at rim to $X = +0.21$ at center.
+     - Casing Bezel: centered at $X = 0.10$ with length $0.24$ ($X \in [-0.02, +0.22]$), perfectly enclosing the mirror from front to back.
+     - Added rear protective backing plate (`circleGeometry` at $X = 0.215$, `#64748b`).
+   - **Convex Mirror**:
+     - Front face: curves from apex at $X = -0.04$ to rim at $X = +0.12$.
+     - Back face: curves from $X = +0.01$ to $X = +0.17$.
+     - Casing Bezel: centered at $X = 0.12$ with length $0.14$ ($X \in [0.05, 0.19]$), securely gripping the rim while allowing the front dome to peak smoothly forward.
+     - Added rear protective backing plate at $X = 0.185$.
+4. **Automated Verification & Unit Tests**:
+   - Ran `npm test` across all 202 suites — all 823 unit tests pass (0 failures).
+
+---
+
+## 115. Faraday's Law & Electromagnetic Induction Overhaul (Dual Apparatus, Glowing Bulb, & Laboratory Styling)
+
+### Problem Statement
+1. **Unclear & Confusing Presentation**:
+   - The Faraday's Law visualization was confusing to students; the 3D apparatus lacked visual context for how electromagnetic induction generates power, featuring an isolated AC generator with an obscure dark box at the bottom.
+2. **Murky, Dark Color Palette**:
+   - The galvanometer housing used very dark slate (`#14171c`), the brush blocks were dark gray (`#2a2f38`), and the magnetic field lines were faint, making the setup nearly unreadable against the scene backdrop.
+3. **Absence of Visible Energy Conversion (Load)**:
+   - Only an abstract galvanometer needle twitch and 2D sine graph were present, leaving students disconnected from the real-world application of generating electricity to power devices.
+4. **Missing Classic Introductory Solenoid Experiment**:
+   - Students learning Faraday's Law initially study a bar magnet moving into a solenoid coil to understand Lenz's Law and flux change ($d\Phi/dt$). The visualization only supported a rotating dynamo coil.
+
+### Root Cause Analysis
+1. **Single-Mode Monolithic Generator Architecture**:
+   - `InductionScene` only rendered `RotatingCoil` between fixed poles without an option to experiment with moving magnetic dipoles and solenoids.
+2. **Low Luminance Styling**:
+   - Materials used dark unlit values (`#14171c`, `#2a2f38`, `#5b6472`) without laboratory contrast or metallic highlights.
+3. **No Dynamic Photometric Load**:
+   - No demonstration load (such as an incandescent light bulb) was modeled to visually show electrical energy dissipation ($P \propto \mathcal{E}^2$).
+
+### Resolution & Architectural Enhancements
+1. **Dual Apparatus Architecture (`topics.js`, `VisualizationHUD.jsx`, `PhysicsCanvas.jsx`)**:
+   - Introduced an apparatus choice toggle allowing instant switching between:
+     - **AC Generator (Dynamo)**: Rotating rectangular copper coil in a uniform magnetic field with slip rings, carbon brushes, and live sinusoidal AC wave trace.
+     - **Bar Magnet & Solenoid Coil**: Multi-turn copper solenoid wound on a transparent acrylic tube with an axial cylindrical bar magnet sliding along chrome guide rails.
+2. **Laboratory Center-Zero Galvanometer (`LaboratoryGalvanometer`)**:
+   - Redesigned the meter with an anodized slate chassis (`#334155`), polished chrome front bezel (`#e2e8f0`), porcelain white dial face (`#f8fafc`), precision scale markings, center-zero pivot cap (`#fbbf24`), and high-visibility red needle (`#ef4444`).
+3. **Dynamic Demonstration Light Bulb (`DemonstrationBulb`)**:
+   - Created a classic demonstration light bulb on an ivory ceramic socket base with brass screw collar and blown glass envelope (`transmission: 0.88`, `opacity: 0.38`).
+   - Modeled an incandescent tungsten hairpin filament whose color and emissive intensity scale smoothly from cold gray (`#94a3b8`) to warm amber (`#f97316`) to brilliant yellow-white (`#fef08a`) with a dynamic `<pointLight>` scaling with power $P \propto \mathcal{E}^2$.
+4. **Interactive Bar Magnet & Solenoid Simulation (`SolenoidScene`)**:
+   - Implemented real-time dipole induction physics $\mathcal{E} = -N \frac{d\Phi}{dt} = -N \frac{d\Phi}{dx} v$.
+   - Validates that a stationary magnet ($v = 0$) induces strictly zero e.m.f. ($0\text{ V}$) regardless of position or flux magnitude.
+   - Reverses induced current polarity when entering vs exiting the coil and when flipping poles (S ⇄ N), adhering strictly to Lenz's Law.
+   - Added 6 3D dipole field loops that move rigidly with the bar magnet, circulating charge carrier particles around the solenoid loops, and an emerald green vector arrow indicating the opposing induced magnetic field $\vec{B}_{\text{induced}}$.
+5. **Lightened Laboratory Materials & Flux Visuals**:
+   - Added a satin aluminum laboratory bench baseplate (`#cbd5e1`) beneath both apparatuses.
+   - Upgraded coils to vibrant metallic copper (`#ea580c`, emissive `#fb923c`), polished chrome drive axles (`#f1f5f9`), and brass slip rings (`#fbbf24`).
+   - Integrated a semi-transparent cyan magnetic flux sheet inside the generator coil aperture whose opacity dynamically tracks $\Phi = B A \sin\theta$.
+   - Added animated charge carrier particles flowing continuously along the loop wires in sync with instantaneous alternating current.
+6. **Automated Verification & Unit Tests**:
+   - Expanded `tests/unit/physics-solvers.test.mjs` with `solveSolenoidInduction` tests verifying zero EMF when stationary, sign reversal on motion direction, pole reversal behavior, and linear scaling with turns $N$ and speed $v$.
+   - All 827 unit tests pass across 202 test suites (0 failures).
+
+---
+
+## 116. Faraday's Law Fixes: Solenoid R3F Hook Crash, Bench Slab Elevation Alignment & Parameter-Responsive Light Bulb
+
+### Problem Statement
+1. **3D Visualization Error on Mode Switch**:
+   - Switching the Faraday's Law visualization to the "Bar Magnet & Coil" (solenoid) apparatus caused an unhandled crash in React Three Fiber, triggering the `WebGLErrorBoundary` fallback.
+2. **Base Floating Above Meters**:
+   - The horizontal gray baseplate slab was floating directly above the laboratory galvanometer and light bulb in the generator visualization, bisecting the scene unnaturally.
+3. **Light Bulb Invariant to Physics Parameters**:
+   - Adjusting visualization sliders (rotation speed, magnetic field strength $B$, and coil turns $N$) produced no visible change in the demonstration light bulb's brightness or color.
+
+### Root Cause Analysis
+1. **`useFrame` Invocation Outside `<Canvas>` Context**:
+   - In `PhysicsCanvas.jsx`, `SolenoidScene` had declared `useFrame(...)` inside its body while returning `<SceneCanvas>...</SceneCanvas>`. Because `useFrame` must execute strictly within an existing Three.js Canvas context, calling it inside a component that renders `<SceneCanvas>` rather than as a child component within `<Canvas>` caused an immediate fatal exception: `Invalid hook call: useFrame can only be used within the Canvas component`.
+2. **Baseplate Slab Y Elevation Inversion**:
+   - The generator chassis baseplate was positioned at $Y = -2.2$ whereas the laboratory galvanometer and demonstration light bulb were mounted at $Y = -2.9$. Consequently, the gray slab sat 0.7 units above the meters, obscuring and clipping them.
+3. **Self-Normalizing Peak EMF Ratio in Load Power Computation**:
+   - The bulb power calculation was defined as `power = Math.min(2.5, Math.pow(Math.abs(emf) / (peakEmf || 0.001), 2))`. Because both instantaneous `emf` ($N B A \omega \cos\theta$) and `peakEmf` ($N B A \omega$) scale identically with $N$, $B$, and $\omega$, the ratio $|\text{emf}| / \text{peakEmf}$ completely cancelled out all parameter values, reducing power to $|\cos\theta|^2$. As a result, turning up speed, turns, or magnetic field had zero effect on bulb brightness or filament color.
+
+### Resolution & Architectural Enhancements
+1. **Canvas Architecture Refactoring (`PhysicsCanvas.jsx`)**:
+   - Refactored `InductionScene` to maintain a single, persistent top-level `<SceneCanvas>` that manages ambient and directional lighting, camera positioning, and orbit controls.
+   - Decomposed `SolenoidScene` and `GeneratorScene` into pure child scene rigs (`SolenoidRig` and `GeneratorRig`). All `useFrame` animations and three-fiber hooks are now strictly evaluated within the Three.js Canvas provider tree, completely resolving the mode-switch crash.
+2. **Grounded Laboratory Bench Alignment**:
+   - Created a unified `LaboratoryBench` component at $Y = -2.98$ (with a polished tabletop surface at $Y = -2.80$, bevelled edge molding, and grounded rubber feet extending down to $Y = -3.20$).
+   - Repositioned both `LaboratoryGalvanometer` and `DemonstrationBulb` so their bases rest flush on top of the bench surface at $Y = -2.80$, standing upright with the bulb illuminating upwards into the laboratory space without any clipping or floating slabs.
+3. **Physical Voltage-Rated Power Scaling ($P \propto \mathcal{E}^2$)**:
+   - Replaced self-cancelling peak normalization with physical voltage rating scaling:
+     $$\text{power} = \text{clamp}\left(\left(\frac{|\mathcal{E}|}{V_{\text{nominal}}}\right)^2, 0, 2.5\right)$$
+     where $V_{\text{nominal}} = 32\text{ V}$ for the AC dynamo generator and $10\text{ V}$ for the solenoid magnet rig.
+   - At low speeds, turns, or weak fields, the filament remains cold dark slate (`#64748b`) and the bulb emits zero light.
+   - As $N$, $B$, or $\omega$ increase, the filament heats up through deep orange (`#ea580c`), radiant amber (`#f59e0b`), to brilliant incandescent white-hot (`#fef08a`), with proportional `<pointLight>` intensity scaling from $0$ up to $7.5$ lumens.
+4. **Automated Verification**:
+   - Verified that all 827 unit tests across 202 suites pass with exit code 0.
+
+---
+
+## 117. Faraday's Law Fixes: Magnet Pole Z-Fighting Elimination, Bench Foreground Meter Decoupling & Dynamic Bulb Scaling
+
+### Problem Statement
+1. **Z-Fighting and Flickering on Magnet Poles ("Merged and Fighting")**:
+   - In the AC Generator apparatus, noisy flickering speckles appeared on the faces of the N (rose) and S (sky) magnet blocks near the gray riser pedestals due to overlapping geometry.
+2. **Instruments Merged into Magnet Pedestals**:
+   - The laboratory galvanometer on the left and the demonstration bulb on the right were physically embedded inside the magnet riser pedestals and obscured by the pole assemblies.
+3. **Bulb Output Invariant to Coil Turns and Magnet Strength in Solenoid Mode**:
+   - In the Bar Magnet & Coil apparatus, changing the coil turns $N$ or magnet strength produced no visible change in the demonstration bulb's brightness because low nominal reference voltage clamped power to the ceiling ($2.5$) across nearly all slider combinations. Additionally, in manual mode (`autoOscillate: false`), 1-frame finite-difference velocity calculation instantly collapsed velocity to 0, leaving the bulb completely dark.
+
+### Root Cause Analysis
+1. **Geometry Overlap Between `MagnetPole` and Riser Pedestals**:
+   - `MagnetPole` (`boxGeometry args={[0.7, 3.6, 3.6]}` at $Y = 0.2$) extended from $Y = -1.60$ to $Y = +2.0$.
+   - The riser pedestal (`boxGeometry args={[0.8, 1.6, 3.6]}` at $Y = -2.0$) extended from $Y = -2.80$ to $Y = -1.20$.
+   - Both meshes overlapped vertically between $Y = -1.60$ and $Y = -1.20$ (by $0.4$ units) with matching $Z$ bounds ($\pm 1.8$), causing severe GPU depth-buffer fighting (flickering).
+2. **Instrument Placement at Same $Z$ Plane as Heavy Pedestals**:
+   - The galvanometer ($X = -2.4, Z = 0.4$, width $2.2 \implies X \in [-3.5, -1.3]$) and bulb ($X = 2.4, Z = 0.4$) were positioned on the same $Z$ plane as the pedestals ($X = \pm 3.4, Z \in [-1.8, +1.8]$), causing the left edge of the galvanometer to penetrate $0.5$ units inside the N-pole pedestal and the bulb to clip the S-pole pedestal.
+3. **Premature Power Saturation & Discrete Single-Frame Manual Velocity**:
+   - With $V_{\text{nominal}} = 10\text{ V}$ in Solenoid mode, peak EMF at default settings was $\approx 63\text{ V}$, yielding an initial ratio of $6.3^2 = 39.7$, which immediately saturated against the hard clamp of $2.5$. Increasing turns $N$ or magnet strength merely drove the ratio higher into the clamp with zero visible effect.
+   - In manual mode (`autoOscillate: false`), $v = (\text{targetX} - x) / \text{step}$ updated $x$ in a single 16ms frame, after which $\text{targetX} - x \equiv 0$, instantly dropping velocity and EMF to zero.
+
+### Resolution & Architectural Enhancements
+1. **Flush Boundary Alignment on Magnet Poles & Pedestals (`PhysicsCanvas.jsx`)**:
+   - Resized riser pedestals to `boxGeometry args={[0.85, 1.2, 3.4]}` at `position={[±3.4, -2.2, 0]}` ($Y \in [-2.80, -1.60]$).
+   - Bottom face of `MagnetPole` ($Y = -1.60$) now meets the top face of the pedestal ($Y = -1.60$) completely flush with zero penetration and zero Z-fighting.
+2. **Foreground Instrument Placement on Laboratory Bench ($Z = 1.35$)**:
+   - Moved both `LaboratoryGalvanometer` and `DemonstrationBulb` forward into the clear foreground of the workbench ($Z = 1.35$):
+     - Galvanometer: `[-2.1, -2.80, 1.35]` (or `[0, -2.80, 1.35]` when bulb is toggled off).
+     - Demonstration Bulb: `[2.1, -2.80, 1.35]`.
+   - Routed wiring leads neatly along the bench tabletop ($Y = -2.75$) and forward to the instrument terminals, completely clear of the magnet pedestals, sliding sleds, and guide rails.
+3. **Perceptual Non-Linear Bulb Power Ramping & Dynamic Slider Response**:
+   - Calibrated rated reference voltages ($V_{\text{rated}} = 115\text{ V}$ Generator, $85\text{ V}$ Solenoid) with a perceptual gamma curve:
+     $$\text{power} = \operatorname{clamp}\left(\left(\frac{|\mathcal{E}|}{V_{\text{rated}}}\right)^{1.6}, 0, 2.8\right)$$
+   - In Solenoid mode, each tick of the coil turns slider ($N = 1$ faint amber ember, $N = 4$ warm bright gold, $N = 8$ brilliant blazing white) and magnet strength slider ($0.5\text{ T}$ to $2.5\text{ T}$) immediately and visibly transforms the bulb's filament temperature and point light output.
+4. **Smooth Responsive Dragging in Manual Magnet Mode**:
+   - Replaced single-frame hopping with exponential smoothing: $\Delta x = (\text{targetX} - x)(1 - e^{-9.0 \Delta t})$, generating continuous realistic velocity $v$, smooth galvanometer needle swings, and prolonged bulb glow during manual movement.
+5. **Camera Perspective Optimization**:
+   - Adjusted camera in `InductionScene` to `[5.2, 2.6, 12.0]` (target `[0, -1.0, 0.4]`) for Generator and `[0, 2.5, 11.8]` (target `[0, -0.9, 0.4]`) for Solenoid, framing the entire workbench with zero obstruction.
+6. **Automated Verification**:
+   - All 827 unit tests pass across 202 suites with 0 failures (`npm test`).
+
+---
+
+## 118. Faraday's Law Workbench Refinements: Lower Baseplate, Top Sine Graph Mount & Stable Meter Wiring Anchor
+
+### Problem Statement
+1. **Elevated Baseplate Squeezing Scene**:
+   - The laboratory workbench baseplate sat relatively high at $Y = -2.80$, crowding vertical space below the coil and magnet poles.
+2. **Galvanometer Left Bias**:
+   - The galvanometer was positioned too far left ($X = -2.1$), leaving excessive empty space toward the center.
+3. **Bottom Sine Graph Occlusion & Viewport Clipping**:
+   - The live AC e.m.f. sine graph (`EmfTrace`) was rendered at $Y = -5.5$, buried at the bottom below the table where it was cut off or forced awkward downward panning.
+4. **Instrument Jumps and Wiring Disconnection on Toggle**:
+   - Toggling "Demonstration light bulb" shifted the galvanometer to $X = 0$, displacing the circuit leads and causing disconnected visual wiring.
+
+### Root Cause Analysis
+1. `LaboratoryBench` was mounted at $Y = -2.98$ (surface at $Y = -2.80$).
+2. `EmfTrace` had a fixed position of `[0, -5.5, 0]`.
+3. `LaboratoryGalvanometer`'s position had been conditional: `position={showBulb ? [-2.1, ...] : [0, ...]}`. When `showBulb` became false, the meter shifted 2.1 units right to center, detaching from the fixed wiring leads.
+
+### Resolution & Architectural Enhancements
+1. **Lower Laboratory Baseplate & Re-aligned Stanchions (`PhysicsCanvas.jsx`)**:
+   - Lowered `LaboratoryBench` to $Y = -3.48$ (top tabletop surface flush at $Y = -3.30$).
+   - Extended magnet riser pedestals to height $1.70$ (`position={[±3.4, -2.45, 0]}`), lower bearing block to $Y = -3.20$, central drive shaft to height $2.6$, guide rail stanchions to height $2.60$, and solenoid support stanchions to height $3.50$.
+2. **Top Sine Graph Mount (`EmfTrace`)**:
+   - Moved `EmfTrace` to the top of the whole setup at `position={[0, 4.0, 0]}`.
+   - Positioned the title label prominently above the waveform (`position={[0, TRACE.height + 0.35, 0]}`).
+3. **Centered Galvanometer Placement ($X = -1.3$)**:
+   - Shifted the galvanometer to the right at $X = -1.3$ (chassis right edge at $X = -0.2$), creating balanced spacing alongside the light bulb at $X = 1.8$.
+4. **Stable Non-Conditional Meter & Wire Anchoring**:
+   - Both `LaboratoryGalvanometer` (`[-1.3, -3.30, 1.35]`) and `DemonstrationBulb` (`[1.8, -3.30, 1.35]`) now have permanently anchored positions regardless of `showBulb` toggle state.
+   - When `showBulb` is false, the bulb and its branch leads seamlessly unmount while the galvanometer and its wiring remain rock-solid without jumping or breaking connections.
+5. **Harmonized Camera Framing (`InductionScene`)**:
+   - Re-centered camera to `[4.8, 1.5, 14.0]` (Generator) and `[0, 1.8, 13.5]` (Solenoid) with target `[0, -0.2, 0.4]`, cleanly displaying the top sine trace, central apparatus, and bottom bench meters within standard viewport bounds.
+6. **Automated Verification**:
+   - Full test suite verified: all 827 unit tests pass across 202 suites with 0 failures (`npm test`).
+
+---
+
+## 119. Projectile Motion & Air Resistance: Cannon Alignment, Lightened Laboratory Apparatus, 60 FPS Zero-Lag Vectors & Ballistic Runway
+
+### Problem Statement
+1. **Cannon Misalignment with Trajectories**:
+   - The launcher was rendered as an isolated single box at `position={[-0.25, 0.12, 0]}` rotated about its center. Its muzzle terminated at $(+0.07, +0.44)$, while the drawn trajectory line started at $(0, 0, 0)$ and the ball started at $(0, 0.12, 0)$, completely disconnecting the cannon from the launch path.
+2. **Murky, Dark Cannon Color**:
+   - The barrel used an unlit dark slate gray (`#5b6472`), lacking contrast against the dark background and appearing like an untextured generic block.
+3. **Laggy, Stuttering Force Vectors**:
+   - Vector arrows were updated through React `useState` (`setVectors`) throttled to 10 Hz (every 100ms), triggering React component re-renders. As a result, the arrows lagged up to 6 frames behind the ball (which moved smoothly at 60 FPS) and stuttered noticeably across the screen.
+4. **Missing Air Drag Force Vector**:
+   - The visualization only drew velocity $\vec{v}$ and weight $\vec{W}$, omitting the very force central to the topic: quadratic atmospheric drag $\vec{F}_{\text{drag}} = -k |v| \vec{v}$ and the net resultant force $\vec{F}_{\text{net}} = \vec{W} + \vec{F}_{\text{drag}}$.
+5. **Lack of Calibrated Ballistic Context**:
+   - Trajectories were drawn over an abstract grid with no runway or distance graduations, and no apex marker showing where peak altitude occurred.
+
+### Root Cause Analysis
+1. **Muzzle Coordinate Disconnect**:
+   - Rotating a box around its center $(X_c, Y_c)$ moves its front face along $(X_c + \frac{L}{2}\cos\theta, Y_c + \frac{L}{2}\sin\theta)$. Because the box center was offset to `[-0.25, 0.12, 0]`, the muzzle floated into air as $\theta$ changed, while the simulation always began at $(0, 0, 0)$.
+2. **Low-Luminance Material**:
+   - `#5b6472` has low specular reflectivity and no metallic highlight accents.
+3. **10 Hz React State Loop for WebGL Scene Graph**:
+   - `sampleAcc.current >= 0.1` throttled vector state updates to 10 Hz while `useFrame` ran at 60 FPS, causing a 100ms phase lag between the ball mesh and vector arrows.
+
+### Resolution & Architectural Enhancements
+1. **Collinear Cannon Geometry & Trajectory Alignment (`PhysicsCanvas.jsx`)**:
+   - Established calibrated launch origin $\vec{P}_0 = [0, \text{LAUNCH\_Y}, 0]$ where $\text{LAUNCH\_Y} = 0.22$ ($0.07$ runway height $+ 0.15$ ball radius).
+   - Anchored `LaboratoryCannon` elevation group at $[0, \text{LAUNCH\_Y}, 0]$ with `rotation={[0, 0, angle * DEG]}`. The barrel bore is centered at local $(0, 0, 0)$ with the front muzzle lip flush at $X = 0$, guaranteeing that the barrel bore and initial trajectory tangent $(\cos\theta, \sin\theta, 0)$ are **100% collinear with zero positional offset** for all angles ($5^\circ$ to $85^\circ$).
+   - Both trajectory `Line`s (real with drag and ideal vacuum) and the ball originate precisely at $[0, \text{LAUNCH\_Y}, 0]$, emerging seamlessly from the cannon muzzle.
+2. **High-Contrast Laboratory Metal Palette**:
+   - Upgraded barrel to satin brushed aluminum (`#cbd5e1`, metalness 0.85, roughness 0.22) with inner rifled bore (`#475569`), polished brass muzzle crown and reinforcement rings (`#fbbf24`, metalness 0.92, roughness 0.18), breech hemisphere, cascabel knob (`#f8fafc`), and stainless trunnions (`#f8fafc`).
+   - Added a grounded carriage bed with guide rails, cheek bracket plates (`#94a3b8`), laser-engraved protractor quadrant arc with degree tick marks ($0^\circ$–$90^\circ$), and an illuminated red angle needle (`#ef4444`).
+3. **60 FPS Zero-Lag WebGL Vector Pipeline (`updateVector`)**:
+   - Eliminated React `useState` for vector updates. Vectors are placed inside a parent group locked directly to the ball position `[ballX, ballY, 0]` in `useFrame`.
+   - Arrow shafts and cone heads are transformed directly via Three.js mesh refs (`rotation.z`, `scale.set`, `position.set`) each frame at full 60/120/144 FPS with absolute **0ms latency**:
+     - **Velocity Vector $\vec{v}$**: Sky blue (`#38bdf8`), tangential to instantaneous flight path.
+     - **Weight Force $\vec{W}$**: Rose (`#fb7185`), constant downward vector ($m\cdot g$).
+     - **Drag Force $\vec{F}_{\text{drag}}$**: Amber gold (`#fbbf24`), pointing in direction $-\vec{v}$ with magnitude $k v^2$, disappearing automatically in vacuum ($k = 0$).
+     - **Net Resultant Force $\vec{F}_{\text{net}}$**: Emerald green (`#34d399`), dynamic vector sum $\vec{W} + \vec{F}_{\text{drag}}$.
+   - Throttled DOM text sampling to 12 Hz (`onSample`), completely decoupling 3D rendering from DOM layout thrashing.
+4. **Aerodynamic Wake & Muzzle Blast**:
+   - Added 3 trailing aerodynamic vortex particles behind the cannonball during flight when drag $> 0$.
+   - Added an expanding muzzle blast shockwave ring at $[0, \text{LAUNCH\_Y}, 0]$ upon firing.
+5. **Ground Metric Runway, Apex Plumb Line & Landing Targets**:
+   - `DistanceRunway`: Laboratory asphalt runway slab with metric graduations every 5m/10m/20m and ground distance labels ($10\text{ m}, 20\text{ m}, 30\text{ m}, \dots$).
+   - `ApexMarker`: Glowing cyan octahedron at apex coordinates with vertical dashed drop line and numerical height label (`Apex X.Xm`).
+   - `LandingTarget`: Concentric target bullseyes on the runway with distance indicator plaques.
+6. **Automated Verification & Unit Tests**:
+   - Added `solveProjectileFlight` unit test suite in `tests/unit/physics-solvers.test.mjs` verifying analytical SUVAT parity in vacuum, quadratic drag range/apex reduction, asymmetric trajectory geometry ($x_{\text{apex}} / \text{range} > 0.50$), mass scaling, and drag monotonicity.
+   - All 831 unit tests pass across 203 test suites (`npm test`).
+
+---
+
+## 120. Projectile Motion: Elevation Runway Clearance, Light Palette, Label Visibility Toggle & Continuous Slider Animation Glitch Fix
+
+### 🐛 Problem Statement
+1. **Cannon Below Runway & Floor Clipping**: The cannon carriage was located at $X = -0.45, Y = 0.035$ overlapping inside the runway slab (which spanned from $X = -0.4$ forward), while the barrel rotated around $Y = 0.22$. Because the barrel was $0.88\text{ m}$ long, whenever elevation angle was tilted up ($> 25^\circ$), the breech swung downwards below the ground floor ($Y = 0.22 - 0.88 \sin\theta < 0$), cutting into the runway floor and appearing sunken beneath the runway.
+2. **Dark Color Palette**: The runway slab was dark slate/asphalt (`#18202d`) and the cannon was steel-grey (`#cbd5e1`), making the apparatus dark and reducing contrast against the dark background grid.
+3. **Missing Label Toggle**: Users had no option to declutter the 3D scene by toggling off floating 3D labels (angle badge, vector labels, apex height, metric tick marks, landing targets).
+4. **Glitchy Continuous Slider Drag Restarts**:
+   - `<Projectile>` had `key={`${speed}-${angle}-${gravity}-${drag}-${mass}`}`, causing React to unmount and remount the component on every mousemove micro-change during slider dragging.
+   - `MuzzleBlast` had `angleDeg` in its `useEffect` dependency array, triggering a strobe-like flash on every degree of elevation change.
+   - `clock.current` reset to 0 continuously, causing the cannonball to violently shiver at the muzzle $(0, 0)$ instead of flying smoothly.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Runway Clearance & Elevated Laboratory Coordinate Architecture**:
+   - Fixed `RUNWAY_TOP_Y = 0.28` and `LAUNCH_Y = RUNWAY_TOP_Y + BALL_RADIUS = 0.41` ($R_{\text{ball}} = 0.13$).
+   - Moved `DistanceRunway` to start strictly at $X = 0$, extending forward along $+X$ (`position={[runwayLength / 2, RUNWAY_TOP_Y / 2, 0]}`). It no longer extends backwards into $X < 0$.
+   - Anchored `LaboratoryCannon` ground carriage base on the floor at $X \le 0$ ($X = -0.52$ to $0$), with elevated side stanchion cheeks rising to hold the trunnion pivot at $[0, \text{LAUNCH\_Y}, 0]$.
+   - Compacted barrel length to $0.46\text{ m}$. At $\theta = 45^\circ$, the breech sits at $Y = 0.41 - 0.46 \sin 45^\circ = +0.085 > 0$, and at $\theta = 60^\circ$ at $+0.012 > 0$. The barrel NEVER clips through the ground or runway.
+   - Landing target bullseyes sit at $Y = RUNWAY\_TOP\_Y + 0.002 = 0.282$, so when the ball lands at $Y = 0.41$, its bottom touches the runway deck ($0.28$) with exact mathematical precision.
+2. **Ultra-Light Scientific Instrument Palette**:
+   - **Runway Deck**: Clean porcelain slate `#f1f5f9` with `#e2e8f0` deck surface, satin aluminum side curbs `#cbd5e1`, and dark graphite `#475569` metric graduation lines.
+   - **Laboratory Cannon**: Ultra-light polished platinum barrel tube `#f8fafc` (metalness `0.92`, roughness `0.12`), sparkling champagne gold muzzle crown & bands `#fde047` (metalness `0.95`, roughness `0.14`), mirror chrome cascabel & trunnions `#ffffff`, light aluminum stanchion cheeks `#e2e8f0`, and bright white protractor quadrant `#ffffff`.
+3. **3D Label Visibility Toggle (`showLabels`)**:
+   - Added `showLabels: true` to `topics.js` defaults and a `{ type: "toggle", key: "showLabels", label: "Show 3D labels" }` control.
+   - Wired `showLabels` across `LaboratoryCannon`, `DistanceRunway`, `ApexMarker`, `LandingTarget`, and `VectorMesh`. Toggling off hides all floating 3D text/HTML tags for an uncluttered visual presentation.
+4. **Debounced Slider Interaction & Smooth Continuous Playback**:
+   - Removed `key` prop from `<Projectile>`, preserving component lifecycle across slider movements.
+   - Removed `angleDeg` from `MuzzleBlast` dependencies so the shockwave only fires upon launch.
+   - Implemented a 320ms debounce timer for physical parameter adjustments (`speed`, `angle`, `gravity`, `drag`, `mass`): while dragging sliders, the cannon angle, trajectory curve, apex marker, and landing targets update in real time at 60 FPS without unmounting or restarting. Once slider dragging pauses for 320ms, a clean launch triggers automatically.
+   - Explicit "Replay launch" action button bypasses the debounce to launch instantaneously.

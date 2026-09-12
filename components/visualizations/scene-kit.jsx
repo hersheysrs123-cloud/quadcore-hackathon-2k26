@@ -272,17 +272,23 @@ export function VectorArrow({
   opacity = 1,
 }) {
   const { a, length, direction, quaternion } = useSegment(from, to);
-  if (length < headLength * 1.1) return null;
+  if (length < 0.005) return null;
 
-  const shaft = length - headLength;
+  // Adaptively scale head & shaft so short arrows never vanish
+  const effHeadLength = Math.min(headLength, length * 0.45);
+  const headScale = effHeadLength / Math.max(0.001, headLength);
+  const effHeadRadius = Math.max(0.02, headRadius * headScale);
+  const effRadius = Math.max(0.008, Math.min(radius, effHeadRadius * 0.45));
+
+  const shaft = Math.max(0.001, length - effHeadLength);
   const shaftCentre = a.clone().addScaledVector(direction, shaft / 2);
-  const headCentre = a.clone().addScaledVector(direction, shaft + headLength / 2);
+  const headCentre = a.clone().addScaledVector(direction, shaft + effHeadLength / 2);
   const labelAt = a.clone().addScaledVector(direction, length + labelOffset);
 
   return (
     <group>
       <mesh position={shaftCentre} quaternion={quaternion}>
-        <cylinderGeometry args={[radius, radius, shaft, 12]} />
+        <cylinderGeometry args={[effRadius, effRadius, shaft, 12]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -293,7 +299,7 @@ export function VectorArrow({
         />
       </mesh>
       <mesh position={headCentre} quaternion={quaternion}>
-        <coneGeometry args={[headRadius, headLength, 16]} />
+        <coneGeometry args={[effHeadRadius, effHeadLength, 16]} />
         <meshStandardMaterial
           color={color}
           emissive={color}

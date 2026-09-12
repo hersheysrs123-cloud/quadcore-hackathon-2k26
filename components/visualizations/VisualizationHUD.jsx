@@ -390,24 +390,32 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "lenses": {
-      const type = params.lensType || "convex";
-      const isConvex = type === "convex";
-      const f = num(params.focal, 2);
+      const type = params.opticsType || (params.lensType === "concave" ? "concave_lens" : params.lensType === "convex" ? "convex_lens" : "convex_lens");
+      const isMirror = type.includes("mirror");
+      const isConvex = type.startsWith("convex");
+      const isConcave = type.startsWith("concave");
+      const isConverging = type === "convex_lens" || type === "concave_mirror";
+      const f = num(params.focal, 2.5);
       const u = num(params.objectDistance, 5);
+      const h = num(params.objectHeight, 1.5);
 
-      const atInfinity = isConvex && Math.abs(u - f) < 0.02;
+      const atInfinity = isConverging && Math.abs(u - f) < 0.03;
       let v = 0;
       let real = false;
       let m = 0;
       let natureText = "";
 
-      if (isConvex) {
+      if (isConverging) {
         if (!atInfinity) {
           if (u > f) {
             v = (f * u) / (u - f);
             real = true;
             m = v / u;
-            natureText = u > 2 * f ? "Real, Inverted, Diminished" : Math.abs(u - 2 * f) < 0.05 ? "Real, Inverted, Same Size" : "Real, Inverted, Magnified";
+            natureText = u > 2 * f + 0.05
+              ? "Real, Inverted, Diminished"
+              : Math.abs(u - 2 * f) <= 0.05
+              ? "Real, Inverted, Same Size"
+              : "Real, Inverted, Magnified";
           } else {
             v = (f * u) / (f - u);
             real = false;
@@ -416,42 +424,80 @@ function renderTopicDetailsReadout(topic, params) {
           }
         }
       } else {
+        // Diverging element: Concave Lens or Convex Mirror
         v = (f * u) / (u + f);
         real = false;
         m = v / u;
         natureText = "Virtual, Upright, Diminished";
       }
 
+      const imgHeight = atInfinity ? 0 : m * h;
+
+      const titleMap = {
+        convex_lens: "Convex Lens (Converging)",
+        concave_lens: "Concave Lens (Diverging)",
+        concave_mirror: "Concave Mirror (Converging)",
+        convex_mirror: "Convex Mirror (Diverging)",
+      };
+
       readout = {
-        title: isConvex ? "Converging Lens" : "Diverging Lens",
-        subtitle: "1/v = 1/f − 1/u · m = |v ÷ u|",
+        title: titleMap[type] || "Ray Optics",
+        subtitle: isMirror
+          ? "1/v + 1/u = 1/f  ·  m = |v ÷ u|"
+          : "1/v − 1/u = 1/f  ·  m = |v ÷ u|",
         rows: [
+          ["Optical element", titleMap[type]?.split(" ")[0] || "Lens"],
           ["Object distance u", `${u.toFixed(1)} cm`],
+          ["Object height h", `${h.toFixed(1)} cm`],
           ["Focal length f", `${f.toFixed(1)} cm`, "gold"],
           ["Image distance v", atInfinity ? "∞" : `${v.toFixed(1)} cm`, real ? "good" : "bad"],
+          ["Image height h'", atInfinity ? "—" : `${imgHeight.toFixed(2)} cm`],
           ["Magnification m", atInfinity ? "∞" : `${m.toFixed(2)}×`],
           ["Nature", atInfinity ? "None (Spotlight)" : real ? "Real" : "Virtual", real ? "good" : "warn"],
           ["Orientation", atInfinity ? "—" : real ? "Inverted" : "Upright"],
-          ["Object position", u > 2 * f ? "Beyond 2F" : u > f ? "Between F and 2F" : "Inside F"],
+          ["Object position", u > 2 * f ? "Beyond 2F (C)" : u > f ? "Between F & 2F" : "Inside F"],
         ],
         note: atInfinity
-          ? "Object is at focal point F: refracted rays leave parallel and never meet (collimator spotlight)."
-          : isConvex
+          ? "Object is at focal point F: rays leave exactly parallel and never intersect (collimator spotlight)."
+          : isMirror
+          ? isConverging
+            ? u > f
+              ? "Concave mirror: reflected rays converge in front of the mirror to form an inverted real image."
+              : "Concave mirror (magnifier): rays diverge upon reflection; back-extensions meet behind the mirror to produce a magnified upright virtual image."
+            : "Convex mirror: rays diverge outward from the virtual focal point behind the mirror; always upright, virtual, and diminished (wide field of view)."
+          : isConverging
           ? u > f
-            ? "Real image formed where rays physically intersect. Can be projected onto a screen."
-            : "Virtual image formed inside F — rays diverge, back-extensions meet (magnifying glass)."
-          : "Diverging lens spreads rays outward; image is always virtual, upright, and smaller.",
+            ? "Convex lens: refracted rays converge to form an inverted real image that can be caught on a screen."
+            : "Convex lens (magnifying glass): refracted rays diverge; apparent back-extensions form an upright magnified virtual image."
+          : "Concave lens: refracted rays diverge away from virtual focus; image is always virtual, upright, and diminished.",
         noteTone: real ? "good" : "neutral",
       };
 
       legend = {
         title: "Ray Construction Key",
         items: [
-          { color: "#fbbf24", shape: "square", label: "Object Arrow", note: "Source object of fixed height" },
-          { color: "#34d399", shape: "line", label: "Ray 1 (Parallel → Focus)", note: isConvex ? "Refracts through focal point F" : "Diverges in line with focal point F" },
-          { color: "#38bdf8", shape: "line", label: "Ray 2 (Optical Center)", note: "Passes straight through undeviated" },
-          { color: "#f43f5e", shape: "square", label: "Formed Image Arrow", note: natureText || "Projected image" },
-          { color: "#f43f5e", shape: "dash", label: "Virtual Ray Extension", note: "Apparent ray back-projection" },
+          { color: "#fbbf24", shape: "square", label: "Object Arrow", note: `Upright object (h = ${h.toFixed(1)} cm)` },
+          {
+            color: "#34d399",
+            shape: "line",
+            label: "Ray 1 (Parallel → Focus)",
+            note: isMirror
+              ? (isConverging ? "Reflects through focal point F" : "Reflects diverging from virtual focus F")
+              : (isConverging ? "Refracts through focal point F" : "Refracts diverging from virtual focus F"),
+          },
+          {
+            color: "#38bdf8",
+            shape: "line",
+            label: isMirror ? "Ray 2 (Focal Ray → Parallel)" : "Ray 2 (Optical Center)",
+            note: isMirror
+              ? "Passes through (or aims at) F, reflects parallel to axis"
+              : "Passes undeviated through optical center",
+          },
+          ...(isMirror
+            ? [{ color: "#a855f7", shape: "line", label: "Ray 3 (Vertex Reflection)", note: "Reflects at equal angle from mirror pole" }]
+            : [{ color: "#a855f7", shape: "line", label: "Ray 3 (Focal Ray → Parallel)", note: "Passes through F, emerges parallel to axis" }]),
+          { color: real ? "#10b981" : "#f43f5e", shape: "square", label: "Formed Image Arrow", note: natureText || "Projected image" },
+          { color: "#f43f5e", shape: "dash", label: "Virtual Ray Extension", note: "Apparent ray back-projection behind surface" },
           { color: "#64748b", shape: "line", label: "Principal Axis", note: "Central horizontal optical reference" },
         ],
       };
@@ -459,41 +505,82 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "induction": {
-      const speed = num(params.speed, 0);
-      const B = num(params.field, 0);
-      const N = num(params.turns, 1);
-      const flux = B * 0.6;
-      const peak = speed * B * N * 1.5;
+      const isSolenoid = params?.apparatus === "solenoid";
+      const speed = num(params.speed, 1.0);
+      const N = num(params.turns, 3);
 
-      readout = {
-        title: "Faraday's Law of Induction",
-        subtitle: "Φ = B A sin θ · ε = −N ΔΦ/Δt",
-        rows: [
-          ["Turns N", N, "gold"],
-          ["Coil area A", "0.6 m²"],
-          ["Flux Φ per turn", `${flux.toFixed(2)} Wb`],
-          ["Peak e.m.f. ε₀", `${peak.toFixed(2)} V`, peak > 0.05 ? "good" : "bad"],
-          ["Rotation speed", speed < 0.05 ? "Stopped" : `${speed.toFixed(1)} rev/s`],
-          ["Output frequency", `${speed.toFixed(1)} Hz`],
-          ["Current type", "Alternating Current (AC)"],
-        ],
-        note: speed < 0.05
-          ? "Coil stationary: flux never changes, so induced e.m.f. is zero. Motion or changing flux is required."
-          : "As the coil rotates, it cuts field lines at varying angles, producing a smooth sinusoidal AC wave.",
-        noteTone: speed < 0.05 ? "bad" : "good",
-      };
+      if (isSolenoid) {
+        const strength = num(params.magnetStrength, 1.2);
+        const auto = params.autoOscillate !== false;
+        const flipped = Boolean(params.flipPoles);
+        const pos = auto ? "Auto-shaker active" : `${num(params.magnetPos, 0).toFixed(1)} cm`;
 
-      legend = {
-        title: "Generator Components Key",
-        items: [
-          { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Magnetic field source" },
-          { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Magnetic field sink" },
-          { color: "#38bdf8", shape: "dash", label: "Magnetic Field Lines B", note: "Flux density vector lines" },
-          { color: "#fbbf24", shape: "line", label: "Rotating Coil Wire", note: "Cuts field lines to induce e.m.f." },
-          { color: "#34d399", shape: "dot", label: "Induced AC Pulses", note: "Alternating electron flow" },
-          { color: "#38bdf8", shape: "line", label: "Induced EMF Waveform", note: "Sinusoidal voltage output" },
-        ],
-      };
+        readout = {
+          title: "Faraday's Law: Bar Magnet & Solenoid",
+          subtitle: "ε = −N (dΦ/dt) = −N (dΦ/dx) · v",
+          rows: [
+            ["Coil turns N", N, "gold"],
+            ["Magnet dipole field", `${strength.toFixed(1)} T`],
+            ["Magnet position x", pos],
+            ["Motion mode", auto ? `Harmonic oscillation (${speed.toFixed(1)} Hz)` : "Manual slider"],
+            ["Pole orientation", flipped ? "South leading (S ⇄ N)" : "North leading (N ⇄ S)"],
+            ["Active indicators", "Galvanometer + Incandescent Bulb"],
+            ["Lenz's law status", "Opposes relative magnet motion"],
+          ],
+          note: !auto && Math.abs(num(params.magnetPos, 0)) < 0.05
+            ? "Magnet resting at coil center: flux is maximized but NOT changing (dΦ/dt = 0). Induced e.m.f. is strictly 0 V!"
+            : auto
+              ? "As the magnet moves in and out of the solenoid, changing flux induces alternating voltage, causing the light bulb to flash and the needle to swing left and right."
+              : "Slide the magnet position: e.m.f. is only induced while the magnet is physically in motion across the coil windings.",
+          noteTone: "good",
+        };
+
+        legend = {
+          title: "Solenoid Apparatus Key",
+          items: [
+            { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Red magnetic pole half" },
+            { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Blue magnetic pole half" },
+            { color: "#ea580c", shape: "line", label: "Copper Solenoid Coils", note: "Multi-turn helical winding" },
+            { color: "#38bdf8", shape: "dash", label: "Dipole Field Lines B", note: "Radiates N → S with the magnet" },
+            { color: "#fef08a", shape: "dot", label: "Demonstration Light Bulb", note: "Incandescent filament glow (P ∝ ε²)" },
+            { color: "#334155", shape: "square", label: "Center-Zero Galvanometer", note: "Deflects ± to show induced current direction" },
+          ],
+        };
+      } else {
+        const B = num(params.field, 1.0);
+        const flux = B * 6.0;
+        const peak = speed * B * N * 1.5;
+
+        readout = {
+          title: "Faraday's Law of Induction (Dynamo)",
+          subtitle: "Φ = B A sin θ · ε = −N ΔΦ/Δt",
+          rows: [
+            ["Turns N", N, "gold"],
+            ["Coil area A", "6.0 m²"],
+            ["Max flux Φ₀", `${flux.toFixed(2)} Wb`],
+            ["Peak e.m.f. ε₀", `${peak.toFixed(2)} V`, peak > 0.05 ? "good" : "bad"],
+            ["Rotation speed", speed < 0.05 ? "Stopped" : `${speed.toFixed(1)} rev/s`],
+            ["Output frequency", `${speed.toFixed(1)} Hz`],
+            ["Active loads", "Bulb + Center-Zero Galvanometer"],
+          ],
+          note: speed < 0.05
+            ? "Coil stationary: flux never changes, so induced e.m.f. is zero. Motion or changing flux is required."
+            : "As the coil rotates, it cuts magnetic field lines at varying angles, producing a smooth sinusoidal AC wave and pulsing the demonstration bulb.",
+          noteTone: speed < 0.05 ? "bad" : "good",
+        };
+
+        legend = {
+          title: "Generator Components Key",
+          items: [
+            { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Magnetic field source" },
+            { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Magnetic field sink" },
+            { color: "#38bdf8", shape: "dash", label: "Magnetic Field Lines B", note: "Flux density vector lines" },
+            { color: "#ea580c", shape: "line", label: "Copper Coil Winding", note: "Rotates to cut magnetic field" },
+            { color: "#fef08a", shape: "dot", label: "Demonstration Light Bulb", note: "Flashes at each AC voltage crest" },
+            { color: "#334155", shape: "square", label: "Center-Zero Galvanometer", note: "Needle tracks instantaneous e.m.f." },
+          ],
+        };
+      }
       break;
     }
 
@@ -562,6 +649,7 @@ function renderTopicDetailsReadout(topic, params) {
           ["Range with Drag", `${estRange.toFixed(1)} m`, "good"],
           ["Ideal Range (No Drag)", `${idealRange.toFixed(1)} m`],
           ["Apex Height", `${estApex.toFixed(1)} m`],
+          ["Apex Distance", `${(estRange * (drag > 0 ? 0.44 : 0.50)).toFixed(1)} m`],
           ["Ideal Flight Time", `${idealTime.toFixed(2)} s`],
         ],
         note: drag > 0.005
@@ -576,7 +664,9 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#34d399", shape: "line", label: "Trajectory with Drag", note: "Realistic asymmetric flight path" },
           { color: "#64748b", shape: "dash", label: "Ideal Parabola (No Drag)", note: "Theoretical symmetric vacuum path" },
           { color: "#38bdf8", shape: "line", label: "Velocity Vector v", note: "Instantaneous tangential velocity" },
-          { color: "#fb7185", shape: "line", label: "Weight Vector W", note: "Constant downward gravitational force" },
+          { color: "#fb7185", shape: "line", label: "Weight Vector W", note: "Constant downward gravitational force (m·g)" },
+          { color: "#fbbf24", shape: "line", label: "Drag Force F_drag", note: "Quadratic air resistance (−k|v|v)" },
+          { color: "#34d399", shape: "line", label: "Resultant Force F_net", note: "Vector sum of weight and air drag (W + F_drag)" },
           { color: "#fbbf24", shape: "dot", label: "Projectile Mass m", note: `${mass} kg launch mass` },
         ],
       };
@@ -2141,17 +2231,19 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
             </div>
 
             {/* ─── Universal Animation Speed Slider (Prominently Right Below Tab Switcher) ─── */}
-            <div className="mb-3 rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 shadow-inner">
-              <Slider
-                label="⚡ Animation Speed"
-                value={typeof params?.speed === "number" ? params.speed : 1.0}
-                onChange={(val) => setParam("speed", val)}
-                min={0.1}
-                max={3.0}
-                step={0.1}
-                format={(v) => (v === 0 ? "paused" : `${Number(v).toFixed(1)}×`)}
-              />
-            </div>
+            {!topic?.hideSpeedSlider && !params?.hideSpeedSlider && (
+              <div className="mb-3 rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 shadow-inner">
+                <Slider
+                  label="⚡ Animation Speed"
+                  value={typeof params?.speed === "number" ? params.speed : 1.0}
+                  onChange={(val) => setParam("speed", val)}
+                  min={0.1}
+                  max={3.0}
+                  step={0.1}
+                  format={(v) => (v === 0 ? "paused" : `${Number(v).toFixed(1)}×`)}
+                />
+              </div>
+            )}
 
             {activeTab === "controls" ? (
               <div className="space-y-3">

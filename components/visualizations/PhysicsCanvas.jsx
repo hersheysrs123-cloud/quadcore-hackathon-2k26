@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Grid, Line, RoundedBox } from "@react-three/drei";
+import { Grid, Html, Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
   AtomSphere,
@@ -318,7 +318,9 @@ export function RefractionScene({ params = {} }) {
         <meshStandardMaterial
           color={outerColour}
           transparent
-          opacity={clamp((n1 - 1) * 0.16, 0.012, 0.24)}
+          opacity={clamp(0.12 + (n1 - 1) * 0.16, 0.12, 0.35)}
+          roughness={0.1}
+          metalness={0.02}
           depthWrite={false}
           side={THREE.DoubleSide}
         />
@@ -328,7 +330,9 @@ export function RefractionScene({ params = {} }) {
         <meshStandardMaterial
           color={outerColour}
           transparent
-          opacity={clamp((n1 - 1) * 0.16, 0.012, 0.24)}
+          opacity={clamp(0.12 + (n1 - 1) * 0.16, 0.12, 0.35)}
+          roughness={0.1}
+          metalness={0.02}
           depthWrite={false}
           side={THREE.DoubleSide}
         />
@@ -340,11 +344,11 @@ export function RefractionScene({ params = {} }) {
         <meshStandardMaterial
           color={blockColour}
           transparent
-          opacity={clamp(0.1 + (n2 - 1) * 0.2, 0.06, 0.5)}
+          opacity={clamp(0.16 + (n2 - 1) * 0.22, 0.16, 0.58)}
           roughness={0.05}
           metalness={0.05}
           emissive={blockColour}
-          emissiveIntensity={0.12}
+          emissiveIntensity={0.16}
           depthWrite={false}
           side={THREE.DoubleSide}
         />
@@ -352,7 +356,7 @@ export function RefractionScene({ params = {} }) {
 
       {/* Hard edges — the single clearest cue that this is a solid block. */}
       <lineSegments geometry={boxEdgesGeo} renderOrder={-1}>
-        <lineBasicMaterial color={blockColour} transparent opacity={0.85} />
+        <lineBasicMaterial color={blockColour} transparent opacity={0.92} />
       </lineSegments>
 
       {/* The two refracting surfaces. */}
@@ -364,9 +368,9 @@ export function RefractionScene({ params = {} }) {
             [halfW, y, 0],
           ]}
           color={blockColour}
-          lineWidth={2.4}
+          lineWidth={2.8}
           transparent
-          opacity={0.9}
+          opacity={0.95}
         />
       ))}
 
@@ -1191,7 +1195,9 @@ export function MotorEffectScene({ params = {} }) {
     reverseField = false,
     showFieldLines = true,
     animate = true,
+    speed = 1.0,
   } = params || {};
+  const animSpeed = typeof speed === "number" && !isNaN(speed) ? speed : 1.0;
 
   // B runs from the N pole to the S pole; I runs along the second finger.
   const bSign = reverseField ? -1 : 1;
@@ -1265,7 +1271,7 @@ export function MotorEffectScene({ params = {} }) {
         dir={fieldDir}
         length={AXIS}
         color={PALETTE.sky}
-        speed={(0.22 + field * 0.34) * (params.speed ?? 1)}
+        speed={(0.22 + field * 0.34) * animSpeed}
         count={4}
         running={animate}
       />
@@ -1284,7 +1290,7 @@ export function MotorEffectScene({ params = {} }) {
         dir={currentDir}
         length={AXIS}
         color={PALETTE.gold}
-        speed={(0.24 + current * 0.42) * (params.speed ?? 1)}
+        speed={(0.24 + current * 0.42) * animSpeed}
         count={5}
         running={animate}
       />
@@ -1305,7 +1311,7 @@ export function MotorEffectScene({ params = {} }) {
             dir={forceDir}
             length={clamp(1.6 + force * 1.3, 1.6, AXIS)}
             color={PALETTE.emerald}
-            speed={(0.2 + force * 0.4) * (params.speed ?? 1)}
+            speed={(0.2 + force * 0.4) * animSpeed}
             count={3}
             running={animate}
           />
@@ -1341,7 +1347,7 @@ export function MotorEffectScene({ params = {} }) {
                 dir={fieldDir}
                 length={14}
                 color={PALETTE.sky}
-                speed={0.1 + field * 0.16}
+                speed={(0.1 + field * 0.16) * animSpeed}
                 count={3}
                 size={0.09}
                 running={animate}
@@ -1408,318 +1414,615 @@ export function MotorEffectScene({ params = {} }) {
     </SceneCanvas>
   );
 }
-// ═══ 3 · Ray optics — convex & concave lenses ════════════════════════
+// ═══ 3 · Ray optics — lenses & curved mirrors ═════════════════════════
 
-function lensProfile(type, radius, thickness, segments = 26) {
+function lensProfile(type, radius = 1.65, thickness = 0.38, segments = 32) {
   const pts = [];
   if (type === "convex") {
     for (let i = 0; i <= segments; i += 1) {
       const t = (i / segments) * Math.PI;
-      pts.push(new THREE.Vector2(radius * Math.sin(t), thickness * Math.cos(t)));
+      pts.push(new THREE.Vector2(radius * Math.sin(t), (thickness / 2) * Math.cos(t)));
     }
   } else {
     // Thin at the axis, thick at the rim.
-    const centre = thickness * 0.2;
+    const centre = thickness * 0.25;
     for (let i = 0; i <= segments; i += 1) {
       const u = i / segments;
-      pts.push(new THREE.Vector2(radius * u, centre + (thickness - centre) * u * u));
+      pts.push(new THREE.Vector2(radius * u, (centre + (thickness - centre) * u * u) / 2));
     }
     for (let i = segments; i >= 0; i -= 1) {
       const u = i / segments;
-      pts.push(new THREE.Vector2(radius * u, -(centre + (thickness - centre) * u * u)));
+      pts.push(new THREE.Vector2(radius * u, -(centre + (thickness - centre) * u * u) / 2));
     }
   }
   return pts;
 }
 
-function Lens({ type }) {
-  const geometry = useMemo(() => {
-    const profile = lensProfile(type, 1.65, 0.42);
+function mirrorProfile(type, radius = 1.65, sagitta = 0.16, thickness = 0.05, segments = 36) {
+  const pts = [];
+  const isConcave = type.includes("concave");
+  if (isConcave) {
+    // Concave mirror: bowl curves away from light source into +x
+    // Rim at r = radius is at axial = 0; center at r = 0 is at axial = sagitta (0.16)
+    for (let i = 0; i <= segments; i += 1) {
+      const u = i / segments;
+      const r = radius * u;
+      const axial = sagitta * (1 - u * u);
+      pts.push(new THREE.Vector2(r, axial));
+    }
+    // Back face
+    for (let i = segments; i >= 0; i -= 1) {
+      const u = i / segments;
+      const r = radius * u;
+      const axial = sagitta * (1 - u * u) + thickness;
+      pts.push(new THREE.Vector2(r, axial));
+    }
+  } else {
+    // Convex mirror: dome bulges toward light source into -x
+    // Apex at r = 0 is at axial = -0.04; rim at r = radius is at axial = +0.12
+    for (let i = 0; i <= segments; i += 1) {
+      const u = i / segments;
+      const r = radius * u;
+      const axial = -0.04 + sagitta * u * u;
+      pts.push(new THREE.Vector2(r, axial));
+    }
+    // Back face
+    for (let i = segments; i >= 0; i -= 1) {
+      const u = i / segments;
+      const r = radius * u;
+      const axial = -0.04 + sagitta * u * u + thickness;
+      pts.push(new THREE.Vector2(r, axial));
+    }
+  }
+  return pts;
+}
+
+function OpticalRail({ span = 10 }) {
+  const railLength = Math.max(14, (span + 2.5) * 2);
+  return (
+    <group position={[0, -2.65, 0]}>
+      {/* Bench base track — bright anodized aluminum */}
+      <mesh position={[0, -0.09, 0]}>
+        <boxGeometry args={[railLength, 0.16, 0.6]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.35} metalness={0.55} />
+      </mesh>
+      {/* Center channel inlay */}
+      <mesh position={[0, 0.005, 0]}>
+        <boxGeometry args={[railLength, 0.02, 0.22]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.7} />
+      </mesh>
+      {/* Dual chrome guide rails */}
+      <mesh position={[0, 0.04, -0.16]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.035, 0.035, railLength, 16]} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.1} metalness={0.95} />
+      </mesh>
+      <mesh position={[0, 0.04, 0.16]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.035, 0.035, railLength, 16]} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.1} metalness={0.95} />
+      </mesh>
+      {/* Central zero reference mark */}
+      <mesh position={[0, 0.02, 0.32]}>
+        <boxGeometry args={[0.06, 0.12, 0.02]} />
+        <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+function OpticalCarrier({ x = 0, color = "#cbd5e1" }) {
+  return (
+    <group position={[x, -2.65, 0]}>
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[0.42, 0.2, 0.64]} />
+        <meshStandardMaterial color={color} roughness={0.3} metalness={0.7} />
+      </mesh>
+      <mesh position={[0, 0.1, 0.36]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.1, 16]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.15} metalness={0.95} />
+      </mesh>
+      <mesh position={[0, 0.3, 0]}>
+        <cylinderGeometry args={[0.08, 0.09, 0.22, 16]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.25} metalness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+function DetailedOptic({ type }) {
+  const isMirror = type.includes("mirror");
+  const isConvex = type.startsWith("convex");
+  const isConcave = type.startsWith("concave");
+
+  const lensGeo = useMemo(() => {
+    if (isMirror) return null;
+    const profile = lensProfile(isConvex ? "convex" : "concave", 1.65, 0.38);
     const geo = new THREE.LatheGeometry(profile, 48);
     geo.computeVertexNormals();
     return geo;
-  }, [type]);
+  }, [isMirror, isConvex]);
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  const mirrorGeo = useMemo(() => {
+    if (!isMirror) return null;
+    const profile = mirrorProfile(type, 1.65, 0.16, 0.05, 48);
+    const geo = new THREE.LatheGeometry(profile, 48);
+    geo.computeVertexNormals();
+    return geo;
+  }, [isMirror, type]);
+
+  useEffect(() => () => {
+    lensGeo?.dispose();
+    mirrorGeo?.dispose();
+  }, [lensGeo, mirrorGeo]);
+
+  // Casing geometry dimensions calibrated for exact flush seating:
+  const bezelLength = !isMirror
+    ? (isConvex ? 0.28 : 0.40)
+    : (isConcave ? 0.24 : 0.14);
+  const bezelCenter = !isMirror
+    ? 0
+    : (isConcave ? 0.10 : 0.12);
+  const backplateX = isMirror
+    ? (isConcave ? 0.215 : 0.185)
+    : null;
 
   return (
-    // The lathe spins about Y; a quarter turn puts its axis on the optical axis.
-    <mesh geometry={geometry} rotation={[0, 0, -Math.PI / 2]}>
-      <meshStandardMaterial
-        color={PALETTE.sky}
-        transparent
-        opacity={0.26}
-        roughness={0.05}
-        metalness={0.1}
-        emissive={PALETTE.sky}
-        emissiveIntensity={0.22}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
-    </mesh>
+    <group>
+      {/* 3D Optical Glass Element (Lenses) */}
+      {!isMirror && lensGeo && (
+        <mesh geometry={lensGeo} rotation={[0, 0, -Math.PI / 2]}>
+          <meshStandardMaterial
+            color="#a5f3fc"
+            transparent
+            opacity={0.34}
+            roughness={0.05}
+            metalness={0.12}
+            emissive="#38bdf8"
+            emissiveIntensity={0.25}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
+      {/* 3D Curved Mirror (Reflective Face) */}
+      {isMirror && mirrorGeo && (
+        <group rotation={[0, 0, -Math.PI / 2]}>
+          <mesh geometry={mirrorGeo}>
+            <meshStandardMaterial
+              color="#ffffff"
+              roughness={0.02}
+              metalness={0.98}
+              emissive="#e0f2fe"
+              emissiveIntensity={0.15}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+      )}
+
+      {/* Mirror Rear Protective Backplate (snugly covers back of casing) */}
+      {isMirror && backplateX !== null && (
+        <mesh position={[backplateX, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <circleGeometry args={[1.68, 48]} />
+          <meshStandardMaterial color="#64748b" roughness={0.35} metalness={0.65} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* Bright Precision Retaining Rim Bezel Ring */}
+      <mesh position={[bezelCenter, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[1.70, 1.70, bezelLength, 48, 1, true]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.75} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Front Bezel Lip Holding Rim */}
+      <mesh position={[bezelCenter - bezelLength / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <ringGeometry args={[1.62, 1.70, 48]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.2} metalness={0.8} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Back Bezel Lip */}
+      <mesh position={[bezelCenter + bezelLength / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <ringGeometry args={[1.62, 1.70, 48]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.2} metalness={0.8} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Knurled Top Set Screw */}
+      <mesh position={[bezelCenter, 1.78, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.16, 16]} />
+        <meshStandardMaterial color="#fbbf24" roughness={0.25} metalness={0.9} emissive="#f59e0b" emissiveIntensity={0.2} />
+      </mesh>
+
+      {/* Stainless Steel Vertical Optical Post */}
+      <mesh position={[bezelCenter, -1.95, 0]}>
+        <cylinderGeometry args={[0.055, 0.055, 1.2, 16]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.15} metalness={0.95} />
+      </mesh>
+
+      {/* Bench saddle carriage */}
+      <OpticalCarrier x={bezelCenter} color="#cbd5e1" />
+    </group>
   );
 }
 
 export function LensOpticsScene({ params = {} }) {
-  const {
-    lensType = "convex",
-    focal = 3.0,
-    objectDistance = 5.0,
-    showConstruction = true,
-  } = params || {};
+  const type = params.opticsType || (params.lensType === "concave" ? "concave_lens" : params.lensType === "convex" ? "convex_lens" : "convex_lens");
+  const isMirror = type.includes("mirror");
+  const isConverging = type === "convex_lens" || type === "concave_mirror";
+  const focal = typeof params.focal === "number" ? params.focal : 2.5;
+  const objectDistance = typeof params.objectDistance === "number" ? params.objectDistance : 5.0;
+  const objectHeight = typeof params.objectHeight === "number" ? params.objectHeight : 1.5;
+  const showConstruction = params.showConstruction !== false;
+  const showRays = params.showRays !== false;
+  const showLabels = params.showLabels !== false;
 
-  const isConvex = lensType === "convex";
-  const f = isConvex ? focal : -focal;
   const u = objectDistance;
-  const h = 1.15;
+  const h = objectHeight;
+  const f = focal;
 
-  // Thin-lens equation, real-is-positive: 1/v = 1/f − 1/u.
-  const invV = 1 / f - 1 / u;
-  const atInfinity = Math.abs(invV) < 0.035;
-  // v and m are the physics; they are reported as they come out of the
-  // equation. Only the *drawing* is bounded — clamping v and then printing
-  // the clamped number, as this used to, quietly reports a wrong image
-  // distance for every object just outside the focal point.
-  const v = atInfinity ? Infinity : 1 / invV;
-  const magnification = atInfinity ? Infinity : Math.abs(v / u);
-  const imageHeight = atInfinity ? 0 : -h * (v / u);
-  const real = !atInfinity && v > 0;
+  // Thin optics equations (real-is-positive convention):
+  // Lenses: 1/v - 1/u = 1/f (converging: f > 0, diverging: f < 0)
+  // Mirrors: 1/v + 1/u = 1/f (converging: f > 0, diverging: f < 0)
+  const atInfinity = isConverging && Math.abs(u - f) < 0.035;
+
+  let v = 0;
+  let real = false;
+  let m = 0;
+  let imgX = 0;
+  let imageHeight = 0;
+
+  if (isConverging) {
+    if (!atInfinity) {
+      if (u > f) {
+        v = (f * u) / (u - f);
+        real = true;
+        m = v / u;
+        imageHeight = -h * m; // Inverted
+        imgX = isMirror ? -v : v; // Real mirror image is in front (x < 0); real lens image is behind (x > 0)
+      } else {
+        v = (f * u) / (f - u);
+        real = false;
+        m = v / u;
+        imageHeight = h * m; // Upright
+        imgX = isMirror ? v : -v; // Virtual mirror image is behind (x > 0); virtual lens image is on object side (x < 0)
+      }
+    }
+  } else {
+    // Diverging optical element: Concave Lens or Convex Mirror
+    v = (f * u) / (u + f);
+    real = false;
+    m = v / u;
+    imageHeight = h * m; // Upright
+    imgX = isMirror ? v : -v; // Virtual mirror image behind (x > 0); virtual lens image on object side (x < 0)
+  }
 
   const objectTop = [-u, h, 0];
+  const span = atInfinity ? u + 2 * f : Math.max(u, Math.abs(v), 2 * f);
+  const fit = clamp(9.5 / (span + 2.5), 0.2, 1);
+  const FAR = span + 3.5;
 
-  // Everything is drawn at true scale, then the whole diagram is scaled to
-  // fit the viewport — so pushing the object toward F walks the image out to
-  // the edge of the frame instead of off the side of it.
-  const span = atInfinity ? u + 2 * focal : Math.max(u, Math.abs(v), 2 * focal);
-  const fit = clamp(9.5 / (span + 2.4), 0.22, 1);
-  // Rays must outrun the image, or a distant real image sits past their ends.
-  const FAR = span + 3;
-
-  // Ray 1: parallel in, then along the line through the focal point.
+  // Ray 1: Parallel in from object tip to optical surface at [0, h, 0]
   const hitParallel = [0, h, 0];
-  const dirParallel = useMemo(() => {
-    const d = new THREE.Vector3(f - 0, 0 - h, 0);
-    if (f < 0) d.negate();
-    return d.normalize();
-  }, [f, h]);
-  const parallelEnd = [
-    hitParallel[0] + dirParallel.x * FAR,
-    hitParallel[1] + dirParallel.y * FAR,
-    0,
-  ];
+  let parallelRayEnd = [FAR, h, 0];
+  let parallelVirtualPoints = null;
 
-  // Ray 2: straight through the optical centre, undeviated.
-  const dirCentre = useMemo(
-    () => new THREE.Vector3(u, -h, 0).normalize(),
-    [u, h],
-  );
-  const centreEnd = [dirCentre.x * FAR, dirCentre.y * FAR, 0];
+  if (isMirror) {
+    if (isConverging) {
+      // Concave Mirror: reflects through focus [-f, 0, 0] into x < 0
+      parallelRayEnd = [-FAR, h - (h / f) * FAR, 0];
+      if (!real && !atInfinity) {
+        parallelVirtualPoints = [hitParallel, [imgX, imageHeight, 0]];
+      }
+    } else {
+      // Convex Mirror: reflects outward away from virtual focus [+f, 0, 0] into x < 0
+      parallelRayEnd = [-FAR, h + (h / f) * FAR, 0];
+      parallelVirtualPoints = [hitParallel, [f, 0, 0]];
+    }
+  } else {
+    // Lenses
+    if (isConverging) {
+      // Convex Lens: refracts through focus [+f, 0, 0] into x > 0
+      parallelRayEnd = [FAR, h - (h / f) * FAR, 0];
+      if (!real && !atInfinity) {
+        parallelVirtualPoints = [hitParallel, [imgX, imageHeight, 0]];
+      }
+    } else {
+      // Concave Lens: refracts diverging away from [-f, 0, 0] into x > 0
+      parallelRayEnd = [FAR, h + (h / f) * FAR, 0];
+      parallelVirtualPoints = [hitParallel, [-f, 0, 0]];
+    }
+  }
 
-  // Ray 3: the one aimed at the focal point, which emerges parallel to the
-  // axis. Solving the line through the object tip and (f, 0) at the lens
-  // plane gives the height it leaves at — and that height is exactly the
-  // image height, which is the whole reason the construction works.
-  const focalRayHeight = atInfinity ? 0 : (-h * f) / (u - f);
+  // Ray 2: Central / Pole Ray
+  let ray2End = [FAR, 0, 0];
+  let ray2VirtualPoints = null;
+
+  if (isMirror) {
+    // Mirror: reflects symmetrically at vertex [0, 0, 0]
+    ray2End = [-FAR, -(h / u) * FAR, 0];
+    if (!real && !atInfinity) {
+      ray2VirtualPoints = [[0, 0, 0], [imgX, imageHeight, 0]];
+    }
+  } else {
+    // Lens: straight through optical centre [0, 0, 0] undeviated
+    ray2End = [FAR, -(h / u) * FAR, 0];
+    if (!real && !atInfinity) {
+      ray2VirtualPoints = [[0, 0, 0], [imgX, imageHeight, 0]];
+    }
+  }
+
+  // Ray 3: Focal Ray
+  const ray3HitY = atInfinity ? 0 : imageHeight;
+  const ray3ReflectedEnd = isMirror ? [-FAR, ray3HitY, 0] : [FAR, ray3HitY, 0];
+  const ray3VirtualPoints = (!real && !atInfinity) ? [[0, ray3HitY, 0], [imgX, ray3HitY, 0]] : null;
   const showThirdRay = !atInfinity && Math.abs(u - f) > 1e-3;
 
   const nature = atInfinity
-    ? "No image — the rays leave parallel"
+    ? "No image — rays leave parallel (spotlight)"
     : `${real ? "Real" : "Virtual"}, ${imageHeight < 0 ? "inverted" : "upright"}, ${
-        magnification > 1.02 ? "magnified" : magnification < 0.98 ? "diminished" : "same size"
+        m > 1.02 ? "magnified" : m < 0.98 ? "diminished" : "same size"
       }`;
 
+  const titleMap = {
+    convex_lens: "Convex Lens (Converging)",
+    concave_lens: "Concave Lens (Diverging)",
+    concave_mirror: "Concave Mirror (Converging)",
+    convex_mirror: "Convex Mirror (Diverging)",
+  };
+
   return (
-    <SceneCanvas camera={{ position: [0.5, 3.5, 12], fov: 45 }}>
-     <group scale={fit}>
-      {/* Principal axis and the lens plane. */}
-      <Line
-        points={[
-          [-(span + 2), 0, 0],
-          [span + 2, 0, 0],
-        ]}
-        color={PALETTE.line}
-        lineWidth={1.4}
-      />
-      <Line
-        points={[
-          [0, -2.6, 0],
-          [0, 2.6, 0],
-        ]}
-        color="#5b6472"
-        lineWidth={1}
-        dashed
-        dashSize={0.2}
-        gapSize={0.16}
-      />
-      <Lens type={lensType} />
+    <SceneCanvas camera={{ position: [0.5, 3.5, 12], fov: 45 }} lights={{ ambient: 0.85, keyLight: 1.8, rim: "#93c5fd" }}>
+      <group scale={fit}>
+        {/* Optical Bench Base & Guide Rails */}
+        <OpticalRail span={span} />
 
-      {/* Focal and 2F markers. */}
-      {[-2, -1, 1, 2].map((k) => (
-        <group key={k} position={[k * focal, 0, 0]}>
-          <AtomSphere
-            position={[0, 0, 0]}
-            radius={0.09}
-            color={Math.abs(k) === 1 ? PALETTE.gold : "#5b6472"}
-            emissiveIntensity={1.2}
-          />
-          <SceneLabel position={[0, -0.45, 0]} tone="text-ink-500">
-            {Math.abs(k) === 1 ? "F" : "2F"}
-          </SceneLabel>
-        </group>
-      ))}
-
-      {/* Object. */}
-      <VectorArrow
-        from={[-u, 0, 0]}
-        to={objectTop}
-        color={PALETTE.gold}
-        label="object"
-        labelOffset={0.3}
-      />
-
-      {/* Ray 1 — parallel to the axis, then refracted. */}
-      <Line points={[objectTop, hitParallel]} color={PALETTE.emerald} lineWidth={2.2} />
-      <Line points={[hitParallel, parallelEnd]} color={PALETTE.emerald} lineWidth={2.2} />
-
-      {/* Ray 2 — through the optical centre. */}
-      <Line points={[objectTop, centreEnd]} color={PALETTE.violet} lineWidth={2.2} />
-
-      {/* Ray 3 — aimed at F, emerges parallel to the axis. */}
-      {showConstruction && showThirdRay && (
-        <>
-          <Line
-            points={[objectTop, [0, focalRayHeight, 0]]}
-            color={PALETTE.sky}
-            lineWidth={2}
-          />
-          <Line
-            points={[
-              [0, focalRayHeight, 0],
-              [FAR, focalRayHeight, 0],
-            ]}
-            color={PALETTE.sky}
-            lineWidth={2}
-          />
-        </>
-      )}
-
-      {/* A real image can be caught on a screen — so show the screen. */}
-      {real && (
-        <group position={[v, 0, 0]}>
-          <mesh>
-            <boxGeometry args={[0.09, Math.max(2.4, Math.abs(imageHeight) * 2.4), 2.6]} />
-            <meshStandardMaterial
-              color={PALETTE.bone}
-              transparent
-              opacity={0.13}
-              roughness={0.9}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <SceneLabel position={[0, -Math.max(1.4, Math.abs(imageHeight) * 1.4) - 0.4, 0]} tone="text-ink-400">
-            screen
-          </SceneLabel>
-        </group>
-      )}
-
-      {/* Back-extensions: how a virtual image is located. */}
-      {showConstruction && !real && !atInfinity && (
-        <>
-          <Line
-            points={[hitParallel, [v, imageHeight, 0]]}
-            color={PALETTE.emerald}
-            lineWidth={1.4}
-            transparent
-            opacity={0.5}
-            dashed
-            dashSize={0.22}
-            gapSize={0.18}
-          />
-          <Line
-            points={[
-              [0, 0, 0],
-              [v, imageHeight, 0],
-            ]}
-            color={PALETTE.violet}
-            lineWidth={1.4}
-            transparent
-            opacity={0.5}
-            dashed
-            dashSize={0.22}
-            gapSize={0.18}
-          />
-        </>
-      )}
-
-      {/* Image. */}
-      {!atInfinity && (
-        <VectorArrow
-          from={[v, 0, 0]}
-          to={[v, imageHeight, 0]}
-          color={real ? PALETTE.emerald : PALETTE.violet}
-          opacity={real ? 1 : 0.55}
-          label={real ? "real image" : "virtual image"}
-          labelOffset={imageHeight < 0 ? -0.32 : 0.32}
+        {/* Principal optical axis */}
+        <Line
+          points={[
+            [-(span + 2.5), 0, 0],
+            [span + 2.5, 0, 0],
+          ]}
+          color={PALETTE.line}
+          lineWidth={1.4}
         />
-      )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={isConvex ? "Converging lens" : "Diverging lens"}
-        subtitle="1/v = 1/f − 1/u  ·  m = |v ÷ u|"
-        rows={[
-          ["Object u", `${u.toFixed(1)} cm`],
-          ["Focal length f", `${f.toFixed(1)} cm`, "gold"],
-          ["Image v", atInfinity ? "∞" : `${v.toFixed(1)} cm`, real ? "good" : "bad"],
-          ["Magnification m", atInfinity ? "∞" : `${magnification.toFixed(2)}×`],
-          ["Nature", real ? "real" : atInfinity ? "none" : "virtual", real ? "good" : "bad"],
-          ["Orientation", atInfinity ? "—" : imageHeight < 0 ? "inverted" : "upright"],
-          ["u compared with f", u > 2 * focal ? "beyond 2F" : u > focal ? "between F and 2F" : "inside F"],
-        ]}
-        note={
-          atInfinity
-            ? "The object is at the focal point, so the refracted rays leave exactly parallel. They never meet — this is the collimator arrangement used in a spotlight."
-            : nature
-        }
-        noteTone={atInfinity ? "warn" : real ? "good" : "neutral"}
-      />
+        {/* Optical plane dashed line */}
+        <Line
+          points={[
+            [0, -2.5, 0],
+            [0, 2.5, 0],
+          ]}
+          color="#5b6472"
+          lineWidth={1}
+          dashed
+          dashSize={0.2}
+          gapSize={0.16}
+        />
 
-      <SceneLegend
-        title="Ray construction"
-        items={[
-          {
-            color: PALETTE.gold,
-            label: "Object",
-            note: "an upright arrow of fixed height",
-          },
-          {
-            color: PALETTE.emerald,
-            shape: "line",
-            label: "Ray 1 — parallel in",
-            note: isConvex ? "refracts through F" : "refracts as if from F",
-          },
-          {
-            color: PALETTE.violet,
-            shape: "line",
-            label: "Ray 2 — through the centre",
-            note: "passes straight on, undeviated",
-          },
-          {
-            color: PALETTE.sky,
-            shape: "line",
-            label: "Ray 3 — aimed at F",
-            note: showConstruction ? "emerges parallel to the axis" : "turn on construction rays",
-          },
-          {
-            color: real ? PALETTE.emerald : PALETTE.violet,
-            label: real ? "Real image" : "Virtual image",
-            note: real
-              ? "rays truly meet — it can be caught on a screen"
-              : "only the dashed back-extensions meet",
-          },
-        ]}
-      />
-     </group>
+        {/* 3D Optical Element (Detailed Lens or Mirror Assembly) */}
+        <DetailedOptic type={type} />
+
+        {/* Focal and Center of Curvature (2F) markers */}
+        {[-2, -1, 1, 2].map((k) => {
+          let labelText = Math.abs(k) === 1 ? "F" : "2F";
+          if (isMirror) {
+            if (isConverging) {
+              // Concave mirror: F is at -f, C is at -2f
+              labelText = k === -1 ? "F" : k === -2 ? "C" : k === 1 ? "F'" : "C'";
+            } else {
+              // Convex mirror: F is behind at +f, C is at +2f
+              labelText = k === 1 ? "F" : k === 2 ? "C" : k === -1 ? "F'" : "C'";
+            }
+          } else {
+            labelText = k < 0 ? (k === -1 ? "F" : "2F") : (k === 1 ? "F'" : "2F'");
+          }
+
+          return (
+            <group key={k} position={[k * f, 0, 0]}>
+              <AtomSphere
+                position={[0, 0, 0]}
+                radius={0.08}
+                color={Math.abs(k) === 1 ? PALETTE.gold : "#64748b"}
+                emissiveIntensity={1.2}
+              />
+              {showLabels && (
+                <SceneLabel position={[0, -0.42, 0]} tone="text-ink-500">
+                  {labelText}
+                </SceneLabel>
+              )}
+            </group>
+          );
+        })}
+
+        {/* Object Stand & Carrier */}
+        <mesh position={[-u, -1.35, 0]}>
+          <cylinderGeometry args={[0.04, 0.04, 2.6, 16]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.15} metalness={0.95} />
+        </mesh>
+        <OpticalCarrier x={-u} color="#cbd5e1" />
+
+        {/* Object Arrow */}
+        <VectorArrow
+          from={[-u, 0, 0]}
+          to={objectTop}
+          color={PALETTE.gold}
+          label={showLabels ? "object" : undefined}
+          labelOffset={0.3}
+        />
+
+        {/* ─── Principal Rays ─── */}
+        {showRays && (
+          <>
+            {/* Ray 1: Parallel to axis, then focus refraction/reflection */}
+            <Line points={[objectTop, hitParallel]} color={PALETTE.emerald} lineWidth={2.4} />
+            <Line points={[hitParallel, parallelRayEnd]} color={PALETTE.emerald} lineWidth={2.4} />
+
+            {/* Ray 2: Optical Center (Lens) / Vertex Pole Reflection (Mirror) */}
+            {isMirror ? (
+              <>
+                <Line points={[objectTop, [0, 0, 0]]} color={PALETTE.sky} lineWidth={2.4} />
+                <Line points={[[0, 0, 0], ray2End]} color={PALETTE.sky} lineWidth={2.4} />
+              </>
+            ) : (
+              <Line points={[objectTop, ray2End]} color={PALETTE.sky} lineWidth={2.4} />
+            )}
+
+            {/* Ray 3: Focal Ray */}
+            {showConstruction && showThirdRay && (
+              <>
+                <Line points={[objectTop, [0, ray3HitY, 0]]} color={PALETTE.violet} lineWidth={2.2} />
+                <Line points={[[0, ray3HitY, 0], ray3ReflectedEnd]} color={PALETTE.violet} lineWidth={2.2} />
+              </>
+            )}
+
+            {/* Virtual ray back-extensions */}
+            {showConstruction && !real && !atInfinity && (
+              <>
+                {parallelVirtualPoints && (
+                  <Line
+                    points={parallelVirtualPoints}
+                    color={PALETTE.emerald}
+                    lineWidth={1.5}
+                    transparent
+                    opacity={0.6}
+                    dashed
+                    dashSize={0.22}
+                    gapSize={0.16}
+                  />
+                )}
+                {ray2VirtualPoints && (
+                  <Line
+                    points={ray2VirtualPoints}
+                    color={PALETTE.sky}
+                    lineWidth={1.5}
+                    transparent
+                    opacity={0.6}
+                    dashed
+                    dashSize={0.22}
+                    gapSize={0.16}
+                  />
+                )}
+                {ray3VirtualPoints && (
+                  <Line
+                    points={ray3VirtualPoints}
+                    color={PALETTE.violet}
+                    lineWidth={1.5}
+                    transparent
+                    opacity={0.6}
+                    dashed
+                    dashSize={0.22}
+                    gapSize={0.16}
+                  />
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* Real image projection screen */}
+        {real && (
+          <group position={[imgX, 0, 0]}>
+            <mesh position={[0, -1.8, 0]}>
+              <cylinderGeometry args={[0.04, 0.04, 1.7, 16]} />
+              <meshStandardMaterial color="#f8fafc" roughness={0.15} metalness={0.95} />
+            </mesh>
+            <OpticalCarrier x={0} color="#cbd5e1" />
+            <mesh position={[0, 0, 0]}>
+              <boxGeometry args={[0.08, Math.max(2.4, Math.abs(imageHeight) * 2.2), 2.2]} />
+              <meshStandardMaterial
+                color="#f8fafc"
+                transparent
+                opacity={0.25}
+                roughness={0.8}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+            {showLabels && (
+              <SceneLabel position={[0, -Math.max(1.4, Math.abs(imageHeight) * 1.2) - 0.35, 0]} tone="text-ink-400">
+                screen
+              </SceneLabel>
+            )}
+          </group>
+        )}
+
+        {/* Image Arrow */}
+        {!atInfinity && (
+          <VectorArrow
+            from={[imgX, 0, 0]}
+            to={[imgX, imageHeight, 0]}
+            color={real ? PALETTE.emerald : PALETTE.rose}
+            opacity={real ? 1 : 0.7}
+            label={showLabels ? (real ? "real image" : "virtual image") : undefined}
+            labelOffset={imageHeight < 0 ? -0.32 : 0.32}
+          />
+        )}
+
+        <SceneReadout
+          hidden={params?.hideOverlayReadout}
+          title={titleMap[type] || "Ray Optics"}
+          subtitle={isMirror ? "1/v + 1/u = 1/f  ·  m = |v ÷ u|" : "1/v − 1/u = 1/f  ·  m = |v ÷ u|"}
+          rows={[
+            ["Object distance u", `${u.toFixed(1)} cm`],
+            ["Object height h", `${h.toFixed(1)} cm`],
+            ["Focal length f", `${f.toFixed(1)} cm`, "gold"],
+            ["Image distance v", atInfinity ? "∞" : `${Math.abs(v).toFixed(1)} cm`, real ? "good" : "bad"],
+            ["Image height h'", atInfinity ? "—" : `${Math.abs(imageHeight).toFixed(2)} cm`],
+            ["Magnification m", atInfinity ? "∞" : `${m.toFixed(2)}×`],
+            ["Nature", real ? "real" : atInfinity ? "none" : "virtual", real ? "good" : "bad"],
+            ["Orientation", atInfinity ? "—" : imageHeight < 0 ? "inverted" : "upright"],
+            ["Object position", u > 2 * f ? "beyond 2F (C)" : u > f ? "between F & 2F" : "inside F"],
+          ]}
+          note={
+            atInfinity
+              ? "Object is at focal point F: rays leave exactly parallel and never intersect (collimator spotlight)."
+              : nature
+          }
+          noteTone={atInfinity ? "warn" : real ? "good" : "neutral"}
+        />
+
+        <SceneLegend
+          title="Ray construction"
+          items={[
+            {
+              color: PALETTE.gold,
+              label: "Object",
+              note: `upright arrow (h = ${h.toFixed(1)} cm)`,
+            },
+            {
+              color: PALETTE.emerald,
+              shape: "line",
+              label: "Ray 1 — parallel",
+              note: isMirror
+                ? (isConverging ? "reflects through focus F" : "reflects diverging from virtual F")
+                : (isConverging ? "refracts through focus F" : "refracts diverging from virtual F"),
+            },
+            {
+              color: PALETTE.sky,
+              shape: "line",
+              label: isMirror ? "Ray 2 — pole reflection" : "Ray 2 — optical center",
+              note: isMirror
+                ? "reflects at equal angle from mirror vertex"
+                : "passes straight through undeviated",
+            },
+            ...(showConstruction && showThirdRay
+              ? [
+                  {
+                    color: PALETTE.violet,
+                    shape: "line",
+                    label: "Ray 3 — focal ray",
+                    note: "passes through F, emerges parallel to axis",
+                  },
+                ]
+              : []),
+            {
+              color: real ? PALETTE.emerald : PALETTE.rose,
+              label: real ? "Real image" : "Virtual image",
+              note: real
+                ? "rays physically converge — caught on a screen"
+                : "rays diverge — backward projections meet",
+            },
+          ]}
+        />
+      </group>
     </SceneCanvas>
   );
 }
@@ -1756,170 +2059,251 @@ const fluxAt = (field, angle) => field * COIL_AREA * Math.sin(angle);
 const emfAt = (field, omega, angle, turns = 1) =>
   -turns * field * COIL_AREA * omega * Math.cos(angle);
 
-function RotatingCoil({ speed, field, turns, showCurrent, angleRef, onSample }) {
-  const coil = useRef(null);
-  const needle = useRef(null);
-  const sampleClock = useRef(0);
-
-  const w = COIL_W;
-  const hh = COIL_H;
+function solveSolenoidInduction({
+  x = 0,
+  velocity = 0,
+  turns = 10,
+  magnetStrength = 1.0,
+  radius = 0.9,
+  flipPoles = false,
+} = {}) {
   const safeTurns = Math.max(1, Math.round(turns || 1));
+  const polarity = flipPoles ? -1 : 1;
+  const m = (magnetStrength || 1.0) * polarity;
+  const R = radius || 0.9;
+  const denom = Math.pow(x * x + R * R, 1.5);
+  const C = 2.0 * R;
+  const flux = (C * m * R * R) / denom;
+  const dPhi_dx = (-3 * C * m * R * R * x) / Math.pow(x * x + R * R, 2.5);
+  const rawEmf = -safeTurns * dPhi_dx * velocity;
+  const emf = Object.is(rawEmf, -0) || Math.abs(rawEmf) < 1e-12 ? 0 : rawEmf;
+  return {
+    turns: safeTurns,
+    flux: Object.is(flux, -0) || Math.abs(flux) < 1e-12 ? 0 : flux,
+    dPhi_dx: Object.is(dPhi_dx, -0) || Math.abs(dPhi_dx) < 1e-12 ? 0 : dPhi_dx,
+    emf,
+    velocity,
+    direction: Math.abs(emf) < 0.05 ? "none" : emf > 0 ? "clockwise" : "anticlockwise",
+  };
+}
 
-  useFrame((_, delta) => {
-    const step = Math.min(delta, 0.05);
-    const omega = omegaOf(speed);
-    angleRef.current += step * omega;
-
-    const emf = emfAt(field, omega, angleRef.current, safeTurns);
-
-    if (coil.current) coil.current.rotation.y = angleRef.current;
-    if (needle.current) needle.current.rotation.z = clamp(-emf * 0.05, -1.1, 1.1);
-
-    // Throttled so the numeric readout does not re-render every frame.
-    sampleClock.current += step;
-    if (sampleClock.current > 0.1) {
-      sampleClock.current = 0;
-      onSample(emf, angleRef.current);
-    }
-  });
-
-  const corners = [
-    [-w, hh, 0],
-    [w, hh, 0],
-    [w, -hh, 0],
-    [-w, -hh, 0],
-  ];
-
-  // Real generator coils are wound many times round the same former. Drawing
-  // the turns as a stack makes N a thing you can count rather than a number
-  // in a panel.
-  const windings = Array.from({ length: safeTurns }, (_, k) => (k - (safeTurns - 1) / 2) * 0.13);
-
+/**
+ * Universal Laboratory Table / Workbench Base
+ * Sits below all apparatus at y = -2.98 so top surface is at y = -2.80.
+ * Meters and bulbs rest firmly on top of this surface.
+ */
+function LaboratoryBench() {
   return (
-    <>
-      <group ref={coil}>
-        {windings.map((dz, k) =>
-          corners.map((c, i) => (
-            <Bond
-              key={`${k}-${i}`}
-              from={[c[0], c[1], c[2] + dz]}
-              to={[
-                corners[(i + 1) % corners.length][0],
-                corners[(i + 1) % corners.length][1],
-                corners[(i + 1) % corners.length][2] + dz,
-              ]}
-              radius={0.06}
-              color="#b45309"
-              emissive={PALETTE.gold}
-            />
-          )),
-        )}
-
-        {/* Leads down the axle to the two slip rings. */}
-        <Bond from={[w, -hh, 0]} to={[0.16, -1.45, 0]} radius={0.045} color="#b45309" />
-        <Bond from={[-w, -hh, 0]} to={[-0.16, -1.95, 0]} radius={0.045} color="#b45309" />
-        <mesh position={[0, -1.7, 0]}>
-          <cylinderGeometry args={[0.07, 0.07, 1.5, 12]} />
-          <meshStandardMaterial color="#5b6472" metalness={0.7} roughness={0.4} />
-        </mesh>
-
-        {/* Slip rings — continuous, which is exactly why the output stays
-            alternating. A d.c. motor's split ring would flip it every half
-            turn instead. */}
-        {[-1.45, -1.95].map((y) => (
-          <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.24, 0.06, 10, 28]} />
-            <meshStandardMaterial
-              color="#cbd5e1"
-              metalness={0.85}
-              roughness={0.25}
-              emissive={PALETTE.gold}
-              emissiveIntensity={0.15}
-            />
-          </mesh>
-        ))}
-
-        {showCurrent && (
-          <>
-            <VectorArrow
-              from={[w, -0.5, 0]}
-              to={[w, 0.6, 0]}
-              color={PALETTE.gold}
-              radius={0.04}
-              headLength={0.26}
-              headRadius={0.11}
-            />
-            <VectorArrow
-              from={[-w, 0.5, 0]}
-              to={[-w, -0.6, 0]}
-              color={PALETTE.gold}
-              radius={0.04}
-              headLength={0.26}
-              headRadius={0.11}
-            />
-          </>
-        )}
-      </group>
-
-      {/* Carbon brushes stay still while the rings turn under them. */}
+    <group position={[0, -3.48, 0]}>
+      {/* Tabletop slab: top face at y = -3.30 */}
+      <mesh>
+        <boxGeometry args={[11.6, 0.36, 4.4]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.35} metalness={0.6} />
+      </mesh>
+      {/* Front edge satin beveled trim */}
+      <mesh position={[0, 0, 2.21]}>
+        <boxGeometry args={[11.64, 0.38, 0.04]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.25} />
+      </mesh>
+      {/* Four rubber vibration-damping feet */}
       {[
-        { y: -1.45, x: 0.42 },
-        { y: -1.95, x: -0.42 },
-      ].map(({ y, x }) => (
-        <group key={y}>
-          <mesh position={[x, y, 0]}>
-            <boxGeometry args={[0.22, 0.16, 0.3]} />
-            <meshStandardMaterial color="#2a2f38" roughness={0.85} />
-          </mesh>
-          <Line
-            points={[
-              [x, y, 0],
-              [x * 2.6, y, 0],
-              [x * 2.6, -2.35, 0],
-              [x * 1.4, -2.35, 0],
-            ]}
-            color={PALETTE.gold}
-            lineWidth={1.6}
-            transparent
-            opacity={0.7}
-          />
-        </group>
-      ))}
-      <SceneLabel position={[1.55, -1.7, 0]} tone="text-ink-400">
-        slip rings & brushes
-      </SceneLabel>
-
-      {/* Galvanometer. */}
-      <group position={[0, -2.9, 0]}>
-        <mesh>
-          <boxGeometry args={[1.9, 1.1, 0.25]} />
-          <meshStandardMaterial color="#14171c" roughness={0.6} metalness={0.3} />
+        [-5.3, -0.24, -1.8],
+        [5.3, -0.24, -1.8],
+        [-5.3, -0.24, 1.8],
+        [5.3, -0.24, 1.8],
+      ].map(([fx, fy, fz], idx) => (
+        <mesh key={idx} position={[fx, fy, fz]}>
+          <cylinderGeometry args={[0.22, 0.26, 0.16, 16]} />
+          <meshStandardMaterial color="#1e293b" roughness={0.9} />
         </mesh>
-        <group ref={needle} position={[0, -0.35, 0.16]}>
-          <mesh position={[0, 0.35, 0]}>
-            <boxGeometry args={[0.05, 0.72, 0.05]} />
-            <meshStandardMaterial
-              color={PALETTE.gold}
-              emissive={PALETTE.gold}
-              emissiveIntensity={1.6}
-              toneMapped={false}
-            />
-          </mesh>
-        </group>
-        <SceneLabel position={[0, -0.85, 0]} tone="text-ink-500">
-          galvanometer
-        </SceneLabel>
-      </group>
-    </>
+      ))}
+    </group>
   );
 }
 
 /**
- * Live e.m.f.–time trace. A generator's whole point is that its output
- * *alternates*, and that is invisible in a single frozen frame — you can see
- * the needle twitch but not the shape it is tracing. The curve is the exact
- * ε = −ε₀ cos θ the coil is producing, drawn over two full turns, with a
- * marker riding the same angle the coil is at.
+ * Modern Laboratory Center-Zero Galvanometer
+ * Base sits on table (y = -3.30), standing upright into clear view.
+ */
+function LaboratoryGalvanometer({ position = [-1.3, -3.3, 1.35], needleRef }) {
+  return (
+    <group position={position}>
+      {/* Slate chassis box: base at y=0, height 1.3 */}
+      <mesh position={[0, 0.65, 0]}>
+        <boxGeometry args={[2.2, 1.3, 0.35]} />
+        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.6} />
+      </mesh>
+      {/* Polished chrome front bezel */}
+      <mesh position={[0, 0.65, 0.18]}>
+        <boxGeometry args={[2.08, 1.18, 0.04]} />
+        <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
+      </mesh>
+      {/* Porcelain white dial face */}
+      <mesh position={[0, 0.65, 0.205]}>
+        <planeGeometry args={[1.96, 1.06]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+      </mesh>
+      {/* Scale arc */}
+      <Line
+        points={[
+          [-0.75, 0.83, 0.21],
+          [-0.38, 1.01, 0.21],
+          [0, 1.07, 0.21],
+          [0.38, 1.01, 0.21],
+          [0.75, 0.83, 0.21],
+        ]}
+        color="#64748b"
+        lineWidth={1.5}
+      />
+      {[
+        { x: -0.65, y1: 0.87, y2: 0.95 },
+        { x: -0.35, y1: 1.0, y2: 1.08 },
+        { x: 0, y1: 1.07, y2: 1.15 },
+        { x: 0.35, y1: 1.0, y2: 1.08 },
+        { x: 0.65, y1: 0.87, y2: 0.95 },
+      ].map((t, idx) => (
+        <Line
+          key={idx}
+          points={[
+            [t.x, t.y1, 0.21],
+            [t.x * 0.95, t.y2, 0.21],
+          ]}
+          color="#475569"
+          lineWidth={1.8}
+        />
+      ))}
+
+      {/* Needle pivot center at y = 0.33 */}
+      <mesh position={[0, 0.33, 0.22]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.06, 16]} rotation={[Math.PI / 2, 0, 0]} />
+        <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.1} />
+      </mesh>
+
+      {/* Pivoted high-visibility red needle */}
+      <group ref={needleRef} position={[0, 0.33, 0.23]}>
+        <mesh position={[0, 0.4, 0]}>
+          <boxGeometry args={[0.035, 0.8, 0.02]} />
+          <meshStandardMaterial
+            color="#ef4444"
+            emissive="#ef4444"
+            emissiveIntensity={0.9}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
+
+      {/* Terminal binding posts */}
+      <mesh position={[-0.85, 0.2, 0.22]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} rotation={[Math.PI / 2, 0, 0]} />
+        <meshStandardMaterial color="#ef4444" roughness={0.3} metalness={0.5} />
+      </mesh>
+      <mesh position={[0.85, 0.2, 0.22]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} rotation={[Math.PI / 2, 0, 0]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.3} metalness={0.5} />
+      </mesh>
+
+      <SceneLabel position={[0, 0.8, 0.22]} tone="text-ink-400">
+        0
+      </SceneLabel>
+      <SceneLabel position={[-0.65, 0.7, 0.22]} tone="text-ink-500">
+        −
+      </SceneLabel>
+      <SceneLabel position={[0.65, 0.7, 0.22]} tone="text-ink-500">
+        +
+      </SceneLabel>
+      <SceneLabel position={[0, -0.28, 0]} tone="text-ink-400">
+        galvanometer
+      </SceneLabel>
+    </group>
+  );
+}
+
+/**
+ * Laboratory Demonstration Incandescent Light Bulb
+ * Base sits on table (y = -3.30), standing upright with filament and light shining up and out.
+ */
+function DemonstrationBulb({ position = [1.8, -3.3, 1.35], powerRef, showBulb = true }) {
+  if (!showBulb) return null;
+  return (
+    <group position={position}>
+      {/* Porcelain Ceramic Socket Base */}
+      <mesh position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[0.42, 0.48, 0.3, 24]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.3} metalness={0.1} />
+      </mesh>
+      {/* Brass Threaded Screw Collar */}
+      <mesh position={[0, 0.38, 0]}>
+        <cylinderGeometry args={[0.28, 0.28, 0.22, 24]} />
+        <meshStandardMaterial color="#d97706" metalness={0.85} roughness={0.2} />
+      </mesh>
+      {/* Blown Glass Envelope */}
+      <mesh position={[0, 0.82, 0]}>
+        <sphereGeometry args={[0.44, 24, 24]} />
+        <meshPhysicalMaterial
+          color="#ffffff"
+          transmission={0.88}
+          roughness={0.12}
+          transparent={true}
+          opacity={0.38}
+          ior={1.5}
+        />
+      </mesh>
+      {/* Tungsten Filament Hairpin Loop */}
+      <mesh
+        ref={(el) => {
+          if (powerRef) powerRef.filament = el;
+        }}
+        position={[0, 0.78, 0]}
+      >
+        <torusGeometry args={[0.13, 0.022, 12, 24, Math.PI * 1.6]} />
+        <meshStandardMaterial
+          color="#64748b"
+          emissive="#fef08a"
+          emissiveIntensity={0}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Filament Support Leads */}
+      <mesh position={[-0.08, 0.56, 0]}>
+        <cylinderGeometry args={[0.015, 0.015, 0.24, 8]} />
+        <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+      </mesh>
+      <mesh position={[0.08, 0.56, 0]}>
+        <cylinderGeometry args={[0.015, 0.015, 0.24, 8]} />
+        <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+      </mesh>
+
+      {/* Dynamic Incandescent Light Source */}
+      <pointLight
+        ref={(el) => {
+          if (powerRef) powerRef.light = el;
+        }}
+        position={[0, 0.82, 0.15]}
+        color="#fef08a"
+        intensity={0}
+        distance={5.5}
+        decay={2}
+      />
+
+      {/* Terminals on socket */}
+      <mesh position={[-0.34, 0.15, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
+        <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.1} />
+      </mesh>
+      <mesh position={[0.34, 0.15, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
+        <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.1} />
+      </mesh>
+
+      <SceneLabel position={[0, -0.28, 0]} tone="text-ink-400">
+        demonstration bulb (P ∝ ε²)
+      </SceneLabel>
+    </group>
+  );
+}
+
+/**
+ * Live e.m.f.–time trace for AC Generator over two full turns.
  */
 const TRACE = { width: 5.6, height: 0.82, turns: 2 };
 
@@ -1929,8 +2313,6 @@ function EmfTrace({ speed, field, turns, angleRef }) {
   const safeTurns = Math.max(1, Math.round(turns || 1));
   const peak = peakEmf(field, omega, safeTurns);
 
-  // Height tracks ε₀ linearly — a weak field really should draw a shallow
-  // wave — and is capped so the strongest setting still fits the frame.
   const amp = clamp(peak * 0.016, 0, 1) * TRACE.height;
   const sweep = TRACE.turns * Math.PI * 2;
   const xOf = (angle) => -TRACE.width / 2 + (((angle % sweep) + sweep) % sweep) / sweep * TRACE.width;
@@ -1951,8 +2333,8 @@ function EmfTrace({ speed, field, turns, angleRef }) {
   });
 
   return (
-    <group position={[0, -5.5, 0]}>
-      {/* Zero line — the axis the output swings either side of. */}
+    <group position={[0, 4.0, 0]}>
+      {/* Zero line */}
       <Line
         points={[
           [-TRACE.width / 2 - 0.3, 0, 0],
@@ -1961,7 +2343,7 @@ function EmfTrace({ speed, field, turns, angleRef }) {
         color={PALETTE.line}
         lineWidth={1.4}
       />
-      {/* Half-turn gridlines: one whole cycle per revolution of the coil. */}
+      {/* Half-turn gridlines */}
       {[0.25, 0.5, 0.75].map((t) => (
         <Line
           key={t}
@@ -1993,36 +2375,47 @@ function EmfTrace({ speed, field, turns, angleRef }) {
       <SceneLabel position={[-TRACE.width / 2 - 0.75, 0, 0]} tone="text-ink-400">
         0 V
       </SceneLabel>
-      <SceneLabel position={[0, -TRACE.height - 0.55, 0]} accent>
+      <SceneLabel position={[0, TRACE.height + 0.35, 0]} accent>
         induced e.m.f. against time · two full turns
       </SceneLabel>
     </group>
   );
 }
 
-export function InductionScene({ params = {} }) {
+/**
+ * Generator Assembly Sub-Rig (Inside Canvas)
+ */
+function GeneratorRig({ params = {} }) {
   const {
     speed = 1.0,
     field = 1.0,
-    turns = 10,
+    turns = 3,
     showFieldLines = true,
     showCurrent = true,
+    showBulb = true,
   } = params || {};
-  // Seeded from the equation rather than from zero: on the very first render
-  // the coil is at θ = 0, which is peak e.m.f., and a panel reading "0.00 V"
-  // beside a note saying "the e.m.f. is at its peak" reads as a broken model.
+
+  const safeTurns = Math.max(1, Math.round(turns || 1));
   const [sample, setSample] = useState(() => ({
-    emf: emfAt(field, omegaOf(speed), 0, turns),
+    emf: emfAt(field, omegaOf(speed), 0, safeTurns),
     angle: 0,
   }));
-  // Shared between the coil (which advances it) and the trace (which reads
-  // it), so the marker sits at the coil's true angle every frame rather than
-  // stepping along at the 10 Hz the readout is throttled to.
   const angleRef = useRef(0);
+
+  const coil = useRef(null);
+  const needle = useRef(null);
+  const bulbRef = useRef({});
+  const fluxPlane = useRef(null);
+  const currentPhase = useRef(0);
+  const currentDots = useRef([]);
+  const sampleClock = useRef(0);
+
+  const w = COIL_W;
+  const hh = COIL_H;
 
   const fieldLines = useMemo(() => {
     const lines = [];
-    for (let y = -1.2; y <= 1.21; y += 0.8) {
+    for (let y = -1.0; y <= 1.41; y += 0.8) {
       for (let z = -1.2; z <= 1.21; z += 1.2) lines.push({ y, z });
     }
     return lines;
@@ -2030,56 +2423,330 @@ export function InductionScene({ params = {} }) {
 
   const omega = omegaOf(speed);
   const flux = fluxAt(field, sample.angle);
-  const peak = peakEmf(field, omega, turns);
+  const peak = peakEmf(field, omega, safeTurns);
   const direction =
     Math.abs(sample.emf) < 0.05 ? "none" : sample.emf > 0 ? "clockwise" : "anticlockwise";
-  // |cos θ| is 1 when the coil lies edge-on to the field and is slicing
-  // across the lines fastest — that is where the e.m.f. peaks.
   const cutting = Math.abs(Math.cos(sample.angle));
 
-  return (
-    <SceneCanvas
-      camera={{ position: [6.5, 3.5, 12.5], fov: 45 }}
-      controls={{ target: [0, -1.6, 0] }}
-    >
-      <MagnetPole position={[-3.4, 0, 0]} pole="N" />
-      <MagnetPole position={[3.4, 0, 0]} pole="S" />
+  useFrame((_, delta) => {
+    const step = Math.min(delta, 0.05);
+    angleRef.current += step * omega;
 
+    const emf = emfAt(field, omega, angleRef.current, safeTurns);
+
+    if (coil.current) coil.current.rotation.y = angleRef.current;
+    if (needle.current) needle.current.rotation.z = clamp(-emf * 0.015, -1.05, 1.05);
+
+    // Physical power dissipation: P = V^2 / R
+    // Calibrated rated reference: V_rated = 115 V so N=1..8 and B=0.2..2.0 smoothly ramp across full incandescence
+    const vRated = 115.0;
+    const ratio = Math.abs(emf) / vRated;
+    const power = clamp(Math.pow(ratio, 1.6), 0, 2.8);
+
+    if (bulbRef.current?.filament) {
+      if (speed < 0.05 || power < 0.02) {
+        bulbRef.current.filament.material.emissiveIntensity = 0;
+        bulbRef.current.filament.material.color.set("#64748b");
+      } else {
+        const r = 1.0;
+        const g = clamp(0.35 + power * 0.45, 0.35, 1.0);
+        const b = clamp(0.04 + power * 0.76, 0.04, 0.96);
+        bulbRef.current.filament.material.color.setRGB(r, g, b);
+        bulbRef.current.filament.material.emissive.setRGB(r, g, b);
+        bulbRef.current.filament.material.emissiveIntensity = clamp(power * 2.8, 0.3, 7.5);
+      }
+    }
+    if (bulbRef.current?.light) {
+      bulbRef.current.light.intensity = speed < 0.05 ? 0 : clamp(power * 3.6, 0, 9.0);
+      bulbRef.current.light.distance = clamp(3.0 + power * 2.5, 3.0, 9.0);
+    }
+
+    // Dynamic magnetic flux sheet inside coil aperture
+    if (fluxPlane.current) {
+      const sinAngle = Math.abs(Math.sin(angleRef.current));
+      fluxPlane.current.material.opacity = 0.04 + sinAngle * 0.38 * Math.min(field, 1.5);
+    }
+
+    // Circulating charge flow particles along coil perimeter
+    if (showCurrent) {
+      currentPhase.current += step * emf * 1.6;
+      const perim = 2 * (2 * w + 2 * hh);
+      currentDots.current.forEach((dot, idx) => {
+        if (!dot) return;
+        const s = (((idx / 16) * perim + currentPhase.current) % perim + perim) % perim;
+        let px = 0;
+        let py = 0;
+        if (s < 2 * w) {
+          px = -w + s;
+          py = hh;
+        } else if (s < 2 * w + 2 * hh) {
+          px = w;
+          py = hh - (s - 2 * w);
+        } else if (s < 4 * w + 2 * hh) {
+          px = w - (s - (2 * w + 2 * hh));
+          py = -hh;
+        } else {
+          px = -w;
+          py = -hh + (s - (4 * w + 2 * hh));
+        }
+        dot.position.set(px, py, 0);
+      });
+    }
+
+    sampleClock.current += step;
+    if (sampleClock.current > 0.1) {
+      sampleClock.current = 0;
+      setSample({ emf, angle: angleRef.current });
+    }
+  });
+
+  const corners = [
+    [-w, hh, 0],
+    [w, hh, 0],
+    [w, -hh, 0],
+    [-w, -hh, 0],
+  ];
+  const windings = Array.from({ length: safeTurns }, (_, k) => (k - (safeTurns - 1) / 2) * 0.13);
+
+  return (
+    <>
+      {/* Bench Baseplate (y = -2.98, top surface at y = -2.80) */}
+      <LaboratoryBench />
+
+      {/* Magnet Pole Riser Pedestals (bench y = -3.30 to pole bottom y = -1.60, zero Z-fighting) */}
+      <mesh position={[-3.4, -2.45, 0]}>
+        <boxGeometry args={[0.85, 1.7, 3.4]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.35} />
+      </mesh>
+      <mesh position={[3.4, -2.45, 0]}>
+        <boxGeometry args={[0.85, 1.7, 3.4]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.35} />
+      </mesh>
+
+      {/* Magnet Poles at y = 0.2 */}
+      <MagnetPole position={[-3.4, 0.2, 0]} pole="N" />
+      <MagnetPole position={[3.4, 0.2, 0]} pole="S" />
+
+      {/* Lower Pillow Bearing Block on Bench (rests on tabletop y = -3.30) */}
+      <mesh position={[0, -3.2, 0]}>
+        <boxGeometry args={[0.5, 0.2, 0.5]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.2} />
+      </mesh>
+
+      {/* Magnetic Field Lines */}
       {showFieldLines &&
         fieldLines.map(({ y, z }, i) => (
-          <Line
-            key={i}
-            points={[
-              [-2.8, y, z],
-              [2.8, y, z],
-            ]}
-            color={PALETTE.sky}
-            lineWidth={1}
-            transparent
-            opacity={0.14 + field * 0.13}
-            dashed
-            dashSize={0.26}
-            gapSize={0.2}
-          />
+          <group key={i}>
+            <Line
+              points={[
+                [-2.8, y, z],
+                [2.8, y, z],
+              ]}
+              color={PALETTE.sky}
+              lineWidth={1.2}
+              transparent
+              opacity={0.25 + field * 0.25}
+              dashed
+              dashSize={0.26}
+              gapSize={0.2}
+            />
+            <VectorArrow
+              from={[-0.2, y, z]}
+              to={[0.2, y, z]}
+              color={PALETTE.sky}
+              radius={0.02}
+              headLength={0.16}
+              headRadius={0.06}
+            />
+          </group>
         ))}
 
-      <RotatingCoil
-        speed={speed}
-        field={field}
-        turns={turns}
-        showCurrent={showCurrent}
-        angleRef={angleRef}
-        onSample={(emf, angle) => setSample({ emf, angle })}
+      {/* Rotating Coil Assembly at y = 0.2 */}
+      <group position={[0, 0.2, 0]}>
+        <group ref={coil}>
+          {/* Semi-transparent magnetic flux sheet */}
+          <mesh ref={fluxPlane} position={[0, 0, 0]}>
+            <planeGeometry args={[2 * w - 0.08, 2 * hh - 0.08]} />
+            <meshStandardMaterial
+              color="#38bdf8"
+              transparent
+              opacity={0.15}
+              side={THREE.DoubleSide}
+              roughness={0.2}
+            />
+          </mesh>
+
+          {/* Stacked Copper Turns */}
+          {windings.map((dz, k) =>
+            corners.map((c, i) => (
+              <Bond
+                key={`${k}-${i}`}
+                from={[c[0], c[1], c[2] + dz]}
+                to={[
+                  corners[(i + 1) % corners.length][0],
+                  corners[(i + 1) % corners.length][1],
+                  corners[(i + 1) % corners.length][2] + dz,
+                ]}
+                radius={0.06}
+                color="#ea580c"
+                emissive="#fb923c"
+              />
+            )),
+          )}
+
+          {/* Dynamic charge flow particles */}
+          {showCurrent &&
+            Array.from({ length: 16 }, (_, idx) => (
+              <mesh
+                key={idx}
+                ref={(el) => {
+                  currentDots.current[idx] = el;
+                }}
+                position={[0, 0, 0]}
+              >
+                <sphereGeometry args={[0.065, 12, 12]} />
+                <meshStandardMaterial
+                  color="#fef08a"
+                  emissive="#fef08a"
+                  emissiveIntensity={2.5}
+                  toneMapped={false}
+                />
+              </mesh>
+            ))}
+
+          {/* Leads down to slip rings */}
+          <Bond from={[w, -hh, 0]} to={[0.16, -1.45, 0]} radius={0.045} color="#ea580c" />
+          <Bond from={[-w, -hh, 0]} to={[-0.16, -1.85, 0]} radius={0.045} color="#ea580c" />
+
+          {/* Central Drive Shaft */}
+          <mesh position={[0, -2.1, 0]}>
+            <cylinderGeometry args={[0.07, 0.07, 2.6, 16]} />
+            <meshStandardMaterial color="#f1f5f9" metalness={0.9} roughness={0.15} />
+          </mesh>
+
+          {/* Polished Brass Slip Rings */}
+          {[-1.45, -1.85].map((y) => (
+            <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.24, 0.06, 12, 32]} />
+              <meshStandardMaterial
+                color="#fbbf24"
+                metalness={0.88}
+                roughness={0.18}
+                emissive="#f59e0b"
+                emissiveIntensity={0.15}
+              />
+            </mesh>
+          ))}
+
+          {showCurrent && (
+            <>
+              <VectorArrow
+                from={[w, -0.5, 0]}
+                to={[w, 0.6, 0]}
+                color={PALETTE.gold}
+                radius={0.04}
+                headLength={0.26}
+                headRadius={0.11}
+              />
+              <VectorArrow
+                from={[-w, 0.5, 0]}
+                to={[-w, -0.6, 0]}
+                color={PALETTE.gold}
+                radius={0.04}
+                headLength={0.26}
+                headRadius={0.11}
+              />
+            </>
+          )}
+        </group>
+
+        {/* Brush Carriers */}
+        {[
+          { y: -1.45, x: 0.42 },
+          { y: -1.85, x: -0.42 },
+        ].map(({ y, x }) => (
+          <group key={y}>
+            <mesh position={[x, y, 0]}>
+              <boxGeometry args={[0.22, 0.16, 0.28]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
+            </mesh>
+            <mesh position={[x > 0 ? x - 0.12 : x + 0.12, y, 0]}>
+              <boxGeometry args={[0.06, 0.14, 0.24]} />
+              <meshStandardMaterial color="#475569" roughness={0.7} />
+            </mesh>
+          </group>
+        ))}
+
+        <SceneLabel position={[1.55, -1.65, 0]} tone="text-ink-400">
+          slip rings & brushes
+        </SceneLabel>
+      </group>
+
+      {/* Insulated Wiring Down to Galvanometer & Bulb */}
+      <Line
+        points={[
+          [-0.42, -1.85, 0],
+          [-0.42, -3.25, 0],
+          [-2.15, -3.25, 1.15],
+          [-2.15, -3.10, 1.35],
+        ]}
+        color="#ea580c"
+        lineWidth={2.2}
+      />
+      <Line
+        points={[
+          [0.42, -1.45, 0],
+          [0.42, -3.25, 0],
+          [-0.45, -3.25, 1.15],
+          [-0.45, -3.10, 1.35],
+        ]}
+        color="#38bdf8"
+        lineWidth={2.2}
+      />
+      {showBulb && (
+        <>
+          <Line
+            points={[
+              [-0.42, -1.85, 0],
+              [-0.42, -3.25, 0],
+              [1.46, -3.25, 1.15],
+              [1.46, -3.15, 1.35],
+            ]}
+            color="#ea580c"
+            lineWidth={2.2}
+          />
+          <Line
+            points={[
+              [0.42, -1.45, 0],
+              [0.42, -3.25, 0],
+              [2.14, -3.25, 1.15],
+              [2.14, -3.15, 1.35],
+            ]}
+            color="#38bdf8"
+            lineWidth={2.2}
+          />
+        </>
+      )}
+
+      {/* Bench-Mounted Instruments (Sitting ON Table at y = -3.30, foreground at z = 1.35) */}
+      <LaboratoryGalvanometer
+        position={[-1.3, -3.3, 1.35]}
+        needleRef={needle}
+      />
+      <DemonstrationBulb
+        position={[1.8, -3.3, 1.35]}
+        powerRef={bulbRef.current}
+        showBulb={showBulb}
       />
 
       <EmfTrace speed={speed} field={field} turns={turns} angleRef={angleRef} />
 
       <SceneReadout
         hidden={params?.hideOverlayReadout}
-        title="Faraday's law"
+        title="Faraday's law · Dynamo"
         subtitle="Φ = B A sin θ  ·  ε = −N ΔΦ/Δt"
         rows={[
-          ["Turns N", turns, "gold"],
+          ["Turns N", safeTurns, "gold"],
           ["Coil area A", `${COIL_AREA.toFixed(1)} m²`],
           ["Flux Φ per turn", `${flux.toFixed(2)} Wb`],
           [
@@ -2107,20 +2774,495 @@ export function InductionScene({ params = {} }) {
         title="Generator"
         items={[
           { color: PALETTE.rose, shape: "square", label: "N pole", note: "field runs N → S" },
-          { color: PALETTE.sky, shape: "dash", label: "Magnetic field lines B" },
-          { color: PALETTE.gold, shape: "line", label: "Coil, induced current & e.m.f. trace" },
+          { color: PALETTE.sky, shape: "dash", label: "Magnetic field lines B", note: "density ∝ B" },
+          { color: "#ea580c", shape: "line", label: "Copper coil", note: "cuts field lines" },
+          { color: PALETTE.gold, shape: "line", label: "e.m.f. trace & bulb", note: "alternating AC waveform" },
           {
-            color: "#cbd5e1",
+            color: "#fbbf24",
             label: "Slip rings",
-            note: "continuous, so the output stays a.c. — a motor's split ring would flip it",
-          },
-          {
-            color: PALETTE.emerald,
-            label: "Doubling N, B or the speed",
-            note: "doubles ε₀; speed doubles the frequency too",
+            note: "continuous rings maintain alternating AC",
           },
         ]}
       />
+    </>
+  );
+}
+
+/**
+ * Solenoid Assembly Sub-Rig (Inside Canvas)
+ */
+function SolenoidRig({ params = {} }) {
+  const {
+    speed = 1.0,
+    turns = 4,
+    magnetStrength = 1.2,
+    magnetPos = 0,
+    autoOscillate = true,
+    flipPoles = false,
+    showFieldLines = true,
+    showCurrent = true,
+    showBulb = true,
+  } = params || {};
+
+  const safeTurns = Math.max(1, Math.round(turns || 1));
+  const safePos = typeof magnetPos === "number" && !isNaN(magnetPos) ? magnetPos : 0;
+
+  const magnetRef = useRef(null);
+  const needleRef = useRef(null);
+  const bulbRef = useRef({});
+  const chargesRef = useRef([]);
+  const magnetX = useRef(safePos);
+  const oscPhase = useRef(0);
+  const currentPhase = useRef(0);
+  const sampleClock = useRef(0);
+
+  const [sample, setSample] = useState(() => ({
+    emf: 0,
+    flux: 0,
+    dPhi_dx: 0,
+    velocity: 0,
+    x: safePos,
+  }));
+
+  useFrame((_, delta) => {
+    const step = Math.min(delta, 0.05);
+    let x = magnetX.current;
+    let v = 0;
+
+    if (autoOscillate) {
+      oscPhase.current += step * speed * 2.2;
+      const targetX = 3.2 * Math.sin(oscPhase.current);
+      v = (targetX - x) / Math.max(step, 0.001);
+      x = targetX;
+    } else {
+      const targetX = typeof magnetPos === "number" && !isNaN(magnetPos) ? magnetPos : 0;
+      const diff = targetX - x;
+      const move = diff * (1 - Math.exp(-9.0 * step));
+      v = move / Math.max(step, 0.001);
+      x += move;
+    }
+    magnetX.current = x;
+    if (magnetRef.current) magnetRef.current.position.x = x;
+
+    const induction = solveSolenoidInduction({
+      x,
+      velocity: v,
+      turns: safeTurns,
+      magnetStrength,
+      radius: 0.92,
+      flipPoles,
+    });
+
+    if (needleRef.current) {
+      needleRef.current.rotation.z = clamp(-induction.emf * 0.018, -1.05, 1.05);
+    }
+
+    // Physical power dissipation: P = V^2 / R
+    // Calibrated rated reference: V_rated = 85 V so N=1..8 and strength=0.5..2.5 smoothly ramp across full incandescence
+    const vRated = 85.0;
+    const ratio = Math.abs(induction.emf) / vRated;
+    const power = clamp(Math.pow(ratio, 1.6), 0, 2.8);
+
+    if (bulbRef.current?.filament) {
+      if (power < 0.02) {
+        bulbRef.current.filament.material.emissiveIntensity = 0;
+        bulbRef.current.filament.material.color.set("#64748b");
+      } else {
+        const r = 1.0;
+        const g = clamp(0.35 + power * 0.45, 0.35, 1.0);
+        const b = clamp(0.04 + power * 0.76, 0.04, 0.96);
+        bulbRef.current.filament.material.color.setRGB(r, g, b);
+        bulbRef.current.filament.material.emissive.setRGB(r, g, b);
+        bulbRef.current.filament.material.emissiveIntensity = clamp(power * 2.8, 0.3, 7.5);
+      }
+    }
+    if (bulbRef.current?.light) {
+      bulbRef.current.light.intensity = clamp(power * 3.6, 0, 9.0);
+      bulbRef.current.light.distance = clamp(3.0 + power * 2.5, 3.0, 9.0);
+    }
+
+    // Circulating charges in the solenoid windings
+    if (showCurrent) {
+      currentPhase.current += step * induction.emf * 3.0;
+      chargesRef.current.forEach((dot, idx) => {
+        if (!dot) return;
+        const angle = (idx / 12) * Math.PI * 2 + currentPhase.current;
+        dot.position.y = 0.96 * Math.sin(angle);
+        dot.position.z = 0.96 * Math.cos(angle);
+      });
+    }
+
+    sampleClock.current += step;
+    if (sampleClock.current > 0.1) {
+      sampleClock.current = 0;
+      setSample({
+        emf: induction.emf,
+        flux: induction.flux,
+        dPhi_dx: induction.dPhi_dx,
+        velocity: v,
+        x,
+      });
+    }
+  });
+
+  const turnSpacing = safeTurns > 1 ? 2.6 / (safeTurns - 1) : 0;
+  const turnPositions = Array.from({ length: safeTurns }, (_, k) =>
+    safeTurns > 1 ? -1.3 + k * turnSpacing : 0,
+  );
+
+  const dipoleLoops = useMemo(() => {
+    const loops = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const ca = Math.cos(angle);
+      const sa = Math.sin(angle);
+      const pts = [];
+      const steps = 36;
+      for (let s = 0; s <= steps; s++) {
+        const t = (s / steps) * Math.PI;
+        const lx = 1.35 * Math.cos(t);
+        const lr = 1.75 * Math.sin(t);
+        pts.push([lx, lr * ca, lr * sa]);
+      }
+      loops.push(pts);
+    }
+    return loops;
+  }, []);
+
+  const isMoving = Math.abs(sample.velocity) > 0.08;
+  const isApproaching = sample.x * sample.velocity < 0;
+
+  // Real-time instantaneous power for readout
+  const vRated = 85.0;
+  const readoutRatio = Math.abs(sample.emf) / vRated;
+  const readoutPower = clamp(Math.pow(readoutRatio, 1.6), 0, 2.8);
+
+  return (
+    <>
+      {/* Bench Baseplate (y = -3.48, top surface at y = -3.30) */}
+      <LaboratoryBench />
+
+      {/* Guide Rail Bench Stanchions (4 pillars from bench y = -3.30 to rails y = -0.70) */}
+      {[-3.6, 3.6].map((gx) =>
+        [-0.6, 0.6].map((gz) => (
+          <mesh key={`${gx}-${gz}`} position={[gx, -2.0, gz]}>
+            <cylinderGeometry args={[0.04, 0.06, 2.6, 12]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
+          </mesh>
+        )),
+      )}
+
+      {/* Polished Guide Rails on Bench */}
+      <mesh position={[0, -0.7, -0.6]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.04, 0.04, 11, 16]} />
+        <meshStandardMaterial color="#f1f5f9" metalness={0.92} roughness={0.1} />
+      </mesh>
+      <mesh position={[0, -0.7, 0.6]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.04, 0.04, 11, 16]} />
+        <meshStandardMaterial color="#f1f5f9" metalness={0.92} roughness={0.1} />
+      </mesh>
+
+      {/* Solenoid Assembly at y = 0.2 */}
+      <group position={[0, 0.2, 0]}>
+        {/* Transparent acrylic support tube */}
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.92, 0.92, 3.8, 32, 1, true]} />
+          <meshPhysicalMaterial
+            color="#e2e8f0"
+            transparent
+            opacity={0.22}
+            roughness={0.1}
+            transmission={0.85}
+          />
+        </mesh>
+
+        {/* Aluminum Stanchions from bench (-3.30) to tube (+0.20) */}
+        {[-1.5, 1.5].map((sx) => (
+          <mesh key={sx} position={[sx, -1.55, 0]}>
+            <cylinderGeometry args={[0.08, 0.08, 3.5, 16]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
+          </mesh>
+        ))}
+
+        {/* Helical copper coil turns */}
+        {turnPositions.map((tx, idx) => (
+          <group key={idx} position={[tx, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <mesh>
+              <torusGeometry args={[0.96, 0.055, 12, 40]} />
+              <meshStandardMaterial
+                color="#ea580c"
+                emissive="#fb923c"
+                emissiveIntensity={0.2}
+                metalness={0.8}
+                roughness={0.2}
+              />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Pitch segments linking coil turns */}
+        {turnPositions.slice(0, -1).map((tx, idx) => (
+          <Line
+            key={`link-${idx}`}
+            points={[
+              [tx, 0.96, 0],
+              [turnPositions[idx + 1], 0.96, 0],
+            ]}
+            color="#ea580c"
+            lineWidth={3.0}
+          />
+        ))}
+
+        {/* Circulating charge dots visualizing induced current flow */}
+        {showCurrent &&
+          Array.from({ length: 12 }, (_, idx) => (
+            <mesh
+              key={`charge-${idx}`}
+              ref={(el) => {
+                chargesRef.current[idx] = el;
+              }}
+              position={[0, 0, 0]}
+            >
+              <sphereGeometry args={[0.07, 12, 12]} />
+              <meshStandardMaterial
+                color="#fef08a"
+                emissive="#fef08a"
+                emissiveIntensity={2.5}
+                toneMapped={false}
+              />
+            </mesh>
+          ))}
+
+        {/* Lenz's Law opposing magnetic field indicator */}
+        {isMoving && (
+          <group position={[0, 0, 0]}>
+            <VectorArrow
+              from={[sample.velocity > 0 ? 0.6 : -0.6, 0, 0]}
+              to={[sample.velocity > 0 ? -0.6 : 0.6, 0, 0]}
+              color={PALETTE.emerald}
+              radius={0.06}
+              headLength={0.32}
+              headRadius={0.14}
+            />
+            <SceneLabel position={[0, 1.45, 0]} tone="text-emerald-400">
+              B_induced opposes ΔΦ
+            </SceneLabel>
+          </group>
+        )}
+
+        <SceneLabel position={[0, -1.2, 0]} tone="text-ink-400">
+          copper solenoid ({safeTurns} turns)
+        </SceneLabel>
+      </group>
+
+      {/* Movable Bar Magnet */}
+      <group ref={magnetRef} position={[magnetX.current, 0.2, 0]}>
+        {/* Sliding Sled on Guide Rails */}
+        <mesh position={[0, -0.9, 0]}>
+          <boxGeometry args={[1.8, 0.25, 1.4]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, -0.45, 0]}>
+          <cylinderGeometry args={[0.06, 0.06, 0.8, 12]} />
+          <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
+        </mesh>
+
+        {/* North Pole Half */}
+        <mesh
+          position={[flipPoles ? -0.7 : 0.7, 0, 0]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <cylinderGeometry args={[0.62, 0.62, 1.35, 32]} />
+          <meshStandardMaterial
+            color="#ef4444"
+            emissive="#ef4444"
+            emissiveIntensity={0.25}
+            roughness={0.25}
+            metalness={0.65}
+          />
+        </mesh>
+
+        {/* South Pole Half */}
+        <mesh
+          position={[flipPoles ? 0.7 : -0.7, 0, 0]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <cylinderGeometry args={[0.62, 0.62, 1.35, 32]} />
+          <meshStandardMaterial
+            color="#3b82f6"
+            emissive="#3b82f6"
+            emissiveIntensity={0.25}
+            roughness={0.25}
+            metalness={0.65}
+          />
+        </mesh>
+
+        {/* Chrome Center Divider */}
+        <mesh position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.63, 0.63, 0.1, 32]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.95} roughness={0.1} />
+        </mesh>
+
+        {/* Pole Labels */}
+        <SceneLabel
+          position={[flipPoles ? -0.7 : 0.7, 0.85, 0]}
+          tone="text-rose-300"
+        >
+          N
+        </SceneLabel>
+        <SceneLabel
+          position={[flipPoles ? 0.7 : -0.7, 0.85, 0]}
+          tone="text-sky-300"
+        >
+          S
+        </SceneLabel>
+
+        {/* Dipole Field Lines moving with the magnet */}
+        {showFieldLines &&
+          dipoleLoops.map((pts, idx) => (
+            <Line
+              key={`loop-${idx}`}
+              points={pts}
+              color="#38bdf8"
+              lineWidth={1.4}
+              transparent
+              opacity={0.35}
+              dashed
+              dashSize={0.24}
+              gapSize={0.16}
+            />
+          ))}
+      </group>
+
+      {/* Circuit wiring from Solenoid down along bench to Galvanometer & Bulb */}
+      <Line
+        points={[
+          [-1.5, -1.55, 0],
+          [-1.5, -3.25, 0],
+          [-2.15, -3.25, 1.15],
+          [-2.15, -3.10, 1.35],
+        ]}
+        color="#ea580c"
+        lineWidth={2.2}
+      />
+      <Line
+        points={[
+          [1.5, -1.55, 0],
+          [1.5, -3.25, 0],
+          [-0.45, -3.25, 1.15],
+          [-0.45, -3.10, 1.35],
+        ]}
+        color="#38bdf8"
+        lineWidth={2.2}
+      />
+      {showBulb && (
+        <>
+          <Line
+            points={[
+              [-1.5, -1.55, 0],
+              [-1.5, -3.25, 0],
+              [1.46, -3.25, 1.15],
+              [1.46, -3.15, 1.35],
+            ]}
+            color="#ea580c"
+            lineWidth={2.2}
+          />
+          <Line
+            points={[
+              [1.5, -1.55, 0],
+              [1.5, -3.25, 0],
+              [2.14, -3.25, 1.15],
+              [2.14, -3.15, 1.35],
+            ]}
+            color="#38bdf8"
+            lineWidth={2.2}
+          />
+        </>
+      )}
+
+      {/* Meter and Bulb on bench (foreground z = 1.35) */}
+      <LaboratoryGalvanometer
+        position={[-1.3, -3.3, 1.35]}
+        needleRef={needleRef}
+      />
+      <DemonstrationBulb
+        position={[1.8, -3.3, 1.35]}
+        powerRef={bulbRef.current}
+        showBulb={showBulb}
+      />
+
+      <SceneReadout
+        hidden={params?.hideOverlayReadout}
+        title="Faraday's Law · Solenoid"
+        subtitle="ε = −N (dΦ/dt) = −N (dΦ/dx) · v"
+        rows={[
+          ["Coil turns N", safeTurns, "gold"],
+          ["Magnet position x", `${sample.x > 0 ? "+" : ""}${sample.x.toFixed(2)} cm`],
+          ["Velocity v", `${sample.velocity > 0 ? "+" : ""}${sample.velocity.toFixed(2)} cm/s`],
+          ["Flux Φ per turn", `${sample.flux.toFixed(2)} Wb`],
+          [
+            "Induced e.m.f. ε",
+            `${sample.emf.toFixed(2)} V`,
+            Math.abs(sample.emf) > 0.1 ? "gold" : undefined,
+          ],
+          [
+            "Bulb state",
+            readoutPower > 1.2
+              ? "Glowing brilliant white"
+              : readoutPower > 0.4
+                ? "Glowing bright yellow"
+                : readoutPower > 0.08
+                  ? "Dim amber glow"
+                  : "Off (unpowered)",
+            readoutPower > 0.08 ? "gold" : "neutral",
+          ],
+          [
+            "Current",
+            Math.abs(sample.emf) < 0.05 ? "none" : sample.emf > 0 ? "clockwise" : "anticlockwise",
+            Math.abs(sample.emf) < 0.05 ? "bad" : "good",
+          ],
+        ]}
+        note={
+          !isMoving
+            ? "Stationary magnet: flux is constant (dΦ/dt = 0), so induced e.m.f. is strictly zero. Relative motion is the sole requirement."
+            : isApproaching
+              ? "Approaching coil: flux is rapidly increasing. By Lenz's law, the coil induces a matching pole to repel the incoming magnet."
+              : "Departing coil: flux is decreasing. By Lenz's law, the coil induces an opposite pole to attract the receding magnet."
+        }
+        noteTone={!isMoving ? "bad" : "good"}
+      />
+
+      <SceneLegend
+        title="Solenoid Apparatus"
+        items={[
+          { color: PALETTE.rose, shape: "square", label: "N pole", note: "Red magnetic pole half" },
+          { color: PALETTE.sky, shape: "square", label: "S pole", note: "Blue magnetic pole half" },
+          { color: "#ea580c", shape: "line", label: "Copper Solenoid", note: `${safeTurns}-turn helical winding` },
+          { color: PALETTE.emerald, shape: "line", label: "Lenz's Law B_induced", note: "Opposes rate of change" },
+          { color: PALETTE.gold, shape: "dot", label: "Demonstration bulb", note: "Incandescent filament glow" },
+        ]}
+      />
+    </>
+  );
+}
+
+export function InductionScene({ params = {} }) {
+  const isSolenoid = params?.apparatus === "solenoid";
+
+  return (
+    <SceneCanvas
+      camera={
+        isSolenoid
+          ? { position: [0, 1.8, 13.5], fov: 45 }
+          : { position: [4.8, 1.5, 14.0], fov: 45 }
+      }
+      controls={{ target: isSolenoid ? [0, -0.4, 0.4] : [0, -0.2, 0.4] }}
+    >
+      {isSolenoid ? (
+        <SolenoidRig params={params} />
+      ) : (
+        <GeneratorRig params={params} />
+      )}
     </SceneCanvas>
   );
 }
@@ -2393,6 +3535,12 @@ export function GasLawsScene({ params = {} }) {
 const PROJECTILE_SPAN = 9;
 const SIM_DT = 0.004;
 const SIM_MAX_TIME = 60;
+/** Runway deck top surface height in world units. */
+const RUNWAY_TOP_Y = 0.28;
+/** Ball radius in world units. */
+const BALL_RADIUS = 0.13;
+/** Launch and landing origin height: runway deck surface plus ball radius so ball rests perfectly on deck. */
+const LAUNCH_Y = RUNWAY_TOP_Y + BALL_RADIUS;
 
 /**
  * Integrates the flight until it returns to the ground.
@@ -2422,6 +3570,7 @@ function simulateFlight(speed, angleDeg, gravity, drag, mass) {
   svy[0] = vy;
   let n = 1;
   let apex = 0;
+  let apexX = 0;
 
   while (t < SIM_MAX_TIME && n < cap) {
     const v = Math.hypot(vx, vy);
@@ -2452,7 +3601,10 @@ function simulateFlight(speed, angleDeg, gravity, drag, mass) {
 
     x = nx;
     y = ny;
-    if (y > apex) apex = y;
+    if (y > apex) {
+      apex = y;
+      apexX = x;
+    }
     // Every step would be 15 000 points for a long flight; every eighth is
     // still smooth at this scale.
     if (n % 8 === 0) points.push([x, y, 0]);
@@ -2473,6 +3625,7 @@ function simulateFlight(speed, angleDeg, gravity, drag, mass) {
     count: n,
     range: sx[last],
     apex,
+    apexX,
     // The landing step is interpolated, so the true flight time sits a
     // fraction of a step before the last recorded index.
     flightTime: last * SIM_DT,
@@ -2480,21 +3633,415 @@ function simulateFlight(speed, angleDeg, gravity, drag, mass) {
   };
 }
 
-/** Walks the recorded samples in real time and drives the ball + vectors. */
-function Projectile({ flight, scale, running, replayKey, showVectors, onSample, animSpeed = 1 }) {
+/** Precision laboratory cannon launcher with bright satin platinum, champagne brass fittings, and protractor scale. */
+function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
+  const rad = angleDeg * DEG;
+  return (
+    <group position={[0, 0, 0]}>
+      {/* 1. Ground Carriage & Rails - Sits on ground (Y=0 to Y=0.08) behind the runway (X <= 0) */}
+      <group position={[-0.26, 0.04, 0]}>
+        {/* Baseplate bed: light brushed platinum */}
+        <mesh position={[0, 0, 0]} receiveShadow>
+          <boxGeometry args={[0.52, 0.08, 0.58]} />
+          <meshStandardMaterial color="#f1f5f9" roughness={0.25} metalness={0.82} />
+        </mesh>
+        {/* Mirror chrome longitudinal guide rails */}
+        <mesh position={[0, 0.05, -0.22]}>
+          <boxGeometry args={[0.50, 0.02, 0.04]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.95} />
+        </mesh>
+        <mesh position={[0, 0.05, 0.22]}>
+          <boxGeometry args={[0.50, 0.02, 0.04]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.95} />
+        </mesh>
+        {/* Leveling feet resting on floor */}
+        {[-0.22, 0.22].map((x) =>
+          [-0.24, 0.24].map((z) => (
+            <mesh key={`foot-${x}-${z}`} position={[x, -0.035, z]}>
+              <cylinderGeometry args={[0.035, 0.035, 0.03, 16]} />
+              <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
+            </mesh>
+          ))
+        )}
+      </group>
+
+      {/* 2. Side Stanchion Brackets (Cheeks) - Rising from ground up to trunnion pivot at LAUNCH_Y */}
+      <group position={[0, 0, 0]}>
+        {[-0.24, 0.24].map((z) => (
+          <group key={`cheek-${z}`} position={[0, 0, z]}>
+            {/* Triangular stanchion plate */}
+            <mesh position={[-0.14, LAUNCH_Y / 2, 0]}>
+              <boxGeometry args={[0.28, LAUNCH_Y, 0.04]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.22} metalness={0.85} />
+            </mesh>
+            {/* Front trunnion bearing collar at [0, LAUNCH_Y, 0] */}
+            <mesh position={[0, LAUNCH_Y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.065, 0.065, 0.05, 20]} />
+              <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.94} />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Laser-engraved Protractor Degree Quadrant Arc on front cheek */}
+        <group position={[0, LAUNCH_Y, 0.266]}>
+          <mesh>
+            <ringGeometry args={[0.16, 0.22, 32, 1, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.15} metalness={0.3} side={THREE.DoubleSide} />
+          </mesh>
+          {/* Degree scale ticks */}
+          {[0, 15, 30, 45, 60, 75, 90].map((deg) => {
+            const r = deg * DEG;
+            return (
+              <mesh
+                key={`tick-${deg}`}
+                position={[Math.cos(r) * 0.19, Math.sin(r) * 0.19, 0.001]}
+                rotation={[0, 0, r]}
+              >
+                <boxGeometry args={[0.03, 0.004, 0.002]} />
+                <meshBasicMaterial color={deg % 45 === 0 ? "#ef4444" : "#475569"} />
+              </mesh>
+            );
+          })}
+        </group>
+      </group>
+
+      {/* 3. Elevating Barrel Assembly (Centered at launch origin [0, LAUNCH_Y, 0]) */}
+      <group position={[0, LAUNCH_Y, 0]} rotation={[0, 0, rad]}>
+        {/* Main barrel tube: extends backwards from X=0 to X=-0.46 */}
+        <mesh position={[-0.23, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.175, 0.205, 0.46, 28, 1, true]} />
+          <meshStandardMaterial
+            color="#f8fafc"
+            roughness={0.12}
+            metalness={0.92}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+
+        {/* Inner bore liner: clean gunmetal */}
+        <mesh position={[-0.23, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.145, 0.145, 0.46, 24, 1, true]} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.65} side={THREE.BackSide} />
+        </mesh>
+
+        {/* Polished champagne gold muzzle crown ring */}
+        <mesh position={[-0.025, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.20, 0.20, 0.05, 28]} />
+          <meshStandardMaterial color="#fde047" roughness={0.14} metalness={0.95} />
+        </mesh>
+        {/* Front muzzle bevel lip */}
+        <mesh position={[-0.003, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <ringGeometry args={[0.145, 0.20, 28]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.98} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* Polished brass reinforcement band */}
+        <mesh position={[-0.26, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.21, 0.21, 0.04, 24]} />
+          <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.94} />
+        </mesh>
+
+        {/* Breech block hemisphere */}
+        <mesh position={[-0.46, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <sphereGeometry args={[0.205, 20, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.14} metalness={0.92} />
+        </mesh>
+
+        {/* Mirror chrome cascabel knob */}
+        <mesh position={[-0.52, 0, 0]}>
+          <sphereGeometry args={[0.065, 16, 16]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.08} metalness={0.98} />
+        </mesh>
+
+        {/* Trunnion pivot axle pins right through the pivot at [0, 0, 0] */}
+        <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.56, 16]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.98} />
+        </mesh>
+
+        {/* Red angle pointer needle pointing out along degree scale */}
+        <mesh position={[0.10, 0, 0.285]}>
+          <boxGeometry args={[0.16, 0.016, 0.01]} />
+          <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.8} roughness={0.2} />
+        </mesh>
+      </group>
+
+      {/* Angle readout badge */}
+      {showLabels && (
+        <SceneLabel position={[-0.26, -0.15, 0]} accent>
+          {angleDeg}° launch
+        </SceneLabel>
+      )}
+    </group>
+  );
+}
+
+/** Single reusable high-performance dynamic vector arrow with shaft, cone head, and HTML label pill. */
+function VectorMesh({ color, groupRef, shaftRef, headRef, labelRef, label, showLabels = true }) {
+  return (
+    <group ref={groupRef}>
+      <mesh ref={shaftRef} position={[0, 0.5, 0]}>
+        <cylinderGeometry args={[0.034, 0.034, 1, 14]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={0.9}
+          toneMapped={false}
+          roughness={0.25}
+          metalness={0.4}
+        />
+      </mesh>
+      <mesh ref={headRef} position={[0, 1.1, 0]}>
+        <coneGeometry args={[0.09, 0.22, 16]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={1.3}
+          toneMapped={false}
+          roughness={0.2}
+          metalness={0.5}
+        />
+      </mesh>
+      {showLabels && label && (
+        <group ref={labelRef} position={[0, 1.3, 0]}>
+          <Html center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
+            <div
+              className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white shadow-md whitespace-nowrap select-none"
+              style={{ backgroundColor: color, opacity: 0.95 }}
+            >
+              {label}
+            </div>
+          </Html>
+        </group>
+      )}
+    </group>
+  );
+}
+
+/** 60 FPS WebGL vector transform updater with zero React state latency. */
+function updateVector(groupRef, shaftRef, headRef, labelRef, dirX, dirY, length) {
+  if (!groupRef.current) return;
+  if (length < 0.05) {
+    groupRef.current.visible = false;
+    return;
+  }
+  groupRef.current.visible = true;
+  groupRef.current.rotation.z = Math.atan2(dirY, dirX) - Math.PI / 2;
+
+  const effHeadLen = Math.min(0.22, length * 0.38);
+  const headScale = effHeadLen / 0.22;
+  const shaftLen = Math.max(0.001, length - effHeadLen);
+
+  if (shaftRef.current) {
+    shaftRef.current.scale.set(1, shaftLen, 1);
+    shaftRef.current.position.set(0, shaftLen / 2, 0);
+  }
+  if (headRef.current) {
+    headRef.current.scale.set(headScale, headScale, headScale);
+    headRef.current.position.set(0, shaftLen + effHeadLen / 2, 0);
+  }
+  if (labelRef.current) {
+    labelRef.current.position.set(0, shaftLen + effHeadLen + 0.16, 0);
+  }
+}
+
+/** Muzzle blast shockwave ring displayed upon firing. */
+function MuzzleBlast({ position, angleDeg, replayKey }) {
+  const blastRef = useRef(null);
+  const time = useRef(0);
+
+  // Trigger blast ONLY upon firing/replayKey, not continuously when rotating angle
+  useEffect(() => {
+    time.current = 0;
+  }, [replayKey]);
+
+  useFrame((_, delta) => {
+    time.current += delta;
+    if (blastRef.current) {
+      if (time.current < 0.22) {
+        blastRef.current.visible = true;
+        const progress = time.current / 0.22;
+        const s = 0.6 + progress * 1.8;
+        blastRef.current.scale.set(s, s, s);
+        if (blastRef.current.material) {
+          blastRef.current.material.opacity = Math.max(0, 0.85 * (1 - progress));
+        }
+      } else {
+        blastRef.current.visible = false;
+      }
+    }
+  });
+
+  return (
+    <mesh ref={blastRef} position={position} rotation={[0, 0, angleDeg * DEG]}>
+      <ringGeometry args={[0.08, 0.24, 24]} />
+      <meshBasicMaterial color="#fbbf24" transparent opacity={0.85} side={THREE.DoubleSide} toneMapped={false} />
+    </mesh>
+  );
+}
+
+/** Calibrated ground metric runway with light clean colors and distance markings. */
+function DistanceRunway({ maxDist, scale, showLabels = true }) {
+  const runwayLength = Math.max(maxDist * scale + 1.2, 5);
+  const step = maxDist <= 35 ? 5 : maxDist <= 90 ? 10 : 20;
+  const marks = useMemo(() => {
+    const arr = [];
+    for (let d = step; d <= maxDist * 1.05; d += step) {
+      arr.push(d);
+    }
+    return arr;
+  }, [maxDist, step]);
+
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Light, clean laboratory runway bed: starts at X=0 and extends along +X */}
+      <mesh position={[runwayLength / 2, RUNWAY_TOP_Y / 2, 0]} receiveShadow>
+        <boxGeometry args={[runwayLength, RUNWAY_TOP_Y, 0.72]} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.35} metalness={0.2} />
+      </mesh>
+      {/* Runway surface top finish layer */}
+      <mesh position={[runwayLength / 2, RUNWAY_TOP_Y - 0.005, 0]}>
+        <boxGeometry args={[runwayLength, 0.01, 0.68]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.25} />
+      </mesh>
+      {/* Satin aluminum side guide curbs */}
+      <mesh position={[runwayLength / 2, RUNWAY_TOP_Y + 0.015, -0.35]}>
+        <boxGeometry args={[runwayLength, 0.03, 0.024]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.75} />
+      </mesh>
+      <mesh position={[runwayLength / 2, RUNWAY_TOP_Y + 0.015, 0.35]}>
+        <boxGeometry args={[runwayLength, 0.03, 0.024]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.75} />
+      </mesh>
+
+      {/* Metric tick marks along the runway */}
+      {marks.map((d) => (
+        <group key={`mark-${d}`} position={[d * scale, RUNWAY_TOP_Y + 0.001, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[0.03, 0.44]} />
+            <meshBasicMaterial color="#475569" />
+          </mesh>
+          {showLabels && (
+            <SceneLabel position={[0, -0.28, 0.28]} className="text-[9px] font-mono font-semibold text-slate-700">
+              {d}m
+            </SceneLabel>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Apex maximum height indicator with vertical dashed plumb line. */
+function ApexMarker({ apexX, apexY, apexMeters, color = PALETTE.emerald, showLabels = true }) {
+  return (
+    <group position={[apexX, apexY, 0]}>
+      {/* Glowing diamond apex marker */}
+      <mesh rotation={[0, 0, Math.PI / 4]}>
+        <octahedronGeometry args={[0.075]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={1.2}
+          roughness={0.2}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Vertical dashed drop line down to runway deck */}
+      <Line
+        points={[
+          [0, -0.08, 0],
+          [0, -(apexY - RUNWAY_TOP_Y), 0],
+        ]}
+        color={color}
+        lineWidth={1.2}
+        dashed
+        dashSize={0.12}
+        gapSize={0.08}
+        transparent
+        opacity={0.65}
+      />
+      {/* Apex label */}
+      {showLabels && (
+        <SceneLabel position={[0, 0.28, 0]} accent>
+          Apex {apexMeters.toFixed(1)}m
+        </SceneLabel>
+      )}
+    </group>
+  );
+}
+
+/** Concentric landing bullseye on runway with distance badge. */
+function LandingTarget({ x, label, color = PALETTE.emerald, showLabels = true }) {
+  return (
+    <group position={[x, RUNWAY_TOP_Y + 0.002, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.16, 0.24, 32]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.065, 24]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
+      </mesh>
+      {showLabels && (
+        <SceneLabel position={[0, -0.32, -0.25]}>
+          {label}
+        </SceneLabel>
+      )}
+    </group>
+  );
+}
+
+/** Walks the recorded samples in real time and drives the ball + 60fps lag-free vectors. */
+function Projectile({
+  flight,
+  scale,
+  running,
+  replayKey,
+  showVectors,
+  showLabels = true,
+  onSample,
+  animSpeed = 1,
+  drag = 0.04,
+  mass = 1,
+  gravity = 9.81,
+}) {
   const ball = useRef(null);
   const clock = useRef(0);
-  const [vectors, setVectors] = useState(null);
   const sampleAcc = useRef(0);
 
+  // Vector group & component refs for 60 FPS lag-free transform updates
+  const vectorsGroup = useRef(null);
+
+  const vArrowRef = useRef(null);
+  const vShaftRef = useRef(null);
+  const vHeadRef = useRef(null);
+  const vLabelRef = useRef(null);
+
+  const wArrowRef = useRef(null);
+  const wShaftRef = useRef(null);
+  const wHeadRef = useRef(null);
+  const wLabelRef = useRef(null);
+
+  const dArrowRef = useRef(null);
+  const dShaftRef = useRef(null);
+  const dHeadRef = useRef(null);
+  const dLabelRef = useRef(null);
+
+  const netArrowRef = useRef(null);
+  const netShaftRef = useRef(null);
+  const netHeadRef = useRef(null);
+  const netLabelRef = useRef(null);
+
+  const wakeGroup = useRef(null);
+
+  // Reset flight clock only upon debounced replayKey trigger, preserving smooth continuity during slider drags
   useEffect(() => {
     clock.current = 0;
-  }, [flight, replayKey]);
+  }, [replayKey]);
 
   useFrame((_, delta) => {
     if (running) clock.current += Math.min(delta, 0.05) * animSpeed;
-    // Hold on the last frame rather than looping: the landing point is the
-    // number the scene is mostly about.
     const t = Math.min(clock.current, flight.flightTime);
     const i = clamp(Math.round(t / SIM_DT), 0, flight.count - 1);
     const px = flight.sx[i];
@@ -2502,57 +4049,134 @@ function Projectile({ flight, scale, running, replayKey, showVectors, onSample, 
     const pvx = flight.svx[i];
     const pvy = flight.svy[i];
 
+    const ballX = px * scale;
+    const ballY = LAUNCH_Y + py * scale;
+
     if (ball.current) {
-      ball.current.position.set(px * scale, py * scale + 0.12, 0);
+      ball.current.position.set(ballX, ballY, 0);
+    }
+
+    if (vectorsGroup.current) {
+      vectorsGroup.current.position.set(ballX, ballY, 0);
+      vectorsGroup.current.visible = Boolean(showVectors);
+    }
+
+    if (showVectors) {
+      const speed = Math.hypot(pvx, pvy);
+      const safeSpeed = Math.max(speed, 1e-4);
+      const dirVx = pvx / safeSpeed;
+      const dirVy = pvy / safeSpeed;
+
+      // 1. Velocity vector v (sky blue)
+      const vLen = clamp(speed * 0.075, 0.22, 2.2);
+      updateVector(vArrowRef, vShaftRef, vHeadRef, vLabelRef, dirVx, dirVy, vLen);
+
+      // 2. Weight force W = mg (rose) - constant downward
+      const wMag = mass * gravity;
+      const wLen = clamp(wMag * 0.045, 0.35, 1.8);
+      updateVector(wArrowRef, wShaftRef, wHeadRef, wLabelRef, 0, -1, wLen);
+
+      // 3. Drag force F_drag = -k|v|v (amber) - opposes velocity
+      const fDrag = drag * (pvx * pvx + pvy * pvy);
+      const dLen = drag > 0.001 ? clamp(fDrag * 0.05, 0.12, 2.0) : 0;
+      updateVector(dArrowRef, dShaftRef, dHeadRef, dLabelRef, -dirVx, -dirVy, dLen);
+
+      // 4. Net resultant force F_net = W + F_drag (emerald)
+      const fNetX = -drag * speed * pvx;
+      const fNetY = -mass * gravity - drag * speed * pvy;
+      const fNetMag = Math.hypot(fNetX, fNetY);
+      const netLen = clamp(fNetMag * 0.042, 0.22, 2.2);
+      const dirNetX = fNetMag > 1e-4 ? fNetX / fNetMag : 0;
+      const dirNetY = fNetMag > 1e-4 ? fNetY / fNetMag : -1;
+      updateVector(netArrowRef, netShaftRef, netHeadRef, netLabelRef, dirNetX, dirNetY, netLen);
+    }
+
+    if (wakeGroup.current) {
+      wakeGroup.current.position.set(ballX, ballY, 0);
+      wakeGroup.current.rotation.z = Math.atan2(pvy, pvx) + Math.PI;
+      wakeGroup.current.visible = Boolean(running && drag > 0.002 && t > 0.02 && t < flight.flightTime);
     }
 
     sampleAcc.current += delta;
-    if (sampleAcc.current >= 0.1) {
+    if (sampleAcc.current >= 0.08) {
       sampleAcc.current = 0;
-      onSample({ t: i * SIM_DT, x: px, y: py, speed: Math.hypot(pvx, pvy), vx: pvx, vy: pvy });
-      if (showVectors) {
-        setVectors({ at: [px * scale, py * scale + 0.12, 0], vx: pvx, vy: pvy });
-      } else {
-        setVectors(null);
-      }
+      onSample({
+        t: i * SIM_DT,
+        x: px,
+        y: py,
+        speed: Math.hypot(pvx, pvy),
+        vx: pvx,
+        vy: pvy,
+        dragForce: drag * (pvx * pvx + pvy * pvy),
+      });
     }
   });
 
   return (
     <group>
+      {/* Machined polished brass cannonball */}
       <mesh ref={ball} castShadow>
-        <sphereGeometry args={[0.16, 24, 24]} />
+        <sphereGeometry args={[BALL_RADIUS, 28, 28]} />
         <meshStandardMaterial
-          color={PALETTE.gold}
-          emissive={PALETTE.gold}
-          emissiveIntensity={1.5}
-          roughness={0.24}
-          toneMapped={false}
+          color="#f59e0b"
+          emissive="#fbbf24"
+          emissiveIntensity={0.8}
+          roughness={0.22}
+          metalness={0.82}
         />
       </mesh>
 
-      {vectors && (
-        <group>
-          <VectorArrow
-            from={vectors.at}
-            to={[vectors.at[0] + vectors.vx * 0.09, vectors.at[1] + vectors.vy * 0.09, 0]}
-            color={PALETTE.sky}
-            radius={0.04}
-            headLength={0.22}
-            headRadius={0.11}
-            label="v"
-          />
-          <VectorArrow
-            from={vectors.at}
-            to={[vectors.at[0], vectors.at[1] - 0.9, 0]}
-            color={PALETTE.rose}
-            radius={0.035}
-            headLength={0.2}
-            headRadius={0.1}
-            label="W"
-          />
+      {/* Trailing aerodynamic wake eddies when drag > 0 */}
+      {drag > 0.002 && (
+        <group ref={wakeGroup}>
+          {[0.18, 0.36, 0.54].map((dist, idx) => (
+            <mesh key={`wake-${idx}`} position={[-dist, 0, 0]}>
+              <sphereGeometry args={[0.045 * (1 - idx * 0.25), 12, 12]} />
+              <meshBasicMaterial color="#38bdf8" transparent opacity={0.55 * (1 - idx * 0.28)} />
+            </mesh>
+          ))}
         </group>
       )}
+
+      {/* 60 FPS zero-latency vector group */}
+      <group ref={vectorsGroup}>
+        <VectorMesh
+          color={PALETTE.sky}
+          groupRef={vArrowRef}
+          shaftRef={vShaftRef}
+          headRef={vHeadRef}
+          labelRef={vLabelRef}
+          label="v"
+          showLabels={showLabels}
+        />
+        <VectorMesh
+          color={PALETTE.rose}
+          groupRef={wArrowRef}
+          shaftRef={wShaftRef}
+          headRef={wHeadRef}
+          labelRef={wLabelRef}
+          label="W = mg"
+          showLabels={showLabels}
+        />
+        <VectorMesh
+          color={PALETTE.gold}
+          groupRef={dArrowRef}
+          shaftRef={dShaftRef}
+          headRef={dHeadRef}
+          labelRef={dLabelRef}
+          label="F_drag"
+          showLabels={showLabels}
+        />
+        <VectorMesh
+          color={PALETTE.emerald}
+          groupRef={netArrowRef}
+          shaftRef={netShaftRef}
+          headRef={netHeadRef}
+          labelRef={netLabelRef}
+          label="F_net"
+          showLabels={showLabels}
+        />
+      </group>
     </group>
   );
 }
@@ -2568,12 +4192,38 @@ export function ProjectileScene({ params = {} }) {
     mass = 1,
     showIdeal = true,
     showVectors = true,
+    showLabels = true,
     running = true,
     replay = 0,
     spin = false,
   } = params || {};
 
-  const [live, setLive] = useState({ t: 0, x: 0, y: 0, speed, vx: 0, vy: 0 });
+  const [live, setLive] = useState({ t: 0, x: 0, y: 0, speed, vx: 0, vy: 0, dragForce: 0 });
+  const [activeReplay, setActiveReplay] = useState(0);
+  const debounceTimer = useRef(null);
+  const isFirstMount = useRef(true);
+
+  // Debounce launch restart during slider dragging to eliminate stuttering & continuous glitchy restarts
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setActiveReplay((r) => r + 1);
+    }, 320);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [speed, angle, gravity, drag, mass]);
+
+  // Immediate launch on explicit replay action button
+  useEffect(() => {
+    if (replay > 0) {
+      setActiveReplay((r) => r + 1);
+    }
+  }, [replay]);
 
   const flight = useMemo(
     () => simulateFlight(speed, angle, gravity, drag, mass),
@@ -2596,63 +4246,81 @@ export function ProjectileScene({ params = {} }) {
     0.6,
   );
   const path = useMemo(
-    () => flight.points.map(([x, y]) => [x * scale, y * scale, 0]),
+    () => flight.points.map(([x, y]) => [x * scale, LAUNCH_Y + y * scale, 0]),
     [flight, scale],
   );
   const idealPath = useMemo(
-    () => ideal.points.map(([x, y]) => [x * scale, y * scale, 0]),
+    () => ideal.points.map(([x, y]) => [x * scale, LAUNCH_Y + y * scale, 0]),
     [ideal, scale],
   );
 
   return (
-    <SceneCanvas camera={{ position: [3.4, 3.2, 12], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * animSpeed }}>
+    <SceneCanvas
+      camera={{ position: [4.2, 3.2, 13], fov: 46 }}
+      controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * animSpeed, target: [4.2, 1.8, 0] }}
+    >
       <Grid
-        args={[24, 14]}
+        args={[28, 16]}
         cellSize={0.5}
         cellColor="#1e2531"
         sectionSize={2.5}
         sectionColor="#2b3442"
-        fadeDistance={34}
+        fadeDistance={36}
         infiniteGrid={false}
       />
 
-      {/* Launcher. */}
-      <group position={[0, 0, 0]}>
-        <mesh position={[-0.25, 0.12, 0]} rotation={[0, 0, angle * DEG]}>
-          <boxGeometry args={[0.9, 0.16, 0.3]} />
-          <meshStandardMaterial color="#5b6472" roughness={0.4} metalness={0.62} />
-        </mesh>
-        <SceneLabel position={[-0.4, -0.42, 0]} accent>
-          {angle}° launch
-        </SceneLabel>
-      </group>
+      {/* Metric runway track with light colors & ground distance markers */}
+      <DistanceRunway maxDist={Math.max(flight.range, ideal.range)} scale={scale} showLabels={showLabels} />
 
+      {/* Precision laboratory cannon with aligned muzzle & light platinum finish */}
+      <LaboratoryCannon angleDeg={angle} showLabels={showLabels} />
+
+      {/* Muzzle blast impulse shockwave upon firing */}
+      <MuzzleBlast position={[0, LAUNCH_Y, 0]} angleDeg={angle} replayKey={activeReplay} />
+
+      {/* Trajectory lines */}
       {showIdeal && (
         <Line points={idealPath} color={PALETTE.slate} lineWidth={1.8} dashed dashSize={0.16} gapSize={0.12} />
       )}
       <Line points={path} color={PALETTE.emerald} lineWidth={3} />
 
+      {/* Apex markers */}
+      <ApexMarker
+        apexX={flight.apexX * scale}
+        apexY={LAUNCH_Y + flight.apex * scale}
+        apexMeters={flight.apex}
+        color={PALETTE.emerald}
+        showLabels={showLabels}
+      />
+      {showIdeal && (
+        <ApexMarker
+          apexX={ideal.apexX * scale}
+          apexY={LAUNCH_Y + ideal.apex * scale}
+          apexMeters={ideal.apex}
+          color={PALETTE.slate}
+          showLabels={showLabels}
+        />
+      )}
+
+      {/* 60 FPS projectile ball & zero-lag force vectors (without unmounting glitch on slider drags) */}
       <Projectile
-        key={`${speed}-${angle}-${gravity}-${drag}-${mass}`}
         flight={flight}
         scale={scale}
         running={running}
-        replayKey={replay}
+        replayKey={activeReplay}
         showVectors={showVectors}
+        showLabels={showLabels}
         onSample={setLive}
         animSpeed={animSpeed}
+        drag={drag}
+        mass={mass}
+        gravity={gravity}
       />
 
-      {/* Landing markers, so the two ranges can be read off the ground. */}
-      <mesh position={[flight.range * scale, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.14, 0.22, 24]} />
-        <meshBasicMaterial color={PALETTE.emerald} toneMapped={false} />
-      </mesh>
+      {/* Calibrated landing target rings on runway */}
+      <LandingTarget x={flight.range * scale} label={`${flight.range.toFixed(1)}m`} color={PALETTE.emerald} showLabels={showLabels} />
       {showIdeal && (
-        <mesh position={[ideal.range * scale, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.14, 0.22, 24]} />
-          <meshBasicMaterial color={PALETTE.slate} toneMapped={false} />
-        </mesh>
+        <LandingTarget x={ideal.range * scale} label={`${ideal.range.toFixed(1)}m (vac)`} color={PALETTE.slate} showLabels={showLabels} />
       )}
 
       <SceneReadout
@@ -2661,19 +4329,21 @@ export function ProjectileScene({ params = {} }) {
         subtitle="quadratic drag · F = −k|v|v"
         rows={[
           ["Time t", `${live.t.toFixed(2)} s`],
+          ["Distance x", `${live.x.toFixed(1)} m`],
           ["Height y", `${live.y.toFixed(1)} m`],
           ["Speed |v|", `${live.speed.toFixed(1)} m/s`, "gold"],
+          ["Drag force", `${(live.dragForce ?? 0).toFixed(1)} N`, drag > 0.005 ? "warn" : undefined],
           ["Range", `${flight.range.toFixed(1)} m`, "good"],
           ["…without drag", `${ideal.range.toFixed(1)} m`],
           ["Range lost", `${(lost * 100).toFixed(0)}%`, lost > 0.3 ? "bad" : lost > 0.1 ? "warn" : undefined],
-          ["Max height", `${flight.apex.toFixed(1)} m`],
+          ["Max height", `${flight.apex.toFixed(1)} m (at ${(flight.apexX ?? 0).toFixed(1)}m)`],
           ["Flight time", `${flight.flightTime.toFixed(2)} s`],
           ["Impact speed", `${flight.impactSpeed.toFixed(1)} m/s`],
         ]}
         note={
           drag < 0.005
-            ? "With no drag the path is a true parabola, symmetric about its apex, and 45° gives the maximum range. Add drag and both of those stop being true."
-            : `Drag has cost ${(lost * 100).toFixed(0)}% of the range. The descent is steeper than the climb because the object keeps losing horizontal speed the whole way, so the optimum launch angle drops below 45°.`
+            ? "With zero atmospheric drag, the flight path is a perfect symmetrical parabola with apex at exactly 50% range, and 45° yields maximum range."
+            : `Quadratic drag removes momentum throughout flight, causing an asymmetric path with steeper descent and shifting the apex backwards to ${((flight.apexX / (flight.range || 1)) * 100).toFixed(0)}% of range.`
         }
         noteTone={lost > 0.3 ? "warn" : "neutral"}
       />
@@ -2681,10 +4351,12 @@ export function ProjectileScene({ params = {} }) {
       <SceneLegend
         title="Projectile"
         items={[
-          { color: PALETTE.emerald, shape: "line", label: "With drag", note: "asymmetric — falls steeper than it rose" },
-          { color: PALETTE.slate, shape: "dash", label: "No drag", note: "the ideal parabola" },
-          { color: PALETTE.sky, shape: "line", label: "Velocity v", note: "tangent to the path, always" },
-          { color: PALETTE.rose, shape: "line", label: "Weight W", note: "constant, straight down" },
+          { color: PALETTE.emerald, shape: "line", label: "With drag", note: "Asymmetric path — steep descent" },
+          { color: PALETTE.slate, shape: "dash", label: "No drag", note: "Ideal symmetric parabola" },
+          { color: PALETTE.sky, shape: "line", label: "Velocity v", note: "Tangential to trajectory path" },
+          { color: PALETTE.rose, shape: "line", label: "Weight W", note: "Constant downward force (m·g)" },
+          { color: PALETTE.gold, shape: "line", label: "Drag Force F_drag", note: "Quadratic atmospheric drag (−k|v|v)" },
+          { color: PALETTE.emerald, shape: "line", label: "Resultant Force F_net", note: "Vector sum (W + F_drag)" },
         ]}
       />
     </SceneCanvas>

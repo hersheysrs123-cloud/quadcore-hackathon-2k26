@@ -5,12 +5,12 @@
 // ─────────────────────────────────────────────────────────────────────
 
 export const MEDIA = {
-  air: { label: "Air", n: 1.0, colour: "#7dd3fc" },
-  ice: { label: "Ice", n: 1.31, colour: "#a5f3fc" },
-  water: { label: "Water", n: 1.33, colour: "#38bdf8" },
-  perspex: { label: "Perspex", n: 1.49, colour: "#c4b5fd" },
-  glass: { label: "Glass", n: 1.5, colour: "#93c5fd" },
-  diamond: { label: "Diamond", n: 2.42, colour: "#e0e7ff" },
+  air: { label: "Air", n: 1.0, colour: "#e0f2fe" },
+  ice: { label: "Ice", n: 1.31, colour: "#67e8f9" },
+  water: { label: "Water", n: 1.33, colour: "#0284c7" },
+  perspex: { label: "Perspex", n: 1.49, colour: "#c084fc" },
+  glass: { label: "Glass", n: 1.5, colour: "#60a5fa" },
+  diamond: { label: "Diamond", n: 2.42, colour: "#fef08a" },
 };
 
 export const MEDIA_OPTIONS = Object.entries(MEDIA).map(([value, m]) => ({

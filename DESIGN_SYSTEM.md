@@ -593,15 +593,114 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - **Continuous Tangent Arc Rope Threading**: Rope geometry generates multi-point circular arc tangencies around sheave grooves ($R=0.22$) without clipping through pulley centers. Accurately alternates between upper and lower sheaves and terminates at lower (odd $n$) or upper (even $n$) becket.
       - **Kinematic Hauling Travel & Pulling Grip**: Free hauling lead routes over an exit sheave to an ergonomic knurled aluminum handle (`#e2e8f0`) with gold brass caps (`#fbbf24`), traveling exactly $n \times \text{loadDistance} \times \text{phase}$ with co-located effort travel markers and live pull direction vector.
 
-17. **3D Archimedes Buoyancy Vessel & Apparatus Design Tokens (`BuoyancyCanvas.jsx`)**:
-    - **Expanded Acrylic Overflow Tank**: Five-panel transparent acrylic tank ($34\text{ cm} \times 20\text{ cm} \times 24\text{ cm}$, `#7f8ea3` at opacity 0.17 with transmission 0.6 and thickness 0.4) elevated on workbench base, with angled overflow spout (`#7f8ea3` cylinder) positioned at water height ($18\text{ cm}$) aligned with catch cylinder ($x = 3.8$).
-    - **Realistic Marine Craft (`RealisticBoat`)**:
+17. **3D Archimedes Buoyancy Vessel & Apparatus Design Tokens (`BuoyancyCanvas.jsx`, `lib/buoyancy.js`)**:
+    - **Luminous Laboratory Lighting**: Ambient intensity elevated to 0.88, directional key light elevated to 1.45 (`#ffffff`), banishing dark muddy shadows across materials and liquid transmission.
+    - **Laboratory Workbench Base & Satin Gantry**: Elevated laboratory table base (`#64748b` rounded slab with `#e2e8f0` brushed aluminum surface inlay), unified with Simple Machines. Vertical upright columns and overhead crosshead beam in bright satin anodized aluminum (`#94a3b8`, metalness 0.8, roughness 0.25).
+    - **Crystalline Acrylic Overflow Tank & Cylinder**: Five-panel transparent acrylic tank ($34\text{ cm} \times 20\text{ cm} \times 24\text{ cm}$, `#b8c9dc` at reduced opacity 0.13 with transmission 0.78 and roughness 0.10) elevated on workbench base, with angled overflow spout positioned at water height ($18\text{ cm}$) aligned with catch cylinder ($x = 3.8$). Cylinder foot lightened to `#94a3b8` with pure white graduation ticks (`#f1f5f9`).
+    - **Bright Spring Scale Assembly**: Anodized aluminum casing (`#64748b`), pure white dial face plate (`#f8fafc`), light stem (`#cbd5e1`), polished chrome suspension hook (`#f1f5f9`), and white suspension cord (`#f1f5f9`).
+    - **Light Modern Marine Craft (`RealisticBoat`)**:
       - Lofted outer hull with tapered bow cutwater stem, flared deadrise topsides, curved sheer line, flat transom stern, and centerline keel skeg (`colour` material finish with metalness 0.6, roughness 0.35).
       - Open interior hold with inner deck floor and bulkheads demonstrating the large air cavity explaining Archimedes flotation.
-      - Deep charcoal/navy bronze gunwale rub-rail capping, foredeck plate with brass/chrome mooring bitt, and aft quarterdeck (`#1e2530`).
-      - Warm timber center thwart bench (`#784528`) equipped with a chrome marine lifting eyelet ring (`#cbd5e1`, metalness 0.88, roughness 0.2) directly anchored to the spring scale suspension line.
-      - Internal transverse bilge ribs (`#1e2530`) crossing the cockpit floor.
+      - Titanium marine slate gunwale rub-rail capping, foredeck plate with polished chrome mooring bitt, and aft quarterdeck (`#5b6b80`).
+      - Bright blonde teak center thwart bench (`#d4a373`) equipped with a polished chrome marine lifting eyelet ring (`#f1f5f9`, metalness 0.88, roughness 0.2) directly anchored to the spring scale suspension line.
+      - Titanium marine slate transverse bilge ribs (`#5b6b80`) crossing the cockpit floor.
       - Flooded/swamped state rendering an internal fluid volume matching fluid refraction, colour, and surface level.
+    - **Radiant Fluid & Solid Color Palette**:
+      - Fluids: Air (`#cbd5e1`), Gasoline (bright solar yellow `#fef08a`, opacity 0.30), Freshwater (luminous clear sky `#38bdf8`, opacity 0.38), Saltwater (vibrant luminous turquoise `#5eead4`, opacity 0.42), Honey (golden radiant amber `#fbbf24`, opacity 0.58), Mercury (liquid silver `#e2e8f0`, roughness 0.15).
+      - Solids: Oak Wood (blonde grain `#d4a373`), Ice (glowing glacial crystal `#e0f2fe`, opacity 0.88), Aluminium (bright billet `#e2e8f0`), Steel (bright stainless steel `#b8c5d6`), Gold (24k yellow gold `#fde047`).
     - **Directional Overflow Spout Stream**: Discrete fluid droplets (`sphereGeometry` $r=0.075$) with fluid opacity 0.85 animating downward along a parabolic trajectory from spout to cylinder solely during positive volume accumulation (`targetML - shownML > 0.6`), instantly dormant when volume is lowered.
+
+18. **3D Wave Refraction & Optical Media Tokens (`PhysicsCanvas.jsx`, `media.js`)**:
+    - **Optical Media Distinct Color Ramps**:
+      - Air ($n = 1.0$): `#e0f2fe` (luminous ethereal sky white)
+      - Ice ($n = 1.31$): `#67e8f9` (crisp glacial cyan)
+      - Water ($n = 1.33$): `#0284c7` (deep luminous ocean cobalt)
+      - Perspex ($n = 1.49$): `#c084fc` (vibrant optical acrylic violet)
+      - Glass ($n = 1.50$): `#60a5fa` (bright optical crown blue)
+      - Diamond ($n = 2.42$): `#fef08a` (radiant prism crystalline gold-yellow)
+    - **Atmospheric Surrounding Medium Visibility**: Baseline opacity boosted to $0.12$ minimum (`clamp(0.12 + (n1 - 1) * 0.16, 0.12, 0.35)`), ensuring air and ambient environments are visually delineated from the canvas background.
+    - **Refracting Block Luminescence**: Surface boundary lines reinforced at $2.8\text{ px}$ width (`0.95` opacity), edge cage opacity at `0.92`, and block mesh emissive intensity at `0.16`.
+
+19. **3D Ray Optics Bench, Curved Mirrors & Lens Tokens (`PhysicsCanvas.jsx`, `scene-kit.jsx`)**:
+    - **Optical Bench Track & Saddles (`OpticalRail`, `OpticalCarrier`)**:
+      - Bench Track: Bright anodized laboratory aluminum rail (`#94a3b8`, metalness 0.55, roughness 0.35) with satin center channel (`#cbd5e1`), dual polished chrome guidance rails (`#f1f5f9`, metalness 0.95, roughness 0.10), and central gold zero-reference mark (`#fbbf24`).
+      - Sliding Saddle Carriers: Precision sliding blocks in bright satin aluminum (`#cbd5e1`, metalness 0.70, roughness 0.30) with polished stainless steel clamp thumbscrews (`#f8fafc`, metalness 0.95, roughness 0.15) clamped beneath the object, optical element, and projection screen.
+    - **Optical Glass Lenses (`DetailedOptic`)**:
+      - Convex & Concave Elements: Lathe geometry with smooth bevel edge, high transmission glass material (`#a5f3fc`, opacity 0.34, roughness 0.05, metalness 0.12, emissive `#38bdf8` at 0.25).
+      - Retaining Bezel Collar: Bright satin aluminum collar (`#cbd5e1`, metalness 0.75, roughness 0.25) with front/rear circular retention lips (`#e2e8f0`) and knurled brass top set screw (`#fbbf24`). Stray horizontal torus ring eliminated.
+      - Vertical Support Post: Polished stainless steel rod (`#f8fafc`, metalness 0.95, roughness 0.15).
+    - **Spherical Curved Mirrors with Calibrated Flush Casing (`DetailedOptic`, `mirrorProfile`)**:
+      - Concave Mirror: Lathe dish curving from front rim at $X = 0$ to center bowl at $X = +0.16$ with silver front face (`#ffffff`, metalness 0.98, roughness 0.02, emissive `#e0f2fe` at 0.15). Fully enclosed by a cylindrical satin bezel ($X \in [-0.02, +0.22]$) with rear titanium protective plate (`#64748b` at $X = 0.215$).
+      - Convex Mirror: Lathe dome cresting from apex at $X = -0.04$ to rim at $X = +0.12$. Held securely in a bezel casing ($X \in [0.05, 0.19]$) with rear protective plate at $X = 0.185$.
+    - **Adaptive Vector Arrow Tokens (`VectorArrow` in `scene-kit.jsx`)**:
+      - Eliminated hard cutoff pruning (`length < headLength * 1.1`).
+      - Dynamic scaling: `effHeadLength = Math.min(headLength, length * 0.45)`, `effHeadRadius = Math.max(0.02, headRadius * (effHeadLength / headLength))`, `effRadius = Math.max(0.008, Math.min(radius, effHeadRadius * 0.45))`.
+      - Short arrows of any diminutive length (e.g. $0.05\text{ cm}$ to $0.35\text{ cm}$) render with scaled heads and shafts without vanishing.
+    - **Ray Construction Palette**:
+      - Object: Radiant gold arrow (`#fbbf24`, `PALETTE.gold`).
+      - Ray 1 (Parallel $\to$ Focus): Luminous emerald green (`#34d399`, `PALETTE.emerald`, lineWidth 2.4).
+      - Ray 2 (Optical Center / Pole Reflection): Sky cyan (`#38bdf8`, `PALETTE.sky`, lineWidth 2.4).
+      - Ray 3 (Focal Ray): Violet (`#a855f7`, `PALETTE.violet`, lineWidth 2.2).
+      - Formed Image: Real image in solid emerald green (`#10b981`); virtual image in radiant rose (`#f43f5e`, `PALETTE.rose`, opacity 0.70).
+      - Virtual Ray Extensions: Dashed construction lines (`opacity: 0.60`, `dashSize: 0.22`, `gapSize: 0.16`).
+    - **Real Image Screen (`Screen`)**:
+      - Frosted white projection diffuser card (`#f8fafc`, opacity 0.28, roughness 0.75) mounted on a bright stainless steel rod (`#f8fafc`) and satin bench carriage (`#cbd5e1`).
+
+20. **3D Electromagnetic Induction & Faraday's Law Apparatus Tokens (`PhysicsCanvas.jsx`)**:
+    - **Dual Apparatus Architecture**:
+      - **AC Generator (Dynamo)**: Rotating rectangular copper loop in uniform field $B$ between permanent magnet poles with slip rings, brush contacts, live AC sinusoidal trace, and load indicators.
+      - **Bar Magnet & Solenoid Coil**: Multi-turn copper solenoid wound on a transparent acrylic tube with an axial cylindrical bar magnet sliding along chrome guide rails, visualizing Lenz's Law and the $d\Phi/dt = 0$ stationary constraint.
+    - **Live AC e.m.f. Top Sine Graph Waveform (`EmfTrace`)**:
+      - Elevation: Mounted on top of the apparatus at `position={[0, 4.0, 0]}`, creating $0.8$ units of clear air above the generator magnet poles ($Y = 2.0$) and eliminating bottom viewport occlusion.
+      - Graph Chrome: Midnight backing plate (`#0d121c` at $0.88$ opacity, border `#363d54`), horizontal center voltage zero line (`#525e76`), peak threshold dashed limit lines (`#334155`), and real-time scrolling sinusoidal trace in vibrant sky blue (`#38bdf8`, lineWidth 2.4).
+      - Title & Scale Labels: Prominent title mounted above the graph grid at `position={[0, TRACE.height + 0.35, 0]}` ($Y = 5.25$, `#f8fafc`, font-bold), with dynamic peak voltage indicator ($\pm V_{\text{peak}}\text{ V}$).
+    - **Laboratory Center-Zero Galvanometer (`LaboratoryGalvanometer`)**:
+      - Chassis: Anodized slate aluminum enclosure (`#334155`, roughness 0.4, metalness 0.6).
+      - Bezel & Dial: Polished chrome front bezel (`#e2e8f0`, metalness 0.9) with porcelain white dial face (`#f8fafc`, roughness 0.8).
+      - Scale & Ticks: Center zero arc with graduation marks (`#64748b` / `#475569`, lineWidth 1.8), "+ / −" polarity markings, and brass center pivot cap (`#fbbf24`).
+      - Needle: High-visibility pivoted red needle (`#ef4444`, emissive `#ef4444` at 0.90) dynamically tracking instantaneous e.m.f. with angular damping.
+      - Stationary Anchor: Permanently positioned at $X = -1.3, Y = -3.30, Z = 1.35$ (right edge at $X = -0.2$), balanced beside the light bulb with fixed wiring leads.
+    - **Demonstration Incandescent Light Bulb (`DemonstrationBulb`)**:
+      - Socket Base: Ivory ceramic insulator block (`#f8fafc`, roughness 0.3) with threaded brass screw collar (`#d97706`, metalness 0.85, roughness 0.20) and brass binding posts (`#fbbf24`), standing upright on the bench in the foreground at fixed coordinates $X = 1.8, Y = -3.30, Z = 1.35$.
+      - Glass Envelope: Blown glass envelope with physical transmission (`color: "#ffffff"`, transmission 0.88, roughness 0.12, opacity 0.38, ior 1.5).
+      - Filament: Tungsten hairpin loop with perceptual non-linear voltage power scaling $\text{power} = \operatorname{clamp}((|\mathcal{E}| / V_{\text{rated}})^{1.6}, 0, 2.8)$ ($V_{\text{rated}} = 115\text{ V}$ generator, $85\text{ V}$ solenoid). Ramps dynamically from cold gray (`#64748b`) when unpowered to radiant orange (`#ea580c`), glowing gold, and brilliant incandescent white-hot (`#fef08a`, emissive intensity up to $7.5$) with localized `<pointLight>` intensity scaling from $0$ up to $9.0$ lumens.
+    - **Lowered Laboratory Bench & Fixed Meter Anchoring (`LaboratoryBench`)**:
+      - Elevation: Baseplate lowered to $Y = -3.48$ (tabletop surface flush at $Y = -3.30$, thickness $0.36$), bevelled edge molding (`#94a3b8`), and grounded rubber feet extending down to $Y = -3.70$.
+      - Meter Decoupling & Wire Stability: Both `LaboratoryGalvanometer` ($X = -1.3, Y = -3.30, Z = 1.35$) and `DemonstrationBulb` ($X = 1.8, Y = -3.30, Z = 1.35$) maintain fixed coordinates regardless of `showBulb` state. Toggling the light bulb seamlessly mounts or unmounts the bulb without shifting the galvanometer or breaking wiring leads.
+      - Riser Pedestal Flush Boundary: Pedestals extended to `boxGeometry args={[0.85, 1.7, 3.4]}` at $Y = -2.45$, meeting `MagnetPole` at $Y = -1.60$ flush with zero penetration. Central drive shaft extended to height $2.6$, guide rail stanchions to height $2.60$, and solenoid acrylic tube stanchions to height $3.50$.
+    - **Laboratory Copper Coils & Rotor Apparatus (`RotatingCoil`)**:
+      - Coil Windings: Metallic copper conductors (`#ea580c`, emissive `#fb923c` at 0.20, metalness 0.80, roughness 0.20) wound in $N$ stacked turns.
+      - Axle & Slip Rings: Polished stainless steel drive axle (`#f1f5f9`, metalness 0.90, roughness 0.15) with dual polished brass slip rings (`#fbbf24`, metalness 0.88, roughness 0.18).
+      - Brush Carriers: Lightened brass mounts (`#cbd5e1` / `#d97706`) with graphite contact blocks (`#475569`, roughness 0.70).
+      - Translucent Flux Sheet: Planar rectangular sheet spanning coil aperture (`#38bdf8`, transparent, opacity $[0.04, 0.42]$ tracking $\Phi = B A \sin\theta$).
+      - Circulating Charge Flow: 16 glowing charge carrier particles (`#fef08a`, emissive intensity 2.5) circulating along coil edges at speed $\propto \mathcal{E}(t)$.
+    - **Bar Magnet & Solenoid Tokens (`SolenoidRig`)**:
+      - Support Tube: Transparent acrylic core tube (`#e2e8f0`, opacity 0.22, transmission 0.85, roughness 0.10) held by twin anodized stanchions (`#94a3b8`).
+      - Bar Magnet: Cylindrical magnet ($r=0.62$, $L=2.8$) with North pole (ruby red `#ef4444`), South pole (cobalt blue `#3b82f6`), and central chrome divider (`#f8fafc`), mounted on a guide rail sled.
+      - 3D Dipole Field Loops: 6 curved elliptical field lines (`#38bdf8`, dashed, opacity 0.35) moving synchronously with the magnet.
+      - Lenz's Law Vector: Emerald green arrow (`PALETTE.emerald`) dynamically appearing at solenoid center to indicate induced opposing magnetic field $\vec{B}_{\text{induced}}$.
+
+21. **3D Projectile Motion & Air Resistance Apparatus Tokens (`PhysicsCanvas.jsx`)**:
+    - **Collinear Elevated Laboratory Cannon (`LaboratoryCannon`)**:
+      - Launch & Landing Plane: Coordinated vertical datum where `RUNWAY_TOP_Y = 0.28`, `BALL_RADIUS = 0.13`, and $\text{LAUNCH\_Y} = RUNWAY\_TOP\_Y + BALL\_RADIUS = 0.41$. The runway deck begins strictly at $X = 0$, while the cannon carriage base is seated at $X \le 0$ ($X = -0.52$ to $0$), guaranteeing 0% clipping between the launcher, floor, and runway.
+      - Compact Breech Elevation: Barrel length of $0.46\text{ m}$ ensures that even at steep elevation angles ($45^\circ$ to $65^\circ$), the breech remains comfortably above ground ($Y_{\text{breech}} \ge +0.02\text{ m}$), eliminating subsurface clipping.
+      - Ultra-Light Scientific Materials: Brilliant platinum barrel tube (`#f8fafc`, metalness `0.92`, roughness `0.12`) with inner gunmetal bore liner (`#94a3b8`), sparkling champagne gold muzzle crown & reinforcement bands (`#fde047`, metalness `0.95`, roughness `0.14`), mirror chrome cascabel & trunnions (`#ffffff`), and light aluminum stanchion cheeks (`#e2e8f0`).
+      - Protractor Elevation Quadrant: Crisp white dial (`#ffffff`) with laser-engraved $15^\circ$ interval ticks and glowing ruby angle pointer needle (`#ef4444`).
+    - **Lightened Precision Runway (`DistanceRunway`)**:
+      - Deck & Bed: Light porcelain slate bed (`#f1f5f9`, roughness `0.35`, metalness `0.2`) topped with silver deck layer (`#e2e8f0`), satin aluminum curbs (`#cbd5e1`, metalness `0.75`), and dark graphite transverse metric ticks (`#475569`).
+      - Coordinated Targets: Landing bullseyes (`LandingTarget`) situated on the deck at $Y = 0.282$ for real trajectory (`#34d399`) and vacuum path (`#64748b`), perfectly meeting the bottom of the landing ball ($0.41 - 0.13 = 0.28$).
+      - Apex Plumb Line: Octahedral cyan diamond marker with vertical dashed plumb line dropping cleanly to $Y = 0.28$.
+    - **3D Label Visibility Toggle (`showLabels`)**:
+      - Supports complete 1-click decluttering of all floating 3D labels (cannon elevation badge, force vector badges, apex altitude marker, runway metric ticks, landing target badges).
+    - **60 FPS Zero-Latency Dynamic Force & Velocity Vectors (`updateVector`, `VectorMesh`)**:
+      - Direct WebGL transform mutations on mesh refs inside `useFrame`, locked to ball coordinates $(ballX, ballY, 0)$ with zero React re-render overhead.
+      - Velocity Vector $\vec{v}$: Sky blue (`#38bdf8`, emissive `0.9`), tangential to instantaneous flight path.
+      - Weight Force $\vec{W}$: Rose (`#fb7185`, emissive `0.9`), constant downward gravity ($m\cdot g$).
+      - Drag Force $\vec{F}_{\text{drag}}$: Amber gold (`#fbbf24`, emissive `1.1`), quadratic atmospheric resistance opposing velocity ($F_d = -k |v| \vec{v}$).
+      - Net Resultant Force $\vec{F}_{\text{net}}$: Emerald green (`#34d399`, emissive `1.0`), vector sum $\vec{W} + \vec{F}_{\text{drag}}$.
+    - **Debounced Slider Interaction**:
+      - Removed component remount `key` and decoupled `MuzzleBlast` from `angleDeg`. Parameter updates feature a 320ms settle debounce, enabling real-time 60 FPS slider trajectory morphing without stuttering or strobe flashes.
+
+
 
 

@@ -60,7 +60,7 @@ const GANTRY_Y = 6.5;
 /** How far below the surface a fully immersed object is held. */
 const IMMERSION_DEPTH_CM = 4;
 
-const ACRYLIC = "#7f8ea3";
+const ACRYLIC = "#b8c9dc";
 
 // ─── The overflow can ───────────────────────────────────────────────
 
@@ -82,11 +82,11 @@ function OverflowCan() {
     <meshPhysicalMaterial
       color={ACRYLIC}
       transparent
-      opacity={0.17}
-      roughness={0.06}
-      metalness={0}
-      transmission={0.6}
-      thickness={0.4}
+      opacity={0.13}
+      roughness={0.04}
+      metalness={0.05}
+      transmission={0.78}
+      thickness={0.3}
       side={THREE.DoubleSide}
       depthWrite={false}
     />
@@ -123,8 +123,8 @@ function OverflowCan() {
         <meshStandardMaterial
           color={ACRYLIC}
           transparent
-          opacity={0.3}
-          roughness={0.15}
+          opacity={0.24}
+          roughness={0.12}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -207,7 +207,7 @@ function CylinderGraduations() {
   return (
     <group>
       <lineSegments geometry={ticks} rotation={[0, 0.35, 0]}>
-        <lineBasicMaterial color="#cbd5e1" transparent opacity={0.75} />
+        <lineBasicMaterial color="#f1f5f9" transparent opacity={0.85} />
       </lineSegments>
       {[100, 200, 300, 400, 500].map((ml) => (
         <SceneLabel
@@ -257,16 +257,16 @@ function MeasuringCylinder({ targetML, spec, onLevel, animSpeed = 1 }) {
       {/* Foot and body. */}
       <mesh position={[0, cm(0.5), 0]}>
         <cylinderGeometry args={[cm(CYL.radius + 1.4), cm(CYL.radius + 1.6), cm(1), 28]} />
-        <meshPhysicalMaterial color={ACRYLIC} transparent opacity={0.3} roughness={0.1} />
+        <meshPhysicalMaterial color="#94a3b8" transparent opacity={0.25} roughness={0.1} />
       </mesh>
       <mesh position={[0, cm(CYL.height) / 2, 0]}>
         <cylinderGeometry args={[cm(CYL.radius), cm(CYL.radius), cm(CYL.height), 32, 1, true]} />
         <meshPhysicalMaterial
           color={ACRYLIC}
           transparent
-          opacity={0.16}
-          roughness={0.05}
-          transmission={0.6}
+          opacity={0.14}
+          roughness={0.04}
+          transmission={0.75}
           thickness={0.3}
           side={THREE.DoubleSide}
           depthWrite={false}
@@ -641,9 +641,9 @@ function RealisticBoat({ l, w, h, colour, swamped, fluidSpec }) {
   }, [outerGeom, innerGeom, deckGeom, swampedGeom]);
 
   const hullMat = <meshStandardMaterial color={colour} roughness={0.35} metalness={0.6} side={THREE.DoubleSide} />;
-  const trimMat = <meshStandardMaterial color="#1e2530" roughness={0.4} metalness={0.5} />;
-  const hwMat = <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.88} />;
-  const woodMat = <meshStandardMaterial color="#784528" roughness={0.7} metalness={0.1} />;
+  const trimMat = <meshStandardMaterial color="#5b6b80" roughness={0.35} metalness={0.5} />;
+  const hwMat = <meshStandardMaterial color="#f1f5f9" roughness={0.15} metalness={0.92} />;
+  const woodMat = <meshStandardMaterial color="#d4a373" roughness={0.5} metalness={0.1} />;
 
   const thwartY = h / 2 - h * 0.05;
   const thwartW = w * 0.94;
@@ -797,12 +797,12 @@ function SpringScale({ reading, full, hookY }) {
     <group position={[TANK_X, 0, 0]}>
       <mesh position={[0, bodyTop - bodyHeight / 2, 0]}>
         <boxGeometry args={[0.62, bodyHeight, 0.3]} />
-        <meshStandardMaterial color="#39414f" roughness={0.5} metalness={0.5} />
+        <meshStandardMaterial color="#64748b" roughness={0.35} metalness={0.65} />
       </mesh>
       {/* Face and the graduation the pointer runs against. */}
       <mesh position={[0, bodyTop - bodyHeight / 2, 0.16]}>
         <planeGeometry args={[0.4, bodyHeight - 0.3]} />
-        <meshStandardMaterial color="#e7e3d6" roughness={0.85} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.7} />
       </mesh>
       <mesh position={[0, pointerY, 0.19]}>
         <boxGeometry args={[0.44, 0.055, 0.02]} />
@@ -831,11 +831,11 @@ function SpringScale({ reading, full, hookY }) {
       {/* Stem down to the hook. */}
       <mesh position={[0, (bodyBottom + hookY) / 2, 0]}>
         <cylinderGeometry args={[0.035, 0.035, Math.max(bodyBottom - hookY, 0.01), 10]} />
-        <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.85} />
       </mesh>
       <mesh position={[0, hookY, 0]}>
         <torusGeometry args={[0.09, 0.025, 8, 18, Math.PI * 1.4]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.3} metalness={0.85} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.2} metalness={0.9} />
       </mesh>
 
       <SceneLabel position={[0.95, bodyTop - 0.55, 0]} accent>
@@ -857,17 +857,23 @@ function Gantry() {
     <group>
       <mesh position={[cx, GANTRY_Y, 0]}>
         <boxGeometry args={[span, 0.18, 0.22]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.25} metalness={0.8} />
       </mesh>
       {[left, right].map((x) => (
         <mesh key={x} position={[x, (GANTRY_Y + FLOOR_Y) / 2, 0]}>
           <cylinderGeometry args={[0.09, 0.09, GANTRY_Y - FLOOR_Y, 16]} />
-          <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.25} metalness={0.8} />
         </mesh>
       ))}
+      {/* Light modern laboratory workbench base */}
       <mesh position={[cx, FLOOR_Y - 0.14, 0]} receiveShadow>
         <boxGeometry args={[span + 2.4, 0.28, 5]} />
-        <meshStandardMaterial color="#2c333f" roughness={0.7} metalness={0.25} />
+        <meshStandardMaterial color="#64748b" roughness={0.6} metalness={0.2} />
+      </mesh>
+      {/* Luminous brushed aluminum table top inlay */}
+      <mesh position={[cx, FLOOR_Y + 0.005, 0]} receiveShadow>
+        <boxGeometry args={[span + 2.2, 0.015, 4.8]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.7} />
       </mesh>
     </group>
   );
@@ -913,7 +919,7 @@ function DensityScale({ solved }) {
           [x0, y, 0],
           [x0 + width, y, 0],
         ]}
-        color={PALETTE.slate}
+        color="#94a3b8"
         lineWidth={1.8}
       />
       {TICKS.map((d) => (
@@ -923,7 +929,7 @@ function DensityScale({ solved }) {
               [at(d), y - 0.1, 0],
               [at(d), y + 0.1, 0],
             ]}
-            color={PALETTE.slate}
+            color="#94a3b8"
             lineWidth={1.2}
           />
           <SceneLabel position={[at(d), y - 0.38, 0]} tone="text-ink-500">
@@ -955,7 +961,7 @@ function DensityScale({ solved }) {
       {/* The specimen above it. Two markers when they differ. */}
       <mesh position={[at(solved.objectDensity), y + 0.2, 0]}>
         <boxGeometry args={[0.09, 0.3, 0.09]} />
-        <meshStandardMaterial color={PALETTE.bone} emissive={PALETTE.bone} emissiveIntensity={1.2} toneMapped={false} />
+        <meshStandardMaterial color="#f8fafc" emissive="#f8fafc" emissiveIntensity={1.2} toneMapped={false} />
       </mesh>
       <SceneLabel position={[at(solved.objectDensity), y + 0.62, 0]} tone="text-ink-300">
         {`material ${solved.objectDensity.toFixed(2)}`}
@@ -1044,7 +1050,7 @@ export default function BuoyancyCanvas({ params = {} }) {
 
   const { metrics } = solved;
   const colour =
-    Object.values(SOLIDS).find((s) => Math.abs(s.density - objectDensity) < 0.35)?.colour ?? "#9aa7b8";
+    Object.values(SOLIDS).find((s) => Math.abs(s.density - objectDensity) < 0.35)?.colour ?? "#cbd5e1";
 
   // Where the specimen sits. Floating: its waterline is the fluid surface.
   // Sinking: held clear of the bottom at a fixed depth, which is also the
@@ -1089,7 +1095,7 @@ export default function BuoyancyCanvas({ params = {} }) {
     <SceneCanvas
       camera={{ position: [0.3, 1.8, 17.2], fov: 45 }}
       controls={{ minDistance: 6, maxDistance: 36, target: [0.3, 0.8, 0] }}
-      lights={{ ambient: 0.62, keyLight: 1.15 }}
+      lights={{ ambient: 0.88, keyLight: 1.45 }}
     >
       <Gantry />
       <OverflowCan />
@@ -1098,7 +1104,7 @@ export default function BuoyancyCanvas({ params = {} }) {
       <OverflowStream spec={solved.fluid} activeRef={pouring} animSpeed={speed} />
 
       <SpringScale reading={solved.apparentWeight} full={solved.weight} hookY={hookY} />
-      <Line points={linePoints} color="#cbd5e1" lineWidth={1.6} transparent opacity={0.9} />
+      <Line points={linePoints} color="#f1f5f9" lineWidth={1.6} transparent opacity={0.95} />
 
       <FloatingSpecimenRig position={[TANK_X, centreY, 0]} floats={solved.floats} speed={speed}>
         <Specimen
