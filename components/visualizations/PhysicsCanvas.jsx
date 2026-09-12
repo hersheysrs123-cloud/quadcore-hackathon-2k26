@@ -3636,45 +3636,49 @@ function simulateFlight(speed, angleDeg, gravity, drag, mass) {
 /** Precision laboratory cannon launcher with bright satin platinum, champagne brass fittings, and protractor scale. */
 function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
   const rad = angleDeg * DEG;
+  const BARREL_LEN = 0.52;
+  const BORE_R = 0.14;
+  const OUTER_R = 0.18;
+
   return (
     <group position={[0, 0, 0]}>
-      {/* 1. Ground Carriage & Rails - Sits on ground (Y=0 to Y=0.08) behind the runway (X <= 0) */}
-      <group position={[-0.26, 0.04, 0]}>
+      {/* 1. Ground Carriage & Rails - Sits on ground at X <= 0 behind the runway */}
+      <group position={[-0.24, 0.04, 0]}>
         {/* Baseplate bed: light brushed platinum */}
         <mesh position={[0, 0, 0]} receiveShadow>
-          <boxGeometry args={[0.52, 0.08, 0.58]} />
-          <meshStandardMaterial color="#f1f5f9" roughness={0.25} metalness={0.82} />
+          <boxGeometry args={[0.54, 0.08, 0.58]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.75} />
         </mesh>
-        {/* Mirror chrome longitudinal guide rails */}
-        <mesh position={[0, 0.05, -0.22]}>
-          <boxGeometry args={[0.50, 0.02, 0.04]} />
+        {/* Chrome longitudinal guide rails */}
+        <mesh position={[0, 0.048, -0.22]}>
+          <boxGeometry args={[0.52, 0.016, 0.04]} />
           <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.95} />
         </mesh>
-        <mesh position={[0, 0.05, 0.22]}>
-          <boxGeometry args={[0.50, 0.02, 0.04]} />
+        <mesh position={[0, 0.048, 0.22]}>
+          <boxGeometry args={[0.52, 0.016, 0.04]} />
           <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.95} />
         </mesh>
-        {/* Leveling feet resting on floor */}
+        {/* Leveling feet */}
         {[-0.22, 0.22].map((x) =>
           [-0.24, 0.24].map((z) => (
             <mesh key={`foot-${x}-${z}`} position={[x, -0.035, z]}>
               <cylinderGeometry args={[0.035, 0.035, 0.03, 16]} />
-              <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
+              <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.7} />
             </mesh>
           ))
         )}
       </group>
 
-      {/* 2. Side Stanchion Brackets (Cheeks) - Rising from ground up to trunnion pivot at LAUNCH_Y */}
+      {/* 2. Side Stanchion Cheeks - Rising from ground to trunnion pivot at LAUNCH_Y */}
       <group position={[0, 0, 0]}>
         {[-0.24, 0.24].map((z) => (
           <group key={`cheek-${z}`} position={[0, 0, z]}>
-            {/* Triangular stanchion plate */}
-            <mesh position={[-0.14, LAUNCH_Y / 2, 0]}>
-              <boxGeometry args={[0.28, LAUNCH_Y, 0.04]} />
-              <meshStandardMaterial color="#e2e8f0" roughness={0.22} metalness={0.85} />
+            {/* Stanchion upright cheek */}
+            <mesh position={[-0.10, LAUNCH_Y / 2, 0]}>
+              <boxGeometry args={[0.24, LAUNCH_Y, 0.04]} />
+              <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.8} />
             </mesh>
-            {/* Front trunnion bearing collar at [0, LAUNCH_Y, 0] */}
+            {/* Trunnion bearing collar at [0, LAUNCH_Y, 0] */}
             <mesh position={[0, LAUNCH_Y, 0]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.065, 0.065, 0.05, 20]} />
               <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.94} />
@@ -3682,11 +3686,11 @@ function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
           </group>
         ))}
 
-        {/* Laser-engraved Protractor Degree Quadrant Arc on front cheek */}
+        {/* Laser-engraved Protractor Degree Quadrant Arc on front cheek (facing camera) */}
         <group position={[0, LAUNCH_Y, 0.266]}>
           <mesh>
-            <ringGeometry args={[0.16, 0.22, 32, 1, 0, Math.PI / 2]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.15} metalness={0.3} side={THREE.DoubleSide} />
+            <ringGeometry args={[0.16, 0.23, 32, 1, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.25} side={THREE.DoubleSide} />
           </mesh>
           {/* Degree scale ticks */}
           {[0, 15, 30, 45, 60, 75, 90].map((deg) => {
@@ -3694,22 +3698,22 @@ function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
             return (
               <mesh
                 key={`tick-${deg}`}
-                position={[Math.cos(r) * 0.19, Math.sin(r) * 0.19, 0.001]}
+                position={[Math.cos(r) * 0.195, Math.sin(r) * 0.195, 0.001]}
                 rotation={[0, 0, r]}
               >
-                <boxGeometry args={[0.03, 0.004, 0.002]} />
-                <meshBasicMaterial color={deg % 45 === 0 ? "#ef4444" : "#475569"} />
+                <boxGeometry args={[0.035, 0.004, 0.002]} />
+                <meshBasicMaterial color={deg % 45 === 0 ? "#ef4444" : "#334155"} />
               </mesh>
             );
           })}
         </group>
       </group>
 
-      {/* 3. Elevating Barrel Assembly (Centered at launch origin [0, LAUNCH_Y, 0]) */}
+      {/* 3. Elevating Barrel Assembly (Pivots at [0, LAUNCH_Y, 0] and aims FORWARD & UPWARDS along +X) */}
       <group position={[0, LAUNCH_Y, 0]} rotation={[0, 0, rad]}>
-        {/* Main barrel tube: extends backwards from X=0 to X=-0.46 */}
-        <mesh position={[-0.23, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.175, 0.205, 0.46, 28, 1, true]} />
+        {/* Main barrel tube: extends FORWARD from X=0 to X=+BARREL_LEN (aiming towards target!) */}
+        <mesh position={[BARREL_LEN / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <cylinderGeometry args={[BORE_R + 0.025, OUTER_R + 0.015, BARREL_LEN, 28, 1, true]} />
           <meshStandardMaterial
             color="#f8fafc"
             roughness={0.12}
@@ -3718,48 +3722,49 @@ function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
           />
         </mesh>
 
-        {/* Inner bore liner: clean gunmetal */}
-        <mesh position={[-0.23, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.145, 0.145, 0.46, 24, 1, true]} />
-          <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.65} side={THREE.BackSide} />
+        {/* Dark bore interior liner: open at the front muzzle (X=+BARREL_LEN) */}
+        <mesh position={[BARREL_LEN / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <cylinderGeometry args={[BORE_R, BORE_R, BARREL_LEN, 24, 1, true]} />
+          <meshStandardMaterial color="#334155" roughness={0.6} metalness={0.4} side={THREE.BackSide} />
         </mesh>
 
-        {/* Polished champagne gold muzzle crown ring */}
-        <mesh position={[-0.025, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.20, 0.20, 0.05, 28]} />
-          <meshStandardMaterial color="#fde047" roughness={0.14} metalness={0.95} />
+        {/* Champagne brass muzzle crown ring at the FRONT (X=+BARREL_LEN) */}
+        <mesh position={[BARREL_LEN - 0.025, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <cylinderGeometry args={[BORE_R + 0.045, BORE_R + 0.045, 0.05, 28]} />
+          <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.95} />
         </mesh>
-        {/* Front muzzle bevel lip */}
-        <mesh position={[-0.003, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <ringGeometry args={[0.145, 0.20, 28]} />
+
+        {/* Front muzzle bevel lip opening at X=+BARREL_LEN */}
+        <mesh position={[BARREL_LEN, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <ringGeometry args={[BORE_R, BORE_R + 0.045, 28]} />
           <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.98} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* Polished brass reinforcement band */}
-        <mesh position={[-0.26, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.21, 0.21, 0.04, 24]} />
-          <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.94} />
+        {/* Champagne brass reinforcement band near middle */}
+        <mesh position={[BARREL_LEN * 0.45, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <cylinderGeometry args={[OUTER_R + 0.02, OUTER_R + 0.02, 0.04, 24]} />
+          <meshStandardMaterial color="#fde047" roughness={0.16} metalness={0.94} />
         </mesh>
 
-        {/* Breech block hemisphere */}
-        <mesh position={[-0.46, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <sphereGeometry args={[0.205, 20, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        {/* Breech block hemisphere closing the rear at X=0 */}
+        <mesh position={[0, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+          <sphereGeometry args={[OUTER_R + 0.015, 20, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color="#f8fafc" roughness={0.14} metalness={0.92} />
         </mesh>
 
-        {/* Mirror chrome cascabel knob */}
-        <mesh position={[-0.52, 0, 0]}>
-          <sphereGeometry args={[0.065, 16, 16]} />
+        {/* Mirror chrome cascabel knob behind the breech at X=-0.07 */}
+        <mesh position={[-0.07, 0, 0]}>
+          <sphereGeometry args={[0.055, 16, 16]} />
           <meshStandardMaterial color="#ffffff" roughness={0.08} metalness={0.98} />
         </mesh>
 
-        {/* Trunnion pivot axle pins right through the pivot at [0, 0, 0] */}
+        {/* Trunnion axle pins passing through pivot at [0, 0, 0] */}
         <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.05, 0.05, 0.56, 16]} />
+          <cylinderGeometry args={[0.048, 0.048, 0.54, 16]} />
           <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.98} />
         </mesh>
 
-        {/* Red angle pointer needle pointing out along degree scale */}
+        {/* Red angle pointer needle pointing along the barrel over the degree scale */}
         <mesh position={[0.10, 0, 0.285]}>
           <boxGeometry args={[0.16, 0.016, 0.01]} />
           <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.8} roughness={0.2} />
@@ -3768,7 +3773,7 @@ function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
 
       {/* Angle readout badge */}
       {showLabels && (
-        <SceneLabel position={[-0.26, -0.15, 0]} accent>
+        <SceneLabel position={[-0.24, -0.15, 0]} accent>
           {angleDeg}° launch
         </SceneLabel>
       )}
@@ -3880,7 +3885,7 @@ function MuzzleBlast({ position, angleDeg, replayKey }) {
   );
 }
 
-/** Calibrated ground metric runway with light clean colors and distance markings. */
+/** Calibrated ground metric runway with clean light surface and zero Z-fighting. */
 function DistanceRunway({ maxDist, scale, showLabels = true }) {
   const runwayLength = Math.max(maxDist * scale + 1.2, 5);
   const step = maxDist <= 35 ? 5 : maxDist <= 90 ? 10 : 20;
@@ -3894,15 +3899,10 @@ function DistanceRunway({ maxDist, scale, showLabels = true }) {
 
   return (
     <group position={[0, 0, 0]}>
-      {/* Light, clean laboratory runway bed: starts at X=0 and extends along +X */}
+      {/* Single solid runway slab - zero Z-fighting */}
       <mesh position={[runwayLength / 2, RUNWAY_TOP_Y / 2, 0]} receiveShadow>
         <boxGeometry args={[runwayLength, RUNWAY_TOP_Y, 0.72]} />
-        <meshStandardMaterial color="#f1f5f9" roughness={0.35} metalness={0.2} />
-      </mesh>
-      {/* Runway surface top finish layer */}
-      <mesh position={[runwayLength / 2, RUNWAY_TOP_Y - 0.005, 0]}>
-        <boxGeometry args={[runwayLength, 0.01, 0.68]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.25} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.28} metalness={0.18} />
       </mesh>
       {/* Satin aluminum side guide curbs */}
       <mesh position={[runwayLength / 2, RUNWAY_TOP_Y + 0.015, -0.35]}>
@@ -3914,12 +3914,12 @@ function DistanceRunway({ maxDist, scale, showLabels = true }) {
         <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.75} />
       </mesh>
 
-      {/* Metric tick marks along the runway */}
+      {/* Metric tick marks along the runway with clean elevation offset to eliminate Z-fighting */}
       {marks.map((d) => (
-        <group key={`mark-${d}`} position={[d * scale, RUNWAY_TOP_Y + 0.001, 0]}>
+        <group key={`mark-${d}`} position={[d * scale, RUNWAY_TOP_Y + 0.003, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[0.03, 0.44]} />
-            <meshBasicMaterial color="#475569" />
+            <planeGeometry args={[0.035, 0.44]} />
+            <meshBasicMaterial color="#334155" />
           </mesh>
           {showLabels && (
             <SceneLabel position={[0, -0.28, 0.28]} className="text-[9px] font-mono font-semibold text-slate-700">
@@ -3974,7 +3974,7 @@ function ApexMarker({ apexX, apexY, apexMeters, color = PALETTE.emerald, showLab
 /** Concentric landing bullseye on runway with distance badge. */
 function LandingTarget({ x, label, color = PALETTE.emerald, showLabels = true }) {
   return (
-    <group position={[x, RUNWAY_TOP_Y + 0.002, 0]}>
+    <group position={[x, RUNWAY_TOP_Y + 0.003, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.16, 0.24, 32]} />
         <meshBasicMaterial color={color} toneMapped={false} />

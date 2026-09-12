@@ -681,15 +681,13 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Lenz's Law Vector: Emerald green arrow (`PALETTE.emerald`) dynamically appearing at solenoid center to indicate induced opposing magnetic field $\vec{B}_{\text{induced}}$.
 
 21. **3D Projectile Motion & Air Resistance Apparatus Tokens (`PhysicsCanvas.jsx`)**:
-    - **Collinear Elevated Laboratory Cannon (`LaboratoryCannon`)**:
-      - Launch & Landing Plane: Coordinated vertical datum where `RUNWAY_TOP_Y = 0.28`, `BALL_RADIUS = 0.13`, and $\text{LAUNCH\_Y} = RUNWAY\_TOP\_Y + BALL\_RADIUS = 0.41$. The runway deck begins strictly at $X = 0$, while the cannon carriage base is seated at $X \le 0$ ($X = -0.52$ to $0$), guaranteeing 0% clipping between the launcher, floor, and runway.
-      - Compact Breech Elevation: Barrel length of $0.46\text{ m}$ ensures that even at steep elevation angles ($45^\circ$ to $65^\circ$), the breech remains comfortably above ground ($Y_{\text{breech}} \ge +0.02\text{ m}$), eliminating subsurface clipping.
-      - Ultra-Light Scientific Materials: Brilliant platinum barrel tube (`#f8fafc`, metalness `0.92`, roughness `0.12`) with inner gunmetal bore liner (`#94a3b8`), sparkling champagne gold muzzle crown & reinforcement bands (`#fde047`, metalness `0.95`, roughness `0.14`), mirror chrome cascabel & trunnions (`#ffffff`), and light aluminum stanchion cheeks (`#e2e8f0`).
-      - Protractor Elevation Quadrant: Crisp white dial (`#ffffff`) with laser-engraved $15^\circ$ interval ticks and glowing ruby angle pointer needle (`#ef4444`).
-    - **Lightened Precision Runway (`DistanceRunway`)**:
-      - Deck & Bed: Light porcelain slate bed (`#f1f5f9`, roughness `0.35`, metalness `0.2`) topped with silver deck layer (`#e2e8f0`), satin aluminum curbs (`#cbd5e1`, metalness `0.75`), and dark graphite transverse metric ticks (`#475569`).
-      - Coordinated Targets: Landing bullseyes (`LandingTarget`) situated on the deck at $Y = 0.282$ for real trajectory (`#34d399`) and vacuum path (`#64748b`), perfectly meeting the bottom of the landing ball ($0.41 - 0.13 = 0.28$).
-      - Apex Plumb Line: Octahedral cyan diamond marker with vertical dashed plumb line dropping cleanly to $Y = 0.28$.
+    - **Upright Forward-Aiming Laboratory Cannon (`LaboratoryCannon`)**:
+      - Elevation & Bore Alignment: Pivoting at $[0, \text{LAUNCH\_Y}, 0]$ with barrel tube extending forward along $+X$ ($X = 0$ to $X = +0.52\text{ m}$) towards the flight path. Front open muzzle bore with champagne gold crown ring (`#fde047`) and chrome bevel lip (`#ffffff`) points naturally up into the sky at elevation angle $\theta$. Closed hemispherical breech dome (`#f8fafc`) and chrome cascabel knob (`#ffffff`) seat at the rear $X \le 0$ inside the carriage cradle.
+      - Ultra-Light Scientific Materials: Brilliant platinum barrel tube (`#f8fafc`, metalness `0.92`, roughness `0.12`) with dark graphite bore interior liner (`#334155`), sparkling champagne gold muzzle crown & reinforcement bands (`#fde047`, metalness `0.95`, roughness `0.14`), mirror chrome cascabel & trunnions (`#ffffff`), and light aluminum stanchion cheeks (`#cbd5e1`).
+      - Protractor Elevation Quadrant: Crisp white dial (`#ffffff`) with laser-engraved $15^\circ$ interval ticks and glowing ruby angle pointer needle (`#ef4444`) tracking elevation angle.
+    - **Single-Slab Zero-Z-Fighting Runway (`DistanceRunway`)**:
+      - Zero Coplanar Overlap: Eliminates duplicate finish layer meshes; renders a single solid porcelain runway bed (`#f8fafc`, roughness `0.28`, metalness `0.18`) with satin aluminum curbs (`#cbd5e1`).
+      - Elevation Clearances: Metric graduation tick marks and landing bullseyes are assigned a $+0.003\text{ m}$ elevation offset above the runway surface, guaranteeing 0% depth fighting across all camera angles and zoom levels.
     - **3D Label Visibility Toggle (`showLabels`)**:
       - Supports complete 1-click decluttering of all floating 3D labels (cannon elevation badge, force vector badges, apex altitude marker, runway metric ticks, landing target badges).
     - **60 FPS Zero-Latency Dynamic Force & Velocity Vectors (`updateVector`, `VectorMesh`)**:

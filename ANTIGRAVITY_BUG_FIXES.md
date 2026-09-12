@@ -6486,3 +6486,32 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Removed `angleDeg` from `MuzzleBlast` dependencies so the shockwave only fires upon launch.
    - Implemented a 320ms debounce timer for physical parameter adjustments (`speed`, `angle`, `gravity`, `drag`, `mass`): while dragging sliders, the cannon angle, trajectory curve, apex marker, and landing targets update in real time at 60 FPS without unmounting or restarting. Once slider dragging pauses for 320ms, a clean launch triggers automatically.
    - Explicit "Replay launch" action button bypasses the debounce to launch instantaneously.
+
+---
+
+## 121. Projectile Motion: Upright Forward Cannon Orientation & Runway Z-Fighting Fix
+
+### 🐛 Problem Statement
+1. **Cannon Inverted / Upside Down**:
+   - The cannon barrel was placed in local negative X (`position={[-0.23, 0, 0]}`), extending backwards from the pivot at $X = 0$.
+   - The hemispherical breech block dome at $X = -0.46$ had inverted orientation, causing its circular rim to flare outward like an open bell mouth at the floor level.
+   - The trunnion axle crossed at $X = 0$, blocking the top view.
+   - As a result, when tilted at elevation angle $\theta$, the barrel pointed downward into the carriage bed with its flared open base on the ground, while the closed rear pointed up at the sky where the trajectory line emerged. The cannon appeared 180° reversed and upside-down.
+2. **Runway Z-Index Depth Buffer Fighting**:
+   - `DistanceRunway` rendered two overlapping boxes: the main bed (`RUNWAY_TOP_Y = 0.28`, height $0.28$, top face at $Y = 0.28$) and an additional surface top finish layer (`position={[runwayLength / 2, RUNWAY_TOP_Y - 0.005, 0]}` with height $0.01$, top face at $Y = 0.28$).
+   - Having two coplanar surfaces sharing the exact same $Y = 0.28$ plane caused severe GPU Z-buffer depth fighting and visual texture strobing/flickering across the entire runway.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Upright Forward-Aiming Cannon Architecture (`LaboratoryCannon`)**:
+   - Re-anchored the elevating barrel assembly to aim **FORWARD and UPWARDS along $+X$ towards the target**:
+     - Main barrel cylinder extends from local $X = 0$ forward to $X = +BARREL\_LEN$ ($+0.52\text{ m}$) with `rotation={[0, 0, -Math.PI / 2]}`.
+     - Dark bore interior liner is open at the front muzzle ($X = +0.52\text{ m}$) facing the sky.
+     - Champagne gold muzzle crown ring and chrome bevel lip sit proudly at the front muzzle tip ($X = +0.52\text{ m}$).
+     - Closed hemispherical breech dome seals the rear at local $X = 0$, with a mirror chrome cascabel knob behind it at $X = -0.07\text{ m}$.
+     - Trunnion axle pins pass through local $(0, 0, 0)$ mounted on the carriage cheeks.
+     - Red angle pointer needle points along the barrel tube over the protractor degree scale.
+   - The cannon now points naturally upwards into the sky in the direction of fire, with the muzzle at the top pointing at the trajectory path and the breech seated in the carriage cradle below.
+2. **Elimination of Runway Z-Fighting (`DistanceRunway`)**:
+   - Completely removed the redundant coplanar top finish layer mesh.
+   - `DistanceRunway` now renders a single solid runway slab (`position={[runwayLength / 2, RUNWAY_TOP_Y / 2, 0]}` with `args={[runwayLength, RUNWAY_TOP_Y, 0.72]}`).
+   - Metric tick marks and landing target rings have a dedicated $+0.003\text{ m}$ vertical elevation offset above the runway surface, completely eliminating coplanar depth collisions and Z-fighting.
