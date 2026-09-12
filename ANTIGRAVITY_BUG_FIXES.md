@@ -6515,3 +6515,38 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Completely removed the redundant coplanar top finish layer mesh.
    - `DistanceRunway` now renders a single solid runway slab (`position={[runwayLength / 2, RUNWAY_TOP_Y / 2, 0]}` with `args={[runwayLength, RUNWAY_TOP_Y, 0.72]}`).
    - Metric tick marks and landing target rings have a dedicated $+0.003\text{ m}$ vertical elevation offset above the runway surface, completely eliminating coplanar depth collisions and Z-fighting.
+
+---
+
+## 122. Projectile Motion: Runway Landing Mesh Z-Fighting & Post-Landing Vector HTML Z-Index Collision Resolution
+
+### 🐛 Problem Statement
+1. **3D Coplanar Mesh Z-Fighting Between Metric Ticks and Landing Bullseye**:
+   - When a projectile landed near a calibrated runway distance graduation (e.g. 20.0m range on the 20m tick mark), the runway metric tick mark (`DistanceRunway`, plane geometry at $Y = RUNWAY\_TOP\_Y + 0.003$) and the landing bullseye ring/center dot (`LandingTarget`, ring and circle geometry also at $Y = RUNWAY\_TOP\_Y + 0.003$) shared the exact same elevation plane in 3D world space.
+   - Without depth offset or distinct elevation layers, WebGL depth buffer precision limits caused visual Z-fighting where a black horizontal slit sliced directly through the emerald landing ring.
+   - Additionally, when air resistance was zero or near zero, the actual flight landing target and the ideal vacuum landing target were rendered simultaneously at the exact same $X$ coordinate, causing dual ring mesh collision.
+2. **HTML Z-Index Fighting & Visual Clutter at Landing**:
+   - In `Projectile`, the vector group visibility was tied solely to `Boolean(showVectors)`. When the projectile reached its landing point ($t \ge t_{\text{flight}}$), the ball came to a stop, but all four force vectors ($\vec{v}, \vec{W} = m\vec{g}, \vec{F}_{\text{drag}}, \vec{F}_{\text{net}}$) and their floating HTML labels remained visible, pointing down into the runway directly on top of the landing target badge (`20.0m`) and metric tick badge (`20m`).
+   - Because all Drei `<Html>` components (`SceneLabel`, `LandingTarget`, `VectorMesh`) lacked spatial separation and non-overlapping `zIndexRange` bands, their CSS z-indexes fluctuated dynamically with camera distance, resulting in CSS z-index fighting and unreadable overlapping text pills.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Hierarchical 3D Elevation & Polygon Offset Stacking**:
+   - Stratified all runway surface elements into distinct elevation tiers with GPU depth buffer polygon offsets:
+     - **Runway Bed**: $Y = RUNWAY\_TOP\_Y = 0.280\text{ m}$.
+     - **Metric Graduation Ticks**: $Y = RUNWAY\_TOP\_Y + 0.002 = 0.282\text{ m}$ with `polygonOffset: true`, `polygonOffsetFactor: -1`, `polygonOffsetUnits: -1`.
+     - **Ideal Vacuum Landing Bullseye**: $Y = RUNWAY\_TOP\_Y + 0.005 = 0.285\text{ m}$ with `polygonOffsetFactor: -2`, `polygonOffsetUnits: -2`.
+     - **Active Flight Landing Bullseye**: $Y = RUNWAY\_TOP\_Y + 0.008 = 0.288\text{ m}$ with `polygonOffsetFactor: -3`, `polygonOffsetUnits: -3`.
+   - Added collision suppression for ideal landing target: only renders if $|\Delta x| > 0.35\text{ m}$ from the actual landing target, preventing duplicate ring stacking in zero-drag conditions.
+2. **Dynamic In-Flight Vector Visibility (`isFlying`)**:
+   - Updated `Projectile` frame loop to evaluate `const isFlying = running && t < flight.flightTime - 0.02`.
+   - Set `vectorsGroup.current.visible = Boolean(showVectors && isFlying)`.
+   - Once the ball touches down on the runway, in-flight aerodynamic vectors ($\vec{v}, \vec{F}_{\text{drag}}, \vec{F}_{\text{net}}, \vec{W}$) automatically hide, leaving the landed ball, green landing bullseye, and distance badge completely clear and unobstructed.
+3. **Spatial Separation & Non-Overlapping CSS `zIndexRange` Bands**:
+   - Upgraded `SceneLabel` in `scene-kit.jsx` to accept configurable `zIndexRange` and `className` props.
+   - Partitioned HTML UI layers into distinct camera depth bands:
+     - **In-Flight Vector Badges** ($\vec{v}, \vec{F}_{\text{drag}}, \vec{F}_{\text{net}}, \vec{W}$): `zIndexRange={[60, 45]}`.
+     - **Apex Height Marker** (`Apex X.Xm`): `zIndexRange={[40, 30]}`.
+     - **Landing Distance Badges** (`20.0m`): Positioned along the **far curb** ($Z = -0.38$) with `zIndexRange={[25, 15]}`.
+     - **Runway Metric Graduation Badges** (`20m`): Positioned along the **near curb** ($Z = +0.38$) with `zIndexRange={[14, 5]}`.
+   - Separating landing badges to the far curb and metric ticks to the near curb eliminates all spatial overlap and HTML z-index collisions.
+

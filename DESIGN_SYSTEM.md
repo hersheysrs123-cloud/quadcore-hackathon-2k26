@@ -685,13 +685,15 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Elevation & Bore Alignment: Pivoting at $[0, \text{LAUNCH\_Y}, 0]$ with barrel tube extending forward along $+X$ ($X = 0$ to $X = +0.52\text{ m}$) towards the flight path. Front open muzzle bore with champagne gold crown ring (`#fde047`) and chrome bevel lip (`#ffffff`) points naturally up into the sky at elevation angle $\theta$. Closed hemispherical breech dome (`#f8fafc`) and chrome cascabel knob (`#ffffff`) seat at the rear $X \le 0$ inside the carriage cradle.
       - Ultra-Light Scientific Materials: Brilliant platinum barrel tube (`#f8fafc`, metalness `0.92`, roughness `0.12`) with dark graphite bore interior liner (`#334155`), sparkling champagne gold muzzle crown & reinforcement bands (`#fde047`, metalness `0.95`, roughness `0.14`), mirror chrome cascabel & trunnions (`#ffffff`), and light aluminum stanchion cheeks (`#cbd5e1`).
       - Protractor Elevation Quadrant: Crisp white dial (`#ffffff`) with laser-engraved $15^\circ$ interval ticks and glowing ruby angle pointer needle (`#ef4444`) tracking elevation angle.
-    - **Single-Slab Zero-Z-Fighting Runway (`DistanceRunway`)**:
+    - **Single-Slab Zero-Z-Fighting Runway & Stratified Elevation Tiers (`DistanceRunway`, `LandingTarget`)**:
       - Zero Coplanar Overlap: Eliminates duplicate finish layer meshes; renders a single solid porcelain runway bed (`#f8fafc`, roughness `0.28`, metalness `0.18`) with satin aluminum curbs (`#cbd5e1`).
-      - Elevation Clearances: Metric graduation tick marks and landing bullseyes are assigned a $+0.003\text{ m}$ elevation offset above the runway surface, guaranteeing 0% depth fighting across all camera angles and zoom levels.
+      - Hierarchical Depth Stacking: Runway deck ($Y = 0.280\text{ m}$), metric ticks ($Y = 0.282\text{ m}$ with `polygonOffset` factor `-1`), ideal vacuum landing ring ($Y = 0.285\text{ m}$ with `polygonOffset` factor `-2`), and active flight landing ring ($Y = 0.288\text{ m}$ with `polygonOffset` factor `-3`). Zero coplanar intersection across all camera zoom levels.
+      - Spatial HTML Label Bands: Near curb ($Z = +0.38$) hosts metric graduations (`zIndexRange={[14, 5]}`), far curb ($Z = -0.38$) hosts landing distance badges (`zIndexRange={[25, 15]}`), apex hosts height marker (`zIndexRange={[40, 30]}`), and in-flight vector arrows host badges (`zIndexRange={[60, 45]}`).
     - **3D Label Visibility Toggle (`showLabels`)**:
       - Supports complete 1-click decluttering of all floating 3D labels (cannon elevation badge, force vector badges, apex altitude marker, runway metric ticks, landing target badges).
     - **60 FPS Zero-Latency Dynamic Force & Velocity Vectors (`updateVector`, `VectorMesh`)**:
       - Direct WebGL transform mutations on mesh refs inside `useFrame`, locked to ball coordinates $(ballX, ballY, 0)$ with zero React re-render overhead.
+      - Dynamic Touchdown Hiding: Vectors automatically hide upon runway impact (`isFlying = running && t < flight.flightTime - 0.02`), preventing vector clustering or badge overlap over the landed ball and landing target.
       - Velocity Vector $\vec{v}$: Sky blue (`#38bdf8`, emissive `0.9`), tangential to instantaneous flight path.
       - Weight Force $\vec{W}$: Rose (`#fb7185`, emissive `0.9`), constant downward gravity ($m\cdot g$).
       - Drag Force $\vec{F}_{\text{drag}}$: Amber gold (`#fbbf24`, emissive `1.1`), quadratic atmospheric resistance opposing velocity ($F_d = -k |v| \vec{v}$).

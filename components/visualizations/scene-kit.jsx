@@ -166,6 +166,8 @@ export function SceneLabel({
   tone = "text-ink-200",
   accent = false,
   distanceFactor,
+  zIndexRange = [40, 0],
+  className = "",
 }) {
   return (
     <Html
@@ -173,14 +175,14 @@ export function SceneLabel({
       center
       distanceFactor={distanceFactor}
       style={{ pointerEvents: "none" }}
-      zIndexRange={[40, 0]}
+      zIndexRange={zIndexRange}
     >
       <span
         className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm ${
           accent
             ? "border-duck-500/50 bg-duck-500/15 text-duck-300"
             : `border-ink-800 bg-ink-950/85 ${tone}`
-        }`}
+        } ${className}`}
       >
         {children}
       </span>

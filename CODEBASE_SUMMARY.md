@@ -77,7 +77,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   └── visualizations/
 │       ├── BiologyCanvas.jsx             # Cell explorer with organelle cutaways & enzyme kinetics
 │       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, lattices, electrolysis
-│       ├── PhysicsCanvas.jsx             # Wave refraction, motor effect, thin lenses, induction, kinetic gas laws + dispatcher for the split-out physics scenes
+│       ├── PhysicsCanvas.jsx             # Wave refraction, motor effect, thin lenses, induction, kinetic gas laws, projectile motion (quadratic drag solver, forward upright cannon, stratified zero-Z-fight runway elevations, 60fps in-flight force vectors with touchdown hiding) + dispatcher for split-out physics scenes
 │       ├── EyeCanvas.jsx                 # Cutaway human eye: accommodation, pupil reflex & anatomy mode with resizable controls HUD
 │       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; shadow painted onto the screen as a canvas texture with resizable controls HUD
 │       ├── InclineFrictionCanvas.jsx     # Ramp free-body diagram, static/kinetic friction & velocity trace (speed-scaled)

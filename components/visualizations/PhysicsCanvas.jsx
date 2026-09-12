@@ -3809,7 +3809,7 @@ function VectorMesh({ color, groupRef, shaftRef, headRef, labelRef, label, showL
       </mesh>
       {showLabels && label && (
         <group ref={labelRef} position={[0, 1.3, 0]}>
-          <Html center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
+          <Html center style={{ pointerEvents: "none" }} zIndexRange={[60, 45]}>
             <div
               className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white shadow-md whitespace-nowrap select-none"
               style={{ backgroundColor: color, opacity: 0.95 }}
@@ -3916,13 +3916,23 @@ function DistanceRunway({ maxDist, scale, showLabels = true }) {
 
       {/* Metric tick marks along the runway with clean elevation offset to eliminate Z-fighting */}
       {marks.map((d) => (
-        <group key={`mark-${d}`} position={[d * scale, RUNWAY_TOP_Y + 0.003, 0]}>
+        <group key={`mark-${d}`} position={[d * scale, RUNWAY_TOP_Y + 0.002, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.035, 0.44]} />
-            <meshBasicMaterial color="#334155" />
+            <meshBasicMaterial
+              color="#334155"
+              polygonOffset
+              polygonOffsetFactor={-1}
+              polygonOffsetUnits={-1}
+            />
           </mesh>
           {showLabels && (
-            <SceneLabel position={[0, -0.28, 0.28]} className="text-[9px] font-mono font-semibold text-slate-700">
+            <SceneLabel
+              position={[0, 0.02, 0.38]}
+              tone="text-slate-700"
+              zIndexRange={[14, 5]}
+              className="text-[9px] font-mono font-semibold border-slate-300 bg-slate-100/90 shadow-sm"
+            >
               {d}m
             </SceneLabel>
           )}
@@ -3963,7 +3973,7 @@ function ApexMarker({ apexX, apexY, apexMeters, color = PALETTE.emerald, showLab
       />
       {/* Apex label */}
       {showLabels && (
-        <SceneLabel position={[0, 0.28, 0]} accent>
+        <SceneLabel position={[0, 0.28, 0]} accent zIndexRange={[40, 30]}>
           Apex {apexMeters.toFixed(1)}m
         </SceneLabel>
       )}
@@ -3972,19 +3982,38 @@ function ApexMarker({ apexX, apexY, apexMeters, color = PALETTE.emerald, showLab
 }
 
 /** Concentric landing bullseye on runway with distance badge. */
-function LandingTarget({ x, label, color = PALETTE.emerald, showLabels = true }) {
+function LandingTarget({ x, label, color = PALETTE.emerald, showLabels = true, isIdeal = false }) {
+  const yElev = isIdeal ? RUNWAY_TOP_Y + 0.005 : RUNWAY_TOP_Y + 0.008;
+  const polyFactor = isIdeal ? -2 : -3;
   return (
-    <group position={[x, RUNWAY_TOP_Y + 0.003, 0]}>
+    <group position={[x, yElev, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.16, 0.24, 32]} />
-        <meshBasicMaterial color={color} toneMapped={false} />
+        <meshBasicMaterial
+          color={color}
+          toneMapped={false}
+          polygonOffset
+          polygonOffsetFactor={polyFactor}
+          polygonOffsetUnits={polyFactor}
+        />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.065, 24]} />
-        <meshBasicMaterial color={color} toneMapped={false} />
+        <meshBasicMaterial
+          color={color}
+          toneMapped={false}
+          polygonOffset
+          polygonOffsetFactor={polyFactor}
+          polygonOffsetUnits={polyFactor}
+        />
       </mesh>
       {showLabels && (
-        <SceneLabel position={[0, -0.32, -0.25]}>
+        <SceneLabel
+          position={[0, 0.02, isIdeal ? -0.42 : -0.38]}
+          accent={!isIdeal}
+          tone={isIdeal ? "text-slate-300" : undefined}
+          zIndexRange={[25, 15]}
+        >
           {label}
         </SceneLabel>
       )}
@@ -4056,12 +4085,15 @@ function Projectile({
       ball.current.position.set(ballX, ballY, 0);
     }
 
+    // Vectors are only visible in active flight, hiding upon landing so markers remain uncluttered
+    const isFlying = running && t < flight.flightTime - 0.02;
+
     if (vectorsGroup.current) {
       vectorsGroup.current.position.set(ballX, ballY, 0);
-      vectorsGroup.current.visible = Boolean(showVectors);
+      vectorsGroup.current.visible = Boolean(showVectors && isFlying);
     }
 
-    if (showVectors) {
+    if (showVectors && isFlying) {
       const speed = Math.hypot(pvx, pvy);
       const safeSpeed = Math.max(speed, 1e-4);
       const dirVx = pvx / safeSpeed;
@@ -4319,8 +4351,14 @@ export function ProjectileScene({ params = {} }) {
 
       {/* Calibrated landing target rings on runway */}
       <LandingTarget x={flight.range * scale} label={`${flight.range.toFixed(1)}m`} color={PALETTE.emerald} showLabels={showLabels} />
-      {showIdeal && (
-        <LandingTarget x={ideal.range * scale} label={`${ideal.range.toFixed(1)}m (vac)`} color={PALETTE.slate} showLabels={showLabels} />
+      {showIdeal && Math.abs(ideal.range - flight.range) * scale > 0.35 && (
+        <LandingTarget
+          x={ideal.range * scale}
+          label={`${ideal.range.toFixed(1)}m (vac)`}
+          color={PALETTE.slate}
+          showLabels={showLabels}
+          isIdeal
+        />
       )}
 
       <SceneReadout
