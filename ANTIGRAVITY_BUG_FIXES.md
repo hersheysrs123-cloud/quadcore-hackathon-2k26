@@ -6677,3 +6677,31 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - The fluorescent emitter tube, bi-pin socket end-caps, and glowing cathode core are now completely open and unobstructed at the top, delivering a sleek, authentic laboratory optical bench apparatus.
 3. **Verification**:
    - All 836 test suite specs passing. Build succeeds with exit code 0. Production server verified healthy (HTTP 200).
+
+---
+
+## 127. Light, Shadows & Straight Lines: Lamp Height Elevation & Pinpoint Flashlight Forward Stand Mount Decoupling
+
+### 🐛 Problem Statement
+1. **Lamps Merged & Clipping Into Stand Post**:
+   - In `LightSource`, `Post` was rendered with `height={AXIS_CM}` and `top={0}`, terminating directly at the optical centerline ($Y = 0$).
+   - Both the wide fluorescent tube and the pinpoint torch body were centered at $Y = 0$, meaning the vertical post (radius $1.5\text{ cm}$) penetrated right through the bottom half of the lamp emitters.
+2. **Pinpoint Torch Misalignment & Disjoint Clamp**:
+   - The torch barrel was centered far behind the stand at $Z = -6.6\text{ cm}$, with its mounting collar floating in mid-air at $Z = -3.5\text{ cm}$.
+   - The vertical post at $Z = 0$ pierced directly through the front lens rim ($Z = -1.2\text{ cm}$) and front glass disc ($Z = -0.6\text{ cm}$), causing severe geometric clipping and making the flashlight appear merged inside the stand post.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Elevated Lamp Heights & Extended Post Clearance**:
+   - Extended `Post` to `height={AXIS_CM + 0.8}` with `top={0.8}`, raising the post collar termination above the axis and seating the foot flange flush on the bench surface.
+   - Elevated the wide lamp tube assembly by $+2.2\text{ cm}$ (`lampElevation = 2.2`) with dual support bracket arms and a horizontal cylindrical chassis bar.
+   - Elevated the pinpoint torch assembly by $+2.4\text{ cm}$ (`lampElevation = 2.4`) above the post top ($Y = 0.8\text{ cm}$).
+2. **Forward Stand Mount Decoupling for Pinpoint Lamp**:
+   - Moved the pinpoint flashlight forward along $+Z$ by $+3.5\text{ cm}$ (`torchZOffset = 3.5`), positioning the front lens at $Z = +2.9\text{ cm}$ extending forward into the optical bench toward the obstacle and screen.
+   - Positioned the stanchion post mounting clamp directly on the post at $Z = 0$ with a brass thumbscrew.
+   - Integrated a vertical mounting saddle riser ($Y \in [0.6, 1.4]\text{ cm}$) and a heavy-duty cradle ring at $Z = +0.6\text{ cm}$ that firmly grips the flashlight barrel.
+   - The flashlight now sits proudly in its cradle on top of the stand and projects forward into open space, completely eliminating intersection with the post.
+3. **Emitter Lighting & Scene Label Alignment**:
+   - Aligned Three.js `pointLight` position to match the glowing filament emitter at $[0, cm(\text{lampElevation}), cm(-0.8 + \text{torchZOffset})]$.
+   - Raised the floating `SceneLabel` to $Y = cm(\text{lampElevation} + 6.0)$ for optimal vertical clearance.
+4. **Verification**:
+   - All 836 unit tests passing. Next.js production build succeeded with exit code 0. Production server verified healthy (HTTP 200).

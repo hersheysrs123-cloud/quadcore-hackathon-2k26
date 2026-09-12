@@ -351,18 +351,21 @@ function Post({ height, radius = 1.5, top = 0 }) {
 function LightSource({ benchZ, source, on }) {
   const width = SOURCES[source].width;
   const broad = source === "broad";
+  const lampElevation = broad ? 2.2 : 2.4;
+  const torchZOffset = 3.5;
+
   return (
     <group position={[0, cm(AXIS_CM), zAt(benchZ)]}>
-      <Post height={AXIS_CM} />
+      <Post height={AXIS_CM + 0.8} top={0.8} />
       {broad ? (
-        <group>
+        <group position={[0, cm(lampElevation), 0]}>
           {/* Stanchion mounting collar gripping the central post */}
-          <mesh position={[0, cm(-1.2), 0]}>
-            <cylinderGeometry args={[cm(1.6), cm(1.6), cm(2.0), 16]} />
+          <mesh position={[0, cm(-lampElevation + 0.6), 0]}>
+            <cylinderGeometry args={[cm(1.6), cm(1.6), cm(1.6), 16]} />
             <meshStandardMaterial color="#2d3748" roughness={0.45} metalness={0.65} />
           </mesh>
           {/* Brass locking thumbscrew on collar */}
-          <mesh position={[cm(1.9), cm(-1.2), 0]} rotation={[0, 0, Math.PI / 2]}>
+          <mesh position={[cm(1.9), cm(-lampElevation + 0.6), 0]} rotation={[0, 0, Math.PI / 2]}>
             <cylinderGeometry args={[cm(0.6), cm(0.6), cm(0.7), 12]} />
             <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
           </mesh>
@@ -371,7 +374,7 @@ function LightSource({ benchZ, source, on }) {
           {[-1, 1].map((s) => (
             <mesh
               key={s}
-              position={[cm(s * (width * 0.28)), cm(-0.6), cm(-0.15)]}
+              position={[cm(s * (width * 0.28)), cm(-lampElevation + 1.35), cm(-0.15)]}
               rotation={[0.15, 0, s * 0.38]}
             >
               <cylinderGeometry args={[cm(0.35), cm(0.35), cm(1.6), 12]} />
@@ -380,7 +383,7 @@ function LightSource({ benchZ, source, on }) {
           ))}
 
           {/* Slender horizontal cylindrical chassis bar behind the tube */}
-          <mesh position={[0, cm(-0.2), cm(-0.4)]} rotation={[0, 0, Math.PI / 2]}>
+          <mesh position={[0, cm(-0.4), cm(-0.4)]} rotation={[0, 0, Math.PI / 2]}>
             <cylinderGeometry args={[cm(0.35), cm(0.35), cm(width + 1.0), 16]} />
             <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.7} />
           </mesh>
@@ -424,55 +427,71 @@ function LightSource({ benchZ, source, on }) {
           </mesh>
         </group>
       ) : (
-        <group>
-          {/* Stanchion post mounting clamp with brass thumbscrew */}
-          <mesh position={[0, cm(-1.2), cm(-3.5)]}>
-            <cylinderGeometry args={[cm(1.6), cm(1.6), cm(2.0), 16]} />
+        <group position={[0, cm(lampElevation), 0]}>
+          {/* Stanchion post mounting clamp gripping the vertical post */}
+          <mesh position={[0, cm(-lampElevation + 0.6), 0]}>
+            <cylinderGeometry args={[cm(1.6), cm(1.6), cm(1.6), 16]} />
             <meshStandardMaterial color="#2d3748" roughness={0.45} metalness={0.65} />
           </mesh>
-          <mesh position={[cm(1.9), cm(-1.2), cm(-3.5)]} rotation={[0, 0, Math.PI / 2]}>
+          <mesh position={[cm(1.9), cm(-lampElevation + 0.6), 0]} rotation={[0, 0, Math.PI / 2]}>
             <cylinderGeometry args={[cm(0.6), cm(0.6), cm(0.7), 12]} />
             <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
           </mesh>
 
-          {/* Main machined flashlight barrel */}
-          <mesh position={[0, 0, cm(-6.6)]} rotation={[Math.PI / 2, 0, 0]}>
+          {/* Vertical mounting saddle riser connecting post collar to torch cradle */}
+          <mesh position={[0, cm(-lampElevation + 1.4), cm(0.4)]} rotation={[0.2, 0, 0]}>
+            <cylinderGeometry args={[cm(0.6), cm(0.7), cm(1.4), 16]} />
+            <meshStandardMaterial color="#334155" roughness={0.45} metalness={0.7} />
+          </mesh>
+
+          {/* Heavy-duty cradle ring clamping the flashlight barrel in front on the stand */}
+          <mesh position={[0, 0, cm(0.6)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[cm(3.2), cm(3.2), cm(1.4), 24]} />
+            <meshStandardMaterial color="#2d3748" roughness={0.45} metalness={0.65} />
+          </mesh>
+          <mesh position={[cm(3.4), 0, cm(0.6)]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[cm(0.5), cm(0.5), cm(0.6), 12]} />
+            <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
+          </mesh>
+
+          {/* Main machined flashlight barrel moved in front along +Z */}
+          <mesh position={[0, 0, cm(-6.6 + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[cm(2.7), cm(3.1), cm(8.4), 24]} />
             <meshStandardMaterial color="#1e293b" roughness={0.45} metalness={0.7} />
           </mesh>
 
           {/* Knurled grip ribs along barrel */}
           {[-5.0, -6.4, -7.8].map((zPos, idx) => (
-            <mesh key={idx} position={[0, 0, cm(zPos)]} rotation={[Math.PI / 2, 0, 0]}>
+            <mesh key={idx} position={[0, 0, cm(zPos + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[cm(2.9), cm(2.9), cm(0.55), 24]} />
               <meshStandardMaterial color="#0f172a" roughness={0.6} metalness={0.8} />
             </mesh>
           ))}
 
           {/* Tailcap and rear click button */}
-          <mesh position={[0, 0, cm(-11.0)]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0, cm(-11.0 + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[cm(3.0), cm(2.6), cm(1.2), 24]} />
             <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.6} />
           </mesh>
-          <mesh position={[0, 0, cm(-11.7)]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0, cm(-11.7 + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[cm(1.0), cm(1.0), cm(0.4), 16]} />
             <meshStandardMaterial color="#ef4444" roughness={0.4} metalness={0.2} />
           </mesh>
 
           {/* Front brass retaining collar */}
-          <mesh position={[0, 0, cm(-2.0)]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0, cm(-2.0 + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[cm(3.4), cm(3.1), cm(1.0), 24]} />
             <meshStandardMaterial color="#d4af37" roughness={0.25} metalness={0.85} />
           </mesh>
 
           {/* Beveled outer lens rim */}
-          <mesh position={[0, 0, cm(-1.2)]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0, cm(-1.2 + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[cm(3.6), cm(3.4), cm(0.8), 24]} />
             <meshStandardMaterial color="#1e293b" roughness={0.35} metalness={0.8} />
           </mesh>
 
           {/* Specular chrome parabolic reflector dish */}
-          <mesh position={[0, 0, cm(-1.6)]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0, cm(-1.6 + torchZOffset)]} rotation={[-Math.PI / 2, 0, 0]}>
             <coneGeometry args={[cm(3.3), cm(3.6), 24, 1, true]} />
             <meshStandardMaterial
               color="#f8fafc"
@@ -483,7 +502,7 @@ function LightSource({ benchZ, source, on }) {
           </mesh>
 
           {/* Convex optical front glass lens disc */}
-          <mesh position={[0, 0, cm(-0.6)]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0, cm(-0.6 + torchZOffset)]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[cm(3.3), cm(3.3), cm(0.15), 24]} />
             <meshPhysicalMaterial
               color="#e0f2fe"
@@ -496,7 +515,7 @@ function LightSource({ benchZ, source, on }) {
           </mesh>
 
           {/* Pinpoint filament emitter core */}
-          <mesh position={[0, 0, cm(-0.8)]}>
+          <mesh position={[0, 0, cm(-0.8 + torchZOffset)]}>
             <sphereGeometry args={[cm(Math.max(width, 1.1)), 16, 16]} />
             <meshStandardMaterial
               color="#fffbe8"
@@ -507,8 +526,16 @@ function LightSource({ benchZ, source, on }) {
           </mesh>
         </group>
       )}
-      {on && <pointLight intensity={broad ? 9 : 7} distance={cm(260)} color="#fff3cf" castShadow />}
-      <SceneLabel position={[0, cm(8), 0]} accent>
+      {on && (
+        <pointLight
+          position={[0, cm(lampElevation), cm(broad ? 0 : -0.8 + torchZOffset)]}
+          intensity={broad ? 9 : 7}
+          distance={cm(260)}
+          color="#fff3cf"
+          castShadow
+        />
+      )}
+      <SceneLabel position={[0, cm(lampElevation + 6.0), 0]} accent>
         {SOURCES[source].label}
       </SceneLabel>
     </group>
