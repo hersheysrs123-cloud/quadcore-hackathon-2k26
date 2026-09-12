@@ -5721,3 +5721,42 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 6. **Automated Verification & Unit Tests**:
    - Created `tests/unit/deleted-notes-spaces-persistence.test.mjs` covering note deletion tombstones, space deletion persistence, guarded reseeding, fallback remapping, and explicit seed restore.
    - All **809 unit and integration tests** pass with 0 errors across 198 test suites.
+
+---
+
+## 102. Prevention of Default Spaces Respawning & Missing `DEMO_SEED_KEY` Hydration Fix
+
+### Problem Statement
+- Deleting any of the 4 default spaces (`School`, `Personal`, `Misc`, `Journal`) resulted in them respawning upon browser refresh.
+- In the browser console, hydration crashed with:
+  ```
+  Dexie hydration error: ReferenceError: DEMO_SEED_KEY is not defined
+    at loadLocalWorkspace (Workspace.jsx:263)
+  ```
+- Because hydration failed abruptly before completing, `setIsHydrated(true)` was never reached, leaving the component unhydrated with initial hardcoded defaults in state.
+
+### Root Cause Analysis
+1. **Missing Module Import**:
+   - `DEMO_SEED_KEY` was referenced in `Workspace.jsx` lines 263 and 277, but was never included in the import list from `@/lib/db`. This threw a runtime `ReferenceError` during `loadLocalWorkspace()`, aborting hydration before `setIsHydrated(true)` could run.
+2. **Initial State Flash & Sync**:
+   - `const [activeSpace, setActiveSpace] = useState(SPACES[0].name)` and `const [spaces, setSpaces] = useState(SPACES)` unconditionally loaded all 4 default spaces into memory on initial render, ignoring `socratic_deleted_spaces` and `socratic_spaces` in `localStorage`.
+3. **Hardcoded Fallbacks in Child Components**:
+   - `Sidebar.jsx` contained fallback expressions `(spaces.length > 0 ? spaces : SPACES)` in export and import space selectors.
+   - `WebSaverView.jsx` defaulted its `spaces` prop to `SPACES`.
+4. **Space Creation Tombstone Cleanup**:
+   - When a user deliberately created a new space with the same name as a previously deleted space, the old tombstone in `socratic_deleted_spaces` was not cleared in `handleCreateSpace()`.
+
+### Resolution & Architectural Enhancements
+1. **Import `DEMO_SEED_KEY` (`components/Workspace.jsx`)**:
+   - Added `DEMO_SEED_KEY` to the `@/lib/db` import statement in `Workspace.jsx`. Hydration now proceeds smoothly without runtime reference errors.
+2. **Synchronous Lazy Initializers for Spaces State (`components/Workspace.jsx`)**:
+   - `spaces` and `activeSpace` are initialized with lazy function initializers reading synchronously from `localStorage.socratic_spaces` and filtering against `localStorage.socratic_deleted_spaces`.
+   - On the very first render, deleted default spaces are never mounted into state, eliminating state flashing and preventing default resurrection.
+3. **Purged Fallbacks to `SPACES` (`components/Sidebar.jsx` & `components/WebSaverView.jsx`)**:
+   - Removed `(spaces.length > 0 ? spaces : SPACES)` fallbacks in `Sidebar.jsx`.
+   - Updated `WebSaverView.jsx` default `spaces` prop from `SPACES` to `[]` and `activeSpace` to `"General"`.
+4. **Tombstone Removal on Explicit Space Creation (`components/Sidebar.jsx`)**:
+   - In `handleCreateSpace()`, if the user explicitly creates a space whose name was previously in `socratic_deleted_spaces`, it is cleanly removed from `socratic_deleted_spaces`.
+5. **Comprehensive Verification**:
+   - Added unit test asserting lazy space initialization honors `socratic_deleted_spaces` and default spaces do not resurrect.
+   - All **810 unit and integration tests** pass across 198 test suites.

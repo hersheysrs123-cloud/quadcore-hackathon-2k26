@@ -878,7 +878,7 @@ function SettingsModal({
                       <span className="text-[10px] text-duck-400 font-mono">Select Space</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {[{ name: "All", icon: "🌐" }, ...(spaces.length > 0 ? spaces : SPACES)].map((sp) => (
+                      {[{ name: "All", icon: "🌐" }, ...spaces].map((sp) => (
                         <button
                           key={sp.name}
                           type="button"
@@ -932,7 +932,7 @@ function SettingsModal({
                         <span>🔄</span>
                         <span>Original Spaces</span>
                       </button>
-                      {(spaces.length > 0 ? spaces : SPACES).map((sp) => (
+                      {spaces.map((sp) => (
                         <button
                           key={sp.name}
                           type="button"
@@ -1927,6 +1927,13 @@ export default function Sidebar({
 
   const handleCreateSpace = useCallback(
     (newSpace) => {
+      try {
+        const delArr = JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]");
+        if (Array.isArray(delArr) && delArr.includes(newSpace.name)) {
+          const nextDeleted = delArr.filter((n) => n !== newSpace.name);
+          localStorage.setItem("socratic_deleted_spaces", JSON.stringify(nextDeleted));
+        }
+      } catch (e) {}
       setSpaces((prev) => {
         const next = [...prev, newSpace];
         saveAllSpaces(next);

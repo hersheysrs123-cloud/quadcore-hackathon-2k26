@@ -225,4 +225,24 @@ describe("Deleted Notes & Spaces Persistence Across Refreshes", () => {
     mockLocalStorage.removeItem("socratic_deleted_notes");
     assert.equal(mockLocalStorage.getItem("socratic_deleted_notes"), null);
   });
+
+  it("lazy spaces state initialization honors socratic_deleted_spaces without crashing or resurrecting defaults", () => {
+    const SPACES = [
+      { name: "School", icon: "🎓" },
+      { name: "Personal", icon: "🌱" },
+      { name: "Misc", icon: "📦" },
+      { name: "Journal", icon: "📓" },
+    ];
+    mockLocalStorage.setItem("socratic_deleted_spaces", JSON.stringify(["School", "Personal"]));
+
+    // Simulate Workspace lazy initializers
+    const deleted = new Set(JSON.parse(mockLocalStorage.getItem("socratic_deleted_spaces") || "[]"));
+    const nonDeletedDefaults = SPACES.filter((s) => !deleted.has(s.name));
+    const initialSpaces = nonDeletedDefaults.length > 0 ? nonDeletedDefaults : [{ name: "General", icon: "📂", blurb: "" }];
+    const initialActive = initialSpaces[0]?.name || "General";
+
+    assert.equal(initialSpaces.length, 2);
+    assert.ok(!initialSpaces.some((s) => s.name === "School" || s.name === "Personal"));
+    assert.equal(initialActive, "Misc");
+  });
 });

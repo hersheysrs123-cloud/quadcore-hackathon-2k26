@@ -37,7 +37,6 @@ import {
 } from "@/lib/storageService";
 import { exportBookmarksToHtml, importBookmarksFromHtml } from "@/lib/exportImport";
 import { extractDomain } from "@/lib/urlUtils";
-import { SPACES } from "@/lib/constants";
 import AddBookmarkModal from "@/components/AddBookmarkModal";
 
 // ─── Clear All Bookmarks Confirmation Modal ─────────────────────────
@@ -220,7 +219,7 @@ function FolderModal({ open, onClose, onSave, initialName = "", parentId = null,
 }
 
 // ─── Main WebSaverView Component ──────────────────────────────────
-export default function WebSaverView({ activeSpace = "School", spaces = SPACES }) {
+export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
   // Live queries for reactive persistence
   const folders = useLiveQuery(
     async () => {

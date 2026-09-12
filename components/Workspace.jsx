@@ -23,7 +23,7 @@ import InteractiveTutorial from "@/components/InteractiveTutorial";
 import { SPACES } from "@/lib/constants";
 import { conceptFromText, editorBlocksToText } from "@/lib/blocks";
 import { summariseMastery } from "@/lib/mastery";
-import { initAndSeedDatabase, db } from "@/lib/db";
+import { initAndSeedDatabase, db, DEMO_SEED_KEY } from "@/lib/db";
 import { TOPICS_BY_ID, formatTopicStudyContext } from "@/components/visualizations/topics";
 import {
   getAllNotes,
@@ -62,8 +62,41 @@ const SESSIONS_KEY = "socratic_study_sessions";
 export default function Workspace() {
   const [mounted, setMounted] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
-  const [spaces, setSpaces] = useState(SPACES);
+  const [activeSpace, setActiveSpace] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const deleted = new Set(JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]"));
+        const lastState = JSON.parse(localStorage.getItem("socratic_last_workspace_state") || "null");
+        if (lastState?.activeSpace && !deleted.has(lastState.activeSpace)) {
+          return lastState.activeSpace;
+        }
+        const savedSpaces = JSON.parse(localStorage.getItem("socratic_spaces") || "null");
+        if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
+          const firstNonDeleted = savedSpaces.find((s) => s?.name && !deleted.has(s.name));
+          if (firstNonDeleted) return firstNonDeleted.name;
+        }
+        const firstDefault = SPACES.find((s) => !deleted.has(s.name));
+        if (firstDefault) return firstDefault.name;
+      } catch (e) {}
+    }
+    return SPACES[0].name;
+  });
+  const [spaces, setSpaces] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const deleted = new Set(JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]"));
+        const savedSpaces = JSON.parse(localStorage.getItem("socratic_spaces") || "null");
+        if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
+          const filtered = savedSpaces.filter((s) => s?.name && !deleted.has(s.name));
+          if (filtered.length > 0) return filtered;
+        }
+        const nonDeletedDefaults = SPACES.filter((s) => !deleted.has(s.name));
+        if (nonDeletedDefaults.length > 0) return nonDeletedDefaults;
+        return [{ name: "General", icon: "📂", blurb: "" }];
+      } catch (e) {}
+    }
+    return SPACES;
+  });
   const [activeTab, setActiveTab] = useState("notes");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
