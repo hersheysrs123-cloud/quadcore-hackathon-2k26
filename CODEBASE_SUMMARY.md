@@ -82,7 +82,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; shadow painted onto the screen as a canvas texture with resizable controls HUD
 │       ├── InclineFrictionCanvas.jsx     # Ramp free-body diagram, static/kinetic friction & velocity trace (speed-scaled)
 │       ├── HookesLawCanvas.jsx           # Spring, ruler & slotted masses with live force-extension graph & dynamic harmonic bounce (speed-scaled)
-│       ├── SimpleMachinesCanvas.jsx      # Class 1/2/3 levers & block-and-tackle with a work bar chart & stroke cycle (speed-scaled)
+│       ├── SimpleMachinesCanvas.jsx      # Class 1/2/3 levers & block-and-tackle with precision balance beam (metric ruler graduations, balance needle, deflection scale), elevated fulcrum & workbench boundary clamping (preventing bar dipping under base), authentic slotted mass hanger, lightened workbench base, calibrated proportional work bar graph (scaleMax) & stroke cycle (speed-scaled)
 │       ├── RollerCoasterCanvas.jsx       # Drop, vertical loop & brakes with GPE/KE/thermal bar chart & coaster physics (speed-scaled)
 │       ├── CircuitBoardCanvas.jsx        # 3D breadboard circuits, bulbs, resistors, meters & electron drift flow (speed-scaled)
 │       ├── StaticElectricityCanvas.jsx   # Balloon, wool sweater, wall induction & Van de Graaff charge transfers (speed-scaled)
@@ -91,7 +91,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │       ├── TopicSelectorDropdown.jsx     # Custom styled subject-separated 3D model selector dropdown with instant search, discipline quick-filters & dark ink styling
 │       ├── force-diagram.jsx             # SHARED: free-body arrows on one force scale, GraphPanel, rolling traces, slope frames & speed integration
 │       ├── charge-carriers.jsx           # SHARED: electron & charge flow paths, carrier instancing, charge signs
-│       ├── energy-bars.jsx               # SHARED: energy/work column charts (grouped + stacked total) & needle DialGauge
+│       ├── energy-bars.jsx               # SHARED: energy/work column charts with Y-axis line & horizontal scale grid divisions, calibrated scaleMax (grouped + stacked total) & needle DialGauge
 │       ├── cell-organelles.jsx           # Procedural 3D organelle geometry (nucleus, mitochondria, chloroplast, etc.)
 │       ├── CSCanvas.jsx                  # Computer Science canvas dispatcher (BST / AVL tree and 3D sorting visualizer)
 │       ├── MathCanvas.jsx                # Gradient descent on loss surfaces (smooth 60fps direct-ref tangent vector & non-occluded surface-subdivided trail), solids of revolution (flush 1.0 thickness & high-contrast gold/bronze layers), unit circle & Fourier series (multi-waveform Fourier synthesis, tangent geometry & 3D phase helix)
@@ -668,6 +668,19 @@ Refer to **[`DESIGN_SYSTEM.md`](file:///c:/Users/Sivabalan/Documents/GitHub/quad
 14. **3D Studio Analytical Fourier Discontinuities & Camera View Rig (`MathCanvas.jsx`)**:
     - When drawing discontinuous target wave functions (Square, Sawtooth) in Three.js line strips, never sample $\operatorname{sgn}(\sin(\dots))$ or modulo across fixed spatial grid vertices. Fixed sampling causes vertical edges to render as slanted ramps that snap discretely across grid intervals, resulting in severe vibration and jitter at low speed. Instead, compute the exact floating-point discontinuity coordinates $x_m = \text{CIRCLE\_X} + (\theta - \text{offset}) / \text{WAVE\_K}$ and emit exact vertical step pairs $(x_m, y_{\text{prev}}) \to (x_m, y_{\text{next}})$.
     - For 1-click orthogonal camera view transitions (Front, Top, Barrel, Iso), use an in-canvas `<CameraRig>` that lerps both `camera.position` and `controls.target` smoothly with exponential damping (`1 - Math.exp(-delta * 6.5)`), syncing `controls.update()` each frame to allow seamless orbital takeover by the user.
+15. **Simple Machines Kinematics, Rotational Inertia, Class Direction Conventions & Block-and-Tackle Rigging (`SimpleMachinesCanvas.jsx`)**:
+    - Levers must respect class-specific Newton vector conventions: Class 1 fulcrum sits between load and effort with downward effort press `[0, -1, 0]`, while Class 2 and Class 3 have the fulcrum at $x = 0$ with load and effort lifting upward `[0, 1, 0]`.
+    - Dynamic stroke cadence scales with load mass inertia (`speed / Math.pow(Math.max(loadN, 20) / 200, 0.22)`), giving realistic rotational resistance rather than invariant oscillation.
+    - Bench boundary clamping strictly protects downward stroke travel for Class 1 seesaws, while allowing unhindered stroke travel proportional to load arm for Class 2 and 3 upward lifts.
+    - Absolute force vector scaling (`1.6 / Math.max(650, loadN, effortForce)`) ensures arrows visibly expand and contract with slider adjustments instead of auto-normalizing to constant sizes.
+    - Block and tackle pulley mode features a structural laboratory gantry frame (workbench base footings, dual upright columns, and overhead I-beam crosshead) with upper fixed and lower moving steel cheek housings, axle pins, becket tie-offs, and a forged crane hook.
+    - Continuous rope wrapping uses arc tangency interpolation around sheave grooves ($R=0.22\text{ m}$) rather than piercing pulley hubs, correctly anchoring the dead-end to the lower block (odd $n$) or upper block (even $n$).
+    - Free hauling lead drops through an exit guide sheave with an ergonomic knurled aluminum handle traveling exactly $n \times \text{loadDistance} \times \text{phase}$ with co-located travel markers. Load safe maintains positive clearance $\ge 0.15\text{ m}$ above workbench.
+16. **Archimedes Buoyancy Vessel Realism & Tank Boundary Enforcement (`BuoyancyCanvas.jsx`, `lib/buoyancy.js`)**:
+    - Boat hull envelope uses a calibrated 2.0 : 1.2 : 1.0 marine craft aspect ratio ($L = 2.0a, W = 1.2a, H = a$, $a = \sqrt[3]{V_{\text{envelope}} / 2.4}$), strictly preserving $V_{\text{envelope}} = 12 \times V_{\text{material}}$ and $\text{footprint} \times \text{height} \equiv V_{\text{envelope}}$.
+    - Overflow tank dimensions are scaled to $34\text{ cm} \times 20\text{ cm} \times 24\text{ cm}$ ($32.9\text{ cm} \times 18.9\text{ cm}$ inner clearance) with water level at $18\text{ cm}$, guaranteeing the vessel remains strictly bounded inside the tank across all volume slider settings ($50 - 500\text{ cm}^3$) with generous clearance on all sides.
+    - Procedural `RealisticBoat` component features a 24-station lofted outer hull with flared deadrise topsides, tapered bow with cutwater stem, transom stern plate, centerline keel skeg, open cockpit liner demonstrating trapped air void, gunwale rub-rail capping, foredeck with mooring cleat, aft quarterdeck, transverse bilge ribs, and a center thwart with chrome marine lifting eyelet aligned with the spring scale suspension line.
+    - Overflow stream animation is directionally gated (`targetML - shownML > 0.6`): fluid droplets only pour from the spout during positive overflow accumulation, and are immediately suppressed when the specimen volume is reduced or lifted out.
 
 ---
 

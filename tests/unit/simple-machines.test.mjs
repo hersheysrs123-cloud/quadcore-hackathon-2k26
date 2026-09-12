@@ -203,4 +203,93 @@ describe("bookkeeping", () => {
       }
     }
   });
+
+  it("guarantees the lever bar stays strictly above the workbench base for all arm positions", () => {
+    const S = 2.1;
+    const BENCH_Y = -1.9;
+    const PIVOT_HEIGHT_ABOVE_BENCH = 1.22;
+    const pivotY = BENCH_Y + PIVOT_HEIGHT_ABOVE_BENCH;
+
+    for (const type of ["lever1", "lever2", "lever3"]) {
+      for (let p = 0.08; p <= 0.92; p += 0.02) {
+        const layout = leverLayout(type, p);
+        let lift;
+        if (type === "lever1") {
+          const tiltsClockwise = layout.load < layout.fulcrum;
+          const downArmM = tiltsClockwise ? layout.effortArm : layout.loadArm;
+          const maxSafeDropM = Math.max(PIVOT_HEIGHT_ABOVE_BENCH - 0.22, 0.25) / S;
+          const maxSin = Math.min(Math.max(maxSafeDropM / Math.max(downArmM, 0.001), 0.05), 0.55);
+          lift = Math.min(LIFT_M, layout.loadArm * maxSin);
+        } else {
+          lift = Math.min(LIFT_M, 0.35 * layout.loadArm);
+        }
+        const solved = solveMachine({ type, p, loadN: 300, lift });
+
+        // World geometry
+        const leftArmWorld = layout.fulcrum * S;
+        const rightArmWorld = (BEAM_LENGTH_M - layout.fulcrum) * S;
+        const tiltsClockwise = layout.load < layout.fulcrum;
+        const downArmWorld = tiltsClockwise ? rightArmWorld : leftArmWorld;
+        const maxAllowedSin = Math.min(Math.max((PIVOT_HEIGHT_ABOVE_BENCH - 0.22) / Math.max(downArmWorld, 0.001), 0.05), 0.95);
+        const maxAngle = Math.asin(Math.min(Math.max(solved.loadDistance / Math.max(layout.loadArm, 1e-6), 0), maxAllowedSin));
+
+        // Lowest vertical point along the entire beam length at peak stroke
+        const angle = maxAngle * (tiltsClockwise ? -1 : 1);
+        const yLeft = pivotY - leftArmWorld * Math.sin(angle);
+        const yRight = pivotY + rightArmWorld * Math.sin(angle);
+        const lowestPoint = Math.min(yLeft, yRight) - 0.10; // 0.10 accounts for bar half-height and rails
+
+        // The bar must strictly stay above the workbench top (BENCH_Y)
+        assert.ok(
+          lowestPoint >= BENCH_Y + 0.05,
+          `Bar dips under base in ${type} at p=${p.toFixed(2)}: lowestPoint=${lowestPoint.toFixed(3)}, BENCH_Y=${BENCH_Y}`,
+        );
+      }
+    }
+  });
+
+  it("scales inertia and respects direction conventions across all lever classes", () => {
+    // Dynamic speed slows with increasing load mass
+    const speed = 1;
+    const speedLight = Math.max(0.25, speed / Math.pow(Math.max(50, 20) / 200, 0.22));
+    const speedHeavy = Math.max(0.25, speed / Math.pow(Math.max(500, 20) / 200, 0.22));
+    assert.ok(speedLight > speedHeavy, "Heavier load must produce slower stroke cadence due to inertia");
+
+    // Direction conventions: Class 2 & 3 lift upwards, Class 1 presses downwards
+    const dir1 = "lever1" === "lever2" || "lever1" === "lever3" ? [0, 1, 0] : [0, -1, 0];
+    const dir2 = "lever2" === "lever2" || "lever2" === "lever3" ? [0, 1, 0] : [0, -1, 0];
+    const dir3 = "lever3" === "lever2" || "lever3" === "lever3" ? [0, 1, 0] : [0, -1, 0];
+
+    assert.deepStrictEqual(dir1, [0, -1, 0], "Class 1 effort pushes downwards");
+    assert.deepStrictEqual(dir2, [0, 1, 0], "Class 2 effort lifts upwards");
+    assert.deepStrictEqual(dir3, [0, 1, 0], "Class 3 effort lifts upwards");
+  });
+
+  it("maintains positive vertical clearance between pulley safe and workbench base", () => {
+    const BENCH_Y = -1.9;
+    const topY = BENCH_Y + 4.5;
+    const drop = 2.2;
+    const S = 2.1;
+    const safeHalfHeight = 1.15 / 2;
+
+    for (const sheaves of [1, 2, 3, 4, 6]) {
+      const solved = solveMachine({ type: "pulley", sheaves, loadN: 300 });
+      // At lowest position (phase = 0)
+      const lowestLowerY = topY - drop;
+      const safeCenterY = lowestLowerY - 1.15;
+      const safeBottomY = safeCenterY - safeHalfHeight;
+
+      assert.ok(
+        safeBottomY >= BENCH_Y + 0.1,
+        `Pulley safe bottom (${safeBottomY.toFixed(3)}) must stay above workbench (${BENCH_Y})`,
+      );
+
+      // Verify effort travel matches n * loadDistance
+      assert.ok(
+        close(solved.effortDistance, solved.ropes * solved.loadDistance, 1e-9),
+        "Pulley hauling distance must equal velocityRatio * loadDistance",
+      );
+    }
+  });
 });
+

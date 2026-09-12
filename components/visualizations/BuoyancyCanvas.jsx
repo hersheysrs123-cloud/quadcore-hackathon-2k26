@@ -47,13 +47,13 @@ const cm = (v) => v * S;
 const FLOOR_Y = -3.2;
 
 /** Inside dimensions of the overflow can, centimetres. */
-const TANK = { width: 26, depth: 16, height: 22, wall: 0.55 };
+const TANK = { width: 34, depth: 20, height: 24, wall: 0.55 };
 /** Height of the spout lip — the water can never stand higher than this. */
-const WATER_CM = 17;
-const TANK_X = -1.5;
+const WATER_CM = 18;
+const TANK_X = -1.9;
 
 /** The measuring cylinder that catches the overflow. */
-const CYL = { x: 3.35, radius: 3.2, height: 18, capacity: MAX_VOLUME };
+const CYL = { x: 3.8, radius: 3.2, height: 18, capacity: MAX_VOLUME };
 
 const SURFACE_Y = FLOOR_Y + cm(WATER_CM);
 const GANTRY_Y = 6.5;
@@ -303,7 +303,7 @@ function OverflowStream({ spec, activeRef, animSpeed = 1 }) {
   const count = 14;
 
   const from = useMemo(
-    () => new THREE.Vector3(TANK_X + cm(TANK.width / 2) + cm(5.4), SURFACE_Y - cm(1.6), 0),
+    () => new THREE.Vector3(TANK_X + cm(TANK.width / 2) + cm(5.2), SURFACE_Y - cm(1.6), 0),
     [],
   );
   const to = useMemo(() => new THREE.Vector3(CYL.x, FLOOR_Y + cm(CYL.height) * 0.55, 0), []);
@@ -366,12 +366,370 @@ function useRockGeometry() {
 }
 
 /**
- * Whichever solid is on the hook.
+ * A realistic, authentic marine vessel for Archimedes' buoyancy demonstration.
  *
- * The hull is built from five slabs rather than a hollowed box, because a
- * student has to be able to SEE that it is open at the top and full of air —
- * that void is the reason the thing floats, and a closed grey box would make
- * the scene look like it was cheating.
+ * Designed to showcase why ships float:
+ * 1. Contoured hull featuring flared deadrise topsides, pointed bow with cutwater stem,
+ *    transom stern, and centerline keel.
+ * 2. Deep open cockpit/cargo well that visibly encloses a large volume of air, making the
+ *    mean density lower than fluid and explaining why steel floats.
+ * 3. Gunwale rub-rail capping, foredeck with bow mooring cleat, and aft quarterdeck.
+ * 4. Center thwart bench with a polished lifting eyelet ring directly aligned with the
+ *    suspension line from the spring scale.
+ * 5. Transverse floor ribs and an external centerline keel skeg.
+ * 6. Swamped state filling the interior cavity with fluid if submerged/flooded.
+ */
+function RealisticBoat({ l, w, h, colour, swamped, fluidSpec }) {
+  const Nx = 24;
+  const t = Math.max(h * 0.055, 0.025);
+
+  const { outerGeom, innerGeom, deckGeom, swampedGeom } = useMemo(() => {
+    const getBTop = (u) => {
+      let b;
+      if (u <= 0.45) {
+        b = (w / 2) * (0.86 + 0.14 * Math.sin((u / 0.45) * (Math.PI / 2)));
+      } else {
+        b = (w / 2) * Math.cos(((u - 0.45) / 0.55) * (Math.PI / 2));
+      }
+      return Math.max(b, 0.02 * w);
+    };
+    const getBBot = (u) => getBTop(u) * 0.64;
+    const getYKeel = (u) => {
+      let y = -h / 2;
+      if (u > 0.8) {
+        const frac = (u - 0.8) / 0.2;
+        y += h * 0.35 * frac * frac;
+      }
+      return y;
+    };
+    const getYSheer = (u) => h / 2 + (h * 0.07) * Math.pow((u - 0.45) / 0.55, 2);
+
+    // 1. Outer Hull
+    const outerGeom = new THREE.BufferGeometry();
+    const outerVerts = [];
+    const outerIndices = [];
+    const outerRingVerts = 9;
+
+    for (let i = 0; i <= Nx; i++) {
+      const u = i / Nx;
+      const x = -l / 2 + u * l;
+      const bTop = getBTop(u);
+      const bBot = getBBot(u);
+      const yKeel = getYKeel(u);
+      const ySheer = getYSheer(u);
+      const yMid = (ySheer + yKeel) * 0.5;
+
+      outerVerts.push(x, ySheer, bTop);
+      outerVerts.push(x, yMid, bTop * 0.84);
+      outerVerts.push(x, yKeel + h * 0.14, bBot);
+      outerVerts.push(x, yKeel + h * 0.03, bBot * 0.4);
+      outerVerts.push(x, yKeel, 0);
+      outerVerts.push(x, yKeel + h * 0.03, -bBot * 0.4);
+      outerVerts.push(x, yKeel + h * 0.14, -bBot);
+      outerVerts.push(x, yMid, -bTop * 0.84);
+      outerVerts.push(x, ySheer, -bTop);
+    }
+
+    for (let i = 0; i < Nx; i++) {
+      for (let j = 0; j < outerRingVerts - 1; j++) {
+        const v00 = i * outerRingVerts + j;
+        const v01 = i * outerRingVerts + j + 1;
+        const v10 = (i + 1) * outerRingVerts + j;
+        const v11 = (i + 1) * outerRingVerts + j + 1;
+        outerIndices.push(v00, v10, v01);
+        outerIndices.push(v01, v10, v11);
+      }
+    }
+
+    // Transom plate
+    const t0 = 0, t1 = 1, t2 = 2, t3 = 3, t4 = 4, t5 = 5, t6 = 6, t7 = 7, t8 = 8;
+    outerIndices.push(t0, t1, t8);
+    outerIndices.push(t8, t1, t7);
+    outerIndices.push(t1, t2, t7);
+    outerIndices.push(t7, t2, t6);
+    outerIndices.push(t2, t3, t6);
+    outerIndices.push(t6, t3, t5);
+    outerIndices.push(t3, t4, t5);
+
+    // Bow stem
+    const bBase = Nx * outerRingVerts;
+    for (let j = 0; j < 4; j++) {
+      const pPort = bBase + j;
+      const pPortNext = bBase + j + 1;
+      const pStbd = bBase + (outerRingVerts - 1 - j);
+      const pStbdNext = bBase + (outerRingVerts - 2 - j);
+      outerIndices.push(pPort, pStbd, pPortNext);
+      outerIndices.push(pPortNext, pStbd, pStbdNext);
+    }
+
+    outerGeom.setAttribute("position", new THREE.Float32BufferAttribute(outerVerts, 3));
+    outerGeom.setIndex(outerIndices);
+    outerGeom.computeVertexNormals();
+
+    // 2. Inner Cockpit (hollow hold)
+    const innerGeom = new THREE.BufferGeometry();
+    const iStart = Math.max(1, Math.floor(Nx * 0.08));
+    const iEnd = Math.min(Nx - 1, Math.floor(Nx * 0.82));
+    const innerRingVerts = 7;
+    const innerVerts = [];
+    const innerIndices = [];
+
+    for (let i = iStart; i <= iEnd; i++) {
+      const u = i / Nx;
+      const x = -l / 2 + u * l;
+      const bTopIn = Math.max(getBTop(u) - t, 0.02);
+      const bBotIn = Math.max(getBBot(u) - t, 0.01);
+      const yFloor = getYKeel(u) + t;
+      const ySheer = getYSheer(u);
+      const yMid = (ySheer + yFloor) * 0.5;
+
+      innerVerts.push(x, ySheer, bTopIn);
+      innerVerts.push(x, yMid, bTopIn * 0.85);
+      innerVerts.push(x, yFloor, bBotIn);
+      innerVerts.push(x, yFloor, 0);
+      innerVerts.push(x, yFloor, -bBotIn);
+      innerVerts.push(x, yMid, -bTopIn * 0.85);
+      innerVerts.push(x, ySheer, -bTopIn);
+    }
+
+    const numInnerSlices = iEnd - iStart;
+    for (let i = 0; i < numInnerSlices; i++) {
+      for (let j = 0; j < innerRingVerts - 1; j++) {
+        const v00 = i * innerRingVerts + j;
+        const v01 = i * innerRingVerts + j + 1;
+        const v10 = (i + 1) * innerRingVerts + j;
+        const v11 = (i + 1) * innerRingVerts + j + 1;
+        innerIndices.push(v00, v01, v10);
+        innerIndices.push(v01, v11, v10);
+      }
+    }
+
+    // Aft bulkhead
+    for (let j = 0; j < 3; j++) {
+      innerIndices.push(j, j + 1, innerRingVerts - 1 - j);
+      innerIndices.push(innerRingVerts - 1 - j, j + 1, innerRingVerts - 2 - j);
+    }
+    // Forward bulkhead
+    const lastBase = numInnerSlices * innerRingVerts;
+    for (let j = 0; j < 3; j++) {
+      innerIndices.push(lastBase + j, lastBase + innerRingVerts - 1 - j, lastBase + j + 1);
+      innerIndices.push(lastBase + innerRingVerts - 1 - j, lastBase + innerRingVerts - 2 - j, lastBase + j + 1);
+    }
+
+    innerGeom.setAttribute("position", new THREE.Float32BufferAttribute(innerVerts, 3));
+    innerGeom.setIndex(innerIndices);
+    innerGeom.computeVertexNormals();
+
+    // 3. Deck Gunwales, Foredeck & Aftdeck
+    const deckGeom = new THREE.BufferGeometry();
+    const gunwaleVerts = [];
+    const gunwaleIndices = [];
+
+    // Port gunwale
+    for (let i = iStart; i <= iEnd; i++) {
+      const u = i / Nx;
+      const x = -l / 2 + u * l;
+      const y = getYSheer(u) + 0.005;
+      gunwaleVerts.push(x, y, getBTop(u));
+      gunwaleVerts.push(x, y, Math.max(getBTop(u) - t, 0.02));
+    }
+    for (let i = 0; i < numInnerSlices; i++) {
+      gunwaleIndices.push(i * 2, (i + 1) * 2, i * 2 + 1);
+      gunwaleIndices.push(i * 2 + 1, (i + 1) * 2, (i + 1) * 2 + 1);
+    }
+
+    // Stbd gunwale
+    const stbdBase = gunwaleVerts.length / 3;
+    for (let i = iStart; i <= iEnd; i++) {
+      const u = i / Nx;
+      const x = -l / 2 + u * l;
+      const y = getYSheer(u) + 0.005;
+      gunwaleVerts.push(x, y, -getBTop(u));
+      gunwaleVerts.push(x, y, -(Math.max(getBTop(u) - t, 0.02)));
+    }
+    for (let i = 0; i < numInnerSlices; i++) {
+      gunwaleIndices.push(stbdBase + i * 2, stbdBase + i * 2 + 1, stbdBase + (i + 1) * 2);
+      gunwaleIndices.push(stbdBase + i * 2 + 1, stbdBase + (i + 1) * 2 + 1, stbdBase + (i + 1) * 2);
+    }
+
+    // Foredeck
+    const fBase = gunwaleVerts.length / 3;
+    const numFore = Nx - iEnd;
+    for (let i = iEnd; i <= Nx; i++) {
+      const u = i / Nx;
+      const x = -l / 2 + u * l;
+      const y = getYSheer(u) + 0.005;
+      const b = getBTop(u);
+      gunwaleVerts.push(x, y, b);
+      gunwaleVerts.push(x, y, -b);
+    }
+    for (let i = 0; i < numFore; i++) {
+      gunwaleIndices.push(fBase + i * 2, fBase + (i + 1) * 2, fBase + i * 2 + 1);
+      gunwaleIndices.push(fBase + i * 2 + 1, fBase + (i + 1) * 2, fBase + (i + 1) * 2 + 1);
+    }
+
+    // Aftdeck
+    const aBase = gunwaleVerts.length / 3;
+    for (let i = 0; i <= iStart; i++) {
+      const u = i / Nx;
+      const x = -l / 2 + u * l;
+      const y = getYSheer(u) + 0.005;
+      const b = getBTop(u);
+      gunwaleVerts.push(x, y, b);
+      gunwaleVerts.push(x, y, -b);
+    }
+    for (let i = 0; i < iStart; i++) {
+      gunwaleIndices.push(aBase + i * 2, aBase + (i + 1) * 2, aBase + i * 2 + 1);
+      gunwaleIndices.push(aBase + i * 2 + 1, aBase + (i + 1) * 2, aBase + (i + 1) * 2 + 1);
+    }
+
+    deckGeom.setAttribute("position", new THREE.Float32BufferAttribute(gunwaleVerts, 3));
+    deckGeom.setIndex(gunwaleIndices);
+    deckGeom.computeVertexNormals();
+
+    // 4. Swamped Fluid Geometry
+    let swampedGeom = null;
+    if (swamped) {
+      swampedGeom = new THREE.BufferGeometry();
+      const fVerts = [];
+      const fIndices = [];
+      for (let i = iStart; i <= iEnd; i++) {
+        const u = i / Nx;
+        const x = -l / 2 + u * l;
+        const bTopIn = Math.max(getBTop(u) - t * 1.1, 0.015);
+        const bBotIn = Math.max(getBBot(u) - t * 1.1, 0.01);
+        const yFloor = getYKeel(u) + t * 1.05;
+        const yWater = getYSheer(u) - h * 0.04;
+        fVerts.push(x, yWater, bTopIn);
+        fVerts.push(x, yWater, -bTopIn);
+        fVerts.push(x, yFloor, -bBotIn);
+        fVerts.push(x, yFloor, bBotIn);
+      }
+      for (let i = 0; i < numInnerSlices; i++) {
+        const b0 = i * 4;
+        const b1 = (i + 1) * 4;
+        fIndices.push(b0 + 0, b1 + 0, b0 + 1);
+        fIndices.push(b0 + 1, b1 + 0, b1 + 1);
+        fIndices.push(b0 + 1, b1 + 1, b0 + 2);
+        fIndices.push(b0 + 2, b1 + 1, b1 + 2);
+        fIndices.push(b0 + 2, b1 + 2, b0 + 3);
+        fIndices.push(b0 + 3, b1 + 2, b1 + 3);
+        fIndices.push(b0 + 3, b1 + 3, b0 + 0);
+        fIndices.push(b0 + 0, b1 + 3, b1 + 0);
+      }
+      fIndices.push(0, 1, 3);
+      fIndices.push(1, 2, 3);
+      const last = numInnerSlices * 4;
+      fIndices.push(last + 0, last + 3, last + 1);
+      fIndices.push(last + 1, last + 3, last + 2);
+
+      swampedGeom.setAttribute("position", new THREE.Float32BufferAttribute(fVerts, 3));
+      swampedGeom.setIndex(fIndices);
+      swampedGeom.computeVertexNormals();
+    }
+
+    return { outerGeom, innerGeom, deckGeom, swampedGeom };
+  }, [l, w, h, swamped]);
+
+  useEffect(() => {
+    return () => {
+      outerGeom.dispose();
+      innerGeom.dispose();
+      deckGeom.dispose();
+      swampedGeom?.dispose();
+    };
+  }, [outerGeom, innerGeom, deckGeom, swampedGeom]);
+
+  const hullMat = <meshStandardMaterial color={colour} roughness={0.35} metalness={0.6} side={THREE.DoubleSide} />;
+  const trimMat = <meshStandardMaterial color="#1e2530" roughness={0.4} metalness={0.5} />;
+  const hwMat = <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.88} />;
+  const woodMat = <meshStandardMaterial color="#784528" roughness={0.7} metalness={0.1} />;
+
+  const thwartY = h / 2 - h * 0.05;
+  const thwartW = w * 0.94;
+  const thwartL = l * 0.09;
+  const thwartT = h * 0.055;
+
+  return (
+    <group>
+      {/* Outer sculpted hull shell */}
+      <mesh geometry={outerGeom} castShadow receiveShadow>
+        {hullMat}
+      </mesh>
+
+      {/* Inner cockpit liner */}
+      <mesh geometry={innerGeom} castShadow receiveShadow>
+        {hullMat}
+      </mesh>
+
+      {/* Gunwales, foredeck & aftdeck */}
+      <mesh geometry={deckGeom} castShadow>
+        {trimMat}
+      </mesh>
+
+      {/* Center thwart bench across the middle */}
+      <mesh position={[0, thwartY, 0]} castShadow>
+        <boxGeometry args={[thwartL, thwartT, thwartW]} />
+        {woodMat}
+      </mesh>
+
+      {/* Center lifting eyelet ring (where suspension line hooks onto boat) */}
+      <group position={[0, h / 2, 0]}>
+        <mesh position={[0, 0.02, 0]} castShadow>
+          <torusGeometry args={[0.08, 0.022, 10, 20]} />
+          {hwMat}
+        </mesh>
+        <mesh position={[0, -0.015, 0]}>
+          <cylinderGeometry args={[0.045, 0.045, 0.04, 12]} />
+          {hwMat}
+        </mesh>
+      </group>
+
+      {/* Bow mooring cleat on foredeck */}
+      <group position={[l * 0.42, h / 2 + 0.025, 0]}>
+        <mesh position={[0, 0.035, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.02, 0.02, 0.16, 12]} />
+          {hwMat}
+        </mesh>
+        <mesh position={[0, 0.015, 0]}>
+          <cylinderGeometry args={[0.03, 0.03, 0.03, 12]} />
+          {hwMat}
+        </mesh>
+      </group>
+
+      {/* Transverse internal floor ribs/frames */}
+      {[-l * 0.22, 0, l * 0.22].map((rx, idx) => (
+        <mesh key={`rib-${idx}`} position={[rx, -h / 2 + t * 1.3, 0]}>
+          <boxGeometry args={[l * 0.025, h * 0.04, w * 0.55]} />
+          {trimMat}
+        </mesh>
+      ))}
+
+      {/* Keel skeg on underside */}
+      <mesh position={[-l * 0.08, -h / 2 - h * 0.025, 0]} castShadow>
+        <boxGeometry args={[l * 0.72, h * 0.05, 0.035]} />
+        {trimMat}
+      </mesh>
+
+      {/* Swamped interior fluid */}
+      {swamped && swampedGeom && (
+        <mesh geometry={swampedGeom}>
+          <meshPhysicalMaterial
+            color={fluidSpec.colour}
+            transparent
+            opacity={0.65}
+            roughness={fluidSpec.roughness}
+            metalness={fluidSpec.metalness}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+/**
+ * Whichever solid is on the hook.
  */
 function Specimen({ metrics, colour, swamped, fluidSpec }) {
   const rock = useRockGeometry();
@@ -382,38 +740,15 @@ function Specimen({ metrics, colour, swamped, fluidSpec }) {
   const material = <meshStandardMaterial color={colour} roughness={0.4} metalness={0.55} />;
 
   if (metrics.spec.envelope > 1) {
-    const t = Math.max(h * 0.055, 0.02);
     return (
-      <group>
-        <mesh position={[0, -h / 2 + t / 2, 0]} castShadow>
-          <boxGeometry args={[l, t, w]} />
-          {material}
-        </mesh>
-        {[-1, 1].map((s) => (
-          <mesh key={`side${s}`} position={[0, 0, (s * (w - t)) / 2]} castShadow>
-            <boxGeometry args={[l, h, t]} />
-            {material}
-          </mesh>
-        ))}
-        {[-1, 1].map((s) => (
-          <mesh key={`end${s}`} position={[(s * (l - t)) / 2, 0, 0]} castShadow>
-            <boxGeometry args={[t, h, w - t * 2]} />
-            {material}
-          </mesh>
-        ))}
-        {/* Flooded: the void that was doing the floating is now fluid. */}
-        {swamped && (
-          <mesh position={[0, -h * 0.06, 0]}>
-            <boxGeometry args={[l - t * 2, h * 0.82, w - t * 2]} />
-            <meshStandardMaterial
-              color={fluidSpec.colour}
-              transparent
-              opacity={0.6}
-              roughness={fluidSpec.roughness}
-            />
-          </mesh>
-        )}
-      </group>
+      <RealisticBoat
+        l={l}
+        w={w}
+        h={h}
+        colour={colour}
+        swamped={swamped}
+        fluidSpec={fluidSpec}
+      />
     );
   }
 
@@ -514,12 +849,14 @@ function SpringScale({ reading, full, hookY }) {
 }
 
 function Gantry() {
-  const left = TANK_X - cm(TANK.width / 2) - 0.7;
-  const right = CYL.x + 1.1;
+  const left = TANK_X - cm(TANK.width / 2) - 0.8;
+  const right = CYL.x + 1.2;
+  const cx = (left + right) / 2;
+  const span = right - left;
   return (
     <group>
-      <mesh position={[(left + right) / 2, GANTRY_Y, 0]}>
-        <boxGeometry args={[right - left, 0.18, 0.22]} />
+      <mesh position={[cx, GANTRY_Y, 0]}>
+        <boxGeometry args={[span, 0.18, 0.22]} />
         <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
       </mesh>
       {[left, right].map((x) => (
@@ -528,8 +865,8 @@ function Gantry() {
           <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
         </mesh>
       ))}
-      <mesh position={[TANK_X, FLOOR_Y - 0.14, 0]} receiveShadow>
-        <boxGeometry args={[16, 0.28, 5]} />
+      <mesh position={[cx, FLOOR_Y - 0.14, 0]} receiveShadow>
+        <boxGeometry args={[span + 2.4, 0.28, 5]} />
         <meshStandardMaterial color="#2c333f" roughness={0.7} metalness={0.25} />
       </mesh>
     </group>
@@ -548,9 +885,9 @@ function Gantry() {
  * the ship comes from.
  */
 function DensityScale({ solved }) {
-  const width = 8.6;
+  const width = 8.8;
   const y = FLOOR_Y - 1.6;
-  const x0 = TANK_X - cm(TANK.width / 2) - 0.4;
+  const x0 = TANK_X - cm(TANK.width / 2) - 0.2;
   const max = 20;
 
   /**
@@ -725,11 +1062,12 @@ export default function BuoyancyCanvas({ params = {} }) {
   const scale = useForceScale([solved.weight, solved.upthrust], 1.9);
 
   // Written by the cylinder every frame, read by the stream on the same frame.
-  // A ref rather than state: whether water is running is a sixty-times-a-second
-  // question and re-rendering the scene to answer it would be absurd.
+  // The stream only animates when fluid is overflowing into the cylinder
+  // (targetML > shownML). When the block volume is lowered or lifted out,
+  // the cylinder level recedes without phantom water pouring from the spout.
   const pouring = useRef(false);
   const handleLevel = (shownML, targetML) => {
-    pouring.current = Math.abs(shownML - targetML) > 0.6;
+    pouring.current = targetML - shownML > 0.6;
   };
 
   /** The suspension line — taut while the scale is carrying something. */
@@ -749,8 +1087,8 @@ export default function BuoyancyCanvas({ params = {} }) {
 
   return (
     <SceneCanvas
-      camera={{ position: [0.4, 1.6, 16.5], fov: 45 }}
-      controls={{ minDistance: 6, maxDistance: 36, target: [0, 0.7, 0] }}
+      camera={{ position: [0.3, 1.8, 17.2], fov: 45 }}
+      controls={{ minDistance: 6, maxDistance: 36, target: [0.3, 0.8, 0] }}
       lights={{ ambient: 0.62, keyLight: 1.15 }}
     >
       <Gantry />

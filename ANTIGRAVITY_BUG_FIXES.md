@@ -5760,3 +5760,266 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 5. **Comprehensive Verification**:
    - Added unit test asserting lazy space initialization honors `socratic_deleted_spaces` and default spaces do not resurrect.
    - All **810 unit and integration tests** pass across 198 test suites.
+
+---
+
+## 103. Simple Machines 3D Visualisation Visual Fidelity, Balance Detailing & Lightened Palette
+
+### Problem Statement
+- In the Physics 3D Simple Machines visualisation (`components/visualizations/SimpleMachinesCanvas.jsx`):
+  1. The workbench base was rendered in very dark, indistinct `#252c38` with low contrast.
+  2. The fulcrum and swinging lever bar were rendered in dark `#5b6472` and dark brown wood `#8a5a3b`.
+  3. The load stack was rendered in dull dark `#6c7684` / `#5b6472` with minimal geometric detail (simple cylinders without carrier rods or slotted disk features).
+  4. The lever balance lacked realistic apparatus details, missing graduations, pivot bearings, alignment needles, or deflection scales.
+
+### Root Cause Analysis
+- The initial prototype implementation prioritized kinematic sweep angles and mechanical advantage work bars over visual apparatus realism. Geometry primitives used basic dark matte materials without laboratory-grade finishes, metric graduations, balance pointers, or authentic physics slotted-mass carrier assemblies.
+
+### Resolution & Architectural Enhancements
+1. **Lightened Workbench Base & Structure (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - Upgraded bench slab from dark `#252c38` to a modern lighter slate finish (`#64748b` with rounded corners) topped with an inset brushed aluminum workplate (`#cbd5e1`).
+   - Added 4 corner cylindrical support pedestals with steel footings (`#475569`).
+   - Updated floor grid lines to harmonious tones (`#334155` cells, `#475569` sections).
+2. **Lightened & Detailed Fulcrum Assembly (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - Replaced dark `#5b6472` fulcrum with a luminous polished aluminum wedge (`#e2e8f0`) anchored by a heavy-duty bench mounting shoe plate (`#cbd5e1`) and corner bolt studs.
+   - Added apex pivot bearing saddle collar (`#cbd5e1`) and transverse axle pin (`#f8fafc`).
+   - Implemented a front-facing graduated balance deflection scale plate (`#f8fafc`) with red zero-center mark and ±10° angular divisions.
+3. **Lightened & Detailed Precision Balance Beam (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - Replaced dark brown beam with a lustrous light blonde birch finish (`#f6ede0`) reinforced with brushed aluminum top and bottom rails (`#e2e8f0`).
+   - Added metric ruler graduations along the entire top rail with tick marks every 20 cm and major centimeter markers.
+   - Added machined aluminum pivot hub collar (`#cbd5e1`), center pivot pin (`#f8fafc`), and polished aluminum end caps (`#cbd5e1`).
+   - Added an instrument-grade red balance indicator needle (`#ef4444`) that rotates with the beam and sweeps across the fulcrum deflection scale.
+   - Added under-beam load and effort suspension eyelets and an effort actuator push rod.
+4. **Lightened & Authentic Slotted Weight Load (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - Replaced dark cylinders with a complete laboratory slotted mass hanger:
+     - Central polished steel suspension rod (`#f8fafc`) with top lifting ring/eyelet (`#e2e8f0`).
+     - Base carrier platform tray (`#cbd5e1`) with beveled lip.
+     - Slotted weight disks in light polished chrome/platinum (`#f1f5f9` / `#e2e8f0`), raised center hub bosses, circumferential calibration grooves, and authentic radial slot cutout notches.
+   - Lightened the block-and-tackle safe load to platinum/silver (`#cbd5e1`), adding forged lifting shackle, corner angle brackets, front recessed door, and brass combination dial.
+5. **Build & Test Verification**:
+   - `npm run build` compiled all routes cleanly with 0 errors.
+   - `npm test` executed across all 198 test suites with **810 passed tests** (0 failures).
+
+---
+
+## 104. Prevention of Lever Bar Penetrating Workbench Base in Simple Machines 3D Simulation
+
+### Problem Statement
+- In the Simple Machines 3D visualization (`components/visualizations/SimpleMachinesCanvas.jsx`), at certain slider configurations (especially Class 1 levers with asymmetrical fulcrum arm positions such as $p \le 0.35$), the downward-tilting arm of the lever bar dipped below the workbench base surface, penetrating the lab table into the floor.
+
+### Root Cause Analysis
+1. **Low Fulcrum Pivot Elevation**:
+   - The pivot center was positioned at `pivotY = BENCH_Y + 0.62`, providing only 0.62 world units of vertical clearance above the workbench surface.
+2. **Asymmetrical Beam Sweep Geometry**:
+   - With world scale $S = 2.1$ and beam length $2.4\text{ m}$, the beam spans $5.04$ world units. At low fulcrum positions ($p \approx 0.1$ to $0.3$), the long effort arm spans up to $4.5$ world units.
+   - When tilted through stroke angle $\theta$, the downward vertical drop $\Delta y = r_{\text{down}} \cdot \sin(\theta)$ reached up to $1.98$ world units, far exceeding the $0.62$ pivot clearance and plunging up to $1.36$ units under the base.
+3. **Unbounded Effort Arm Clearance**:
+   - The original `lift` calculation only constrained $\text{loadArm}$ sweep (`0.45 * loadArm`) without checking the physical displacement of the opposing downward-tilting counter-arm relative to the workbench base.
+
+### Resolution & Architectural Enhancements
+1. **Elevated Fulcrum Clearance (`PIVOT_HEIGHT_ABOVE_BENCH = 1.22`)**:
+   - Defined `PIVOT_HEIGHT_ABOVE_BENCH = 1.22` in `SimpleMachinesCanvas.jsx`, elevating the lever pivot to `pivotY = BENCH_Y + 1.22` ($-0.72$ world units).
+   - Re-proportioned the triangular fulcrum wedge (`coneGeometry args={[0.42, 1.10, 4]}`) and calibrated the balance deflection scale plate and needle pointer to sweep smoothly at the new elevation.
+2. **Strict Physical Workbench Boundary Clamping (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - In both `lift` (which feeds `solveMachine`) and `Lever` (which renders the 3D apparatus), dynamically identified the downward-tilting arm:
+     `const tiltsClockwise = layout.load < layout.fulcrum;`
+     `const downArmWorld = tiltsClockwise ? rightArmWorld : leftArmWorld;`
+   - Clamped the maximum allowable sine so that the lowest point on the beam (accounting for bar half-height $0.08\text{ m}$ and bottom rails/brackets) maintains a strict safety clearance $\ge 0.05\text{ m}$ above `BENCH_Y`:
+     `const maxSafeDropWorld = Math.max(PIVOT_HEIGHT_ABOVE_BENCH - 0.22, 0.25);`
+     `const maxAllowedSin = clamp(maxSafeDropWorld / Math.max(downArmWorld, 0.001), 0.05, 0.95);`
+     `const maxAngle = Math.asin(clamp(solved.loadDistance / Math.max(layout.loadArm, 1e-6), 0, maxAllowedSin));`
+3. **Automated Verification & Unit Tests**:
+   - Added unit test in `tests/unit/simple-machines.test.mjs`:
+     `guarantees the lever bar stays strictly above the workbench base for all arm positions`
+     Asserting that across all lever classes (`lever1`, `lever2`, `lever3`) and arm positions $p \in [0.08, 0.92]$, the lowest point on the beam strictly satisfies $\text{lowestPoint} \ge \text{BENCH\_Y} + 0.05$.
+   - `npm run build` compiled all routes cleanly with 0 errors.
+   - `npm test` executed across all 198 test suites with **811 passed tests** (0 failures).
+
+---
+
+## 105. Energy & Work Bar Graph Proportional Scaling & Instrument Calibration in Simple Machines
+
+### Problem Statement
+- In the Simple Machines 3D visualization, "the graph thing beside" (`EnergyBars`) was completely not to scale:
+  1. Bar heights remained frozen at a fixed 89.3% height regardless of whether load was $10\text{ N}$ ($W = 2.5\text{ J}$) or $500\text{ N}$ ($W = 125\text{ J}$).
+  2. The graph had no Y-axis vertical line, no horizontal scale grid lines, and no scale tick values, making it impossible to read numerical energy magnitudes visually.
+  3. The graph was positioned at `[5.4, BENCH_Y + 0, 0]`, causing its backing panel to plunge to $y = -2.575$ (sinking beneath the workbench slab and floor grid) while its footnote text was cut off underground at $y = -2.68$.
+
+### Root Cause Analysis
+- `EnergyBars` auto-normalized its height ceiling to `found * 1.12` whenever `scaleMax` was omitted. Because `found` was always `solved.workIn`, `yOf(solved.workIn)` was always $(1 / 1.12) \times \text{height} = 1.96\text{ m}$, completely canceling out the load and work magnitude variations.
+- Furthermore, `EnergyBars.jsx` lacked an explicit Y-axis and grid line ticks, leaving users with ungrounded floating bars.
+
+### Resolution & Architectural Enhancements
+1. **Calibrated Work Scale Ceiling (`scaleMax={workScaleMax}`)**:
+   - In `SimpleMachinesCanvas.jsx`, computed a stable calibrated work scale ceiling:
+     `const workScaleMax = useMemo(() => Math.max(150, Math.ceil((solved.workIn * 1.08) / 25) * 25), [solved.workIn]);`
+   - Passed `scaleMax={workScaleMax}` to `EnergyBars`. As the load changes from $10\text{ N}$ to $500\text{ N}$, the work bars now grow and shrink in exact, true linear proportion from small heights up to full scale.
+2. **Y-Axis & Horizontal Grid Scale Markings (`components/visualizations/energy-bars.jsx`)**:
+   - Added a vertical Y-axis line (`color={PALETTE.slate}`).
+   - Added dashed horizontal scale division lines at $50\%$ and $100\%$ with numeric tick labels on the left axis (`format(top * frac)`).
+   - Widened backing panel from `width + 0.6` to `width + 1.1` to frame the scale values cleanly.
+3. **Elevated Instrument Alignment (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - Elevated `EnergyBars` position from `[5.4, BENCH_Y + 0, 0]` to `[5.1, BENCH_Y + 0.45, 0]` with width $3.0$ and height $2.2$.
+   - The entire graph and its footnote now stand cleanly above the workbench base, perfectly centered inside the viewport frustum.
+   - Realigned the effort and load `ForceVector` indicators at `[3.6, BENCH_Y + 3.6, 0]` and `[4.45, BENCH_Y + 3.6, 0]`.
+4. **Build & Test Verification**:
+   - `npm run build` compiled all routes cleanly with 0 errors.
+   - `npm test` executed across all 198 test suites with **811 passed tests** (0 failures).
+
+---
+
+## 106. Physics Calibration, Rotational Inertia, and Effort Dynamics Across All Three Lever Classes
+
+### Problem Statement
+- In the Simple Machines visualization, lever swinging physics felt unnatural or incorrect across the different lever classes:
+  1. Class 2 (wheelbarrow) and Class 3 (tweezers/forearm) levers were displaying downward effort arrows and "you push" labels, which violated Newtonian mechanics because Class 2 and Class 3 levers require an upward lifting effort at the effort point.
+  2. As load weight changed (e.g. from $10\text{ N}$ to $500\text{ N}$), the swing speed and cadence remained completely static, lacking any physical mass inertia or rotational impedance.
+  3. The force vectors beside the apparatus normalized dynamically to a constant height using `useForceScale`, preventing users from perceiving the actual growth and reduction of applied effort and load weight.
+  4. The lift calculation for Class 2 and 3 was over-constrained by Class 1's downward bench-collision drop logic, unnecessarily restricting the sweep range of upward-lifting levers.
+
+### Root Cause Analysis
+- **Orientation Mismatch**: In Class 2 and 3 levers, the fulcrum is pinned at $x = 0$ and both the load and effort move upwards together ($y > 0$). However, the effort vector was hardcoded to `[0, -1, 0]` with label "you push", which is only physically valid for Class 1 levers.
+- **Constant Cadence**: `StrokeClock` took an invariant `speed` prop without factoring in the inertia or weight of `loadN`.
+- **Force Scale Auto-Normalization**: `useForceScale([solved.loadN, solved.effortForce], 1.5)` kept the largest vector at a constant length of $1.5\text{ m}$, obscuring the effect of increasing or decreasing the load slider.
+- **Sub-optimal Lift Model**: Class 2 & 3 stroke lift was constrained by downward bench clearance math designed solely for Class 1 seesaw dip.
+
+### Resolution & Architectural Enhancements
+1. **Dynamic Rotational Inertia & Speed Scaling (`components/visualizations/SimpleMachinesCanvas.jsx`)**:
+   - Implemented dynamic stroke cadence scaling based on mass inertia:
+     `dynamicSpeed = useMemo(() => Math.max(0.25, speed / Math.pow(Math.max(loadN, 20) / 200, 0.22)), [speed, loadN])`
+   - Heavier loads visibly slow down the stroke cadence, simulating real physical rotational resistance.
+2. **Lever Class Direction & Label Differentiation**:
+   - For Class 2 and Class 3 levers, effort vector direction is set to `[0, 1, 0]` (upward lift) and labeled "you lift".
+   - For Class 1 levers, effort vector direction is `[0, -1, 0]` (downward press) labeled "you push".
+   - For Pulley, effort is downward `[0, -1, 0]` labeled "you pull".
+3. **Calibrated Dynamic Force Vector Scaling**:
+   - Replaced auto-normalizing scale with an absolute calibrated force scale:
+     `forceScale = useMemo(() => 1.6 / Math.max(650, solved.loadN, solved.effortForce), [solved.loadN, solved.effortForce])`
+   - Force arrow lengths now expand and contract directly in real time as `loadN` and `armPosition` sliders are adjusted.
+4. **Apparatus-Mounted Force Arrows**:
+   - Added live, in-situ force vectors directly on the lever bar:
+     - Downward gravity vector at the load point: `[0, -1, 0]`.
+     - Directional applied effort vector directly at the effort handle (`[0, -1, 0]` for Class 1, `[0, 1, 0]` for Class 2/3).
+5. **Calibrated Lift Kinematics for Class 2 & 3**:
+   - Class 1 maintains strict downward drop safety clamping against bench clearance.
+   - Class 2 & 3 allow natural upward stroke sweep: `Math.min(LIFT_M, 0.35 * layout.loadArm)`.
+6. **Automated Verification & Unit Tests**:
+   - Updated and extended `tests/unit/simple-machines.test.mjs` with `scales inertia and respects direction conventions across all lever classes` and updated bench clearance checks.
+   - All 198 test suites passed with **812 tests passing** (0 failures).
+   - Production Next.js build completed with 0 errors.
+
+---
+
+## 107. Block and Tackle Pulley Apparatus Structural Gantry, Sheave Casings, Smooth Rope Wrapping & In-Situ Effort Rigging Overhaul
+
+### Problem Statement
+- In the Simple Machines 3D visualization (`components/visualizations/SimpleMachinesCanvas.jsx`), the Block and Tackle pulley mode was visually buggy, disconnected, and unrealistic:
+  1. **Floating Overhead Bar**: The top beam was hovering unsupported in mid-air with no structural columns, upright pillars, or base connections to the workbench.
+  2. **Floating Sheaves & Missing Block Housings**: The sheaves were isolated torus geometries floating independently in space with no steel cheek plates, central axle pins, or becket anchor lugs.
+  3. **Rope Piercing & Angular Snapping**: The rope geometry connected sheave center coordinates with jagged zig-zags, piercing directly through the pulleys rather than smoothly wrapping tangentially around the circumference grooves.
+  4. **Disconnected Free End & Erroneous Hauling Travel**: The free hauling end jumped to an arbitrary offset with a fixed $0.4\times$ arbitrary travel factor (`rise * 0.4`), completely disconnected from the actual physical velocity ratio $n$ and the true effort displacement.
+  5. **Orphaned Effort Force Vector & Misplaced Markers**: The applied effort vector was placed far to the side at $x = 3.6$ instead of attaching directly to the free rope pulling grip, and the travel markers were placed at disconnected arbitrary coordinates.
+  6. **Safe Tethering**: The load safe hung without an authentic crane hook, swivel shank, or realistic rigging connection to the lower block.
+
+### Root Cause Analysis
+1. **Lack of Realistic Mechanical Rigging**: The original pulley model was a bare-bones mathematical schematic lacking laboratory gantry framework, sheave cheek plate casings, through-axles, and forged lifting hooks.
+2. **Missing Tangent Arc Geometry**: The rope point array connected point `[topX, topY]` straight to `[botX, lowerY]` without arc interpolation around the sheave grooves, causing cords to clip through metal hubs.
+3. **Hardcoded Rope Free-End Travel Factor**: In `Pulley`, the free end rope height was computed as `topY - 2.6 - rise * 0.4`, which was physically incorrect (travel should be $n \times \text{loadDistance}$, not $0.4\times$).
+4. **Displaced Effort Vector**: The effort ForceVector in the scene was positioned in the margin alongside instruments rather than anchored to the actual pull handle where force is exerted.
+
+### Resolution & Architectural Enhancements
+1. **Architectural Laboratory Gantry Frame**:
+   - Added heavy dual gantry footing shoes on the workbench base at $x = \pm 2.3$ with silver anchor bolts.
+   - Added dual upright structural columns ($\text{radius} = 0.055$, $\text{height} = 4.8$) with reinforced top and bottom gusset collars.
+   - Re-engineered the overhead crosshead into a heavy-duty industrial I-beam with polished bottom runner rail flanges and top shackle mounting.
+2. **Upper & Lower Block Casings with Sheave Grooves & Axles**:
+   - **Upper Block (Fixed)**: Steel cheek casing box with rounded bevels (`args={[spread + 0.58, 0.44, 0.28]}`), polished central through-axle pin, and becket anchor lug for even-$n$ tie-offs. Sheaves rendered with authentic recessed cylinder centers and outer grooved guide rims.
+   - **Lower Block (Moving)**: Steel cheek casing box (`args={[spread + 0.52, 0.42, 0.28]}`), central through-axle pin, becket anchor lug for odd-$n$ tie-offs, swivel lifting shank, and a forged crane hook (`torusGeometry` hook loop in platinum finish).
+3. **Smooth Tangent Arc Rope Threading Engine**:
+   - Implemented `addTopArc` and `addBottomArc` helper generators computing circular tangency coordinates around the sheave circumferences ($R = 0.22\text{ m}$).
+   - Ropes thread seamlessly over and under consecutive sheaves in the upper and lower blocks without passing through pulley hubs.
+   - Dead end correctly anchors to the lower block becket when $n$ is odd, and to the upper block becket when $n$ is even.
+4. **Kinematically Accurate Hauling Lead & Pulling Plunger Handle**:
+   - Routed the free lead over an exit guide sheave to drop vertically at `pullX`.
+   - Free end travel is computed with strict physical fidelity: `pullTravel = solved.effortDistance * S * phase` ($n \times \text{rise}$).
+   - Added an ergonomic knurled aluminum pulling handle with gold flanged end-caps at `[pullX, pullY, 0]`.
+5. **Aligned Travel Markers & Load Rigging**:
+   - Connected the crane hook directly to the safe's top shackle eyelet via a silver connecting shackle.
+   - Calibrated safe elevation to maintain positive clearance $\ge 0.15\text{ m}$ above the workbench base across all stroke phases.
+   - Repositioned the "safe rises X cm" travel marker directly adjacent to the vault and the "rope pulled X cm" travel marker alongside the pulling line.
+6. **Automated Verification & Unit Tests**:
+   - Added unit test in `tests/unit/simple-machines.test.mjs`: `maintains positive vertical clearance between pulley safe and workbench base`.
+   - Verified that across all sheave configurations, safe bottom elevation remains strictly above the bench top and effort hauling distance matches $n \times \text{loadDistance}$.
+   - All 198 test suites passed with **813 tests passing** (0 failures).
+   - Production Next.js build completed with 0 errors.
+
+---
+
+## 108. Archimedes Buoyancy Boat Vessel Realism Overhaul & Overflow Tank Boundary Fit
+
+### Problem Statement
+- In the Archimedes' Principle 3D visualization (`components/visualizations/BuoyancyCanvas.jsx`, `lib/buoyancy.js`), two critical visual and geometric bugs severely degraded realism:
+  1. **Boat Piercing and Exceeding Tank Boundaries**: At default volume ($V = 200\text{ cm}^3$) and especially at maximum volume ($V = 500\text{ cm}^3$), the boat hull length ($37.8\text{ cm}$) massively exceeded the tank's inside length ($24.9\text{ cm}$), punching completely through the acrylic walls.
+  2. **Unrealistic Primitive Box Hull**: The boat was rendered as five crude rectangular box slabs with sharp $90^\circ$ angles, zero flare, no bow taper, no transom stern, and no maritime rigging hardware, looking like an open shoebox rather than an authentic marine craft.
+
+### Root Cause Analysis
+1. **Aspect Ratio & Tank Dimensional Mismatch**:
+   - In `lib/buoyancy.js`, `shapeMetrics("hull", volumeCC)` computed a 3 : 1 : 1 aspect ratio: $a = \sqrt[3]{V_{\text{envelope}} / 3}$, with $\text{length} = 3a$. At $V = 500\text{ cm}^3$, $V_{\text{envelope}} = 6000\text{ cm}^3 \implies a \approx 12.6\text{ cm} \implies \text{length} \approx 37.8\text{ cm}$.
+   - The overflow tank inside dimensions were only $24.9\text{ cm}$ width $\times 14.9\text{ cm}$ depth $\times 22\text{ cm}$ height.
+2. **Missing Marine Hull Geometry & Hardware**:
+   - `Specimen` used 5 generic box slabs rather than a contoured marine hull with bow rake, topside deadrise flare, sheer curvature, gunwale capping, transverse floor frames, deck plates, and lifting hardware.
+
+### Resolution & Architectural Enhancements
+1. **Calibrated Hull Proportions & Envelope Conservation (`lib/buoyancy.js`)**:
+   - Re-proportioned the vessel hull to a realistic marine aspect ratio of 2.0 : 1.2 : 1.0 ($L = 2.0a, W = 1.2a, H = a$, with $V_{\text{envelope}} = 2.4a^3 \implies a = \sqrt[3]{V_{\text{envelope}} / 2.4}$).
+   - Strictly preserves $\text{envelopeCC} = \text{volumeCC} \times \text{HULL\_ENVELOPE}$ ($12\times$) and $\text{footprint} \times \text{height} \equiv \text{envelopeCC}$, ensuring 100% mathematical and physical accuracy for all buoyancy equations and Archimedes principles.
+2. **Expanded Overflow Tank & Apparatus Sizing (`components/visualizations/BuoyancyCanvas.jsx`)**:
+   - Scaled overflow tank to $34\text{ cm}$ width $\times 20\text{ cm}$ depth $\times 24\text{ cm}$ height (inner clearance $32.9\text{ cm} \times 18.9\text{ cm} \times 24\text{ cm}$) with water surface at $18\text{ cm}$.
+   - At maximum volume ($V = 500\text{ cm}^3$, length $27.14\text{ cm}$, width $16.29\text{ cm}$), the boat maintains generous clearance ($\ge 2.8\text{ cm}$ bow/stern, $\ge 1.3\text{ cm}$ port/starboard, positive freeboard and bottom floor clearance) in all states (floating, swamped, sinking).
+   - Re-aligned spout, overflow stream trajectory, catch cylinder ($x = 3.8$), responsive gantry frame, and density number line.
+3. **Sculpted Procedural Vessel Hull Component (`RealisticBoat`)**:
+   - **Outer Hull**: 24-station lofted marine hull featuring tapered bow with sharp cutwater stem, flared deadrise topsides, curved sheer line, flat transom stern plate, and underside centerline keel skeg.
+   - **Open Cockpit Hold**: Deep internal hold lined with bulkheads and floor showing the authentic air void that lowers mean density below fluid density and makes steel ships float.
+   - **Gunwales & Deck Caps**: Gunwale rub-rail capping, triangular foredeck, and aft quarterdeck in contrasting nautical trim.
+   - **Center Thwart & Scale Suspension**: Center thwart bench equipped with a chrome marine lifting eyelet ring aligned precisely with the spring scale suspension line.
+   - **Marine Details**: Bow mooring cleat on the foredeck and transverse structural floor ribs across the bilge.
+   - **Swamped State**: Fluid volume mesh matching fluid color and physical refraction fills the hold when swamped or sunk.
+4. **Automated Verification & Unit Tests**:
+   - Added `boat hull proportions and tank boundary containment` test suite in `tests/unit/buoyancy.test.mjs`, validating hull containment within tank envelope across all volume slider settings ($V \in [50, 500]\text{ cm}^3$) and verifying steel draft in water.
+   - All 199 test suites passed with **815 tests passing** (0 failures).
+   - Production Next.js build completed with 0 errors.
+
+---
+
+## 109. Archimedes Overflow Spout Directional Pouring Stream Kinematic Correction
+
+### Problem Statement
+- In the Archimedes' Principle 3D visualization (`components/visualizations/BuoyancyCanvas.jsx`), when the specimen volume slider was lowered or a less dense specimen was chosen, fluid in the catch cylinder properly reduced, BUT water droplets continued visibly flowing and pouring out of the tank's overflow spout down into the cylinder.
+- This produced an unrealistic and physically impossible effect where fluid appeared to pour down from the overflow spout while the water level in the cylinder was actively decreasing.
+
+### Root Cause Analysis
+- In `BuoyancyCanvas.jsx`, the spout stream activation condition was defined as:
+  ```js
+  const handleLevel = (shownML, targetML) => {
+    pouring.current = Math.abs(shownML - targetML) > 0.6;
+  };
+  ```
+- By using `Math.abs(shownML - targetML) > 0.6`, any discrepancy between target and current level triggered the pouring animation, regardless of whether fluid was accumulating (`targetML > shownML`) or receding (`targetML < shownML`).
+- When the user decreased block volume, `targetML < shownML` resulted in a positive delta that triggered `pouring.current = true`, rendering pouring water droplets during draining/recession.
+
+### Resolution & Architectural Enhancements
+1. **Directional Flow Gate (`BuoyancyCanvas.jsx`)**:
+   - Replaced symmetric absolute difference with directional threshold check:
+     ```js
+     const handleLevel = (shownML, targetML) => {
+       pouring.current = targetML - shownML > 0.6;
+     };
+     ```
+   - Stream animation is strictly gated so water droplets are only emitted when fluid is actively overflowing from the tank into the catch cylinder (`targetML > shownML + 0.6`).
+   - When volume decreases or the specimen is raised, `targetML - shownML` is negative, instantly suppressing the stream (`pouring.current = false`) while the cylinder level cleanly recedes to the new target.
+2. **Automated Verification & Unit Tests**:
+   - Added unit test suite `overflow spout stream directional pouring logic` in `tests/unit/buoyancy.test.mjs`.
+   - Verified that the stream activates when `targetML > shownML`, and is strictly suppressed when `targetML < shownML` or settled.
+   - All 200 test suites passed with **818 tests passing** (0 failures).
+   - Production Next.js build completed with 0 errors.
+

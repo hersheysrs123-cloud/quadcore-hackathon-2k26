@@ -571,5 +571,37 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
         - Inactive Option: `hover:bg-ink-850/80 text-ink-300 hover:text-ink-100 border-l-2 border-transparent`.
       - Popover Footer: `px-3 py-2 border-t border-ink-800 bg-ink-950/70 text-[10px] text-ink-500` displaying model counts across 5 disciplines and `Esc to close` shortcut hint.
 
+16. **3D Simple Machines & Mechanics Apparatus Tokens (`SimpleMachinesCanvas.jsx`)**:
+    - **Workbench Base**: Modern elevated laboratory table base (`#64748b` rounded slab with `#cbd5e1` brushed aluminum surface inlay and `#475569` corner support pedestals), replacing dark low-contrast surfaces. Floor grid lines balanced at `#334155` / `#475569`.
+    - **Precision Balance Beam**: Luminous light blonde birch wood finish (`#f6ede0`) with extruded aluminum reinforcement rails (`#e2e8f0`). Features etched metric ruler graduations (20cm divisions), machined aluminum center pivot hub (`#cbd5e1`), center pivot pin (`#f8fafc`), and an instrument-grade balance deflection needle (`#ef4444`).
+    - **Fulcrum Assembly & Elevation Clearance**: Polished metallic aluminum wedge (`#e2e8f0`, height 1.10) elevated on a bench shoe plate (`#cbd5e1`) to `PIVOT_HEIGHT_ABOVE_BENCH = 1.22` above `BENCH_Y`. Includes apex saddle collar (`#cbd5e1`), transverse axle pin (`#f8fafc`), front-facing angular deflection scale (`#f8fafc`) with red center zero and ±10° tick marks, and strict kinematic angle clamping ensuring the lever beam maintains $\ge 0.05$ clearance and never penetrates or dips under the workbench base.
+    - **Laboratory Slotted Mass Load**:
+      - Central polished suspension spindle (`#f8fafc`) with top circular hanger ring (`#e2e8f0`).
+      - Base carrier plate (`#cbd5e1`) supporting stacked precision slotted weights in alternating chrome/platinum (`#f1f5f9` / `#e2e8f0`), raised hub bosses, and radial cutout slot notches.
+      - Block-and-tackle safe load updated to light platinum (`#cbd5e1`) with heavy-duty lifting shackle, corner angle plates, and brass combination dial (`#fbbf24`).
+    - **Energy & Work Bar Graph Instrumentation (`EnergyBars.jsx`)**:
+      - Calibrated absolute energy scale (`scaleMax = 150 J` baseline) scaling bars linearly with load and effort rather than self-normalizing.
+      - Integrated slate Y-axis vertical line, horizontal dashed scale division lines at 50% and 100% of scale, and left-axis numerical value labels.
+      - Elevated chart mount (`y = BENCH_Y + 0.45`, `x = 5.1`) maintaining clean separation above workbench top with full visibility in standard camera frustums.
+    - **Physics Dynamics & Class Vector Tokens (`SimpleMachinesCanvas.jsx`)**:
+      - **Dynamic Rotational Inertia**: Stroke cadence scales realistically with load mass (`speed / ((loadN / 200)^0.22)`), visually showing inertial resistance under heavy loads.
+      - **Lever Class Effort Directions & Labels**: Class 1 seesaw uses downward press `[0, -1, 0]` ("you push"), Pulley uses downward pull `[0, -1, 0]` ("you pull"), while Class 2 and Class 3 upward levers use `[0, 1, 0]` ("you lift") with load rising in unison.
+      - **In-Situ Apparatus Force Vectors**: Live calibrated force arrows mounted directly at the lever beam's effort grip and load hanger (`forceScale = 1.6 / Math.max(650, loadN, effortForce)`), displaying real-time proportional growth and contraction with slider adjustments.
+    - **Block and Tackle Gantry Rigging & Sheave Housing Tokens (`SimpleMachinesCanvas.jsx`)**:
+      - **Laboratory Gantry Frame**: Twin base footing shoes (`#64748b`) with chrome anchor bolts, vertical structural columns (`#94a3b8`, $r=0.055$, $h=4.8$) with reinforcement collars, and an overhead crosshead I-beam (`#475569`) with lower guide rails (`#cbd5e1`).
+      - **Upper & Lower Block Housings**: Steel cheek casings (`#64748b` with rounded corners), bright stainless through-axle pins (`#f8fafc`), and becket tie-off lugs. Lower block includes a vertical swivel shank and forged crane hook (`#e2e8f0`) connected via shackle to the vault load.
+      - **Continuous Tangent Arc Rope Threading**: Rope geometry generates multi-point circular arc tangencies around sheave grooves ($R=0.22$) without clipping through pulley centers. Accurately alternates between upper and lower sheaves and terminates at lower (odd $n$) or upper (even $n$) becket.
+      - **Kinematic Hauling Travel & Pulling Grip**: Free hauling lead routes over an exit sheave to an ergonomic knurled aluminum handle (`#e2e8f0`) with gold brass caps (`#fbbf24`), traveling exactly $n \times \text{loadDistance} \times \text{phase}$ with co-located effort travel markers and live pull direction vector.
+
+17. **3D Archimedes Buoyancy Vessel & Apparatus Design Tokens (`BuoyancyCanvas.jsx`)**:
+    - **Expanded Acrylic Overflow Tank**: Five-panel transparent acrylic tank ($34\text{ cm} \times 20\text{ cm} \times 24\text{ cm}$, `#7f8ea3` at opacity 0.17 with transmission 0.6 and thickness 0.4) elevated on workbench base, with angled overflow spout (`#7f8ea3` cylinder) positioned at water height ($18\text{ cm}$) aligned with catch cylinder ($x = 3.8$).
+    - **Realistic Marine Craft (`RealisticBoat`)**:
+      - Lofted outer hull with tapered bow cutwater stem, flared deadrise topsides, curved sheer line, flat transom stern, and centerline keel skeg (`colour` material finish with metalness 0.6, roughness 0.35).
+      - Open interior hold with inner deck floor and bulkheads demonstrating the large air cavity explaining Archimedes flotation.
+      - Deep charcoal/navy bronze gunwale rub-rail capping, foredeck plate with brass/chrome mooring bitt, and aft quarterdeck (`#1e2530`).
+      - Warm timber center thwart bench (`#784528`) equipped with a chrome marine lifting eyelet ring (`#cbd5e1`, metalness 0.88, roughness 0.2) directly anchored to the spring scale suspension line.
+      - Internal transverse bilge ribs (`#1e2530`) crossing the cockpit floor.
+      - Flooded/swamped state rendering an internal fluid volume matching fluid refraction, colour, and surface level.
+    - **Directional Overflow Spout Stream**: Discrete fluid droplets (`sphereGeometry` $r=0.075$) with fluid opacity 0.85 animating downward along a parabolic trajectory from spout to cylinder solely during positive volume accumulation (`targetML - shownML > 0.6`), instantly dormant when volume is lowered.
 
 

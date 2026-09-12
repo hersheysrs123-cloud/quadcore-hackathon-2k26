@@ -67,18 +67,47 @@ export function EnergyBars({
   return (
     <group position={position}>
       {/* Backing panel and baseline. */}
-      <mesh position={[width / 2, height / 2, -0.05]}>
-        <planeGeometry args={[width + 0.6, height + 1.35]} />
+      <mesh position={[width / 2, height / 2 + 0.05, -0.05]}>
+        <planeGeometry args={[width + 1.1, height + 1.35]} />
         <meshBasicMaterial color="#0d121c" transparent opacity={0.88} />
       </mesh>
+
+      {/* Y-axis and baseline. */}
       <Line
         points={[
+          [0, height, 0],
           [0, 0, 0],
           [width, 0, 0],
         ]}
         color={PALETTE.slate}
         lineWidth={1.8}
       />
+
+      {/* Horizontal scale grid lines & axis values */}
+      {[0.5, 1.0].map((frac) => {
+        const y = frac * height;
+        const val = top * frac;
+        return (
+          <group key={frac}>
+            <Line
+              points={[
+                [-0.08, y, 0],
+                [width + 0.08, y, 0],
+              ]}
+              color={PALETTE.line}
+              lineWidth={1}
+              transparent
+              opacity={0.35}
+              dashed
+              dashSize={0.1}
+              gapSize={0.08}
+            />
+            <SceneLabel position={[-0.45, y, 0]} tone="text-ink-400">
+              {`${format(val)}`}
+            </SceneLabel>
+          </group>
+        );
+      })}
 
       {/* The line the stack should never cross — conservation, drawn. */}
       {reference !== undefined && (

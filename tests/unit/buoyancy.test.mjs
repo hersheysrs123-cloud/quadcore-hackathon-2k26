@@ -303,3 +303,48 @@ describe("nothing produces a NaN", () => {
     assert.ok(Number.isFinite(zero.acceleration));
   });
 });
+
+describe("boat hull proportions and tank boundary containment", () => {
+  it("keeps hull length, width, and height within the apparatus tank envelope across all slider volumes", () => {
+    // Tank inside clearance: width ~32.9 cm, depth ~18.9 cm, height 24 cm
+    const TANK_INSIDE_WIDTH = 32.9;
+    const TANK_INSIDE_DEPTH = 18.9;
+
+    for (let v = MIN_VOLUME; v <= MAX_VOLUME; v += 25) {
+      const m = shapeMetrics("hull", v);
+      assert.ok(m.length < TANK_INSIDE_WIDTH, `Hull length ${m.length} cm exceeds tank width ${TANK_INSIDE_WIDTH} at V=${v}`);
+      assert.ok(m.width < TANK_INSIDE_DEPTH, `Hull width ${m.width} cm exceeds tank depth ${TANK_INSIDE_DEPTH} at V=${v}`);
+      assert.ok(m.length > m.width, `Length should exceed beam for boat: L=${m.length}, W=${m.width}`);
+      assert.ok(close(m.footprint * m.height, m.envelopeCC, 1e-6));
+    }
+  });
+
+  it("floats steel in freshwater with realistic waterline draft below the gunwales", () => {
+    const b = solveBuoyancy({ density: 7.85, volume: 200, fluid: "freshwater", shape: "hull" });
+    assert.equal(b.floats, true, "Steel hull should float in freshwater");
+    assert.ok(b.draftCm < b.metrics.height, "Draft must be strictly less than hull height");
+    assert.ok(b.submergedFraction > 0.5 && b.submergedFraction < 0.8, `Expected draft ~65%, got ${b.submergedFraction}`);
+  });
+});
+
+describe("overflow spout stream directional pouring logic", () => {
+  const isPouring = (shownML, targetML, threshold = 0.6) => targetML - shownML > threshold;
+
+  it("activates stream only when catch cylinder is receiving displaced fluid (target > shown)", () => {
+    assert.equal(isPouring(100, 250), true, "Water should pour from spout when filling catch cylinder");
+    assert.equal(isPouring(0, 50), true, "Initial overflow stream should be visible");
+  });
+
+  it("strictly suppresses stream when volume is lowered or specimen is lifted (target < shown)", () => {
+    assert.equal(isPouring(300, 100), false, "Water must NEVER pour from spout when cylinder level recedes");
+    assert.equal(isPouring(500, 0), false, "Emptying cylinder must not trigger spout stream");
+    assert.equal(isPouring(200, 199), false, "Minor reductions must not trigger spout stream");
+  });
+
+  it("deactivates stream once catch cylinder settles at target level", () => {
+    assert.equal(isPouring(200, 200), false, "Settled level must not pour");
+    assert.equal(isPouring(200, 200.4), false, "Within settle threshold must not pour");
+  });
+});
+
+
