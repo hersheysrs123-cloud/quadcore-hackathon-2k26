@@ -260,19 +260,47 @@ export default function Workspace() {
         try {
           await initAndSeedDatabase();
           let allDbNotes = await getAllNotes();
-          if (!allDbNotes || allDbNotes.length === 0) {
-            await seedDemoContent({ overwrite: true });
-            allDbNotes = await getAllNotes();
+          const hasSeeded = localStorage.getItem(DEMO_SEED_KEY);
+          if (!hasSeeded) {
+            let trashCount = 0;
+            try { trashCount = await db.trash.count(); } catch (e) {}
+            let deletedNotesCount = 0;
+            try {
+              deletedNotesCount = (JSON.parse(localStorage.getItem("socratic_deleted_notes") || "[]")).length;
+            } catch (e) {}
+
+            // Only auto-seed if workspace has NEVER seeded before and user has not trashed/deleted notes
+            if ((!allDbNotes || allDbNotes.length === 0) && trashCount === 0 && deletedNotesCount === 0) {
+              await seedDemoContent({ overwrite: true });
+              allDbNotes = await getAllNotes();
+            }
+            localStorage.setItem(DEMO_SEED_KEY, "true");
           }
 
           const resolvedSpaces = await getSavedSpaces();
+
+          let deletedSpaces = new Set();
+          try {
+            const delArr = JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]");
+            if (Array.isArray(delArr)) delArr.forEach((d) => deletedSpaces.add(d));
+          } catch (e) {}
+
           const spaceMap = {};
           resolvedSpaces.forEach((s) => {
-            spaceMap[s.name] = [];
+            if (!deletedSpaces.has(s.name)) {
+              spaceMap[s.name] = [];
+            }
           });
 
+          const primaryFallbackSpace = resolvedSpaces.find((s) => !deletedSpaces.has(s.name))?.name || "General";
+
           allDbNotes.forEach((n) => {
-            const sp = n.spaceId || n.space || resolvedSpaces[0]?.name || "School";
+            let sp = n.spaceId || n.space || primaryFallbackSpace;
+            if (deletedSpaces.has(sp)) {
+              sp = primaryFallbackSpace;
+              // Reassign in DB in background so note doesn't reference deleted space
+              db.notes.update(n.id, { space: primaryFallbackSpace, spaceId: primaryFallbackSpace }).catch(() => {});
+            }
             if (!spaceMap[sp]) spaceMap[sp] = [];
             spaceMap[sp].push({
               id: n.id,
@@ -300,14 +328,19 @@ export default function Workspace() {
           setNotesBySpace(spaceMap);
 
           const merged = new Map();
-          resolvedSpaces.forEach((s) => merged.set(s.name, s));
+          resolvedSpaces.forEach((s) => {
+            if (!deletedSpaces.has(s.name)) {
+              merged.set(s.name, s);
+            }
+          });
           Object.keys(spaceMap).forEach((sp) => {
-            if (!merged.has(sp) && (spaceMap[sp] || []).length > 0) {
+            if (!merged.has(sp) && !deletedSpaces.has(sp) && (spaceMap[sp] || []).length > 0) {
               merged.set(sp, { name: sp, icon: "📂", blurb: "" });
             }
           });
           const finalSpaces = Array.from(merged.values());
-          setSpaces(finalSpaces);
+          const safeFinalSpaces = finalSpaces.length > 0 ? finalSpaces : [{ name: "General", icon: "📂", blurb: "" }];
+          setSpaces(safeFinalSpaces);
 
           const params = new URLSearchParams(window.location.search);
           const urlNoteId = params.get("noteId");
@@ -324,7 +357,7 @@ export default function Workspace() {
           const targetNoteId = urlNoteId || fallback?.activeNoteId;
           const targetTab = urlTab || fallback?.activeTab || "notes";
 
-          let foundSpace = finalSpaces[0]?.name || "School";
+          let foundSpace = safeFinalSpaces[0]?.name || "General";
           let foundNoteId = null;
           
           if (targetNoteId) {
@@ -335,6 +368,10 @@ export default function Workspace() {
                 break;
               }
             }
+          }
+
+          if (!foundNoteId && fallback?.activeSpace && safeFinalSpaces.some((s) => s.name === fallback.activeSpace)) {
+            foundSpace = fallback.activeSpace;
           }
 
           if (!foundNoteId) {
@@ -413,18 +450,18 @@ export default function Workspace() {
   }, [theme]);
 
   useEffect(() => {
-    if (mounted && typeof window !== "undefined") {
+    if (isHydrated && typeof window !== "undefined") {
       saveAllSpaces(spaces);
     }
-  }, [spaces, mounted]);
+  }, [spaces, isHydrated]);
 
   // Removed redundant localStorage saves for notesBySpace & trashNotes to prevent QuotaExceededError
 
   useEffect(() => {
-    if (mounted && typeof window !== "undefined") {
+    if (isHydrated && typeof window !== "undefined") {
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
     }
-  }, [sessions, mounted]);
+  }, [sessions, isHydrated]);
 
   // Periodic 24h auto-purge check every minute
   useEffect(() => {
@@ -713,9 +750,10 @@ export default function Workspace() {
            await handleDeleteNote(note.id, spaceName); // move to trash
        }
        const nextSpaces = spaces.filter((s) => s.name !== spaceName);
-       setSpaces(nextSpaces);
+       const fallbackSpaces = nextSpaces.length > 0 ? nextSpaces : [{ name: "General", icon: "📂", blurb: "" }];
+       setSpaces(fallbackSpaces);
        await deleteSpace(spaceName);
-       await saveAllSpaces(nextSpaces);
+       await saveAllSpaces(fallbackSpaces);
 
        setNotesBySpace((prev) => {
          const next = { ...prev };
@@ -724,7 +762,7 @@ export default function Workspace() {
        });
 
        if (activeSpace === spaceName) {
-         const fallbackSpace = nextSpaces[0]?.name || "School";
+         const fallbackSpace = fallbackSpaces[0]?.name || "General";
          setActiveSpace(fallbackSpace);
          const firstInFallback = (notesBySpace[fallbackSpace] || [])[0];
          setActiveNoteId(firstInFallback ? firstInFallback.id : null);

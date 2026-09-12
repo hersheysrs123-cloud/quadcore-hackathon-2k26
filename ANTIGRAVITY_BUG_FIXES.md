@@ -5674,3 +5674,50 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 - `tests/integration/3d-topic-schemas.test.mjs` passing with 0 errors.
 - Verified smooth, legible step playback across Bubble, Insertion, Selection, Quicksort, and Merge sort.
 - Verified enhanced contrast and depth across all 3D BST operations.
+
+---
+
+## 101. Permanent Deletion Persistence for Seeded Notes and Spaces Across Refreshes
+
+### Problem Statement
+- Whenever a user deleted seeded demo notes (e.g. Calculus, Quantum Computing, Photosynthesis) or spaces (default spaces like School, Personal, Misc, Journal or custom spaces), refreshing the browser or reloading the application caused all deleted notes and spaces to resurrect immediately.
+
+### Root Cause Analysis
+1. **Unhydrated Auto-Save Effect (`Workspace.jsx:415-419`)**:
+   - The auto-save effect `useEffect(() => { if (mounted) saveAllSpaces(spaces); }, [spaces, mounted])` executed immediately on client mount because `setMounted(true)` was called before asynchronous workspace hydration completed.
+   - At that instant, `spaces` state was still initialized to the hardcoded initial state `SPACES` (`[School, Personal, Misc, Journal]`).
+   - `saveAllSpaces(SPACES)` immediately overwrote `localStorage.getItem("socratic_spaces")` with all 4 default spaces and filtered `socratic_deleted_spaces` against the default spaces list, wiping out all space deletion tombstones before `loadLocalWorkspace()` could even read them from storage.
+2. **Unconditional Auto-Reseed on Zero Notes (`Workspace.jsx:263-266`)**:
+   - In `loadLocalWorkspace()`, `allDbNotes = await getAllNotes()` checks active notes in Dexie IndexedDB.
+   - If a user moved all notes to trash, permanently deleted notes, or deleted a space containing all notes, `allDbNotes.length === 0`.
+   - The code contained `if (!allDbNotes || allDbNotes.length === 0) { await seedDemoContent({ overwrite: true }); }`, which blindly re-seeded all 7 demo notes into `db.notes` on every reload, ignoring whether the user had intentionally emptied their workspace or already initialized the app.
+3. **Space Resurrection via Orphaned Note References (`Workspace.jsx:304-307`)**:
+   - In `loadLocalWorkspace()`, any note in `db.notes` whose `spaceId` matched a deleted space caused `spaceMap[sp]` to have items.
+   - The space merge loop executed `if (!merged.has(sp) && spaceMap[sp].length > 0) merged.set(sp, { name: sp, icon: "📂" })`, automatically recreating deleted spaces without checking `socratic_deleted_spaces`.
+4. **Resurrecting Default Spaces in `getSavedSpaces` (`lib/storageService.js:1355`)**:
+   - When all spaces or default spaces were deleted, `getSavedSpaces()` returned the raw `SPACES` array as a fallback (`return result.length > 0 ? result : SPACES`), completely disregarding `socratic_deleted_spaces`.
+5. **Absence of Deleted Note Tombstoning**:
+   - When demo notes were deleted, no tombstone marker was recorded. If `initAndSeedDatabase()` or seeding ever ran, it saw missing demo note IDs in `db.notes` and re-inserted them.
+
+### Resolution & Architectural Enhancements
+1. **Gated Storage Auto-Save on `isHydrated` (`components/Workspace.jsx`)**:
+   - Replaced `mounted` dependency with `isHydrated` in `useEffect([spaces, isHydrated])` and `useEffect([sessions, isHydrated])`.
+   - On initial mount, `isHydrated` remains `false` until `loadLocalWorkspace()` finishes loading and setting state from storage. This guarantees that unhydrated default state never overwrites `socratic_spaces` or clears `socratic_deleted_spaces`.
+2. **Guarded Workspace Reseeding (`components/Workspace.jsx`)**:
+   - In `loadLocalWorkspace()`, demo seeding only runs if `DEMO_SEED_KEY` has never been recorded in localStorage AND `db.trash` has 0 notes AND `socratic_deleted_notes` is empty.
+   - Once initialized, deliberate note deletions leave the workspace in its clean, user-configured state without resurrecting demo content on reload.
+3. **Persistent Note Deletion Tombstones (`lib/storageService.js` & `lib/db.js`)**:
+   - Updated `deleteNoteToTrash(id)` and `permanentlyDeleteNote(id)` to add note IDs to `socratic_deleted_notes` in localStorage.
+   - Updated `recoverNote(id)` to untrack recovered note IDs.
+   - In `initAndSeedDatabase()` (`lib/db.js`), filtered demo notes against `socratic_deleted_notes` so deleted notes are never re-inserted.
+   - In `resetNotesData()`, cleared `socratic_deleted_notes` alongside other workspace keys.
+   - In `seedDemoContent()`, cleared `socratic_deleted_notes` so user-initiated restores ("🌱 Restore Seed Notes") work reliably.
+4. **Complete Space Deletion & Orphaned Note Remapping (`lib/storageService.js` & `components/Workspace.jsx`)**:
+   - Updated `deleteSpace(spaceName)` to move any remaining active notes in that space to `db.trash`, mark their IDs in `socratic_deleted_notes`, and clean up `socratic_last_workspace_state`.
+   - In `Workspace.jsx`, updated space rehydration to check `socratic_deleted_spaces` and safely remap any notes whose space was deleted to the primary active space (`finalSpaces[0].name`), preventing deleted spaces from resurrecting.
+   - Updated `handleDeleteSpace` to fall back to `fallbackSpaces[0]?.name || "General"` instead of hardcoded `"School"`.
+5. **Tombstone-Aware Fallback in `getSavedSpaces` (`lib/storageService.js`)**:
+   - Updated `getSavedSpaces()` to filter `SPACES` by `!deleted.has(s.name)` on fallback, ensuring deleted spaces never reappear even if user deletes all default spaces.
+6. **Automated Verification & Unit Tests**:
+   - Created `tests/unit/deleted-notes-spaces-persistence.test.mjs` covering note deletion tombstones, space deletion persistence, guarded reseeding, fallback remapping, and explicit seed restore.
+   - All **809 unit and integration tests** pass with 0 errors across 198 test suites.
