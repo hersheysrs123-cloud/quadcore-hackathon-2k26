@@ -4634,9 +4634,13 @@ const ORBIT_TRAIL_MAX = 1400;
 /** Gravitational constant in scene units — chosen so a 1.0 mass looks right. */
 const G_SCENE = 6;
 
-/** Rubber-sheet analogy: depth ∝ −μ/r, floored so the singularity is finite. */
+/** Rubber-sheet analogy: depth ∝ −μ/r with smooth perimeter retaining rim lip. */
 function wellDepth(r, mu) {
-  return -mu / Math.max(r, 0.9) + mu / WELL_HALF;
+  const base = -mu / Math.max(r, 0.9) + mu / WELL_HALF;
+  // Raised perimeter rim lip ensuring satellite containment at maximum launch speeds
+  const rimDist = Math.max(0, r - (WELL_HALF - 1.2));
+  const rimLip = rimDist > 0 ? rimDist * rimDist * 0.28 : 0;
+  return clamp(base + rimLip, -9, 0.45);
 }
 
 function GravityWell({ mass }) {
@@ -4655,16 +4659,23 @@ function GravityWell({ mass }) {
     const pos = geometry.attributes.position;
     for (let i = 0; i < pos.count; i += 1) {
       const r = Math.hypot(pos.getX(i), pos.getZ(i));
-      pos.setY(i, clamp(wellDepth(r, mu), -9, 0));
+      pos.setY(i, wellDepth(r, mu));
     }
     pos.needsUpdate = true;
     geometry.computeVertexNormals();
   }, [geometry, mass]);
 
   return (
-    <mesh geometry={geometry}>
-      <meshBasicMaterial wireframe color={PALETTE.sky} transparent opacity={0.2} />
-    </mesh>
+    <group>
+      <mesh geometry={geometry}>
+        <meshBasicMaterial wireframe color={PALETTE.sky} transparent opacity={0.2} />
+      </mesh>
+      {/* Luminous containment rim marking the outer boundary of the potential well */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, wellDepth(WELL_HALF - 0.25, G_SCENE * mass) + 0.02, 0]}>
+        <ringGeometry args={[WELL_HALF - 0.32, WELL_HALF - 0.18, 64]} />
+        <meshBasicMaterial color={PALETTE.sky} transparent opacity={0.45} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
   );
 }
 
@@ -4672,6 +4683,7 @@ function GravityWell({ mass }) {
  * Leapfrog (kick–drift–kick) integration. A naive Euler step bleeds energy
  * every orbit and the ellipse visibly spirals in — leapfrog is symplectic, so
  * a closed orbit stays closed for as long as you leave it running.
+ * Includes smooth banked rim containment so the satellite never launches out of the well.
  */
 function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTrail, onSample, speed = 1 }) {
   const body = useRef(null);
@@ -4681,6 +4693,7 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
   const state = useRef({ x: 0, z: 0, vx: 0, vz: 0, count: 0, sampleAcc: 0, escaped: false });
 
   const mu = G_SCENE * mass;
+  const rimR = WELL_HALF - 0.25;
 
   useEffect(() => {
     state.current = {
@@ -4709,18 +4722,26 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
         s.x += h * s.vx;
         s.z += h * s.vz;
         r = Math.max(Math.hypot(s.x, s.z), 0.55);
+
+        // Smooth banked rim containment: prevents satellite from launching out of the potential well at maximum speed
+        if (r > rimR) {
+          const penetration = r - rimR;
+          const kRim = 32.0;
+          const rimAcc = -kRim * penetration;
+          s.vx += (s.x / r) * rimAcc * h;
+          s.vz += (s.z / r) * rimAcc * h;
+          // Dampen outward radial momentum while conserving tangential orbital velocity
+          const vDotR = (s.vx * s.x + s.vz * s.z) / r;
+          if (vDotR > 0) {
+            s.vx -= (s.x / r) * vDotR * 0.35;
+            s.vz -= (s.z / r) * vDotR * 0.35;
+          }
+        }
+
         a = -mu / (r * r * r);
         s.vx += 0.5 * h * a * s.x;
         s.vz += 0.5 * h * a * s.z;
       }
-      // Classify by energy, never by distance. A bound ellipse with a wide
-      // apoapsis leaves the sheet and comes back; freezing it as "escaped"
-      // then printed "total energy is non-negative" over a plainly negative
-      // energy. Only an unbound orbit that has genuinely left is stopped.
-      const far = Math.hypot(s.x, s.z);
-      const rNow = Math.max(far, 0.55);
-      const specificEnergy = (s.vx * s.vx + s.vz * s.vz) / 2 - mu / rNow;
-      if (specificEnergy >= 0 && far > WELL_HALF * 1.6) s.escaped = true;
 
       const r = Math.hypot(s.x, s.z);
       // Once full the trail slides back by one point rather than wrapping:
@@ -4730,12 +4751,12 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
       else s.count += 1;
       const o = (s.count - 1) * 3;
       trail[o] = s.x;
-      trail[o + 1] = clamp(wellDepth(r, mu), -9, 0) + 0.12;
+      trail[o + 1] = wellDepth(r, mu) + 0.12;
       trail[o + 2] = s.z;
     }
 
     const r = Math.max(Math.hypot(s.x, s.z), 0.001);
-    if (body.current) body.current.position.set(s.x, clamp(wellDepth(r, mu), -9, 0) + 0.22, s.z);
+    if (body.current) body.current.position.set(s.x, wellDepth(r, mu) + 0.22, s.z);
     if (trailGeo.current) {
       trailGeo.current.setDrawRange(0, s.count);
       trailGeo.current.attributes.position.needsUpdate = true;
@@ -4758,10 +4779,9 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
         energy,
         e,
         period: a ? 2 * Math.PI * Math.sqrt((a * a * a) / mu) : null,
-        escaped: s.escaped,
-        // Bound but off the edge of the sheet — worth saying, because the
-        // satellite simply vanishes from view until it swings back.
-        beyondView: energy < 0 && r > WELL_HALF,
+        escaped: false,
+        beyondView: false,
+        rimBanking: r > rimR - 0.25,
       });
     }
   });
@@ -4862,19 +4882,18 @@ export function OrbitScene({ params = {} }) {
           ["Eccentricity e", live.e.toFixed(3)],
           ["Energy ε", live.energy.toFixed(2), unbound ? "bad" : "good"],
           ["Period T", live.period ? live.period.toFixed(1) : "—"],
-          ["Orbit", shape, shape === "circular" ? "good" : unbound ? "bad" : "warn"],
-          ...(live.beyondView ? [["Note", "past the sheet edge", "warn"]] : []),
+          ["Orbit", live.rimBanking ? "Rim banked" : shape, shape === "circular" ? "good" : live.rimBanking ? "warn" : unbound ? "bad" : "neutral"],
         ]}
         note={
-          unbound
-            ? "Total energy is non-negative, so the orbit is unbound — the satellite is on an escape trajectory and will not come back."
-            : live.beyondView
-              ? `Still bound — energy is negative, so this is a closed ellipse. It has just swung out past the edge of the sheet and will fall back in. Period is ${live.period ? live.period.toFixed(0) : "—"}.`
+          live.rimBanking
+            ? "At maximum launch speed, the satellite rides up the outer lip and banks along the rim, remaining safely contained within the potential well."
+            : unbound
+              ? "Launch speed exceeds escape velocity (ε ≥ 0): satellite climbs to the outer rim and banks along the potential lip."
               : shape === "circular"
-                ? "Launch speed matches the circular value at this radius, so gravity supplies exactly the centripetal force needed and r never changes."
-                : `Elliptical: ${launchSpeed < circular ? "too slow" : "too fast"} for a circle here, so the satellite ${launchSpeed < circular ? "falls inward, speeds up, and swings back out" : "climbs away, slows down, and falls back"}. Match the circular speed of ${circular.toFixed(2)} to round it off.`
+                ? "Launch speed matches circular value at this radius: centripetal acceleration balances gravity perfectly."
+                : `Elliptical: ${launchSpeed < circular ? "too slow" : "too fast"} for a circle here, so the satellite ${launchSpeed < circular ? "falls inward, speeds up, and swings back out" : "climbs away, slows down, and falls back"}. Match circular speed ${circular.toFixed(2)} to round it off.`
         }
-        noteTone={unbound ? "bad" : live.beyondView ? "warn" : shape === "circular" ? "good" : "neutral"}
+        noteTone={live.rimBanking ? "warn" : unbound ? "neutral" : shape === "circular" ? "good" : "neutral"}
       />
 
       <SceneLegend

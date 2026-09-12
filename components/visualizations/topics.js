@@ -663,7 +663,7 @@ export const TOPICS = [
       // solar-mass label would invite reading real years off the panel.
       { type: "slider", key: "mass", label: "Central mass M", min: 0.3, max: 3, step: 0.05, format: (v) => `${v.toFixed(2)} M₀` },
       { type: "slider", key: "launchRadius", label: "Launch radius r", min: 1.6, max: 6, step: 0.1, format: (v) => v.toFixed(1) },
-      { type: "slider", key: "launchSpeed", label: "Launch speed v", min: 0.2, max: 4, step: 0.05, format: (v) => v.toFixed(2) },
+      { type: "slider", key: "launchSpeed", label: "Launch speed v", min: 0.2, max: 3.5, step: 0.05, format: (v) => v.toFixed(2) },
       { type: "toggle", key: "running", label: "Run orbit" },
       { type: "toggle", key: "showTrail", label: "Show path" },
       { type: "toggle", key: "showWell", label: "Show potential well" },

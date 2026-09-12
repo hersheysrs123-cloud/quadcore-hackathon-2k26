@@ -701,6 +701,19 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
     - **Debounced Slider Interaction**:
       - Removed component remount `key` and decoupled `MuzzleBlast` from `angleDeg`. Parameter updates feature a 320ms settle debounce, enabling real-time 60 FPS slider trajectory morphing without stuttering or strobe flashes.
 
+22. **3D Gravity Wells & Orbital Motion Design Tokens (`PhysicsCanvas.jsx`, `topics.js`)**:
+    - **Spacetime Potential Sheet Wireframe**: Sky blue (`#38bdf8`, opacity `0.2`) on $14\text{ m} \times 14\text{ m}$ plane grid. Depth profiles as $-GM / \max(r, 0.9) + GM / R_{\text{half}}$ with smooth vertex normal shading.
+    - **Banked Perimeter Retaining Lip & Containment Ring**:
+      - Funnel Lip: Quadratic elevation curvature ($+0.35\text{ m}$ rise) starting at $r = 5.8\text{ m}$ to the perimeter ($r = 7.0\text{ m}$).
+      - Luminous Containment Ring: Thin neon sky cyan double-sided ring (`#38bdf8`, opacity `0.45`, radius $6.68\text{ m}$–$6.82\text{ m}$) marking the outer boundary of the potential well.
+    - **Symplectic Banked Rim Containment**:
+      - Preserves tangential angular momentum while restoring radial velocity inward via $k_{\text{rim}} = 32.0$ restoring acceleration and radial momentum redirection.
+      - Keeps high-speed satellites ($v \ge v_{\text{escape}}$) contained inside the potential well, transforming open escape trajectories into smooth perimeter rim banks.
+    - **Apparatus & Celestial Bodies**:
+      - Central Mass: Glowing gold sphere (`#fbbf24`, emissive intensity `1.8`) with atmospheric halo ring (`#fbbf24`, opacity `0.1`).
+      - Orbiting Satellite: Machined glowing emerald beacon (`#34d399`, emissive intensity `1.4`) with non-wrapping smooth FIFO line trail (`#34d399`, opacity `0.7`).
+
+
 
 
 

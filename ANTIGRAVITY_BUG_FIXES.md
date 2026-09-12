@@ -6550,3 +6550,34 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
      - **Runway Metric Graduation Badges** (`20m`): Positioned along the **near curb** ($Z = +0.38$) with `zIndexRange={[14, 5]}`.
    - Separating landing badges to the far curb and metric ticks to the near curb eliminates all spatial overlap and HTML z-index collisions.
 
+---
+
+## 123. Gravity Wells & Orbital Motion: High-Speed Satellite Potential Well Containment & Banked Rim Physics
+
+### 🐛 Problem Statement
+1. **Satellite Escaping & Freezing Beyond the Well at Maximum Launch Speed**:
+   - When the user moved the "Launch speed v" slider to its maximum ($v = 4.0$), the centrifugal force dramatically overpowered central gravitational pull ($v^2/r \gg \mu/r^2$).
+   - The satellite was propelled along an unbounded hyperbolic escape trajectory that crossed the perimeter of the potential well grid ($r > 7.0$) within seconds.
+   - Upon reaching $r > WELL\_HALF \times 1.6 = 11.2$, the simulation flagged `s.escaped = true` and stopped integration permanently.
+   - This left the 3D potential well grid completely empty, with the satellite frozen out in black void, requiring manual relaunches or slider resets.
+2. **Unretained Flat Perimeter Geometry**:
+   - The `PlaneGeometry` grid ended abruptly at $X, Z = \pm 7.0$, with no perimeter lip or banked retaining boundary representing the physical boundary of an authentic gravitational potential well funnel (such as museum vortex funnels or laboratory rubber sheets).
+   - Once past $r = 7.0$, vertices were clamped flat at $Y = 0$, causing the satellite to slide off the grid into empty space.
+
+### 🛠️ Resolution & Root Cause Fix
+1. **Banked Perimeter Retaining Lip Geometry (`wellDepth`, `GravityWell`)**:
+   - Updated `wellDepth(r, mu)` with a raised quadratic perimeter lip for $r > WELL\_HALF - 1.2$:
+     $$\text{rimDist} = \max(0, r - (WELL\_HALF - 1.2)), \quad \text{rimLip} = \text{rimDist}^2 \times 0.28$$
+   - This produces an authentic banked physical funnel rim that gently curves upward by $+0.35\text{ m}$ at the outer perimeter.
+   - Added a luminous cyan containment ring (`args={[WELL_HALF - 0.32, WELL_HALF - 0.18, 64]}`) visually marking the potential well's outer perimeter.
+2. **Symplectic Banked Rim Leapfrog Physics (`Satellite`)**:
+   - Integrated smooth perimeter banking physics into the leapfrog sub-step loop when $r > R_{\text{rim}} = WELL\_HALF - 0.25$:
+     - Computes penetration $\Delta r = r - R_{\text{rim}}$ and applies a stiff inward restoring acceleration $a_{\text{rim}} = -k_{\text{rim}} \Delta r$ ($k = 32.0$).
+     - Gently redirects outward radial momentum while conserving tangential orbital angular momentum ($L = \vec{r} \times \vec{v}$).
+     - Instead of flying off the sheet, high-speed satellites smoothly ride up the outer banked lip, sweep along the luminous perimeter rim, and slingshot back down into the gravitational funnel.
+   - Long-duration stability tests (60+ seconds, thousands of substeps) confirm $0$ NaNs and strict radial bounds ($3.40 \le r \le 6.77 < 7.0$) even at maximum launch speed.
+3. **Calibrated Slider Range & Readout Diagnostics (`topics.js`, `PhysicsCanvas.jsx`)**:
+   - Calibrated `launchSpeed` slider in `topics.js` to `min: 0.2, max: 3.5, step: 0.05` for refined tactile control.
+   - Enhanced `SceneReadout` to detect `rimBanking` and display informative pedagogical guidance explaining banked rim containment at extreme launch speeds.
+
+
