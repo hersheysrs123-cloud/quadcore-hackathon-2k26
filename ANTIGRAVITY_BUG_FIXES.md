@@ -6743,3 +6743,48 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 4. **Test Suite Integration & Verification**:
    - Updated `package.json` `scripts.test` to execute all stress challenge suites and the empirical test runner.
    - Verified 876 tests across 219 suites + 34 empirical challenge tests (910 total tests) passing cleanly with 0 failures.
+
+---
+
+## 129. Scoped Core Library Modernization: PrismJS Syntax Highlighter, usehooks-ts Click-Outside Handlers & Zustand Multi-Timer Store with 0% Idle CPU Auto-Sleep
+
+### 🐛 Problem Statement & Scoped Modernization Mandate
+1. **Custom Regex Tokenizer Fragility & Maintenance Overhead (`lib/syntaxHighlighter.js`)**:
+   - The syntax highlighter previously relied on a custom handcrafted regex tokenizer for 10 programming languages (`javascript`, `typescript`, `python`, `html`, `css`, `cpp`, `java`, `rust`, `sql`, `json`).
+   - Maintaining complex regex patterns for keyword boundaries, multi-line string interpolation, nested comments, and decorators had high maintenance overhead and lacked grammar support for language-specific syntactic subtleties.
+2. **Duplicated Manual Click-Outside Listeners (6 Components)**:
+   - Six components (`BlockNoteEditor.jsx`, `CreateQuizModal.jsx`, `GlobalTimerHUD.jsx`, `NoteMenu.jsx`, `Sidebar.jsx`, and `TopicSelectorDropdown.jsx`) each implemented manual, bespoke `document.addEventListener("mousedown", ...)` or `touchstart` event handlers.
+   - These duplicated listeners required repetitive boilerplate for ref checking, unmount cleanup, and touch event handling, which varied slightly between components.
+3. **Custom Pub-Sub Timer Engine & Idle CPU Consumption (`lib/timerStore.js`)**:
+   - The multi-timer engine was previously an ad-hoc mutable singleton pub-sub store (`currentState`, `subscribers = new Set()`, manual `localStorage` serialization).
+   - The timer needed modernization to an industry-standard reactive state store (**Zustand**) with `persist` middleware while maintaining:
+     - The exact storage key name (`socratic_multi_timers_v2`) to preserve existing user timers without data loss.
+     - 0% idle CPU consumption: ensuring that the ticker interval (`setInterval`) completely stops (`clearInterval`) when all timers are paused, idle, or expired, avoiding background battery drain.
+     - Full backward and forward compatibility with the public API (`useGlobalTimer()` hook and `multiTimerStore` compatibility object).
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **PrismJS Tokenizer Integration (`lib/syntaxHighlighter.js`)**:
+   - Replaced custom regexes with standard, battle-tested `prismjs` (`v1.30.0`).
+   - **Prism API Choice**: Confirmed explicit usage of low-level `Prism.tokenize(code, grammar)` rather than DOM-mutating `Prism.highlightElement()` or `Prism.highlightAll()`, preventing Next.js SSR hydration mismatches and guaranteeing pure string array token generation.
+   - Imported grammars for all 10 supported languages: `javascript`, `typescript`, `python`, `markup` (for HTML), `css`, `cpp`, `java`, `rust`, `sql`, and `json`.
+   - Built a robust recursive token tree flattener (`flattenPrismTokens`) that maps Prism token types into SocraticOS `TOKEN_STYLES` categories (`keyword`, `string`, `comment`, `number`, `operator`, `function`, `property` -> `json-key`, `decorator`, `directive`, etc.).
+   - Guaranteed 100% lossless token text reconstruction (`reconstructed === code`) across all 10 languages.
+2. **Standardized Click-Outside Listeners with `usehooks-ts` (`useOnClickOutside`)**:
+   - Replaced manual `document.addEventListener("mousedown", ...)` across all 6 target components:
+     - `components/BlockNoteEditor.jsx`: Formula popover and presets watched via `[popoverRef, presetsRef, presetsBtnRef]`; banner and emoji pickers watched via `[bannerPickerRef, emojiPickerRef]`.
+     - `components/CreateQuizModal.jsx`: Multi-note picker dropdown watched via `useOnClickOutside(notePickerRef, handleClickOutside)`.
+     - `components/GlobalTimerHUD.jsx`: Timer popover dropdown watched via `useOnClickOutside(popoverRef, handleClickOutside)`.
+     - `components/NoteMenu.jsx`: Menu button and dropdown watched via `useOnClickOutside([buttonRef, menuDropdownRef], handleClickOutside)`.
+     - `components/Sidebar.jsx`: Spaces selector dropdown watched via `useOnClickOutside(dropdownRef, handleClickOutside)`.
+     - `components/visualizations/TopicSelectorDropdown.jsx`: Subject selector container watched via `useOnClickOutside(containerRef, handleClickOutside)`.
+   - Verified that `usehooks-ts@3.1.1` natively supports both single `RefObject<T>` and array `RefObject<T>[]` references.
+3. **Zustand Timer Store with Persist & Auto-Sleep Ticker Engine (`lib/timerStore.js`)**:
+   - Built a reactive Zustand store (`useTimerStore = create(persist(...))`) managing timers and ticks.
+   - **Storage Key & Legacy Migration**: Retained `name: "socratic_multi_timers_v2"`. Implemented a custom storage adapter (`timerStorage`) that parses both the legacy raw JSON array format (`[ { id, ... } ]`) and the Zustand persist envelope format (`{ state: { timers: [...] }, version: 0 }`), preventing existing user timers from being wiped on refresh.
+   - **0% Idle CPU Auto-Sleep Engine**: Wired `checkAndManageTicker()` to the store subscription. When no timers are active (`isActive: false`), the 500ms ticker interval is immediately terminated with `clearInterval` and nullified (`tickerInterval = null`). The interval only spins when $\ge 1$ timer is actively running, achieving 0% idle CPU.
+   - **Alarm Event Dispatching**: Dispatches standard `socratic_alarm_triggered` `CustomEvent` when remaining time reaches 0, pausing the timer and automatically clearing the ticker interval.
+   - **Public API Preservation**: Preserved `useGlobalTimer()` hook contract with live computed properties (`secondsLeft`, `isNearingEnd`, `percentLeft`, `customMins`, document title sync) and `multiTimerStore` compatibility object.
+4. **Verification & Testing**:
+   - Added unit test suite in `tests/unit/timer-store.test.mjs` verifying default timer initialization, active ticker startup, auto-sleep idle CPU shutdown on pause/reset/expiration, custom timer duration extensions, default timer delete protection, and legacy array storage format migration.
+   - All 882 tests across 220 suites + 34 empirical challenge tests passed cleanly (0 failures).
+

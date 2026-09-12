@@ -4,7 +4,7 @@
 
 A state-of-the-art learning environment built around one core premise: **rereading is not studying**. Take block-based notes, command your workspace with universal keyboard shortcuts, explore concepts in real-time 3D, receive structured explanations, test your understanding through interactive quizzes, and track sub-topic confidence over time on an aggregate mastery heatmap.
 
-**Stack**: Next.js 15 (App Router) · React 19 · Three.js / React Three Fiber · Tailwind CSS · Google Gemini AI API · IndexedDB (Dexie.js).
+**Stack**: Next.js 15 (App Router) · React 19 · Zustand · PrismJS · usehooks-ts · Three.js / React Three Fiber · Tailwind CSS · Google Gemini AI API · IndexedDB (Dexie.js).
 
 ---
 

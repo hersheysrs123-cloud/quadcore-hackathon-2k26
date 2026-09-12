@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { useGlobalTimer } from "@/lib/timerStore";
 import { Play, Pause, RotateCcw, Plus, Calendar, AlertTriangle, Clock, Trash2 } from "lucide-react";
 
@@ -34,18 +35,11 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
     custom: "⏱️",
   };
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      window.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => window.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  // Close dropdown on outside click via usehooks-ts
+  const handleClickOutside = () => {
+    if (isOpen) setIsOpen(false);
+  };
+  useOnClickOutside(popoverRef, handleClickOutside);
 
   function handleCreateTimer(e) {
     e.preventDefault();

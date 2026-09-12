@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical, Star, Trash2, FolderInput, Copy, ListChecks, Pencil } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
@@ -1879,19 +1880,11 @@ export default function Sidebar({
     }
   }, []);
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setSpacesDropdownOpen(false);
-      }
-    }
-    if (spacesDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [spacesDropdownOpen]);
+  // Close spaces dropdown on outside click via usehooks-ts
+  const handleClickOutside = () => {
+    if (spacesDropdownOpen) setSpacesDropdownOpen(false);
+  };
+  useOnClickOutside(dropdownRef, handleClickOutside);
 
   useEffect(() => {
     if (!spaces.find((s) => s.name === activeSpace) && spaces.length > 0) {

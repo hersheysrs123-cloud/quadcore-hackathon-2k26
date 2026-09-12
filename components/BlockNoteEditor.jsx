@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { Lock, Sparkles, AlertCircle } from "lucide-react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -1226,26 +1227,21 @@ function InlineEquationPopover({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        presetsOpen &&
-        presetsRef.current &&
-        !presetsRef.current.contains(e.target) &&
-        !presetsBtnRef.current?.contains(e.target)
-      ) {
-        setPresetsOpen(false);
-        return;
-      }
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      window.addEventListener("mousedown", handleClickOutside);
+  const handleClickOutside = (e) => {
+    if (
+      presetsOpen &&
+      presetsRef.current &&
+      !presetsRef.current.contains(e.target) &&
+      !presetsBtnRef.current?.contains(e.target)
+    ) {
+      setPresetsOpen(false);
+      return;
     }
-    return () => window.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, presetsOpen, onClose]);
+    if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+      onClose();
+    }
+  };
+  useOnClickOutside([popoverRef, presetsRef, presetsBtnRef], handleClickOutside);
 
   if (!isOpen) return null;
 
@@ -5753,25 +5749,16 @@ export default function BlockNoteEditor({
     return () => window.removeEventListener("keydown", handleEditorSaveShortcut);
   }, [performSave]);
 
-  // Close banner and emoji pickers on outside click
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (showBannerPicker && bannerPickerRef.current && !bannerPickerRef.current.contains(e.target)) {
-        setShowBannerPicker(false);
-      }
-      if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
-        setShowEmojiPicker(false);
-      }
+  // Close banner and emoji pickers on outside click via usehooks-ts
+  const handlePickersClickOutside = (e) => {
+    if (showBannerPicker && bannerPickerRef.current && !bannerPickerRef.current.contains(e.target)) {
+      setShowBannerPicker(false);
     }
-    if (showBannerPicker || showEmojiPicker) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("touchstart", handleClickOutside);
+    if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+      setShowEmojiPicker(false);
     }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, [showBannerPicker, showEmojiPicker]);
+  };
+  useOnClickOutside([bannerPickerRef, emojiPickerRef], handlePickersClickOutside);
 
   // High-Performance Smooth Marquee Drag Selection & Auto-Scrolling Engine
   const updateMarqueeFrame = useCallback(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { createPortal } from "react-dom";
 import {
   MoreHorizontal,
@@ -160,30 +161,16 @@ export default function NoteMenu({
     }
   }, [isOpen, updatePosition]);
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target) &&
-        menuDropdownRef.current &&
-        !menuDropdownRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-        setIsRenaming(false);
-        setShowStatsModal(false);
-        setShowMoveModal(false);
-      }
-    }
+  // Close dropdown on click outside via usehooks-ts
+  const handleClickOutside = () => {
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("touchstart", handleClickOutside);
+      setIsOpen(false);
+      setIsRenaming(false);
+      setShowStatsModal(false);
+      setShowMoveModal(false);
     }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, [isOpen]);
+  };
+  useOnClickOutside([buttonRef, menuDropdownRef], handleClickOutside);
 
   // Close on Escape key
   useEffect(() => {

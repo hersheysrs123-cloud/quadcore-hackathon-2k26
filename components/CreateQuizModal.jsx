@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { X, Sparkles, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { saveQuiz, getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
 import { shouldUseClientAI, quizGenerate } from "@/lib/aiService";
@@ -117,20 +118,11 @@ export default function CreateQuizModal({
     prevOpenRef.current = open;
   }, [open, activeSpace, notesBySpace]);
 
-  // Click outside listener for note multi-select picker
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (notePickerRef.current && !notePickerRef.current.contains(event.target)) {
-        setIsNotePickerOpen(false);
-      }
-    }
-    if (isNotePickerOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isNotePickerOpen]);
+  // Click outside listener for note multi-select picker via usehooks-ts
+  const handleClickOutside = () => {
+    if (isNotePickerOpen) setIsNotePickerOpen(false);
+  };
+  useOnClickOutside(notePickerRef, handleClickOutside);
 
   const currentNotes = useMemo(() => {
     if (!open) return [];

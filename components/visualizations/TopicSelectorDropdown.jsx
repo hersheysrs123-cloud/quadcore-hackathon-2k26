@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { ChevronDown, Search, X, Check, Sparkles } from "lucide-react";
 import {
   TOPICS,
@@ -31,22 +32,11 @@ export default function TopicSelectorDropdown({
   const currentTopic = TOPICS_BY_ID[currentTopicId] || TOPICS[0];
   const CurrentIcon = currentTopic?.icon || Sparkles;
 
-  // Close on outside click
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("touchstart", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, [isOpen]);
+  // Close on outside click via usehooks-ts
+  const handleClickOutside = () => {
+    if (isOpen) setIsOpen(false);
+  };
+  useOnClickOutside(containerRef, handleClickOutside);
 
   // Focus search on open & handle Escape key
   useEffect(() => {

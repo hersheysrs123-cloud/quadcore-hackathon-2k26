@@ -12,12 +12,14 @@
 ### Tech Stack:
 - **Framework**: Next.js 15.0.0 (App Router, Turbopack / Webpack build engine)
 - **UI & Logic**: React 19 (Server & Client Components), Tailwind CSS v4 (`@tailwindcss/postcss`, dynamic CSS variable design tokens)
+- **State Management & Hooks**: **Zustand** v5 (`persist` middleware, auto-sleep ticker engine) + **usehooks-ts** v3 (`useOnClickOutside` standardized event hooks)
 - **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v7) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, folders, bookmarks, quizzes, quiz trash, space documents, and graphics settings
 - **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/reformat`, `app/api/tutor/chat`). `lib/aiService.js` provides isomorphic client/server AI orchestration
 - **3D Engine**: Three.js (r185), `@react-three/fiber` (v9), `@react-three/drei` (v10), custom Canvas engines with OrbitControls, procedural & clinical CT geometry, and WebGL lifecycle memory management
 - **Math & Equation Engine**: KaTeX (`katex`) for full block and in-sentence `$formula$` inline math rendering
+- **Syntax Highlighting**: **PrismJS** (`prismjs` v1.30.0) AST tokenizer across 10 programming languages with custom color token mapping
 - **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, Netscape Bookmark standard HTML import/export, `.socratic` JSON workspace backup format
-- **Timer & Audio Subsystem**: Reactive multi-timer store (`lib/timerStore.js`), Web Audio API chime synthesis for alarms, dynamic browser tab favicon (`🦆` $\leftrightarrow$ `❗️`) and title flashing
+- **Timer & Audio Subsystem**: Reactive multi-timer Zustand store (`lib/timerStore.js`, 0% idle CPU auto-sleep), Web Audio API chime synthesis for alarms, dynamic browser tab favicon (`🦆` $\leftrightarrow$ `❗️`) and title flashing
 
 ---
 
@@ -117,8 +119,8 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
 │   ├── schemas.js                        # OpenAPI 3.0 schemas for Gemini structured outputs
 │   ├── shadowOptics.js                   # Geometric shadow formation solver, bench constraints, umbra/penumbra, signed 3D rotation projection & materials
 │   ├── storageService.js                 # Dexie CRUD service for notes, folders, bookmarks, trash, calendar, alarms, quizzes, space documents, extractSyllabusTextFromFile & reset
-│   ├── syntaxHighlighter.js              # Tokenizer & syntax highlighter for 10 programming languages
-│   ├── timerStore.js                     # Reactive multi-timer store with localStorage sync & alarm events
+│   ├── syntaxHighlighter.js              # PrismJS-powered AST tokenizer & syntax highlighter for 10 programming languages
+│   ├── timerStore.js                     # Reactive Zustand multi-timer store with persist middleware, legacy migration & 0% idle CPU auto-sleep ticker
 │   ├── tutorialData.js                   # Authoritative registry of 9 onboarding tutorial chapters & 19 editor blocks
 │   └── urlUtils.js                       # URL normalization, domain extraction, Google favicon generator & title heuristics
 ├── tests/
@@ -376,7 +378,14 @@ A comprehensive suite of **35 real-time interactive 3D simulations** across 5 ST
 ---
 
 ### ⏱️ D. Multi-Timer HUD & Calming Study Break Alerts
-- **Unified Global Timer HUD** (`components/GlobalTimerHUD.jsx`): Header dropdown managing concurrent timers: Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom timers with live countdown rings and play/pause controls.
+- **Zustand Multi-Timer Architecture (`lib/timerStore.js`)**:
+  - Centralized reactive state store built with **Zustand** v5 and `persist` middleware.
+  - **Auto-Sleep Engine (0% Idle CPU)**: Ticker interval (`setInterval`) is conditionally managed on store mutations. If all timers are paused, idle, or completed, the interval is immediately cleared (`clearInterval`) and nullified, preventing background CPU and battery drain. The 500ms ticker executes strictly when $\ge 1$ timer is actively running.
+  - **Storage Key & Legacy Migration**: Persisted under `socratic_multi_timers_v2` with an intelligent storage adapter that seamlessly unpacks both legacy raw JSON arrays and new Zustand persist envelope formats.
+  - **Event Dispatching**: Broadcasts window-level `socratic_alarm_triggered` custom events upon timer countdown expiration.
+  - **Complete Public API**: Exposes `useGlobalTimer()` React hook (with live computed `secondsLeft`, `percentLeft`, `isNearingEnd`, `customMins`, and dynamic tab title updates) and `multiTimerStore` compatibility object.
+- **Unified Global Timer HUD** (`components/GlobalTimerHUD.jsx`): Header dropdown managing concurrent timers: Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom timers with live countdown rings and play/pause controls. Click-outside handling is powered by `usehooks-ts` (`useOnClickOutside`).
+- **Standardized Click-Outside Listeners (`usehooks-ts`)**: Standardized across 6 key components (`BlockNoteEditor.jsx`, `CreateQuizModal.jsx`, `GlobalTimerHUD.jsx`, `NoteMenu.jsx`, `Sidebar.jsx`, and `TopicSelectorDropdown.jsx`) replacing duplicated, manual `document.addEventListener("mousedown", ...)` calls.
 - **Study Calendar & Schedule** (`components/CalendarView.jsx`): Month navigation, agenda lists, space tagging, 24-hour time pickers, and custom recurring alarm scheduling.
 - **Calming Study Break & Timer Alert** (`components/AlarmOverlay.jsx`): Glassmorphic break modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (`🦆` $\leftrightarrow$ `☕`), calming title notices, and friendly snooze/extend buttons.
 
