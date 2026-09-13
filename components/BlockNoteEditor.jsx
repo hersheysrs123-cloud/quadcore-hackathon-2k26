@@ -3096,6 +3096,9 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
       tabIndex={0}
       onClick={() => onSelect(block.id)}
       onKeyDown={(e) => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+          return;
+        }
         if (e.key === "ArrowDown") {
           e.preventDefault();
           onExitDown?.(block.id);
@@ -3106,20 +3109,20 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           onExitUp?.(block.id);
           return;
         }
-        if (e.key === "Enter" && e.target.tagName !== "INPUT") {
+        if (e.key === "Enter") {
           e.preventDefault();
           onAddAfter?.(block.id, "", "text");
           return;
         }
         if (e.key === "Delete") {
-          if (e.target.tagName !== "INPUT" || !urlInput) {
-            e.preventDefault();
-            onDelete?.(block.id);
-          }
+          e.preventDefault();
+          onDelete?.(block.id);
+          return;
         }
-        if (e.key === "Backspace" && (e.target.tagName !== "INPUT" || !urlInput)) {
+        if (e.key === "Backspace") {
           e.preventDefault();
           onExitUp?.(block.id);
+          return;
         }
       }}
       id={`site_${block.id}`}
@@ -3254,6 +3257,9 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
       tabIndex={0}
       onClick={() => onSelect(block.id)}
       onKeyDown={(e) => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+          return;
+        }
         if (e.key === "ArrowDown") {
           e.preventDefault();
           onExitDown?.(block.id);
@@ -3264,20 +3270,20 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
           onExitUp?.(block.id);
           return;
         }
-        if (e.key === "Enter" && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+        if (e.key === "Enter") {
           e.preventDefault();
           onAddAfter?.(block.id, "", "text");
           return;
         }
         if (e.key === "Delete") {
-          if (e.target.tagName !== "INPUT" || !urlInput) {
-            e.preventDefault();
-            onDelete?.(block.id);
-          }
+          e.preventDefault();
+          onDelete?.(block.id);
+          return;
         }
-        if (e.key === "Backspace" && (e.target.tagName !== "INPUT" || !urlInput)) {
+        if (e.key === "Backspace") {
           e.preventDefault();
           onExitUp?.(block.id);
+          return;
         }
       }}
       id={`media_${block.id}`}
@@ -3499,6 +3505,13 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
             data-media-caption="true"
             value={block.content || ""}
             onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onAddAfter?.(block.id, "", "text");
+              }
+            }}
             placeholder="Add an optional caption (e.g. Lecture 4: Key concepts)..."
             className="w-full bg-transparent text-center text-xs text-ink-400 placeholder:text-ink-600 outline-none border-b border-transparent focus:border-duck-500/30 py-0.5"
           />

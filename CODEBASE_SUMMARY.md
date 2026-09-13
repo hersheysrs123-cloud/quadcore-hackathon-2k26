@@ -227,6 +227,7 @@ c:\Users\Sivabalan\Documents\GitHub\quadcore-hackathon-2k26\
   - Segmented width toggle pills embedded directly in the media block header.
   - Automatically constraints Image, Video, and YouTube viewport widths (`w-1/4 min-w-[220px] mx-auto`, `w-1/2 min-w-[320px] mx-auto`, `w-full`) for balanced layout with text flow.
   - Sizing preferences persist per-block and export seamlessly to HTML and Markdown.
+  - **Caption Keyboard Isolation & Enter Block Spawning**: The media caption input (`<input data-media-caption="true">`) isolates keystrokes via `e.stopPropagation()`, ensuring `Backspace`, `Delete`, and arrow keys perform native character editing without bubbling to outer block handlers (`onExitUp`). Pressing `Enter` in the caption cleanly spawns a new text paragraph directly below the media block (`onAddAfter`). Both `MediaBlock` and `SiteBlock` guard their outer `onKeyDown` handlers against events originating from child `INPUT` or `TEXTAREA` elements.
 
 - **In-Memory Keyboard Navigation History (`Alt + ←` / `Alt + →`)**:
   - Centralized navigation history stack (`navHistoryRef`) in `components/Workspace.jsx` tracking note transitions across all spaces.

@@ -6788,3 +6788,51 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Added unit test suite in `tests/unit/timer-store.test.mjs` verifying default timer initialization, active ticker startup, auto-sleep idle CPU shutdown on pause/reset/expiration, custom timer duration extensions, default timer delete protection, and legacy array storage format migration.
    - All 882 tests across 220 suites + 34 empirical challenge tests passed cleanly (0 failures).
 
+---
+
+## 130. Media Block Caption Input Backspace Navigation Isolation & Key Event Guarding
+
+### 🐛 Problem Statement & Root Cause Analysis
+1. **Backspace in Media Caption Jumping to Previous Block**:
+   - When a user focused the caption `<input data-media-caption="true" ...>` below an embedded image or media block in `BlockNoteEditor.jsx` and pressed `Backspace`, the cursor immediately leaped out of the caption and selected the preceding block instead of deleting characters.
+2. **Root Cause Analysis (`components/BlockNoteEditor.jsx`)**:
+   - The outer container `<div>` of `MediaBlock` had an `onKeyDown` handler that inspected:
+     ```javascript
+     if (e.key === "Backspace" && (e.target.tagName !== "INPUT" || !urlInput)) {
+       e.preventDefault();
+       onExitUp?.(block.id);
+     }
+     ```
+   - When an image is rendered via file upload, drag-and-drop, or after embedding, `urlInput` local state is `""` (falsy).
+   - When the user types in the caption input, `e.target.tagName` is `"INPUT"`.
+   - Because `!urlInput` evaluated to `true`, the condition `(e.target.tagName !== "INPUT" || !urlInput)` evaluated to `true`.
+   - The outer container intercepted the `Backspace` event, called `e.preventDefault()`, and invoked `onExitUp?.(block.id)`, blocking native character deletion and ejecting the caret.
+   - Similarly, `e.key === "Delete"` had the same condition, threatening to call `onDelete?.(block.id)` and delete the entire media block when deleting text inside an input.
+   - `SiteBlock` shared an identical vulnerability.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Outer Container Input Guard (`MediaBlock` & `SiteBlock` in `components/BlockNoteEditor.jsx`)**:
+   - Added an early return at the very start of container `onKeyDown` handlers:
+     ```javascript
+     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+       return;
+     }
+     ```
+   - Guarantees that any keystroke originating inside text inputs or textareas within the block is completely ignored by block navigation (`onExitUp`, `onExitDown`) and block deletion (`onDelete`).
+2. **Caption Input Keyboard Isolation & Enter Block Creation**:
+   - Added a dedicated `onKeyDown` handler to the caption `<input data-media-caption="true">`:
+     ```javascript
+     onKeyDown={(e) => {
+       e.stopPropagation();
+       if (e.key === "Enter") {
+         e.preventDefault();
+         onAddAfter?.(block.id, "", "text");
+       }
+     }}
+     ```
+   - `e.stopPropagation()` ensures caption key events never bubble to parent containers.
+   - Allows native backspacing, text selection deletion, and arrow key navigation within the caption input.
+   - Pressing `Enter` cleanly commits the caption and inserts a new text block directly below the media block via `onAddAfter`.
+3. **Automated Verification (`tests/unit/media-caption-input.test.mjs`)**:
+   - Added unit test suite verifying that container `onKeyDown` ignores Backspace and Delete when `target.tagName === "INPUT"`, and verifies `e.stopPropagation()` and `Enter` handling on the caption input.
+   - All **884 unit/integration tests across 221 suites** and **34 empirical challenge tests** (918 total tests) pass with 0 failures.
