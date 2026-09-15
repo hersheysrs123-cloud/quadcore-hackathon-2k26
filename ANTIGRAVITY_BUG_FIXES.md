@@ -7143,6 +7143,39 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Full Next.js production build (`npm run build`) completed successfully.
    - Production server verified responding HTTP 200 on `http://localhost:3000/visualizations`.
 
+---
+
+## 139. Incline Plane Comprehensive "Remove Labels" Toggle Integration
+
+### 🐛 Problem Statement
+1. **Scene Visual Clutter**:
+   - The incline friction 3D visualization displayed multiple floating labels simultaneously:
+     - 7 Force vector badges ($W$, $W_\parallel$, $W_\perp$, $N$, $f_s$/$f_k$, $F$, $F_\text{net}$).
+     - Crate mass pill ($m\text{ kg}$).
+     - Incline slope angle readout ($\theta = \dots^\circ$).
+     - Runway metric tick distance markers ($0.0\text{m}, 1.0\text{m}, \dots$).
+     - Static friction grip gauge percentage and state label.
+     - GraphPanel title, axis names, numerical tick marks, and impact markers.
+2. **Lack of Label Toggle**:
+   - Unlike projectile motion, the incline plane simulation lacked a user control toggle to remove all text labels, preventing instructors and students from viewing the pure physical apparatus and vector arrows without overlapping text tags.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **`removeLabels` Toggle Control Integration (`topics.js`)**:
+   - Added `removeLabels: false` to `incline_friction` defaults in `components/visualizations/topics.js`.
+   - Added `{ type: "toggle", key: "removeLabels", label: "Remove labels" }` to the topic's `controls` configuration.
+2. **Cascading Label Suppression (`InclineFrictionCanvas.jsx` & `force-diagram.jsx`)**:
+   - Derived `const showLabels = removeLabels ? false : (paramShowLabels !== false);` to support both `removeLabels: true` and `showLabels: false`.
+   - **`ForceVector` (`force-diagram.jsx`)**: Added `showLabel = true` prop. When `showLabel` is false, `label` is passed as `undefined` to `VectorArrow`, suppressing the HTML badge completely while leaving the vector shaft and arrow head cleanly rendered.
+   - **`BlockAndForces`**: Passed `showLabels` down to all 7 `ForceVector` instances and guarded the crate mass `<SceneLabel>`.
+   - **Ramp Ruler Graduations**: Guarded metric tick marks with `{showLabels && isMajor && <SceneLabel ...>}`.
+   - **Ramp Angle Arc**: Guarded angle arc label with `{showLabels && <SceneLabel ...>}`.
+   - **`GripGauge`**: Added `showLabels = true` prop to conditionally render the grip percentage and state text while preserving the bar and tick divisions.
+   - **`GraphPanel`**: Added `showLabels = true` prop. When false, suppresses X/Y tick marks (`<Html>`), marker value pill, graph title, and X/Y axis labels, keeping the plot grid and data curve pristine.
+3. **Automated Verification**:
+   - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly with zero failures.
+   - Verified that toggling "Remove labels" removes all floating text tags while keeping 3D geometry and plots fully interactive.
+
+
 
 
 

@@ -79,6 +79,7 @@ export function ForceVector({
   colour,
   symbol,
   showValue = true,
+  showLabel = true,
   labelOffset = 0.4,
   maxLength,
 }) {
@@ -94,6 +95,10 @@ export function ForceVector({
     at[2] + direction[2] * length * sign,
   ];
 
+  const labelText = showLabel && symbol
+    ? (showValue ? `${symbol} ${Math.abs(signed).toFixed(1)} N` : symbol)
+    : undefined;
+
   return (
     <VectorArrow
       from={at}
@@ -103,7 +108,7 @@ export function ForceVector({
       headLength={0.24}
       headRadius={0.12}
       labelOffset={labelOffset}
-      label={showValue ? `${symbol} ${Math.abs(signed).toFixed(1)} N` : symbol}
+      label={labelText}
     />
   );
 }
@@ -189,6 +194,7 @@ export function GraphPanel({
   gridColour = "#334155",
   axisColour = "#94a3b8",
   billboard = true,
+  showLabels = true,
 }) {
   const toWorld = useCallback(
     ([x, y]) => [
@@ -302,7 +308,7 @@ export function GraphPanel({
       )}
 
       {/* Axis numerical tick labels */}
-      {Array.from({ length: xTicks + 1 }).map((_, i) => {
+      {showLabels && Array.from({ length: xTicks + 1 }).map((_, i) => {
         const frac = i / xTicks;
         const xPos = frac * width;
         const val = xMin + frac * (xMax - xMin);
@@ -314,7 +320,7 @@ export function GraphPanel({
         );
       })}
 
-      {Array.from({ length: yTicks + 1 }).map((_, j) => {
+      {showLabels && Array.from({ length: yTicks + 1 }).map((_, j) => {
         const frac = j / yTicks;
         const yPos = frac * height;
         const val = yMin + frac * (yMax - yMin);
@@ -386,7 +392,7 @@ export function GraphPanel({
             <ringGeometry args={[0.14, 0.2, 24]} />
             <meshBasicMaterial color={marker.colour} transparent opacity={0.65} side={THREE.DoubleSide} />
           </mesh>
-          {marker.label && (
+          {showLabels && marker.label && (
             <SceneLabel position={[0.75, 0.35, 0]} accent>
               {marker.label}
             </SceneLabel>
@@ -394,17 +400,17 @@ export function GraphPanel({
         </group>
       )}
 
-      {title && (
+      {showLabels && title && (
         <SceneLabel position={[width / 2, height + 0.42, 0]} accent>
           {title}
         </SceneLabel>
       )}
-      {xLabel && (
+      {showLabels && xLabel && (
         <SceneLabel position={[width / 2, -0.42, 0]} tone="text-ink-400">
           {xLabel}
         </SceneLabel>
       )}
-      {yLabel && (
+      {showLabels && yLabel && (
         <SceneLabel position={[-0.72, height / 2, 0]} tone="text-ink-400">
           {yLabel}
         </SceneLabel>

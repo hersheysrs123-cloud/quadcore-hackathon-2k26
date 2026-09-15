@@ -60,7 +60,7 @@ const TRACE_SECONDS = 8;
  * N and mg·cosθ are equal and opposite and would otherwise be drawn exactly
  * on top of one another, which hides the very fact that they balance.
  */
-function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, mass, surface }) {
+function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, showLabels = true, mass, surface }) {
   const lift = BLOCK / 2 + PLANK;
   const centre = onSlope(HINGE, frame, along, lift);
   const { up, out } = frame;
@@ -98,55 +98,57 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
 
         {/* Structural reinforcement banding planks */}
         {[-1, 1].map((s) => (
-          <mesh key={`band-${s}`} position={[(s * BLOCK * 1.35) / 3, 0, 0]}>
-            <boxGeometry args={[0.05, BLOCK * 0.98, BLOCK * 0.96]} />
-            <meshStandardMaterial color={surface === "wood" ? "#a06030" : "#475569"} roughness={0.5} metalness={0.1} />
-          </mesh>
+          <group key={`band-${s}`} position={[s * (BLOCK * 0.42), 0, 0]}>
+            <mesh>
+              <boxGeometry args={[0.07, BLOCK + 0.008, BLOCK * 0.95 + 0.008]} />
+              <meshStandardMaterial color="#a06030" roughness={0.7} />
+            </mesh>
+          </group>
         ))}
 
-        {/* Bright gleaming brass corner caps on the 8 corners */}
+        {/* Polished brass corner reinforcement brackets */}
         {[-1, 1].map((sx) =>
           [-1, 1].map((sy) =>
             [-1, 1].map((sz) => (
               <mesh
                 key={`corner-${sx}-${sy}-${sz}`}
                 position={[
-                  (sx * (BLOCK * 1.35 - 0.05)) / 2,
-                  (sy * (BLOCK - 0.05)) / 2,
-                  (sz * (BLOCK * 0.95 - 0.05)) / 2,
+                  (sx * (BLOCK * 1.35 - 0.06)) / 2,
+                  (sy * (BLOCK - 0.06)) / 2,
+                  (sz * (BLOCK * 0.95 - 0.06)) / 2,
                 ]}
               >
                 <boxGeometry args={[0.07, 0.07, 0.07]} />
                 <meshStandardMaterial color="#fbbf24" roughness={0.25} metalness={0.85} />
               </mesh>
-            ))
-          )
+            )),
+          ),
         )}
 
-        {/* Recessed metal lifting handles on both sides */}
-        {[-1, 1].map((sz) => (
-          <group key={`handle-${sz}`} position={[0, 0, (sz * (BLOCK * 0.95 + 0.01)) / 2]}>
+        {/* Recessed cargo crate side lifting handles */}
+        {[-1, 1].map((side) => (
+          <group key={`handle-${side}`} position={[0, 0, (side * (BLOCK * 0.95 + 0.02)) / 2]}>
             <mesh>
-              <boxGeometry args={[0.18, 0.07, 0.015]} />
-              <meshStandardMaterial color="#475569" roughness={0.3} metalness={0.7} />
+              <boxGeometry args={[0.22, 0.08, 0.015]} />
+              <meshStandardMaterial color="#475569" roughness={0.5} />
             </mesh>
-            <mesh position={[0, 0, sz * 0.015]}>
-              <cylinderGeometry args={[0.012, 0.012, 0.14, 12]} rotation={[0, 0, Math.PI / 2]} />
-              <meshStandardMaterial color="#e2e8f0" roughness={0.2} metalness={0.9} />
+            <mesh position={[0, -0.01, 0.015]}>
+              <cylinderGeometry args={[0.012, 0.012, 0.15, 12]} rotation={[0, 0, Math.PI / 2]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.2} metalness={0.85} />
             </mesh>
           </group>
         ))}
 
-        {/* Underside friction contact runners matching selected material */}
-        {[-1, 1].map((sz) => (
+        {/* Bottom surface contact runner skids */}
+        {[-1, 1].map((skid) => (
           <mesh
-            key={`runner-${sz}`}
-            position={[0, -BLOCK / 2 - 0.01, (sz * BLOCK * 0.6) / 2]}
+            key={`skid-${skid}`}
+            position={[0, -BLOCK / 2 - 0.012, (skid * (BLOCK * 0.95 - 0.12)) / 2]}
           >
-            <boxGeometry args={[BLOCK * 1.3, 0.02, 0.12]} />
+            <boxGeometry args={[BLOCK * 1.32, 0.024, 0.08]} />
             <meshStandardMaterial
-              color={surface === "teflon" ? "#f8fafc" : surface === "rubber" ? "#0f172a" : "#5d3b26"}
-              roughness={surface === "teflon" ? 0.08 : surface === "rubber" ? 0.95 : 0.6}
+              color={surface === "teflon" ? "#f8fafc" : surface === "rubber" ? "#334155" : "#b45309"}
+              roughness={surface === "teflon" ? 0.05 : surface === "rubber" ? 0.9 : 0.4}
               metalness={surface === "teflon" ? 0.3 : 0.05}
             />
           </mesh>
@@ -175,6 +177,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         scale={scale}
         colour={FORCE_COLOURS.weight}
         symbol="W = mg"
+        showLabel={showLabels}
       />
 
       {showComponents && (
@@ -186,6 +189,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
             scale={scale}
             colour={FORCE_COLOURS.weightParallel}
             symbol="W∥ = mg sinθ"
+            showLabel={showLabels}
           />
           <ForceVector
             at={nudge(-0.16, 0)}
@@ -194,6 +198,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
             scale={scale}
             colour={FORCE_COLOURS.weightPerpendicular}
             symbol="W⊥ = mg cosθ"
+            showLabel={showLabels}
           />
           {/* The rectangle that closes W∥ + W⊥ back onto W (only when both components exist). */}
           {solved.weightParallel * scale > 0.08 && solved.weightPerpendicular * scale > 0.08 && (
@@ -210,6 +215,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         scale={scale}
         colour={FORCE_COLOURS.normal}
         symbol="N"
+        showLabel={showLabels}
       />
 
       {/* Friction. Signed, so it flips on its own when the motion reverses. */}
@@ -220,6 +226,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         scale={scale}
         colour={FORCE_COLOURS.friction}
         symbol={solved.isStatic ? "fs" : "fk"}
+        showLabel={showLabels}
       />
 
       {Math.abs(solved.appliedForce) > 0.05 && (
@@ -230,6 +237,7 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
           scale={scale}
           colour={FORCE_COLOURS.applied}
           symbol="F"
+          showLabel={showLabels}
           maxLength={
             solved.appliedForce > 0
               ? Math.max(0.18, (RAMP_WORLD + 0.04) - (along + HALF_BLOCK))
@@ -246,12 +254,15 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
           scale={scale}
           colour={FORCE_COLOURS.net}
           symbol="Fnet = ma"
+          showLabel={showLabels}
         />
       )}
 
-      <SceneLabel position={[centre[0], centre[1] + 0.52, centre[2]]} accent>
-        {`${mass} kg`}
-      </SceneLabel>
+      {showLabels && (
+        <SceneLabel position={[centre[0], centre[1] + 0.52, centre[2]]} accent>
+          {`${mass} kg`}
+        </SceneLabel>
+      )}
     </group>
   );
 }
@@ -311,7 +322,7 @@ function BlockMotion({ options, running, speed = 1, resetKey, onSample, onTrace,
  * as the slope steepens and the block does not budge until it is full, which is
  * hard to argue with and hard to get from a number alone.
  */
-function GripGauge({ position, solved }) {
+function GripGauge({ position, solved, showLabels = true }) {
   const width = 3.2;
   const filled = width * clamp(solved.gripUsed, 0, 1);
   const colour = solved.isStatic
@@ -375,14 +386,16 @@ function GripGauge({ position, solved }) {
           color={PALETTE.bone}
           lineWidth={2.6}
         />
-        <SceneLabel
-          position={[width / 2, 0.46, 0.01]}
-          tone={solved.isStatic ? (solved.onTheVerge ? "text-amber-400" : "text-emerald-400") : "text-rose-400"}
-        >
-          {solved.isStatic
-            ? `${(solved.gripUsed * 100).toFixed(0)}% static grip used ${solved.onTheVerge ? "· ON THE VERGE!" : "(equilibrium)"}`
-            : `sliding — kinetic friction fixed at μk·N = ${solved.slidingFriction.toFixed(1)} N`}
-        </SceneLabel>
+        {showLabels && (
+          <SceneLabel
+            position={[width / 2, 0.46, 0.01]}
+            tone={solved.isStatic ? (solved.onTheVerge ? "text-amber-400" : "text-emerald-400") : "text-rose-400"}
+          >
+            {solved.isStatic
+              ? `${(solved.gripUsed * 100).toFixed(0)}% static grip used ${solved.onTheVerge ? "· ON THE VERGE!" : "(equilibrium)"}`
+              : `sliding — kinetic friction fixed at μk·N = ${solved.slidingFriction.toFixed(1)} N`}
+          </SceneLabel>
+        )}
       </group>
     </Billboard>
   );
@@ -398,10 +411,14 @@ export default function InclineFrictionCanvas({ params = {} }) {
     appliedForce = 0,
     showComponents = true,
     showNet = true,
+    removeLabels = false,
+    showLabels: paramShowLabels,
     running = true,
     speed = 1,
     reset = 0,
   } = params || {};
+
+  const showLabels = removeLabels ? false : (paramShowLabels !== false);
 
   const [live, setLive] = useState({ position: 0, velocity: 0 });
   const trace = useRollingTrace(4000, 30, [[0, 0]]);
@@ -651,7 +668,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
                 color="#0f172a"
                 lineWidth={isMajor ? 2.2 : 1.4}
               />
-              {isMajor && (
+              {showLabels && isMajor && (
                 <SceneLabel position={[0, -0.12, 0]} tone="text-ink-200">
                   {`${(i * 0.5).toFixed(1)}m`}
                 </SceneLabel>
@@ -711,16 +728,18 @@ export default function InclineFrictionCanvas({ params = {} }) {
         gapSize={0.1}
       />
       <Line points={arcPoints(HINGE, 1.1, 0, frame.radians)} color={PALETTE.gold} lineWidth={2.2} />
-      <SceneLabel
-        position={[
-          HINGE[0] + Math.cos(frame.radians / 2) * 1.42,
-          HINGE[1] + Math.sin(frame.radians / 2) * 1.42,
-          0,
-        ]}
-        accent
-      >
-        {`θ = ${rampAngle}°`}
-      </SceneLabel>
+      {showLabels && (
+        <SceneLabel
+          position={[
+            HINGE[0] + Math.cos(frame.radians / 2) * 1.42,
+            HINGE[1] + Math.sin(frame.radians / 2) * 1.42,
+            0,
+          ]}
+          accent
+        >
+          {`θ = ${rampAngle}°`}
+        </SceneLabel>
+      )}
 
       {/* Where this surface lets go on its own, marked on the arc. */}
       {solved.reposeAngle <= 90 && (
@@ -750,6 +769,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
         scale={scale}
         showComponents={showComponents}
         showNet={showNet}
+        showLabels={showLabels}
         mass={blockMass}
         surface={surface}
       />
@@ -765,7 +785,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
       />
 
       {/* Static friction grip gauge positioned above the ramp */}
-      <GripGauge position={[-2.6, gaugeY, 0]} solved={solved} />
+      <GripGauge position={[-2.6, gaugeY, 0]} solved={solved} showLabels={showLabels} />
 
       {/* ── Velocity trace (adaptive range, clear axis ticks, clean baseline) ── */}
       <GraphPanel
@@ -787,6 +807,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
         axisColour="#94a3b8"
         series={[{ points: tracePoints, colour: FORCE_COLOURS.velocity, lineWidth: 2.6 }]}
         marker={latest ? { at: latest, colour: FORCE_COLOURS.net, label: markerLabel } : undefined}
+        showLabels={showLabels}
       />
 
       <SceneReadout

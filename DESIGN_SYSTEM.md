@@ -765,4 +765,8 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
         - Top Anchor (Downhill motion, $v \le 0$): $v = 0$ is aligned with the top border (`yMax = 0`).
         - Subtle Dashed Reference Line: When $yZero$ is interior, rendered as `#64748b` with `dashSize=0.08`, `gapSize=0.06`, `opacity=0.6`, `lineWidth=1.2`.
       - Calibrated Monospace Tick Labels: Monospace labels (`text-[9px] font-mono text-ink-400 select-none pointer-events-none`) for both time ($X$) and velocity ($Y$) axes.
+      - Dynamic Label Visibility & Decluttering Mode:
+        - Toggle `removeLabels`: Cascading suppression across vector tags, crate mass, ramp angle, centimeter ticks, grip status, and graph scales.
+        - Preserves clean vector shafts and geometry with zero HTML layout shift.
+
 
