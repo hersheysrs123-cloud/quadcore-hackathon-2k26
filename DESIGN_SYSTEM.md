@@ -778,6 +778,12 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Units & Numerical Formatter: Supports customizable `xFormat` and `yFormat` functions for physical coordinate mapping.
       - Extension Mode: Formatted as `${(x * 100).toFixed(0)}cm` with monospace typography (`text-[9px] font-mono text-ink-400`).
       - Non-Negative Zero Clamping: Suppresses extraneous leading `+` signs when $yMin \ge -0.05$ (e.g., `0`, `5.0`, `10.0 N` instead of `+0`, `+5.0`, `+10.0 N`).
+    - **Physical 3D Meter Rule & Double-Sided Scale Tokens**:
+      - Ruler Body: Solid 3D box slab (`args={[0.66, 0.48 * S, 0.04]}`), finished in satin ivory rule coating (`#f3efe6`, roughness `0.65`, metalness `0.12`).
+      - Protective End Caps: Machined brass end bindings (`#d4af37`, roughness `0.3`, metalness `0.8`) protecting upper and lower ends.
+      - Dual-Sided Vector Markings: Millimeter, centimeter, and 5-centimeter graduation ticks (`#1e293b`) rendered symmetrically at $Z = +0.022$ and $Z = -0.022$ with edge wrap notches.
+      - Dual-Sided Caliper Pointer: Double needle indicator arms ($Z = \pm 0.05$) with tip needle connecting front and back at the scale face.
+
 
 
 

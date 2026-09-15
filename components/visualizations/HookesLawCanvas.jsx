@@ -133,18 +133,43 @@ function RetortStand() {
  * the number beside the pointer is the extension itself rather than a length
  * a student has to subtract L₀ from — which is how the scale is set up in the
  * lab, and removes the most common source of a wrong graph.
+ *
+ * Built as a physical double-sided laboratory meter rule with 3D depth so that
+ * rotating the camera 180 degrees reveals the identical graduated scale, margin
+ * lines, protective end caps, and mounting fixtures on the back.
  */
 function Ruler({ zeroY }) {
   const ticks = useMemo(() => {
     const positions = [];
-    // Every 2 mm, with every centimetre drawn longer.
+    const zFront = 0.022;
+    const zBack = -0.022;
+
+    // Every 2 mm, with every centimetre drawn longer on both front and back.
     for (let mm = 0; mm <= 460; mm += 2) {
       const y = zeroY - (mm / 1000) * S;
       const major = mm % 10 === 0;
       const long = mm % 50 === 0;
       const len = long ? 0.34 : major ? 0.22 : 0.11;
-      positions.push(RULER_X, y, 0.02, RULER_X + len, y, 0.02);
+
+      // Front graduations
+      positions.push(RULER_X, y, zFront, RULER_X + len, y, zFront);
+      // Back graduations (exact mirror on the back face)
+      positions.push(RULER_X, y, zBack, RULER_X + len, y, zBack);
+
+      // Edge wrap ticks connecting front and back across the inner edge
+      if (major) {
+        positions.push(RULER_X, y, zBack, RULER_X, y, zFront);
+      }
     }
+
+    // Vertical baseline spine along inner edge on both front and back
+    positions.push(RULER_X, zeroY + 0.01 * S, zFront, RULER_X, zeroY - 0.465 * S, zFront);
+    positions.push(RULER_X, zeroY + 0.01 * S, zBack, RULER_X, zeroY - 0.465 * S, zBack);
+
+    // Outer framing rule line on both front and back
+    positions.push(RULER_X + 0.44, zeroY + 0.01 * S, zFront, RULER_X + 0.44, zeroY - 0.465 * S, zFront);
+    positions.push(RULER_X + 0.44, zeroY + 0.01 * S, zBack, RULER_X + 0.44, zeroY - 0.465 * S, zBack);
+
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     return g;
@@ -160,15 +185,37 @@ function Ruler({ zeroY }) {
 
   return (
     <group>
-      {/* Centred on the ticks, not beside them: the strip is the ruler's body
-          and the graduations have to sit on it. */}
-      <mesh position={[RULER_X + 0.14, zeroY - 0.23 * S, -0.01]}>
-        <planeGeometry args={[0.66, 0.46 * S]} />
-        <meshStandardMaterial color="#e7e3d6" roughness={0.8} />
+      {/* 3D solid meter rule body with double-sided visibility and realistic depth */}
+      <mesh position={[RULER_X + 0.14, zeroY - 0.23 * S, 0]} receiveShadow castShadow>
+        <boxGeometry args={[0.66, 0.48 * S, 0.04]} />
+        <meshStandardMaterial color="#f3efe6" roughness={0.65} metalness={0.12} />
       </mesh>
+
+      {/* Top and bottom brass protective end caps */}
+      <mesh position={[RULER_X + 0.14, zeroY + 0.012 * S, 0]}>
+        <boxGeometry args={[0.68, 0.1, 0.046]} />
+        <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
+      </mesh>
+      <mesh position={[RULER_X + 0.14, zeroY - 0.472 * S, 0]}>
+        <boxGeometry args={[0.68, 0.1, 0.046]} />
+        <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
+      </mesh>
+
+      {/* Retort stand mounting bracket */}
+      <mesh position={[RULER_X + 0.38, zeroY - 0.15 * S, 0]}>
+        <boxGeometry args={[0.18, 0.22, 0.06]} />
+        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
+      </mesh>
+      <mesh position={[RULER_X + 0.95, zeroY - 0.15 * S, 0]}>
+        <cylinderGeometry args={[0.035, 0.035, 1.0, 12]} rotation={[0, 0, Math.PI / 2]} />
+        <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
+      </mesh>
+
+      {/* Razor-sharp vector graduations on both front and back faces */}
       <lineSegments geometry={ticks}>
-        <lineBasicMaterial color="#3d4652" />
+        <lineBasicMaterial color="#1e293b" />
       </lineSegments>
+
       {labels.map((cm) => (
         <SceneLabel key={cm} position={[RULER_X - 0.75, zeroY - (cm / 100) * S, 0]} tone="text-ink-400">
           {`${cm}`}
@@ -320,15 +367,38 @@ function OscillatingSpringRig({ solved, hangingMass, springConstant, speed = 1, 
       </group>
 
       <group ref={pointerGroupRef} position={[0, pointerY, 0]}>
+        {/* Front pointer arm */}
         <Line
           points={[
-            [RULER_X, 0, 0.06],
-            [0.42, 0, 0.06],
+            [RULER_X, 0, 0.05],
+            [0.42, 0, 0.05],
           ]}
           color={PALETTE.gold}
           lineWidth={2}
           transparent
           opacity={0.9}
+        />
+        {/* Back pointer arm */}
+        <Line
+          points={[
+            [RULER_X, 0, -0.05],
+            [0.42, 0, -0.05],
+          ]}
+          color={PALETTE.gold}
+          lineWidth={2}
+          transparent
+          opacity={0.9}
+        />
+        {/* Transverse needle at the scale edge connecting front and back */}
+        <Line
+          points={[
+            [RULER_X, 0, -0.05],
+            [RULER_X, 0, 0.05],
+          ]}
+          color={PALETTE.gold}
+          lineWidth={2.5}
+          transparent
+          opacity={0.95}
         />
         <SceneLabel position={[0.95, 0.3, 0]} accent>
           {`x = ${cmOf(solved.extension).toFixed(1)} cm`}
@@ -428,11 +498,24 @@ export default function HookesLawCanvas({ params = {} }) {
       <RetortStand />
       <Ruler zeroY={zeroY} />
 
-      {/* L₀ datum, and — once the spring has yielded — where it now rests. */}
+      {/* L₀ datum, and — once the spring has yielded — where it now rests (front & back). */}
       <Line
         points={[
           [RULER_X, zeroY, 0.05],
           [1.15, zeroY, 0.05],
+        ]}
+        color={PALETTE.slate}
+        lineWidth={1.4}
+        transparent
+        opacity={0.7}
+        dashed
+        dashSize={0.1}
+        gapSize={0.08}
+      />
+      <Line
+        points={[
+          [RULER_X, zeroY, -0.05],
+          [1.15, zeroY, -0.05],
         ]}
         color={PALETTE.slate}
         lineWidth={1.4}
@@ -452,6 +535,19 @@ export default function HookesLawCanvas({ params = {} }) {
             points={[
               [RULER_X, restY, 0.05],
               [1.15, restY, 0.05],
+            ]}
+            color={FORCE_COLOURS.limit}
+            lineWidth={1.6}
+            transparent
+            opacity={0.85}
+            dashed
+            dashSize={0.1}
+            gapSize={0.08}
+          />
+          <Line
+            points={[
+              [RULER_X, restY, -0.05],
+              [1.15, restY, -0.05],
             ]}
             color={FORCE_COLOURS.limit}
             lineWidth={1.6}

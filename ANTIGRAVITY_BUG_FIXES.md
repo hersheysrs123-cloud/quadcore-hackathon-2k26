@@ -7226,6 +7226,52 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - All **886 unit and integration tests** and **34 empirical challenge tests** passed with zero failures.
    - Production build compiled successfully (`npm run build`) and verified running under Next.js production server.
 
+---
+
+## 141. Hooke's Law Laboratory Scale 3D Double-Sided Visibility, Real Depth & Dual Graduations
+
+### 🐛 Problem Statement
+1. **Scale Disappearance When Viewed from the Back ($180^\circ$ Rotation)**:
+   - In `HookesLawCanvas.jsx`, the millimeter measuring ruler (`Ruler`) was constructed using a single-sided 2D plane:
+     `<planeGeometry args={[0.66, 0.46 * S]} />`
+   - In Three.js, `PlaneGeometry` has its normal pointing in the $+Z$ direction, and `meshStandardMaterial` defaults to `side: THREE.FrontSide`.
+   - When the user orbited the camera to view the apparatus from behind ($180^\circ$, looking along $-Z$), Three.js backface culling rendered the entire ruler board 100% invisible.
+2. **Missing Graduations, Pointer & Datum Lines at the Back**:
+   - The graduation tick lines (`lineSegments`) were only defined at $Z = +0.02$.
+   - The gold indicator pointer line from the spring was only defined at $Z = +0.06$.
+   - The dashed datum lines ($L_0$ unloaded and yielded rest length) were only defined at $Z = +0.05$.
+   - When looking from the backside, none of the measurement marks or indicator needles were visible against the scale.
+3. **No Screen-Following / Billboard Constraint**:
+   - The user specifically required that the scale remain firmly anchored in 3D world space (like physical laboratory equipment) rather than following the camera screen like a 2D billboard graph, but demanded authentic physical texture and graduations on the back matching the front.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **3D Solid Meter Rule Geometry with Realistic Depth (`HookesLawCanvas.jsx`)**:
+   - Replaced the single-sided 2D `planeGeometry` with a solid 3D box slab:
+     `<boxGeometry args={[0.66, 0.48 * S, 0.04]} />`
+     centered at `[RULER_X + 0.14, zeroY - 0.23 * S, 0]`.
+   - Front surface is at $Z = +0.02$, back surface is at $Z = -0.02$, with genuine physical thickness ($0.04\text{ m}$ / $4\text{ cm}$) and side edges.
+   - Finished in satin laboratory cream/ivory rule material (`#f3efe6`, roughness `0.65`, metalness `0.12`).
+2. **Dual-Sided Vector Graduation Ticks & Edge Wrap Marks**:
+   - Upgraded `ticks` geometry buffer to generate identical graduations on both faces:
+     - Front graduations at $Z = +0.022$.
+     - Back graduations at $Z = -0.022$.
+     - Major centimetre edge-notches connecting front and back across the inner edge ($X = \text{RULER\_X}$).
+     - Dual-sided inner baseline datum spines and outer border framing lines on both faces.
+   - High-contrast dark charcoal line material (`#1e293b`).
+3. **Protective Brass End Caps & Stand Mounting Clamp**:
+   - Added top brass binding cap (`args={[0.68, 0.1, 0.046]}` at `zeroY + 0.012 * S`).
+   - Added bottom brass binding cap (`args={[0.68, 0.1, 0.046]}` at `zeroY - 0.472 * S`).
+   - Added retort stand mounting clamp collar and crossbar linking the ruler to the upright rod.
+4. **Dual-Sided Indicator Caliper Pointer & Datum Lines**:
+   - Upgraded the spring's gold pointer in `OscillatingSpringRig` to feature both a front needle arm ($Z = +0.05$), a back needle arm ($Z = -0.05$), and a transverse tip needle spanning from $Z = -0.05$ to $+0.05$.
+   - Added matching back-facing dashed lines for $L_0$ datum and post-yield rest length at $Z = -0.05$.
+   - Students rotating 180° around the retort stand see the exact same physical measurement readings, pointer needle, and graduations seamlessly.
+5. **Automated Verification**:
+   - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly.
+   - Next.js production build (`npm run build`) succeeded with code 0.
+   - Verified production server responding HTTP 200 on `http://localhost:3000/visualizations`.
+
+
 
 
 
