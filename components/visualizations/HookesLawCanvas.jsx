@@ -232,27 +232,68 @@ function OscillatingSpringRig({ solved, hangingMass, springConstant, speed = 1, 
     if (prevMass.current !== hangingMass) {
       const deltaM = hangingMass - prevMass.current;
       prevMass.current = hangingMass;
-      yOffset.current -= (deltaM * 9.80665) / Math.max(springConstant, 1);
+      // Convert mass delta to equilibrium displacement delta: deltaY = -(deltaM * g) / k
+      const rawKick = -(deltaM * 9.80665) / Math.max(springConstant, 1);
+      // Soft-clamp impulse kick so rapid slider dragging never injects explosive energy
+      const kick = clamp(rawKick, -0.06, 0.06);
+      yOffset.current = clamp(yOffset.current + kick, -0.08, 0.08);
+      yVel.current = clamp(yVel.current * 0.4, -1.0, 1.0);
     }
   }, [hangingMass, springConstant]);
 
+  // Reset oscillation state when spring properties change
+  useEffect(() => {
+    yOffset.current = 0;
+    yVel.current = 0;
+    clock.current = 0;
+    prevMass.current = hangingMass;
+  }, [springConstant, solved.permanentSet]);
+
   useFrame((_, rawDelta) => {
     if (speed <= 0) return;
-    const dt = Math.min(rawDelta, 1/30) * speed;
+    const dt = Math.min(rawDelta, 0.04) * Math.min(Math.max(speed, 0), 3.0);
     clock.current += dt;
 
-    const omega = Math.sqrt(Math.max(springConstant / Math.max(hangingMass, 0.05), 4));
-    const accel = -omega * omega * yOffset.current - 2.8 * yVel.current;
-    // Semi-implicit Euler: update velocity first, then position with NEW velocity
-    yVel.current += accel * dt;
-    yOffset.current += yVel.current * dt;
+    // Base natural frequency: omega = sqrt(k / m)
+    const rawOmega = Math.sqrt(Math.max(springConstant / Math.max(hangingMass, 0.05), 4));
+    // Perceptually capped visual frequency to strictly prevent 60Hz display strobing / Nyquist aliasing
+    const omega = Math.min(rawOmega, 16.0);
+    // Physically scaled viscous damping (zeta = 0.18): settles gracefully in ~1.5s
+    const damping = 2 * 0.18 * omega;
 
-    // Small persistent ambient flutter
-    const ambient = Math.sin(clock.current * omega) * 0.0012;
-    const totalOffset = yOffset.current + ambient;
+    // Sub-stepping guarantees unconditional numerical stability: omega * subDt <= 0.12 << 2.0
+    const maxSubDt = 0.12 / Math.max(omega, 1);
+    const subSteps = Math.min(Math.max(1, Math.ceil(dt / maxSubDt)), 16);
+    const subDt = dt / subSteps;
 
-    const curLength = Math.max(0.02, solved.length + totalOffset);
-    const stretchRatio = curLength / Math.max(solved.length, 0.001);
+    for (let i = 0; i < subSteps; i += 1) {
+      const accel = -omega * omega * yOffset.current - damping * yVel.current;
+      yVel.current += accel * subDt;
+      yOffset.current += yVel.current * subDt;
+    }
+
+    // Physical coil compression boundary: 18 coils of 0.045m wire cannot compress below ~0.085m
+    const minLength = Math.max(0.085, NATURAL_LENGTH * 0.72);
+    const maxCompress = Math.max(0, solved.length - minLength);
+    const maxExtend = FAILURE_EXTENSION * 0.85;
+
+    yOffset.current = clamp(yOffset.current, -maxCompress, maxExtend);
+    yVel.current = clamp(yVel.current, -2.5, 2.5);
+
+    // Zero out micro-drift once velocity and offset are sub-millimeter
+    if (Math.abs(yOffset.current) < 1e-4 && Math.abs(yVel.current) < 1e-4) {
+      yOffset.current = 0;
+      yVel.current = 0;
+    }
+
+    // Small persistent ambient flutter only when nearly settled
+    const ambient = (speed > 0 && Math.abs(yOffset.current) < 0.002)
+      ? Math.sin(clock.current * Math.min(omega, 6.0)) * 0.0006
+      : 0;
+
+    const curLength = Math.max(minLength, solved.length + yOffset.current + ambient);
+    // Strict stretch ratio lower bound: guarantees mesh normals never invert and texture never turns black
+    const stretchRatio = clamp(curLength / Math.max(solved.length, 0.001), 0.65, 2.5);
     const curY = TOP_Y - curLength * S;
 
     if (springGroupRef.current) {
@@ -446,6 +487,7 @@ export default function HookesLawCanvas({ params = {} }) {
           yLabel="F / N"
           xTicks={5}
           yTicks={4}
+          xFormat={(v) => `${(v * 100).toFixed(0)}cm`}
           guides={[
             // Where Hooke's law stops describing this spring.
             {

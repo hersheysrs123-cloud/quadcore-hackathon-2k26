@@ -7175,6 +7175,58 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly with zero failures.
    - Verified that toggling "Remove labels" removes all floating text tags while keeping 3D geometry and plots fully interactive.
 
+---
+
+## 140. Hooke's Law High-Speed Symplectic Sub-Stepping, Geometry Bounds & Extension Graph Axis Calibration
+
+### 🐛 Problem Statement
+1. **Euler Divergence & Violent Shaking at High Animation Speeds ($3.0\times$)**:
+   - In `HookesLawCanvas.jsx` (`OscillatingSpringRig`), the spring-mass oscillation was integrated with a single-step explicit Euler step:
+     $$\Delta t = \min(\text{rawDelta}, 1/30) \times \text{speed}$$
+   - Natural frequency is $\omega = \sqrt{k/m}$. At light loads ($m = 0.05\text{ kg}$) and high stiffness ($k \ge 80\text{ N/m}$), $\omega$ reaches $40\text{--}63\text{ rad/s}$.
+   - At $3.0\times$ speed, $\Delta t \approx 0.1\text{ s}$, resulting in $\omega \cdot \Delta t \approx 4.0\text{--}6.3$, which severely violates the numerical stability threshold ($\omega \cdot \Delta t < 2$).
+   - The integration exploded exponentially within 3 frames, resulting in extreme oscillations that clamped against the minimum limit on every stroke, producing violent shaking and visual distortion.
+2. **Spring Texture Loss & Black Wire Artifacts**:
+   - During numerical explosions or over-compression, the spring group's vertical scale collapsed to degenerate or negative values (`group.scale.y < 0.2` or negative).
+   - Three.js `TubeGeometry` vertex normals inverted or collapsed when the 18 helical coil turns collided and compressed into a flat pancake, flipping face lighting normals towards the dark backface and causing the metallic spring texture to appear pitch black ("lose texture").
+3. **Underdamped Decay & Slider Impulse Kicks**:
+   - A static damping coefficient ($2.8 \times v$) produced a damping ratio $\zeta \approx 3.5\%$ under high stiffness, allowing oscillations to persist indefinitely.
+   - Adjusting the mass or spring constant sliders imparted large un-clamped velocity kicks, injecting artificial kinetic energy.
+4. **GraphPanel X-Axis Tick Units ("0s", "0.1s" on Force vs Extension Graph)**:
+   - In `GraphPanel` (`force-diagram.jsx`), numerical X-axis ticks hardcoded the `"s"` unit suffix (`${val}s`), displaying seconds instead of centimetres (`cm`) on the Hooke's Law "Force vs Extension" plot.
+   - The Y-axis also forced leading `+` signs (`+4.8`, `+9.7`, `+14.5`) even on non-negative unipolar plots ($yMin = 0$).
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Sub-Stepped Symplectic Euler Integration (`HookesLawCanvas.jsx`)**:
+   - Replaced the single Euler step with an adaptive symplectic sub-stepping loop:
+     - Calculates required sub-step duration: $\Delta t_{\text{target}} = \min(0.016, 0.12 / \omega)$.
+     - Determines sub-steps count: $N = \operatorname{clamp}(\lceil \Delta t / \Delta t_{\text{target}} \rceil, 1, 16)$.
+     - Integrates each sub-step with symplectic velocity-first ordering:
+       $$a = -\omega^2 y - 2 \zeta \omega v$$
+       $$v \leftarrow v + a \cdot \Delta t_{\text{sub}}$$
+       $$y \leftarrow y + v \cdot \Delta t_{\text{sub}}$$
+     - Guarantees $\omega \cdot \Delta t_{\text{sub}} \le 0.12 \ll 2.0$, ensuring unconditional mathematical convergence and zero numerical explosion at $3.0\times$ speed or above.
+2. **Perceptual Frequency Capping & Viscous Proportional Damping**:
+   - Capped perceptual frequency $\omega \le 16.0\text{ rad/s}$ to prevent Nyquist display aliasing/stroboscopic flicker on 60 Hz monitors.
+   - Upgraded damping to viscous proportional damping with damping ratio $\zeta = 0.18$, enabling the spring to settle smoothly and naturally within 1.5–2 seconds.
+3. **Strict Physical Coil Length & Scale Clamping**:
+   - Enforced a physical solid-height compression floor: $L_{\text{current}} = \max(L_{\text{eq}} + y, 0.085\text{ m})$.
+   - Clamped Three.js `stretchRatio` strictly between $0.65$ and $2.5$:
+     $$\text{scale}_y = \operatorname{clamp}(\text{stretchRatio}, 0.65, 2.5)$$
+   - Prevents coil overlapping and geometry inversion, guaranteeing that vertex normals remain outward-facing and the brushed metallic shader stays bright and fully illuminated.
+4. **Impulse Soft-Clamping & Elastic Equilibrium Reset**:
+   - Added displacement and velocity soft-clamping ($\pm 0.06\text{ m}$) during mass slider changes.
+   - Added a `useEffect` trigger resetting displacement and velocity when changing spring constant $k$, preventing artificial momentum spikes.
+5. **Calibrated GraphPanel Axis Formatter Integration (`force-diagram.jsx` & `HookesLawCanvas.jsx`)**:
+   - Added `xFormat` and `yFormat` formatter props to `GraphPanel`.
+   - Formatted Hooke's Law X-axis using `xFormat={(v) => `${(v * 100).toFixed(0)}cm`}`, aligning plot ticks with the 3D lab ruler and graph subtitle.
+   - Updated Y-axis default formatter to omit leading `+` signs when graphs have a non-negative baseline ($yMin \ge -0.05$).
+   - Explicitly preserved `"s"` time formatting on `InclineFrictionCanvas.jsx`.
+6. **Automated Verification**:
+   - All **886 unit and integration tests** and **34 empirical challenge tests** passed with zero failures.
+   - Production build compiled successfully (`npm run build`) and verified running under Next.js production server.
+
+
 
 
 

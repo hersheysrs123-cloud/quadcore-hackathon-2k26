@@ -808,6 +808,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
         series={[{ points: tracePoints, colour: FORCE_COLOURS.velocity, lineWidth: 2.6 }]}
         marker={latest ? { at: latest, colour: FORCE_COLOURS.net, label: markerLabel } : undefined}
         showLabels={showLabels}
+        xFormat={(val) => (Number.isInteger(val) ? `${val}s` : `${val.toFixed(1)}s`)}
       />
 
       <SceneReadout

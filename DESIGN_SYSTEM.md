@@ -769,4 +769,15 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
         - Toggle `removeLabels`: Cascading suppression across vector tags, crate mass, ramp angle, centimeter ticks, grip status, and graph scales.
         - Preserves clean vector shafts and geometry with zero HTML layout shift.
 
+25. **3D Hooke's Law Apparatus & Extension Graph Tokens (`HookesLawCanvas.jsx`, `force-diagram.jsx`)**:
+    - **Spring Geometry & Texture Safety Bounds**:
+      - Spring Coil Mesh: Helical `TubeGeometry` with 18 turns, radius $0.075\text{ m}$, tube radius $0.0075\text{ m}$, 160 tubular segments.
+      - Metallic Shader: High-reflectance chrome-steel (`#cbd5e1`, metalness `0.85`, roughness `0.25`, specular highlight fidelity).
+      - Deformation Clamping: Vertical stretch ratio strictly bounded between $0.65$ and $2.5$. Solid height minimum length $0.085\text{ m}$. Ensures tube surface normals never invert and vertex windings remain counter-clockwise under high kinetic impulse.
+    - **GraphPanel Formatter Tokens**:
+      - Units & Numerical Formatter: Supports customizable `xFormat` and `yFormat` functions for physical coordinate mapping.
+      - Extension Mode: Formatted as `${(x * 100).toFixed(0)}cm` with monospace typography (`text-[9px] font-mono text-ink-400`).
+      - Non-Negative Zero Clamping: Suppresses extraneous leading `+` signs when $yMin \ge -0.05$ (e.g., `0`, `5.0`, `10.0 N` instead of `+0`, `+5.0`, `+10.0 N`).
+
+
 

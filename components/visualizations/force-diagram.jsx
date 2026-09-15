@@ -195,6 +195,8 @@ export function GraphPanel({
   axisColour = "#94a3b8",
   billboard = true,
   showLabels = true,
+  xFormat,
+  yFormat,
 }) {
   const toWorld = useCallback(
     ([x, y]) => [
@@ -312,7 +314,11 @@ export function GraphPanel({
         const frac = i / xTicks;
         const xPos = frac * width;
         const val = xMin + frac * (xMax - xMin);
-        const formatted = Number.isInteger(val) ? `${val}s` : `${val.toFixed(1)}s`;
+        const formatted = xFormat
+          ? xFormat(val)
+          : Number.isInteger(val)
+            ? `${val}`
+            : `${val.toFixed(Math.abs(val) < 1 ? 2 : 1)}`;
         return (
           <Html key={`xtick-${i}`} position={[xPos, -0.16, 0.01]} center style={{ pointerEvents: "none" }}>
             <span className="font-mono text-[9px] text-ink-400 select-none whitespace-nowrap">{formatted}</span>
@@ -324,9 +330,11 @@ export function GraphPanel({
         const frac = j / yTicks;
         const yPos = frac * height;
         const val = yMin + frac * (yMax - yMin);
-        const formatted = Number.isInteger(val)
-          ? `${val > 0 ? "+" : ""}${val}`
-          : `${val > 0 ? "+" : ""}${val.toFixed(1)}`;
+        const formatted = yFormat
+          ? yFormat(val)
+          : Number.isInteger(val)
+            ? `${val > 0 && yMin < -0.05 ? "+" : ""}${val}`
+            : `${val > 0 && yMin < -0.05 ? "+" : ""}${val.toFixed(1)}`;
         return (
           <Html key={`ytick-${j}`} position={[-0.26, yPos, 0.01]} center style={{ pointerEvents: "none" }}>
             <span className="font-mono text-[9px] text-ink-400 select-none whitespace-nowrap">{formatted}</span>
