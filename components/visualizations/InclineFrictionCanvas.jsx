@@ -45,6 +45,7 @@ const HINGE = [-2.75, -1.7, 0];
 const RAMP_DEPTH = 1.5;
 const PLANK = 0.14;
 const BLOCK = 0.52;
+const HALF_BLOCK = (BLOCK * 1.35) / 2;
 
 /** Longest velocity the trace plots before it clips, m/s. */
 const TRACE_SPEED = 6;
@@ -231,8 +232,8 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
           symbol="F"
           maxLength={
             solved.appliedForce > 0
-              ? Math.max(0.18, (RAMP_WORLD + 0.04) - (along + halfBlock))
-              : Math.max(0.18, along - halfBlock)
+              ? Math.max(0.18, (RAMP_WORLD + 0.04) - (along + HALF_BLOCK))
+              : Math.max(0.18, along - HALF_BLOCK)
           }
         />
       )}
@@ -466,8 +467,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
   const wedge = useWedgeGeometry(b, h, RAMP_DEPTH);
 
   // Keep the crate on the plank rather than half off the end of it.
-  const halfBlock = (BLOCK * 1.35) / 2;
-  const along = clamp(RAMP_WORLD / 2 + live.position * SCALE, halfBlock, RAMP_WORLD - halfBlock);
+  const along = clamp(RAMP_WORLD / 2 + live.position * SCALE, HALF_BLOCK, RAMP_WORLD - HALF_BLOCK);
 
   const tracePoints = trace.points;
   const latest = tracePoints.length ? tracePoints[tracePoints.length - 1] : null;
@@ -565,39 +565,6 @@ export default function InclineFrictionCanvas({ params = {} }) {
         <cylinderGeometry args={[0.045, 0.045, RAMP_DEPTH + 0.22, 16]} />
         <meshStandardMaterial color="#fbbf24" roughness={0.25} metalness={0.9} />
       </mesh>
-
-      {/* ── Engraved Protractor Plate at the Hinge ── */}
-      <group position={[HINGE[0], HINGE[1], (RAMP_DEPTH + 0.16) / 2]}>
-        {/* Semi-circular protractor backdrop */}
-        <mesh>
-          <circleGeometry args={[1.25, 32, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#2a364f" transparent opacity={0.85} side={THREE.DoubleSide} />
-        </mesh>
-        {/* Degree radial ticks: 0, 15, 30, 45, 60, 75, 90 */}
-        {[0, 15, 30, 45, 60, 75, 90].map((deg) => {
-          const rad = (deg * Math.PI) / 180;
-          return (
-            <Line
-              key={`prot-${deg}`}
-              points={[
-                [Math.cos(rad) * 1.06, Math.sin(rad) * 1.06, 0.005],
-                [Math.cos(rad) * 1.24, Math.sin(rad) * 1.24, 0.005],
-              ]}
-              color={deg % 30 === 0 ? PALETTE.gold : "#cbd5e1"}
-              lineWidth={deg % 30 === 0 ? 2.4 : 1.5}
-            />
-          );
-        })}
-        {/* Needle pointer aligned to ramp slope */}
-        <Line
-          points={[
-            [0, 0, 0.01],
-            [Math.cos(frame.radians) * 1.22, Math.sin(frame.radians) * 1.22, 0.01],
-          ]}
-          color={PALETTE.gold}
-          lineWidth={2.8}
-        />
-      </group>
 
       {/* ── Rear Upright Support Mast at the end of the base (light satin extruded rail) ── */}
       <group position={[HINGE[0] + RAMP_WORLD, HINGE[1] + RAMP_WORLD / 2, 0]}>

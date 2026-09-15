@@ -742,7 +742,6 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Rear Upright Support Mast: Extruded structural aluminum rail (`#94a3b8`, metalness `0.8`, roughness `0.25`).
       - Sliding Collar & Knob: Precision silver collar (`#cbd5e1`) with knurled brass knob (`#fbbf24`).
       - Pivot Knuckles & Pin: Polished steel brackets (`#94a3b8`) with brass hinge pin (`#fbbf24`).
-      - Protractor Plate: Slate backdrop (`#2a364f`, opacity `0.85`), bright ticks (`#cbd5e1`), and gold needle (`#fbbf24`, width `2.8`).
     - **Ramp Plank & Track Geometry**:
       - Wedge Incline Support: Light satin anodized silver (`#cbd5e1`, roughness `0.35`, metalness `0.35`).
       - Ramp Track Materials:

@@ -7079,5 +7079,34 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Full Next.js production build (`npm run build`) completed successfully in 27.8s.
    - Production server (`npm run start`) verified healthy with HTTP 200 on `http://localhost:3000/visualizations`.
 
+---
+
+## 137. Incline Plane `halfBlock` Scope ReferenceError Resolution & Protractor Prop Removal
+
+### 🐛 Problem Statement
+1. **`ReferenceError: halfBlock is not defined` in `BlockAndForces`**:
+   - When launching the incline plane visualization, the error boundary displayed:
+     `3D visualization encountered an error. halfBlock is not defined`
+   - In `BlockAndForces`, the `maxLength` calculation for the applied force arrow referenced `halfBlock` (`(along + halfBlock)`), but `halfBlock` was scoped within `InclineFrictionCanvas` rather than inside `BlockAndForces` or at module level.
+2. **User Request to Remove Protractor Prop**:
+   - The user requested removing the engraved protractor plate prop positioned on the hinge.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Top-Level `HALF_BLOCK` Module Constant (`InclineFrictionCanvas.jsx`)**:
+   - Promoted `halfBlock` to a module-level constant:
+     ```javascript
+     const BLOCK = 0.52;
+     const HALF_BLOCK = (BLOCK * 1.35) / 2;
+     ```
+   - Updated `BlockAndForces` (`maxLength`) and `InclineFrictionCanvas` (`along`) to consistently reference `HALF_BLOCK`, resolving the variable scope error permanently.
+2. **Removed Protractor Prop at Hinge (`InclineFrictionCanvas.jsx`)**:
+   - Removed the semi-circular engraved protractor plate `<group>` (backdrop mesh, radial degree ticks, and needle pointer) from the hinge pivot.
+   - The clean mathematical angle arc (`θ = ...°`) and repose angle markers remain uncluttered.
+3. **Automated Verification**:
+   - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly.
+   - Full Next.js production build (`npm run build`) completed successfully.
+   - Production server verified responding HTTP 200 on `http://localhost:3000/visualizations`.
+
+
 
 
