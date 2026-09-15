@@ -208,4 +208,34 @@ describe("the block's motion", () => {
       assert.ok(m.velocity <= 1e-9, "gravity cannot push a block up a ramp");
     }
   });
+
+  it("prevents chattering and velocity spikes when force is max and mass is low against barriers", () => {
+    // Extreme condition: 500 N pull with 1 kg mass up a 10° ramp
+    let m = { position: 0, velocity: 0 };
+    const extremeOpts = { massKg: 1, angleDeg: 10, surface: "wood", appliedForce: 500 };
+    // Accelerates rapidly to the top barrier
+    for (let i = 0; i < 50; i += 1) {
+      m = advanceBlock(m, extremeOpts, 0.016);
+    }
+    assert.ok(close(m.position, RAMP_LENGTH_M / 2, 1e-4), "must be at top barrier");
+    assert.equal(m.velocity, 0, "velocity must be exactly 0 at the barrier");
+
+    // Hold under max force for 200 more frames: must remain at 0 velocity with zero chatter
+    for (let i = 0; i < 200; i += 1) {
+      m = advanceBlock(m, extremeOpts, 0.016);
+      assert.equal(m.velocity, 0, "velocity must not oscillate or chatter against barrier");
+      assert.equal(m.solved.acceleration, 0, "acceleration must be 0 while resting against barrier");
+    }
+  });
+
+  it("handles 90 degrees with maximum force without errors or NaN", () => {
+    let m = { position: 0, velocity: 0 };
+    const opts90 = { massKg: 1, angleDeg: 90, surface: "wood", appliedForce: 500 };
+    for (let i = 0; i < 50; i += 1) {
+      m = advanceBlock(m, opts90, 0.016);
+    }
+    assert.ok(close(m.position, RAMP_LENGTH_M / 2, 1e-4), "must be at top barrier");
+    assert.equal(m.velocity, 0, "velocity must be exactly 0 at the barrier");
+    assert.equal(m.solved.acceleration, 0, "acceleration must be 0 while resting against barrier");
+  });
 });

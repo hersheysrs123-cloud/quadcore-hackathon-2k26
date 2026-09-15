@@ -731,7 +731,34 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Measuring Guides: Gold dashed lines (`rgba(251,191,36,0.85)`) for full umbra boundary; cyan dashed lines (`rgba(56,189,248,0.80)`) for outer penumbra boundary.
       - Smooth Continuous Morphing: Continuous corner rounding $r = \min(w, h) \cdot \sin(\theta)$ eliminating harsh step transitions during cylinder and cone rotation.
 
-
-
-
-
+24. **3D Incline Plane & Friction Laboratory Apparatus Design Tokens (`InclineFrictionCanvas.jsx`)**:
+    - **High-Visibility Studio Lighting**:
+      - Ambient Light: `0.85` intensity for clear visibility across all geometric faces.
+      - Directional Key Light: `1.7` intensity with balanced specular highlights.
+    - **Apparatus Base & Extruded Aluminum Fixtures**:
+      - Base Plate: Satin brushed aluminum (`#94a3b8`, metalness `0.65`, roughness `0.35`) with dark rubber feet (`#475569`).
+      - Leveling Thumb-Screws: Gleaming polished brass (`#fbbf24`, metalness `0.9`, roughness `0.25`).
+      - Spirit Level Vial: Luminous emerald vial (`#4ade80`, emissive `#4ade80`, emissiveIntensity `1.5`).
+      - Rear Upright Support Mast: Extruded structural aluminum rail (`#94a3b8`, metalness `0.8`, roughness `0.25`).
+      - Sliding Collar & Knob: Precision silver collar (`#cbd5e1`) with knurled brass knob (`#fbbf24`).
+      - Pivot Knuckles & Pin: Polished steel brackets (`#94a3b8`) with brass hinge pin (`#fbbf24`).
+      - Protractor Plate: Slate backdrop (`#2a364f`, opacity `0.85`), bright ticks (`#cbd5e1`), and gold needle (`#fbbf24`, width `2.8`).
+    - **Ramp Plank & Track Geometry**:
+      - Wedge Incline Support: Light satin anodized silver (`#cbd5e1`, roughness `0.35`, metalness `0.35`).
+      - Ramp Track Materials:
+        - Polished Maple Wood: Warm honey birch (`#d4a373`, roughness `0.55`).
+        - Teflon (PTFE): Pure porcelain white (`#f1f5f9`, metalness `0.35`, roughness `0.08`).
+        - Neoprene Rubber: Modern slate blue-gray (`#64748b`, roughness `0.85`).
+      - Guide Channel Rails: Mirror-finish extruded chrome (`#e2e8f0`, metalness `0.85`, roughness `0.2`).
+      - Graduation Ruler Ticks: Crisp contrast markings (`#0f172a`, width `2.2` / `1.4`) with clear distance labels (`text-ink-200`).
+      - Pulley & Pull String: Chrome pulley wheel (`#f1f5f9`) with brass axle pin (`#fbbf24`) and high-tensile gold nylon cable (`#f59e0b`, width `2.8`).
+    - **Cargo Crate Materials & Detailing**:
+      - Wood Body: Bright golden honey cedar (`#d4924b`, roughness `0.55`) with chestnut reinforcement banding (`#a06030`).
+      - Corner Brackets: Gleaming polished brass brackets (`#fbbf24`, metalness `0.85`).
+      - Lifting Handles: High-contrast chrome handles (`#e2e8f0`) with slate recessed wells (`#475569`).
+    - **Grip Gauge & Plot Area (3D HUD Billboard & Chassis Tokens)**:
+      - Dynamic Camera Billboard: Both `GraphPanel` and `GripGauge` wrap their structures in `@react-three/drei`'s `<Billboard follow={true}>` centered at their 3D geometric centers, rotating dynamically with camera OrbitControls to remain perpendicular to the viewing vector from all angles ($0^\circ$ to $360^\circ$) without planar foreshortening or mirror distortion.
+      - 3D Instrument Chassis: Replaced single-sided 2D planes with extruded 3D chassis boxes (`boxGeometry` with depth `0.03` - `0.04`) and `THREE.DoubleSide` materials:
+        - Grip Gauge: Slate-blue chassis (`#222f46`, opacity `0.95`, `args={[3.46, 0.44, 0.03]}`), border (`#475569`), tick divisions (`#64748b`), and double-sided fill bar.
+        - Graph Panel: Slate chassis (`#1e2638`, opacity `0.94`, `args={[width + 0.8, height + 1.0, 0.04]}`), border (`#38455c`), grid (`#2e3b52`), and mathematical zero-axes (`#94a3b8`).
+      - Centered World Pivots: Inner content offset by $[-w/2, -h/2, 0]$ ensures rotation occurs in-place around true bounding centers, preventing translation into adjacent apparatus fixtures during 180° rotations.

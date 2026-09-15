@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Line } from "@react-three/drei";
+import { Line, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import { PALETTE, SceneLabel, VectorArrow, clamp } from "@/components/visualizations/scene-kit";
 
@@ -80,9 +80,11 @@ export function ForceVector({
   symbol,
   showValue = true,
   labelOffset = 0.4,
+  maxLength,
 }) {
   const signed = Number(newtons) || 0;
-  const length = Math.abs(signed) * scale;
+  let length = Math.abs(signed) * scale;
+  if (maxLength !== undefined) length = Math.min(length, maxLength);
   if (!(length > MIN_ARROW)) return null;
 
   const sign = signed < 0 ? -1 : 1;
@@ -114,9 +116,32 @@ export function ForceVector({
  * nowhere, rather than the one weight vector written two different ways.
  */
 export function ResolutionGuides({ at, tip, componentTips, colour = PALETTE.slate }) {
+  const validTips = useMemo(() => {
+    if (!tip || !Array.isArray(componentTips)) return [];
+    return componentTips.filter((corner) => {
+      if (!corner) return false;
+      const dxTip = corner[0] - tip[0];
+      const dyTip = corner[1] - tip[1];
+      const dzTip = (corner[2] ?? 0) - (tip[2] ?? 0);
+      const dTip = Math.sqrt(dxTip * dxTip + dyTip * dyTip + dzTip * dzTip);
+      if (!Number.isFinite(dTip) || dTip < 0.08) return false;
+
+      if (at) {
+        const dxAt = corner[0] - at[0];
+        const dyAt = corner[1] - at[1];
+        const dzAt = (corner[2] ?? 0) - (at[2] ?? 0);
+        const dAt = Math.sqrt(dxAt * dxAt + dyAt * dyAt + dzAt * dzAt);
+        if (!Number.isFinite(dAt) || dAt < 0.08) return false;
+      }
+      return true;
+    });
+  }, [at, tip, componentTips]);
+
+  if (validTips.length === 0) return null;
+
   return (
     <group>
-      {componentTips.map((corner, i) => (
+      {validTips.map((corner, i) => (
         <Line
           key={i}
           points={[corner, tip]}
@@ -159,6 +184,11 @@ export function GraphPanel({
   yLabel,
   xTicks = 4,
   yTicks = 3,
+  bgColour = "#1e2638",
+  borderColour = "#38455c",
+  gridColour = "#334155",
+  axisColour = "#94a3b8",
+  billboard = true,
 }) {
   const toWorld = useCallback(
     ([x, y]) => [
@@ -188,27 +218,70 @@ export function GraphPanel({
     return lines;
   }, [width, height, xTicks, yTicks]);
 
-  return (
-    <group position={position}>
-      {/* Backing panel, so the plot reads against the scene rather than
-          floating in it. */}
+  const yZero = ((clamp(0, yMin, yMax) - yMin) / Math.max(yMax - yMin, 1e-9)) * height;
+  const xZero = ((clamp(0, xMin, xMax) - xMin) / Math.max(xMax - xMin, 1e-9)) * width;
+
+  const centerX = position[0] + width / 2;
+  const centerY = position[1] + height / 2;
+  const centerZ = position[2] ?? 0;
+
+  const content = (
+    <group position={billboard ? [-width / 2, -height / 2, 0] : [0, 0, 0]}>
+      {/* Backing panel: lighter, refined slate-blue surface with 3D chassis */}
       <mesh position={[width / 2, height / 2, -0.04]}>
-        <planeGeometry args={[width + 0.7, height + 0.9]} />
-        <meshBasicMaterial color="#0d121c" transparent opacity={0.88} />
+        <boxGeometry args={[width + 0.8, height + 1.0, 0.04]} />
+        <meshBasicMaterial color={bgColour} transparent opacity={0.94} side={THREE.DoubleSide} />
       </mesh>
 
-      {grid.map((pts, i) => (
-        <Line key={i} points={pts} color={PALETTE.line} lineWidth={1} transparent opacity={0.4} />
-      ))}
-
-      {/* Axes. */}
+      {/* Sleek outer panel border */}
       <Line
         points={[
-          [0, height, 0],
+          [-0.35, -0.45, -0.018],
+          [width + 0.35, -0.45, -0.018],
+          [width + 0.35, height + 0.45, -0.018],
+          [-0.35, height + 0.45, -0.018],
+          [-0.35, -0.45, -0.018],
+        ]}
+        color={borderColour}
+        lineWidth={1.5}
+        transparent
+        opacity={0.8}
+      />
+
+      {grid.map((pts, i) => (
+        <Line key={i} points={pts} color={gridColour} lineWidth={1} transparent opacity={0.5} />
+      ))}
+
+      {/* Subtle plot border enclosing the grid area */}
+      <Line
+        points={[
           [0, 0, 0],
           [width, 0, 0],
+          [width, height, 0],
+          [0, height, 0],
+          [0, 0, 0],
         ]}
-        color={PALETTE.slate}
+        color={gridColour}
+        lineWidth={1.2}
+        transparent
+        opacity={0.45}
+      />
+
+      {/* Main mathematical axes (x = 0, y = 0) */}
+      <Line
+        points={[
+          [xZero, 0, 0],
+          [xZero, height, 0],
+        ]}
+        color={axisColour}
+        lineWidth={1.8}
+      />
+      <Line
+        points={[
+          [0, yZero, 0],
+          [width, yZero, 0],
+        ]}
+        color={axisColour}
         lineWidth={1.8}
       />
 
@@ -226,11 +299,24 @@ export function GraphPanel({
         />
       ))}
 
-      {series.map((s, i) =>
-        s.points.length > 1 ? (
+      {series.map((s, i) => {
+        if (!s?.points || s.points.length < 2) return null;
+        const worldPts = [];
+        for (let j = 0; j < s.points.length; j += 1) {
+          const pt = toWorld(s.points[j]);
+          if (!Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) continue;
+          if (worldPts.length > 0) {
+            const prev = worldPts[worldPts.length - 1];
+            const d = Math.hypot(pt[0] - prev[0], pt[1] - prev[1]);
+            if (d < 1e-4) continue;
+          }
+          worldPts.push(pt);
+        }
+        if (worldPts.length < 2) return null;
+        return (
           <Line
             key={`s${i}`}
-            points={s.points.map(toWorld)}
+            points={worldPts}
             color={s.colour}
             lineWidth={s.lineWidth ?? 2.6}
             transparent
@@ -239,19 +325,30 @@ export function GraphPanel({
             dashSize={0.12}
             gapSize={0.1}
           />
-        ) : null,
-      )}
+        );
+      })}
 
-      {marker && (
-        <mesh position={toWorld(marker.at)}>
-          <sphereGeometry args={[0.11, 16, 16]} />
-          <meshStandardMaterial
-            color={marker.colour}
-            emissive={marker.colour}
-            emissiveIntensity={2.4}
-            toneMapped={false}
-          />
-        </mesh>
+      {marker && Number.isFinite(marker.at?.[0]) && Number.isFinite(marker.at?.[1]) && (
+        <group position={toWorld(marker.at)}>
+          <mesh>
+            <sphereGeometry args={[0.11, 16, 16]} />
+            <meshStandardMaterial
+              color={marker.colour}
+              emissive={marker.colour}
+              emissiveIntensity={2.4}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh>
+            <ringGeometry args={[0.14, 0.2, 24]} />
+            <meshBasicMaterial color={marker.colour} transparent opacity={0.65} side={THREE.DoubleSide} />
+          </mesh>
+          {marker.label && (
+            <SceneLabel position={[0.75, 0.35, 0]} accent>
+              {marker.label}
+            </SceneLabel>
+          )}
+        </group>
       )}
 
       {title && (
@@ -271,6 +368,16 @@ export function GraphPanel({
       )}
     </group>
   );
+
+  if (billboard) {
+    return (
+      <Billboard position={[centerX, centerY, centerZ]} follow={true}>
+        {content}
+      </Billboard>
+    );
+  }
+
+  return <group position={position}>{content}</group>;
 }
 
 // ─── Rolling time series ────────────────────────────────────────────
@@ -282,8 +389,8 @@ export function GraphPanel({
  * sample into React state every frame re-renders the whole scene sixty times a
  * second to move a line by one pixel.
  */
-export function useRollingTrace(capacity = 220, hz = 24) {
-  const buffer = useRef([]);
+export function useRollingTrace(capacity = 800, hz = 24, initialPoints = []) {
+  const buffer = useRef([...initialPoints]);
   const since = useRef(0);
   const [, bump] = useState(0);
 
@@ -301,8 +408,8 @@ export function useRollingTrace(capacity = 220, hz = 24) {
     [capacity, hz],
   );
 
-  const reset = useCallback(() => {
-    buffer.current = [];
+  const reset = useCallback((newPoints = []) => {
+    buffer.current = [...newPoints];
     since.current = 0;
     bump((n) => n + 1);
   }, []);
@@ -318,7 +425,7 @@ export function useRollingTrace(capacity = 220, hz = 24) {
  * fixed-ish timestep, a guard against the enormous `delta` a backgrounded tab
  * hands back on return, and a readout that updates slowly enough to read.
  */
-export function useBodyMotion({ step, onSample, running = true, sampleHz = 12, speed = 1.0 }) {
+export function useBodyMotion({ step, onSample, running = true, sampleHz = 60, speed = 1.0 }) {
   const motion = useRef({ position: 0, velocity: 0 });
   const since = useRef(0);
 
@@ -375,11 +482,12 @@ export function arcPoints(origin, radius, fromRad, toRad, segments = 32) {
 export function useWedgeGeometry(baseLength, height, depth) {
   const geometry = useMemo(() => {
     const shape = new THREE.Shape();
-    // A hair of width even when vertical, so the extrude never degenerates.
-    const b = Math.max(baseLength, 0.02);
+    // Guard against zero or negative dimensions so extrude never degenerates.
+    const b = Math.max(baseLength, 0.01);
+    const h = Math.max(height, 0.01);
     shape.moveTo(0, 0);
     shape.lineTo(b, 0);
-    shape.lineTo(b, height);
+    shape.lineTo(b, h);
     shape.closePath();
     return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
   }, [baseLength, height, depth]);

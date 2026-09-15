@@ -6836,3 +6836,248 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 3. **Automated Verification (`tests/unit/media-caption-input.test.mjs`)**:
    - Added unit test suite verifying that container `onKeyDown` ignores Backspace and Delete when `target.tagName === "INPUT"`, and verifies `e.stopPropagation()` and `Enter` handling on the caption input.
    - All **884 unit/integration tests across 221 suites** and **34 empirical challenge tests** (918 total tests) pass with 0 failures.
+
+---
+
+## 131. Incline Plane & Friction 3D Simulation Overhaul: Z-Fighting Elimination, Lighter Graph Palette, Grip Gauge Repositioning, Barrier Velocity Stabilization, Graph Window Clamping & 90° Base Apparatus
+
+### 🐛 Problem Statement & User Bug Reports
+1. **Ramp Hypotenuse & Wedge Side Face Z-Fighting**:
+   - Dotted, flickering z-fighting artifacts appeared along the side edges of the ramp where the sliding surface plank intersected the wedge body.
+   - Root Cause: The sliding surface box had thickness `PLANK = 0.14` centered at `lift = 0`, causing its lower half to penetrate into the wedge body while sharing the exact same $Z$ coordinate bounds ($Z = \pm \text{RAMP\_DEPTH} / 2$) as the wedge side faces.
+2. **Oppressive Dark Graph Billboard (`#0d121c`)**:
+   - The velocity vs. time graph in the 3D scene used a pitch-black `#0d121c` backing panel with dim gridlines, blending into the background and impairing legibility.
+3. **Grip Gauge Misplacement Below the Floor (`Y = -3.25`)**:
+   - The static friction grip bar (`GripGauge`) was anchored at $Y = -3.25$, below the floor grid and under the ramp, hiding the grip ratio from standard viewing angles.
+4. **Graph Velocity Chattering & Spiking Under Max Applied Force**:
+   - Setting the applied force slider to maximum ($+500\text{ N}$) with low block mass ($1\text{ kg}$) caused the velocity curve to oscillate wildly.
+   - Root Cause: When the crate reached the ramp boundary stop (`limit = \text{RAMP\_LENGTH\_M} / 2`), `advanceBlock` clamped velocity to 0. On subsequent frames, the solver recalculated $a = (F_{\text{applied}} - mg\sin\theta)/m \approx 500\text{ m/s}^2$, spiking velocity to $\approx 8\text{ m/s}$ before re-clamping to 0 each tick. Furthermore, `yMax` was hardcoded to $6\text{ m/s}$, causing extreme velocities to clip flat.
+5. **Graph Scrolling Infinitely, Discarding Historical Trace Points, and Right-Edge Viewport Clipping**:
+   - As time progressed past 8 seconds, the graph rolled continuously towards infinity, discarding earlier points ($t = 0$) and causing the back half of the trace to disappear.
+   - The graph height was cramped ($2.4\text{ units}$), and its horizontal placement ($X = 3.05$, right edge $X = 6.75$) caused the right portion to be clipped off-screen on typical camera viewports.
+6. **90° Ramp Angle Geometry Collapse (Base Disappearance)**:
+   - Setting the ramp angle slider to $90^\circ$ collapsed $b = \text{RAMP\_WORLD} \cdot \cos(90^\circ) = 0$, causing the extruded wedge prism to shrink to a 0.02 sliver, making the base of the ramp vanish into thin air.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Z-Fighting Elimination via Elevated Hypotenuse Seat & Width Overhang**:
+   - Positioned the sliding surface plank at `lift = PLANK / 2` so its bottom face sits flush at `lift = 0` (the hypotenuse) rather than penetrating inside the wedge body.
+   - Widened the plank to $\text{RAMP\_DEPTH} + 0.08$ so it overhangs the wedge by $0.04\text{ units}$ on each side, eliminating coplanar side faces.
+   - Set `polygonOffset: true` (`polygonOffsetFactor: 1`, `polygonOffsetUnits: 1`) on the wedge material.
+   - Elevated crate center in `BlockAndForces` to `BLOCK / 2 + PLANK`, placing the block flush on top of the surface.
+   - Integrated a mechanical bottom bumper stop on the plank catching the crate at the travel limit.
+2. **Refined Slate Graph Aesthetic with Outer Border & Distinct Axes**:
+   - Upgraded `GraphPanel` in `force-diagram.jsx` with customizable `bgColour = "#1e2638"`, `borderColour = "#38455c"`, `gridColour = "#2e3b52"`, and `axisColour = "#94a3b8"`.
+   - Added a sleek border line surrounding the panel backing for clean contrast against the 3D environment.
+3. **Dynamic Grip Gauge Positioning Above the Ramp**:
+   - Repositioned `GripGauge` dynamically above the ramp at `[-2.6, Math.max(2.15, HINGE[1] + h + 0.85), 0]`.
+   - Styled the gauge backing with `#1e2638` and a `#38455c` border matching the graph aesthetics.
+4. **Boundary Mechanical Rest Normal Force & Dynamic Y Headroom**:
+   - Updated `advanceBlock` in `lib/inclineForces.js`: when the block reaches an end stop and the applied net drive continues to push it against the barrier (`position >= limit - 1e-4 && (velocity > 0 || solved.netForce > 0)` or bottom stop equivalent), the mechanical stop exerts an equal and opposite reaction force, maintaining strict zero velocity and zero acceleration without chattering or spikes.
+   - Added auto-scaling dynamic `peakSpeed` headroom in `InclineFrictionCanvas.jsx` that scales the Y-axis to accommodate high velocities while preserving tick clarity.
+5. **Fixed Time Window Clamping, Height Increase & Viewport Visibility**:
+   - Clamped simulation and trace time to `TRACE_SECONDS = 8` in `BlockMotion`. When time reaches the right edge, the line terminates cleanly without continuing to infinity.
+   - Fixed graph horizontal domain to $[0, \text{TRACE\_SECONDS}]$ with capacity expanded to 800 samples, preserving the entire trace from $t = 0$ onwards without purging history.
+   - Increased graph panel height from $2.4$ to $3.4\text{ units}$ (+42% vertical expanse).
+   - Moved graph position inward to `[1.85, -1.25, 0]`, ensuring the entire panel and title are 100% visible on screen without right-edge cropping.
+6. **Solid Laboratory Base Bed & Mast Assembly (90° Support)**:
+   - Added an apparatus base plate at $Y = \text{HINGE}[1] - 0.08$ with rubber feet and hinge knuckle pivot pins that remain permanently anchored under the ramp at all angles from $0^\circ$ to $90^\circ$.
+   - Added a rear upright support mast at $X = \text{HINGE}[0] + \text{RAMP\_WORLD}$.
+   - Guarded wedge rendering with `b > 0.05`. At $90^\circ$, the vertical ramp stands against the mast on top of the solid base bed, completely preventing base disappearance.
+7. **Automated Verification**:
+   - Added unit test in `tests/unit/incline-forces.test.mjs` verifying that max applied pull ($500\text{ N}$) with low mass ($1\text{ kg}$) reaches the barrier and remains strictly at rest with 0 velocity and 0 acceleration.
+   - All **885 unit/integration tests across 221 suites** and **34 empirical challenge tests** (919 total tests) pass with 0 failures.
+
+---
+
+## 132. Incline Plane Scientific Craftsmanship Detailing & 60 FPS Fluidity Overhaul
+
+### 🐛 Problem Statement
+1. **12 FPS Motion Stutter (`sampleHz = 12`)**:
+   - The cargo block and live force vectors previously updated in React state at only 12 Hz (`sampleHz = 12` in `useBodyMotion`), causing visible stepping, lag, and stuttering during playback.
+2. **Missing Laboratory Authenticity & Visual Craftsmanship**:
+   - The incline apparatus lacked scientific instrument fidelity: no metric track markings, plain unadorned crate geometry, no visual mechanism for the external applied pull $F$, plain base without leveling fixtures or level indicators, no angle protractor, and static grip gauge labels.
+
+### 🛠️ Resolution & Enhancements
+1. **60 FPS Silky Smooth Animation Pipeline**:
+   - Increased `sampleHz` from 12 to 60 in `useBodyMotion` (`components/visualizations/force-diagram.jsx`), driving full 60–144 Hz physics updates for seamless, fluid gliding across the ramp.
+2. **Dual Guide Rails & Laser-Etched Metric Ruler**:
+   - Integrated extruded aluminum guide channel rails along both edges of the ramp hypotenuse with laser-etched metric centimeter graduations every 0.25m and 0.5m with clear distance labels (`0.0m`, `1.0m`, `2.0m`, `3.0m`, `4.0m`).
+3. **Crate Craftsmanship & Material Detailing**:
+   - Enhanced the cargo crate with 8 brass corner reinforcement brackets with rivets, dual recessed metal lifting handles on both sides, material-specific underside friction contact runners (oak wood runners, Teflon PTFE white skids, or black treaded rubber pads), and a front eyebolt tow ring.
+4. **Applied Pull Top Chrome Pulley & Taut Tow Cable**:
+   - When external pull is applied, rendered a top-mounted chrome pulley assembly with brass axle pin and a high-tensile golden nylon tow cable spanning from the crate's front tow ring to the top pulley.
+5. **Engraved Hinge Protractor Dial Plate & Needle**:
+   - Installed a semi-circular protractor plate with radial degree tick lines at $0^\circ, 15^\circ, 30^\circ, 45^\circ, 60^\circ, 75^\circ, 90^\circ$ and a gold pointer needle rotating synchronously with the ramp.
+6. **Laboratory Base Leveling Screws & Spirit Level**:
+   - Added four knurled brass leveling thumb-wheels at the corners of the base bed and an embedded green spirit level bubble vial.
+7. **Elevation Mast Sliding Clamp Collar**:
+   - Added an adjustable clamp bracket with knurled brass tightening knob holding the ramp at height $h$.
+8. **Graph Marker Live Velocity Badge & Grip Gauge Subdivisions**:
+   - Enhanced `GraphPanel` marker with glowing halo and live dynamic value pill (`+X.XX m/s`).
+   - Added 25%, 50%, 75% tick marks to `GripGauge` with dynamic equilibrium / verge status badges.
+
+---
+
+## 133. Incline Plane Velocity Trace Continuity & Graph-Apparatus Spatial Decoupling
+
+### 🐛 Problem Statement
+1. **Trace Line Truncation / Disappearing Beginning**:
+   - In `InclineFrictionCanvas.jsx`, `useRollingTrace` was instantiated with a capacity of only 260 samples (`useRollingTrace(260, 24)`). At 60 FPS across an 8-second simulation ($8 \times 60 = 480$ frames), after ~4.3 seconds the ring buffer began evicting earlier samples (`b.splice(0, b.length - capacity)`). By the time the block reached the end of the window, the first 3.7 seconds of the velocity curve were erased, causing the line to start halfway across the chart.
+2. **Bottom Horizontal Line Artifact in GraphPanel**:
+   - In `components/visualizations/force-diagram.jsx`, `GraphPanel` hardcoded its axis line as `[0, height, 0] -> [0, 0, 0] -> [width, 0, 0]` with bright `axisColour`. When `yMin < 0` (such as `yMin = -peakSpeed` in velocity plots), local $y = 0$ corresponds to $yMin$, placing a bright line along the bottom floor of the graph that looked like an errant series trace or flatline.
+3. **Graph Panel Merging with Cargo Block and Elevation Mast**:
+   - `GraphPanel` was positioned at `[1.85, -1.25, 0]`. Because the ramp's rear upright elevation mast is situated at $X = \text{HINGE}[0] + \text{RAMP\_WORLD} = -2.75 + 4.6 = 1.85$, and the graph backing plate extended $-0.4\text{ units}$ to the left ($X = 1.45$), the mast and crate directly intersected and visually merged into the left side of the graph panel.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Uninterrupted Trace Continuity & Buffer Capacity Expansion (`InclineFrictionCanvas.jsx`)**:
+   - Expanded `useRollingTrace` capacity to 4,000 samples (`useRollingTrace(4000, 30, [[0, 0]])`), easily accommodating all frames across 60–144 Hz display refresh rates without evicting points.
+   - Initialized and reset the buffer with seeded `[[0, 0]]` on reset and parameter shifts, ensuring the trace line is anchored at $t = 0$ and draws continuously from start to finish.
+2. **Mathematical Zero-Axes & Subtle Frame in GraphPanel (`force-diagram.jsx`)**:
+   - Replaced the hardcoded bottom-corner axis with mathematically computed `xZero` and `yZero`:
+     $$\text{xZero} = \frac{\text{clamp}(0, \text{xMin}, \text{xMax}) - \text{xMin}}{\max(\text{xMax} - \text{xMin}, 10^{-9})} \cdot \text{width}$$
+     $$\text{yZero} = \frac{\text{clamp}(0, \text{yMin}, \text{yMax}) - \text{yMin}}{\max(\text{yMax} - \text{yMin}, 10^{-9})} \cdot \text{height}$$
+   - Rendered the primary axes strictly at `x = xZero` and `y = yZero` with `axisColour` (`#94a3b8`). For bipolar plots (velocity), the zero-velocity baseline is rendered cleanly across the middle of the graph at $y = \text{height} / 2$.
+   - Replaced the bright bottom line with a subtle, low-opacity plot perimeter rectangle (`lineWidth: 1.2`, opacity $0.45$) that clearly frames the grid without mimicking a data line.
+3. **Spatial Separation & Camera Framing (`InclineFrictionCanvas.jsx`)**:
+   - Shifted `GraphPanel` position from `[1.85, -1.25, 0]` to `[3.1, -1.25, 0]`.
+   - The rear mast ends at $X = 1.95$, while the graph panel starts at $X = 2.75$ (backing plate) and $X = 3.1$ (origin), leaving a generous $> 0.8\text{ unit}$ ($> 0.8\text{ m}$) unobstructed gap.
+   - Re-centered camera target to `[1.65, 0.2, 0]` with position `[1.65, 1.4, 13.0]`, framing the ramp apparatus, static friction gauge, and full graph panel with ideal breathing room and no overlap.
+4. **Verification & Production Server Protocol**:
+   - All **885 unit/integration tests** and **34 empirical challenge tests** passed with 0 failures.
+   - Production build compiled successfully (`npm run build`).
+   - Production server verified active and serving HTTP 200 on `http://localhost:3000`.
+
+---
+
+## 134. Mechanical Barrier Contact Normal Reaction & High-Acceleration Velocity Graph Stabilization
+
+### 🐛 Problem Statement
+1. **Velocity Trace Diagonal Drop & Needle Spike (The "Triangle Spike")**:
+   - Under low mass ($1\text{ kg}$) and maximum applied pull ($500\text{ N}$), net acceleration is $\approx 475.5\text{ m/s}^2$, propelling the crate across the $2.3\text{ m}$ half-ramp in $<0.1\text{ seconds}$ to an impact velocity of $\approx 46.8\text{ m/s}$.
+   - Upon impact with the mechanical stop, `advanceBlock` clamped `nextVelocity = 0` mid-step. `BlockMotion` sent `0` to `onTrace`, drawing a steep diagonal line down from $46.8\text{ m/s}$ to $0\text{ m/s}$ in a single frame. Because the loop continued advancing the clock to $8\text{ seconds}$, it produced a 7.9-second flatline at $0$ across the chart, and auto-scaled `peakSpeed` to $\pm 50\text{ m/s}$, compressing the entire motion into an artificial, glitchy triangle needle spike.
+2. **Phantom Resultant Force Arrow ($F_{\text{net}} = 475.5\text{ N}$) at Rest**:
+   - When the crate was held stationary against the bumper at $v = 0$, `InclineFrictionCanvas` recomputed `solveIncline({ ...options, velocity: 0 })` without taking into account the bumper's normal reaction force. As a result, the scene rendered a massive green resultant arrow (`Fnet = ma 475.5 N`), and the HUD displayed `Acceleration: 475.50 m/s²` even though the block was physically stationary against the stop.
+3. **Applied Force Arrow Extending Beyond Top Pulley**:
+   - The applied pull arrow ($F = 500\text{ N}$) had length $1.7\text{ units}$. When the crate reached the top of the ramp, the distance to the top pulley was only $0.27\text{ units}$. The arrow shot $1.4\text{ units}$ past the pulley into empty space, and its floating HTML label hovered over the graph panel.
+
+### 🛠️ Resolution & Physical Modeling
+1. **Barrier Contact Normal Reaction (`InclineFrictionCanvas.jsx`)**:
+   - Updated `solved` to recognize mechanical barrier equilibrium: when `live.position >= limit - 1e-4` (or `live.position <= -limit + 1e-4`) and the applied force continues driving the block into the barrier, the bumper exerts an equal and opposite reaction force ($F_{\text{barrier}} = -F_{\text{drive}}$).
+   - $F_{\text{net}}$ and acceleration drop to strictly $0.00$, the state transitions to `"static"`, and the phantom green arrow disappears. The readout displays `Acceleration: 0.00 m/s² (good)` and `Friction: held by top stop`.
+2. **Impact Velocity Registration & Traversal Conclusion (`lib/inclineForces.js`, `InclineFrictionCanvas.jsx`)**:
+   - `advanceBlock` records `arrivalVelocity` (the pre-impact velocity attained upon hitting the stop) and sets `hitBarrier = true`.
+   - In `BlockMotion`, when `hitBarrier` is detected, the trace records the exact terminal arrival velocity $(t_{\text{arrival}}, v_{\text{arrival}})$ and concludes tracing (`finished.current = true`).
+   - The graph renders the true, smooth acceleration curve of the block's journey along the ramp without diagonal crashes to zero or dead 8-second flatlines. The marker circle rests at the peak arrival velocity with dynamic speed badge (e.g. `+46.8 m/s`).
+3. **Applied Pull Arrow Bounding (`ForceVector` in `force-diagram.jsx` & `InclineFrictionCanvas.jsx`)**:
+   - Added `maxLength` prop to `ForceVector`.
+   - Clamped the visual length of the applied force arrow to `distToPulley = (RAMP_WORLD + 0.04) - (along + halfBlock)` when pulling uphill. The arrow stays physically tethered between the crate and the top pulley, never shooting into empty air.
+4. **Spatial Clearance & Camera Centering (`InclineFrictionCanvas.jsx`)**:
+   - Repositioned `GraphPanel` to `position={[3.4, -1.25, 0]}` with camera target at `[1.85, 0.2, 0]` and position `[1.85, 1.4, 13.4]`.
+   - Distance between the apparatus/pulley ($X \le 1.91$) and the graph backing plate ($X \ge 3.05$) is now $> 1.14\text{ metres}$, guaranteeing complete separation under all angles, forces, and masses.
+5. **Verification**:
+   - All **885 unit/integration tests** + **34 empirical challenge tests** passed.
+   - Clean production build compiled (`npm run build`).
+   - Production server verified responding HTTP 200 on `http://localhost:3000`.
+
+---
+
+## 135. 3D In-Scene HUD Billboard Orientation, Centered Pivots & Double-Sided Chassis (180° Backside Viewing)
+
+### 🐛 Problem Statement
+1. **Graph and Grip Bar Disappearance on 180° Rotation**:
+   - When users rotated the 3D scene 180° via OrbitControls to inspect the backside of the incline plane apparatus, the velocity-time graph panel (`GraphPanel`) and the static friction grip gauge (`GripGauge`) completely vanished from view.
+2. **Single-Sided Material WebGL Culling**:
+   - `GraphPanel` used a flat `planeGeometry` with `meshBasicMaterial` which defaults to `THREE.FrontSide`. `GripGauge` similarly used `planeGeometry` with default frontside culling for both its background panel and filled status bar.
+   - When viewed from the rear ($-Z$ direction), the normal vectors pointed away from the camera ($> 90^\circ$), causing WebGL backface culling to eliminate the geometries entirely.
+3. **Planar Mirror Inversion & Depth Occlusion Regressions on Naive DoubleSide**:
+   - Simply setting `side: THREE.DoubleSide` on a flat world-space plane would cause the backing plate (positioned at $z = -0.04$) to occlude all foreground trace lines and axes (at $z = 0$) when viewed from behind.
+   - Furthermore, viewing a static 2D graph from behind causes mathematical mirror inversion (time runs right-to-left, axes and labels are mirrored backwards).
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Dynamic Camera Alignment via Drei `<Billboard>` (`force-diagram.jsx`, `InclineFrictionCanvas.jsx`)**:
+   - Integrated `@react-three/drei`'s `<Billboard follow={true}>` for both `GraphPanel` and `GripGauge`.
+   - On every frame, the panels dynamically synchronize their local orientation to the active camera quaternion, ensuring that whether viewed from the front, top-down, side (90°), or backside (180°), both the graph and the grip gauge remain directly perpendicular to the user's line of sight without foreshortening or culling.
+2. **Geometric Center Pivoting (Zero Collision Drift)**:
+   - Evaluated world-space center offsets for both HUD components:
+     $$\text{centerX} = \text{position}[0] + \frac{\text{width}}{2}, \quad \text{centerY} = \text{position}[1] + \frac{\text{height}}{2}, \quad \text{centerZ} = \text{position}[2]$$
+   - Wrapped inner contents in `<group position={[-width/2, -height/2, 0]}>`.
+   - In normal front view, the bottom-left coordinate aligns identically with the original coordinates (`position`).
+   - When orbiting 180° to the rear, the components rotate smoothly in-place around their true geometric centers instead of swinging across the scene or overlapping the ramp.
+3. **3D Instrument Chassis & Double-Sided Depth (`boxGeometry`)**:
+   - Upgraded both backing plates from flat 2D planes to solid 3D instrument chassis with depth:
+     - `GraphPanel`: `<boxGeometry args={[width + 0.8, height + 1.0, 0.04]} />` with `meshBasicMaterial color={bgColour} transparent opacity={0.94} side={THREE.DoubleSide}`.
+     - `GripGauge`: `<boxGeometry args={[width + 0.26, 0.44, 0.03]} />` with `meshBasicMaterial color="#222f46" transparent opacity={0.95} side={THREE.DoubleSide}`.
+   - Added `side={THREE.DoubleSide}` to the filled grip bar plane geometry.
+   - Tuned $Z$ layering so foreground lines, axes, borders, and HTML labels sit cleanly atop the front face of the chassis.
+4. **Automated Verification**:
+   - All **885 unit/integration tests** and **34 empirical challenge tests** passed cleanly.
+   - Production server verified serving HTTP 200.
+
+---
+
+## 136. Incline Plane Degenerate Line Vector Crash at 90° & Max Force (500 N), WebGL Error Boundary & Ramp Color Lightening
+
+### 🐛 Problem Statement
+1. **WebGL Runtime Error Crash at 90° Ramp Angle & Max Force (500 N)**:
+   - When users set `rampAngle = 90°` and maximized `appliedForce = 500 N`, the 3D visualization unmounted and rendered the fallback message: `"3D visualization encountered an error."`
+2. **GPU GLSL Division-by-Zero in Drei `<Line>` / `three-stdlib` `LineMaterial`**:
+   - At $\theta = 90^\circ$, $W_\parallel = mg \sin(90^\circ) = mg$, and $W_\perp = mg \cos(90^\circ) \approx 6.01 \times 10^{-16}\text{ N}$.
+   - Under max force ($F = 500\text{ N}$), `scale = 1.7 / 500 = 0.0034`.
+   - `ResolutionGuides` attempts to draw dashed lines between `parallelTip` and `weightTip`.
+   - The spatial distance between `parallelTip` and `weightTip` evaluated to:
+     $$\Delta = \text{up}[0] \times W_\parallel \times \text{scale} \approx 6.12 \times 10^{-17} \times 9.81 \times 0.0034 \approx 2.04 \times 10^{-18}\text{ m}$$
+   - In single-precision 32-bit floating point math (used by WebGL and GPU vertex shaders), this difference underflows to exactly zero:
+     $$\text{ndcEnd.xy} - \text{ndcStart.xy} = (0.0, 0.0)$$
+   - In `LineMaterial.js` vertex shader:
+     ```glsl
+     vec2 dir = ndcEnd.xy - ndcStart.xy;
+     dir = normalize(dir); // Evaluates (0.0, 0.0) / 0.0 = NaN!
+     ```
+   - Normalizing a zero-length vector yielded `(NaN, NaN)`, generating invalid vertex clip positions and crashing Drei's render loop.
+3. **Physical Non-Existence of Resolution Guides at Extreme Angles**:
+   - At $\theta = 90^\circ$, weight acts purely along the plane ($W_\perp = 0$). There is no perpendicular component and no vector parallelogram to resolve.
+4. **Dark Ramp Wedge Material**:
+   - The ramp structural wedge was rendered in `#475569` (dark slate gray), which looked muddy and lacked contrast against the studio background.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Degenerate Line Filtering in `ResolutionGuides` (`force-diagram.jsx`)**:
+   - Upgraded `ResolutionGuides` with Euclidean distance validation:
+     $$\text{dist}(\text{corner}, \text{tip}) > 0.08\text{ m} \quad \land \quad \text{dist}(\text{corner}, \text{at}) > 0.08\text{ m}$$
+   - Filters out any component whose projected guide line or magnitude underflows or collapses.
+   - If no valid non-degenerate component tips remain (e.g. at 90° or 0°), `ResolutionGuides` cleanly returns `null` instead of instantiating Drei `<Line>` with degenerate vertices.
+2. **Incline Simulation Component Guards (`InclineFrictionCanvas.jsx`)**:
+   - In `InclineFrictionCanvas.jsx`, guarded `ResolutionGuides` rendering so it only mounts when both components are physically non-negligible:
+     ```jsx
+     {solved.weightParallel * scale > 0.08 && solved.weightPerpendicular * scale > 0.08 && (
+       <ResolutionGuides at={centre} tip={weightTip} componentTips={[parallelTip, perpTip]} />
+     )}
+     ```
+   - Guarded the taut nylon pull string `<Line>` to prevent rendering if the crate reaches the top pulley bumper ($\Delta x < 0.03\text{ m}$).
+3. **GraphPanel Series Consecutive Point Deduplication (`force-diagram.jsx`)**:
+   - In `GraphPanel`, added a filter for consecutive trace samples:
+     $$\text{dist}(\mathbf{p}_i, \mathbf{p}_{i-1}) \ge 10^{-4}\text{ m}$$
+   - Prevents identical world coordinates from triggering `(0.0, 0.0)` vector normalization in Drei line shaders.
+   - Added `Number.isFinite` guards to `marker` rendering.
+4. **WebGLErrorBoundary Diagnostic Logging (`ThreeDView.jsx`)**:
+   - Added `componentDidCatch(error, errorInfo)` to log uncaught WebGL errors to the console.
+   - Preserved `error` in state to render descriptive diagnostic messages on fallback.
+5. **Ramp Wedge Color Lightening (`InclineFrictionCanvas.jsx`)**:
+   - Updated the ramp wedge material from dark `#475569` to light anodized satin silver `#cbd5e1`:
+     ```jsx
+     <meshStandardMaterial
+       color="#cbd5e1"
+       roughness={0.35}
+       metalness={0.35}
+       polygonOffset
+       polygonOffsetFactor={1}
+       polygonOffsetUnits={1}
+     />
+     ```
+   - Significantly brightens the apparatus, matching the anodized laboratory aesthetic and standing out with crisp contrast against dark viewports.
+6. **Automated Verification**:
+   - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly.
+   - Full Next.js production build (`npm run build`) completed successfully in 27.8s.
+   - Production server (`npm run start`) verified healthy with HTTP 200 on `http://localhost:3000/visualizations`.
+
+
+
