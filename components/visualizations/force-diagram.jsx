@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Line, Billboard } from "@react-three/drei";
+import { Line, Billboard, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { PALETTE, SceneLabel, VectorArrow, clamp } from "@/components/visualizations/scene-kit";
 
@@ -274,16 +274,59 @@ export function GraphPanel({
           [xZero, height, 0],
         ]}
         color={axisColour}
-        lineWidth={1.8}
+        lineWidth={1.5}
       />
-      <Line
-        points={[
-          [0, yZero, 0],
-          [width, yZero, 0],
-        ]}
-        color={axisColour}
-        lineWidth={1.8}
-      />
+      {yZero > 0.05 && yZero < height - 0.05 ? (
+        <Line
+          points={[
+            [0, yZero, 0],
+            [width, yZero, 0],
+          ]}
+          color="#64748b"
+          lineWidth={1.2}
+          dashed
+          dashSize={0.08}
+          gapSize={0.06}
+          transparent
+          opacity={0.6}
+        />
+      ) : (
+        <Line
+          points={[
+            [0, yZero, 0],
+            [width, yZero, 0],
+          ]}
+          color={axisColour}
+          lineWidth={1.5}
+        />
+      )}
+
+      {/* Axis numerical tick labels */}
+      {Array.from({ length: xTicks + 1 }).map((_, i) => {
+        const frac = i / xTicks;
+        const xPos = frac * width;
+        const val = xMin + frac * (xMax - xMin);
+        const formatted = Number.isInteger(val) ? `${val}s` : `${val.toFixed(1)}s`;
+        return (
+          <Html key={`xtick-${i}`} position={[xPos, -0.16, 0.01]} center style={{ pointerEvents: "none" }}>
+            <span className="font-mono text-[9px] text-ink-400 select-none whitespace-nowrap">{formatted}</span>
+          </Html>
+        );
+      })}
+
+      {Array.from({ length: yTicks + 1 }).map((_, j) => {
+        const frac = j / yTicks;
+        const yPos = frac * height;
+        const val = yMin + frac * (yMax - yMin);
+        const formatted = Number.isInteger(val)
+          ? `${val > 0 ? "+" : ""}${val}`
+          : `${val > 0 ? "+" : ""}${val.toFixed(1)}`;
+        return (
+          <Html key={`ytick-${j}`} position={[-0.26, yPos, 0.01]} center style={{ pointerEvents: "none" }}>
+            <span className="font-mono text-[9px] text-ink-400 select-none whitespace-nowrap">{formatted}</span>
+          </Html>
+        );
+      })}
 
       {guides.map((g, i) => (
         <Line

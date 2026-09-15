@@ -7108,6 +7108,42 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Full Next.js production build (`npm run build`) completed successfully.
    - Production server verified responding HTTP 200 on `http://localhost:3000/visualizations`.
 
+---
+
+## 138. Incline Plane Velocity Graph Direction-Aware Dynamic Scaling, Zero-Baseline Anchoring & Monospace Tick Calibration
+
+### 🐛 Problem Statement
+1. **Deceptive Horizontal Flatline**:
+   - In `InclineFrictionCanvas.jsx`, `yMin` and `yMax` were scaled symmetrically as `yMin = -peakSpeed` and `yMax = peakSpeed`.
+   - As a result, when the cargo crate was solely moving uphill (velocity $v \ge 0$), the zero velocity baseline $v = 0$ was placed exactly in the vertical center ($yZero = height / 2$).
+   - `GraphPanel` rendered this axis as a thick, solid `#94a3b8` line identical in appearance to the data trace. Students perceived this as a split/forked flatline curve.
+2. **Uncalibrated Axes & Grid Ambiguity**:
+   - `GraphPanel` rendered faint grid squares without numerical tick marks or value labels on either the X or Y axis. Users could not easily tell what speed or time was represented by the curve.
+3. **50% Wasted Vertical Headroom**:
+   - For unidirectional motion (uphill or downhill), symmetric $[-v_{\text{peak}}, +v_{\text{peak}}]$ scaling squished the active curve into half of the graph area, leaving the other half as empty dead space.
+4. **Premature Line Termination at Mechanical Stops**:
+   - When the crate hit the top pulley bumper or bottom bumper, the graph line abruptly terminated in mid-air at the impact time (e.g. $t = 1.2\text{ s}$ out of the fixed $8\text{ s}$ window), leaving the remaining $85\%$ of the plot width empty and static.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Adaptive Direction-Aware Dynamic Scaling (`InclineFrictionCanvas.jsx`)**:
+   - Implemented dynamic direction checks on recent velocities:
+     - **Positive-Only Motion (Uphill)**: Sets `yMin = 0` and `yMax = peakSpeed`. The zero baseline is anchored flush with the bottom perimeter of the graph, eliminating the center horizontal line completely and providing 100% of vertical height for the upward curve.
+     - **Negative-Only Motion (Downhill)**: Sets `yMin = -peakSpeed` and `yMax = 0`. The zero baseline is anchored at the top perimeter.
+     - **Bidirectional Motion (Oscillation / Turnaround)**: Uses symmetric $[-v_{\text{peak}}, +v_{\text{peak}}]$ with `yMin` and `yMax`.
+2. **Subtle Dashed Reference Axis & Numerical Monospace Tick Labels (`force-diagram.jsx`)**:
+   - In `GraphPanel`, when $yZero$ is within the interior of the graph (`0.05 < yZero < height - 0.05`), it is rendered as a subtle dashed reference line (`#64748b`, `dashSize=0.08`, `gapSize=0.06`, `opacity=0.6`, `lineWidth=1.2`) rather than a thick solid line.
+   - Added calibrated numerical tick labels along both axes using Drei `<Html>` within the billboard frame:
+     - **X-axis Ticks**: Evenly spaced time markers (e.g. `0s`, `0.5s`, `1.0s`, `1.5s`) rendered below the horizontal axis in crisp `text-[9px] font-mono text-ink-400 select-none pointer-events-none`.
+     - **Y-axis Ticks**: Calibrated velocity ticks (e.g. `0`, `+1.5`, `+3.0`, `+4.5 m/s`) rendered along the vertical axis with signs.
+3. **Dynamic Time-Window Auto-Zoom on Arrival (`InclineFrictionCanvas.jsx`)**:
+   - When the crate contacts the end stop (`solved.atBarrier`), `xMax` dynamically adjusts to `Math.max(1.0, Math.ceil(latestTime * 1.25 * 2) / 2)`, expanding the traversal curve cleanly across the full horizontal span of the graph and eliminating frozen dead space.
+   - Updated the time label to indicate impact time (`time · ${latestTime.toFixed(2)}s to stop`) and current marker readout to `impact: +X.XX m/s`.
+4. **Automated Verification**:
+   - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly.
+   - Full Next.js production build (`npm run build`) completed successfully.
+   - Production server verified responding HTTP 200 on `http://localhost:3000/visualizations`.
+
+
 
 
 

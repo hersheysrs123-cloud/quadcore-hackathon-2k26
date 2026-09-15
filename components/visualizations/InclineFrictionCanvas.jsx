@@ -472,17 +472,53 @@ export default function InclineFrictionCanvas({ params = {} }) {
   const tracePoints = trace.points;
   const latest = tracePoints.length ? tracePoints[tracePoints.length - 1] : null;
 
-  // Dynamic Y headroom so high accelerations/velocities never get clipped
-  const peakSpeed = useMemo(() => {
-    let max = TRACE_SPEED;
+  // Dynamic Y range that adapts to motion direction:
+  // - Purely positive motion (uphill pull): yMin = 0, yMax = peak (zero axis at bottom, no middle line!)
+  // - Purely negative motion (downhill slide): yMin = -peak, yMax = 0 (zero axis at top)
+  // - Bipolar motion (reverses): symmetric -peak to +peak
+  const { yMin, yMax } = useMemo(() => {
+    let minV = 0;
+    let maxV = 0;
     for (let i = 0; i < tracePoints.length; i += 1) {
-      const v = Math.abs(tracePoints[i][1]);
-      if (v > max) max = v;
+      const v = tracePoints[i][1];
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
     }
-    if (max <= 6) return 6;
-    if (max <= 12) return Math.ceil(max / 2) * 2;
-    return Math.ceil(max / 5) * 5;
+    const hasNeg = minV < -0.15;
+    const hasPos = maxV > 0.15;
+
+    if (!hasNeg && !hasPos) {
+      return { yMin: 0, yMax: 4 };
+    }
+    if (!hasNeg) {
+      const top = Math.max(2, Math.ceil(maxV * 1.15));
+      return { yMin: 0, yMax: top };
+    }
+    if (!hasPos) {
+      const bottom = Math.min(-2, Math.floor(minV * 1.15));
+      return { yMin: bottom, yMax: 0 };
+    }
+    const peak = Math.max(2, Math.ceil(Math.max(Math.abs(minV), Math.abs(maxV)) * 1.15));
+    return { yMin: -peak, yMax: peak };
   }, [tracePoints]);
+
+  const latestTime = latest ? latest[0] : 0;
+  const xMax = useMemo(() => {
+    if (solved.atBarrier && latestTime > 0.1) {
+      return Math.max(1.0, Math.ceil(latestTime * 1.25 * 2) / 2);
+    }
+    return Math.max(2.0, Math.min(TRACE_SECONDS, Math.ceil(Math.max(latestTime, 1) * 1.25)));
+  }, [solved.atBarrier, latestTime]);
+
+  const xLabel = solved.atBarrier && latestTime > 0.1
+    ? `time · ${latestTime.toFixed(2)}s to stop`
+    : `time · ${xMax}s window`;
+
+  const markerLabel = latest
+    ? solved.atBarrier
+      ? `impact: ${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
+      : `${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
+    : undefined;
 
   const gaugeY = Math.max(2.15, HINGE[1] + h + 0.85);
 
@@ -731,17 +767,17 @@ export default function InclineFrictionCanvas({ params = {} }) {
       {/* Static friction grip gauge positioned above the ramp */}
       <GripGauge position={[-2.6, gaugeY, 0]} solved={solved} />
 
-      {/* ── Velocity trace (lighter background, taller height, full visibility, stops at window edge) ── */}
+      {/* ── Velocity trace (adaptive range, clear axis ticks, clean baseline) ── */}
       <GraphPanel
         position={[3.4, -1.25, 0]}
         width={3.4}
         height={3.4}
         xMin={0}
-        xMax={TRACE_SECONDS}
-        yMin={-peakSpeed}
-        yMax={peakSpeed}
+        xMax={xMax}
+        yMin={yMin}
+        yMax={yMax}
         title="velocity along the slope"
-        xLabel={`time · ${TRACE_SECONDS} s window`}
+        xLabel={xLabel}
         yLabel="v (m/s)"
         xTicks={4}
         yTicks={4}
@@ -750,7 +786,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
         gridColour="#2e3b52"
         axisColour="#94a3b8"
         series={[{ points: tracePoints, colour: FORCE_COLOURS.velocity, lineWidth: 2.6 }]}
-        marker={latest ? { at: latest, colour: FORCE_COLOURS.net, label: `${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s` } : undefined}
+        marker={latest ? { at: latest, colour: FORCE_COLOURS.net, label: markerLabel } : undefined}
       />
 
       <SceneReadout

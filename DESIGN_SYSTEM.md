@@ -760,3 +760,9 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
         - Grip Gauge: Slate-blue chassis (`#222f46`, opacity `0.95`, `args={[3.46, 0.44, 0.03]}`), border (`#475569`), tick divisions (`#64748b`), and double-sided fill bar.
         - Graph Panel: Slate chassis (`#1e2638`, opacity `0.94`, `args={[width + 0.8, height + 1.0, 0.04]}`), border (`#38455c`), grid (`#2e3b52`), and mathematical zero-axes (`#94a3b8`).
       - Centered World Pivots: Inner content offset by $[-w/2, -h/2, 0]$ ensures rotation occurs in-place around true bounding centers, preventing translation into adjacent apparatus fixtures during 180° rotations.
+      - Direction-Aware Zero Baseline & Dashed Interior Lines:
+        - Bottom Anchor (Uphill motion, $v \ge 0$): $v = 0$ is aligned with the bottom border (`yMin = 0`), maximizing vertical resolution and eliminating the center horizontal line.
+        - Top Anchor (Downhill motion, $v \le 0$): $v = 0$ is aligned with the top border (`yMax = 0`).
+        - Subtle Dashed Reference Line: When $yZero$ is interior, rendered as `#64748b` with `dashSize=0.08`, `gapSize=0.06`, `opacity=0.6`, `lineWidth=1.2`.
+      - Calibrated Monospace Tick Labels: Monospace labels (`text-[9px] font-mono text-ink-400 select-none pointer-events-none`) for both time ($X$) and velocity ($Y$) axes.
+
