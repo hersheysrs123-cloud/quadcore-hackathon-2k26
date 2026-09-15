@@ -7099,8 +7099,9 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
      const HALF_BLOCK = (BLOCK * 1.35) / 2;
      ```
    - Updated `BlockAndForces` (`maxLength`) and `InclineFrictionCanvas` (`along`) to consistently reference `HALF_BLOCK`, resolving the variable scope error permanently.
-2. **Removed Protractor Prop at Hinge (`InclineFrictionCanvas.jsx`)**:
+2. **Removed Protractor Prop at Hinge & Under-Base Protrusions (`InclineFrictionCanvas.jsx`)**:
    - Removed the semi-circular engraved protractor plate `<group>` (backdrop mesh, radial degree ticks, and needle pointer) from the hinge pivot.
+   - Removed the 2 anti-slip rubber feet pad rectangles and 4 corner knurled leveling screw cylinders under the base plate, keeping the apparatus foundation sleek and uncluttered from below.
    - The clean mathematical angle arc (`θ = ...°`) and repose angle markers remain uncluttered.
 3. **Automated Verification**:
    - All **886 unit/integration tests** and **34 empirical challenge tests** passed cleanly.

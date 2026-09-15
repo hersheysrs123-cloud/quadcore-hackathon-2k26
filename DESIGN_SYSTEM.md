@@ -736,8 +736,7 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Ambient Light: `0.85` intensity for clear visibility across all geometric faces.
       - Directional Key Light: `1.7` intensity with balanced specular highlights.
     - **Apparatus Base & Extruded Aluminum Fixtures**:
-      - Base Plate: Satin brushed aluminum (`#94a3b8`, metalness `0.65`, roughness `0.35`) with dark rubber feet (`#475569`).
-      - Leveling Thumb-Screws: Gleaming polished brass (`#fbbf24`, metalness `0.9`, roughness `0.25`).
+      - Base Plate: Satin brushed aluminum (`#94a3b8`, metalness `0.65`, roughness `0.35`).
       - Spirit Level Vial: Luminous emerald vial (`#4ade80`, emissive `#4ade80`, emissiveIntensity `1.5`).
       - Rear Upright Support Mast: Extruded structural aluminum rail (`#94a3b8`, metalness `0.8`, roughness `0.25`).
       - Sliding Collar & Knob: Precision silver collar (`#cbd5e1`) with knurled brass knob (`#fbbf24`).

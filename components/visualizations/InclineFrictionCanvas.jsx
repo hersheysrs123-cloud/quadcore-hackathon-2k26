@@ -513,31 +513,6 @@ export default function InclineFrictionCanvas({ params = {} }) {
           <boxGeometry args={[RAMP_WORLD + 0.5, 0.14, RAMP_DEPTH + 0.14]} />
           <meshStandardMaterial color="#94a3b8" roughness={0.35} metalness={0.65} />
         </mesh>
-        {/* Anti-slip rubber feet pads */}
-        {[-1, 1].map((side) => (
-          <mesh key={side} position={[(side * (RAMP_WORLD + 0.35)) / 2, -0.09, 0]}>
-            <boxGeometry args={[0.3, 0.06, RAMP_DEPTH + 0.1]} />
-            <meshStandardMaterial color="#475569" roughness={0.7} />
-          </mesh>
-        ))}
-        {/* Knurled brass leveling thumb-screws on all 4 corners */}
-        {[-1, 1].map((sx) =>
-          [-1, 1].map((sz) => (
-            <group
-              key={`level-${sx}-${sz}`}
-              position={[
-                (sx * (RAMP_WORLD + 0.38)) / 2,
-                -0.12,
-                (sz * (RAMP_DEPTH + 0.14)) / 2,
-              ]}
-            >
-              <mesh>
-                <cylinderGeometry args={[0.06, 0.06, 0.04, 16]} />
-                <meshStandardMaterial color="#fbbf24" roughness={0.25} metalness={0.9} />
-              </mesh>
-            </group>
-          ))
-        )}
         {/* Green spirit level bubble vial embedded in the base */}
         <group position={[-RAMP_WORLD / 2 + 0.5, 0.075, (RAMP_DEPTH + 0.05) / 2]}>
           <mesh rotation={[0, 0, Math.PI / 2]}>
