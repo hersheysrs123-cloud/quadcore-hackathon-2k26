@@ -7480,3 +7480,34 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 4. **Automated Verification**:
    - All 1,299 automated unit tests and 34 challenge tests pass with 0 regressions.
 
+---
+
+## Hooke's Law Force–Extension Graph Refinement: Smooth Yield Curvature, Overload Mechanics & Typography Upgrade
+
+### 1. Problem Statement
+- When hung weights exceeded the physical failure capacity of the spring (for example, hanging $500\text{ g} = 4.91\text{ N}$ on a $15\text{ N/m}$ spring whose failure threshold is $3.36\text{ N}$), the active coordinate marker dot and tangent line detached from the force-extension curve and floated isolated in empty space near the top of the plot.
+- The elastic-to-plastic transition at the $14\text{ cm}$ elastic limit was rendered using two separate, disjoint `<line>` elements meeting at a sharp, jagged elbow corner rather than a realistic, smooth yielding curve.
+- SVG text elements relied on generic un-aliased monospace fonts that rendered pixelated on Windows displays without clear axis units or typographic hierarchy.
+
+### 2. Root Cause
+1. **Marker Force Clamping Discrepancy**: While the plastic curve was capped at `failureForce(k)` ($3.36\text{ N}$), the working point marker and tangent line coordinates were evaluated using raw `solved.force` ($4.91\text{ N}$), causing the marker to plot $1.55\text{ N}$ above the terminating end of the spring's characteristic curve.
+2. **Piecewise Sharp Geometry**: The elastic and plastic curves were modeled as two separate SVG `<line>` primitives without continuous tangent bridging, resulting in an abrupt angular kink at $x = 14\text{ cm}$ and disjoint stroke caps.
+3. **Typography & Rendering Inheritance**: Monospace font classes on SVG `<text>` elements inherited browser fallback fonts (`Courier New` on Windows) lacking tabular alignment and anti-aliasing.
+
+### 3. Resolution
+1. **Anchored Failure & Overload Indicator Mechanics (`VisualizationHUD.jsx`)**:
+   - The active coordinate marker on the spring curve is now strictly anchored to the spring's physical capacity point $(x_F, F_{\text{fail}}) = (30\text{ cm}, F_{\text{fail}})$ with a high-visibility pulsing rose alert halo when the spring is in the `Broken (Scrap)` state.
+   - When the hung weight exceeds the breaking limit ($F_{\text{hung}} > F_{\text{fail}} + 0.05\text{ N}$), a vertical dashed rose overload guide line extends from the failure point up to the hung load point with a clear label (`Hung: 4.9N`), explaining to students why the spring failed without disconnecting the marker from the curve.
+   - Tangent line stiffness at failure is fixed at $0\text{ N/m}$ and aligned flush with the failure plateau.
+2. **$C^1$-Continuous Quadratic Yield Knee & Area Gradients**:
+   - Integrated a $C^1$-smooth quadratic fillet knee at the $14\text{ cm}$ elastic limit ($\delta = 1.4\text{ cm}$ radius), smoothly blending the linear Hooke's line ($F = kx$) into the plastic hardening curve with zero angular kinks.
+   - Added subtle SVG linear area gradients under the curve (`#hookeElasticGrad` in sky blue `#38bdf8` and `#hookePlasticGrad` in warm amber `#f59e0b`), visually depicting the physical work done ($W = \int F \, dx$) and energy stored vs. dissipated.
+   - Added a faint background reference envelope (`stroke="#334155"`, dashed) demonstrating the complete potential loading trajectory of the spring.
+3. **Scientific Typography Upgrade**:
+   - Standardized all titles, axis headers ($F\text{ (N)}$, $\Delta x\text{ (cm)}$), and status pills with `Plus Jakarta Sans` (`system-ui`).
+   - Standardized all calibrated numerical tick labels, slope values, and permanent set tags with `JetBrains Mono` (`fontVariantNumeric: "tabular-nums"`).
+   - Added `textRendering: "geometricPrecision"` to the SVG element for razor-sharp rendering across all display DPIs.
+4. **Automated Verification**:
+   - All 1,299 unit tests across 324 suites and 34 empirical challenge tests pass with zero regressions.
+
+

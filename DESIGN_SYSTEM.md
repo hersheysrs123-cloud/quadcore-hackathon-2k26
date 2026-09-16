@@ -824,15 +824,24 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
         - Tab Switcher and Speed Slider margins compacted to `mb-2`.
         - Action buttons ("Exceed limit" and "Fresh spring") paired in a 2-column grid (`grid grid-cols-2 gap-1.5`) with compact padding (`text-[11px] py-1.5 px-2`), saving ~45px of vertical screen height.
       - SVG Frame & Curve Tokens:
-        - Frame: `viewBox="0 0 280 125"` SVG canvas within `rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 shadow-inner`.
-        - Elastic Curve: Sky blue line (`#38bdf8`, strokeWidth 2.2, linecap round) representing Hooke's Law $F = kx$.
-        - Plastic Curve: High-contrast orange line (`#f97316`, strokeWidth 2.2, linecap round) showing yield slope.
-        - Unload Curve: Dashed gold line (`#fbbf24`, strokeWidth 1.8, dasharray `4 3`) running back down to the permanent set.
-        - Elastic Limit Boundary: Vertical dashed rose line (`#f43f5e`, strokeWidth 1.2, dasharray `3 3`) with top label "Limit".
-        - Measured Tangent: Mint green segment (`#34d399`, strokeWidth 1.6, opacity 0.8) displaying live gradient $\Delta F/\Delta x$.
-        - Working Point Marker: Coordinate dot (`#ffffff` with `#38bdf8` stroke) with outer translucent halo (`#38bdf8` at 0.25 opacity).
-        - Status Badge: Dynamic pill (`Hooke's Law (F=kx)` in teal, `Plastic Yielding` in animated pulse amber, `Permanent Set (x.x cm)` in solid amber, or `Broken (Scrap)` in rose).
-        - Bottom Metric Bar: Monospace 3-part readout for applied force $F$, extension $x$, and gradient stiffness $k$.
+        - Frame: `viewBox="0 0 280 130"` SVG canvas within `rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 shadow-inner` with `textRendering="geometricPrecision"`.
+        - Typography Tokens:
+          - Labels, Headings & Badges: `style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}`.
+          - Numbers, Ticks & Units: `style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}`.
+        - Area Gradient Fills:
+          - Elastic Fill: `#hookeElasticGrad` (`stopColor="#38bdf8" stopOpacity="0.22" -> "0.02"`).
+          - Plastic Fill: `#hookePlasticGrad` (`stopColor="#f59e0b" stopOpacity="0.20" -> "0.02"`).
+        - Smooth Yield Knee Curvature: Continuous $C^1$-smooth quadratic fillet knee at the $14\text{ cm}$ elastic limit ($\delta = 1.4\text{ cm}$ radius), smoothly blending the linear Hooke's slope into the plastic yield curve.
+        - Background Full Envelope: Faint reference guide (`#334155`, strokeWidth 1.2, dasharray `3 3`, opacity 0.45) tracing the spring's complete operational capability up to failure.
+        - Elastic Curve: Sky blue stroke (`#38bdf8`, strokeWidth 2.4, linecap round) representing Hooke's Law $F = kx$.
+        - Plastic Curve: Warm amber stroke (`#f59e0b`, strokeWidth 2.4, linecap round, linejoin round) showing plastic yield.
+        - Unload Curve: Dashed gold line (`#fbbf24`, strokeWidth 1.8, dasharray `4 3`, linecap round) running back down to permanent set with an amber x-axis indicator arrow.
+        - Elastic Limit Boundary: Vertical dashed rose line (`#f43f5e`, strokeWidth 1.2, dasharray `3 3`) with top pill badge `14cm Limit`.
+        - Measured Tangent: Mint green segment (`#34d399`, strokeWidth 1.8, linecap round, opacity 0.9) tracking instantaneous stiffness.
+        - Overload Protection & Guide: When hung load exceeds failure force, the marker remains anchored at the failure capacity point $(30\text{ cm}, F_{\text{fail}})$, with a vertical dashed rose guide line (`#f43f5e`, strokeWidth 1.4, dasharray `3 3`) extending up to the hung load point with a `Hung: X.X N` pip, preventing floating marker detachment.
+        - Working Point Marker: Triple-layer dot (outer pulsing aura at 0.25 opacity, crisp ring stroke `#ffffff`, and central white core; rose `#f43f5e` when failed/scrap, sky `#38bdf8` when operational).
+        - Status Badge: High-contrast pill (`Hooke's Law (F=kx)` in emerald, `Plastic Yielding` in pulse amber, `Set: X.X cm` in gold, or `Broken (Scrap)` in rose).
+        - Bottom Metric Cards: 3-column dark inset card grid for Applied Load ($F$), Extension ($x$), and Stiffness ($k$).
       - Viewport Decluttering & Camera Framing:
         - Zero in-canvas 3D Drei Billboards in the WebGL scene.
         - Centered camera target at `[0.15, -0.2, 0]` and position `[0.15, 0.3, 12.5]` for optimal apparatus framing.

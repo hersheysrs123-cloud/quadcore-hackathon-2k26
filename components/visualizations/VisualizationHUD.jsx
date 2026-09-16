@@ -25,6 +25,8 @@ import {
   failureForce,
   loadCurve,
   loadForce,
+  loadingExtension,
+  permanentSet,
   solveSpring,
 } from "@/lib/hookesLaw";
 import { isLever, solveMachine } from "@/lib/simpleMachines";
@@ -540,7 +542,11 @@ function StageStepper({ control, params, setParam, value, emit }) {
 /**
  * 2D Force–Extension graph in the left sidebar HUD.
  * Plots Hooke's law elastic line, plastic yield curve, unload line,
- * elastic limit boundary, tangent gradient, and live operating marker.
+/**
+ * High-precision 2D Force–Extension graph in the left sidebar HUD.
+ * Renders smooth Hookean elastic response, smooth plastic yield curvature,
+ * parallel unloading line, elastic limit guideline, local tangent gradient,
+ * permanent set indicator, and live operating point with overload protection.
  */
 function HookesLawSidebarGraph({ params }) {
   const massKg = typeof params?.hangingMass === "number" ? params.hangingMass : 0.5;
@@ -549,17 +555,25 @@ function HookesLawSidebarGraph({ params }) {
   const peakForce = Math.max(typeof params?.peakForce === "number" ? params.peakForce : 0, force);
 
   const solved = useMemo(() => solveSpring({ massKg, k, peakForce }), [massKg, k, peakForce]);
-  const curve = useMemo(() => loadCurve(k, solved.peakForce), [k, solved.peakForce]);
 
-  const yMax = Math.max(failureForce(k), force) * 1.08;
-  const xMax = FAILURE_EXTENSION * 1.05;
+  const x_L = ELASTIC_LIMIT_EXTENSION; // 0.14 m
+  const x_F = FAILURE_EXTENSION; // 0.30 m
+  const F_L = elasticLimitForce(k);
+  const F_F = failureForce(k);
+
+  const isFailed = solved.failed;
+  const activeF = isFailed ? F_F : Math.min(solved.force, F_F);
+  const activeX = solved.extension;
+
+  const yMax = Math.max(F_F, force) * 1.12;
+  const xMax = x_F * 1.08;
 
   const width = 280;
-  const height = 125;
-  const padL = 32;
-  const padR = 10;
-  const padT = 10;
-  const padB = 20;
+  const height = 130;
+  const padL = 34;
+  const padR = 14;
+  const padT = 16;
+  const padB = 22;
 
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
@@ -567,145 +581,374 @@ function HookesLawSidebarGraph({ params }) {
   const toSvgX = (x) => padL + (Math.max(0, Math.min(x, xMax)) / (xMax || 1)) * plotW;
   const toSvgY = (f) => padT + ((yMax - Math.max(0, Math.min(f, yMax))) / (yMax || 1)) * plotH;
 
-  const limitX = toSvgX(ELASTIC_LIMIT_EXTENSION);
+  const limitX = toSvgX(x_L);
+  const failX = toSvgX(x_F);
+  const baselineY = toSvgY(0);
 
-  // Tangent segment
+  // Peak reached along loading path
+  const peakF = Math.min(peakForce, F_F);
+  const peakX = Math.min(loadingExtension(peakF, k), x_F);
+
+  // Smooth fillet around elastic limit (x_L, F_L)
+  const kp = (F_F - F_L) / Math.max(x_F - x_L, 1e-6);
+  const delta = 0.014; // 1.4 cm fillet transition
+  const filletP0 = { x: x_L - delta, y: F_L - delta * k };
+  const filletCorner = { x: x_L, y: F_L };
+  const filletP1 = { x: x_L + delta, y: F_L + delta * kp };
+
+  // 1. Full Capability Envelope (faint reference background)
+  const envelopePath = useMemo(() => {
+    return `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(filletP0.x)} ${toSvgY(filletP0.y)} Q ${toSvgX(filletCorner.x)} ${toSvgY(filletCorner.y)} ${toSvgX(filletP1.x)} ${toSvgY(filletP1.y)} L ${toSvgX(x_F)} ${toSvgY(F_F)}`;
+  }, [k, xMax, yMax]);
+
+  // 2. Active Elastic Path & Area Fill
+  const { elasticStrokeD, elasticFillD } = useMemo(() => {
+    const endX = Math.min(peakX, x_L);
+    const endF = endX * k;
+    const stroke = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(endX)} ${toSvgY(endF)}`;
+    const fill = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(endX)} ${toSvgY(endF)} L ${toSvgX(endX)} ${baselineY} L ${toSvgX(0)} ${baselineY} Z`;
+    return { elasticStrokeD: stroke, elasticFillD: fill };
+  }, [peakX, k, xMax, yMax, baselineY]);
+
+  // 3. Active Plastic Path & Area Fill (when peakForce > F_L)
+  const { plasticStrokeD, plasticFillD } = useMemo(() => {
+    if (peakF <= F_L) return { plasticStrokeD: "", plasticFillD: "" };
+
+    let stroke = "";
+    if (peakX <= filletP1.x) {
+      const t = Math.max(0, Math.min((peakX - filletP0.x) / (filletP1.x - filletP0.x || 1), 1));
+      const midX = (1 - t) * filletP0.x + t * filletCorner.x;
+      const midY = (1 - t) * filletP0.y + t * filletCorner.y;
+      stroke = `M ${toSvgX(filletP0.x)} ${toSvgY(filletP0.y)} Q ${toSvgX(midX)} ${toSvgY(midY)} ${toSvgX(peakX)} ${toSvgY(peakF)}`;
+    } else {
+      stroke = `M ${toSvgX(filletP0.x)} ${toSvgY(filletP0.y)} Q ${toSvgX(filletCorner.x)} ${toSvgY(filletCorner.y)} ${toSvgX(filletP1.x)} ${toSvgY(filletP1.y)} L ${toSvgX(peakX)} ${toSvgY(peakF)}`;
+    }
+
+    const fill = `${stroke} L ${toSvgX(peakX)} ${baselineY} L ${toSvgX(filletP0.x)} ${baselineY} Z`;
+    return { plasticStrokeD: stroke, plasticFillD: fill };
+  }, [peakF, peakX, F_L, k, xMax, yMax, baselineY]);
+
+  // 4. Unload line (from peak point down to permanent set)
+  const unloadData = useMemo(() => {
+    if (peakF <= F_L) return null;
+    const setM = permanentSet(peakF, k);
+    return {
+      x0: toSvgX(peakX),
+      y0: toSvgY(peakF),
+      x1: toSvgX(setM),
+      y1: toSvgY(0),
+      setM,
+      setSvgX: toSvgX(setM),
+    };
+  }, [peakF, peakX, F_L, k, xMax, yMax]);
+
+  // 5. Operating point & tangent line
+  const markerX = toSvgX(activeX);
+  const markerY = toSvgY(activeF);
+
   const tangentPoints = useMemo(() => {
-    const half = 0.035;
-    const x0 = Math.max(solved.extension - half, 0);
-    const x1 = Math.min(solved.extension + half, xMax);
+    const half = 0.028;
+    const m = isFailed ? 0 : solved.stiffness;
+    const x0 = Math.max(activeX - half, 0);
+    const x1 = Math.min(activeX + half, xMax);
     return {
       x0: toSvgX(x0),
-      y0: toSvgY(solved.force - (solved.extension - x0) * solved.stiffness),
+      y0: toSvgY(activeF - (activeX - x0) * m),
       x1: toSvgX(x1),
-      y1: toSvgY(solved.force + (x1 - solved.extension) * solved.stiffness),
+      y1: toSvgY(activeF + (x1 - activeX) * m),
     };
-  }, [solved, xMax, yMax]);
+  }, [activeX, activeF, isFailed, solved.stiffness, xMax, yMax]);
 
-  const markerSvg = {
-    x: toSvgX(solved.extension),
-    y: toSvgY(solved.force),
-  };
-
-  const statusBadge = solved.failed
+  // Status Badge
+  const statusBadge = isFailed
     ? { label: "Broken (Scrap)", badge: "bg-rose-500/20 text-rose-300 border-rose-500/40" }
     : solved.yielding
     ? { label: "Plastic Yielding", badge: "bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse" }
     : solved.yielded
-    ? { label: `Set: ${(solved.permanentSet * 100).toFixed(1)}cm`, badge: "bg-amber-500/20 text-amber-300 border-amber-500/40" }
-    : { label: "Hooke's Law (F=kx)", badge: "bg-teal-500/20 text-teal-300 border-teal-500/40" };
+    ? { label: `Set: ${(solved.permanentSet * 100).toFixed(1)}cm`, badge: "bg-duck-500/20 text-duck-300 border-duck-500/40" }
+    : { label: "Hooke's Law (F=kx)", badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" };
 
   return (
-    <div className="rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 space-y-1.5 shadow-inner">
+    <div className="rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 space-y-2 shadow-inner">
       <div className="flex items-center justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-duck-300">
+        <span
+          className="text-[11px] font-bold uppercase tracking-wider text-duck-300"
+          style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}
+        >
           Force–Extension F(x)
         </span>
-        <span className={`rounded px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase border ${statusBadge.badge}`}>
+        <span
+          className={`rounded px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide border shadow-sm ${statusBadge.badge}`}
+          style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}
+        >
           {statusBadge.label}
         </span>
       </div>
 
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none overflow-visible">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-auto select-none overflow-visible"
+        style={{ textRendering: "geometricPrecision" }}
+      >
+        <defs>
+          {/* Elastic Region Fill Gradient */}
+          <linearGradient id="hookeElasticGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+          </linearGradient>
+
+          {/* Plastic Region Fill Gradient */}
+          <linearGradient id="hookePlasticGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+
         {/* Horizontal gridlines */}
-        <line x1={padL} y1={padT} x2={width - padR} y2={padT} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
-        <line x1={padL} y1={padT + plotH / 2} x2={width - padR} y2={padT + plotH / 2} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
-        <line x1={padL} y1={height - padB} x2={width - padR} y2={height - padB} stroke="#64748b" strokeWidth="1.2" />
+        <line x1={padL} y1={padT} x2={width - padR} y2={padT} stroke="#1e2638" strokeWidth="1" strokeDasharray="3 3" />
+        <line x1={padL} y1={padT + plotH / 2} x2={width - padR} y2={padT + plotH / 2} stroke="#1e2638" strokeWidth="1" strokeDasharray="3 3" />
+        <line x1={padL} y1={baselineY} x2={width - padR} y2={baselineY} stroke="#475569" strokeWidth="1.2" />
 
         {/* Vertical zero axis */}
-        <line x1={padL} y1={padT} x2={padL} y2={height - padB} stroke="#64748b" strokeWidth="1.2" />
+        <line x1={padL} y1={padT} x2={padL} y2={baselineY} stroke="#475569" strokeWidth="1.2" />
 
-        {/* Elastic limit vertical boundary */}
-        <line x1={limitX} y1={padT} x2={limitX} y2={height - padB} stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 3" />
-        <text x={limitX} y={padT - 2} textAnchor="middle" className="text-[8px] fill-rose-400 font-mono">
-          Limit
+        {/* Y Axis Title */}
+        <text
+          x={padL - 6}
+          y={padT - 4}
+          textAnchor="end"
+          style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+          className="text-[8px] fill-ink-400 font-semibold"
+        >
+          F (N)
         </text>
 
-        {/* Measured Tangent slope */}
+        {/* X Axis Title */}
+        <text
+          x={width - padR}
+          y={baselineY - 5}
+          textAnchor="end"
+          style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+          className="text-[7.5px] fill-ink-500 font-medium"
+        >
+          Δx (cm)
+        </text>
+
+        {/* Elastic Limit Vertical Guideline */}
+        <line x1={limitX} y1={padT} x2={limitX} y2={baselineY} stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 3" opacity="0.8" />
+        <g transform={`translate(${limitX}, ${padT - 6})`}>
+          <rect x="-16" y="-6" width="32" height="11" rx="3" fill="#1e1824" stroke="#f43f5e" strokeWidth="0.8" />
+          <text
+            x="0"
+            y="2"
+            textAnchor="middle"
+            style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+            className="text-[7.5px] fill-rose-300 font-bold"
+          >
+            14cm Limit
+          </text>
+        </g>
+
+        {/* Background Full Capability Envelope (Faint reference) */}
+        <path
+          d={envelopePath}
+          fill="none"
+          stroke="#334155"
+          strokeWidth="1.2"
+          strokeDasharray="3 3"
+          opacity="0.45"
+        />
+
+        {/* Active Elastic Curve & Fill */}
+        {elasticFillD && <path d={elasticFillD} fill="url(#hookeElasticGrad)" />}
+        {elasticStrokeD && (
+          <path
+            d={elasticStrokeD}
+            fill="none"
+            stroke="#38bdf8"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* Active Plastic Curve & Fill */}
+        {plasticFillD && <path d={plasticFillD} fill="url(#hookePlasticGrad)" />}
+        {plasticStrokeD && (
+          <path
+            d={plasticStrokeD}
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {/* Unload Line (Dashed Gold) */}
+        {unloadData && (
+          <g>
+            <line
+              x1={unloadData.x0}
+              y1={unloadData.y0}
+              x2={unloadData.x1}
+              y2={unloadData.y1}
+              stroke="#fbbf24"
+              strokeWidth="1.8"
+              strokeDasharray="4 3"
+              strokeLinecap="round"
+              opacity="0.9"
+            />
+            {/* Permanent set axis indicator */}
+            {unloadData.setM > 0.005 && (
+              <g transform={`translate(${unloadData.setSvgX}, ${baselineY})`}>
+                <polygon points="0,-4 -3,0 3,0" fill="#fbbf24" />
+                <text
+                  x="0"
+                  y="10"
+                  textAnchor="middle"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+                  className="text-[7px] fill-amber-300 font-semibold"
+                >
+                  Set: {(unloadData.setM * 100).toFixed(1)}
+                </text>
+              </g>
+            )}
+          </g>
+        )}
+
+        {/* Measured Tangent Gradient Line */}
         <line
           x1={tangentPoints.x0}
           y1={tangentPoints.y0}
           x2={tangentPoints.x1}
           y2={tangentPoints.y1}
           stroke="#34d399"
-          strokeWidth="1.6"
+          strokeWidth="1.8"
           strokeLinecap="round"
-          opacity="0.8"
+          opacity="0.9"
         />
 
-        {/* Elastic region line (Hooke's Law) */}
-        {curve.elastic.length >= 2 && (
-          <line
-            x1={toSvgX(curve.elastic[0][0])}
-            y1={toSvgY(curve.elastic[0][1])}
-            x2={toSvgX(curve.elastic[1][0])}
-            y2={toSvgY(curve.elastic[1][1])}
-            stroke="#38bdf8"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-          />
+        {/* Overload guide when hung load exceeds spring breaking threshold */}
+        {isFailed && force > F_F + 0.05 && (
+          <g>
+            <line
+              x1={failX}
+              y1={markerY}
+              x2={failX}
+              y2={toSvgY(force)}
+              stroke="#f43f5e"
+              strokeWidth="1.4"
+              strokeDasharray="3 3"
+              opacity="0.8"
+            />
+            <circle cx={failX} cy={toSvgY(force)} r="3" fill="#f43f5e" opacity="0.9" />
+            <text
+              x={failX - 5}
+              y={toSvgY(force) + 3}
+              textAnchor="end"
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+              className="text-[7.5px] fill-rose-400 font-semibold"
+            >
+              Hung: {force.toFixed(1)}N
+            </text>
+          </g>
         )}
 
-        {/* Plastic region curve */}
-        {curve.plastic.length >= 2 && (
-          <line
-            x1={toSvgX(curve.plastic[0][0])}
-            y1={toSvgY(curve.plastic[0][1])}
-            x2={toSvgX(curve.plastic[1][0])}
-            y2={toSvgY(curve.plastic[1][1])}
-            stroke="#f97316"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-          />
-        )}
+        {/* Live Operating Point Marker */}
+        <circle cx={markerX} cy={markerY} r={isFailed ? "7" : "6"} fill={isFailed ? "#f43f5e" : "#38bdf8"} opacity="0.25" className="animate-pulse" />
+        <circle cx={markerX} cy={markerY} r={isFailed ? "4" : "3.6"} fill={isFailed ? "#f43f5e" : "#38bdf8"} stroke="#ffffff" strokeWidth="1.5" />
+        <circle cx={markerX} cy={markerY} r="1.3" fill="#ffffff" />
 
-        {/* Unload curve */}
-        {curve.unload.length >= 2 && (
-          <line
-            x1={toSvgX(curve.unload[0][0])}
-            y1={toSvgY(curve.unload[0][1])}
-            x2={toSvgX(curve.unload[1][0])}
-            y2={toSvgY(curve.unload[1][1])}
-            stroke="#fbbf24"
-            strokeWidth="1.8"
-            strokeDasharray="4 3"
-          />
-        )}
-
-        {/* Current working point marker */}
-        <circle cx={markerSvg.x} cy={markerSvg.y} r="5.5" fill="#38bdf8" opacity="0.25" />
-        <circle cx={markerSvg.x} cy={markerSvg.y} r="3" fill="#ffffff" stroke="#38bdf8" strokeWidth="1.5" />
-
-        {/* Y Axis labels */}
-        <text x={padL - 4} y={padT + 4} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+        {/* Y Axis numerical tick labels */}
+        <text
+          x={padL - 4}
+          y={padT + 3}
+          textAnchor="end"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          className="text-[8px] fill-ink-400 font-medium"
+        >
           {yMax.toFixed(0)}N
         </text>
-        <text x={padL - 4} y={padT + plotH / 2 + 3} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+        <text
+          x={padL - 4}
+          y={padT + plotH / 2 + 3}
+          textAnchor="end"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          className="text-[8px] fill-ink-500 font-medium"
+        >
           {(yMax / 2).toFixed(0)}N
         </text>
-        <text x={padL - 4} y={height - padB + 2} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+        <text
+          x={padL - 4}
+          y={baselineY + 3}
+          textAnchor="end"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          className="text-[8px] fill-ink-500 font-medium"
+        >
           0
         </text>
 
-        {/* X Axis labels */}
-        <text x={padL} y={height - 4} textAnchor="start" className="text-[8px] fill-ink-500 font-mono">
+        {/* X Axis numerical tick labels */}
+        <text
+          x={padL}
+          y={baselineY + 12}
+          textAnchor="start"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          className="text-[8px] fill-ink-500 font-medium"
+        >
           0cm
         </text>
-        <text x={limitX} y={height - 4} textAnchor="middle" className="text-[8px] fill-rose-400/90 font-mono">
-          {(ELASTIC_LIMIT_EXTENSION * 100).toFixed(0)}cm
+        <text
+          x={limitX}
+          y={baselineY + 12}
+          textAnchor="middle"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          className="text-[8px] fill-rose-400 font-semibold"
+        >
+          {(x_L * 100).toFixed(0)}cm
         </text>
-        <text x={width - padR} y={height - 4} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
-          {(xMax * 100).toFixed(0)}cm
+        <text
+          x={failX}
+          y={baselineY + 12}
+          textAnchor="middle"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          className="text-[8px] fill-ink-400 font-medium"
+        >
+          {(x_F * 100).toFixed(0)}cm
         </text>
       </svg>
 
-      {/* Mini 3-value readout bar */}
-      <div className="flex items-center justify-between border-t border-ink-800/80 pt-1 font-mono text-[9.5px]">
-        <span className="text-amber-300 font-semibold">F: {solved.force.toFixed(2)} N</span>
-        <span className="text-duck-300 font-semibold">x: {(solved.extension * 100).toFixed(1)} cm</span>
-        <span className={solved.elastic ? "text-emerald-400" : "text-amber-400"}>
-          k: {solved.stiffness.toFixed(0)} N/m
-        </span>
+      {/* Mini 3-value readout cards */}
+      <div className="grid grid-cols-3 gap-1 border-t border-ink-800/80 pt-1.5 text-center">
+        <div className="flex flex-col bg-ink-900/60 rounded px-1 py-0.5 border border-ink-800/50">
+          <span className="text-[7.5px] uppercase tracking-wider text-ink-500 font-sans">Load (F)</span>
+          <span
+            className="text-[9.5px] font-bold text-amber-300 truncate"
+            style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          >
+            {solved.force.toFixed(2)} N
+          </span>
+        </div>
+        <div className="flex flex-col bg-ink-900/60 rounded px-1 py-0.5 border border-ink-800/50">
+          <span className="text-[7.5px] uppercase tracking-wider text-ink-500 font-sans">Extension (x)</span>
+          <span
+            className="text-[9.5px] font-bold text-duck-300 truncate"
+            style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          >
+            {(solved.extension * 100).toFixed(1)} cm
+          </span>
+        </div>
+        <div className="flex flex-col bg-ink-900/60 rounded px-1 py-0.5 border border-ink-800/50">
+          <span className="text-[7.5px] uppercase tracking-wider text-ink-500 font-sans">Stiffness (k)</span>
+          <span
+            className={`text-[9.5px] font-bold truncate ${
+              isFailed ? "text-rose-400" : solved.elastic ? "text-emerald-400" : "text-amber-400"
+            }`}
+            style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+          >
+            {isFailed ? "0 (Scrap)" : `${solved.stiffness.toFixed(0)} N/m`}
+          </span>
+        </div>
       </div>
     </div>
   );
