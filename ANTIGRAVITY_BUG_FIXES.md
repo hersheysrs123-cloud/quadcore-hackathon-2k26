@@ -7419,3 +7419,33 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 5. **Verification**:
    - Verified that all 1,299 automated unit tests and 34 empirical challenge tests pass without regression.
 
+---
+
+## Incline Plane 3D Visualisation Redesign: Dedicated Right Telemetry Sidebar & Render Area Decluttering
+
+### 1. Problem Statement
+- In previous versions of the Incline Plane & Friction 3D simulation (`InclineFrictionCanvas.jsx`), the velocity vs. time graph (`GraphPanel`), the static friction grip capacity gauge (`GripGauge`), and the Newton's Second Law statistics overlay (`SceneReadout`) were mounted directly inside the 3D WebGL render viewport as 3D Drei Billboards and text overlays.
+- As students rotated or orbited the 3D scene, these 3D billboards rotated in world space, visually collided with the incline ramp apparatus, and severely cluttered the visual observation space around the sliding cargo crate, normal/friction vectors, and pull strings.
+
+### 2. Root Cause
+- `InclineFrictionCanvas.jsx` had `GraphPanel` placed at `[3.4, -1.25, 0]` and `GripGauge` at `[-2.6, gaugeY, 0]` inside `<SceneCanvas>`, forcing 2D data visualizations and telemetry to compete for 3D world space and WebGL draw calls.
+
+### 3. Resolution
+1. **Dedicated Collapsible Right Telemetry Sidebar (`InclineFrictionCanvas.jsx`)**:
+   - Wrapped the apparatus in a `flex flex-row overflow-hidden` container with the 3D viewport occupying the flexible space on the left, and a dedicated `<aside className="w-[320px]">` telemetry sidebar on the right.
+   - Removed all 3D Drei Billboards (`GraphPanel`, `GripGauge`) and overlay readouts (`SceneReadout`) from `<SceneCanvas>`, leaving the 3D canvas clean, spacious, and dedicated entirely to the physical apparatus.
+2. **2D SVG Velocity Trace Graph (`InclineVelocityGraph`)**:
+   - Placed a high-performance 2D SVG plot (`viewBox="0 0 280 120"`) in the right sidebar.
+   - Preserved direction-aware dynamic range scaling (anchoring the zero-baseline flush with the bottom border for pure uphill motion or top border for pure downhill motion, expanding resolution).
+   - Rendered live coordinate marker with pulsing halo and terminal impact velocity badge.
+3. **2D Static Friction Grip Capacity Bar (`InclineGripBar`)**:
+   - Visualizes the $f_s \le \mu_s N$ inequality with an intuitive percentage capacity fill bar, breakaway ceiling indicator line (`100%`), and dynamic status badges (`Equilibrium` in teal, `On The Verge` in amber with pulse animation, and `Sliding` in rose).
+   - Includes numerical breakdown card displaying instantaneous friction force, max static breakaway limit, and angle of repose $\theta_r$.
+4. **Forces & Dynamics Statistics Grid (`InclineStatsGrid`)**:
+   - Clean 2-column tabular grid displaying acceleration ($a$), net force ($\Sigma F$), velocity ($v$), ramp angle ($\theta$), weight ($W$), slope force ($W_\parallel$), normal force ($N$), applied pull ($F$), and friction coefficients ($\mu_s, \mu_k$) with semantic color coding.
+5. **Centered Camera Framing & Reopen Trigger**:
+   - Re-centered apparatus camera to `position: [0.6, 1.4, 12.8]` and `target: [0.6, 0.2, 0]` for a centered, panoramic view.
+   - Added a floating glassmorphic top-right `[Telemetry]` trigger button with an `Activity` icon that appears when the right sidebar is collapsed, allowing students to toggle the sidebar open or closed with one click.
+6. **Automated Verification**:
+   - All 1,299 automated unit tests and 34 empirical challenge tests pass with 0 failures.
+

@@ -772,20 +772,36 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Wood Body: Bright golden honey cedar (`#d4924b`, roughness `0.55`) with chestnut reinforcement banding (`#a06030`).
       - Corner Brackets: Gleaming polished brass brackets (`#fbbf24`, metalness `0.85`).
       - Lifting Handles: High-contrast chrome handles (`#e2e8f0`) with slate recessed wells (`#475569`).
-    - **Grip Gauge & Plot Area (3D HUD Billboard & Chassis Tokens)**:
-      - Dynamic Camera Billboard: Both `GraphPanel` and `GripGauge` wrap their structures in `@react-three/drei`'s `<Billboard follow={true}>` centered at their 3D geometric centers, rotating dynamically with camera OrbitControls to remain perpendicular to the viewing vector from all angles ($0^\circ$ to $360^\circ$) without planar foreshortening or mirror distortion.
-      - 3D Instrument Chassis: Replaced single-sided 2D planes with extruded 3D chassis boxes (`boxGeometry` with depth `0.03` - `0.04`) and `THREE.DoubleSide` materials:
-        - Grip Gauge: Slate-blue chassis (`#222f46`, opacity `0.95`, `args={[3.46, 0.44, 0.03]}`), border (`#475569`), tick divisions (`#64748b`), and double-sided fill bar.
-        - Graph Panel: Slate chassis (`#1e2638`, opacity `0.94`, `args={[width + 0.8, height + 1.0, 0.04]}`), border (`#38455c`), grid (`#2e3b52`), and mathematical zero-axes (`#94a3b8`).
-      - Centered World Pivots: Inner content offset by $[-w/2, -h/2, 0]$ ensures rotation occurs in-place around true bounding centers, preventing translation into adjacent apparatus fixtures during 180° rotations.
-      - Direction-Aware Zero Baseline & Dashed Interior Lines:
-        - Bottom Anchor (Uphill motion, $v \ge 0$): $v = 0$ is aligned with the bottom border (`yMin = 0`), maximizing vertical resolution and eliminating the center horizontal line.
-        - Top Anchor (Downhill motion, $v \le 0$): $v = 0$ is aligned with the top border (`yMax = 0`).
-        - Subtle Dashed Reference Line: When $yZero$ is interior, rendered as `#64748b` with `dashSize=0.08`, `gapSize=0.06`, `opacity=0.6`, `lineWidth=1.2`.
-      - Calibrated Monospace Tick Labels: Monospace labels (`text-[9px] font-mono text-ink-400 select-none pointer-events-none`) for both time ($X$) and velocity ($Y$) axes.
-      - Dynamic Label Visibility & Decluttering Mode:
-        - Toggle `removeLabels`: Cascading suppression across vector tags, crate mass, ramp angle, centimeter ticks, grip status, and graph scales.
-        - Preserves clean vector shafts and geometry with zero HTML layout shift.
+    - **Right Telemetry Sidebar & Analytics HUD Tokens**:
+      - Sidebar Container: Dedicated docked `<aside>` (`w-[320px]`, `border-l border-ink-800 bg-ink-900/95 backdrop-blur-md shadow-2xl`) cleanly separated from the 3D WebGL viewport.
+      - Sidebar Header: `border-b border-ink-800/70 pb-1`, `Activity` icon in `text-duck-300`, title in `text-xs font-bold uppercase tracking-wider text-ink-100`, and close button (`X`, `hover:bg-ink-800 hover:text-ink-100`).
+      - Static Grip Capacity Bar (`InclineGripBar`):
+        - Container: `rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2`.
+        - State Badges:
+          - Equilibrium: `bg-teal-500/20 text-teal-300 border border-teal-500/40`.
+          - On The Verge: `bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse`.
+          - Sliding: `bg-rose-500/20 text-rose-300 border border-rose-500/40`.
+        - Capacity Gauge Bar: Recessed pill track (`h-3.5 border border-ink-700/80 bg-ink-900 p-0.5 shadow-inner`) with `100%` breakaway limit ceiling line (`w-1 bg-white/80`).
+        - Numerical Breakdown Card: Compact monospace card (`bg-ink-900/60 p-2 text-[10.5px] border border-ink-800/80`) displaying instantaneous friction force, static breakaway limit $f_{s,\max} = \mu_s N$, and angle of repose $\theta_r$.
+      - 2D SVG Velocity Trace Graph (`InclineVelocityGraph`):
+        - Frame: `viewBox="0 0 280 120"` SVG canvas within `rounded-xl border border-ink-800 bg-ink-950/70 p-3`.
+        - Grid & Axes: Subtle dashed gridlines (`#2e3b52`, dasharray `3 3`), solid zero reference baseline (`#64748b`), and clean monospace axis bounds (`text-[8.5px] fill-ink-500 font-mono`).
+        - Adaptive Velocity Curve: Real-time SVG `<path>` in cyan velocity accent (`FORCE_COLOURS.velocity`, width `2.2`, linecap `round`) with active terminal coordinate marker (`#34d399`) and halo.
+        - Dynamic Range Scaling: Automatically binds zero baseline to bottom for pure uphill motion ($v \ge 0$) or top for pure downhill motion ($v \le 0$), expanding resolution.
+        - Terminal Impact Pill: Bottom readout pill displaying instantaneous velocity or impact landing velocity (`impact: -2.34 m/s`).
+      - Forces & Dynamics Stats Grid (`InclineStatsGrid`):
+        - Layout: 2-column tabular grid (`grid-cols-2 gap-x-2.5 gap-y-2 pt-1`) in card container with section header and subtitle (`m = 10 kg · wood`).
+        - Metric Tokens:
+          - Acceleration ($a$): `text-ink-200` (static) / `text-rose-400` (accelerating).
+          - Net Force ($\Sigma F$): `text-emerald-400` (equilibrium) / `text-amber-400` (unbalanced).
+          - Velocity ($v$): `text-duck-300` font-bold.
+          - Ramp Angle ($\theta$) & Slope Weight ($W_\parallel$): `text-amber-300` (gold).
+          - Normal Force ($N$): `text-sky-300`.
+          - Applied Pull ($F$) & Mass ($m$): `text-ink-200`.
+          - Static & Kinetic Coefficients ($\mu_s, \mu_k$): `text-ink-200`.
+      - Telemetry Reopen Trigger:
+        - Floating button (`top-4 right-4 z-20`) with glassmorphic backing (`border border-ink-700 bg-ink-900/90 backdrop-blur text-ink-200 hover:bg-ink-800 hover:text-white`), `Activity` icon (`text-duck-300`), and `Telemetry` label to reopen the panel on demand.
+      - Centered Camera Framing: Apparatus centered at `position: [0.6, 1.4, 12.8]` with OrbitControls target at `[0.6, 0.2, 0]`.
 
 25. **3D Hooke's Law Apparatus & Extension Graph Tokens (`HookesLawCanvas.jsx`, `force-diagram.jsx`)**:
     - **Spring Geometry & Texture Safety Bounds**:
