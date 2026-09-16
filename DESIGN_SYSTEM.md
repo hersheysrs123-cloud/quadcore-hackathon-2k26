@@ -817,6 +817,25 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Protective End Caps: Machined brass end bindings (`#d4af37`, roughness `0.3`, metalness `0.8`) protecting upper and lower ends.
       - Dual-Sided Vector Markings: Millimeter, centimeter, and 5-centimeter graduation ticks (`#1e293b`) rendered symmetrically at $Z = +0.022$ and $Z = -0.022$ with edge wrap notches.
       - Dual-Sided Caliper Pointer: Double needle indicator arms ($Z = \pm 0.05$) with tip needle connecting front and back at the scale face.
+    - **Left Sidebar Force–Extension Graph & Compact Controls Tokens (`VisualizationHUD.jsx`, `HookesLawSidebarGraph`)**:
+      - Embedding: Force–Extension plot mounted directly inside the docked left sidebar Controls tab.
+      - Spacing & Fit Optimization:
+        - Sidebar scrollable container reduced to `p-2.5 space-y-2` (down from `p-3.5 space-y-3`).
+        - Tab Switcher and Speed Slider margins compacted to `mb-2`.
+        - Action buttons ("Exceed limit" and "Fresh spring") paired in a 2-column grid (`grid grid-cols-2 gap-1.5`) with compact padding (`text-[11px] py-1.5 px-2`), saving ~45px of vertical screen height.
+      - SVG Frame & Curve Tokens:
+        - Frame: `viewBox="0 0 280 125"` SVG canvas within `rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 shadow-inner`.
+        - Elastic Curve: Sky blue line (`#38bdf8`, strokeWidth 2.2, linecap round) representing Hooke's Law $F = kx$.
+        - Plastic Curve: High-contrast orange line (`#f97316`, strokeWidth 2.2, linecap round) showing yield slope.
+        - Unload Curve: Dashed gold line (`#fbbf24`, strokeWidth 1.8, dasharray `4 3`) running back down to the permanent set.
+        - Elastic Limit Boundary: Vertical dashed rose line (`#f43f5e`, strokeWidth 1.2, dasharray `3 3`) with top label "Limit".
+        - Measured Tangent: Mint green segment (`#34d399`, strokeWidth 1.6, opacity 0.8) displaying live gradient $\Delta F/\Delta x$.
+        - Working Point Marker: Coordinate dot (`#ffffff` with `#38bdf8` stroke) with outer translucent halo (`#38bdf8` at 0.25 opacity).
+        - Status Badge: Dynamic pill (`Hooke's Law (F=kx)` in teal, `Plastic Yielding` in animated pulse amber, `Permanent Set (x.x cm)` in solid amber, or `Broken (Scrap)` in rose).
+        - Bottom Metric Bar: Monospace 3-part readout for applied force $F$, extension $x$, and gradient stiffness $k$.
+      - Viewport Decluttering & Camera Framing:
+        - Zero in-canvas 3D Drei Billboards in the WebGL scene.
+        - Centered camera target at `[0.15, -0.2, 0]` and position `[0.15, 0.3, 12.5]` for optimal apparatus framing.
 
 26. **3D Roller Coaster Loop-the-Loop & Energy Conservation Tokens (`RollerCoasterCanvas.jsx`)**:
     - **Solid Bottom Bar HUD Architecture (`RollerCoasterBottomBar`)**:

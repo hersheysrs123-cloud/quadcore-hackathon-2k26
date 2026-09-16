@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Check,
   ChevronDown,
@@ -14,10 +14,19 @@ import {
   SkipForward,
   SlidersHorizontal,
   Sparkles,
+  TrendingDown,
   X,
 } from "lucide-react";
 import { solveIncline, surfaceFor } from "@/lib/inclineForces";
-import { loadForce, solveSpring } from "@/lib/hookesLaw";
+import {
+  ELASTIC_LIMIT_EXTENSION,
+  FAILURE_EXTENSION,
+  elasticLimitForce,
+  failureForce,
+  loadCurve,
+  loadForce,
+  solveSpring,
+} from "@/lib/hookesLaw";
 import { isLever, solveMachine } from "@/lib/simpleMachines";
 import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
 import { FLUIDS, fluidComparison, solveBuoyancy } from "@/lib/buoyancy";
@@ -521,6 +530,182 @@ function StageStepper({ control, params, setParam, value, emit }) {
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Hooke's Law 2D Sidebar Graph ───────────────────────────────────
+
+/**
+ * 2D Force–Extension graph in the left sidebar HUD.
+ * Plots Hooke's law elastic line, plastic yield curve, unload line,
+ * elastic limit boundary, tangent gradient, and live operating marker.
+ */
+function HookesLawSidebarGraph({ params }) {
+  const massKg = typeof params?.hangingMass === "number" ? params.hangingMass : 0.5;
+  const k = typeof params?.springConstant === "number" ? params.springConstant : 80;
+  const force = loadForce(massKg);
+  const peakForce = Math.max(typeof params?.peakForce === "number" ? params.peakForce : 0, force);
+
+  const solved = useMemo(() => solveSpring({ massKg, k, peakForce }), [massKg, k, peakForce]);
+  const curve = useMemo(() => loadCurve(k, solved.peakForce), [k, solved.peakForce]);
+
+  const yMax = Math.max(failureForce(k), force) * 1.08;
+  const xMax = FAILURE_EXTENSION * 1.05;
+
+  const width = 280;
+  const height = 125;
+  const padL = 32;
+  const padR = 10;
+  const padT = 10;
+  const padB = 20;
+
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const toSvgX = (x) => padL + (Math.max(0, Math.min(x, xMax)) / (xMax || 1)) * plotW;
+  const toSvgY = (f) => padT + ((yMax - Math.max(0, Math.min(f, yMax))) / (yMax || 1)) * plotH;
+
+  const limitX = toSvgX(ELASTIC_LIMIT_EXTENSION);
+
+  // Tangent segment
+  const tangentPoints = useMemo(() => {
+    const half = 0.035;
+    const x0 = Math.max(solved.extension - half, 0);
+    const x1 = Math.min(solved.extension + half, xMax);
+    return {
+      x0: toSvgX(x0),
+      y0: toSvgY(solved.force - (solved.extension - x0) * solved.stiffness),
+      x1: toSvgX(x1),
+      y1: toSvgY(solved.force + (x1 - solved.extension) * solved.stiffness),
+    };
+  }, [solved, xMax, yMax]);
+
+  const markerSvg = {
+    x: toSvgX(solved.extension),
+    y: toSvgY(solved.force),
+  };
+
+  const statusBadge = solved.failed
+    ? { label: "Broken (Scrap)", badge: "bg-rose-500/20 text-rose-300 border-rose-500/40" }
+    : solved.yielding
+    ? { label: "Plastic Yielding", badge: "bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse" }
+    : solved.yielded
+    ? { label: `Set: ${(solved.permanentSet * 100).toFixed(1)}cm`, badge: "bg-amber-500/20 text-amber-300 border-amber-500/40" }
+    : { label: "Hooke's Law (F=kx)", badge: "bg-teal-500/20 text-teal-300 border-teal-500/40" };
+
+  return (
+    <div className="rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 space-y-1.5 shadow-inner">
+      <div className="flex items-center justify-between">
+        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-duck-300">
+          Force–Extension F(x)
+        </span>
+        <span className={`rounded px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase border ${statusBadge.badge}`}>
+          {statusBadge.label}
+        </span>
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none overflow-visible">
+        {/* Horizontal gridlines */}
+        <line x1={padL} y1={padT} x2={width - padR} y2={padT} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
+        <line x1={padL} y1={padT + plotH / 2} x2={width - padR} y2={padT + plotH / 2} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
+        <line x1={padL} y1={height - padB} x2={width - padR} y2={height - padB} stroke="#64748b" strokeWidth="1.2" />
+
+        {/* Vertical zero axis */}
+        <line x1={padL} y1={padT} x2={padL} y2={height - padB} stroke="#64748b" strokeWidth="1.2" />
+
+        {/* Elastic limit vertical boundary */}
+        <line x1={limitX} y1={padT} x2={limitX} y2={height - padB} stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 3" />
+        <text x={limitX} y={padT - 2} textAnchor="middle" className="text-[8px] fill-rose-400 font-mono">
+          Limit
+        </text>
+
+        {/* Measured Tangent slope */}
+        <line
+          x1={tangentPoints.x0}
+          y1={tangentPoints.y0}
+          x2={tangentPoints.x1}
+          y2={tangentPoints.y1}
+          stroke="#34d399"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+
+        {/* Elastic region line (Hooke's Law) */}
+        {curve.elastic.length >= 2 && (
+          <line
+            x1={toSvgX(curve.elastic[0][0])}
+            y1={toSvgY(curve.elastic[0][1])}
+            x2={toSvgX(curve.elastic[1][0])}
+            y2={toSvgY(curve.elastic[1][1])}
+            stroke="#38bdf8"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* Plastic region curve */}
+        {curve.plastic.length >= 2 && (
+          <line
+            x1={toSvgX(curve.plastic[0][0])}
+            y1={toSvgY(curve.plastic[0][1])}
+            x2={toSvgX(curve.plastic[1][0])}
+            y2={toSvgY(curve.plastic[1][1])}
+            stroke="#f97316"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* Unload curve */}
+        {curve.unload.length >= 2 && (
+          <line
+            x1={toSvgX(curve.unload[0][0])}
+            y1={toSvgY(curve.unload[0][1])}
+            x2={toSvgX(curve.unload[1][0])}
+            y2={toSvgY(curve.unload[1][1])}
+            stroke="#fbbf24"
+            strokeWidth="1.8"
+            strokeDasharray="4 3"
+          />
+        )}
+
+        {/* Current working point marker */}
+        <circle cx={markerSvg.x} cy={markerSvg.y} r="5.5" fill="#38bdf8" opacity="0.25" />
+        <circle cx={markerSvg.x} cy={markerSvg.y} r="3" fill="#ffffff" stroke="#38bdf8" strokeWidth="1.5" />
+
+        {/* Y Axis labels */}
+        <text x={padL - 4} y={padT + 4} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+          {yMax.toFixed(0)}N
+        </text>
+        <text x={padL - 4} y={padT + plotH / 2 + 3} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+          {(yMax / 2).toFixed(0)}N
+        </text>
+        <text x={padL - 4} y={height - padB + 2} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+          0
+        </text>
+
+        {/* X Axis labels */}
+        <text x={padL} y={height - 4} textAnchor="start" className="text-[8px] fill-ink-500 font-mono">
+          0cm
+        </text>
+        <text x={limitX} y={height - 4} textAnchor="middle" className="text-[8px] fill-rose-400/90 font-mono">
+          {(ELASTIC_LIMIT_EXTENSION * 100).toFixed(0)}cm
+        </text>
+        <text x={width - padR} y={height - 4} textAnchor="end" className="text-[8px] fill-ink-500 font-mono">
+          {(xMax * 100).toFixed(0)}cm
+        </text>
+      </svg>
+
+      {/* Mini 3-value readout bar */}
+      <div className="flex items-center justify-between border-t border-ink-800/80 pt-1 font-mono text-[9.5px]">
+        <span className="text-amber-300 font-semibold">F: {solved.force.toFixed(2)} N</span>
+        <span className="text-duck-300 font-semibold">x: {(solved.extension * 100).toFixed(1)} cm</span>
+        <span className={solved.elastic ? "text-emerald-400" : "text-amber-400"}>
+          k: {solved.stiffness.toFixed(0)} N/m
+        </span>
       </div>
     </div>
   );
@@ -3569,9 +3754,9 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
         </div>
 
         {/* Scrollable controls body directly in the rectangular sidebar */}
-        <div className="h-full flex-1 overflow-y-auto p-3.5 space-y-3">
+        <div className={`h-full flex-1 overflow-y-auto ${topic.id === "hookes_law" ? "p-2.5 space-y-2" : "p-3.5 space-y-3"}`}>
           {/* ─── Controls vs Details Tab Switcher ─── */}
-            <div className="mb-3 flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-950/60 p-1">
+            <div className={`${topic.id === "hookes_law" ? "mb-2" : "mb-3"} flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-950/60 p-1`}>
               <button
                 type="button"
                 onClick={() => setActiveTab("controls")}
@@ -3601,7 +3786,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
 
             {/* ─── Universal Animation Speed Slider (Prominently Right Below Tab Switcher) ─── */}
             {!topic?.hideSpeedSlider && !params?.hideSpeedSlider && (
-              <div className="mb-3 rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 shadow-inner">
+              <div className={`${topic.id === "hookes_law" ? "mb-2 p-2" : "mb-3 p-2.5"} rounded-lg border border-ink-800 bg-ink-950/60 shadow-inner`}>
                 <Slider
                   label="⚡ Animation Speed"
                   value={typeof params?.speed === "number" ? params.speed : 1.0}
@@ -3615,30 +3800,116 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
             )}
 
             {activeTab === "controls" ? (
-              <div className="space-y-3">
-                {topic.controls
-                  .filter((control) => control.key !== "speed")
-                  // A control may only apply to some of a topic's modes — the
-                  // simple-machines bench needs a fulcrum slider for levers and
-                  // a sheave count for the tackle, and showing both at once
-                  // invites a student to set the one that does nothing.
-                  .filter((control) => (typeof control.when === "function" ? control.when(params) : true))
-                  .map((control) => (
-                    <ControlField
-                      key={control.key}
-                      control={control}
-                      params={params}
-                      setParam={setParam}
-                      setParams={setParams}
-                    />
-                  ))}
+              topic.id === "hookes_law" ? (
+                <div className="space-y-2">
+                  {/* Slotted masses slider */}
+                  <Slider
+                    label="Add slotted masses"
+                    value={typeof params?.hangingMass === "number" ? params.hangingMass : 0.5}
+                    onChange={(val) => {
+                      const f = loadForce(val);
+                      setParams({
+                        hangingMass: val,
+                        peakForce: Math.max(typeof params?.peakForce === "number" ? params.peakForce : 0, f),
+                      });
+                    }}
+                    min={0.05}
+                    max={2.5}
+                    step={0.05}
+                    format={(v) => (v < 1 ? `${(v * 1000).toFixed(0)} g` : `${Number(v).toFixed(2)} kg`)}
+                  />
 
-                <div className="border-t border-ink-800 pt-2.5">
-                  <HudButton icon={RotateCcw} onClick={onReset} className="w-full">
-                    Reset parameters
-                  </HudButton>
+                  {/* Spring constant slider */}
+                  <Slider
+                    label="Spring constant k"
+                    value={typeof params?.springConstant === "number" ? params.springConstant : 80}
+                    onChange={(val) => {
+                      setParams({
+                        springConstant: val,
+                        peakForce: 0,
+                      });
+                    }}
+                    min={10}
+                    max={150}
+                    step={5}
+                    format={(v) => `${v} N/m`}
+                  />
+
+                  {/* Show graph toggle */}
+                  <Toggle
+                    label="Show force–extension graph"
+                    checked={params?.showGraph !== false}
+                    onChange={(val) => setParam("showGraph", val)}
+                  />
+
+                  {/* The Force–Extension Graph in Left Sidebar */}
+                  {params?.showGraph !== false && (
+                    <HookesLawSidebarGraph params={params} />
+                  )}
+
+                  {/* Action buttons paired in a 2-column grid */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <HudButton
+                      icon={TrendingDown}
+                      variant="danger"
+                      onClick={() => {
+                        const k = params?.springConstant || 80;
+                        setParams({
+                          overload: (Number(params?.overload) || 0) + 1,
+                          peakForce: elasticLimitForce(k) * 1.4,
+                        });
+                      }}
+                      className="text-[11px] py-1.5 px-2"
+                    >
+                      Exceed limit
+                    </HudButton>
+
+                    <HudButton
+                      icon={RotateCcw}
+                      onClick={() => {
+                        setParams({
+                          newSpring: (Number(params?.newSpring) || 0) + 1,
+                          peakForce: 0,
+                        });
+                      }}
+                      className="text-[11px] py-1.5 px-2"
+                    >
+                      Fresh spring
+                    </HudButton>
+                  </div>
+
+                  <div className="border-t border-ink-800 pt-1.5">
+                    <HudButton icon={RotateCcw} onClick={onReset} className="w-full text-xs py-1.5">
+                      Reset parameters
+                    </HudButton>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  {topic.controls
+                    .filter((control) => control.key !== "speed")
+                    // A control may only apply to some of a topic's modes — the
+                    // simple-machines bench needs a fulcrum slider for levers and
+                    // a sheave count for the tackle, and showing both at once
+                    // invites a student to set the one that does nothing.
+                    .filter((control) => (typeof control.when === "function" ? control.when(params) : true))
+                    .map((control) => (
+                      <ControlField
+                        key={control.key}
+                        control={control}
+                        params={params}
+                        setParam={setParam}
+                        setParams={setParams}
+                      />
+                    ))}
+
+                  <div className="border-t border-ink-800 pt-2.5">
+                    <HudButton icon={RotateCcw} onClick={onReset} className="w-full">
+                      Reset parameters
+                    </HudButton>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="space-y-3">
                 {/* Syllabus & Overview */}

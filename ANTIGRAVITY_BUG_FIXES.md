@@ -7449,3 +7449,34 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 6. **Automated Verification**:
    - All 1,299 automated unit tests and 34 empirical challenge tests pass with 0 failures.
 
+---
+
+## Hooke's Law 3D Visualisation Redesign: Left Sidebar Force–Extension Graph & Compact Controls Optimization
+
+### 1. Problem Statement
+- In the Hooke's Law 3D spring simulation (`HookesLawCanvas.jsx`), the Force–Extension graph (`GraphPanel`) was previously rendered as a 3D Drei `<Billboard>` positioned inside the 3D WebGL render viewport at `[3.2, -2.15, 0]`.
+- Because it existed inside 3D world space, orbiting the camera caused the graph panel to rotate and clip through the retort stand, helical spring, and meter rule apparatus.
+- Furthermore, the camera target had to be offset rightwards at `x = 0.9` to accommodate the 3D graph, causing the physical spring and hanging weights to appear decentered and cramped on the left half of the screen.
+- Embedding the graph into the left sidebar HUD required fitting a full 2D force-extension curve alongside all existing parameter sliders and action buttons without introducing excessive vertical scrolling.
+
+### 2. Root Cause
+- `HookesLawCanvas.jsx` relied on a 3D Drei Billboard `GraphPanel` inside `<SceneCanvas>`, forcing 2D data plotting into 3D world space.
+- `VisualizationHUD.jsx` applied uniform vertical spacing (`space-y-3.5`) and stacked action buttons vertically, which consumed excessive sidebar height when combined with an embedded SVG graph.
+
+### 3. Resolution
+1. **Decoupled 3D In-Canvas Billboard & Centered Camera (`HookesLawCanvas.jsx`)**:
+   - Removed the in-canvas 3D Drei `<Billboard>` `GraphPanel` and its associated calculations from inside `<SceneCanvas>`.
+   - Re-centered the 3D camera target from `[0.9, -0.2, 0]` to `[0.15, -0.2, 0]` and adjusted the camera position to `[0.15, 0.3, 12.5]`, placing the retort stand, helical coil, hanging slotted masses, and meter rule directly in the center of the viewport.
+   - Retained synchronized peak force state (`params.peakForce`) between the canvas and HUD so plastic deformation memory remains shared in real time.
+2. **High-Contrast 2D Force–Extension Sidebar Graph (`VisualizationHUD.jsx`)**:
+   - Implemented `HookesLawSidebarGraph`: an interactive 2D SVG plot (`viewBox="0 0 280 125"`) embedded directly at the top of the Controls tab in the left sidebar HUD.
+   - Renders the linear elastic region ($F = kx$, Hooke's law in sky blue `#38bdf8`), plastic deformation yield curve (amber `#fbbf24`), elastic limit dashed guideline ($x = 14\text{ cm}$ in rose `#f43f5e`), and plastic permanent set unload path (dashed violet `#c084fc`).
+   - Includes an active coordinate indicator dot with pulsing halo, a measured slope badge ($k$), and a 3-column live telemetry pill strip displaying Load ($F$), Extension ($x$), and Current State (`Elastic` / `Yielding` / `Deformed`).
+3. **Compact Controls Layout & Spacing Reduction (`VisualizationHUD.jsx`)**:
+   - Tailored a compact layout specifically for Hooke's Law: container spacing reduced to `p-2.5 space-y-2` (from `p-4 space-y-3.5`).
+   - Reduced speed slider bottom margin from `mb-3` to `mb-2` with `p-2` compact padding.
+   - Paired the "Exceed limit" and "Fresh spring" action buttons into a 2-column grid (`grid grid-cols-2 gap-1.5`) rather than stacking them, saving ~45px of vertical height.
+   - Compacted parameter sliders with tight label typography (`text-[10px]`) and padding, allowing the graph, all sliders, animation controls, and action buttons to fit comfortably within the sidebar height without visual crowding.
+4. **Automated Verification**:
+   - All 1,299 automated unit tests and 34 challenge tests pass with 0 regressions.
+
