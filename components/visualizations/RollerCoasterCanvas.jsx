@@ -123,7 +123,7 @@ function Supports({ track, scale }) {
       {columns.map((c, i) => (
         <mesh key={i} position={[c.x, c.h / 2, 0]}>
           <boxGeometry args={[0.07, c.h, 0.07]} />
-          <meshStandardMaterial color="#3a4352" roughness={0.7} metalness={0.35} />
+          <meshStandardMaterial color="#505c70" roughness={0.7} metalness={0.35} />
         </mesh>
       ))}
     </group>
@@ -198,7 +198,7 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
         [-0.14, 0.14].map((dz) => (
           <mesh key={`${dx}${dz}`} position={[dx, -0.12, dz]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.05, 0.05, 0.03, 10]} />
-            <meshStandardMaterial color="#39414f" roughness={0.4} metalness={0.7} />
+            <meshStandardMaterial color="#5b6472" roughness={0.4} metalness={0.7} />
           </mesh>
         )),
       )}
@@ -257,7 +257,7 @@ export default function RollerCoasterCanvas({ params = {} }) {
         {/* Ground. */}
         <mesh position={[centreX, -0.06, 0]} receiveShadow>
           <boxGeometry args={[centreX * 2 + 3, 0.12, 3.2]} />
-          <meshStandardMaterial color="#222a36" roughness={0.9} />
+          <meshStandardMaterial color="#42506a" roughness={0.9} />
         </mesh>
 
         <Supports track={track} scale={scale} />

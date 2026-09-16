@@ -762,6 +762,14 @@ function WordBlockItem({ block }) {
     }
     case "divider":
       return <hr className="border-t border-gray-300 my-4" />;
+    case "page":
+      return (
+        <div className="my-2 flex items-center gap-2 rounded border border-gray-300 bg-gray-50 px-3 py-2">
+          <span>{block.emoji || "📄"}</span>
+          <span className="font-semibold">{block.title || content || "Untitled Note"}</span>
+          <span className="ml-auto text-[11px] text-gray-500">Sub-page →</span>
+        </div>
+      );
     case "text":
     default:
       return content ? <p className="my-1.5 leading-relaxed">{content}</p> : null;

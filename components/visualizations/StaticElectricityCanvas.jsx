@@ -76,16 +76,16 @@ function Room({ humidity = 40 }) {
         position={[0, FLOOR_Y, 0]}
         args={[30, 20]}
         cellSize={0.6}
-        cellColor="#1c222d"
+        cellColor="#3f4d66"
         sectionSize={3}
-        sectionColor="#29323f"
+        sectionColor="#46536e"
         fadeDistance={40}
         infiniteGrid={false}
       />
       {/* Back wall — the neutral surface the balloon is tested against. */}
       <mesh position={[0, 1.4, WALL_Z]} receiveShadow>
         <planeGeometry args={[16, 8.2]} />
-        <meshStandardMaterial color="#222a37" roughness={0.94} metalness={0.02} />
+        <meshStandardMaterial color="#42506a" roughness={0.94} metalness={0.02} />
       </mesh>
       <mesh position={[0, FLOOR_Y + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[22, 12]} />
@@ -167,11 +167,11 @@ function Sweater({ markers }) {
       {/* Stand. */}
       <mesh position={[SWEATER_X, FLOOR_Y + 0.05, 0]}>
         <cylinderGeometry args={[0.55, 0.62, 0.1, 20]} />
-        <meshStandardMaterial color="#2a3240" roughness={0.7} metalness={0.3} />
+        <meshStandardMaterial color="#5b6472" roughness={0.7} metalness={0.3} />
       </mesh>
       <mesh position={[SWEATER_X, FLOOR_Y + 1.1, 0]}>
         <cylinderGeometry args={[0.07, 0.07, 2.1, 12]} />
-        <meshStandardMaterial color="#3a4453" roughness={0.5} metalness={0.6} />
+        <meshStandardMaterial color="#4f5d71" roughness={0.5} metalness={0.6} />
       </mesh>
 
       {/* Torso and sleeves. */}
@@ -286,11 +286,11 @@ function VanDeGraaff({ on, markers, pans, animSpeed = 1 }) {
     <group>
       {/* Base and column. */}
       <RoundedBox args={[1.3, 0.42, 1.0]} radius={0.06} smoothness={3} position={[DOME_X, FLOOR_Y + 0.21, 0]}>
-        <meshStandardMaterial color="#2b3341" roughness={0.6} metalness={0.4} />
+        <meshStandardMaterial color="#5b6472" roughness={0.6} metalness={0.4} />
       </RoundedBox>
       <mesh position={[DOME_X, (FLOOR_Y + 0.42 + DOME_Y) / 2, 0]}>
         <cylinderGeometry args={[0.26, 0.3, DOME_Y - FLOOR_Y - 0.42, 18]} />
-        <meshStandardMaterial color="#3d4757" roughness={0.55} metalness={0.35} />
+        <meshStandardMaterial color="#526076" roughness={0.55} metalness={0.35} />
       </mesh>
 
       {/* Belt carriers — the mechanical current. */}

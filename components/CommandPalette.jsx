@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Search, Settings, FileText, Calendar, Box, Activity, Bookmark, Globe } from "lucide-react";
 import { db } from "@/lib/db";
+import { getAncestorChain, formatBreadcrumbText } from "@/lib/noteHierarchy";
 
 export default function CommandPalette({
   notesBySpace = {},
@@ -48,14 +49,16 @@ export default function CommandPalette({
       list.push({ id: "action_settings", type: "Settings", title: "Open Settings", icon: <Settings size={16} />, onSelect: () => onOpenSettings() });
     }
 
-    // Notes
+    // Notes (nested sub-pages show their parent path so duplicates are distinguishable)
     Object.entries(notesBySpace).forEach(([space, spaceNotes]) => {
       (spaceNotes || []).forEach((note) => {
+        const ancestors = getAncestorChain(spaceNotes || [], note.id);
+        const pathText = ancestors.length > 0 ? ` › ${formatBreadcrumbText(ancestors)}` : "";
         list.push({
           id: `note_${note.id}`,
           type: "Note",
           title: note.title || "Untitled Note",
-          subtitle: `Space: ${space}`,
+          subtitle: `Space: ${space}${pathText}`,
           icon: <span>{note.emoji || "📝"}</span>,
           onSelect: () => {
             setActiveSpace(space);

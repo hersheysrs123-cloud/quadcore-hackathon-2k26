@@ -19,6 +19,12 @@ import {
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
+import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
+import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";
+import SeparationTechniquesCanvas from "@/components/visualizations/SeparationTechniquesCanvas";
+import CombustionFireTriangleCanvas from "@/components/visualizations/CombustionFireTriangleCanvas";
+import ParticleModelMatterCanvas from "@/components/visualizations/ParticleModelMatterCanvas";
+import RadioactiveDecayCanvas from "@/components/visualizations/RadioactiveDecayCanvas";
 
 // Chemistry is written in subscripts everywhere except, until now, here —
 // "C3H8" on screen next to CₙH₂ₙ₊₂ in the same panel reads as a typo.
@@ -2387,6 +2393,12 @@ const SCENES = {
   electrolysis: ElectrolysisScene,
   vsepr: VseprScene,
   energetics: EnergyProfileScene,
+  reactivity_series: ReactivitySeriesCanvas,
+  rusting_galvanic: RustingGalvanicCanvas,
+  separation_techniques: SeparationTechniquesCanvas,
+  combustion_fire_triangle: CombustionFireTriangleCanvas,
+  particle_model_matter: ParticleModelMatterCanvas,
+  radioactive_decay: RadioactiveDecayCanvas,
 };
 
 export default function ChemistryCanvas({ topicId, params, setParam, onOpenQuiz }) {

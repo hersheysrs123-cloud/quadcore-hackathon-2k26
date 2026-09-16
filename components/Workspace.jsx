@@ -44,7 +44,21 @@ import {
   deleteSpace,
   getSavedSpaces,
   saveSpaceSettings,
+  moveNoteTreeToSpace,
 } from "@/lib/storageService";
+import {
+  buildBreadcrumbPath,
+  cloneNoteTree,
+  collectDescendantIds,
+  expandSelectionWithDescendants,
+  findNoteAcrossSpaces,
+  getChildNotes,
+  getTopmostSelected,
+  hasPageBlockFor,
+  normalizeParentId,
+  resolveRestoredParentId,
+  sortNotes,
+} from "@/lib/noteHierarchy";
 import { PanelLeftClose, Maximize2, Minimize2, ChevronLeft, ChevronRight } from "lucide-react";
 
 const DEFAULT_NOTES_BY_SPACE = {
@@ -135,6 +149,12 @@ export default function Workspace() {
   const [editorBlocks, setEditorBlocks] = useState([]);
   const editorBlocksRef = useRef(editorBlocks);
   const reformatNoteRef = useRef(null);
+  // Imperative hook registered by the open editor so the workspace can drop a
+  // sub-page card into the live document (sidebar "New sub-page", trash restore).
+  const insertPageBlockRef = useRef(null);
+  const registerInsertPageBlock = useCallback((fn) => {
+    insertPageBlockRef.current = fn;
+  }, []);
 
   // In-Memory Note Navigation History (Alt+← / Alt+→)
   const navHistoryRef = useRef([]); // Array of { noteId, spaceName }
@@ -346,6 +366,7 @@ export default function Workspace() {
               fullWidth: Boolean(n.fullWidth),
               isLocked: Boolean(n.isLocked),
               isFavorite: Boolean(n.isFavorite),
+              parentId: normalizeParentId(n.parentId),
               order: typeof n.order === "number" ? n.order : 0,
               blocks: n.blocks || [],
               createdAt: n.createdAt || null,
@@ -357,6 +378,33 @@ export default function Workspace() {
           Object.keys(spaceMap).forEach((sp) => {
             spaceMap[sp].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           });
+
+          // A sub-page must live in the same space as its parent. Repair any
+          // drift (e.g. from an older backup) by pulling strays into the parent's space.
+          {
+            const locationById = new Map();
+            Object.entries(spaceMap).forEach(([sp, list]) => list.forEach((n) => locationById.set(n.id, sp)));
+            let moved = true;
+            let guard = 0;
+            while (moved && guard < 64) {
+              moved = false;
+              guard += 1;
+              Object.entries(spaceMap).forEach(([sp, list]) => {
+                for (const n of [...list]) {
+                  const pid = normalizeParentId(n.parentId);
+                  if (!pid || !locationById.has(pid)) continue;
+                  const parentSpace = locationById.get(pid);
+                  if (parentSpace === sp) continue;
+                  spaceMap[sp] = spaceMap[sp].filter((x) => x.id !== n.id);
+                  const fixed = { ...n, space: parentSpace, spaceId: parentSpace };
+                  spaceMap[parentSpace] = [...(spaceMap[parentSpace] || []), fixed];
+                  locationById.set(n.id, parentSpace);
+                  db.notes.update(n.id, { space: parentSpace, spaceId: parentSpace }).catch(() => {});
+                  moved = true;
+                }
+              });
+            }
+          }
 
           setNotesBySpace(spaceMap);
 
@@ -408,7 +456,7 @@ export default function Workspace() {
           }
 
           if (!foundNoteId) {
-            const firstInActive = (spaceMap[foundSpace] || [])[0];
+            const firstInActive = getChildNotes(spaceMap[foundSpace] || [], null)[0] || (spaceMap[foundSpace] || [])[0];
             if (firstInActive) foundNoteId = firstInActive.id;
           }
 
@@ -660,30 +708,88 @@ export default function Workspace() {
     [currentSpaceSessions],
   );
 
+  /** Space › Parent › … › current note, for the header breadcrumb. */
+  const breadcrumbPath = useMemo(() => {
+    if (!activeNoteObj?.id) return [];
+    const path = buildBreadcrumbPath(notesBySpace[activeSpace] || [], activeNoteObj.id);
+    return path.length > 0 ? path : [activeNoteObj];
+  }, [notesBySpace, activeSpace, activeNoteObj]);
+  const [breadcrumbOverflowOpen, setBreadcrumbOverflowOpen] = useState(false);
+  const breadcrumbOverflowRef = useRef(null);
+  useEffect(() => {
+    if (!breadcrumbOverflowOpen) return;
+    const onDown = (e) => {
+      if (breadcrumbOverflowRef.current && !breadcrumbOverflowRef.current.contains(e.target)) {
+        setBreadcrumbOverflowOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setBreadcrumbOverflowOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [breadcrumbOverflowOpen]);
+  useEffect(() => {
+    setBreadcrumbOverflowOpen(false);
+  }, [activeNoteId]);
+
+  /**
+   * Moves a note to the Trash together with every nested sub-page below it
+   * (Notion semantics: a parent and its children always travel as one unit).
+   * If the note being viewed is part of the deleted subtree, the view jumps
+   * up to the closest surviving ancestor.
+   */
   const handleDeleteNote = useCallback(
     async (noteId, spaceOverride) => {
-      const targetSpace = spaceOverride || activeSpace;
-      const spaceNotes = notesBySpace[targetSpace] || [];
-      const targetNote = spaceNotes.find((n) => n.id === noteId);
+      const located = findNoteAcrossSpaces(notesBySpace, noteId);
+      const targetSpace = located?.space || spaceOverride || activeSpace;
+      const targetNote = located?.note || (notesBySpace[targetSpace] || []).find((n) => n.id === noteId);
       if (!targetNote) return;
 
-      setNotesBySpace((prev) => ({
-        ...prev,
-        [targetSpace]: (prev[targetSpace] || []).filter((n) => n.id !== noteId),
-      }));
+      const subtreeIds = [noteId, ...collectDescendantIds(allNotes, noteId)];
+      const subtreeSet = new Set(subtreeIds);
+      const deletedAt = new Date().toISOString();
 
-      setTrashNotes((prev) => [
-        ...prev,
-        { ...targetNote, space: targetSpace, deletedAt: new Date().toISOString() },
-      ]);
+      setNotesBySpace((prev) => {
+        const next = {};
+        for (const [sp, list] of Object.entries(prev)) {
+          next[sp] = (list || []).filter((n) => !subtreeSet.has(n.id));
+        }
+        return next;
+      });
 
-      if (activeNoteId === noteId) {
-        setActiveNoteId(null);
+      // Order: root first, then descendants (mirrors the DB cascade). Built from
+      // the memoised flat list rather than inside the state updater, which React
+      // may run lazily.
+      const trashedOrdered = subtreeIds
+        .map((id) => {
+          const n = allNotes.find((x) => x.id === id) || (id === noteId ? { ...targetNote, space: targetSpace } : null);
+          return n ? { ...n, space: n.space || targetSpace, spaceId: n.spaceId || n.space || targetSpace, deletedAt } : null;
+        })
+        .filter(Boolean);
+      setTrashNotes((prev) => {
+        const existing = new Set(prev.map((t) => t.id));
+        return [...prev, ...trashedOrdered.filter((t) => !existing.has(t.id))];
+      });
+
+      if (activeNoteId && subtreeSet.has(activeNoteId)) {
+        const survivingParentId = normalizeParentId(targetNote.parentId);
+        const survivingParent = survivingParentId ? findNoteAcrossSpaces(notesBySpace, survivingParentId) : null;
+        if (survivingParent && !subtreeSet.has(survivingParent.note.id)) {
+          setActiveSpace(survivingParent.space);
+          setActiveNoteId(survivingParent.note.id);
+        } else {
+          setActiveNoteId(null);
+        }
       }
 
       await deleteNoteToTrash(noteId);
     },
-    [activeSpace, notesBySpace, activeNoteId]
+    [activeSpace, notesBySpace, activeNoteId, allNotes]
   );
 
   const handleRenameSpace = useCallback(
@@ -776,32 +882,6 @@ export default function Workspace() {
     [handleRenameSpace]
   );
 
-  const handleDeleteSpace = useCallback(async (spaceName) => {
-    if (confirm(`Are you sure you want to delete the space "${spaceName}" and ALL notes inside it?`)) {
-       const notesToDelete = notesBySpace[spaceName] || [];
-       for (const note of notesToDelete) {
-           await handleDeleteNote(note.id, spaceName); // move to trash
-       }
-       const nextSpaces = spaces.filter((s) => s.name !== spaceName);
-       const fallbackSpaces = nextSpaces.length > 0 ? nextSpaces : [{ name: "General", icon: "📂", blurb: "" }];
-       setSpaces(fallbackSpaces);
-       await deleteSpace(spaceName);
-       await saveAllSpaces(fallbackSpaces);
-
-       setNotesBySpace((prev) => {
-         const next = { ...prev };
-         delete next[spaceName];
-         return next;
-       });
-
-       if (activeSpace === spaceName) {
-         const fallbackSpace = fallbackSpaces[0]?.name || "General";
-         setActiveSpace(fallbackSpace);
-         const firstInFallback = (notesBySpace[fallbackSpace] || [])[0];
-         setActiveNoteId(firstInFallback ? firstInFallback.id : null);
-       }
-    }
-  }, [spaces, notesBySpace, activeSpace, handleDeleteNote]);
 
   const handleSaveNote = useCallback(
     async (noteToSave) => {
@@ -845,17 +925,28 @@ export default function Workspace() {
         ? Boolean(noteToSave.isLocked)
         : Boolean(activeNoteObj?.isLocked);
 
+      const existingTarget = (notesBySpace[targetSpace] || []).find((n) => n.id === targetNoteId)
+        || findNoteAcrossSpaces(notesBySpace, targetNoteId)?.note
+        || null;
+
       const targetOrder = noteToSave?.order !== undefined
         ? noteToSave.order
         : (isTargetActive
-            ? (activeNoteObj?.order ?? 0)
-            : ((notesBySpace[targetSpace] || []).find((n) => n.id === targetNoteId)?.order ?? 0));
+            ? (activeNoteObj?.order ?? existingTarget?.order ?? 0)
+            : (existingTarget?.order ?? 0));
+
+      // Sub-page linkage: explicit value wins, otherwise keep what the note already has.
+      let updatedParentId = noteToSave?.parentId !== undefined
+        ? normalizeParentId(noteToSave.parentId)
+        : normalizeParentId(existingTarget?.parentId ?? (isTargetActive ? activeNoteObj?.parentId : null));
+      if (updatedParentId === targetNoteId) updatedParentId = null;
 
       const now = new Date().toISOString();
 
       const noteData = {
         id: targetNoteId,
         spaceId: targetSpace,
+        parentId: updatedParentId,
         title: updatedTitle,
         blocks: updatedBlocks,
         banner: updatedBanner,
@@ -921,50 +1012,52 @@ export default function Workspace() {
     [handleSaveNote]
   );
 
+  /**
+   * Duplicates a note together with its whole sub-page tree. Every nested page
+   * is cloned with a fresh id and the parent's `page` cards are re-pointed at
+   * the clones, so the copy never shares children with the original.
+   */
   const handleDuplicateNote = useCallback(
     async (noteToDuplicate) => {
       if (!noteToDuplicate) return;
       const targetSpace = noteToDuplicate.spaceId || noteToDuplicate.space || activeSpace;
       const spaceNotes = notesBySpace[targetSpace] || [];
 
-      // Clone blocks with new unique IDs
-      const rawBlocks =
-        noteToDuplicate.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
-          ? editorBlocksRef.current
-          : (noteToDuplicate.blocks || []);
+      // Use the live editor blocks for the note currently open so the copy is never stale.
+      const sourceNotes = allNotes.map((n) =>
+        n.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
+          ? { ...n, blocks: editorBlocksRef.current }
+          : n
+      );
+      if (!sourceNotes.some((n) => n.id === noteToDuplicate.id)) {
+        sourceNotes.push({ ...noteToDuplicate, space: targetSpace, spaceId: targetSpace });
+      }
 
-      const clonedBlocks = rawBlocks.map((b) => ({
-        ...b,
-        id: `blk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        tableData: b.tableData ? JSON.parse(JSON.stringify(b.tableData)) : undefined,
-        meta: b.meta ? JSON.parse(JSON.stringify(b.meta)) : undefined,
-      }));
+      const siblings = getChildNotes(spaceNotes, normalizeParentId(noteToDuplicate.parentId));
+      const siblingIdx = siblings.findIndex((n) => n.id === noteToDuplicate.id);
+      const newOrder = siblingIdx >= 0 ? siblingIdx + 1 : siblings.length;
 
-      const currentIdx = spaceNotes.findIndex((n) => n.id === noteToDuplicate.id);
-      const newOrder = currentIdx >= 0 ? currentIdx + 1 : spaceNotes.length;
-
-      const duplicatedNote = {
-        id: `n_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        title: `Copy of ${noteToDuplicate.title || "Untitled Note"}`,
-        space: targetSpace,
-        spaceId: targetSpace,
-        banner: noteToDuplicate.banner || null,
-        emoji: noteToDuplicate.emoji || "📝",
-        isFavorite: Boolean(noteToDuplicate.isFavorite),
-        order: newOrder,
-        blocks: clonedBlocks.length > 0 ? clonedBlocks : [{ id: `blk_${Date.now()}`, type: "text", content: "" }],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const cloned = cloneNoteTree(sourceNotes, noteToDuplicate.id, {
+        overrides: { space: targetSpace, spaceId: targetSpace, order: newOrder },
+      });
+      if (cloned.length === 0) return;
+      const duplicatedNote = cloned[0];
 
       setNotesBySpace((prev) => {
         const currentList = [...(prev[targetSpace] || [])];
+        const currentIdx = currentList.findIndex((n) => n.id === noteToDuplicate.id);
+        // Shift following siblings down one slot so the copy lands right below the original.
+        const shifted = currentList.map((n) =>
+          normalizeParentId(n.parentId) === normalizeParentId(noteToDuplicate.parentId) && (n.order ?? 0) >= newOrder
+            ? { ...n, order: (n.order ?? 0) + 1 }
+            : n
+        );
         if (currentIdx >= 0) {
-          currentList.splice(currentIdx + 1, 0, duplicatedNote);
+          shifted.splice(currentIdx + 1, 0, ...cloned);
         } else {
-          currentList.push(duplicatedNote);
+          shifted.push(...cloned);
         }
-        return { ...prev, [targetSpace]: currentList };
+        return { ...prev, [targetSpace]: shifted };
       });
 
       setActiveSpace(targetSpace);
@@ -972,17 +1065,24 @@ export default function Workspace() {
       setEditorBlocks(duplicatedNote.blocks);
       setActiveTab("notes");
 
-      await saveNote(duplicatedNote);
-      setSaveStatus("✓ Duplicated note");
+      for (const n of cloned) {
+        await saveNote(n);
+      }
+      setSaveStatus(cloned.length > 1 ? `✓ Duplicated (+${cloned.length - 1} nested)` : "✓ Duplicated note");
       setTimeout(() => setSaveStatus(""), 2500);
     },
-    [activeNoteObj, activeSpace, notesBySpace]
+    [activeNoteObj, activeSpace, notesBySpace, allNotes]
   );
 
+  /**
+   * Moves a note into another space. Its nested sub-pages always come along
+   * (a sub-page must live in the same space as its parent). A moved sub-page
+   * becomes a top-level note in the destination space.
+   */
   const handleMoveNoteToSpace = useCallback(
     async (noteToMove, targetSpaceName) => {
       if (!noteToMove || !targetSpaceName) return;
-      const fromSpace = noteToMove.spaceId || noteToMove.space || activeSpace;
+      const fromSpace = findNoteAcrossSpaces(notesBySpace, noteToMove.id)?.space || noteToMove.spaceId || noteToMove.space || activeSpace;
       if (fromSpace === targetSpaceName) return;
 
       const rawBlocks =
@@ -990,37 +1090,53 @@ export default function Workspace() {
           ? editorBlocksRef.current
           : (noteToMove.blocks || []);
 
-      const targetSpaceNotes = notesBySpace[targetSpaceName] || [];
-      const updatedNote = {
+      const descendantIds = collectDescendantIds(allNotes, noteToMove.id);
+      const subtreeSet = new Set([noteToMove.id, ...descendantIds]);
+      const targetRoots = getChildNotes(notesBySpace[targetSpaceName] || [], null);
+      const now = new Date().toISOString();
+
+      const updatedRoot = {
         ...noteToMove,
         space: targetSpaceName,
         spaceId: targetSpaceName,
+        parentId: null, // the moved note becomes top-level in its new space
         blocks: rawBlocks,
-        order: targetSpaceNotes.length,
-        updatedAt: new Date().toISOString(),
+        order: targetRoots.length,
+        updatedAt: now,
       };
+      const updatedDescendants = descendantIds
+        .map((id) => allNotes.find((n) => n.id === id))
+        .filter(Boolean)
+        .map((n) => ({ ...n, space: targetSpaceName, spaceId: targetSpaceName, updatedAt: now }));
+      const movedNotes = [updatedRoot, ...updatedDescendants];
 
       setNotesBySpace((prev) => {
-        const prevFromList = (prev[fromSpace] || []).filter((n) => n.id !== noteToMove.id);
-        const prevToList = [...(prev[targetSpaceName] || []), updatedNote];
-        return {
-          ...prev,
-          [fromSpace]: prevFromList,
-          [targetSpaceName]: prevToList,
-        };
+        const next = {};
+        for (const [sp, list] of Object.entries(prev)) {
+          next[sp] = (list || []).filter((n) => !subtreeSet.has(n.id));
+        }
+        next[targetSpaceName] = [...(next[targetSpaceName] || []), ...movedNotes];
+        return next;
       });
 
       // Switch to target space and keep the moved note active
       setActiveSpace(targetSpaceName);
       setActiveNoteId(noteToMove.id);
-      setEditorBlocks(updatedNote.blocks);
+      setEditorBlocks(updatedRoot.blocks);
       setActiveTab("notes");
 
-      await saveNote(updatedNote);
-      setSaveStatus(`✓ Moved to ${targetSpaceName}`);
+      await saveNote(updatedRoot);
+      if (descendantIds.length > 0) {
+        await moveNoteTreeToSpace(noteToMove.id, targetSpaceName, { rootOrder: targetRoots.length });
+      }
+      setSaveStatus(
+        descendantIds.length > 0
+          ? `✓ Moved to ${targetSpaceName} (+${descendantIds.length} nested)`
+          : `✓ Moved to ${targetSpaceName}`
+      );
       setTimeout(() => setSaveStatus(""), 2500);
     },
-    [activeNoteObj, activeSpace, notesBySpace]
+    [activeNoteObj, activeSpace, notesBySpace, allNotes]
   );
 
   const handleRenameNote = useCallback(
@@ -1041,23 +1157,33 @@ export default function Workspace() {
       if (!noteIds || noteIds.length === 0) return;
       const targetSpace = spaceOverride || activeSpace;
       const spaceNotes = notesBySpace[targetSpace] || [];
-      const noteIdSet = new Set(noteIds);
-      const notesToDelete = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      // Sub-pages always follow their parent into the trash.
+      const expandedIds = expandSelectionWithDescendants(allNotes, noteIds);
+      const noteIdSet = new Set(expandedIds);
+      const notesToDelete = expandedIds.map((id) => allNotes.find((n) => n.id === id)).filter(Boolean);
       if (notesToDelete.length === 0) return;
 
-      setNotesBySpace((prev) => ({
-        ...prev,
-        [targetSpace]: (prev[targetSpace] || []).filter((n) => !noteIdSet.has(n.id)),
-      }));
+      setNotesBySpace((prev) => {
+        const next = {};
+        for (const [sp, list] of Object.entries(prev)) {
+          next[sp] = (list || []).filter((n) => !noteIdSet.has(n.id));
+        }
+        return next;
+      });
 
       const now = new Date().toISOString();
-      setTrashNotes((prev) => [
-        ...prev,
-        ...notesToDelete.map((n) => ({ ...n, space: targetSpace, deletedAt: now })),
-      ]);
+      setTrashNotes((prev) => {
+        const existing = new Set(prev.map((t) => t.id));
+        return [
+          ...prev,
+          ...notesToDelete
+            .filter((n) => !existing.has(n.id))
+            .map((n) => ({ ...n, space: n.space || targetSpace, deletedAt: now })),
+        ];
+      });
 
       if (noteIdSet.has(activeNoteId)) {
-        const remainingNotes = spaceNotes.filter((n) => !noteIdSet.has(n.id));
+        const remainingNotes = getChildNotes(spaceNotes.filter((n) => !noteIdSet.has(n.id)), null);
         if (remainingNotes.length > 0) {
           setActiveNoteId(remainingNotes[0].id);
           setEditorBlocks(remainingNotes[0].blocks || []);
@@ -1067,15 +1193,43 @@ export default function Workspace() {
         }
       }
 
-      for (const note of notesToDelete) {
-        await deleteNoteToTrash(note.id);
+      // Only the topmost selected notes need a DB call: the storage layer cascades.
+      for (const rootId of getTopmostSelected(allNotes, expandedIds)) {
+        await deleteNoteToTrash(rootId);
       }
 
       setSaveStatus(`✓ Moved ${notesToDelete.length} note${notesToDelete.length === 1 ? "" : "s"} to Trash`);
       setTimeout(() => setSaveStatus(""), 2500);
     },
-    [activeSpace, notesBySpace, activeNoteId]
+    [activeSpace, notesBySpace, activeNoteId, allNotes]
   );
+
+  const handleDeleteSpace = useCallback(async (spaceName) => {
+    if (confirm(`Are you sure you want to delete the space "${spaceName}" and ALL notes inside it?`)) {
+       const notesToDelete = notesBySpace[spaceName] || [];
+       if (notesToDelete.length > 0) {
+           await handleDeleteMultipleNotes(notesToDelete.map((n) => n.id), spaceName); // move to trash
+       }
+       const nextSpaces = spaces.filter((s) => s.name !== spaceName);
+       const fallbackSpaces = nextSpaces.length > 0 ? nextSpaces : [{ name: "General", icon: "📂", blurb: "" }];
+       setSpaces(fallbackSpaces);
+       await deleteSpace(spaceName);
+       await saveAllSpaces(fallbackSpaces);
+
+       setNotesBySpace((prev) => {
+         const next = { ...prev };
+         delete next[spaceName];
+         return next;
+       });
+
+       if (activeSpace === spaceName) {
+         const fallbackSpace = fallbackSpaces[0]?.name || "General";
+         setActiveSpace(fallbackSpace);
+         const firstInFallback = getChildNotes(notesBySpace[fallbackSpace] || [], null)[0] || (notesBySpace[fallbackSpace] || [])[0];
+         setActiveNoteId(firstInFallback ? firstInFallback.id : null);
+       }
+    }
+  }, [spaces, notesBySpace, activeSpace, handleDeleteMultipleNotes]);
 
   const handleMoveMultipleNotes = useCallback(
     async (noteIds, targetSpaceName) => {
@@ -1083,26 +1237,34 @@ export default function Workspace() {
       const fromSpace = activeSpace;
       if (fromSpace === targetSpaceName) return;
 
-      const noteIdSet = new Set(noteIds);
       const spaceNotes = notesBySpace[fromSpace] || [];
-      const notesToMove = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      // Selected subtrees move as units: the topmost selected notes become
+      // top-level in the destination, everything beneath them keeps its parent.
+      const topmostIds = getTopmostSelected(spaceNotes, noteIds);
+      const expandedIds = expandSelectionWithDescendants(spaceNotes, topmostIds);
+      const noteIdSet = new Set(expandedIds);
+      const topmostSet = new Set(topmostIds);
+      const notesToMove = expandedIds.map((id) => spaceNotes.find((n) => n.id === id)).filter(Boolean);
       if (notesToMove.length === 0) return;
 
-      const targetSpaceNotes = notesBySpace[targetSpaceName] || [];
-      const baseOrder = targetSpaceNotes.length;
+      const baseOrder = getChildNotes(notesBySpace[targetSpaceName] || [], null).length;
+      const now = new Date().toISOString();
 
-      const updatedMovedNotes = notesToMove.map((n, idx) => {
+      let rootIdx = 0;
+      const updatedMovedNotes = notesToMove.map((n) => {
         const rawBlocks =
           n.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
             ? editorBlocksRef.current
             : (n.blocks || []);
+        const isRoot = topmostSet.has(n.id);
         return {
           ...n,
           space: targetSpaceName,
           spaceId: targetSpaceName,
+          parentId: isRoot ? null : normalizeParentId(n.parentId),
           blocks: rawBlocks,
-          order: baseOrder + idx,
-          updatedAt: new Date().toISOString(),
+          order: isRoot ? baseOrder + rootIdx++ : (n.order ?? 0),
+          updatedAt: now,
         };
       });
 
@@ -1165,42 +1327,31 @@ export default function Workspace() {
   const handleDuplicateMultipleNotes = useCallback(
     async (noteIds) => {
       if (!noteIds || noteIds.length === 0) return;
-      const noteIdSet = new Set(noteIds);
       const spaceNotes = notesBySpace[activeSpace] || [];
-      const notesToDuplicate = spaceNotes.filter((n) => noteIdSet.has(n.id));
+      // A selected sub-page whose ancestor is also selected is already part of
+      // that ancestor's clone, so only the topmost selections are duplicated.
+      const topmostIds = getTopmostSelected(spaceNotes, noteIds);
+      const notesToDuplicate = topmostIds.map((id) => spaceNotes.find((n) => n.id === id)).filter(Boolean);
       if (notesToDuplicate.length === 0) return;
 
+      const sourceNotes = spaceNotes.map((n) =>
+        n.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
+          ? { ...n, blocks: editorBlocksRef.current }
+          : n
+      );
+
       const duplicatedNotes = [];
-      const currentMaxOrder = spaceNotes.length;
+      const rootCount = getChildNotes(spaceNotes, null).length;
+      const now = new Date().toISOString();
 
       for (let i = 0; i < notesToDuplicate.length; i++) {
         const n = notesToDuplicate[i];
-        const rawBlocks =
-          n.id === activeNoteObj?.id && editorBlocksRef.current && editorBlocksRef.current.length > 0
-            ? editorBlocksRef.current
-            : (n.blocks || []);
-
-        const clonedBlocks = (rawBlocks || []).map((b) => ({
-          ...b,
-          id: `blk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${i}`,
-          tableData: b.tableData ? JSON.parse(JSON.stringify(b.tableData)) : undefined,
-          meta: b.meta ? JSON.parse(JSON.stringify(b.meta)) : undefined,
-        }));
-
-        const dupNote = {
-          id: `n_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${i}`,
-          title: `Copy of ${n.title || "Untitled Note"}`,
-          space: activeSpace,
-          spaceId: activeSpace,
-          banner: n.banner || null,
-          emoji: n.emoji || "📝",
-          isFavorite: Boolean(n.isFavorite),
-          order: currentMaxOrder + i,
-          blocks: clonedBlocks.length > 0 ? clonedBlocks : [{ id: `blk_${Date.now()}_${i}`, type: "text", content: "" }],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        duplicatedNotes.push(dupNote);
+        // Copies of sub-pages land at the top level so they are visible in the sidebar.
+        const cloned = cloneNoteTree(sourceNotes, n.id, {
+          now,
+          overrides: { space: activeSpace, spaceId: activeSpace, parentId: null, order: rootCount + i },
+        });
+        duplicatedNotes.push(...cloned);
       }
 
       setNotesBySpace((prev) => {
@@ -1276,6 +1427,7 @@ export default function Workspace() {
           fullWidth: Boolean(n.fullWidth),
           isLocked: Boolean(n.isLocked),
           isFavorite: Boolean(n.isFavorite),
+          parentId: normalizeParentId(n.parentId),
           order: typeof n.order === "number" ? n.order : 0,
           blocks: n.blocks || [],
           createdAt: n.createdAt || null,
@@ -1324,10 +1476,11 @@ export default function Workspace() {
       title: "Untitled Note",
       space: activeSpace,
       spaceId: activeSpace,
+      parentId: null,
       banner: null,
       emoji: "📝",
       isFavorite: false,
-      order: spaceNotes.length,
+      order: getChildNotes(spaceNotes, null).length,
       blocks: [{ id: `blk_${Date.now()}`, type: "text", content: "" }],
       createdAt: now,
       updatedAt: now,
@@ -1344,53 +1497,216 @@ export default function Workspace() {
     saveNote(newNote);
   }
 
-  async function handleRecoverNote(noteId) {
+  /**
+   * Guarantees the parent note embeds a `page` card for `childId` (Notion
+   * invariant: every sub-page appears exactly once in its parent's body).
+   * If the parent is open in the editor the card is inserted into the live
+   * document; otherwise the stored blocks are patched directly.
+   */
+  const ensurePageBlockInParent = useCallback(
+    (parentId, childId, childMeta = {}) => {
+      if (!parentId || !childId) return;
+      const located = findNoteAcrossSpaces(notesBySpace, parentId);
+      if (!located) return;
+      const parent = located.note;
+
+      const cardBlock = {
+        id: `blk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: "page",
+        pageId: childId,
+        content: "",
+        title: childMeta.title || "Untitled Note",
+        emoji: childMeta.emoji || "📄",
+      };
+
+      if (parent.id === activeNoteId && insertPageBlockRef.current) {
+        insertPageBlockRef.current(cardBlock);
+        return;
+      }
+
+      const liveBlocks = parent.id === activeNoteId && editorBlocksRef.current?.length > 0
+        ? editorBlocksRef.current
+        : (parent.blocks || []);
+      if (hasPageBlockFor(liveBlocks, childId)) return;
+
+      const nextBlocks = [...liveBlocks, cardBlock];
+      setNotesBySpace((prev) => ({
+        ...prev,
+        [located.space]: (prev[located.space] || []).map((n) =>
+          n.id === parent.id ? { ...n, blocks: nextBlocks, updatedAt: new Date().toISOString() } : n
+        ),
+      }));
+      if (parent.id === activeNoteId) setEditorBlocks(nextBlocks);
+      saveNote({ ...parent, spaceId: located.space, blocks: nextBlocks });
+    },
+    [notesBySpace, activeNoteId]
+  );
+
+  /**
+   * Creates a brand-new blank note nested under `parentId` (same space as the
+   * parent). Returns the note object synchronously so the caller (editor slash
+   * menu / gutter "+" / sidebar) can embed it and navigate into it right away.
+   */
+  const handleCreateSubPage = useCallback(
+    (parentId, spaceOverride, { insertCard = false, open = false } = {}) => {
+      if (!parentId) return null;
+      const located = findNoteAcrossSpaces(notesBySpace, parentId);
+      const targetSpace = located?.space || spaceOverride || activeSpace;
+      const siblings = getChildNotes(notesBySpace[targetSpace] || [], parentId);
+      const now = new Date().toISOString();
+      const child = {
+        id: `n_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        title: "Untitled Note",
+        space: targetSpace,
+        spaceId: targetSpace,
+        parentId,
+        banner: null,
+        emoji: "📄",
+        fontStyle: located?.note?.fontStyle || "sans",
+        fullWidth: Boolean(located?.note?.fullWidth),
+        isLocked: false,
+        isFavorite: false,
+        order: siblings.length,
+        blocks: [{ id: `blk_${Date.now()}`, type: "text", content: "" }],
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setNotesBySpace((prev) => ({
+        ...prev,
+        [targetSpace]: [...(prev[targetSpace] || []), child],
+      }));
+      saveNote(child);
+
+      if (insertCard) {
+        ensurePageBlockInParent(parentId, child.id, { title: child.title, emoji: child.emoji });
+      }
+      if (open) {
+        setActiveSpace(targetSpace);
+        setActiveNoteId(child.id);
+        setEditorBlocks(child.blocks);
+        setActiveTab("notes");
+      }
+      return child;
+    },
+    [notesBySpace, activeSpace, ensurePageBlockInParent]
+  );
+
+  /**
+   * Restores a trashed note with every sub-page trashed beneath it. The root's
+   * parent link is kept only when that parent is live; otherwise the note is
+   * promoted to top-level. If the parent is live but lost its card (e.g. the
+   * card was deleted from the parent body), the card is re-inserted.
+   */
+  async function handleRecoverNote(noteId, { navigate = true } = {}) {
     const target = trashNotes.find((n) => n.id === noteId);
     if (!target) return;
 
-    const targetSpace = target.space || activeSpace;
+    const subtreeIds = [noteId, ...collectDescendantIds(trashNotes, noteId)];
+    const subtreeSet = new Set(subtreeIds);
+    const liveIds = new Set([...allNotes.map((n) => n.id), ...subtreeIds]);
+    const rootParentId = resolveRestoredParentId(target, liveIds);
+    const parentLocation = rootParentId ? findNoteAcrossSpaces(notesBySpace, rootParentId) : null;
+    // A restored sub-page must land in its parent's space.
+    const targetSpace = parentLocation?.space || target.space || target.spaceId || activeSpace;
     const spaceNotes = notesBySpace[targetSpace] || [];
-    const recoveredNote = {
-      ...target,
-      order: typeof target.order === "number" ? target.order : spaceNotes.length,
-    };
+    const rootSiblings = getChildNotes(spaceNotes, rootParentId);
 
-    setTrashNotes((prev) => prev.filter((n) => n.id !== noteId));
+    const restoredNotes = subtreeIds
+      .map((id) => trashNotes.find((t) => t.id === id))
+      .filter(Boolean)
+      .map((item) => {
+        const { deletedAt, ...rest } = item;
+        const isRoot = item.id === noteId;
+        return {
+          ...rest,
+          space: targetSpace,
+          spaceId: targetSpace,
+          parentId: isRoot ? rootParentId : resolveRestoredParentId(rest, liveIds),
+          order: isRoot
+            ? (typeof rest.order === "number" ? rest.order : rootSiblings.length)
+            : (typeof rest.order === "number" ? rest.order : 0),
+        };
+      });
+
+    setTrashNotes((prev) => prev.filter((n) => !subtreeSet.has(n.id)));
     setNotesBySpace((prev) => ({
       ...prev,
-      [targetSpace]: [...(prev[targetSpace] || []), recoveredNote],
+      [targetSpace]: [...(prev[targetSpace] || []).filter((n) => !subtreeSet.has(n.id)), ...restoredNotes],
     }));
 
-    setActiveSpace(targetSpace);
-    setActiveNoteId(target.id);
+    if (navigate) {
+      setActiveSpace(targetSpace);
+      setActiveNoteId(target.id);
+    }
     await recoverNote(noteId);
+    if (targetSpace !== (target.space || target.spaceId) && restoredNotes.length > 0) {
+      for (const n of restoredNotes) await saveNote(n);
+    }
+    if (rootParentId) {
+      ensurePageBlockInParent(rootParentId, target.id, { title: target.title, emoji: target.emoji });
+    }
   }
 
   async function handlePermanentlyDeleteNote(noteId) {
-    setTrashNotes((prev) => prev.filter((n) => n.id !== noteId));
+    const subtreeSet = new Set([noteId, ...collectDescendantIds(trashNotes, noteId)]);
+    setTrashNotes((prev) => prev.filter((n) => !subtreeSet.has(n.id)));
     await permanentlyDeleteNote(noteId);
   }
 
   async function handleRecoverAllNotes() {
+    const itemsToRecover = [...trashNotes];
+    if (itemsToRecover.length === 0) return;
+    const liveIds = new Set([...allNotes.map((n) => n.id), ...itemsToRecover.map((t) => t.id)]);
+    const trashById = new Map(itemsToRecover.map((t) => [t.id, t]));
+
+    // Sub-pages must end up in their (possibly also restored) parent's space.
+    const resolveSpace = (item, depth = 0) => {
+      const pid = resolveRestoredParentId(item, liveIds);
+      if (!pid || depth > 64) return item.space || item.spaceId || "School";
+      const liveParent = findNoteAcrossSpaces(notesBySpace, pid);
+      if (liveParent) return liveParent.space;
+      const trashedParent = trashById.get(pid);
+      return trashedParent ? resolveSpace(trashedParent, depth + 1) : (item.space || item.spaceId || "School");
+    };
+
+    const restored = itemsToRecover.map((item) => {
+      const { deletedAt, ...rest } = item;
+      const sp = resolveSpace(item);
+      return { ...rest, space: sp, spaceId: sp, parentId: resolveRestoredParentId(rest, liveIds) };
+    });
+
     setNotesBySpace((prev) => {
       const updated = { ...prev };
-      for (const item of trashNotes) {
-        const sp = item.space || "School";
-        const currentSpNotes = updated[sp] || [];
+      for (const item of restored) {
+        const sp = item.space;
+        const currentSpNotes = (updated[sp] || []).filter((n) => n.id !== item.id);
         const recoveredItem = {
           ...item,
-          order: typeof item.order === "number" ? item.order : currentSpNotes.length,
+          order: typeof item.order === "number" ? item.order : getChildNotes(currentSpNotes, item.parentId).length,
         };
         updated[sp] = [...currentSpNotes, recoveredItem];
       }
       return updated;
     });
 
-    const itemsToRecover = [...trashNotes];
     setTrashNotes([]);
 
     for (const item of itemsToRecover) {
       await recoverNote(item.id);
+    }
+    // Persist any space / parent corrections the resolver made.
+    for (const item of restored) {
+      const original = trashById.get(item.id);
+      if (item.space !== (original.space || original.spaceId) || normalizeParentId(item.parentId) !== normalizeParentId(original.parentId)) {
+        await saveNote(item);
+      }
+    }
+    // Re-link restored sub-pages whose parent stayed live but lost its card.
+    for (const item of restored) {
+      if (item.parentId && !trashById.has(item.parentId)) {
+        ensurePageBlockInParent(item.parentId, item.id, { title: item.title, emoji: item.emoji });
+      }
     }
   }
 
@@ -1424,6 +1740,11 @@ export default function Workspace() {
     setActiveTab("notes");
   }, [notesBySpace]);
 
+  /**
+   * Re-orders one sibling group (the top-level notes, or the children of one
+   * parent). Notes outside the group are untouched; the space list is re-sorted
+   * so `order` stays the single source of truth.
+   */
   const handleReorderNotes = useCallback(async (spaceId, reorderedNotes) => {
     if (!spaceId || !Array.isArray(reorderedNotes)) return;
 
@@ -1433,11 +1754,17 @@ export default function Workspace() {
       spaceId: spaceId,
       order: idx,
     }));
+    const orderById = new Map(indexedNotes.map((n) => [n.id, n]));
 
-    setNotesBySpace((prev) => ({
-      ...prev,
-      [spaceId]: indexedNotes,
-    }));
+    setNotesBySpace((prev) => {
+      const list = prev[spaceId] || [];
+      const known = new Set(list.map((n) => n.id));
+      const merged = list.map((n) => (orderById.has(n.id) ? { ...n, order: orderById.get(n.id).order } : n));
+      indexedNotes.forEach((n) => {
+        if (!known.has(n.id)) merged.push(n);
+      });
+      return { ...prev, [spaceId]: sortNotes(merged) };
+    });
 
     await saveNotesOrder(spaceId, indexedNotes);
   }, []);
@@ -1460,7 +1787,7 @@ export default function Workspace() {
           onSelectSpace={(spaceName) => {
             setActiveSpace(spaceName);
             const notesInSelected = notesBySpace[spaceName] || [];
-            const firstInSpace = notesInSelected[0];
+            const firstInSpace = getChildNotes(notesInSelected, null)[0] || notesInSelected[0];
             if (firstInSpace) {
               setActiveNoteId(firstInSpace.id);
               setEditorBlocks(firstInSpace.blocks || []);
@@ -1484,6 +1811,11 @@ export default function Workspace() {
           onMoveMultipleNotes={handleMoveMultipleNotes}
           onToggleFavoriteMultipleNotes={handleToggleFavoriteMultipleNotes}
           onDuplicateMultipleNotes={handleDuplicateMultipleNotes}
+          onCreateSubPage={(parentNote) => {
+            const pid = typeof parentNote === "string" ? parentNote : parentNote?.id;
+            if (!pid) return;
+            handleCreateSubPage(pid, undefined, { insertCard: true, open: true });
+          }}
           onOpenExportImport={(n) => {
             if (n) handleSelectNote(n);
             setExportImportOpen(true);
@@ -1565,7 +1897,7 @@ export default function Workspace() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-1.5 font-medium truncate text-xs sm:text-sm">
+              <div className="flex items-center gap-1.5 font-medium min-w-0 whitespace-nowrap text-xs sm:text-sm">
                 {activeTab === "3d" ? (
                   <>
                     <span className="shrink-0 text-duck-400">🌌</span>
@@ -1587,22 +1919,93 @@ export default function Workspace() {
                     <span className="truncate text-ink-100 font-semibold">Space Hub · {activeSpace}</span>
                   </>
                 ) : (
-                  <>
-                    <span className="shrink-0 text-ink-500">📁</span>
-                    <span className="text-ink-300 font-semibold shrink-0">{activeSpace}</span>
-                    {activeTab === "notes" && activeNoteObj && (
-                      <>
-                        <span className="text-ink-600 shrink-0">/</span>
-                        <span className="truncate font-semibold text-ink-100 flex items-center gap-1 min-w-0">
-                          <span className="shrink-0">{activeNoteObj.emoji || "📝"}</span>
-                          <span className="truncate">{activeNoteObj.title || "Untitled Note"}</span>
-                          {activeNoteObj.isFavorite && (
-                            <span className="text-amber-400 text-xs shrink-0" title="Starred">⭐</span>
+                  <nav aria-label="Breadcrumb" data-testid="note-breadcrumb" className="flex items-center gap-1 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("spacehub")}
+                      title={`Open ${activeSpace} Space Hub`}
+                      className="flex items-center gap-1 rounded-md px-1 py-0.5 text-ink-300 font-semibold shrink-0 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
+                    >
+                      <span className="text-ink-500">📁</span>
+                      <span>{activeSpace}</span>
+                    </button>
+                    {activeTab === "notes" && activeNoteObj && (() => {
+                      const path = breadcrumbPath;
+                      const MAX_VISIBLE = 4;
+                      // Long chains: keep the first ancestor and the last two crumbs,
+                      // tuck the middle into an "…" menu (Notion-style).
+                      const collapsed = path.length > MAX_VISIBLE;
+                      const hidden = collapsed ? path.slice(1, path.length - 2) : [];
+                      const visible = collapsed ? [path[0], null, ...path.slice(-2)] : path;
+                      const renderCrumb = (n, isLast) => (
+                        <span key={n.id} className="flex items-center gap-1 min-w-0">
+                          <span className="text-ink-600 shrink-0">/</span>
+                          {isLast ? (
+                            <span
+                              aria-current="page"
+                              className="truncate font-semibold text-ink-100 flex items-center gap-1 min-w-0"
+                              title={n.title || "Untitled Note"}
+                            >
+                              <span className="shrink-0">{n.emoji || "📝"}</span>
+                              <span className="truncate">{n.title || "Untitled Note"}</span>
+                              {n.isFavorite && (
+                                <span className="text-amber-400 text-xs shrink-0" title="Starred">⭐</span>
+                              )}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSelectNote(n)}
+                              title={`Go up to ${n.title || "Untitled Note"}`}
+                              className="flex items-center gap-1 rounded-md px-1 py-0.5 min-w-0 max-w-[10rem] text-ink-300 font-medium hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
+                            >
+                              <span className="shrink-0">{n.emoji || "📝"}</span>
+                              <span className="truncate">{n.title || "Untitled Note"}</span>
+                            </button>
                           )}
                         </span>
-                      </>
-                    )}
-                  </>
+                      );
+                      return visible.map((n, i) =>
+                        n === null ? (
+                          <span key="breadcrumb-overflow" ref={breadcrumbOverflowRef} className="relative flex items-center gap-1 shrink-0">
+                            <span className="text-ink-600">/</span>
+                            <button
+                              type="button"
+                              onClick={() => setBreadcrumbOverflowOpen((v) => !v)}
+                              title={`${hidden.length} more level${hidden.length === 1 ? "" : "s"}`}
+                              aria-haspopup="menu"
+                              aria-expanded={breadcrumbOverflowOpen}
+                              className="rounded-md px-1.5 py-0.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer font-bold tracking-widest"
+                            >
+                              …
+                            </button>
+                            {breadcrumbOverflowOpen && (
+                              <div role="menu" className="absolute left-0 top-full mt-1 z-[80] w-56 rounded-xl border border-ink-700 bg-ink-900 p-1.5 shadow-2xl animate-fade-in">
+                                {hidden.map((h, idx) => (
+                                  <button
+                                    key={h.id}
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setBreadcrumbOverflowOpen(false);
+                                      handleSelectNote(h);
+                                    }}
+                                    style={{ paddingLeft: `${8 + idx * 10}px` }}
+                                    className="flex w-full items-center gap-2 rounded-lg py-1.5 pr-2 text-left text-xs text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
+                                  >
+                                    <span className="shrink-0">{h.emoji || "📝"}</span>
+                                    <span className="truncate">{h.title || "Untitled Note"}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </span>
+                        ) : (
+                          renderCrumb(n, i === visible.length - 1)
+                        )
+                      );
+                    })()}
+                  </nav>
                 )}
               </div>
             </div>
@@ -1747,6 +2150,11 @@ export default function Workspace() {
                   isReformatting={isReformattingNote}
                   onExportImport={() => setExportImportOpen(true)}
                   onDeleteNote={handleDeleteNote}
+                  onCreateSubPage={(parentNote) => {
+                    const pid = parentNote?.id || activeNoteObj?.id;
+                    if (!pid) return;
+                    handleCreateSubPage(pid, undefined, { insertCard: true, open: true });
+                  }}
                   variant="icon"
                   align="right"
                 />
@@ -1807,6 +2215,13 @@ export default function Workspace() {
               notesBySpace={notesBySpace}
               onSelectNote={handleSelectNote}
               clickToAppend={clickToAppendSetting ?? true}
+              trashNotes={trashNotes}
+              onCreateSubPage={(parentId, spaceId) =>
+                handleCreateSubPage(parentId || activeNoteObj?.id, spaceId || activeNoteObj?.spaceId || activeSpace)
+              }
+              onTrashSubPage={(pageId) => handleDeleteNote(pageId)}
+              onRecoverSubPage={(pageId) => handleRecoverNote(pageId, { navigate: false })}
+              onRegisterInsertPageBlock={registerInsertPageBlock}
             />
           )}
 

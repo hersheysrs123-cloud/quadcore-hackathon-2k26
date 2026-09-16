@@ -125,7 +125,7 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 - **Height**: Single slim unified header (`h-13 shrink-0` / 52px).
 - **Left Breadcrumb Context**:
   - Sidebar Toggle (`PanelLeftClose` / `PanelLeftOpen`)
-  - Space / View Breadcrumb (`📁 Space Name / 📝 Note Title` with favorite star indicator `⭐`, or `🌌 3D Simulations Studio` / `📅 Study Calendar & Timers` / `🔖 Web Saver & Bookmarks`).
+  - Hierarchy Breadcrumb (`📁 Space / 📝 Parent / 📄 Chapter / 📄 Sub-Topic`): every ancestor is a `button` crumb (`rounded-md px-1 py-0.5 text-ink-300 font-medium hover:bg-ink-800 hover:text-ink-100 max-w-[10rem] truncate`), the space crumb opens the Space Hub, the current page is a non-interactive `aria-current="page"` span (`font-semibold text-ink-100` + `⭐` when starred), separators are `text-ink-600 "/"`. Chains deeper than 4 collapse into an `…` button (`font-bold tracking-widest text-ink-400 hover:bg-ink-800`) whose `role="menu"` drop-down (`w-56 rounded-xl border-ink-700 bg-ink-900 p-1.5 shadow-2xl`, items indented `8px + 10px × depth`) lists the hidden ancestors. Non-note tabs keep their static label (`🌌 3D Simulations Studio` / `📅 Study Calendar & Timers` / `🔖 Web Saver & Bookmarks`).
 - **Center Navigation Tabs**: 3 space-specific study tabs (`📝 Notes`, `🎯 Quizzes`, `📊 Mastery`). The Mastery tab carries a `gap-500` count badge when the heatmap holds unresolved gaps.
 - **Far Right Action Bar**:
   - Auto-save status indicator (`saveStatus` with pulsating green dot).
@@ -473,6 +473,21 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
   - Outbound Links: Dual links to original Sketchfab artists and GitHub hosting repositories with `ExternalLink` icon and `target="_blank" rel="noopener noreferrer"`.
 - **Accessibility & Dismissal**:
   - Dismissible via top-right `X` icon, bottom `Close Credits` button, backdrop click, or native `Escape` key event listener.
+
+### 24. Nested Sub-Pages: Page Cards, Sidebar Tree & Gutter Insert Menu
+- **Sub-Page Card (`PageBlock`, block type `page`)**:
+  - Live card: `flex items-center gap-3 rounded-lg border border-transparent bg-ink-900/40 px-3 py-2 my-1 cursor-pointer hover:bg-ink-850 hover:border-ink-700 focus:ring-1 focus:ring-duck-400/50 focus:border-duck-500/40` (`tabIndex=0`, `role="link"`).
+  - Icon tile: `h-7 w-7 rounded-md bg-ink-850 text-base` holding the child's emoji; Title: `text-[15px] font-semibold text-ink-100 underline decoration-ink-700 underline-offset-4` (hover → `decoration-duck-400/70`); Arrow: `→ text-ink-500`, nudged `translate-x-0.5` and tinted `text-duck-300` on hover.
+  - Degraded card (page trashed or missing): `border-dashed border-ink-700 bg-ink-900/30 cursor-default`, title `text-ink-400 line-through decoration-ink-600`, helper line `text-[11px] text-ink-500`, actions `🔄 Restore` (`border-duck-500/40 bg-duck-500/15 text-duck-200 hover:bg-duck-500/25`) and `Remove` (`border-ink-750 bg-ink-850 text-ink-300 hover:border-rose-500/40 hover:text-rose-300`), both `print:hidden`.
+- **Block Gutter**: three hover controls at `absolute -left-[4.5rem] top-2 gap-0.5` — `+` (`text-sm font-bold text-ink-500 hover:bg-ink-800 hover:text-duck-300`; stays `bg-ink-800 text-duck-300` while its menu is open), `🗑️` (`text-rose-400/90 hover:bg-rose-500/20`), `⠿` (`text-ink-500 hover:text-duck-300 cursor-grab`).
+- **Insert-below menu**: the `SlashMenu` surface (`w-64 rounded-xl border-ink-700 bg-ink-900 shadow-2xl`) with header label `Insert below` and an inline filter input (`rounded-md border-ink-750 bg-ink-950 px-2 py-1 text-xs focus:border-duck-400`); empty state `text-[11px] italic text-ink-500 "No matching blocks."`. Items are relevance-ranked (`rankSlashItems`), the active row is `bg-ink-800 text-ink-100` with a `bg-duck-500/20 text-duck-300` icon tile.
+- **Sidebar Tree Rows** (`Sidebar.jsx`, `renderNoteNode`):
+  - Indent: `paddingLeft = 14px × depth`; every row reserves a `h-5 w-5` slot before the emoji so titles align whether or not a chevron is present.
+  - Chevron toggle: `ChevronRight` `h-3.5 w-3.5 strokeWidth 2.5 text-ink-500 hover:bg-ink-800 hover:text-duck-300`, rotated `rotate-90` when expanded (`transition-transform duration-200`), `aria-expanded` mirrored.
+  - Nested list: wrapper `grid transition-[grid-template-rows] duration-200 ease-out grid-rows-[0fr] | grid-rows-[1fr]`; inner `<ul class="min-h-0 overflow-hidden space-y-1">` gains `mt-1` when open and `inert` when closed.
+  - Drag indicator starts at the row's indent (`left: <indent>px`) so it never spans a parent row; rows outside the dragged note's sibling group are dimmed `opacity-60` and refuse drops (`dropEffect = "none"`).
+  - Trash drawer relationship badge: `rounded bg-duck-500/10 px-1.5 py-0.5 text-[10px] text-duck-300` reading `↳ in {parent}`.
+- **Note menu item**: `New sub-page` uses `FilePlus2` (`text-duck-400`) with a `Nested` hint label (`text-[10px] text-ink-500`).
 
 ### 23. Pre-Download Document Export Preview Tokens (`ExportPreview.jsx` & `ExportImportModal.jsx`)
 - **Responsive Dynamic Modal Sizing**:

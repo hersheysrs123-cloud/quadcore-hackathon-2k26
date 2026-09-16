@@ -9,37 +9,58 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import {
+  Activity,
   Aperture,
   Eye,
   ArrowUpDown,
   Atom,
   AudioWaveform,
   BatteryCharging,
+  Beaker,
+  Bell,
+  BicepsFlexed,
+  Biohazard,
   Boxes,
+  Bug,
   CircuitBoard,
   CloudLightning,
   Cylinder,
   Dna,
   Droplets,
+  Earth,
+  Filter,
   Flame,
+  FlameKindling,
   FlaskConical,
+  Flower2,
   GitBranch,
   Hexagon,
+  Leaf,
   Lightbulb,
   Magnet,
   Microscope,
   Orbit,
+  Pill,
   Puzzle,
+  Pyramid,
+  Radiation,
   Rocket,
   RotateCcw,
+  Sandwich,
   Scale,
   Scissors,
   Shapes,
+  ShieldCheck,
   Ship,
   Shuffle,
   Sigma,
+  Skull,
   Sparkles,
+  SprayCan,
   Spline,
+  Split,
+  Syringe,
+  HeartPulse,
   Thermometer,
   ThermometerSun,
   TrainFront,
@@ -54,17 +75,35 @@ import {
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
 import {
   ALGORITHM_OPTIONS,
+  AQUEOUS_SOLUTION_OPTIONS,
+  BARRIER_OPTIONS,
+  BOLUS_CONSISTENCY_OPTIONS,
+  CARDIAC_PATHOLOGY_OPTIONS,
   CIRCUIT_TOPOLOGY_OPTIONS,
+  DECAY_MODE_OPTIONS,
+  DIVISION_MODE_OPTIONS,
   CURVE_OPTIONS,
+  ELECTROLYTE_OPTIONS,
   FLUID_OPTIONS,
   FRICTION_SURFACE_OPTIONS,
   GRAVITY_OPTIONS,
+  GRAVITY_ORIENTATION_OPTIONS,
   HEAT_VIEW_OPTIONS,
+  METAL_STRIP_OPTIONS,
+  NERVE_PATHWAY_OPTIONS,
+  POLLINATION_VECTOR_OPTIONS,
   ROD_MATERIAL_OPTIONS,
+  SACRIFICIAL_METAL_OPTIONS,
+  SAMPLE_MIXTURE_OPTIONS,
+  SEPARATION_STATION_OPTIONS,
+  SOIL_MOISTURE_OPTIONS,
+  SOLVENT_TYPE_OPTIONS,
   SOLID_PRESET_OPTIONS,
   SPECIMEN_SHAPE_OPTIONS,
   STATIC_TARGET_OPTIONS,
+  STIMULUS_OPTIONS,
   STRUCTURE_OPTIONS,
+  SUBSTANCE_OPTIONS,
   SURFACE_OPTIONS,
   VSEPR_PRESETS,
   vseprPresetFor,
@@ -72,6 +111,15 @@ import {
 import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
 import { leakTimeConstant } from "@/lib/electrostatics";
 import { flameIsLit, flameTemperature } from "@/lib/heatTransfer";
+import { FOSSIL_GTC_PER_YEAR, solarLabel } from "@/lib/carbonCycle";
+import { PRODUCER_KJ_AT_FULL_SUN } from "@/lib/foodChain";
+import { TIMELINE_SECONDS, timeLabel } from "@/lib/pollination";
+import { MAX_CHIASMATA, arrestIndexFor, colchicineApplied, stagesFor } from "@/lib/cellDivision";
+import { CARDIAC_STAGE_OPTIONS, MAX_BPM, MIN_BPM, formatBpm } from "@/lib/cardiacCycle";
+import { MAX_DAYS, MIN_DAYS, dayLabel } from "@/lib/redox";
+import { COLLAR_MAX, COLLAR_MIN, collarLabel } from "@/lib/combustion";
+import { PRESSURE_MAX_ATM, PRESSURE_MIN_ATM, TEMP_MAX_C, TEMP_MIN_C } from "@/lib/particleModel";
+import { DEFAULT_ATOMS, MAX_ATOMS, MIN_ATOMS, SIM_HALF_LIFE_S } from "@/lib/radioactiveDecay";
 
 export const CATEGORIES = [
   { id: "all", label: "All" },
@@ -1886,6 +1934,608 @@ export const TOPICS = [
       },
     ],
   },
+  {
+    id: "reactivity_series",
+    category: "chemistry",
+    icon: Beaker,
+    title: "Reactivity Series & Metal Displacement",
+    blurb: "One metal, four solutions — which ions does it push out?",
+    syllabus: "Chemistry 10.2 · Reactivity Series · grades 8–10",
+    keywords:
+      "reactivity series displacement reaction single displacement metal potassium magnesium zinc iron copper silver gold copper sulfate iron sulfate silver nitrate magnesium sulfate oxidation reduction redox half equation electron transfer electrode potential silver tree",
+    defaults: {
+      metal: "Zn",
+      solution: "cuso4",
+      timeLapse: 10,
+      dip: 0,
+      speed: 1,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "metal",
+        label: "Metal strip — most reactive on the left",
+        columns: 4,
+        options: METAL_STRIP_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "solution",
+        label: "Aqueous solution — the beaker in focus",
+        columns: 4,
+        options: AQUEOUS_SOLUTION_OPTIONS,
+      },
+      {
+        type: "slider",
+        key: "timeLapse",
+        label: "Time-lapse speed",
+        min: 1,
+        max: 50,
+        step: 1,
+        format: (v) => `${Number(v).toFixed(0)}×`,
+      },
+      { type: "action", key: "dip", label: "Dip fresh strips", icon: RotateCcw, variant: "ghost" },
+    ],
+    concepts: [
+      "The reactivity series ranks metals by how readily they give up electrons — potassium most readily, gold least — and a metal higher in the series will take the place of any metal lower down that is dissolved as ions: zinc pushes copper out of copper sulfate, but copper cannot push zinc out of zinc sulfate. Standard electrode potentials put a number on the ranking: the more negative E° is, the more readily the metal is oxidised, and the difference between two metals' potentials is the driving force. That is why magnesium (−2.37 V) coats itself in copper within a minute while iron (−0.44 V) takes ten in the same beaker.",
+      "A displacement is two half-reactions at once, both happening at the surface of the strip. The strip's atoms are oxidised — Zn → Zn²⁺ + 2e⁻ — and the electrons travel through the metal to wherever an ion from the solution has arrived, which is reduced — Cu²⁺ + 2e⁻ → Cu — and plates out as a deposit. Nothing crosses the solution but ions: the electrons never leave the metal. The evidence is in the colours. Blue Cu²⁺ fades as it is used up, pale green Fe²⁺ appears as iron dissolves, and a strip of copper in colourless silver nitrate grows a silver 'tree' while the solution slowly turns blue.",
+      "Some metals cannot be tested this way at all, and that is a result too. Potassium is so reactive that it reduces the water itself — 2K + 2H₂O → 2KOH + H₂, fizzing off hydrogen — long before it could displace anything; and no strip on the rack can displace Mg²⁺ from magnesium sulfate, because magnesium is above all of them except potassium. Gold, at the bottom, displaces nothing and is displaced by everything: the reason it is found in the ground as metal while iron is found as ore.",
+    ],
+    quiz: [
+      {
+        question:
+          "A strip of zinc is placed in blue copper(II) sulfate solution. What is observed, and why?",
+        options: [
+          "The blue fades and a brown deposit grows on the zinc — zinc is above copper in the series, so it displaces Cu²⁺",
+          "The zinc dissolves and the solution turns a deeper blue — zinc ions are blue",
+          "Nothing happens — zinc and copper are both transition metals",
+          "Bubbles of hydrogen form — zinc reacts with the water",
+        ],
+        answer: 0,
+        explanation:
+          "Zinc (E° = −0.76 V) loses electrons more readily than copper (+0.34 V), so zinc atoms are oxidised to Zn²⁺ and the electrons reduce Cu²⁺ ions to copper metal on the strip. The blue is the Cu²⁺; Zn²⁺ is colourless, so the solution fades as the copper plates out. Zinc does not react with cold water — that needs a metal as reactive as potassium.",
+      },
+      {
+        question:
+          "Copper is dipped into silver nitrate solution and, separately, into iron(II) sulfate solution. Which beaker reacts?",
+        options: [
+          "Only the silver nitrate — copper is above silver in the series but below iron",
+          "Only the iron(II) sulfate — copper is a better conductor than iron",
+          "Both — copper is a reactive metal",
+          "Neither — copper is too unreactive to displace anything",
+        ],
+        answer: 0,
+        explanation:
+          "Copper sits between iron and silver in the series. It can give electrons to Ag⁺ (Cu + 2Ag⁺ → Cu²⁺ + 2Ag: silver crystals grow and the solution turns blue) but it cannot give them to Fe²⁺, because iron holds its electrons less tightly than copper does. Reactivity, not conductivity, decides displacement.",
+      },
+      {
+        question:
+          "Why does the simulation not show potassium displacing copper from copper sulfate, even though potassium is far above copper in the series?",
+        options: [
+          "Potassium is so reactive that it reacts with the water first, giving hydrogen and potassium hydroxide",
+          "Potassium ions are too large to fit into the copper lattice",
+          "Potassium is below copper in the series",
+          "Copper sulfate is a covalent compound and has no ions to displace",
+        ],
+        answer: 0,
+        explanation:
+          "Metals above hydrogen in the series can reduce water, and the most reactive ones do so violently: 2K + 2H₂O → 2KOH + H₂. The water is present in enormous excess over the copper ions, so it takes the electrons first. That is why the classroom displacement grid stops at magnesium — the metals above it cannot be handled in aqueous solution at all.",
+      },
+      {
+        question:
+          "In the reaction Fe + CuSO₄ → FeSO₄ + Cu, which species is oxidised and which is reduced?",
+        options: [
+          "Iron is oxidised (Fe → Fe²⁺ + 2e⁻); copper ions are reduced (Cu²⁺ + 2e⁻ → Cu)",
+          "Copper ions are oxidised; iron is reduced",
+          "The sulfate ions are reduced; iron is oxidised",
+          "Both iron and copper are oxidised, and sulfate is reduced",
+        ],
+        answer: 0,
+        explanation:
+          "OIL RIG: oxidation is loss of electrons, reduction is gain. Iron atoms lose two electrons each to become Fe²⁺, and each Cu²⁺ gains two to become copper metal. The sulfate ion is a spectator — it starts and ends as SO₄²⁻, which is why the ionic equation Fe + Cu²⁺ → Fe²⁺ + Cu leaves it out.",
+      },
+    ],
+  },
+  {
+    id: "rusting_galvanic",
+    category: "chemistry",
+    icon: ShieldCheck,
+    title: "Iron Rusting & Sacrificial Protection",
+    blurb: "Four nails, four tubes — what rust needs, and how a second metal stops it",
+    syllabus: "Chemistry 10.3 · Corrosion of Metals · grades 7–10",
+    keywords:
+      "rusting rust corrosion iron nail oxygen water hydrated iron(III) oxide boiled water paraffin oil desiccant calcium chloride sacrificial protection galvanising zinc magnesium copper cathodic protection anode cathode electron flow salt water electrolyte ship hull pipeline",
+    defaults: {
+      days: 7,
+      electrolyte: "distilled",
+      partner: "zinc",
+      playing: false,
+      speed: 1,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "days",
+        label: "Time-lapse",
+        min: MIN_DAYS,
+        max: MAX_DAYS,
+        step: 1,
+        format: (v) => dayLabel(v),
+      },
+      { type: "toggle", key: "playing", label: "Play the 30 days" },
+      {
+        type: "choice",
+        key: "electrolyte",
+        label: "Electrolyte additive — in every wet tube",
+        columns: 2,
+        options: ELECTROLYTE_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "partner",
+        label: "Sacrificial metal — wrapped round nail 4",
+        columns: 3,
+        options: SACRIFICIAL_METAL_OPTIONS,
+      },
+    ],
+    concepts: [
+      "Rusting is the oxidation of iron to hydrated iron(III) oxide, Fe₂O₃·xH₂O, and it needs both water and oxygen at the same time: 4Fe + 3O₂ + 2xH₂O → 2Fe₂O₃·xH₂O. The three-tube experiment proves it by removing one at a time. Boiled water under a layer of oil has had its dissolved oxygen driven out and cannot take in any more, so the nail in it stays bright; a stoppered tube with a drying agent has oxygen but no water, and that nail stays bright too. Only the nail with both goes brown — worst of all at the waterline, where the two meet.",
+      "Rusting is an electrochemical cell, which is why an electrolyte speeds it up so much. Iron is oxidised in one place — Fe → Fe²⁺ + 2e⁻ — and the electrons travel through the metal to where dissolved oxygen is reduced, O₂ + 2H₂O + 4e⁻ → 4OH⁻; the Fe²⁺ and OH⁻ meet in the water and the hydroxide oxidises to rust. Dissolved ions carry the charge between the two sites, so salt water, which conducts thousands of times better than pure water, lets the cell run several times faster. It is why cars rust in winter road salt and ships rust faster than bridges.",
+      "Wrap the nail in a more reactive metal and the cell runs the other way. Zinc (E° = −0.76 V) or magnesium (−2.37 V) gives up its electrons more readily than iron (−0.44 V), so the wrap becomes the anode and corrodes while the iron, now the cathode, is fed electrons and cannot be oxidised — sacrificial protection, used on ship hulls, pipelines and every galvanised roof. Magnesium protects harder than zinc but is used up faster, because the driving force is larger. Wrap the nail in copper (+0.34 V) and iron is the more reactive of the pair: the nail becomes the anode for the copper and rusts faster than it would alone.",
+    ],
+    quiz: [
+      {
+        question:
+          "A nail in boiled water sealed under a layer of oil does not rust, while an identical nail in ordinary water open to the air does. What does this show?",
+        options: [
+          "Rusting needs oxygen — boiling drove the dissolved oxygen out and the oil keeps the air away",
+          "Rusting needs heat — the boiled water has cooled and can no longer rust the nail",
+          "Oil is a rust inhibitor that coats the nail",
+          "Rusting needs light, and the oil layer blocks it",
+        ],
+        answer: 0,
+        explanation:
+          "The water is still water, so the only thing missing in the sealed tube is dissolved oxygen. Boiling removes it and the oil stops the air from dissolving back in. With no oxygen there is nothing to reduce, so the iron is not oxidised. The oil never touches the nail; it is a lid, not a coating.",
+      },
+      {
+        question:
+          "An iron nail is wrapped in zinc ribbon and left in salt water for a month. What happens?",
+        options: [
+          "The zinc corrodes and the nail stays bright — zinc is more reactive, so it is oxidised instead of the iron",
+          "The nail rusts faster — two metals always corrode each other",
+          "Both metals corrode at the same rate, since they are in the same water",
+          "Neither corrodes — the zinc insulates the nail from the water",
+        ],
+        answer: 0,
+        explanation:
+          "Zinc is above iron in the reactivity series (E° −0.76 V against −0.44 V), so when the two are in contact zinc gives up its electrons first. Those electrons flow into the iron and are used to reduce oxygen there, so the iron is never oxidised. The zinc wastes away — it is 'sacrificed' — and once it is gone the nail starts to rust. This is how galvanising works, and why it keeps protecting even when the zinc coat is scratched.",
+      },
+      {
+        question:
+          "Why does wrapping the nail in copper wire make it rust FASTER than a bare nail?",
+        options: [
+          "Copper is less reactive than iron, so the iron becomes the anode of the pair and is oxidised for both metals",
+          "Copper conducts heat into the nail",
+          "Copper reacts with the water to make an acid",
+          "The copper wire scratches the nail's protective oxide layer",
+        ],
+        answer: 0,
+        explanation:
+          "In a galvanic pair, the more reactive metal corrodes. With copper (E° +0.34 V) touching iron (−0.44 V), iron is the more reactive, so it is the anode: its electrons flow into the copper, where oxygen is reduced over the copper's whole surface as well. That gives the iron a much larger cathode to feed, so it loses electrons faster than it would alone. It is the reason you must not fit copper pipes directly to steel ones without an insulating joint.",
+      },
+      {
+        question:
+          "Which direction do electrons flow in the tube where the nail is wrapped in magnesium?",
+        options: [
+          "From the magnesium into the iron",
+          "From the iron into the magnesium",
+          "Through the water from the iron to the oxygen",
+          "They do not flow — magnesium stops the reaction",
+        ],
+        answer: 0,
+        explanation:
+          "Magnesium is the more reactive metal, so it is oxidised — Mg → Mg²⁺ + 2e⁻ — and its electrons pass through the metal-to-metal contact into the iron. The iron passes them on to oxygen at its surface (O₂ + 2H₂O + 4e⁻ → 4OH⁻). Electrons never travel through the water; ions do that. The iron is kept supplied with electrons the whole time, which is precisely what stops it losing its own.",
+      },
+    ],
+  },
+  {
+    id: "separation_techniques",
+    category: "chemistry",
+    icon: Filter,
+    title: "Separation Techniques Studio",
+    blurb: "Filtration, crystallisation and chromatography — one sample, three benches, three properties",
+    syllabus: "Chemistry 2.2 · Separation Techniques · grades 6–9",
+    keywords:
+      "separation techniques filtration filter paper funnel residue filtrate crystallisation crystallization evaporating basin saturated solution solubility boiling point chromatography paper chromatography rf retention factor solvent front baseline pigment dye mixture sand salt copper sulfate ethanol water particle size insoluble soluble",
+    defaults: {
+      station: "filtration",
+      mixture: "sand_salt",
+      solvent: "water",
+      restart: 0,
+      speed: 1,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "station",
+        label: "Station selector — which apparatus runs",
+        columns: 3,
+        options: SEPARATION_STATION_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "mixture",
+        label: "Sample mixture",
+        columns: 1,
+        options: SAMPLE_MIXTURE_OPTIONS,
+      },
+      {
+        type: "choice",
+        key: "solvent",
+        label: "Solvent type",
+        columns: 2,
+        options: SOLVENT_TYPE_OPTIONS,
+      },
+      { type: "action", key: "restart", label: "Restart this station", icon: RotateCcw, variant: "ghost" },
+    ],
+    concepts: [
+      "Every separation technique works because the parts of a mixture differ in some physical property, and the technique is chosen to match the difference. Filtration exploits particle size: an insoluble solid such as sand has grains hundreds of micrometres across, far larger than the 11 µm pores of filter paper, so it is held back as the residue, while a dissolved solute is present as ions or molecules under a nanometre wide and runs straight through in the filtrate. Filtration therefore separates a solid from a liquid — it cannot separate a solute from its solvent, which is why filtering copper sulfate solution gives a blue filtrate and an empty paper.",
+      "Crystallisation exploits solubility. A solvent can only hold so much solute per 100 mL, and usually more when hot than when cold. Evaporating the solvent concentrates the solution until it is saturated, and from then on every drop that leaves forces some solute out as crystals. Where the solubility curve is steep — copper sulfate holds 32 g at 20 °C but 114 g at the boil — the method is to heat only until the first crystals appear and then let it cool, so falling solubility does most of the work and the crystals grow large and well formed. Where the curve is flat, as for salt, cooling recovers almost nothing and the basin is taken to dryness. Substances that are not crystalline, such as food dyes, simply dry to a film.",
+      "Paper chromatography exploits how strongly each component is attracted to the moving solvent compared with the paper. The solvent front climbs the paper by capillary action and each dissolved, coloured component is carried a fixed fraction of that distance — its retention factor, Rf = distance moved by the spot ÷ distance moved by the solvent, always between 0 and 1. Rf is a property of the substance in a given solvent, not of how long the paper was left, which is why it identifies things: a single pure substance gives one spot, a black marker ink gives three, and swapping water for ethanol changes every Rf because the balance between solvent and paper changes. A colourless solute travels too, but needs a locating agent before it can be seen — and the baseline is drawn in pencil because ink would run up the paper with the sample.",
+    ],
+    quiz: [
+      {
+        question:
+          "A mixture of sand and salt water is poured through filter paper. What is found on the paper and what is in the flask?",
+        options: [
+          "Sand on the paper; salt solution in the flask — the sand grains are far larger than the pores, the dissolved salt is not",
+          "Salt on the paper; sand in the flask — salt is denser than sand",
+          "Both on the paper; pure water in the flask — filter paper removes everything but the solvent",
+          "Nothing on the paper; everything in the flask — filter paper only removes bacteria",
+        ],
+        answer: 0,
+        explanation:
+          "Filter paper is a sieve with ~11 µm pores. Sand grains (hundreds of µm) cannot pass; sodium and chloride ions (under 1 nm) pass with the water. Filtration separates an insoluble solid from a liquid — the dissolved salt is not a particle the paper can see, so the filtrate is still salt water.",
+      },
+      {
+        question:
+          "Why is copper sulfate solution heated only until the first crystals appear, and then left to cool, rather than boiled dry?",
+        options: [
+          "Its solubility falls steeply as it cools (114 g → 32 g per 100 mL), so cooling brings most of it out as large, well-formed crystals",
+          "Copper sulfate decomposes above 100 °C, so it must never boil",
+          "Boiling dry would leave the crystals blue instead of white",
+          "The first crystals are the purest and the rest must be thrown away",
+        ],
+        answer: 0,
+        explanation:
+          "A saturated hot solution holds far more copper sulfate than a cold one. Once the first crystals show, the solution is saturated at the boil; taking the flame away and letting the temperature fall drags the solubility down with it, and the excess comes out slowly as good crystals. Boiling dry works, but fuses everything into a crust and loses the water of crystallisation.",
+      },
+      {
+        question:
+          "On a chromatogram the solvent front moved 60 mm and a blue spot moved 23 mm. What is the Rf of the blue dye, and what would it be if the paper had been left twice as long?",
+        options: [
+          "Rf = 23 ÷ 60 ≈ 0.38, and it would still be 0.38 — Rf is a ratio that does not depend on time",
+          "Rf = 60 ÷ 23 ≈ 2.6, and it would double",
+          "Rf = 23 mm, and it would be 46 mm",
+          "Rf = 0.38, and it would rise to 0.76 because the spot keeps moving",
+        ],
+        answer: 0,
+        explanation:
+          "Rf is the fraction of the solvent's journey the spot is carried along, so it is always between 0 and 1 and has no units. Both distances grow together as the run continues, so the ratio stays fixed — which is exactly why an Rf value can be used to identify a substance in a given solvent.",
+      },
+      {
+        question:
+          "Black marker ink gives three spots with water as the solvent but the same three spots in a different order with ethanol. What does this show?",
+        options: [
+          "The ink is a mixture of three dyes, and each dye's affinity for the solvent relative to the paper depends on which solvent is used",
+          "Ethanol dissolves the paper, so the spots are in the wrong place",
+          "The ink reacts with ethanol to make new dyes",
+          "Water is a better solvent, so the ethanol result is wrong",
+        ],
+        answer: 0,
+        explanation:
+          "Three spots means three components. Rf reflects the balance between how much a dye likes the moving solvent and how much it clings to the paper; change the solvent and that balance changes for each dye differently — a dye that clings in water may be carried well by the less polar ethanol. Same substances, different Rf values, different order.",
+      },
+    ],
+  },
+  {
+    id: "combustion_fire_triangle",
+    category: "chemistry",
+    icon: FlameKindling,
+    title: "Combustion & the Fire Triangle",
+    blurb: "Turn the collar, watch the flame change — then take away fuel, oxygen or heat",
+    syllabus: "Chemistry 3.4 · Combustion · grades 6–9",
+    keywords:
+      "combustion fire triangle fuel oxygen heat bunsen burner air hole collar methane complete combustion incomplete combustion carbon monoxide soot carbon dioxide water blue flame yellow flame safety flame roaring flame inner cone ignition temperature extinguish bell jar smother water mist gas tap",
+    defaults: {
+      collar: 15,
+      cutFuel: 0,
+      bellJar: 0,
+      waterMist: 0,
+      holdBasin: 0,
+      relight: 0,
+      speed: 1,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "collar",
+        label: "Air collar rotation — closed (yellow) → fully open (blue)",
+        min: COLLAR_MIN,
+        max: COLLAR_MAX,
+        step: 1,
+        format: (v) => `${Number(v).toFixed(0)}% · ${collarLabel(v)}`,
+      },
+      { type: "action", key: "cutFuel", label: "Fire triangle · cut the fuel (gas tap off)", icon: Unplug, variant: "danger" },
+      { type: "action", key: "bellJar", label: "Fire triangle · smother with a bell jar (starve O₂)", icon: Bell, variant: "danger" },
+      { type: "action", key: "waterMist", label: "Fire triangle · spray water mist (remove heat)", icon: SprayCan, variant: "danger" },
+      { type: "action", key: "holdBasin", label: "Hold a cold evaporating basin over the flame", icon: Flame, variant: "primary" },
+      { type: "action", key: "relight", label: "Relight the burner & reset the apparatus", icon: RotateCcw, variant: "ghost" },
+    ],
+    concepts: [
+      "A flame needs three things at once — a fuel, oxygen, and enough heat to keep the reaction going — and the fire triangle is the reminder that removing any one of them puts it out. Close the gas tap and there is nothing left to burn; lower a bell jar and the flame uses up the oxygen inside until the air is too lean (below about 16% O₂ a methane flame cannot survive); spray a fine water mist and the water's evaporation carries heat away faster than the flame can supply it, dropping the fuel–air mixture below its ignition temperature. Each interrupter targets one side, which is the basis of every method of firefighting: turning off the supply, smothering with a blanket or foam, and cooling with water.",
+      "A Bunsen burner's air collar decides how completely the methane burns, because it decides how much oxygen is mixed with the gas BEFORE it reaches the flame. With the holes closed the gas only meets air at the edge of the flame, burns slowly and relatively cool (around 300 °C in the luminous tip), and there is not enough oxygen for every carbon atom: the carbon stops at carbon monoxide, 2CH₄ + 3O₂ → 2CO + 4H₂O, and some is left as tiny solid particles that glow yellow in the flame and land as soot on anything cold held in it. Fully open, the pre-mixed flame burns fast and hot (up to about 1 400 °C at the tip of the inner cone), almost invisible blue, and clean: CH₄ + 2O₂ → CO₂ + 2H₂O.",
+      "The difference matters outside the lab. Carbon monoxide is colourless, odourless and binds to haemoglobin about 200 times more strongly than oxygen does, so a yellow-flamed gas appliance in a closed room is dangerous — which is why boilers and heaters are serviced to keep their flames blue and why homes have CO detectors. The soot is wasted fuel, and the incomplete reaction also releases less energy per mole of methane (about 607 kJ against 890 kJ), so a blue flame is not just safer but hotter and more efficient. The yellow 'safety' flame exists only so that a burner that is lit but not in use can be seen.",
+    ],
+    quiz: [
+      {
+        question:
+          "A Bunsen burner's air hole is opened fully. What happens to the flame, and why?",
+        options: [
+          "It turns blue, quieter to see but roaring, and much hotter — air is mixed in before the flame, so the methane burns completely to CO₂ and water",
+          "It turns yellow and brighter — more air makes more light",
+          "It goes out — the extra air blows the flame off the barrel",
+          "It stays the same colour but gets taller",
+        ],
+        answer: 0,
+        explanation:
+          "With the holes open, oxygen is pre-mixed with the gas, so every carbon atom has enough oxygen to reach CO₂ and the reaction runs fast and hot (up to ~1 400 °C at the inner cone tip). There is no unburnt carbon to glow, so the flame loses its yellow and becomes a faint blue with a sharp inner cone.",
+      },
+      {
+        question:
+          "A cold evaporating basin is held in a yellow Bunsen flame and comes out black underneath. What is the black substance, and what does it tell you about the flame?",
+        options: [
+          "Soot — unburnt carbon — showing the flame is short of oxygen and burning incompletely",
+          "Copper oxide from the burner barrel",
+          "Condensed methane, frozen onto the cold surface",
+          "Carbon dioxide, which is black when solid",
+        ],
+        answer: 0,
+        explanation:
+          "In a closed-collar flame some carbon never gets the oxygen to become CO or CO₂; it is left as particles of carbon that glow yellow (that is the flame's colour) and land on a cold surface as soot. A blue flame leaves the basin clean because its carbon all leaves as colourless CO₂.",
+      },
+      {
+        question:
+          "A lit burner is covered with a bell jar. The gas is still flowing and the flame is still hot, yet it goes out after a few seconds. Which side of the fire triangle was removed?",
+        options: [
+          "Oxygen — the flame used up the oxygen in the jar until the air was too lean to burn in",
+          "Fuel — the jar stops the gas reaching the flame",
+          "Heat — the glass cools the flame",
+          "None — the flame was blown out by the draught of lowering the jar",
+        ],
+        answer: 0,
+        explanation:
+          "The jar seals off the supply of fresh air. The flame keeps consuming oxygen (and producing CO₂ and water vapour) until the oxygen fraction falls below what methane needs — roughly 16% — and the reaction can no longer sustain itself. Fuel and heat were both still present; only oxygen was missing.",
+      },
+      {
+        question:
+          "Why does a fine water mist put a flame out?",
+        options: [
+          "Evaporating water absorbs a great deal of heat (about 2 260 kJ per kg), cooling the fuel–air mix below its ignition temperature",
+          "Water reacts with methane to form a non-flammable gas",
+          "The droplets physically block oxygen from reaching the flame",
+          "Water dissolves the methane so it cannot burn",
+        ],
+        answer: 0,
+        explanation:
+          "Water's latent heat of vaporisation is enormous, and a mist has a huge surface area, so it evaporates instantly in the flame and carries the heat away faster than the reaction can replace it. Fuel and oxygen are both still there; the flame simply drops below the temperature needed to keep igniting the next bit of gas. Cooling is the heat side of the triangle.",
+      },
+    ],
+  },
+  {
+    id: "particle_model_matter",
+    category: "chemistry",
+    icon: Thermometer,
+    title: "Particle Model of Matter & Phase Changes",
+    blurb: "500 particles on a hotplate under a piston — and the thermometer that stops while they melt and boil",
+    syllabus: "Chemistry 1.1 · States of matter · grades 6–9",
+    keywords:
+      "particle model kinetic theory states of matter solid liquid gas melting boiling freezing condensing sublimation evaporation latent heat fusion vaporisation heating curve plateau temperature kinetic energy intermolecular forces hydrogen bond dispersion pressure piston boiling point clausius clapeyron dry ice supercritical ice floats",
+    defaults: {
+      temperature: 20,
+      pressure: 1,
+      substance: "water",
+      speed: 1,
+    },
+    controls: [
+      {
+        type: "slider",
+        key: "temperature",
+        label: "Temperature — hotplate / cryocooler setpoint",
+        min: TEMP_MIN_C,
+        max: TEMP_MAX_C,
+        step: 1,
+        format: (v) => `${Number(v).toFixed(0)} °C`,
+      },
+      {
+        type: "slider",
+        key: "pressure",
+        label: "Pressure piston",
+        min: PRESSURE_MIN_ATM,
+        max: PRESSURE_MAX_ATM,
+        step: 0.1,
+        format: (v) => `${Number(v).toFixed(1)} atm`,
+      },
+      { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3 },
+    ],
+    concepts: [
+      "Everything is made of particles that are always moving, and temperature is a measure of how fast — the average kinetic energy of a particle is proportional to the absolute temperature (³⁄₂ kT). In a solid the particles have only enough energy to vibrate about fixed positions in a regular lattice; in a liquid they have enough to slide past one another but not to escape each other's attraction, so they stay touching; in a gas they have broken free entirely and fly in straight lines between collisions, filling whatever space the piston leaves them. Heating a gas makes its particles hit the walls harder and more often, which is pressure; pushing the piston down squeezes the same particles into less room, which is also pressure.",
+      "While a substance melts or boils its temperature does not change. The heating curve shows this as two flat steps: energy is still going in, but it is being spent breaking the attractions between particles — pulling them out of the lattice (the latent heat of fusion, 6.0 kJ per mole for ice) or apart from one another altogether (the latent heat of vaporisation, 40.7 kJ per mole for water) — not on making them move faster. Only when every particle has crossed does the temperature rise again. The boiling step is far longer than the melting step because separating particles completely costs far more than loosening them.",
+      "How high those steps sit depends on how strong the attractions are, and where they sit depends on the pressure. Water's hydrogen bonds hold it together to 100 °C; neon's feeble dispersion forces give way at −246 °C, far below anything this hotplate reaches. Raise the pressure and a liquid has to get hotter before its vapour can push back — water boils at 180 °C at 10 atm, which is how a pressure cooker works, and at 81 °C at 0.5 atm on a mountain. Carbon dioxide has no liquid at all at 1 atm: dry ice sublimes straight to gas at −78.5 °C, and only above 5.1 atm can it be a liquid. Ice is the odd one out for another reason — its open hydrogen-bonded lattice takes up 9% more room than the water it melts into, which is why it floats.",
+    ],
+    quiz: [
+      {
+        question: "Water is heated steadily from 20 °C. At 100 °C the thermometer stops rising for a long time even though the hotplate is still on. Where is the energy going?",
+        options: [
+          "Into separating the water molecules from one another completely — the latent heat of vaporisation — not into making them move faster",
+          "Into the thermometer, which has stopped working",
+          "It is being reflected by the water's surface",
+          "Into making the molecules move faster, but the thermometer is too slow to show it",
+        ],
+        answer: 0,
+        explanation:
+          "During boiling every joule supplied is spent breaking the attractions that hold the liquid together (about 40.7 kJ per mole for water). The average kinetic energy of the molecules — which is what temperature measures — stays the same until every molecule has escaped into the gas, so the heating curve is flat.",
+      },
+      {
+        question: "The piston is pushed down to raise the pressure on the water from 1 atm to 10 atm. What happens to its boiling point?",
+        options: [
+          "It rises, to about 180 °C — the vapour must push harder to escape, so the liquid must be hotter",
+          "It falls, because pressure squeezes the molecules apart",
+          "It stays at 100 °C — boiling point is a fixed property of water",
+          "The water cannot boil at all above 1 atm",
+        ],
+        answer: 0,
+        explanation:
+          "Boiling happens when the vapour pressure of the liquid matches the pressure on it. At higher pressure that needs a higher temperature (Clausius–Clapeyron): about 180 °C at 10 atm. A pressure cooker uses exactly this to cook food faster; on a mountain at 0.5 atm water boils at only 81 °C.",
+      },
+      {
+        question: "At 1 atm, dry ice (solid CO₂) is warmed on the hotplate. What does the heating curve show?",
+        options: [
+          "One flat step at −78.5 °C as the solid turns straight to gas — there is no liquid stage at this pressure",
+          "Two flat steps, like water — melting then boiling",
+          "No flat steps — CO₂ has no latent heats",
+          "A flat step at 0 °C, because that is where solids melt",
+        ],
+        answer: 0,
+        explanation:
+          "Below its triple-point pressure of 5.1 atm carbon dioxide cannot exist as a liquid. The solid sublimes directly to gas at −78.5 °C, and the heating curve has a single flat step there whose width is the latent heat of sublimation (about 25 kJ per mole). Raise the piston pressure above 5.1 atm and a liquid appears between a melting step and a boiling step.",
+      },
+      {
+        question: "Neon is chosen and the hotplate is set to its coldest, −100 °C. Why do the particles stay a gas?",
+        options: [
+          "Neon's atoms attract each other only through weak dispersion forces, so it boils at −246 °C — far colder than the cryocooler can reach",
+          "Neon is always a gas; it cannot be a liquid or solid",
+          "The cryocooler is broken",
+          "The piston pressure is too low for neon to condense at any temperature",
+        ],
+        answer: 0,
+        explanation:
+          "Whether a substance is solid, liquid or gas at a given temperature depends on how strong the attractions between its particles are compared with their kinetic energy. Neon's closed-shell atoms attract only by instantaneous dipoles, the weakest force there is, so it condenses at −246 °C and freezes at −249 °C. At −100 °C its atoms have many times the energy needed to stay free.",
+      },
+      {
+        question: "The same 500 water particles stand taller as a block of ice than as a pool of liquid water. What does this tell you?",
+        options: [
+          "Ice is less dense than water — the hydrogen-bonded lattice holds the molecules further apart than they sit in the liquid — which is why ice floats",
+          "There are more particles in ice than in water",
+          "Ice particles are bigger than water particles",
+          "The ice has trapped air",
+        ],
+        answer: 0,
+        explanation:
+          "In liquid water molecules tumble past one another and pack closer than the rigid, open hexagonal arrangement hydrogen bonds impose in ice. The same mass takes about 9% more volume as ice — an unusual property (most solids are denser than their liquids, as neon and CO₂ are here) and the reason lakes freeze from the top down.",
+      },
+    ],
+  },
+  {
+    id: "radioactive_decay",
+    category: "chemistry",
+    icon: Radiation,
+    title: "Radioactive Decay Modes & Half-Life",
+    blurb: "Ten thousand nuclei rolling dice — α, β and γ through plates and barriers, and the curve that falls out",
+    syllabus: "Chemistry 2.4 / Physics 5.2 · Nuclear · grades 9–10",
+    keywords:
+      "radioactive decay half-life alpha beta gamma positron neutrino nucleon number atomic number conservation nuclear equation uranium thorium carbon-14 carbon dating fluorine-18 PET technetium-99m exponential decay constant activity becquerel geiger counter ionising penetrating paper aluminium lead electric field deflection random probability statistics",
+    defaults: {
+      mode: "alpha",
+      atoms: DEFAULT_ATOMS,
+      barrier: "paper",
+      fieldOn: false,
+      restart: 0,
+      speed: 1,
+    },
+    controls: [
+      { type: "choice", key: "mode", label: "Decay mode", options: DECAY_MODE_OPTIONS, columns: 2 },
+      {
+        type: "slider",
+        key: "atoms",
+        label: "Sample population size",
+        min: MIN_ATOMS,
+        max: MAX_ATOMS,
+        step: 100,
+        format: (v) => `${Number(v).toLocaleString("en-GB")} atoms`,
+      },
+      { type: "choice", key: "barrier", label: "Barrier material", options: BARRIER_OPTIONS, columns: 3 },
+      { type: "toggle", key: "fieldOn", label: "Electric field plates (+ above, − below)" },
+      { type: "action", key: "restart", label: `Fresh sample (restart · 1 t½ = ${SIM_HALF_LIFE_S} s on screen)`, icon: RotateCcw, variant: "ghost" },
+    ],
+    concepts: [
+      "A nuclear equation must balance twice over: the nucleon numbers (top, A) add up on both sides and so do the atomic numbers (bottom, Z), because nucleons and charge are both conserved. An alpha particle is a helium nucleus, ⁴₂He, so alpha decay takes A down by 4 and Z down by 2: ²³⁸₉₂U → ²³⁴₉₀Th + ⁴₂He. In beta-minus decay a neutron becomes a proton and an electron (⁰₋₁e) leaves, so Z goes UP by one and A stays the same: ¹⁴₆C → ¹⁴₇N + ⁰₋₁e + ν̄ₑ. Beta-plus is the mirror — a proton becomes a neutron, a positron (⁰₊₁e) leaves, Z goes DOWN by one. A gamma ray is a photon: no mass, no charge, so the nucleus is unchanged, only calmer.",
+      "The three radiations are told apart by what stops them and what bends them. Alpha is heavy and doubly charged, so it ionises intensely and is spent within a few centimetres of air or a single sheet of paper. Beta is light and singly charged, penetrates paper and about a metre of air, and is stopped by a few millimetres of aluminium. Gamma has no charge, ionises weakly, and is only attenuated — never quite stopped — by thick lead. Between charged plates the alpha (positive) bends toward the negative plate, the beta-minus (negative) bends the other way and, being 7 000 times lighter, bends far more; gamma goes straight through.",
+      "Decay is random: no nucleus knows how old it is, and each undecayed nucleus has exactly the same probability of decaying in the next second as every other. That is all the model contains, yet from it the number remaining follows N = N₀e^(−λt), so the time for half to go — the half-life — is the same whether you start with the whole sample or with what is left. With a hundred atoms the curve is jagged and the measured half-lives scatter; with ten thousand it lies on the prediction, because averages over many random events are predictable even though each event is not. The activity (decays per second, in becquerels) is λN, so it halves with N — a Geiger counter clicks half as often every half-life.",
+    ],
+    quiz: [
+      {
+        question: "Uranium-238 (A = 238, Z = 92) emits an alpha particle. What is the daughter nucleus?",
+        options: [
+          "Thorium-234: A = 234, Z = 90 — the alpha carries away 4 nucleons and 2 protons",
+          "Uranium-234: A = 234, Z = 92 — only the mass changes",
+          "Plutonium-242: A = 242, Z = 94 — the nucleus gains an alpha",
+          "Protactinium-238: A = 238, Z = 91 — one proton becomes a neutron",
+        ],
+        answer: 0,
+        explanation:
+          "An alpha particle is ⁴₂He. Both A and Z must balance: 238 = 234 + 4 and 92 = 90 + 2. Element 90 is thorium.",
+      },
+      {
+        question: "Carbon-14 (Z = 6) undergoes beta-minus decay. Why does the daughter have Z = 7 when no proton was added?",
+        options: [
+          "A neutron inside the nucleus turned into a proton, emitting an electron to conserve charge — so Z rises by one while A stays 14",
+          "The nucleus captured a proton from the surroundings",
+          "The electron emitted was a proton in disguise",
+          "Z does not change in beta decay; the daughter is still carbon",
+        ],
+        answer: 0,
+        explanation:
+          "In β⁻ decay n → p + e⁻ + ν̄ₑ. The proton count goes up by one (carbon becomes nitrogen), the nucleon count is unchanged (the neutron became a proton, still one nucleon), and the electron's charge of −1 balances the new +1 in the nucleus: ¹⁴₆C → ¹⁴₇N + ⁰₋₁e + ν̄ₑ.",
+      },
+      {
+        question: "A source is placed in front of a Geiger counter with the field plates on. The count drops to almost nothing when the plates are switched on, and returns when they are off. Which radiation is it NOT?",
+        options: [
+          "Gamma — a gamma photon has no charge, so the field could not have moved it off the detector",
+          "Alpha — alpha particles are too heavy to deflect",
+          "Beta-minus — electrons are not affected by electric fields",
+          "It could be any of them",
+        ],
+        answer: 0,
+        explanation:
+          "Only charged particles are deflected by an electric field. If switching the field on steers the beam off the window, the radiation carries charge — it is alpha or beta. Gamma photons pass straight through with the field on or off.",
+      },
+      {
+        question: "A sample of 100 atoms gives measured half-lives of 8.1 s, 11.4 s and 9.2 s; a sample of 10 000 atoms gives 9.9 s, 10.0 s and 10.1 s. What does this show?",
+        options: [
+          "Decay is random for each nucleus, so a small sample scatters — but with many nuclei the randomness averages out and the half-life is sharply defined",
+          "Small samples have a shorter half-life than large ones",
+          "The large sample is a different isotope",
+          "Half-life depends on how many atoms have already decayed",
+        ],
+        answer: 0,
+        explanation:
+          "Every nucleus has the same probability of decaying per second whatever the sample size. With few nuclei, chance fluctuations in WHEN they go are large compared with the total, so the time for half to go varies from run to run. With thousands, the fluctuations are a small fraction of the whole and N(t) follows N₀e^(−λt) closely. The half-life is a property of the isotope, not of the sample.",
+      },
+      {
+        question: "Technetium-99m is used as a medical tracer and decays by emitting a gamma ray. What happens to its A and Z?",
+        options: [
+          "Neither changes — a gamma ray carries energy but no mass and no charge, so ⁹⁹ᵐTc simply becomes ⁹⁹Tc",
+          "A falls by 4 and Z by 2",
+          "Z rises by one",
+          "A falls by one — the photon carries off one nucleon",
+        ],
+        answer: 0,
+        explanation:
+          "The 'm' means metastable: the nucleus was left in an excited state and sheds the surplus as a photon. Since no nucleon or charge leaves, the nuclide is unchanged. The gamma's penetrating power is exactly why it can be detected from outside the body, and the 6-hour half-life is short enough to limit the patient's dose.",
+      },
+    ],
+  },
   // ═══ Biology ═══════════════════════════════════════════════════════
   {
     id: "enzyme",
@@ -2225,6 +2875,615 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "While quiet expiration is passive elastic recoil, forced expiration is an active muscular process where internal intercostals actively depress the ribcage down and inwards, paired with abdominal muscle compression driving the diaphragm upward.",
+      },
+    ],
+  },
+  {
+    id: "reflex_arc",
+    category: "biology",
+    icon: Activity,
+    title: "The Reflex Arc & Spinal Circuit",
+    blurb: "A hand in a candle flame, and the 30 ms round trip through the spinal cord that pulls it out",
+    syllabus: "Biology 14 · Coordination & Response",
+    keywords:
+      "reflex arc withdrawal reflex stimulus receptor nociceptor sensory neuron relay neuron interneuron motor neuron effector spinal cord dorsal root ganglion ventral root synapse neurotransmitter action potential myelin conduction velocity involuntary response time",
+    defaults: { stimulus: "flame", pathway: "intact", slowMotion: true, speed: 1 },
+    controls: [
+      { type: "choice", key: "stimulus", label: "Stimulus type", columns: 1, options: STIMULUS_OPTIONS },
+      { type: "choice", key: "pathway", label: "Nerve pathway", columns: 1, options: NERVE_PATHWAY_OPTIONS },
+      { type: "toggle", key: "slowMotion", label: "Slow-motion playback (10× slowed)" },
+    ],
+    concepts: [
+      "A reflex arc is the shortest route from a stimulus to a response: receptor → sensory neuron → relay neuron in the spinal cord → motor neuron → effector. The impulse never has to reach the brain's cortex to make the arm move, which is why the response is involuntary and why it is fast — about 30 ms from the burn to the biceps being told to contract, most of it spent travelling up the arm.",
+      "The two spinal roots carry traffic one way only. Sensory impulses enter through the DORSAL root, past the ganglion that holds the sensory neuron's cell body; motor impulses leave through the VENTRAL root. Cut the dorsal root and nothing is felt and nothing moves; cut the ventral root and the pain is still felt, but the order to move never reaches the muscle.",
+      "Every junction is a synapse, and a synapse is a one-way chemical gap: neurotransmitter is released from the presynaptic side only, so the impulse cannot run backwards. Each one costs about half a millisecond — and a stimulus that does not reach the pain threshold, like warmth, never recruits the motor side of the arc at all.",
+    ],
+    quiz: [
+      {
+        question: "A person's dorsal (sensory) root at the spinal segment serving the hand is completely severed. Their hand touches a flame. What happens?",
+        options: [
+          "No withdrawal reflex and no sensation — the impulse cannot enter the spinal cord at all",
+          "The hand withdraws normally, but they feel nothing",
+          "They feel the pain, but the hand does not withdraw",
+          "Nothing changes, because the reflex uses the ventral root",
+        ],
+        answer: 0,
+        explanation:
+          "All sensory information enters the cord through the dorsal root. With it cut, the impulse from the nociceptor stops at the cut: it reaches neither the relay neuron (so no reflex) nor the brain (so no sensation). A ventral-root cut would be the opposite — pain felt, no movement.",
+      },
+      {
+        question: "Why does a reflex response happen BEFORE you consciously feel the pain?",
+        options: [
+          "The arc is completed within the spinal cord; the message to the brain travels on separately and takes longer to be processed",
+          "Pain receptors send their signal to the muscle directly, without any neurons",
+          "The brain processes the reflex first and only feels the pain afterwards",
+          "Motor neurons conduct faster than any other cell, so the muscle is reached first",
+        ],
+        answer: 0,
+        explanation:
+          "The relay neuron in the cord sends the impulse straight to a motor neuron — the whole loop is about 30 ms. A copy of the signal also ascends to the brain, but conscious perception involves many more synapses and takes several hundred milliseconds, by which time the hand has already moved.",
+      },
+      {
+        question: "Which of these is a reason the reflex takes about 30 ms rather than being instant?",
+        options: [
+          "The impulse has to travel about 70 cm along the sensory neuron at roughly 30 m/s, which alone takes over 20 ms",
+          "The receptor waits for the brain's permission before firing",
+          "Neurotransmitter has to diffuse all the way from the fingertip to the spinal cord",
+          "The muscle contracts before the impulse arrives, so timing is irrelevant",
+        ],
+        answer: 0,
+        explanation:
+          "Conduction is not instantaneous. A thin myelinated Aδ pain fibre carries the impulse at tens of metres per second, so the long run up the arm is the largest single part of the delay. The synapses add only about half a millisecond each, and the thick, fast motor axon covers its 35 cm in under 4 ms.",
+      },
+    ],
+  },
+  {
+    id: "antagonistic_muscles",
+    category: "biology",
+    icon: BicepsFlexed,
+    title: "Antagonistic Muscle Pairs & the Levered Elbow",
+    blurb: "Biceps and triceps across the elbow — why a muscle can only pull, and what τ = F·d costs it",
+    syllabus: "Biology 14 · Coordination & Response · Movement",
+    keywords:
+      "antagonistic muscle pair biceps triceps agonist antagonist flexor extensor elbow joint hinge lever torque moment force distance tendon ligament contraction relaxation bulge fatigue lactic acid anaerobic respiration strain skeleton humerus radius ulna scapula",
+    defaults: { elbowAngle: 90, load: 10, fatigue: 0, speed: 1 },
+    controls: [
+      { type: "slider", key: "elbowAngle", label: "Elbow joint angle", min: 0, max: 145, step: 1, format: (v) => (v === 0 ? "0° · full extension" : v === 145 ? "145° · full flexion" : `${v}°`) },
+      { type: "slider", key: "load", label: "Handheld load", min: 0, max: 25, step: 0.5, format: (v) => (v === 0 ? "no dumbbell" : `${v} kg dumbbell`) },
+      { type: "action", key: "fatigue", label: "Fatigue mode — lactic acid build-up", icon: Activity, variant: "danger" },
+    ],
+    concepts: [
+      "Muscle tissue can only PULL. It contracts, gets shorter and fatter, and hauls its two attachment points together; it cannot push them apart. So a joint that has to move both ways needs two muscles on opposite sides: the biceps flexes the elbow, the triceps extends it, and while one contracts the other relaxes and is stretched. That is an antagonistic pair.",
+      "The elbow is a lever with the pivot at the joint. The load hangs about 28 cm from it; the biceps tendon pulls only about 4 cm from it. Because the turning effect τ = F·d must balance on both sides, the muscle has to pull with roughly seven times the load's weight — a 10 kg dumbbell needs close to 700 N of biceps force.",
+      "A contracting muscle keeps its volume, so shortening by a third makes it about 20 % wider — the bulge is the same tissue rearranged, not more of it. When it works hard without enough oxygen it respires anaerobically, lactic acid builds up, and its maximum force falls: the arm gives way to an angle it can still hold, and recovers as the lactic acid is cleared.",
+    ],
+    quiz: [
+      {
+        question: "You straighten your arm to lower a dumbbell slowly. Which muscle is contracting to control the movement, and what is the biceps doing?",
+        options: [
+          "The triceps contracts to extend the elbow; the biceps relaxes and is stretched",
+          "The biceps contracts to push the forearm straight; the triceps relaxes",
+          "Both contract equally — that is what makes the movement slow",
+          "Neither contracts; the ligaments extend the joint",
+        ],
+        answer: 0,
+        explanation:
+          "No muscle can push. Extending the elbow is the triceps' job: it contracts, pulling on the olecranon behind the joint, while its antagonist the biceps relaxes and lengthens. (In a real slow lowering the biceps also 'brakes' by lengthening under tension, but it is still not pushing.)",
+      },
+      {
+        question: "A 10 kg dumbbell is held with the forearm horizontal. Taking g = 10 N/kg, the load is 28 cm from the elbow and the biceps pulls 4 cm from it. Roughly what force must the biceps produce?",
+        options: ["About 700 N", "About 100 N", "About 40 N", "About 2800 N"],
+        answer: 0,
+        explanation:
+          "Balance the turning effects about the elbow: F × 0.04 m = 100 N × 0.28 m, so F = 28 ÷ 0.04 = 700 N. The short muscle lever arm is why muscle forces are so much larger than the loads they hold — and why tendons are built to take it.",
+      },
+      {
+        question: "After many fast curls, the arm can no longer hold the dumbbell up. What has happened in the biceps?",
+        options: [
+          "Anaerobic respiration has produced lactic acid, which reduces the force the fibres can generate",
+          "The muscle has run out of fibres and must grow new ones",
+          "The tendon has stretched permanently, so the lever arm is shorter",
+          "The triceps has taken over and is pushing the arm down",
+        ],
+        answer: 0,
+        explanation:
+          "When the blood cannot deliver oxygen fast enough, the muscle respires anaerobically. Lactic acid accumulates, the pH inside the fibres falls, and the cross-bridges that generate force work less well — fatigue. Rest lets the lactic acid be cleared (the oxygen debt is repaid) and the strength returns.",
+      },
+    ],
+  },
+  {
+    id: "transpiration",
+    category: "biology",
+    icon: Leaf,
+    title: "Plant Transpiration — Roots, Xylem & Stomata",
+    blurb: "How a tree lifts water with no pump: root osmosis, the cohesion–tension column in the xylem, and guard cells that open the stoma to the light",
+    syllabus: "Biology 8 · Transport in Plants",
+    keywords:
+      "transpiration transpiration stream xylem vessel lignin cohesion tension adhesion capillary root hair osmosis water potential stoma stomata guard cell turgor potassium abscisic acid ABA humidity wind light intensity boundary layer vapour pressure deficit cavitation embolism phloem translocation spongy mesophyll palisade epidermis",
+    defaults: { light: 70, humidity: 50, wind: 2, soil: "hydrated", speed: 1 },
+    controls: [
+      { type: "slider", key: "light", label: "Light intensity", min: 0, max: 100, step: 1, format: (v) => (v === 0 ? "0 % · night" : `${v} %`) },
+      { type: "slider", key: "humidity", label: "Relative humidity", min: 10, max: 95, step: 1, format: (v) => `${v} % RH` },
+      { type: "slider", key: "wind", label: "Wind speed", min: 0, max: 10, step: 0.5, format: (v) => (v === 0 ? "still air" : `${v} m/s`) },
+      { type: "choice", key: "soil", label: "Soil moisture", columns: 2, options: SOIL_MOISTURE_OPTIONS },
+    ],
+    concepts: [
+      "There is no pump. Water evaporates from the wet walls of the spongy mesophyll cells and diffuses out of the stomata; that loss pulls on the column of water in the xylem, and because water molecules cling to each other (cohesion) and to the lignified vessel wall (adhesion), the whole unbroken thread is dragged up from the roots — the cohesion–tension theory. The column is under TENSION, typically −1 to −2 MPa at midday, and if it is pulled too hard it snaps: an air bubble (embolism) breaks the vessel.",
+      "Stomata are the tap. In light, guard cells pump in K⁺ ions, water follows by osmosis, the cells swell, and because their inner wall is thicker than their outer wall they bow apart and open the pore. In darkness, or when a drought-stressed root sends abscisic acid (ABA) up the stem, the K⁺ is dumped, the cells go flaccid and the pore closes — even in full sun, because losing the water column is worse than missing a morning's photosynthesis.",
+      "Once the pore is open the rate depends on the air outside. Dry air (low humidity) has a bigger vapour-pressure deficit, so vapour diffuses out faster; still air lets a skin of saturated vapour build up against the leaf (the boundary layer), which wind strips away. Humid, still, dark conditions — a rainforest night — give almost no transpiration; dry, windy, bright ones give the most, and the most tension.",
+    ],
+    quiz: [
+      {
+        question: "A tall tree moves hundreds of litres of water a day to its crown. What actually provides the lifting force?",
+        options: [
+          "Evaporation at the leaves pulls on a continuous column of water held together by cohesion and to the vessel walls by adhesion",
+          "Root pressure pumps the water up from below like a mechanical pump",
+          "The xylem vessels contract in waves like a muscle to squeeze the water upwards",
+          "Capillary action alone is enough to lift water to the top of any tree",
+        ],
+        answer: 0,
+        explanation:
+          "Cohesion–tension: water lost from the mesophyll puts the xylem column under tension, and the hydrogen-bonded column is pulled up as one thread. Root pressure exists but is far too weak to lift water more than a metre or so, and capillarity in xylem-sized vessels manages less than a metre.",
+      },
+      {
+        question: "On a bright day the soil dries out. What happens to the stomata, and why?",
+        options: [
+          "They close: the roots release abscisic acid, guard cells lose K⁺ and water, go flaccid, and the pore shuts",
+          "They open wider to draw more water up from the drying soil",
+          "Nothing changes, because stomata respond only to light",
+          "They close because the leaf has run out of potassium",
+        ],
+        answer: 0,
+        explanation:
+          "Drought overrides light. ABA from the stressed roots travels up in the xylem and triggers K⁺ efflux from the guard cells; without the solute their water potential rises, water leaves by osmosis, turgor drops and the pore closes. Photosynthesis is sacrificed to protect the water column from cavitating.",
+      },
+      {
+        question: "Which combination of conditions gives the HIGHEST rate of transpiration for a plant with open stomata?",
+        options: [
+          "Low humidity, strong wind, bright light",
+          "High humidity, still air, bright light",
+          "Low humidity, still air, darkness",
+          "High humidity, strong wind, darkness",
+        ],
+        answer: 0,
+        explanation:
+          "Low humidity gives the steepest vapour-pressure gradient out of the leaf; wind removes the humid boundary layer that would otherwise slow diffusion; and light keeps the stomata open. Darkness closes them regardless of the weather.",
+      },
+    ],
+  },
+  {
+    id: "peristalsis",
+    category: "biology",
+    icon: Sandwich,
+    title: "Peristalsis & Digestive Transit",
+    blurb: "Circular and longitudinal smooth muscle squeezing a bolus down the gut — and why it still works upside-down",
+    syllabus: "Biology 7 · Nutrition & the Alimentary Canal",
+    keywords:
+      "peristalsis oesophagus esophagus small intestine bolus chyme swallowing smooth muscle circular muscle longitudinal muscle muscularis contraction relaxation wave gravity antiperistalsis lumen mucosa transit digestive tract alimentary canal segmentation sphincter",
+    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1 },
+    controls: [
+      { type: "action", key: "swallow", label: "Trigger swallow — peristaltic wave", icon: Waves },
+      { type: "choice", key: "consistency", label: "Bolus consistency", columns: 1, options: BOLUS_CONSISTENCY_OPTIONS },
+      { type: "choice", key: "orientation", label: "Gravity inversion", columns: 2, options: GRAVITY_ORIENTATION_OPTIONS },
+    ],
+    concepts: [
+      "The wall of the gut has two layers of smooth muscle at right angles: an inner CIRCULAR layer whose fibres run round the tube, and an outer LONGITUDINAL layer whose fibres run along it. Neither can push — each can only contract and shorten — so moving food is a matter of WHERE each layer is contracting.",
+      "Peristalsis is a travelling wave of coordination. Behind the bolus the circular muscle contracts, narrowing the lumen so the food cannot go back; ahead of it the longitudinal muscle contracts and the circular muscle relaxes, shortening and widening that segment to receive the food. The wave then moves on, a few centimetres a second, and the bolus moves with it.",
+      "Because the bolus is squeezed along by the wall, gravity is not needed. Food arrives in the stomach of someone lying flat, hanging upside-down, or an astronaut in free fall; a liquid may run ahead of the wave when gravity helps, but when gravity opposes it the closed ring behind the bolus stops it falling back, and it arrives at exactly the wave's speed. Dry or lumpy food needs slower, stronger waves — which is why it should be chewed.",
+    ],
+    quiz: [
+      {
+        question: "During peristalsis, where is the circular muscle contracting relative to the bolus, and what does that achieve?",
+        options: [
+          "Behind the bolus — it narrows the lumen so the food can only move forward",
+          "Ahead of the bolus — it opens the tube to receive the food",
+          "Around the bolus itself — it grips the food and carries it",
+          "Along the whole length at once — it squeezes the tube flat",
+        ],
+        answer: 0,
+        explanation:
+          "The circular layer contracts just behind the bolus, closing the lumen there. Ahead of the bolus it is the longitudinal layer that contracts (shortening and widening the segment) while the circular layer relaxes, so the tube opens in front and shuts behind — a wave that pushes.",
+      },
+      {
+        question: "A student drinks water while doing a handstand and it still reaches the stomach. What does this demonstrate?",
+        options: [
+          "Food is moved by muscular peristalsis in the gut wall, not by gravity",
+          "Water is light enough for gravity not to matter",
+          "The oesophagus contains one-way valves every few centimetres",
+          "The stomach sucks food in by creating a vacuum",
+        ],
+        answer: 0,
+        explanation:
+          "The wave of circular contraction behind the bolus and relaxation ahead of it moves food regardless of which way is up. Gravity can help a liquid along when upright, but it is not what drives transit.",
+      },
+      {
+        question: "Why does a dry, poorly chewed bolus take longer to reach the stomach than a soft, well-chewed one?",
+        options: [
+          "It resists deforming to the lumen, so the wall must stretch round it and the muscle contracts more slowly and forcefully to push it",
+          "Dry food is lighter, so gravity pulls it down less",
+          "The oesophagus refuses to swallow dry food until it is wet",
+          "Peristaltic waves cannot start until the bolus is liquid",
+        ],
+        answer: 0,
+        explanation:
+          "A compliant bolus takes the shape of the tube and slides on the mucus; a hard one distends the wall, which reflexly recruits stronger, slower contractions (and often a second, 'secondary' peristaltic wave). Chewing and saliva make the bolus something the wave can move easily.",
+      },
+    ],
+  },
+  {
+    id: "carbon_cycle",
+    category: "biology",
+    icon: Earth,
+    title: "The Carbon Cycle & Greenhouse Heat Trapping",
+    blurb: "Forest, ocean, cattle and a coal plant under one sky: where the carbon goes, how fast, and what the CO₂ left in the air does to the temperature",
+    syllabus: "Biology 9 · Ecosystems & Human Influence",
+    keywords:
+      "carbon cycle photosynthesis respiration combustion fossil fuel coal decomposition ocean carbonate dissolved carbon dioxide CO2 methane CH4 livestock deforestation forest cover greenhouse effect greenhouse gas longwave infrared shortwave radiation albedo radiative forcing global warming temperature anomaly climate change ppm gigatonne carbon sink source solar cycle",
+    defaults: { combustion: 100, forest: 60, solar: 50, longwave: false, reset: 0, speed: 1 },
+    controls: [
+      { type: "slider", key: "combustion", label: "Fossil fuel combustion rate", min: 0, max: 500, step: 5, format: (v) => (v === 0 ? "0 % · shut down" : `${v} % · ${((FOSSIL_GTC_PER_YEAR * v) / 100).toFixed(1)} GtC/yr`) },
+      { type: "slider", key: "forest", label: "Global forest cover", min: 10, max: 100, step: 1, format: (v) => `${v} % forest · ${100 - v} % pasture` },
+      { type: "slider", key: "solar", label: "Solar activity cycle", min: 0, max: 100, step: 1, format: (v) => solarLabel(v) },
+      { type: "toggle", key: "longwave", label: "Photon filter: re-radiated longwave IR (off = shortwave sunlight)" },
+      { type: "action", key: "reset", label: "Reset to present day · 420 ppm", icon: RotateCcw, variant: "ghost" },
+    ],
+    concepts: [
+      "Carbon moves round a loop. Photosynthesis takes about 120 gigatonnes of carbon a year out of the air into plants; respiration and decay put almost all of it back. The ocean swaps a similar amount with the air across its surface. Left alone this loop is BALANCED — for ten thousand years before industry the air sat at 280 ppm — and the tiny net flows today (the land and sea each soaking up 2–3 GtC/yr more than they give) only exist because the air is now richer in CO₂ than the plants and water below it.",
+      "Fossil fuels break the loop. Coal, oil and gas are carbon that photosynthesis buried 300 million years ago and the cycle forgot; burning them adds ~10 GtC/yr from OUTSIDE the loop, and clearing forest for pasture adds more (and cattle add methane, a stronger greenhouse gas). The sinks cannot keep up, so about half of what is emitted stays in the air: +2.3 ppm every year. Planting every acre with forest helps, but the chart shows it cannot on its own offset the furnaces.",
+      "Sunlight is mostly short-wavelength (visible) light, and the atmosphere is transparent to it — it passes straight through to warm the ground. The warm ground re-radiates LONG-wavelength infrared, and CO₂ and CH₄ molecules absorb that. They re-emit it in all directions, so about half comes back down: the greenhouse effect. More CO₂ traps a larger share, with diminishing returns (each DOUBLING of CO₂ adds the same ~3 °C at equilibrium), and the deep ocean's heat capacity means the surface lags the forcing by decades — warming already in the pipeline continues after the dials stop moving. Flip the photon filter to watch each kind of light separately.",
+    ],
+    quiz: [
+      {
+        question: "Sunlight passes through the atmosphere easily, but the Earth still warms when CO₂ rises. Why?",
+        options: [
+          "The ground re-radiates energy as longwave infrared, which CO₂ and CH₄ absorb and re-emit — about half of it back down",
+          "CO₂ reflects incoming sunlight back towards the ground before it can escape",
+          "CO₂ is a dark gas that heats up in the sun and warms the air by contact",
+          "CO₂ makes the atmosphere thinner, so more sunlight reaches the ground",
+        ],
+        answer: 0,
+        explanation:
+          "Shortwave visible light is not absorbed by CO₂; the warm surface's longwave infrared is. Greenhouse gases absorb that outgoing radiation and re-emit it in every direction, so part of the energy that would have escaped to space returns to the surface — the same photons the longwave filter shows being caught in the greenhouse layer.",
+      },
+      {
+        question: "Photosynthesis removes far more carbon from the air each year than all fossil fuel burning adds. Why does CO₂ still rise?",
+        options: [
+          "Respiration and decay return almost all of what photosynthesis fixed, so the cycle is nearly closed — fossil carbon is an addition from outside that loop",
+          "Plants only photosynthesise in summer, so on average they remove less than they release",
+          "Photosynthesis is slowing down because the air is too polluted",
+          "The carbon in fossil fuels is a different kind that plants cannot absorb",
+        ],
+        answer: 0,
+        explanation:
+          "The 120 GtC/yr of photosynthesis is matched by ~117 GtC/yr of respiration and decomposition; the NET land sink is only ~3 GtC/yr. Fossil combustion (~10 GtC/yr) is new carbon that was locked out of the cycle for hundreds of millions of years, and only about half of it can be soaked up by the land and ocean sinks — the rest accumulates.",
+      },
+      {
+        question: "You cut fossil fuel combustion to zero, yet the temperature readout keeps rising for years. What explains this?",
+        options: [
+          "The ocean's heat capacity means the surface has not yet caught up with the warming the CO₂ already in the air commits it to",
+          "The temperature readout is broken — with no emissions it should fall immediately",
+          "Forests keep releasing stored heat for decades after emissions stop",
+          "The Sun gets hotter to compensate for the missing CO₂",
+        ],
+        answer: 0,
+        explanation:
+          "Radiative forcing depends on the CO₂ concentration, which stays high after emissions stop; the surface temperature relaxes towards its equilibrium over decades because heating the oceans takes time. That gap between the realised anomaly and the equilibrium anomaly is the 'warming in the pipeline' the readout reports.",
+      },
+    ],
+  },
+  {
+    id: "food_chain_pyramid",
+    category: "biology",
+    icon: Pyramid,
+    title: "Food Chains & the 10 % Energy Pyramid",
+    blurb: "Oak leaves → caterpillars → blue tits → sparrowhawk: why nine-tenths of the energy is lost at every link, why apex predators are rare, and why a poison gets stronger up the chain",
+    syllabus: "Biology 9 · Energy Flow in Ecosystems",
+    keywords:
+      "food chain food web energy pyramid trophic level producer primary consumer secondary consumer tertiary apex predator herbivore carnivore ten percent rule energy transfer efficiency heat loss respiration biomass pyramid of numbers chain length bioaccumulation biomagnification DDT microplastics persistent toxin trophic cascade keystone predator sparrowhawk blue tit caterpillar oak",
+    defaults: { insolation: 100, toxin: 0, cascade: 0, speed: 1 },
+    controls: [
+      { type: "slider", key: "insolation", label: "Primary solar insolation", min: 50, max: 150, step: 5, format: (v) => `${v} % · ${Math.round((PRODUCER_KJ_AT_FULL_SUN * v) / 100).toLocaleString()} kJ fixed` },
+      { type: "action", key: "toxin", label: "Introduce persistent bioaccumulative toxin", icon: Biohazard, variant: "danger" },
+      { type: "action", key: "cascade", label: "Apex predator removal / trophic cascade", icon: Skull, variant: "ghost" },
+    ],
+    concepts: [
+      "Only about 10 % of the energy stored in one trophic level becomes stored energy in the next. The rest — 90 % — is used by the organisms themselves (respiration, movement, keeping warm), lost as heat, left uneaten (roots, bones, feathers) or passed out undigested, and none of that is available to whatever eats them. So 10 000 kJ in the oak leaves becomes 1 000 kJ of caterpillar, 100 kJ of blue tit and 10 kJ of sparrowhawk — and since each animal up the chain is bigger and needs more, the headcounts fall even faster: half a million leaves feed a single hawk.",
+      "That is why food chains are short. A fifth link would receive a tenth of the hawk's 10 kJ — 1 kJ — which is less than one of any larger predator needs to stay alive, so there is nothing for it to be. Dim the sun and even the fourth link fails: the sparrowhawk is the rarest thing in the wood precisely because it lives on one part in a thousand of what the leaves captured. Apex predators are few, wide-ranging and the first to disappear when the base of the pyramid shrinks.",
+      "A toxin that dissolves in fat and is not broken down (DDT, mercury, some microplastics) is NOT lost with the 90 %. Every kilojoule of blue tit was ten kilojoules of caterpillar, and the toxin in all ten came along and stayed. So the concentration per gram of tissue multiplies by about ten at every link — biomagnification — and a trace on the leaves is an egg-shell-thinning dose in the birds and a lethal one in the hawk. Removing the hawk, by poison or otherwise, sets off a trophic cascade: its prey booms, their prey is eaten down, and the leaves recover.",
+    ],
+    quiz: [
+      {
+        question: "The oak leaves in a wood store 10 000 kJ of energy. Roughly how much ends up stored in the sparrowhawk at the top of a four-link chain, and why?",
+        options: [
+          "About 10 kJ — roughly 90 % is lost at each of the three transfers as heat, movement, waste and uneaten material",
+          "About 10 000 kJ — energy is conserved, so all of it reaches the top",
+          "About 5 000 kJ — each animal eats half of what is below it",
+          "About 1 000 kJ — only the first transfer loses any energy",
+        ],
+        answer: 0,
+        explanation:
+          "Each transfer passes on about 10 %: 10 000 → 1 000 → 100 → 10 kJ. Energy is conserved overall, but most of it leaves the food chain as heat from respiration and as material that is never eaten or never digested — it is not destroyed, just unavailable to the next level.",
+      },
+      {
+        question: "Why are there so few sparrowhawks in a wood full of caterpillars, and why is there no animal that lives by eating sparrowhawks?",
+        options: [
+          "Each level gets only a tenth of the energy below it, so by the fourth link there is barely enough for one predator and a fifth link would starve",
+          "Sparrowhawks are hunted by people, which keeps their numbers down",
+          "Predators are always rare because they choose large territories",
+          "There is a law that food chains can only ever have four organisms",
+        ],
+        answer: 0,
+        explanation:
+          "The 10 % rule sets the chain's length. By the top of the pyramid the energy available is tiny, and bigger animals need more of it, so the apex population is small; one more link would receive less energy than a single individual needs, so it cannot exist.",
+      },
+      {
+        question: "A pesticide is sprayed at 0.01 ppm on the leaves. Blue tits are found with 1 ppm and the sparrowhawk with 10 ppm in their fat. What is happening?",
+        options: [
+          "Biomagnification: the toxin is retained while 90 % of the energy is lost at each link, so its concentration multiplies by about ten per level",
+          "Birds make their own pesticide from the chemicals in caterpillars",
+          "The hawk has been sprayed directly and more heavily than the leaves",
+          "Larger animals simply have more fat, so the concentration looks higher",
+        ],
+        answer: 0,
+        explanation:
+          "A persistent fat-soluble toxin is not excreted or broken down. Each animal eats roughly ten times its own stored energy's worth of food from below and keeps the toxin from all of it, so concentration rises about tenfold per link — exactly the reciprocal of the energy transfer efficiency. Top predators like birds of prey are hit hardest, which is how DDT thinned raptor eggshells.",
+      },
+    ],
+  },
+  {
+    id: "flower_pollination",
+    category: "biology",
+    icon: Flower2,
+    title: "Flower Anatomy, Pollination & Pollen Tube Growth",
+    blurb: "A flower cut down the middle: a bee or the wind delivers a grain to the stigma (pollination), then a tube grows down the style for hours to fuse nuclei in the ovule (fertilisation) — two different events, and the scene keeps them apart",
+    syllabus: "Biology 8 · Reproduction in Plants",
+    keywords:
+      "flower pollination fertilisation fertilization pollen grain stigma style ovary ovule micropyle anther filament stamen carpel pistil petal sepal nectar wind-pollinated insect-pollinated pollen tube tube nucleus generative nucleus sperm nuclei egg cell polar nuclei zygote endosperm double fertilisation diploid triploid seed",
+    defaults: { vector: "insect", pollinate: 0, time: 0, speed: 1 },
+    controls: [
+      { type: "choice", key: "vector", label: "Pollination vector", columns: 2, options: POLLINATION_VECTOR_OPTIONS },
+      { type: "action", key: "pollinate", label: "Trigger pollination — deliver a grain to the stigma", icon: Flower2 },
+      { type: "slider", key: "time", label: "Time — pollen tube growth", min: 0, max: TIMELINE_SECONDS, step: 0.1, format: (v) => timeLabel(v) },
+    ],
+    concepts: [
+      "POLLINATION is a delivery: a pollen grain from an anther lands on a stigma. It is over in a moment and involves no fusion of anything. A wind-pollinated flower makes millions of small, smooth, dry grains and holds a feathery stigma out in the air to sieve them; an insect-pollinated flower makes fewer, larger, spiky and sticky grains, and pays a courier with nectar, scent and bright petals to carry them from anther to a sticky stigma inside the flower.",
+      "FERTILISATION is a fusion, and it happens hours later and a centimetre away. The grain absorbs water from the stigma and grows a pollen tube down through the style at about 1.5 mm per hour, steered towards the ovary. Three nuclei travel in it: the tube nucleus at the tip, and a generative nucleus that divides on the way into two sperm nuclei (n). The tube enters the ovule through a tiny gap in its coat — the micropyle — and delivers both sperm into the embryo sac.",
+      "Flowering plants fertilise twice. One sperm nucleus fuses with the egg cell to make the zygote (2n), which becomes the embryo; the other fuses with the two polar nuclei to make the endosperm (3n), the food store the seed will pack around it. The ovule becomes the seed and the ovary becomes the fruit. Move the time slider back and forth: the flower is pollinated as soon as the grain lands, but not fertilised until the last stage.",
+    ],
+    quiz: [
+      {
+        question: "A bee brushes pollen from an anther onto the stigma of another flower. Which statement is correct?",
+        options: [
+          "The flower is now pollinated, but not yet fertilised — fertilisation needs a pollen tube to reach the ovule and nuclei to fuse",
+          "The flower is now fertilised, because pollen has reached the female part",
+          "The flower is neither pollinated nor fertilised until a seed forms",
+          "Pollination and fertilisation are two names for the same event",
+        ],
+        answer: 0,
+        explanation:
+          "Pollination is the transfer of pollen to the stigma; fertilisation is the fusion of a sperm nucleus with the egg cell inside the ovule. The second needs a pollen tube to grow the length of the style first, which takes hours.",
+      },
+      {
+        question: "Which set of features tells you a flower is wind-pollinated?",
+        options: [
+          "Small dull petals, large dangling anthers, feathery stigmas outside the flower, huge numbers of light smooth pollen grains",
+          "Large bright petals, nectar and scent, sticky stigma inside the flower, spiky pollen",
+          "No stamens at all, only a large ovary",
+          "Petals that close at night to trap insects",
+        ],
+        answer: 0,
+        explanation:
+          "Wind cannot be attracted or rewarded, so wind-pollinated flowers invest in quantity and exposure: anthers and stigmas hang outside the flower, the pollen is light and smooth so it blows, and there are millions of grains because almost all miss.",
+      },
+      {
+        question: "Why is fertilisation in flowering plants called 'double fertilisation'?",
+        options: [
+          "One sperm nucleus fuses with the egg cell to form the 2n zygote, and a second fuses with the two polar nuclei to form the 3n endosperm",
+          "Two pollen grains must land on the stigma for one seed to form",
+          "The egg cell is fertilised once by wind pollen and once by insect pollen",
+          "The zygote divides in two immediately after fertilisation",
+        ],
+        answer: 0,
+        explanation:
+          "The generative nucleus divides into two sperm nuclei on the way down the pollen tube. Both are delivered through the micropyle: one makes the embryo (zygote, diploid), the other makes the endosperm (triploid) that feeds it in the seed.",
+      },
+    ],
+  },
+  {
+    id: "bacteria_vs_virus",
+    category: "biology",
+    icon: Bug,
+    title: "Bacteria vs Virus — Anatomy & the Lytic Cycle",
+    blurb: "A bacillus and a T4 phage side by side: which one is alive, which parts an antibiotic can hit, and why penicillin bursts one and falls straight past the other",
+    syllabus: "Biology 9 · Microorganisms & Disease",
+    keywords:
+      "bacteria bacterium virus bacteriophage T4 phage prokaryote cell wall peptidoglycan cell membrane cytoplasm circular DNA chromosome plasmid 70S ribosome flagellum capsid head DNA core contractile sheath baseplate tail fibres lytic cycle attachment injection replication assembly lysis burst size antibiotic penicillin tetracycline antibiotic resistance living non-living pathogen infection",
+    defaults: { antibiotic: 0, lytic: 0, speed: 1 },
+    controls: [
+      { type: "action", key: "antibiotic", label: "Administer penicillin / antibiotics", icon: Pill, variant: "danger" },
+      { type: "action", key: "lytic", label: "Trigger viral lytic cycle", icon: Bug },
+    ],
+    concepts: [
+      "A bacterium is a living cell. It has a peptidoglycan cell wall, a membrane, cytoplasm in which it respires and makes its own proteins on 70S ribosomes, a single circular chromosome loose in the cytoplasm (no nucleus), often small extra rings of DNA called plasmids, and sometimes a flagellum. It grows, responds to its surroundings and reproduces on its own by splitting in two. A virus has none of that: a T4 bacteriophage is a protein capsid round a length of DNA, with a contractile sheath, a baseplate and tail fibres — a particle, not a cell, and not alive by any of the criteria.",
+      "Because a virus has no metabolism, it can only reproduce inside a cell — the LYTIC CYCLE. The tail fibres recognise receptors on one kind of bacterium; the baseplate docks; the sheath contracts like a syringe and drives the core through the wall, injecting the DNA. The phage genes take over the host's ribosomes, the host chromosome is degraded, and the cell is turned into a factory that assembles new heads, tails and fibres. Finally a phage enzyme (lysozyme) breaks the wall and the cell bursts, releasing about 150 new phages: the burst size.",
+      "Antibiotics work by hitting parts a bacterial cell has and human cells do not: penicillin blocks the enzyme that cross-links the peptidoglycan wall, so the wall shreds and the cell bursts under its own osmotic pressure; tetracycline jams the 70S ribosome. A virus has no wall and no ribosomes — nothing for the drug to bind to — so antibiotics have zero effect on viral infections, and taking them for one does nothing except breed resistance in the bacteria you do carry. Vaccines and antiviral drugs are the tools for viruses.",
+    ],
+    quiz: [
+      {
+        question: "Why does penicillin cure a bacterial infection but do nothing for a cold or flu?",
+        options: [
+          "Penicillin blocks peptidoglycan wall building, and viruses have no cell wall — there is nothing for the drug to act on",
+          "Viruses are too small for the penicillin molecules to reach",
+          "Viruses hide inside the nucleus of the bacterium where penicillin cannot enter",
+          "Penicillin only works in the lungs, and colds are in the nose",
+        ],
+        answer: 0,
+        explanation:
+          "Every antibiotic targets a structure or process of a bacterial cell — the wall, the 70S ribosome, DNA copying. A virus is a protein coat round genetic material with none of those, so it is untouched; it borrows the machinery of the cells it infects.",
+      },
+      {
+        question: "Which feature is found in a bacterium but NOT in a virus?",
+        options: [
+          "Ribosomes and a cell membrane",
+          "Genetic material",
+          "A protein coat",
+          "The ability to evolve",
+        ],
+        answer: 0,
+        explanation:
+          "Both carry genetic material and both evolve, and a phage's capsid is a protein coat. Only the bacterium is a cell, with a membrane, cytoplasm, ribosomes and its own metabolism — which is exactly what makes it 'alive' and what antibiotics attack.",
+      },
+      {
+        question: "Put the lytic cycle in order.",
+        options: [
+          "Attachment → genome injection → host takeover → virion assembly → lysis",
+          "Lysis → attachment → assembly → injection → takeover",
+          "Injection → attachment → lysis → assembly → takeover",
+          "Assembly → injection → attachment → takeover → lysis",
+        ],
+        answer: 0,
+        explanation:
+          "The phage must first bind its host's receptors, then inject its DNA; only then can the phage genes hijack the ribosomes, build new virions, and finally burst the cell to release them.",
+      },
+    ],
+  },
+  {
+    id: "mitosis_meiosis",
+    category: "biology",
+    icon: Split,
+    title: "Mitosis & Meiosis — Spindle Mechanics & Crossing Over",
+    blurb: "A 2n = 4 cell with red maternal and blue paternal chromatids, stepped through division: watch sister chromatids part in mitosis, homologues pair, swap arms at chiasmata and part in meiosis I, and sisters finally part in meiosis II — or poison the spindle and see why nothing moves",
+    syllabus: "Biology 17 · Inheritance · Cell Division",
+    keywords:
+      "mitosis meiosis cell division chromosome chromatid sister chromatids homologous chromosomes homologues bivalent tetrad centromere kinetochore spindle microtubule centrosome centriole prophase metaphase anaphase telophase cytokinesis interphase G2 S phase replication diploid haploid 2n n ploidy gamete equational reductional crossing over chiasma chiasmata recombination synapsis independent assortment genetic variation diversity colchicine spindle poison metaphase arrest cleavage furrow nuclear envelope",
+    defaults: { mode: "mitosis", stage: 0, playing: true, chiasmata: 2, colchicine: 0, speed: 1 },
+    controls: [
+      { type: "choice", key: "mode", label: "Mode", columns: 1, options: DIVISION_MODE_OPTIONS, patch: (mode) => ({ mode, stage: 0 }) },
+      {
+        type: "stepper",
+        key: "stage",
+        playKey: "playing",
+        label: "Stage stepper",
+        stages: (p) => stagesFor(p.mode),
+        locked: (p) => (colchicineApplied(p.colchicine) ? arrestIndexFor(p.mode) : null),
+        playLabel: "Step-by-step",
+        pauseLabel: "Auto-play · on",
+      },
+      {
+        type: "slider",
+        key: "chiasmata",
+        label: "Chiasma crossing-over frequency",
+        min: 0,
+        max: MAX_CHIASMATA,
+        step: 1,
+        format: (v) => (v === 0 ? "0 · no crossing over" : `${v} crossover event${v === 1 ? "" : "s"}`),
+        when: (p) => p.mode === "meiosis",
+      },
+      { type: "action", key: "colchicine", label: "Colchicine — spindle poison (press again to wash out)", icon: Syringe, variant: "danger" },
+    ],
+    concepts: [
+      "Two words students swap: SISTER CHROMATIDS are the two identical copies of one chromosome, made in S phase and joined at the centromere — same colour, same alleles, one chromosome until they part. HOMOLOGOUS CHROMOSOMES are the two different members of a pair, one from each parent (red and blue here), carrying the same genes but possibly different alleles. Count centromeres to count chromosomes: a cell with 2n = 4 has four chromosomes and eight chromatids after replication, and still four chromosomes when they are lined up on the plate.",
+      "Mitosis is EQUATIONAL: one division, sister chromatids pulled apart by kinetochore microtubules shortening towards the centrosomes, two nuclei each with 2n = 4, two genetically identical cells. Meiosis is REDUCTIONAL: in prophase I the homologues pair up (synapsis) into bivalents, non-sister chromatids cross over at chiasmata and exchange arms, and anaphase I separates the HOMOLOGUES — the sisters stay together, so each daughter has n = 2 chromosomes that are still two chromatids each. Meiosis II is then a mitosis-like division with no replication before it: sisters part, and four haploid gametes result, none of them identical.",
+      "Genetic diversity comes from two sources in meiosis I. Independent assortment — which way round each bivalent faces the poles is random, 2ⁿ combinations — and crossing over, which makes recombinant chromatids that neither parent had. The spindle is what makes any of it happen: colchicine stops tubulin polymerising, the kinetochore fibres cannot form or hold, the chromosomes never align and the spindle checkpoint keeps the cell at metaphase for good. That is why it is used to double chromosome numbers in plant breeding, and why a related drug stops tumour cells dividing.",
+    ],
+    quiz: [
+      {
+        question: "A cell with 2n = 4 is in metaphase of mitosis. How many chromosomes and how many chromatids does it contain?",
+        options: ["4 chromosomes, 8 chromatids", "8 chromosomes, 8 chromatids", "4 chromosomes, 4 chromatids", "2 chromosomes, 4 chromatids"],
+        answer: 0,
+        explanation:
+          "The DNA was replicated in S phase, so each of the four chromosomes is two sister chromatids joined at one centromere — eight chromatids, but still four chromosomes. Only when the centromeres split in anaphase do the chromatids become chromosomes in their own right.",
+      },
+      {
+        question: "What is pulled apart in anaphase I of meiosis, and what does that do to the chromosome number?",
+        options: [
+          "Homologous chromosomes are separated; each daughter nucleus gets one of each pair (n), still made of two chromatids",
+          "Sister chromatids are separated; each daughter nucleus keeps 2n chromosomes",
+          "Homologous chromosomes are separated; each daughter nucleus gets 2n chromosomes",
+          "Nothing is separated until meiosis II",
+        ],
+        answer: 0,
+        explanation:
+          "Meiosis I is the reductional division: the bivalent splits into its two homologues, one to each pole, halving the chromosome number to n. The sister chromatids stay joined until anaphase II, which is why the cells after meiosis I have n chromosomes each made of two chromatids.",
+      },
+      {
+        question: "Colchicine is added to dividing cells. Which stage do they accumulate at, and why?",
+        options: [
+          "Metaphase — without microtubules there is no spindle to align the chromosomes or satisfy the checkpoint, so anaphase never starts",
+          "Anaphase — the chromatids separate but cannot travel without microtubules",
+          "Prophase — the nuclear envelope cannot break down",
+          "Cytokinesis — the contractile ring is made of microtubules",
+        ],
+        answer: 0,
+        explanation:
+          "Colchicine binds tubulin and stops microtubules assembling. Kinetochores are never captured, the chromosomes drift instead of lining up, and the spindle checkpoint holds the cell in a 'c-metaphase'. The contractile ring is actin, not tubulin, but it never gets its cue.",
+      },
+    ],
+  },
+  {
+    id: "cardiac_cycle",
+    category: "biology",
+    icon: HeartPulse,
+    title: "Cardiac Cycle & 4-Chambered Heart Hemodynamics",
+    blurb: "A sectioned four-chamber heart beating beside its own Wiggers diagram: the ECG's P–QRS–T, the four valves slamming and swinging, chamber volumes and pressures, and the lub-dub — at any rate from 40 to 180, in sinus rhythm, fibrillation or with a stenosed aortic valve",
+    syllabus: "Biology 9 · Transport in Animals · The Heart",
+    keywords:
+      "heart cardiac cycle atrium atria ventricle ventricles right left atrial systole ventricular systole diastole isovolumetric contraction relaxation ejection filling valve tricuspid mitral bicuspid aortic pulmonary semilunar atrioventricular lub dub S1 S2 heart sounds phonocardiogram murmur ECG electrocardiogram P wave QRS complex T wave SA node sinoatrial pacemaker AV node bundle of His Purkinje fibres conduction Wiggers diagram pressure volume stroke volume cardiac output ejection fraction heart rate bpm ventricular fibrillation defibrillator aortic stenosis pressure gradient aorta vena cava pulmonary artery pulmonary vein",
+    defaults: { bpm: 75, pathology: "normal", stage: 0, playing: true, speed: 1 },
+    controls: [
+      { type: "slider", key: "bpm", label: "Heart rate", min: MIN_BPM, max: MAX_BPM, step: 1, format: formatBpm },
+      { type: "choice", key: "pathology", label: "Pathology mode", columns: 1, options: CARDIAC_PATHOLOGY_OPTIONS },
+      {
+        type: "stepper",
+        key: "stage",
+        playKey: "playing",
+        label: "Playback · phase of the beat",
+        stages: CARDIAC_STAGE_OPTIONS,
+        playLabel: "Step-by-step",
+        pauseLabel: "Continuous · real-time",
+      },
+    ],
+    concepts: [
+      "One beat is a sequence of pressure changes that open and shut four one-way valves. The SA node fires (P wave) and the atria contract, topping up ventricles that are already mostly full. The impulse waits at the AV node, then races down the bundle of His and Purkinje fibres (QRS); the ventricles contract, pressure inside them shoots above atrial pressure and the tricuspid and mitral valves slam shut — S1, 'lub'. For a moment every valve is closed and the volume cannot change: isovolumetric contraction.",
+      "When ventricular pressure passes the pressure in the aorta and pulmonary artery, the semilunar valves are pushed open and blood is ejected — about 70 mL from each ventricle at rest, the stroke volume. The ventricles repolarise (T wave), relax, their pressure falls below the arteries' and the aortic and pulmonary valves snap shut — S2, 'dub' — leaving the dicrotic notch on the aortic trace. Pressure keeps falling with the volume fixed (isovolumetric relaxation) until it drops below atrial pressure and the AV valves open again for filling. Cardiac output = stroke volume × heart rate.",
+      "Raising the rate shortens diastole far more than systole, so at 180 bpm the ventricles barely have time to fill and stroke volume falls even as output rises. Ventricular fibrillation is what happens when the Purkinje system's order is lost: the myocardium fires chaotically, the walls quiver, no pressure is generated, no valve shuts cleanly, there are no heart sounds — and only a defibrillator can reset it. Aortic stenosis stiffens the aortic leaflets: the left ventricle must generate 60–90 mmHg more than reaches the aorta, its wall thickens, and the turbulent jet through the narrowed valve is heard as an ejection murmur between S1 and S2.",
+    ],
+    quiz: [
+      {
+        question: "What causes the first heart sound, S1 ('lub')?",
+        options: [
+          "The tricuspid and mitral valves closing as ventricular pressure rises above atrial pressure at the start of ventricular systole",
+          "The aortic and pulmonary valves closing at the end of ventricular systole",
+          "The atria contracting",
+          "Blood hitting the wall of the aorta",
+        ],
+        answer: 0,
+        explanation:
+          "As soon as the ventricles begin to contract their pressure exceeds the atria's, and the AV valves are forced shut. S2 is the semilunar valves shutting when ventricular pressure falls below arterial pressure; it marks the end of ejection and the start of isovolumetric relaxation.",
+      },
+      {
+        question: "During isovolumetric contraction, ventricular pressure is rising steeply but ventricular volume does not change. Why?",
+        options: [
+          "The AV valves have shut and the semilunar valves have not yet opened, so no blood can enter or leave",
+          "The ventricle walls are rigid at this moment",
+          "The atria are refilling the ventricles at exactly the rate blood is ejected",
+          "The aorta is full and cannot accept more blood",
+        ],
+        answer: 0,
+        explanation:
+          "Both sets of valves are closed: pressure is above atrial pressure (AV valves shut) but still below aortic pressure (semilunar valves shut). The muscle tightens around a fixed volume of blood until pressure passes the aortic pressure and the valve opens — ejection begins.",
+      },
+      {
+        question: "Stroke volume is 70 mL and the heart rate is 75 bpm. What is the cardiac output, and roughly how does it change at 180 bpm?",
+        options: [
+          "5.25 L/min; at 180 bpm the output rises but less than proportionally, because the shortened diastole cuts the stroke volume",
+          "5.25 L/min; at 180 bpm the output is exactly 2.4 times greater",
+          "0.93 L/min; it does not change with rate",
+          "70 L/min; it halves",
+        ],
+        answer: 0,
+        explanation:
+          "Cardiac output = stroke volume × heart rate = 0.07 L × 75 = 5.25 L/min. Filling time shrinks fastest as the rate climbs, so the ventricles start systole less full: stroke volume drops and the output at 180 bpm is well under 2.4 × 5.25 L/min.",
       },
     ],
   },
