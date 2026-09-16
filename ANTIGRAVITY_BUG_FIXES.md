@@ -7388,3 +7388,31 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - **Chassis & Underbody**: Longitudinal structural steel chassis keel, underside copper magnetic eddy-current brake fin blade, and precision 3-wheel safety bogies with hydraulic suspension shock dampers.
 6. **Automated Verification**:
    - All **1299 unit and integration tests** and **34 empirical challenge tests** passed with 0 failures.
+
+---
+
+## 3D Visualization Studio Redesign: Docked Sidebar Decoupling & Controls Toggle Cleanup
+
+### 1. Problem Statement
+- In previous versions of the 3D Visualization Studio (`ThreeDView.jsx` and `VisualizationHUD.jsx`), the controls HUD was rendered with `absolute left-4 top-4 z-20` directly on top of the WebGL canvas, behaving as a floating overlay ("layover") that obstructed the left portion of the 3D scene (such as ray refraction paths, optical blocks, and normal vectors).
+- When collapsed, the HUD rendered three separate floating buttons (`Controls`, `Details`, and `Key Concepts (toggle)`), cluttering the canvas overlay space and confusing students regarding navigation paths.
+
+### 2. Root Cause
+- `ThreeDView.jsx` mounted `<VisualizationHUD />` inside the `<main>` canvas container rather than alongside it as an independent flex sibling.
+- `VisualizationHUD.jsx` returned a floating overlay `<div>` with `absolute` positioning, and when `!open` rendered separate buttons for controls, details, and concepts rather than letting the sidebar handle tab switching internally.
+
+### 3. Resolution
+1. **Docked Flex-Row Studio Layout (`ThreeDView.jsx`)**:
+   - Swapped the body layout to `flex flex-row overflow-hidden`.
+   - Mounted `VisualizationHUD` as an independent `<aside>` sibling alongside `<main className="relative flex-1 h-full w-full min-h-0 min-w-0">`.
+   - The 3D canvas and WebGL viewport now occupies the clean remaining space without being occluded by controls.
+2. **Toggleable Full-Space Viewport (`VisualizationHUD.jsx`)**:
+   - Sidebar renders as a dedicated `<aside>` with resizable width (`panelWidth`).
+   - Toggling the close button (`X`) unmounts the `<aside>` from layout space, allowing `<main>` to automatically expand to 100% full screen width ("full space the rendering space").
+3. **Single Controls Button Cleanup**:
+   - Removed the separate floating `Details` and `Key Concepts (toggle)` buttons when collapsed.
+   - Preserved a single, clean `[Controls]` button on the canvas when closed (`absolute left-4 top-4 z-20`).
+   - Clicking `[Controls]` reopens the docked sidebar, where students can switch between the "Controls" and "Details" tabs via the header tab switcher.
+4. **Verification**:
+   - Verified that all 1,299 automated unit tests and 34 empirical challenge tests pass without regression.
+

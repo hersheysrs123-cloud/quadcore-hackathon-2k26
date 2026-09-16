@@ -382,11 +382,14 @@ A topic's `controls` entry may carry `when: (params) => boolean`. `Visualization
 
 ### 24. Universal 3D Visualization Sidebar Controls Resizability Standard
 All 3D interactive visualizations across SocraticOS (including shared `VisualizationHUD.jsx`, dedicated `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx`) implement a unified, responsive drag-to-resize sidebar pattern:
+- **Docked Flex-Row Layout**: The sidebar sits as a dedicated `<aside>` flex item alongside the WebGL viewport `<main className="relative flex-1 h-full w-full min-w-0 min-h-0">`, ensuring the rendering space is physically separated from controls rather than occluded by a floating overlay.
+- **Toggleable Full-Space Viewport**: Collapsing the sidebar via the header action button (`X`) unmounts the sidebar from the layout flow, allowing the 3D rendering canvas to seamlessly expand to 100% full width.
+- **Single Controls Toggle Trigger**: When collapsed, legacy separate "Details" and "Key Concepts" buttons are removed in favor of a single floating `[Controls]` button (`absolute left-4 top-4 z-20`) on the canvas. When pressed, the sidebar expands, and users can switch tabs between "Controls" and "Details" directly in the header tab switcher.
 - **Panel Width Range**: Dynamically clamped between `Math.max(180, Math.floor(window.innerWidth * 0.10))` (minimum 10% viewport / 180px) and `Math.floor(window.innerWidth * 0.80)` (maximum 80% viewport).
 - **Persistent Width Storage**: Persisted under `localStorage.getItem("socratic_hud_panel_width")` with SSR-safe initial mount fallback (286px–300px).
 - **Right Edge Drag Handle**: `cursor-ew-resize` pill element (`h-14 w-1 rounded-full bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20`) with active drag scaling (`bg-duck-400 shadow-md scale-y-110`).
 - **Bottom-Right Corner Grip Indicator**: `cursor-nwse-resize` 3-dot SVG grip pattern (`text-ink-600 hover:text-duck-400`).
-- **Scroll Container**: Inner content is encased in a flex column with `max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5` preventing viewport overflow.
+- **Scroll Container**: Inner content is encased in a flex column with `overflow-y-auto p-3` preventing viewport overflow.
 
 ### 21. 3D Respiratory Mechanics & Thoracic Physics Tokens
 - **Antagonistic Intercostal Tension Shaders**:

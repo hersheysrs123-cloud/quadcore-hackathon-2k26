@@ -3523,41 +3523,32 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
 
   if (!open) {
     return (
-      <div className="pointer-events-auto absolute left-4 top-4 z-20 flex flex-wrap items-center gap-1.5">
-        <HudButton icon={SlidersHorizontal} onClick={() => { setOpen(true); setActiveTab("controls"); }}>
+      <div className="pointer-events-auto absolute left-4 top-4 z-20">
+        <HudButton
+          icon={SlidersHorizontal}
+          onClick={() => {
+            setOpen(true);
+            setActiveTab("controls");
+          }}
+          title="Open Controls & Details sidebar"
+        >
           Controls
         </HudButton>
-        <HudButton icon={Info} onClick={() => { setOpen(true); setActiveTab("details"); }}>
-          Details
-        </HudButton>
-        {topic.concepts && topic.concepts.length > 0 && (
-          <HudButton
-            icon={Lightbulb}
-            variant={keyConceptsOpen ? "primary" : "ghost"}
-            onClick={() => {
-              setOpen(true);
-              setActiveTab("details");
-              setKeyConceptsOpen(!keyConceptsOpen);
-            }}
-          >
-            Key Concepts (toggle) [{keyConceptsOpen ? "ON" : "OFF"}]
-          </HudButton>
-        )}
       </div>
     );
   }
 
   return (
-    <div
+    <aside
       onWheel={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ width: `${panelWidth}px`, maxWidth: "80vw", minWidth: "10vw" }}
-      className={`pointer-events-auto absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] flex-col gap-3 ${
+      style={{ width: `${panelWidth}px` }}
+      className={`relative z-20 flex h-full shrink-0 flex-col border-r border-ink-800 bg-ink-900/95 backdrop-blur-sm ${
         isResizing ? "select-none" : ""
       }`}
     >
-      <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl">
-        <div className="max-h-[calc(100vh-2rem)] overflow-y-auto pr-0.5">
+      <div className="relative flex h-full flex-1 flex-col overflow-hidden">
+        <div className="h-full flex-1 overflow-y-auto p-3">
           <HudPanel
             title={topic.title}
             icon={topic.icon}
@@ -3566,8 +3557,9 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Hide panel"
+                title="Collapse sidebar (fullscreen 3D view)"
                 suppressHydrationWarning
-                className="shrink-0 rounded p-0.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+                className="shrink-0 rounded p-1 text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" strokeWidth={2} />
               </button>
@@ -3759,7 +3751,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
           </svg>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }
 
