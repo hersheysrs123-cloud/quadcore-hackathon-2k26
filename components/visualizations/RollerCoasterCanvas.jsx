@@ -5,6 +5,14 @@ import { useFrame } from "@react-three/fiber";
 import { Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Gauge,
+  Zap,
+} from "lucide-react";
+import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
@@ -12,7 +20,7 @@ import {
   SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
-import { DialGauge, ENERGY_COLOURS, EnergyBars } from "@/components/visualizations/energy-bars";
+import { ENERGY_COLOURS } from "@/components/visualizations/energy-bars";
 import {
   buildTrack,
   describeRun,
@@ -26,8 +34,7 @@ import {
 
 // ─── Roller coaster · conservation of energy ────────────────────────
 // A drop, a vertical loop and a braking straight, with the energy budget drawn
-// as bars beside the track and the cart's speed taken from that budget rather
-// than from a separate integration.
+// in a high-contrast bottom bar HUD and the cart's speed taken from that budget.
 //
 // Two things the scene is built to make undeniable: that the three bars always
 // add to the same total, and that whether the cart survives the loop depends on
@@ -35,45 +42,72 @@ import {
 // every energy in the chart and changes nothing about whether it makes it.
 // ─────────────────────────────────────────────────────────────────────
 
-/** Gauge below the loop where the accelerometer and speedo sit. */
-const PANEL_Y = -5.4;
-
-// ─── Rails ──────────────────────────────────────────────────────────
+// ─── Rails & Track Structure ────────────────────────────────────────
 
 /**
- * The two running rails and their sleepers, swept along the centreline.
- *
- * Built from the same point list the physics samples, so the cart cannot ride
- * a rail that is a different shape from the one it is being solved against.
+ * High-detail roller coaster track:
+ * - Dual polished chrome running rails
+ * - Central tubular spine / backbone pipe
+ * - Welded triangular web cross-ties connecting rails and spine
  */
 function Track({ track, scale, showDanger = false }) {
-  const { rails, sleepers } = useMemo(() => {
+  const { rails, spine, sleepers, webStruts } = useMemo(() => {
     const pts = track.points.map(([x, y]) => new THREE.Vector3(x * scale, y * scale, 0));
     const curve = new THREE.CatmullRomCurve3(pts);
     const gauge = 0.17;
-    const built = [-1, 1].map((side) => {
+
+    // Dual running rails
+    const builtRails = [-1, 1].map((side) => {
       const offset = pts.map((p) => new THREE.Vector3(p.x, p.y, p.z + side * gauge));
-      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(offset), pts.length, 0.035, 6, false);
+      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(offset), pts.length, 0.034, 8, false);
     });
-    // Sleepers every few metres, oriented with the track.
+
+    // Central tubular backbone spine (slightly beneath the rail plane)
+    const spinePts = pts.map((p, i) => {
+      const ahead = pts[Math.min(i + 1, pts.length - 1)];
+      const behind = pts[Math.max(i - 1, 0)];
+      const dir = new THREE.Vector3().subVectors(ahead, behind).normalize();
+      const normal = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
+      // Offset inward along track normal
+      return new THREE.Vector3().addVectors(p, normal.clone().multiplyScalar(-0.08));
+    });
+    const builtSpine = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(spinePts), pts.length, 0.048, 8, false);
+
+    // Welded cross-ties and triangular web struts
     const ties = [];
-    const stride = Math.max(Math.floor(track.points.length / 90), 1);
+    const struts = [];
+    const stride = Math.max(Math.floor(track.points.length / 85), 1);
+
     for (let i = 0; i < track.points.length - 1; i += stride) {
       const a = track.points[i];
       const b = track.points[Math.min(i + 1, track.points.length - 1)];
+      const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
+
       ties.push({
         position: [a[0] * scale, a[1] * scale, 0],
-        rotation: Math.atan2(b[1] - a[1], b[0] - a[0]),
+        rotation: angle,
+      });
+
+      // Normal direction pointing down into track spine
+      const nx = -Math.sin(angle);
+      const ny = Math.cos(angle);
+      struts.push({
+        position: [a[0] * scale - nx * 0.04, a[1] * scale - ny * 0.04, 0],
+        rotation: angle,
       });
     }
-    return { rails: built, sleepers: ties, curve };
+
+    return { rails: builtRails, spine: builtSpine, sleepers: ties, webStruts: struts, curve };
   }, [track, scale]);
 
-  // Each release height and loop radius rebuilds the sweep, so the previous
-  // pair of tubes has to be released with it.
-  useEffect(() => () => rails.forEach((g) => g.dispose()), [rails]);
+  useEffect(() => {
+    return () => {
+      rails.forEach((g) => g.dispose());
+      spine.dispose();
+    };
+  }, [rails, spine]);
 
-  /** The stretch of loop the cart cannot hold, drawn in warning colour. */
+  /** The stretch of loop the cart cannot hold, drawn in warning colour */
   const danger = useMemo(() => {
     if (!showDanger) return null;
     const pts = [];
@@ -87,30 +121,50 @@ function Track({ track, scale, showDanger = false }) {
 
   return (
     <group>
+      {/* Running Rails (Bright Polished Chrome / Stainless Steel) */}
       {rails.map((g, i) => (
-        <mesh key={i} geometry={g} castShadow>
-          <meshStandardMaterial color="#c3ccd8" roughness={0.32} metalness={0.85} />
+        <mesh key={`rail-${i}`} geometry={g} castShadow>
+          <meshStandardMaterial color="#f8fafc" roughness={0.16} metalness={0.96} />
         </mesh>
       ))}
+
+      {/* Central Backbone Spine Tube */}
+      <mesh geometry={spine} castShadow>
+        <meshStandardMaterial color="#94a3b8" roughness={0.28} metalness={0.85} />
+      </mesh>
+
+      {/* Cross-ties across rails */}
       {sleepers.map((tie, i) => (
-        <mesh key={i} position={tie.position} rotation={[0, 0, tie.rotation]}>
-          <boxGeometry args={[0.06, 0.05, 0.42]} />
-          <meshStandardMaterial color="#4a5361" roughness={0.7} metalness={0.3} />
+        <mesh key={`tie-${i}`} position={tie.position} rotation={[0, 0, tie.rotation]}>
+          <boxGeometry args={[0.048, 0.038, 0.42]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.4} metalness={0.7} />
         </mesh>
       ))}
+
+      {/* Triangular web gusset struts connecting rails to central spine */}
+      {webStruts.map((strut, i) => (
+        <group key={`strut-${i}`} position={strut.position} rotation={[0, 0, strut.rotation]}>
+          {[-0.14, 0.14].map((zOffset) => (
+            <mesh key={`s-${zOffset}`} position={[0, -0.02, zOffset / 2]} rotation={[Math.PI / 4 * Math.sign(zOffset), 0, 0]}>
+              <cylinderGeometry args={[0.012, 0.012, 0.12, 8]} />
+              <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
       {danger && <Line points={danger} color={ENERGY_COLOURS.thermal} lineWidth={5} transparent opacity={0.85} />}
     </group>
   );
 }
 
-/** Support columns, so the track reads as a structure rather than a drawing. */
+/** Structural columns with engineered concrete footing piers anchored to ground */
 function Supports({ track, scale }) {
   const columns = useMemo(() => {
     const out = [];
     const stride = Math.max(Math.floor(track.points.length / 26), 1);
     for (let i = 0; i < track.points.length; i += stride) {
       const [x, y] = track.points[i];
-      // Nothing under the loop: its own uprights would run through the rail.
       if (track.s[i] > track.loopEntryS - 2 && track.s[i] < track.loopExitS + 2) continue;
       if (y < 0.4) continue;
       out.push({ x: x * scale, h: y * scale });
@@ -121,45 +175,67 @@ function Supports({ track, scale }) {
   return (
     <group>
       {columns.map((c, i) => (
-        <mesh key={i} position={[c.x, c.h / 2, 0]}>
-          <boxGeometry args={[0.07, c.h, 0.07]} />
-          <meshStandardMaterial color="#505c70" roughness={0.7} metalness={0.35} />
-        </mesh>
+        <group key={i} position={[c.x, 0, 0]}>
+          {/* Concrete Footing Pier at base */}
+          <mesh position={[0, 0.07, 0]}>
+            <boxGeometry args={[0.26, 0.14, 0.26]} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.85} metalness={0.15} />
+          </mesh>
+          {/* Steel anchor base plate */}
+          <mesh position={[0, 0.145, 0]}>
+            <boxGeometry args={[0.18, 0.02, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.3} metalness={0.85} />
+          </mesh>
+          {/* Corner foundation anchor bolts */}
+          {[-0.07, 0.07].map((bx) =>
+            [-0.07, 0.07].map((bz) => (
+              <mesh key={`ab-${bx}-${bz}`} position={[bx, 0.16, bz]}>
+                <cylinderGeometry args={[0.012, 0.012, 0.02, 8]} />
+                <meshStandardMaterial color="#cbd5e1" roughness={0.2} metalness={0.9} />
+              </mesh>
+            )),
+          )}
+
+          {/* Upright Steel Column Column */}
+          <mesh position={[0, c.h / 2 + 0.08, 0]}>
+            <boxGeometry args={[0.075, c.h - 0.14, 0.075]} />
+            <meshStandardMaterial color="#64748b" roughness={0.4} metalness={0.65} />
+          </mesh>
+          {/* Top connection flange collar */}
+          <mesh position={[0, c.h + 0.01, 0]}>
+            <boxGeometry args={[0.11, 0.03, 0.11]} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
 }
 
-// ─── The cart ───────────────────────────────────────────────────────
+// ─── The Coaster Car ────────────────────────────────────────────────
 
 /**
- * Drives the cart and reports back on a throttle.
- *
- * `useFrame` unsubscribes automatically when this component unmounts, which is
- * what makes switching topics clean: the run state lives in a ref inside here,
- * so nothing survives the switch to keep stepping a track that has gone.
+ * Aerodynamic roller coaster car with 3-wheel safety bogies
+ * (running wheels, side friction wheels, and up-stop wheels),
+ * twin LED headlights, passenger figurines, and safety restraint lap bars.
  */
 function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale, onSample }) {
   const cart = useRef(null);
   const state = useRef(startRun({ track, mass }));
   const since = useRef(0);
 
-  // A new track, a new mass or a pressed reset all mean: put it back at the top
-  // with a fresh, empty energy budget.
   useEffect(() => {
     state.current = startRun({ track, mass });
     onSample(describeRun({ track, state: state.current, mass }), state.current);
   }, [track, mass, resetKey, onSample]);
 
   useFrame((_, rawDelta) => {
-    // A backgrounded tab hands back one enormous frame on return; integrating
-    // it in a single step would teleport the cart through the loop.
     const delta = Math.min(rawDelta, 1 / 30);
     const dt = delta * speed;
     if (running && speed > 0) {
-      // Sub-stepping keeps the loop accurate at speed without needing the
-      // renderer to run any faster than it already is.
-      for (let i = 0; i < 4; i += 1) state.current = stepRun(state.current, track, { mass, friction }, dt / 4);
+      for (let i = 0; i < 4; i += 1) {
+        state.current = stepRun(state.current, track, { mass, friction }, dt / 4);
+      }
     }
 
     const [x, y] = positionAt(track, state.current.s);
@@ -167,8 +243,8 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
       const ahead = positionAt(track, Math.min(state.current.s + 0.6, track.length));
       const behind = positionAt(track, Math.max(state.current.s - 0.6, 0));
       const angle = Math.atan2(ahead[1] - behind[1], ahead[0] - behind[0]);
-      // The cart rides on the inside of the rail, which on the loop means
-      // above the track at the bottom and below it at the top.
+
+      // Cart rides on track: normal points into car floor
       const nx = -Math.sin(angle);
       const ny = Math.cos(angle);
       cart.current.position.set(x * scale + nx * 0.16, y * scale + ny * 0.16, 0);
@@ -184,29 +260,305 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
 
   return (
     <group ref={cart}>
-      <RoundedBox args={[0.52, 0.2, 0.3]} radius={0.04} smoothness={3}>
-        <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.35} emissive="#fbbf24" emissiveIntensity={0.25} />
+      {/* Aerodynamic Body Shell in high-gloss coaster gold */}
+      <RoundedBox args={[0.56, 0.19, 0.32]} radius={0.05} smoothness={3}>
+        <meshStandardMaterial
+          color="#f59e0b"
+          roughness={0.25}
+          metalness={0.5}
+          emissive="#d97706"
+          emissiveIntensity={0.2}
+        />
       </RoundedBox>
-      {/* Riders, so the g-force readout has someone to happen to. */}
-      {[-0.12, 0.12].map((dx) => (
-        <mesh key={dx} position={[dx, 0.15, 0]}>
-          <sphereGeometry args={[0.06, 12, 12]} />
-          <meshStandardMaterial color="#e8ebf0" roughness={0.6} />
-        </mesh>
-      ))}
-      {[-0.16, 0.16].map((dx) =>
-        [-0.14, 0.14].map((dz) => (
-          <mesh key={`${dx}${dz}`} position={[dx, -0.12, dz]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.03, 10]} />
-            <meshStandardMaterial color="#5b6472" roughness={0.4} metalness={0.7} />
+
+      {/* Aerodynamic Sloped Nose Cone Fairing */}
+      <mesh position={[0.31, -0.01, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.14, 0.18, 16]} />
+        <meshStandardMaterial color="#fbbf24" roughness={0.22} metalness={0.6} />
+      </mesh>
+
+      {/* Tinted Windshield Canopy */}
+      <mesh position={[0.12, 0.13, 0]} rotation={[0, 0, -Math.PI / 8]}>
+        <boxGeometry args={[0.18, 0.10, 0.28]} />
+        <meshStandardMaterial color="#38bdf8" transparent opacity={0.6} roughness={0.1} />
+      </mesh>
+
+      {/* Twin Front LED Headlights */}
+      {[-0.10, 0.10].map((dz) => (
+        <group key={`hl-${dz}`} position={[0.39, -0.01, dz]}>
+          <mesh rotation={[0, Math.PI / 2, 0]}>
+            <cylinderGeometry args={[0.024, 0.024, 0.02, 16]} />
+            <meshStandardMaterial color="#f8fafc" emissive="#38bdf8" emissiveIntensity={2.0} />
           </mesh>
+        </group>
+      ))}
+
+      {/* Cockpit Interior Tray */}
+      <mesh position={[-0.04, 0.08, 0]}>
+        <boxGeometry args={[0.34, 0.04, 0.26]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.7} />
+      </mesh>
+
+      {/* Passenger Figurines */}
+      {[-0.14, 0.06].map((dx, pIdx) => (
+        <group key={`rider-${pIdx}`} position={[dx, 0.12, 0]}>
+          {/* Torso */}
+          <mesh position={[0, 0.04, 0]}>
+            <boxGeometry args={[0.10, 0.10, 0.18]} />
+            <meshStandardMaterial color={pIdx === 0 ? "#3b82f6" : "#ef4444"} roughness={0.5} />
+          </mesh>
+          {/* Head & Helmet */}
+          <mesh position={[0, 0.14, 0]}>
+            <sphereGeometry args={[0.055, 16, 16]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.3} metalness={0.2} />
+          </mesh>
+          {/* Safety Lap Bar Restraint */}
+          <mesh position={[0.06, 0.06, 0]}>
+            <cylinderGeometry args={[0.014, 0.014, 0.24, 12]} rotation={[Math.PI / 2, 0, 0]} />
+            <meshStandardMaterial color="#475569" roughness={0.3} metalness={0.8} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* ── 3-Wheel Safety Bogie Assemblies (Front & Rear, Both Sides) ── */}
+      {[-0.18, 0.18].map((dx) =>
+        [-0.17, 0.17].map((dz) => (
+          <group key={`bogie-${dx}-${dz}`} position={[dx, -0.11, dz]}>
+            {/* Bogie Bracket Carrier Plate */}
+            <mesh>
+              <boxGeometry args={[0.11, 0.07, 0.03]} />
+              <meshStandardMaterial color="#64748b" roughness={0.3} metalness={0.8} />
+            </mesh>
+
+            {/* 1. Running Wheel (rides on top of rail) */}
+            <mesh position={[0, 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.044, 0.044, 0.024, 14]} />
+              <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
+            </mesh>
+            {/* Chrome axle cap */}
+            <mesh position={[0, 0.02, Math.sign(dz) * 0.014]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.016, 0.016, 0.006, 10]} />
+              <meshStandardMaterial color="#f8fafc" roughness={0.15} metalness={0.95} />
+            </mesh>
+
+            {/* 2. Side Friction Wheel (rides on inside flange of rail) */}
+            <mesh position={[0, -0.015, -Math.sign(dz) * 0.022]} rotation={[0, 0, 0]}>
+              <cylinderGeometry args={[0.032, 0.032, 0.018, 12]} />
+              <meshStandardMaterial color="#475569" roughness={0.4} metalness={0.65} />
+            </mesh>
+
+            {/* 3. Up-Stop Safety Wheel (locks underneath rail to prevent derailment) */}
+            <mesh position={[0, -0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.036, 0.036, 0.022, 12]} />
+              <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
+            </mesh>
+          </group>
         )),
       )}
     </group>
   );
 }
 
-// ─── The scene ──────────────────────────────────────────────────────
+// ─── Solid Bottom Bar HUD (Monitors Overlay) ─────────────────────────
+
+function RollerCoasterBottomBar({ live, total, clears, minHeight, friction }) {
+  const gpePct = total > 0 ? Math.min(100, Math.max(0, (live.gpe / total) * 100)) : 0;
+  const kePct = total > 0 ? Math.min(100, Math.max(0, (live.ke / total) * 100)) : 0;
+  const thPct = total > 0 ? Math.min(100, Math.max(0, (live.thermal / total) * 100)) : 0;
+
+  // Speedometer gauge normalization (0 to 45 m/s)
+  const maxSpeed = Math.max(45, Math.ceil(live.speed * 1.15));
+  const speedAngle = clamp((live.speed / maxSpeed) * 180, 0, 180);
+
+  // G-Force gauge normalization (-2g to +8g, total span 10g)
+  const gClamped = clamp(live.gForce, -2, 8);
+  const gAngle = ((gClamped + 2) / 10) * 180;
+  const gWarning = live.gForce > 5 || live.gForce < 0;
+
+  return (
+    <div className="pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex max-w-[96vw] flex-wrap items-center justify-center gap-4 rounded-2xl border border-slate-700/80 bg-slate-900/95 px-5 py-3 shadow-2xl backdrop-blur-md">
+      {/* ── Energy Conservation Budget ── */}
+      <div className="flex flex-col min-w-[240px] max-w-[320px]">
+        <div className="flex items-center justify-between text-[11px] font-semibold tracking-wider text-slate-300">
+          <span className="flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5 text-duck-400" />
+            ENERGY BUDGET
+          </span>
+          <span className="font-mono text-xs font-bold text-duck-300">
+            {(total / 1000).toFixed(1)} kJ
+          </span>
+        </div>
+
+        {/* Segmented Energy Stack Bar */}
+        <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full border border-slate-700/80 bg-slate-800">
+          <div
+            className="h-full bg-sky-400 transition-all duration-100"
+            style={{ width: `${gpePct}%` }}
+            title={`GPE: ${(live.gpe / 1000).toFixed(1)} kJ (${gpePct.toFixed(0)}%)`}
+          />
+          <div
+            className="h-full bg-emerald-400 transition-all duration-100"
+            style={{ width: `${kePct}%` }}
+            title={`KE: ${(live.ke / 1000).toFixed(1)} kJ (${kePct.toFixed(0)}%)`}
+          />
+          <div
+            className="h-full bg-rose-400 transition-all duration-100"
+            style={{ width: `${thPct}%` }}
+            title={`Thermal: ${(live.thermal / 1000).toFixed(1)} kJ (${thPct.toFixed(0)}%)`}
+          />
+        </div>
+
+        {/* Readout Tokens */}
+        <div className="mt-2 flex items-center justify-between text-[10px] font-mono">
+          <div className="flex items-center gap-1 text-sky-300">
+            <span className="h-2 w-2 rounded-full bg-sky-400" />
+            <span>GPE {(live.gpe / 1000).toFixed(1)}k</span>
+          </div>
+          <div className="flex items-center gap-1 text-emerald-300">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            <span>KE {(live.ke / 1000).toFixed(1)}k</span>
+          </div>
+          <div className="flex items-center gap-1 text-rose-300">
+            <span className="h-2 w-2 rounded-full bg-rose-400" />
+            <span>Heat {(live.thermal / 1000).toFixed(1)}k</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden h-10 w-px bg-slate-700/80 sm:block" />
+
+      {/* ── Analog Speedometer Dial ── */}
+      <div className="flex items-center gap-3">
+        <div className="relative h-14 w-14 flex items-center justify-center">
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 40 40">
+            <circle
+              cx="20"
+              cy="20"
+              r="16"
+              fill="none"
+              stroke="#334155"
+              strokeWidth="3.5"
+              strokeDasharray="100"
+              strokeDashoffset="25"
+            />
+            <circle
+              cx="20"
+              cy="20"
+              r="16"
+              fill="none"
+              stroke="#10b981"
+              strokeWidth="3.5"
+              strokeDasharray="100"
+              strokeDashoffset={100 - (speedAngle / 180) * 75}
+              strokeLinecap="round"
+              className="transition-all duration-100"
+            />
+          </svg>
+          <div className="absolute text-center">
+            <span className="block font-mono text-xs font-bold text-emerald-300">
+              {live.speed.toFixed(0)}
+            </span>
+          </div>
+        </div>
+        <div>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Speed
+          </span>
+          <span className="font-mono text-xs font-bold text-slate-200">
+            {live.speed.toFixed(1)} <span className="text-[10px] text-slate-400 font-normal">m/s</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="hidden h-10 w-px bg-slate-700/80 sm:block" />
+
+      {/* ── Passenger G-Force Gauge ── */}
+      <div className="flex items-center gap-3">
+        <div className="relative h-14 w-14 flex items-center justify-center">
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 40 40">
+            <circle
+              cx="20"
+              cy="20"
+              r="16"
+              fill="none"
+              stroke="#334155"
+              strokeWidth="3.5"
+              strokeDasharray="100"
+              strokeDashoffset="25"
+            />
+            <circle
+              cx="20"
+              cy="20"
+              r="16"
+              fill="none"
+              stroke={gWarning ? "#f43f5e" : "#38bdf8"}
+              strokeWidth="3.5"
+              strokeDasharray="100"
+              strokeDashoffset={100 - (gAngle / 180) * 75}
+              strokeLinecap="round"
+              className="transition-all duration-100"
+            />
+          </svg>
+          <div className="absolute text-center">
+            <span
+              className={`block font-mono text-xs font-bold ${
+                gWarning ? "text-rose-400" : "text-sky-300"
+              }`}
+            >
+              {live.gForce.toFixed(1)}
+            </span>
+          </div>
+        </div>
+        <div>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            G-Force
+          </span>
+          <span
+            className={`font-mono text-xs font-bold ${
+              gWarning ? "text-rose-400" : "text-slate-200"
+            }`}
+          >
+            {live.gForce.toFixed(2)} <span className="text-[10px] text-slate-400 font-normal">g</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="hidden h-10 w-px bg-slate-700/80 md:block" />
+
+      {/* ── Status & Clearance Verdict Badge ── */}
+      <div className="flex flex-col items-start gap-1">
+        {live.leftTrack ? (
+          <div className="flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/20 px-2.5 py-1 text-xs font-semibold text-rose-300">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+            <span>Derailment: speed insufficient at loop apex (v &lt; √(g·R))</span>
+          </div>
+        ) : live.gForce > 5 ? (
+          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-300">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+            <span>High G-Force ({live.gForce.toFixed(1)} g) — Blackout risk for riders</span>
+          </div>
+        ) : clears ? (
+          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <span>
+              Clears loop ({live.topSpeed.toFixed(1)} m/s at top, needed {live.neededTopSpeed.toFixed(1)} m/s)
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-300">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+            <span>Release too low (min 2.5 R = {minHeight.toFixed(1)} m)</span>
+          </div>
+        )}
+        <div className="text-[10px] text-slate-400">
+          {friction ? "Steel-on-steel friction enabled" : "Frictionless theoretical model"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── The Scene ──────────────────────────────────────────────────────
 
 export default function RollerCoasterCanvas({ params = {} }) {
   const {
@@ -229,8 +581,6 @@ export default function RollerCoasterCanvas({ params = {} }) {
   );
   const onSample = useCallback((described) => setLive(described), []);
 
-  // Fit the whole layout in frame whichever way the sliders are pushed: a
-  // 50 m drop and a 3 m loop are very different shapes.
   const scale = useMemo(() => {
     const width = track.points[track.points.length - 1][0];
     const tallest = Math.max(releaseHeight, 2 * loopRadius);
@@ -244,156 +594,123 @@ export default function RollerCoasterCanvas({ params = {} }) {
   const centreX = (track.points[track.points.length - 1][0] * scale) / 2;
 
   return (
-    <SceneCanvas
-      // The layout is wide and the controls panel eats the left quarter of it,
-      // so the whole ride is pushed right and the camera pulled back far
-      // enough that the drop, the loop and the instrument row all fit at once.
-      camera={{ position: [1.8, 0.4, 19.5], fov: 46 }}
-      controls={{ minDistance: 6, maxDistance: 48, target: [1.8, -0.3, 0] }}
-      lights={{ ambient: 0.55, keyLight: 1.0 }}
-    >
-      {/* The whole layout is shifted so its middle sits on the camera axis. */}
-      <group position={[-centreX + 5, -0.4, 0]}>
-        {/* Ground. */}
-        <mesh position={[centreX, -0.06, 0]} receiveShadow>
-          <boxGeometry args={[centreX * 2 + 3, 0.12, 3.2]} />
-          <meshStandardMaterial color="#42506a" roughness={0.9} />
-        </mesh>
+    <div className="relative w-full h-full">
+      <SceneCanvas
+        camera={{ position: [1.8, 0.4, 19.5], fov: 46 }}
+        controls={{ minDistance: 6, maxDistance: 48, target: [1.8, -0.3, 0] }}
+        lights={{ ambient: 0.58, keyLight: 1.05 }}
+      >
+        <group position={[-centreX + 5, -0.4, 0]}>
+          {/* Lightened industrial slate ground base with polished aluminum top plate */}
+          <group position={[centreX, -0.06, 0]}>
+            {/* Slate base block */}
+            <mesh receiveShadow>
+              <boxGeometry args={[centreX * 2 + 3.6, 0.12, 3.4]} />
+              <meshStandardMaterial color="#475569" roughness={0.7} metalness={0.35} />
+            </mesh>
+            {/* Polished aluminum top plate */}
+            <mesh position={[0, 0.065, 0]} receiveShadow>
+              <boxGeometry args={[centreX * 2 + 3.4, 0.01, 3.2]} />
+              <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.65} />
+            </mesh>
+            {/* Perimeter safety hazard stripe border */}
+            <mesh position={[0, 0.072, 1.58]}>
+              <boxGeometry args={[centreX * 2 + 3.4, 0.005, 0.04]} />
+              <meshStandardMaterial color="#eab308" roughness={0.4} />
+            </mesh>
+            <mesh position={[0, 0.072, -1.58]}>
+              <boxGeometry args={[centreX * 2 + 3.4, 0.005, 0.04]} />
+              <meshStandardMaterial color="#eab308" roughness={0.4} />
+            </mesh>
+          </group>
 
-        <Supports track={track} scale={scale} />
-        <Track
-          track={track}
-          scale={scale}
-          showDanger={Boolean(live.leftTrack)}
-        />
+          <Supports track={track} scale={scale} />
+          <Track
+            track={track}
+            scale={scale}
+            showDanger={Boolean(live.leftTrack)}
+          />
 
-        <CartRunner
-          track={track}
-          mass={cartMass}
-          friction={friction}
-          running={running}
-          speed={speed}
-          resetKey={relaunch}
-          scale={scale}
-          onSample={onSample}
-        />
+          <CartRunner
+            track={track}
+            mass={cartMass}
+            friction={friction}
+            running={running}
+            speed={speed}
+            resetKey={relaunch}
+            scale={scale}
+            onSample={onSample}
+          />
 
-        {/* The theoretical minimum release height, drawn where it applies. */}
-        <Line
-          points={[
-            [0, minHeight * scale, 0],
-            [centreX * 2, minHeight * scale, 0],
+          {/* Theoretical minimum release height marker line */}
+          <Line
+            points={[
+              [0, minHeight * scale, 0],
+              [centreX * 2, minHeight * scale, 0],
+            ]}
+            color={clears ? ENERGY_COLOURS.workOut : ENERGY_COLOURS.thermal}
+            lineWidth={1.8}
+            transparent
+            opacity={0.8}
+            dashed
+            dashSize={0.16}
+            gapSize={0.12}
+          />
+          <SceneLabel position={[centreX * 2 + 0.9, minHeight * scale, 0]} tone={clears ? "text-emerald-300" : "text-rose-300"}>
+            {`2.5 R = ${minHeight.toFixed(1)} m minimum`}
+          </SceneLabel>
+
+          {/* Release height marker */}
+          <SceneLabel position={[-0.6, releaseHeight * scale, 0]} accent>
+            {`${releaseHeight} m`}
+          </SceneLabel>
+
+          {/* Loop diameter callout */}
+          <SceneLabel
+            position={[
+              (track.points[0][0] + 0) * scale + (track.loopEntryS + track.loopRadius) * 0 + centreX * 0.98,
+              2 * loopRadius * scale + 0.55,
+              0,
+            ]}
+            tone="text-ink-300"
+          >
+            {`loop R = ${loopRadius} m · needs ${minimumTopSpeed(loopRadius).toFixed(1)} m/s at the top`}
+          </SceneLabel>
+        </group>
+
+        <SceneReadout
+          hidden={params?.hideOverlayReadout}
+          title="Energy on the track"
+          subtitle="GPE + KE = constant"
+          rows={[
+            ["Height", `${live.height.toFixed(1)} m`],
+            ["Speed", `${live.speed.toFixed(1)} m/s`, "gold"],
+            ["GPE", `${(live.gpe / 1000).toFixed(1)} kJ`],
+            ["KE", `${(live.ke / 1000).toFixed(1)} kJ`],
+            ["Heat", `${(live.thermal / 1000).toFixed(1)} kJ`, live.thermal > 0 ? "warn" : "good"],
+            ["g-force", `${live.gForce.toFixed(2)} g`, live.gForce < 0 ? "bad" : live.gForce > 5 ? "warn" : "good"],
           ]}
-          color={clears ? ENERGY_COLOURS.workOut : ENERGY_COLOURS.thermal}
-          lineWidth={1.8}
-          transparent
-          opacity={0.8}
-          dashed
-          dashSize={0.16}
-          gapSize={0.12}
         />
-        <SceneLabel position={[centreX * 2 + 0.9, minHeight * scale, 0]} tone={clears ? "text-emerald-300" : "text-rose-300"}>
-          {`2.5 R = ${minHeight.toFixed(1)} m minimum`}
-        </SceneLabel>
 
-        {/* Release height marker. */}
-        <SceneLabel position={[-0.6, releaseHeight * scale, 0]} accent>
-          {`${releaseHeight} m`}
-        </SceneLabel>
-
-        {/* Loop diameter callout. */}
-        <SceneLabel
-          position={[
-            (track.points[0][0] + 0) * scale + (track.loopEntryS + track.loopRadius) * 0 + centreX * 0.98,
-            2 * loopRadius * scale + 0.55,
-            0,
+        <SceneLegend
+          title="Energy budget"
+          items={[
+            { color: ENERGY_COLOURS.gpe, label: "GPE = mgh", note: "all of it at the top of the drop" },
+            { color: ENERGY_COLOURS.kinetic, label: "KE = ½mv²", note: "all of it at ground level" },
+            { color: ENERGY_COLOURS.thermal, label: "Heat", note: "friction and brakes — this one never comes back" },
+            { color: ENERGY_COLOURS.total, label: "Total", note: "the line the stack never crosses" },
           ]}
-          tone="text-ink-300"
-        >
-          {`loop R = ${loopRadius} m · needs ${minimumTopSpeed(loopRadius).toFixed(1)} m/s at the top`}
-        </SceneLabel>
-      </group>
+        />
+      </SceneCanvas>
 
-      {/* ── Instruments ── */}
-      <EnergyBars
-        position={[-2.2, PANEL_Y, 0]}
-        width={4.0}
-        height={2.3}
-        title="energy budget"
-        unit="kJ"
-        format={(v) => (v / 1000).toFixed(1)}
-        reference={total}
-        bars={[
-          { key: "gpe", label: "GPE", value: live.gpe, colour: ENERGY_COLOURS.gpe },
-          { key: "ke", label: "KE", value: live.ke, colour: ENERGY_COLOURS.kinetic },
-          { key: "heat", label: "heat", value: live.thermal, colour: ENERGY_COLOURS.thermal },
-        ]}
-        stack={{
-          label: "total",
-          segments: [
-            { key: "s-gpe", value: live.gpe, colour: ENERGY_COLOURS.gpe },
-            { key: "s-ke", value: live.ke, colour: ENERGY_COLOURS.kinetic },
-            { key: "s-heat", value: live.thermal, colour: ENERGY_COLOURS.thermal },
-          ],
-        }}
-        footnote={friction ? "steel on steel — the stack still totals the same" : "frictionless — GPE and KE just trade places"}
+      {/* Solid Bottom Bar HUD for Monitors (G-force dial, speed dial, energy budget bars) */}
+      <RollerCoasterBottomBar
+        live={live}
+        total={total}
+        clears={clears}
+        minHeight={minHeight}
+        friction={friction}
       />
-
-      <DialGauge
-        position={[3.6, PANEL_Y + 1.05, 0]}
-        radius={0.95}
-        value={live.speed}
-        max={Math.max(45, live.speed * 1.1)}
-        label="speed"
-        readout={`${live.speed.toFixed(1)} m/s`}
-        colour={ENERGY_COLOURS.kinetic}
-      />
-
-      <DialGauge
-        position={[6.6, PANEL_Y + 1.05, 0]}
-        radius={0.95}
-        value={live.gForce}
-        min={-2}
-        max={8}
-        redline={5}
-        label="passenger g-force"
-        readout={`${live.gForce.toFixed(2)} g`}
-        colour={ENERGY_COLOURS.gpe}
-      />
-
-      <SceneLabel position={[5.0, PANEL_Y - 0.55, 0]} tone={live.leftTrack ? "text-rose-300" : clears ? "text-emerald-300" : "text-amber-300"}>
-        {live.leftTrack
-          ? "the cart left the rail in the loop — raise the release height"
-          : live.gForce > 5
-            ? `${live.gForce.toFixed(1)} g — a real ride would grey its passengers out`
-            : clears
-              ? `clears the loop · ${live.topSpeed.toFixed(1)} m/s at the top, needs ${live.neededTopSpeed.toFixed(1)}`
-              : `too low — ${minHeight.toFixed(1)} m is the minimum for this loop`}
-      </SceneLabel>
-
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Energy on the track"
-        subtitle="GPE + KE = constant"
-        rows={[
-          ["Height", `${live.height.toFixed(1)} m`],
-          ["Speed", `${live.speed.toFixed(1)} m/s`, "gold"],
-          ["GPE", `${(live.gpe / 1000).toFixed(1)} kJ`],
-          ["KE", `${(live.ke / 1000).toFixed(1)} kJ`],
-          ["Heat", `${(live.thermal / 1000).toFixed(1)} kJ`, live.thermal > 0 ? "warn" : "good"],
-          ["g-force", `${live.gForce.toFixed(2)} g`, live.gForce < 0 ? "bad" : live.gForce > 5 ? "warn" : "good"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Energy budget"
-        items={[
-          { color: ENERGY_COLOURS.gpe, label: "GPE = mgh", note: "all of it at the top of the drop" },
-          { color: ENERGY_COLOURS.kinetic, label: "KE = ½mv²", note: "all of it at ground level" },
-          { color: ENERGY_COLOURS.thermal, label: "Heat", note: "friction and brakes — this one never comes back" },
-          { color: ENERGY_COLOURS.total, label: "Total", note: "the line the stack never crosses" },
-        ]}
-      />
-    </SceneCanvas>
+    </div>
   );
 }

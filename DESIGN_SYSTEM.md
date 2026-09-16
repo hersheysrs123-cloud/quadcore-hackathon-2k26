@@ -799,6 +799,27 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
       - Dual-Sided Vector Markings: Millimeter, centimeter, and 5-centimeter graduation ticks (`#1e293b`) rendered symmetrically at $Z = +0.022$ and $Z = -0.022$ with edge wrap notches.
       - Dual-Sided Caliper Pointer: Double needle indicator arms ($Z = \pm 0.05$) with tip needle connecting front and back at the scale face.
 
+26. **3D Roller Coaster Loop-the-Loop & Energy Conservation Tokens (`RollerCoasterCanvas.jsx`)**:
+    - **Solid Bottom Bar HUD Architecture (`RollerCoasterBottomBar`)**:
+      - Placement & Layout: Fixed viewport bottom overlay (`absolute bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto`), max width `96vw`.
+      - Backing Surface: Solid studio slate container (`#1e2638`, border `#38455c`, rounded-2xl, shadow-2xl, backdrop-blur-md, px-5 py-3). Banishes unbacked floating 3D text and monitors from the Three.js viewport.
+      - Segmented Energy Stack Bar: Three-color full-width energy bar (GPE in sky `#38bdf8`, KE in emerald `#34d399`, Thermal/Heat in rose `#f87171`), demonstrating that $GPE + KE + Thermal = \text{constant}$.
+      - Analog Speedometer SVG Dial: Circular gauge ($0\text{--}45\text{ m/s}$) with emerald progress arc, dark dial face (`#1e293b`), and live digital readout.
+      - Passenger G-Force SVG Dial: Circular gauge ($-2\text{ g}$ to $+8\text{ g}$) with sky-to-rose color shift, redline threshold indicator ($>5\text{ g}$), and blackout risk warning badge.
+      - Real-Time Verdict Pill: High-contrast state badge indicating loop clearance (`text-emerald-300`), derailment speed deficit (`text-rose-300`), or excessive passenger g-force (`text-amber-300`).
+    - **High-Detail Steel Coaster Track Architecture**:
+      - Running Rails: Dual swept stainless steel tubes with polished chrome finish (`#f8fafc`, metalness `0.96`, roughness `0.16`).
+      - Central Tubular Spine: Heavy-gauge structural backbone pipe (`#94a3b8`, metalness `0.85`, roughness `0.28`) running parallel beneath the track centerline.
+      - Triangular Web Cross-Ties: Steel sleepers (`#cbd5e1`) and diagonal web struts welding both running rails to the central backbone pipe at regular intervals.
+    - **Structural Footing Piers & Ground Platform**:
+      - Base Ground Platform: Industrial slate base (`#475569`, roughness `0.7`, metalness `0.35`) with polished brushed aluminum top deck plate (`#cbd5e1`, metalness `0.65`) and perimeter yellow/black hazard safety borders (`#eab308`).
+      - Foundation Footing Piers: Heavy concrete block pedestals (`#94a3b8`, roughness `0.85`) with structural steel baseplates (`#64748b`) and 4-corner galvanized anchor bolts (`#cbd5e1`) supporting each track upright column.
+    - **Aerodynamic Coaster Car Detailing**:
+      - Body Shell: Sculpted high-gloss aerodynamic body (`#f59e0b`, metalness `0.5`, roughness `0.25`, emissive `#d97706`), wedge nose cone fairing (`#fbbf24`), and tinted aerodynamic windshield canopy (`#38bdf8`, opacity `0.6`).
+      - Twin LED Headlights: High-intensity front projector headlight discs (`#f8fafc`, emissive `#38bdf8`, emissiveIntensity `2.0`).
+      - Passenger Figurines: Two riders with sculpted colored shirts (`#3b82f6` and `#ef4444`), helmets (`#f1f5f9`), and steel safety lap bar restraints (`#475569`).
+      - 3-Wheel Safety Bogies: 4 complete bogie assemblies (front-left, front-right, rear-left, rear-right) featuring running wheels (top of rail), side friction wheels (inside of rail flange), and up-stop safety wheels (underneath rail to prevent derailment).
+
 
 
 

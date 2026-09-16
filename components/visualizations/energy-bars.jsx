@@ -66,11 +66,23 @@ export function EnergyBars({
 
   return (
     <group position={position}>
-      {/* Backing panel and baseline. */}
+      {/* Backing panel and frame in lightened studio slate. */}
       <mesh position={[width / 2, height / 2 + 0.05, -0.05]}>
         <planeGeometry args={[width + 1.1, height + 1.35]} />
-        <meshBasicMaterial color="#0d121c" transparent opacity={0.88} />
+        <meshBasicMaterial color="#1e2638" transparent opacity={0.95} />
       </mesh>
+      {/* Subtle border outline for crisp panel definition */}
+      <Line
+        points={[
+          [-0.55, -0.62, -0.04],
+          [width + 0.55, -0.62, -0.04],
+          [width + 0.55, height + 0.72, -0.04],
+          [-0.55, height + 0.72, -0.04],
+          [-0.55, -0.62, -0.04],
+        ]}
+        color="#38455c"
+        lineWidth={1.5}
+      />
 
       {/* Y-axis and baseline. */}
       <Line
@@ -245,7 +257,12 @@ export function DialGauge({
     <group position={position}>
       <mesh position={[0, 0, -0.05]}>
         <circleGeometry args={[radius * 1.28, 40]} />
-        <meshBasicMaterial color="#0d121c" transparent opacity={0.9} />
+        <meshBasicMaterial color="#1e2638" transparent opacity={0.96} />
+      </mesh>
+      {/* Chrome bezel ring */}
+      <mesh position={[0, 0, -0.04]}>
+        <ringGeometry args={[radius * 1.24, radius * 1.28, 40]} />
+        <meshBasicMaterial color="#475569" />
       </mesh>
       <Line points={arc} color={PALETTE.line} lineWidth={3} />
       {dangerArc && <Line points={dangerArc} color={ENERGY_COLOURS.thermal} lineWidth={3.4} />}

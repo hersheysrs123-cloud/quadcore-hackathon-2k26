@@ -7291,3 +7291,61 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 4. **Deep-clone duplicate**: `cloneNoteTree` re-mints every note id, block id, `parentId` and `page.pageId` inside the subtree, so copies never share children.
 5. **Card ⇄ page sync invariant**: removing a `page` card (gutter delete, selection Backspace/Delete, Cut, forward Delete) trashes the page; Undo restores the card in an "in Trash" state with a one-click **Restore**; restoring a page whose live parent lost its card re-inserts the card (`ensurePageBlockInParent`).
 6. **Verification**: `tests/unit/note-hierarchy.test.mjs` (26 pure helper tests incl. cycles, orphans, MAX depth) and `tests/unit/nested-sub-pages.test.mjs` (27 wiring / exporter / ranking tests); full suite **1299 tests** green across 324 suites; production `next build` clean; headless-Chrome CDP scenarios (create via `/page` and gutter `+`, rename/icon live-card update, breadcrumb navigation incl. `…` overflow, collapse/expand, reload persistence, cascade delete → trash → restore, move-with-children, deep-clone duplicate, delete-open-child jumps to parent, `/page` inside an unsaved draft) all pass with zero console errors.
+
+---
+
+## 143. Simple Machines High-FPS Optimization, Authentic Lever Hinges & Reeving, Right-Hand Sidebar; Roller Coaster Solid Bottom Bar HUD, Lightened Colors & Bogie Detailing
+
+### 🐛 Problem Statement
+1. **Simple Machines Severe Performance Degradation (`SimpleMachinesCanvas.jsx`)**:
+   - The simulation suffered from noticeable frame drops and lag across lever classes, block and tackle, sliders, and animation.
+   - Profiling identified that `StrokeClock` called `setPhase(p)` into React component state at 30 Hz. Every 33 ms, the entire React component tree re-rendered, recreating Drei `<Line>` geometries, 10+ mesh children of `LoadStack`, and projecting Drei `<Html>` labels, causing severe garbage collection pauses and frame hitching.
+2. **Lever Mechanics & Suspension Realism**:
+   - `LoadStack` disks sat directly on the beam centerline clipping through the wooden beam rather than hanging stably under gravity below the beam from an eyelet.
+   - For Class 2 and Class 3 levers, the pivot at $x = 0$ incorrectly displayed a triangular balance knife-edge with a balance pointer needle, instead of an authentic anchored stanchion hinge clevis bracket.
+3. **Block-and-Tackle Rope Routing**:
+   - The 4-rope configuration suffered from self-intersecting rope lines because the threading logic lacked authentic multi-sheave alternating Z-planes and tangencies.
+4. **Simple Machines Graph Position & Contrast**:
+   - The work per stroke graph floated in the 3D scene at `[5.1, BENCH_Y + 0.45, 0]` with a dark backing that was hard to read against the `#273043` scene background.
+5. **Roller Coaster Missing Monitor Backing & Position (`RollerCoasterCanvas.jsx`)**:
+   - Gauges (speed dial, g-force meter, energy budget bars) floated in 3D space at `PANEL_Y = -5.4` without a solid background fill, making them hard to read and easily clipped during camera zoom or orbit.
+6. **Roller Coaster Visual Detail & Lightening**:
+   - The track was a basic dual tube lacking a structural backbone pipe and cross-ties.
+   - Support columns ended abruptly in the ground without concrete footing piers.
+   - Ground and rails were dark (`#222a36`, `#c3ccd8`).
+   - The car was a basic yellow box with riders and simple wheel discs, lacking aerodynamic styling, headlights, and safety bogies.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Zero-State `useFrame` Animation & In-Place Geometry Updates (`SimpleMachinesCanvas.jsx`)**:
+   - Eliminated `useState(phase)` and `StrokeClock` React state thrashing.
+   - In `Lever`: animated beam rotation, hanging load translation, and effort actuator grip directly in Three.js via `useFrame` mutating object transform refs (`beamGroupRef.current.rotation.z`, `loadGroupRef.current.position.set`, `effortGroupRef.current.position.set`).
+   - In `Pulley`: moved lower block and pull handle directly in `useFrame`. Upgraded rope line to a native Three.js `<line>` with persistent `<bufferGeometry ref={ropeGeomRef}>`, updating vertex coordinates in-place via `ropeGeomRef.current.setFromPoints(...)` without allocations.
+   - Eliminated all continuous React re-renders during animation, restoring smooth 60–120 FPS performance.
+2. **Authentic Lever Pivots & Under-Beam Hanging Weight Stack**:
+   - Class 1: Retained triangular knife-edge fulcrum, apex saddle collar, graduation scale plate, and red balance indicator needle.
+   - Class 2 & Class 3: Installed a heavy-duty stanchion hinge bracket with dual mounting ears, 4 foundation bolts, and a horizontal cylindrical clevis axle pin at $x = 0$.
+   - Redesigned `LoadStack` with an eyelet attachment hook, central hanger spindle rod, carrier platform tray, and slotted calibration disks hanging stably under gravity below the beam with $\ge 0.35\text{ m}$ clearance above the workbench.
+3. **Verified Non-Crossing 4-Rope Reeving**:
+   - Implemented authentic multi-sheave path routing with alternating Z-offsets ($Z = \pm 0.04$) across sheaves:
+     Upper becket $\to$ Lower sheave 0 $\to$ Upper sheave 0 $\to$ Lower sheave 1 $\to$ Upper sheave 1 $\to$ Hauling lead.
+   - Verified non-crossing geometry for $n = 1, 2, 3, 4$ supporting ropes.
+4. **Right-Hand Sidebar HUD Layout (`SimpleMachinesSidebar`)**:
+   - Moved work bookkeeping out of the 3D scene into a dedicated right-hand sidebar overlay (`absolute right-4 top-4 z-20 w-80`).
+   - Styled with lightened studio slate background `#1e2638`, border `#38455c`, high-contrast bars (Work In in amber, Work Out in emerald, Friction in rose), live mechanical metrics ($MA$, $VR$, efficiency $\eta$), and conservation law takeaways.
+5. **Solid Bottom Bar HUD for Roller Coaster Monitors (`RollerCoasterCanvas.jsx`)**:
+   - Removed floating 3D monitors from `PANEL_Y = -5.4`.
+   - Built a solid bottom bar HUD card (`absolute bottom-3 left-1/2 -translate-x-1/2 z-20`) with solid `#1e2638` background, `#38455c` border, holding:
+     - Energy Budget Stack & Bars (GPE, KE, Heat, and Total kJ reference).
+     - Analog Speedometer SVG dial gauge ($0\text{--}45\text{ m/s}$).
+     - Passenger G-Force SVG dial gauge (with redline indicator $>5\text{ g}$).
+     - Clearance verdict badge (cleared loop, derailment warning, or high g-force alert).
+6. **Roller Coaster Track & Car Detailing**:
+   - **Track**: Added central tubular spine pipe (`color="#94a3b8"`, metalness 0.85) and triangular web cross-ties welding rails to spine.
+   - **Rails**: Lightened to polished chrome stainless steel (`#f8fafc`, metalness 0.96, roughness 0.16).
+   - **Footing Piers**: Added concrete pedestal blocks (`#94a3b8`, roughness 0.85) with steel baseplates and anchor bolts to every support column at ground level.
+   - **Ground**: Lightened to industrial slate base (`#475569`) with polished aluminum top plate (`#cbd5e1`) and safety yellow/black hazard perimeter stripes (`#eab308`).
+   - **Car**: Added aerodynamic sculpted nose cone, tinted windshield canopy (`#38bdf8`), twin LED headlights (`#f8fafc`, emissive `#38bdf8`), passenger figurines with padded restraint lap bars, and authentic 3-wheel safety bogies (running wheels, side friction wheels, and up-stop wheels).
+7. **Verification**:
+   - All **886 unit and integration tests** and **34 empirical challenge tests** passed with 0 failures.
+   - Production build compiled successfully (`npm run build`).
+   - Next.js production server running on port 3000 verified with HTTP 200 on `/visualizations`.
