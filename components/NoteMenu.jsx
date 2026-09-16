@@ -25,6 +25,7 @@ import {
   Layers,
   Sparkles,
   ClipboardCopy,
+  FilePlus2,
 } from "lucide-react";
 import { blocksToMarkdownLossy } from "@/lib/exportImport";
 
@@ -83,6 +84,7 @@ export default function NoteMenu({
   onReformatNote,
   onExportImport,
   onDeleteNote,
+  onCreateSubPage,
   isReformatting = false,
   variant = "button", // "button" | "icon" | "pill"
   align = "right", // "left" | "right"
@@ -601,6 +603,27 @@ export default function NoteMenu({
               </div>
               <span className="text-[10px] text-ink-500">Copy</span>
             </button>
+
+            {/* 5b. New nested sub-page inside this note (Both) */}
+            {onCreateSubPage && (
+              <button
+                type="button"
+                data-testid="note-menu-new-subpage"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                  onCreateSubPage(note);
+                }}
+                className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs font-medium text-ink-200 transition-colors hover:bg-ink-800 hover:text-ink-100"
+                title="Create a blank page nested inside this note"
+              >
+                <div className="flex items-center gap-2">
+                  <FilePlus2 className="h-3.5 w-3.5 text-duck-400" />
+                  <span>New sub-page</span>
+                </div>
+                <span className="text-[10px] text-ink-500">Nested</span>
+              </button>
+            )}
 
             {/* 5. Sidebar Only: Rename Note */}
             {isSidebar && (

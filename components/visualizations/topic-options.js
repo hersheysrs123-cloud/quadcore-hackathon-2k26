@@ -13,6 +13,16 @@ import { TOPOLOGIES } from "@/lib/circuits";
 import { TARGETS } from "@/lib/electrostatics";
 import { ROD_MATERIALS } from "@/lib/heatTransfer";
 import { FRICTION_SURFACES } from "@/lib/inclineForces";
+import { PATHWAYS, STIMULI } from "@/lib/reflexArc";
+import { SOILS } from "@/lib/transpiration";
+import { VECTORS } from "@/lib/pollination";
+import { CONSISTENCIES, ORIENTATIONS } from "@/lib/peristalsis";
+import { MODES as DIVISION_MODES } from "@/lib/cellDivision";
+import { PATHOLOGIES as CARDIAC_PATHOLOGIES } from "@/lib/cardiacCycle";
+import { ELECTROLYTES, METALS, PARTNERS, SERIES, SOLUTIONS, SOLUTION_ORDER } from "@/lib/redox";
+import { MIXTURES, MIXTURE_ORDER, SOLVENTS, SOLVENT_ORDER, STATIONS, STATION_ORDER } from "@/lib/separation";
+import { SUBSTANCES, SUBSTANCE_ORDER } from "@/lib/particleModel";
+import { BARRIERS, BARRIER_ORDER, MODES, MODE_ORDER } from "@/lib/radioactiveDecay";
 
 // ─── Mathematics ────────────────────────────────────────────────────
 
@@ -90,6 +100,55 @@ export const VSEPR_PRESETS = [
 /** Which preset, if any, the current pair counts correspond to. */
 export const vseprPresetFor = (bonding, lone) =>
   VSEPR_PRESETS.find((p) => p.bonding === bonding && p.lone === lone)?.value ?? "";
+
+/**
+ * The strips on the dipping arm, in series order so the button row IS the
+ * reactivity series — most reactive on the left, gold on the right.
+ */
+export const METAL_STRIP_OPTIONS = SERIES.map((value) => ({
+  value,
+  label: METALS[value].label,
+  title: METALS[value].title,
+}));
+
+/** The four beakers, in rack order. Picking one puts it in focus. */
+export const AQUEOUS_SOLUTION_OPTIONS = SOLUTION_ORDER.map((value) => ({
+  value,
+  label: SOLUTIONS[value].short,
+  title: SOLUTIONS[value].title,
+}));
+
+export const ELECTROLYTE_OPTIONS = Object.entries(ELECTROLYTES).map(([value, e]) => ({
+  value,
+  label: e.label,
+  title: e.title,
+}));
+
+/** What the fourth nail is wrapped in. Copper is here on purpose — it is the counter-example. */
+/** The separation bench: three samples, two solvents, three stations. */
+export const SAMPLE_MIXTURE_OPTIONS = MIXTURE_ORDER.map((value) => ({
+  value,
+  label: MIXTURES[value].label,
+  title: MIXTURES[value].title,
+}));
+
+export const SOLVENT_TYPE_OPTIONS = SOLVENT_ORDER.map((value) => ({
+  value,
+  label: `${SOLVENTS[value].label} · ${SOLVENTS[value].formula}`,
+  title: SOLVENTS[value].title,
+}));
+
+export const SEPARATION_STATION_OPTIONS = STATION_ORDER.map((value) => ({
+  value,
+  label: STATIONS[value].label,
+  title: STATIONS[value].title,
+}));
+
+export const SACRIFICIAL_METAL_OPTIONS = Object.entries(PARTNERS).map(([value, p]) => ({
+  value,
+  label: `${p.label}${p.protects ? "" : " (accelerates)"}`,
+  title: p.title,
+}));
 
 // ─── Biology ────────────────────────────────────────────────────────
 
@@ -176,3 +235,78 @@ export const HEAT_VIEW_OPTIONS = [
     title: "The lattice itself, shaking harder wherever it is hotter",
   },
 ];
+
+// ─── Nerve & muscle ─────────────────────────────────────────────────
+
+export const STIMULUS_OPTIONS = Object.entries(STIMULI).map(([value, s]) => ({
+  value,
+  label: s.label,
+  title: `${s.skinC} °C at the skin — ${s.nociceptive ? "above" : "below"} the pain threshold`,
+}));
+
+export const NERVE_PATHWAY_OPTIONS = Object.entries(PATHWAYS).map(([value, p]) => ({
+  value,
+  label: p.label,
+}));
+
+// ─── Tube transport ─────────────────────────────────────────────────
+
+export const SOIL_MOISTURE_OPTIONS = Object.entries(SOILS).map(([value, s]) => ({
+  value,
+  label: s.label,
+  title: `${s.note} · Ψ ${s.psiMPa} MPa`,
+}));
+
+export const BOLUS_CONSISTENCY_OPTIONS = Object.entries(CONSISTENCIES).map(([value, c]) => ({
+  value,
+  label: c.label,
+  title: c.note,
+}));
+
+export const GRAVITY_ORIENTATION_OPTIONS = Object.entries(ORIENTATIONS).map(([value, o]) => ({
+  value,
+  label: o.label,
+  title: o.gravitySign > 0 ? "Gravity helps the bolus along" : "Gravity opposes it — the wave has to do all the work",
+}));
+
+// ─── Pollination ────────────────────────────────────────────────────
+
+export const POLLINATION_VECTOR_OPTIONS = Object.entries(VECTORS).map(([value, v]) => ({
+  value,
+  label: v.label,
+  title: `${v.pollen.surface} pollen · stigma ${v.stigma.split(",")[0]} · e.g. ${v.examples}`,
+}));
+
+/** Which division the cell-division scene runs: one equational division, or the two of meiosis. */
+export const DIVISION_MODE_OPTIONS = Object.entries(DIVISION_MODES).map(([value, m]) => ({
+  value,
+  label: m.label,
+  title: `${m.product} — ${m.purpose}`,
+}));
+
+/** The rhythm the heart is in. */
+export const CARDIAC_PATHOLOGY_OPTIONS = Object.entries(CARDIAC_PATHOLOGIES).map(([value, p]) => ({
+  value,
+  label: p.label,
+  title: p.summary,
+}));
+
+// ─── Particle populations ───────────────────────────────────────────
+
+export const SUBSTANCE_OPTIONS = SUBSTANCE_ORDER.map((value) => ({
+  value,
+  label: `${SUBSTANCES[value].label} (${SUBSTANCES[value].formula})`,
+  title: SUBSTANCES[value].bondingNote,
+}));
+
+export const DECAY_MODE_OPTIONS = MODE_ORDER.map((value) => ({
+  value,
+  label: MODES[value].label,
+  title: `${MODES[value].parent.name} → ${MODES[value].daughter.name}`,
+}));
+
+export const BARRIER_OPTIONS = BARRIER_ORDER.map((value) => ({
+  value,
+  label: `${BARRIERS[value].label} · ${BARRIERS[value].thickness}`,
+  title: `Stops: ${BARRIERS[value].stops.map((k) => ({ alpha: "α", beta_minus: "β⁻", beta_plus: "β⁺", gamma: "γ" })[k]).join(", ")}`,
+}));

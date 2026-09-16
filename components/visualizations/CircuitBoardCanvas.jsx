@@ -54,7 +54,7 @@ const CARRIER_SPACING = 0.46;
 // ─── Colours ────────────────────────────────────────────────────────
 
 const COPPER = CHARGE_COLOURS.copper;
-const BOARD_TONE = "#1b2230";
+const BOARD_TONE = "#4a5568";
 const BRASS = "#b08d57";
 
 /**

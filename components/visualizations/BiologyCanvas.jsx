@@ -40,6 +40,16 @@ import {
 } from "@/components/visualizations/cell-organelles";
 import RespiratoryCanvas from "@/components/visualizations/RespiratoryCanvas";
 import EyeCanvas from "@/components/visualizations/EyeCanvas";
+import ReflexArcCanvas from "@/components/visualizations/ReflexArcCanvas";
+import AntagonisticMusclesCanvas from "@/components/visualizations/AntagonisticMusclesCanvas";
+import TranspirationCanvas from "@/components/visualizations/TranspirationCanvas";
+import PeristalsisCanvas from "@/components/visualizations/PeristalsisCanvas";
+import CarbonCycleCanvas from "@/components/visualizations/CarbonCycleCanvas";
+import FoodChainPyramidCanvas from "@/components/visualizations/FoodChainPyramidCanvas";
+import FlowerPollinationCanvas from "@/components/visualizations/FlowerPollinationCanvas";
+import BacteriaVsVirusCanvas from "@/components/visualizations/BacteriaVsVirusCanvas";
+import MitosisMeiosisCanvas from "@/components/visualizations/MitosisMeiosisCanvas";
+import CardiacCycleCanvas from "@/components/visualizations/CardiacCycleCanvas";
 
 // ─── IGCSE Biology · three scenes ───────────────────────────────────
 // Enzyme action, DNA base pairing, and the plant/animal cell explorer.
@@ -1353,6 +1363,16 @@ const SCENES = {
   protein: ProteinFoldingScene,
   respiratory: RespiratoryCanvas,
   eye: EyeCanvas,
+  reflex_arc: ReflexArcCanvas,
+  antagonistic_muscles: AntagonisticMusclesCanvas,
+  transpiration: TranspirationCanvas,
+  peristalsis: PeristalsisCanvas,
+  carbon_cycle: CarbonCycleCanvas,
+  food_chain_pyramid: FoodChainPyramidCanvas,
+  flower_pollination: FlowerPollinationCanvas,
+  bacteria_vs_virus: BacteriaVsVirusCanvas,
+  mitosis_meiosis: MitosisMeiosisCanvas,
+  cardiac_cycle: CardiacCycleCanvas,
 };
 
 export default function BiologyCanvas({ topicId, params, setParam, onOpenQuiz }) {

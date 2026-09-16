@@ -7271,10 +7271,23 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Next.js production build (`npm run build`) succeeded with code 0.
    - Verified production server responding HTTP 200 on `http://localhost:3000/visualizations`.
 
+---
 
+## 142. Slash Menu Relevance Ranking (`/page` Resolved to "Text") & Nested Sub-Page Cascade Invariants
 
+### Problem Statement
+- Typing `/page` in the editor and pressing `Enter` converted the line to a plain **Text** block instead of creating the new **Page** (nested sub-page) command.
+- Sub-pages introduced a parent/child relationship between notes (`parentId`). Without cascade rules, deleting or moving a parent left invisible orphan children in IndexedDB, restoring a child whose parent was still trashed produced a note that appeared in no sidebar tree, and duplicating a parent produced a copy whose page cards pointed at the *original* children (so trashing the copy's card trashed the original page).
 
+### Root Cause Analysis
+1. **Loose slash filtering (`SlashMenu`)**: `SLASH_COMMAND_ITEMS` were filtered with `label.includes(q) || type.includes(q) || keywords.some(k => k.includes(q) || q.includes(k))` and rendered in declaration order. The **Text** item carries the keyword `"p"`, and `"page".includes("p")` is true, so Text matched every query starting with `p` and, being first in the list, was the pre-selected `Enter` target.
+2. **No hierarchy-aware storage layer**: `deleteNoteToTrash`, `recoverNote`, `permanentlyDeleteNote` and the space-move handlers operated on a single id; `saveNote` rebuilt the stored record from a fixed field list, so any `parentId` was dropped on the next autosave.
+3. **Shallow duplicate**: `handleDuplicateNote` cloned only the root note's blocks; `page` blocks kept their `pageId`, silently sharing children between the original and the copy.
 
-
-
-
+### Resolution & Architectural Enhancements
+1. **Relevance-ranked slash menu (`lib/blocks.js` → `scoreSlashItem` / `rankSlashItems`)**: Items are scored — exact label/type (0), label/type prefix (1), exact keyword (2), keyword prefix (3), label/type substring (4), keyword substring (5), query-contains-keyword (6) — and stably sorted. `/page` → Page, `/h1` → Heading 1, `/todo` → To-Do; loose matches remain reachable further down the list.
+2. **Pure hierarchy helpers (`lib/noteHierarchy.js`)**: `collectDescendantIds`, `getAncestorChain`, `buildNoteTree`, `cloneNoteTree`, `resolveRestoredParentId`, `getTopmostSelected`, `expandSelectionWithDescendants`, `diffRemovedPageIds` — all cycle-safe with orphan promotion, shared by storage, `Workspace.jsx`, `Sidebar.jsx` and the editor.
+3. **Cascading storage (`lib/storageService.js`, Dexie v8)**: `parentId` is indexed on `notes` and `trash`; `saveNote` preserves it (`undefined` keeps the stored value, `null` makes the note top-level, self-parenting is rejected). Trash / restore / permanent-delete / `moveNoteTreeToSpace` walk the whole subtree in one transaction; the subtree shares a single `deletedAt` so it purges together; a restored root whose parent is not live is promoted to top-level.
+4. **Deep-clone duplicate**: `cloneNoteTree` re-mints every note id, block id, `parentId` and `page.pageId` inside the subtree, so copies never share children.
+5. **Card ⇄ page sync invariant**: removing a `page` card (gutter delete, selection Backspace/Delete, Cut, forward Delete) trashes the page; Undo restores the card in an "in Trash" state with a one-click **Restore**; restoring a page whose live parent lost its card re-inserts the card (`ensurePageBlockInParent`).
+6. **Verification**: `tests/unit/note-hierarchy.test.mjs` (26 pure helper tests incl. cycles, orphans, MAX depth) and `tests/unit/nested-sub-pages.test.mjs` (27 wiring / exporter / ranking tests); full suite **1299 tests** green across 324 suites; production `next build` clean; headless-Chrome CDP scenarios (create via `/page` and gutter `+`, rename/icon live-card update, breadcrumb navigation incl. `…` overflow, collapse/expand, reload persistence, cascade delete → trash → restore, move-with-children, deep-clone duplicate, delete-open-child jumps to parent, `/page` inside an unsaved draft) all pass with zero console errors.

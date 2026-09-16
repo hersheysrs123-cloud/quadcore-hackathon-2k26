@@ -13,7 +13,8 @@ import {
 } from "@/lib/syntaxHighlighter";
 import { reformatNoteContent } from "@/lib/aiService";
 import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow } from "@/lib/exportImport";
-import { formatNumberMarker } from "@/lib/blocks";
+import { formatNumberMarker, rankSlashItems } from "@/lib/blocks";
+import { findNoteAcrossSpaces, hasPageBlockFor, diffRemovedPageIds } from "@/lib/noteHierarchy";
 
 
 
@@ -22,7 +23,7 @@ import { formatNumberMarker } from "@/lib/blocks";
 //   • Headings 1–4 (h1, h2, h3, h4)
 //   • Bullet List, Numbered List, To-Do List (checkboxes), Toggle List
 //   • Callout Box with icon picker (💡, ⚠️, 📌, 🔥, ⭐, 🎉, ℹ️, 🦆)
-//   • Quote (accent bar), Divider (hr), Note Link (workspace note picker)
+//   • Quote (accent bar), Divider (hr), Nested Sub-Page cards (`page` blocks)
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
 //   • Math Equation Container (LaTeX & KaTeX renderer)
 //   • Interactive Table Grid Block (cell editing, add/del cols/rows, tab nav)
@@ -199,6 +200,8 @@ function blockToMarkdown(block) {
       const title = block.title || block.content || url || "Bookmark";
       return url ? `[${title}](${url})` : title;
     }
+    case "page":
+      return `${block.emoji || "📄"} **${block.title || content || "Untitled Note"}** _(sub-page)_`;
     case "media": {
       const mediaUrl = block.url || block.content || "";
       const ytInfo = getYouTubeEmbedInfo(mediaUrl);
@@ -823,6 +826,7 @@ function parseMarkdownToBlocks(rawText) {
 
 const SLASH_COMMAND_ITEMS = [
   { type: "text", label: "Text", icon: "Aa", description: "Plain text paragraph", keywords: ["text", "paragraph", "p"] },
+  { type: "page", label: "Page", icon: "📄", description: "Embed a new nested sub-page here", keywords: ["page", "subpage", "sub-page", "sub page", "nested", "child", "document", "note"] },
   { type: "h1", label: "Heading 1", icon: "H1", description: "Large section heading", keywords: ["h1", "heading1", "title", "header1"] },
   { type: "h2", label: "Heading 2", icon: "H2", description: "Medium section heading", keywords: ["h2", "heading2", "header2"] },
   { type: "h3", label: "Heading 3", icon: "H3", description: "Small section heading", keywords: ["h3", "heading3", "header3"] },
@@ -847,23 +851,30 @@ const SLASH_COMMAND_ITEMS = [
 ];
 
 // ─── Slash-Command Menu ─────────────────────────────────────────────
-function SlashMenu({ onSelect, onClose, filter }) {
+// Also reused as the gutter "+" insert menu (`searchable` adds an inline
+// search box since there is no host text to filter on).
+function SlashMenu({ onSelect, onClose, filter = "", title = "Block type", searchable = false }) {
   const menuRef = useRef(null);
+  const searchInputRef = useRef(null);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const effectiveFilter = searchable ? searchQuery : filter;
 
-  const filtered = SLASH_COMMAND_ITEMS.filter((bt) => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      bt.label.toLowerCase().includes(q) ||
-      bt.type.toLowerCase().includes(q) ||
-      (bt.keywords && bt.keywords.some((k) => k.includes(q) || q.includes(k)))
-    );
-  });
+  useEffect(() => {
+    if (searchable) {
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    }
+  }, [searchable]);
+
+  const filtered = useMemo(() => {
+    const q = effectiveFilter.trim().toLowerCase();
+    if (!q) return SLASH_COMMAND_ITEMS;
+    return rankSlashItems(SLASH_COMMAND_ITEMS, q);
+  }, [effectiveFilter]);
 
   useEffect(() => {
     setActiveIdx(0);
-  }, [filter]);
+  }, [effectiveFilter]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -896,16 +907,32 @@ function SlashMenu({ onSelect, onClose, filter }) {
     return () => window.removeEventListener("mousedown", onClick);
   }, [onClose]);
 
-  if (filtered.length === 0) return null;
+  if (filtered.length === 0 && !searchable) return null;
 
   return (
     <div
       ref={menuRef}
+      data-testid={searchable ? "insert-block-menu" : "slash-menu"}
       className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl animate-fade-in"
     >
       <p className="border-b border-ink-800 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-ink-500">
-        Block type
+        {title}
       </p>
+      {searchable && (
+        <div className="border-b border-ink-800 px-2 py-1.5">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter blocks…"
+            className="w-full rounded-md border border-ink-750 bg-ink-950 px-2 py-1 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
+          />
+        </div>
+      )}
+      {filtered.length === 0 && (
+        <p className="px-3 py-2 text-[11px] italic text-ink-500">No matching blocks.</p>
+      )}
       <ul className="max-h-56 overflow-y-auto py-1">
         {filtered.map((bt, i) => (
           <li key={`${bt.type}_${bt.columnCount || 0}_${i}`}>
@@ -958,6 +985,8 @@ function BlockContextMenu({
   onMoveDown,
   canMoveUp = false,
   canMoveDown = false,
+  canTurnInto = true,
+  canDuplicate = true,
 }) {
   const menuRef = useRef(null);
   const [copied, setCopied] = useState(false);
@@ -1040,12 +1069,13 @@ function BlockContextMenu({
       <div className="grid grid-cols-3 gap-1 pt-0.5">
         <button
           type="button"
+          disabled={!canDuplicate}
           onClick={() => {
             onDuplicate?.();
             onClose();
           }}
-          className="flex items-center justify-center gap-1 rounded-md border border-ink-800 bg-ink-850 px-2 py-1 text-[11px] font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-colors"
-          title="Duplicate Block"
+          className="flex items-center justify-center gap-1 rounded-md border border-ink-800 bg-ink-850 px-2 py-1 text-[11px] font-medium text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-30 transition-colors"
+          title={canDuplicate ? "Duplicate Block" : "Sub-page cards cannot be cloned — duplicate the page from the sidebar instead"}
         >
           <span>📋</span>
           <span>Clone</span>
@@ -1094,6 +1124,7 @@ function BlockContextMenu({
       )}
 
       {/* Turn Into Type List */}
+      {canTurnInto && (
       <div>
         <p className="px-1 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
           Turn into
@@ -1119,6 +1150,7 @@ function BlockContextMenu({
           ))}
         </div>
       </div>
+      )}
 
       {/* Delete Block */}
       <div className="border-t border-ink-800/80 pt-1">
@@ -3204,6 +3236,163 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
   );
 }
 
+// ─── Nested Sub-Page Card (Notion-style `page` block) ────────────────
+// Renders a live preview of the child note (icon + title) looked up from
+// `notesBySpace`, so renaming or re-iconing the child instantly updates the
+// card. Clicking it navigates into the sub-page. Handles two degraded states:
+// the page sits in the Trash (offer Restore) or is gone entirely (offer Remove).
+function PageBlock({
+  block,
+  notesBySpace = {},
+  trashNotes = [],
+  onSelectNote,
+  onUpdateBlock,
+  onSelect,
+  onDelete,
+  onAddAfter,
+  onExitDown,
+  onExitUp,
+  onRecoverSubPage,
+  isLocked = false,
+}) {
+  const pageId = block.pageId || "";
+  const located = useMemo(() => findNoteAcrossSpaces(notesBySpace, pageId), [notesBySpace, pageId]);
+  const pageNote = located?.note || null;
+  const trashedNote = useMemo(
+    () => (!pageNote && pageId ? (trashNotes || []).find((t) => t && t.id === pageId) || null : null),
+    [pageNote, pageId, trashNotes]
+  );
+
+  const liveTitle = pageNote?.title || block.title || "Untitled Note";
+  const liveEmoji = pageNote?.emoji || block.emoji || "📄";
+
+  // Keep a cached title / icon on the block so exports (Markdown, HTML, DOCX,
+  // PDF) and AI context can render the card without a note lookup.
+  useEffect(() => {
+    if (!pageNote || !onUpdateBlock) return;
+    const nextTitle = pageNote.title || "Untitled Note";
+    const nextEmoji = pageNote.emoji || "📄";
+    if (block.title !== nextTitle || block.emoji !== nextEmoji) {
+      onUpdateBlock(block.id, { title: nextTitle, emoji: nextEmoji });
+    }
+  }, [pageNote, block.id, block.title, block.emoji, onUpdateBlock]);
+
+  const openPage = () => {
+    if (pageNote) onSelectNote?.(pageNote);
+  };
+
+  return (
+    <div
+      id={`page_${block.id}`}
+      tabIndex={0}
+      role="link"
+      aria-label={pageNote ? `Open sub-page ${liveTitle}` : trashedNote ? `${liveTitle} (in Trash)` : "Missing sub-page"}
+      data-page-id={pageId}
+      data-testid="page-block"
+      onClick={(e) => {
+        onSelect?.(block.id);
+        if (e.target.closest("button")) return;
+        openPage();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (pageNote) {
+            openPage();
+          } else if (!isLocked) {
+            onAddAfter?.(block.id, "", "text");
+          }
+          return;
+        }
+        if (e.key === " " && pageNote) {
+          e.preventDefault();
+          openPage();
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          onExitDown?.(block.id);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+          return;
+        }
+        if (isLocked) return;
+        if (e.key === "Delete") {
+          e.preventDefault();
+          onDelete?.(block.id);
+          return;
+        }
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          onExitUp?.(block.id);
+        }
+      }}
+      className={`group/pageblk relative my-1 flex items-center gap-3 rounded-lg border px-3 py-2 outline-none transition-all select-none ${
+        pageNote
+          ? "cursor-pointer border-transparent bg-ink-900/40 hover:bg-ink-850 hover:border-ink-700 focus:ring-1 focus:ring-duck-400/50 focus:border-duck-500/40"
+          : "cursor-default border-dashed border-ink-700 bg-ink-900/30 focus:ring-1 focus:ring-duck-400/40"
+      }`}
+      title={pageNote ? `Open "${liveTitle}"` : undefined}
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-ink-850 text-base leading-none">
+        {liveEmoji}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p
+          className={`truncate text-[15px] font-semibold leading-snug ${
+            pageNote ? "text-ink-100 underline decoration-ink-700 underline-offset-4 group-hover/pageblk:decoration-duck-400/70" : "text-ink-400 line-through decoration-ink-600"
+          }`}
+        >
+          {liveTitle}
+        </p>
+        {!pageNote && (
+          <p className="text-[11px] text-ink-500">
+            {trashedNote ? "This sub-page is in the Trash." : "This sub-page no longer exists."}
+          </p>
+        )}
+      </div>
+      {pageNote ? (
+        <span
+          aria-hidden="true"
+          className="shrink-0 text-ink-500 transition-all group-hover/pageblk:translate-x-0.5 group-hover/pageblk:text-duck-300"
+        >
+          →
+        </span>
+      ) : !isLocked ? (
+        <div className="flex shrink-0 items-center gap-1.5 print:hidden">
+          {trashedNote && onRecoverSubPage && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRecoverSubPage(pageId);
+              }}
+              className="rounded-md border border-duck-500/40 bg-duck-500/15 px-2.5 py-1 text-[11px] font-semibold text-duck-200 hover:bg-duck-500/25 transition-colors cursor-pointer"
+              title="Restore this sub-page from the Trash"
+            >
+              🔄 Restore
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete?.(block.id);
+            }}
+            className="rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 hover:border-rose-500/40 hover:text-rose-300 transition-colors cursor-pointer"
+            title="Remove this card"
+          >
+            Remove
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ─── Media Block Component (URL Embed & Local File Upload & YouTube) ──
 function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false }) {
   const [activeTab, setActiveTab] = useState("url"); // "url" | "upload"
@@ -4116,6 +4305,9 @@ const EditorBlock = memo(function EditorBlock({
   onSwitchTab,
   notesBySpace = {},
   onSelectNote,
+  trashNotes = [],
+  onInsertPage,
+  onRecoverSubPage,
   registerRef,
   onSaveNote,
   dragHandlers,
@@ -4130,6 +4322,7 @@ const EditorBlock = memo(function EditorBlock({
   const contentRef = useRef(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
+  const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
   // The block only becomes draggable while the ⠿ handle is held. Making the
@@ -4248,6 +4441,21 @@ const EditorBlock = memo(function EditorBlock({
     const text = getBlockTextFromDOM(contentRef.current) || block.content || "";
     const lastSlashIndex = text.lastIndexOf("/");
 
+    if (type === "page") {
+      // "/page": embed a brand-new sub-page at this line. An otherwise-empty
+      // line is replaced by the card; a line with text keeps its text and the
+      // card goes right below it.
+      const replace = lastSlashIndex <= 0 || text.trim().startsWith("/");
+      const textBefore = replace ? "" : text.slice(0, lastSlashIndex).trimEnd();
+      if (contentRef.current) {
+        setBlockDOMFromText(contentRef.current, textBefore, block.type);
+      }
+      setSlashOpen(false);
+      setSlashFilter("");
+      onInsertPage?.(block.id, { replace, anchorContent: textBefore });
+      return;
+    }
+
     if (type === "inlinemath") {
       let newText = "";
       if (lastSlashIndex !== -1) {
@@ -4317,6 +4525,39 @@ const EditorBlock = memo(function EditorBlock({
     setSlashOpen(false);
     setSlashFilter("");
     setTimeout(() => contentRef.current?.focus(), 20);
+  }
+
+  /**
+   * Gutter "+" menu: inserts the chosen block right below this one. An empty
+   * text block is converted in place instead (matches Notion's "+" behaviour).
+   */
+  function handleInsertMenuSelect(type, extra = {}) {
+    setInsertMenuOpen(false);
+    if (isLocked) return;
+    const isEmptyText = block.type === "text" && !(block.content || "").trim();
+
+    if (type === "page") {
+      onInsertPage?.(block.id, { replace: isEmptyText, anchorContent: isEmptyText ? "" : undefined });
+      return;
+    }
+
+    if (type === "inlinemath") {
+      // No host line to inline into: spawn a text line below carrying the placeholder formula.
+      onAddAfter?.(block.id, "$f(x)$", "text");
+      return;
+    }
+
+    const count = extra?.columnCount || 2;
+    const extraProps =
+      type === "columns"
+        ? { columnCount: count, columnsData: getNormalizedColumnsData(null, "", count) }
+        : {};
+
+    if (isEmptyText && type !== "text") {
+      onChangeType(block.id, type, extraProps);
+      return;
+    }
+    onAddAfter?.(block.id, "", type, extraProps);
   }
 
   const handleTagClick = (e) => {
@@ -4668,7 +4909,30 @@ const EditorBlock = memo(function EditorBlock({
     >
       {/* Properly Aligned Controls */}
       {!isLocked && (
-        <div className="absolute -left-14 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className={`absolute -left-[4.5rem] top-2 flex items-center gap-0.5 transition-opacity ${
+            insertMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <button
+            type="button"
+            data-testid="gutter-insert-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(block.id);
+              setMenuOpen(false);
+              setSlashOpen(false);
+              setInsertMenuOpen((v) => !v);
+            }}
+            title="Insert a block below (Page, headings, lists…)"
+            aria-haspopup="menu"
+            aria-expanded={insertMenuOpen}
+            className={`rounded p-1 text-sm leading-none font-bold transition-colors cursor-pointer ${
+              insertMenuOpen ? "bg-ink-800 text-duck-300" : "text-ink-500 hover:bg-ink-800 hover:text-duck-300"
+            }`}
+          >
+            +
+          </button>
           <button
             type="button"
             onClick={(e) => {
@@ -4726,6 +4990,8 @@ const EditorBlock = memo(function EditorBlock({
           onMoveDown={onMoveDown}
           canMoveUp={index > 0}
           canMoveDown={index < totalBlocks - 1}
+          canTurnInto={block.type !== "page"}
+          canDuplicate={block.type !== "page"}
         />
       )}
 
@@ -5043,6 +5309,22 @@ const EditorBlock = memo(function EditorBlock({
             }`}
           />
         </div>
+      ) : block.type === "page" ? (
+        /* 9b. Nested Sub-Page Card */
+        <PageBlock
+          block={block}
+          notesBySpace={notesBySpace}
+          trashNotes={trashNotes}
+          onSelectNote={onSelectNote}
+          onUpdateBlock={onUpdateBlock}
+          onSelect={onSelect}
+          onDelete={onDelete}
+          onAddAfter={onAddAfter}
+          onExitDown={onExitDown}
+          onExitUp={onExitUp}
+          onRecoverSubPage={onRecoverSubPage}
+          isLocked={isLocked}
+        />
       ) : block.type === "site" ? (
         /* 10. Site Bookmark Embed */
         <SiteBlock block={block} onUpdateBlock={onUpdateBlock} onSelect={onSelect} onDelete={onDelete} onAddAfter={onAddAfter} onExitDown={onExitDown} onExitUp={onExitUp} />
@@ -5105,6 +5387,16 @@ const EditorBlock = memo(function EditorBlock({
               contentRef.current?.focus();
             });
           }}
+        />
+      )}
+
+      {/* Gutter "+" insert menu (Page, headings, lists, …) */}
+      {insertMenuOpen && !isLocked && (
+        <SlashMenu
+          searchable
+          title="Insert below"
+          onSelect={handleInsertMenuSelect}
+          onClose={() => setInsertMenuOpen(false)}
         />
       )}
 
@@ -5378,6 +5670,11 @@ export default function BlockNoteEditor({
   notesBySpace = {},
   onSelectNote,
   clickToAppend = true,
+  trashNotes = [],
+  onCreateSubPage,
+  onTrashSubPage,
+  onRecoverSubPage,
+  onRegisterInsertPageBlock,
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [banner, setBanner] = useState(initialBanner);
@@ -5594,8 +5891,8 @@ export default function BlockNoteEditor({
         }
       }
 
-      // 6. Site, Media standalone embeds
-      if (["site", "media"].includes(block.type)) {
+      // 6. Site, Media, Sub-Page standalone embeds
+      if (["site", "media", "page"].includes(block.type)) {
         const cardEl =
           document.getElementById(`${block.type}_${block.id}`) ||
           document.querySelector(`[data-block-id="${block.id}"] [tabindex="0"]`) ||
@@ -6046,6 +6343,102 @@ export default function BlockNoteEditor({
     lastHistoryPush.current = Date.now();
   }, []);
 
+  // ─── Nested sub-pages ───────────────────────────────────────────────
+  const onTrashSubPageRef = useRef(onTrashSubPage);
+  useEffect(() => {
+    onTrashSubPageRef.current = onTrashSubPage;
+  }, [onTrashSubPage]);
+
+  /**
+   * Notion invariant: a sub-page lives exactly once as a `page` card in its
+   * parent. When a card is removed from the document by an explicit edit
+   * (gutter delete, Backspace/Delete on a selection, Cut, forward Delete), the
+   * sub-page itself moves to the Trash. Undo restores the card, which then
+   * offers a one-click Restore from the Trash.
+   */
+  const trashRemovedSubPages = useCallback((prevBlocks, nextBlocks) => {
+    const removed = diffRemovedPageIds(prevBlocks, nextBlocks);
+    if (removed.length === 0 || !onTrashSubPageRef.current) return;
+    // Defer past the state update so the parent save is dispatched first.
+    setTimeout(() => {
+      removed.forEach((pageId) => onTrashSubPageRef.current?.(pageId));
+    }, 0);
+  }, []);
+
+  /**
+   * "/page" and gutter "+ → Page": creates a blank child note, embeds its card
+   * at the anchor block (replacing an empty line or sitting below a filled one),
+   * flushes the parent immediately, then opens the new page for editing.
+   */
+  const handleInsertPage = useCallback(
+    (anchorId, { replace = false, anchorContent } = {}) => {
+      if (isLockedRef.current || !onCreateSubPage) return;
+
+      // A never-saved draft has no id yet: mint one so the child can point at it.
+      let parentId = noteIdRef.current;
+      if (!parentId) {
+        parentId = `n_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        noteIdRef.current = parentId;
+      }
+
+      const child = onCreateSubPage(parentId, spaceIdRef.current);
+      if (!child || !child.id) return;
+
+      pushHistorySnapshot();
+      const cardBlock = createBlock("page", "", {
+        pageId: child.id,
+        title: child.title || "Untitled Note",
+        emoji: child.emoji || "📄",
+      });
+
+      const prev = blocksRef.current;
+      const idx = prev.findIndex((b) => b.id === anchorId);
+      let next;
+      if (idx === -1) {
+        next = [...prev, cardBlock];
+      } else if (replace) {
+        next = prev.map((b, i) => (i === idx ? cardBlock : b));
+      } else {
+        next = [...prev];
+        if (anchorContent !== undefined) {
+          next[idx] = { ...next[idx], content: anchorContent };
+        }
+        next.splice(idx + 1, 0, cardBlock);
+      }
+      blocksRef.current = next;
+      setBlocks(next);
+      performSave({ id: parentId, blocks: next });
+
+      // Navigate into the freshly created sub-page.
+      onSelectNote?.(child);
+    },
+    [onCreateSubPage, onSelectNote, performSave, pushHistorySnapshot]
+  );
+
+  // Lets the workspace drop a card into the live document (sidebar "New
+  // sub-page", restoring a trashed sub-page whose parent is open). No-op when
+  // the card is already present.
+  useEffect(() => {
+    if (!onRegisterInsertPageBlock) return;
+    const insert = (cardBlock) => {
+      if (!cardBlock?.pageId) return false;
+      const prev = blocksRef.current;
+      if (hasPageBlockFor(prev, cardBlock.pageId)) return false;
+      pushHistorySnapshot();
+      const withoutTrailingEmpty =
+        prev.length > 0 && prev[prev.length - 1].type === "text" && !(prev[prev.length - 1].content || "").trim()
+          ? prev.slice(0, -1)
+          : prev;
+      const next = [...withoutTrailingEmpty, { ...cardBlock, id: cardBlock.id || makeId() }];
+      blocksRef.current = next;
+      setBlocks(next);
+      performSave({ blocks: next });
+      return true;
+    };
+    onRegisterInsertPageBlock(insert);
+    return () => onRegisterInsertPageBlock(null);
+  }, [onRegisterInsertPageBlock, performSave, pushHistorySnapshot]);
+
   // Drag-to-reorder, driven by each block's ⠿ handle.
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
@@ -6290,6 +6683,7 @@ export default function BlockNoteEditor({
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
             blocksRef.current = safeNext;
             triggerDebouncedSave({ blocks: safeNext });
+            trashRemovedSubPages(prev, safeNext);
             return safeNext;
           });
           setSelectedBlockIds(new Set());
@@ -6351,6 +6745,7 @@ export default function BlockNoteEditor({
             focusTarget = safeNext[targetIdx];
             blocksRef.current = safeNext;
             triggerDebouncedSave({ blocks: safeNext });
+            trashRemovedSubPages(prev, safeNext);
             return safeNext;
           });
           setSelectedBlockIds(new Set());
@@ -6369,7 +6764,7 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds, selectedId, triggerDebouncedSave]);
+  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages]);
 
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
@@ -6486,6 +6881,7 @@ export default function BlockNoteEditor({
         focusTarget = safeNext[targetIdx];
         blocksRef.current = safeNext;
         performSave({ blocks: safeNext });
+        trashRemovedSubPages(prev, safeNext);
         return safeNext;
       });
       if (focusTarget) {
@@ -6496,7 +6892,7 @@ export default function BlockNoteEditor({
         });
       }
     },
-    [focusBlock, performSave, pushHistorySnapshot]
+    [focusBlock, performSave, pushHistorySnapshot, trashRemovedSubPages]
   );
 
   const handleDuplicateBlock = useCallback(
@@ -7120,7 +7516,7 @@ export default function BlockNoteEditor({
       } else if (e.key === "Delete") {
         // Notion-style Forward Deletion & Merging:
         // When Delete is pressed at the end of a block:
-        const standaloneEmbedTypes = ["divider", "site", "media"];
+        const standaloneEmbedTypes = ["divider", "site", "media", "page"];
         const complexCardTypes = ["code", "math", "table", "columns"];
         const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
         const el = blockRefs.current[blockId]?.current;
@@ -7145,6 +7541,7 @@ export default function BlockNoteEditor({
                       const next = prev.filter((b) => b.id !== targetBlock.id);
                       blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
+                      trashRemovedSubPages(prev, next);
                       return next;
                     });
                     return;
@@ -7760,6 +8157,9 @@ export default function BlockNoteEditor({
                   onSelectHeading={handleSelectHeading}
                   notesBySpace={notesBySpace}
                   onSelectNote={onSelectNote}
+                  trashNotes={trashNotes}
+                  onInsertPage={handleInsertPage}
+                  onRecoverSubPage={onRecoverSubPage}
                   registerRef={registerRef}
                   onSaveNote={() => performSave()}
                   onExitDown={handleExitDown}

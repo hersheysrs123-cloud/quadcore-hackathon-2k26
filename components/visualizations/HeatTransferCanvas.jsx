@@ -225,11 +225,11 @@ function Bench() {
     <group>
       <mesh position={[0, BENCH_Y - 0.16, 0]} receiveShadow>
         <boxGeometry args={[15, 0.32, 5.4]} />
-        <meshStandardMaterial color="#2c333f" roughness={0.75} metalness={0.2} />
+        <meshStandardMaterial color="#8c9cb3" roughness={0.75} metalness={0.2} />
       </mesh>
       <mesh position={[0, BENCH_Y - 0.34, -2.6]}>
         <boxGeometry args={[15, 0.1, 0.2]} />
-        <meshStandardMaterial color="#39414f" roughness={0.7} />
+        <meshStandardMaterial color="#5b6472" roughness={0.7} />
       </mesh>
     </group>
   );
@@ -278,7 +278,7 @@ function BunsenBurner({ modelRef, animSpeed = 1 }) {
       {/* Base, barrel and the air collar that decides the flame's colour. */}
       <mesh position={[0, BENCH_Y + 0.09, 0]}>
         <cylinderGeometry args={[cm(3.4), cm(4), 0.18, 24]} />
-        <meshStandardMaterial color="#39414f" roughness={0.5} metalness={0.55} />
+        <meshStandardMaterial color="#5b6472" roughness={0.5} metalness={0.55} />
       </mesh>
       <mesh position={[0, (BENCH_Y + FLAME_Y) / 2, 0]}>
         <cylinderGeometry args={[cm(0.75), cm(0.9), FLAME_Y - BENCH_Y, 20]} />
@@ -1050,7 +1050,7 @@ function RadiationPlate({ modelRef, flir, plateC }) {
     <group position={[PLATE_X, 0, 0]}>
       <mesh position={[0, BENCH_Y + 0.06, 0]}>
         <cylinderGeometry args={[0.42, 0.48, 0.12, 20]} />
-        <meshStandardMaterial color="#39414f" roughness={0.6} metalness={0.5} />
+        <meshStandardMaterial color="#5b6472" roughness={0.6} metalness={0.5} />
       </mesh>
       <mesh position={[0, (BENCH_Y + FLAME_Y) / 2 + 0.1, 0]}>
         <cylinderGeometry args={[0.05, 0.05, FLAME_Y - BENCH_Y + 0.2, 12]} />

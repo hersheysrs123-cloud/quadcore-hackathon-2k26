@@ -102,7 +102,7 @@ function RetortStand() {
     <group>
       <mesh position={[0.5, -2.62, 0]} receiveShadow>
         <boxGeometry args={[3.1, 0.24, 1.7]} />
-        <meshStandardMaterial color="#39414f" roughness={0.6} metalness={0.4} />
+        <meshStandardMaterial color="#8c9cb3" roughness={0.6} metalness={0.4} />
       </mesh>
       <mesh position={[1.55, 0.1, 0]}>
         <cylinderGeometry args={[0.085, 0.085, 5.2, 18]} />

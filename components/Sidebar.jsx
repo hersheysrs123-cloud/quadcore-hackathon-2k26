@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOnClickOutside } from "usehooks-ts";
-import { ChevronDown, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical, Star, Trash2, FolderInput, Copy, ListChecks, Pencil } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Upload, HardDrive, CheckCircle2, Key, Shield, Eye, EyeOff, Command, Search, PlusSquare, Check, MessageSquare, HeartHandshake, Sparkles, GripVertical, Star, Trash2, FolderInput, Copy, ListChecks, Pencil } from "lucide-react";
 import { exportWorkspaceToJSON, importWorkspaceFromJSON } from "@/lib/backup.js";
 import { db } from "@/lib/db.js";
 import { getGraphicsSettings, saveGraphicsSettings, detectHardwareGraphics } from "@/lib/db.js";
@@ -11,6 +11,9 @@ import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
 import { SPACE_ICON_OPTIONS } from "@/lib/constants";
+import { buildNoteTree, getAncestorIds, normalizeParentId } from "@/lib/noteHierarchy";
+
+const SIDEBAR_EXPANDED_KEY = "socratic_sidebar_expanded_notes";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
 // Dark-mode/Light-mode sidebar with Spaces, notes-per-space, Create Space modal,
@@ -1578,7 +1581,9 @@ function TrashModal({
             </div>
           ) : (
             <ul className="space-y-2.5">
-              {trashNotes.map((note) => (
+              {trashNotes.map((note) => {
+                const trashedParent = note.parentId ? trashNotes.find((t) => t.id === note.parentId) : null;
+                return (
                 <li
                   key={note.id}
                   className="flex items-center justify-between rounded-lg border border-ink-800 bg-ink-850 p-3.5 transition-colors hover:border-ink-700"
@@ -1592,6 +1597,14 @@ function TrashModal({
                       <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-400 font-medium">
                         {note.space || "School"}
                       </span>
+                      {trashedParent && (
+                        <span
+                          className="truncate rounded bg-duck-500/10 px-1.5 py-0.5 text-[10px] text-duck-300 font-medium"
+                          title={`Sub-page of "${trashedParent.title || "Untitled Note"}" — restoring the parent restores this page too`}
+                        >
+                          ↳ in {trashedParent.title || "Untitled Note"}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-[11px] text-amber-400 font-mono">
                       ⏳ {formatTimeRemaining(note.deletedAt)}
@@ -1617,7 +1630,8 @@ function TrashModal({
                     </button>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
@@ -1828,6 +1842,7 @@ export default function Sidebar({
   onMoveMultipleNotes,
   onToggleFavoriteMultipleNotes,
   onDuplicateMultipleNotes,
+  onCreateSubPage,
   onStartTutorial,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -1843,7 +1858,25 @@ export default function Sidebar({
   const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [batchMoveOpen, setBatchMoveOpen] = useState(false);
+  // Which parent notes currently show their nested sub-pages (persisted per browser).
+  const [expandedNoteIds, setExpandedNoteIds] = useState(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const cached = JSON.parse(localStorage.getItem(SIDEBAR_EXPANDED_KEY) || "[]");
+      return new Set(Array.isArray(cached) ? cached.filter((id) => typeof id === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_EXPANDED_KEY, JSON.stringify(Array.from(expandedNoteIds).slice(-500)));
+    } catch {
+      // Ignore quota / privacy-mode failures: expansion state is a convenience only.
+    }
+  }, [expandedNoteIds]);
 
   useEffect(() => {
     try {
@@ -1947,8 +1980,297 @@ export default function Sidebar({
     }
   }, [selectedNoteIds.size, currentNotes]);
 
+  // Opening a note always reveals it: expand every ancestor in the tree.
+  // Keyed on the active note only (via a ref for the note list) so that
+  // saving / editing the open note never re-expands a parent the user collapsed.
+  const currentNotesRef = useRef(currentNotes);
+  currentNotesRef.current = currentNotes;
+  useEffect(() => {
+    if (!activeNoteId) return;
+    const ancestors = getAncestorIds(currentNotesRef.current, activeNoteId);
+    if (ancestors.size === 0) return;
+    setExpandedNoteIds((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      ancestors.forEach((id) => {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [activeNoteId, activeSpace]);
+
   const selectedNotesList = currentNotes.filter((n) => selectedNoteIds.has(n.id));
   const allSelectedAreStarred = selectedNotesList.length > 0 && selectedNotesList.every((n) => Boolean(n.isFavorite));
+
+  // ─── Nested sub-page tree (Notion-style) ────────────────────────────
+  const noteTree = useMemo(() => buildNoteTree(currentNotes), [currentNotes]);
+
+  const toggleExpanded = useCallback((noteId) => {
+    setExpandedNoteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) {
+        next.delete(noteId);
+      } else {
+        next.add(noteId);
+      }
+      return next;
+    });
+  }, []);
+
+  /**
+   * Renders one note row plus (when expanded) its nested sub-pages. Drag &
+   * drop re-orders strictly within one sibling group so a page can never be
+   * dropped between another parent's children by accident.
+   */
+  function renderNoteNode(n, depth) {
+    const parentKey = normalizeParentId(n.parentId) && noteTree.byId.has(normalizeParentId(n.parentId))
+      ? normalizeParentId(n.parentId)
+      : null;
+    const siblings = parentKey === null ? noteTree.roots : noteTree.childrenOf.get(parentKey) || [];
+    const children = noteTree.childrenOf.get(n.id) || [];
+    const hasChildren = children.length > 0;
+    const isExpanded = hasChildren && expandedNoteIds.has(n.id);
+    const isActive = activeNoteId === n.id;
+    const isDragging = draggingNoteId === n.id;
+    const isDragOver = dragOverInfo?.id === n.id;
+    const isSelected = selectedNoteIds.has(n.id);
+    const isSiblingOfDragged =
+      draggingNoteId && draggingNoteId !== n.id && siblings.some((sib) => sib.id === draggingNoteId);
+    const indentPx = depth * 14;
+
+    return (
+      <li
+        key={n.id}
+        data-note-id={n.id}
+        data-depth={depth}
+        className="relative"
+      >
+        <div
+          onDragOver={(e) => {
+            if (isMultiSelecting) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+            if (!sourceId || sourceId === n.id) return;
+            if (!siblings.some((sib) => sib.id === sourceId)) {
+              // Only same-level reordering is allowed.
+              e.dataTransfer.dropEffect = "none";
+              if (dragOverInfo?.id === n.id) setDragOverInfo(null);
+              return;
+            }
+            e.dataTransfer.dropEffect = "move";
+            const rect = e.currentTarget.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            const position = e.clientY < midY ? "top" : "bottom";
+            setDragOverInfo((prev) => {
+              if (prev?.id === n.id && prev?.position === position) return prev;
+              return { id: n.id, position };
+            });
+          }}
+          onDragLeave={(e) => {
+            if (isMultiSelecting) return;
+            e.stopPropagation();
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              if (dragOverInfo?.id === n.id) {
+                setDragOverInfo(null);
+              }
+            }
+          }}
+          onDrop={(e) => {
+            if (isMultiSelecting) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+            if (!sourceId || sourceId === n.id) {
+              setDraggingNoteId(null);
+              setDragOverInfo(null);
+              return;
+            }
+
+            const fromIdx = siblings.findIndex((item) => item.id === sourceId);
+            if (fromIdx === -1) {
+              setDraggingNoteId(null);
+              setDragOverInfo(null);
+              return;
+            }
+
+            const rect = e.currentTarget.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            const isBottom = e.clientY >= midY;
+
+            const updated = [...siblings];
+            const [movedNote] = updated.splice(fromIdx, 1);
+            let toIdx = updated.findIndex((item) => item.id === n.id);
+            if (toIdx === -1) {
+              updated.push(movedNote);
+            } else {
+              if (isBottom) {
+                toIdx += 1;
+              }
+              updated.splice(toIdx, 0, movedNote);
+            }
+
+            setDraggingNoteId(null);
+            setDragOverInfo(null);
+            onReorderNotes?.(activeSpace, updated);
+          }}
+          style={{ paddingLeft: `${indentPx}px` }}
+          className={`group relative flex items-center justify-between gap-0.5 rounded-lg transition-all ${
+            isMultiSelecting
+              ? isSelected
+                ? "bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200 shadow-xs"
+                : "hover:bg-ink-850 text-ink-300"
+              : isDragging
+              ? "opacity-30 bg-ink-800/50"
+              : isSiblingOfDragged
+              ? "hover:bg-ink-850"
+              : draggingNoteId
+              ? "opacity-60"
+              : "hover:bg-ink-850"
+          }`}
+        >
+          {/* Visual Placement Indicator */}
+          {!isMultiSelecting && isDragOver && (
+            <div
+              style={{ left: `${indentPx}px` }}
+              className={`absolute right-0 h-0.5 z-20 bg-duck-400 rounded-full shadow-[0_0_8px_rgba(240,192,74,0.9)] pointer-events-none ${
+                dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
+              }`}
+            />
+          )}
+
+          {/* Drag Handle Grip OR Checkbox indicator in selection mode */}
+          {isMultiSelecting ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleSelectNote(n.id);
+              }}
+              className="flex items-center justify-center p-1.5 pl-2 shrink-0 cursor-pointer"
+              title={isSelected ? "Deselect note" : "Select note"}
+            >
+              <span
+                className={`flex items-center justify-center w-4 h-4 rounded transition-all ${
+                  isSelected
+                    ? "border border-duck-400 bg-duck-500 text-ink-950 shadow-xs"
+                    : "border border-ink-600 hover:border-duck-400/70 bg-ink-850"
+                }`}
+              >
+                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+              </span>
+            </button>
+          ) : (
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                setDraggingNoteId(n.id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", n.id);
+              }}
+              onDragEnd={() => {
+                setDraggingNoteId(null);
+                setDragOverInfo(null);
+              }}
+              title="Drag to reorder note"
+              className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-duck-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+          )}
+
+          {/* Expand / collapse arrow (▶ / ▼) for notes that contain sub-pages */}
+          {hasChildren ? (
+            <button
+              type="button"
+              data-testid="note-tree-toggle"
+              aria-label={isExpanded ? "Collapse sub-pages" : "Expand sub-pages"}
+              aria-expanded={isExpanded}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded(n.id);
+              }}
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-500 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+              title={isExpanded ? "Collapse sub-pages" : `Show ${children.length} sub-page${children.length === 1 ? "" : "s"}`}
+            >
+              <ChevronRight
+                className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isExpanded ? "rotate-90" : "rotate-0"}`}
+                strokeWidth={2.5}
+              />
+            </button>
+          ) : (
+            <span className="h-5 w-5 shrink-0" aria-hidden="true" />
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              if (isMultiSelecting) {
+                handleToggleSelectNote(n.id);
+              } else {
+                onSelectNote?.(n);
+              }
+            }}
+            className={`flex flex-1 items-center gap-2 rounded-lg pl-1 pr-2 py-2 text-left text-sm min-w-0 transition-colors cursor-pointer ${
+              isMultiSelecting && isSelected
+                ? "text-duck-200 font-semibold"
+                : isActive && !isMultiSelecting
+                ? "bg-ink-800 text-ink-100 font-semibold shadow-xs"
+                : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/40 font-medium"
+            }`}
+          >
+            <span className="text-sm shrink-0 leading-none">{n.emoji || "📝"}</span>
+            <span className="truncate flex-1 text-sm">{n.title || "Untitled Note"}</span>
+            {n.isFavorite && (
+              <span className="text-amber-400 text-xs shrink-0" title="Starred">⭐</span>
+            )}
+          </button>
+
+          {!isMultiSelecting && (
+            <div className="shrink-0 pr-1 flex items-center">
+              <NoteMenu
+                mode="sidebar"
+                note={n}
+                spaces={spaces}
+                onSaveNote={onSaveNote}
+                onToggleFavorite={onToggleFavorite}
+                onDuplicateNote={onDuplicateNote}
+                onMoveNote={onMoveNote}
+                onRenameNote={onRenameNote}
+                onDeleteNote={onDeleteNote}
+                onCreateSubPage={onCreateSubPage}
+                variant="icon"
+                align="right"
+                className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Nested sub-pages: smooth grid-row expand / collapse */}
+        {hasChildren && (
+          <div
+            className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+              isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+            aria-hidden={!isExpanded}
+          >
+            <ul
+              className={`min-h-0 overflow-hidden space-y-1 ${isExpanded ? "mt-1" : ""}`}
+              data-testid="note-tree-children"
+              inert={!isExpanded}
+            >
+              {children.map((child) => renderNoteNode(child, depth + 1))}
+            </ul>
+          </div>
+        )}
+      </li>
+    );
+  }
 
   return (
     <>
@@ -2381,6 +2703,7 @@ export default function Sidebar({
           ) : (
             <ul
               className="space-y-1"
+              data-testid="sidebar-note-tree"
               onDragOver={(e) => {
                 if (isMultiSelecting) return;
                 if (e.target === e.currentTarget) {
@@ -2394,9 +2717,11 @@ export default function Sidebar({
                   e.preventDefault();
                   const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
                   if (!sourceId) return;
-                  const fromIdx = currentNotes.findIndex((item) => item.id === sourceId);
-                  if (fromIdx !== -1 && fromIdx !== currentNotes.length - 1) {
-                    const updated = [...currentNotes];
+                  // Dropping on the empty area below the list moves a TOP-LEVEL note to the end.
+                  const roots = noteTree.roots;
+                  const fromIdx = roots.findIndex((item) => item.id === sourceId);
+                  if (fromIdx !== -1 && fromIdx !== roots.length - 1) {
+                    const updated = [...roots];
                     const [movedNote] = updated.splice(fromIdx, 1);
                     updated.push(movedNote);
                     setDraggingNoteId(null);
@@ -2406,182 +2731,7 @@ export default function Sidebar({
                 }
               }}
             >
-              {currentNotes.map((n) => {
-                const isActive = activeNoteId === n.id;
-                const isDragging = draggingNoteId === n.id;
-                const isDragOver = dragOverInfo?.id === n.id;
-                const isSelected = selectedNoteIds.has(n.id);
-
-                return (
-                  <li
-                    key={n.id}
-                    onDragOver={(e) => {
-                      if (isMultiSelecting) return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
-                      if (!sourceId || sourceId === n.id) return;
-                      e.dataTransfer.dropEffect = "move";
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const midY = rect.top + rect.height / 2;
-                      const position = e.clientY < midY ? "top" : "bottom";
-                      setDragOverInfo((prev) => {
-                        if (prev?.id === n.id && prev?.position === position) return prev;
-                        return { id: n.id, position };
-                      });
-                    }}
-                    onDragLeave={(e) => {
-                      if (isMultiSelecting) return;
-                      e.stopPropagation();
-                      if (!e.currentTarget.contains(e.relatedTarget)) {
-                        if (dragOverInfo?.id === n.id) {
-                          setDragOverInfo(null);
-                        }
-                      }
-                    }}
-                    onDrop={(e) => {
-                      if (isMultiSelecting) return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
-                      if (!sourceId || sourceId === n.id) {
-                        setDraggingNoteId(null);
-                        setDragOverInfo(null);
-                        return;
-                      }
-
-                      const fromIdx = currentNotes.findIndex((item) => item.id === sourceId);
-                      if (fromIdx === -1) {
-                        setDraggingNoteId(null);
-                        setDragOverInfo(null);
-                        return;
-                      }
-
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const midY = rect.top + rect.height / 2;
-                      const isBottom = e.clientY >= midY;
-
-                      const updated = [...currentNotes];
-                      const [movedNote] = updated.splice(fromIdx, 1);
-                      let toIdx = updated.findIndex((item) => item.id === n.id);
-                      if (toIdx === -1) {
-                        updated.push(movedNote);
-                      } else {
-                        if (isBottom) {
-                          toIdx += 1;
-                        }
-                        updated.splice(toIdx, 0, movedNote);
-                      }
-
-                      setDraggingNoteId(null);
-                      setDragOverInfo(null);
-                      onReorderNotes?.(activeSpace, updated);
-                    }}
-                    className={`group relative flex items-center justify-between gap-0.5 rounded-lg transition-all ${
-                      isMultiSelecting
-                        ? isSelected
-                          ? "bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200 shadow-xs"
-                          : "hover:bg-ink-850 text-ink-300"
-                        : isDragging
-                        ? "opacity-30 bg-ink-800/50"
-                        : "hover:bg-ink-850"
-                    }`}
-                  >
-                    {/* Visual Placement Indicator */}
-                    {!isMultiSelecting && isDragOver && (
-                      <div
-                        className={`absolute left-0 right-0 h-0.5 z-20 bg-duck-400 rounded-full shadow-[0_0_8px_rgba(240,192,74,0.9)] pointer-events-none ${
-                          dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
-                        }`}
-                      />
-                    )}
-
-                    {/* Drag Handle Grip OR Checkbox indicator in selection mode */}
-                    {isMultiSelecting ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleSelectNote(n.id);
-                        }}
-                        className="flex items-center justify-center p-1.5 pl-2 shrink-0 cursor-pointer"
-                        title={isSelected ? "Deselect note" : "Select note"}
-                      >
-                        <span
-                          className={`flex items-center justify-center w-4 h-4 rounded transition-all ${
-                            isSelected
-                              ? "border border-duck-400 bg-duck-500 text-ink-950 shadow-xs"
-                              : "border border-ink-600 hover:border-duck-400/70 bg-ink-850"
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                        </span>
-                      </button>
-                    ) : (
-                      <div
-                        draggable
-                        onDragStart={(e) => {
-                          e.stopPropagation();
-                          setDraggingNoteId(n.id);
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", n.id);
-                        }}
-                        onDragEnd={() => {
-                          setDraggingNoteId(null);
-                          setDragOverInfo(null);
-                        }}
-                        title="Drag to reorder note"
-                        className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-duck-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <GripVertical className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isMultiSelecting) {
-                          handleToggleSelectNote(n.id);
-                        } else {
-                          onSelectNote?.(n);
-                        }
-                      }}
-                      className={`flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm min-w-0 transition-colors cursor-pointer ${
-                        isMultiSelecting && isSelected
-                          ? "text-duck-200 font-semibold"
-                          : isActive && !isMultiSelecting
-                          ? "bg-ink-800 text-ink-100 font-semibold shadow-xs"
-                          : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/40 font-medium"
-                      }`}
-                    >
-                      <span className="text-sm shrink-0 leading-none">{n.emoji || "📝"}</span>
-                      <span className="truncate flex-1 text-sm">{n.title || "Untitled Note"}</span>
-                      {n.isFavorite && (
-                        <span className="text-amber-400 text-xs shrink-0" title="Starred">⭐</span>
-                      )}
-                    </button>
-
-                    {!isMultiSelecting && (
-                      <div className="shrink-0 pr-1 flex items-center">
-                        <NoteMenu
-                          mode="sidebar"
-                          note={n}
-                          spaces={spaces}
-                          onSaveNote={onSaveNote}
-                          onToggleFavorite={onToggleFavorite}
-                          onDuplicateNote={onDuplicateNote}
-                          onMoveNote={onMoveNote}
-                          onRenameNote={onRenameNote}
-                          onDeleteNote={onDeleteNote}
-                          variant="icon"
-                          align="right"
-                          className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
-                        />
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
+              {noteTree.roots.map((n) => renderNoteNode(n, 0))}
             </ul>
           )}
 

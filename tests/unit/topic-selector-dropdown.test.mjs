@@ -26,7 +26,7 @@ describe("TopicSelectorDropdown & 3D Top Bar Clean-up", () => {
     assert.ok(content.includes('role="listbox"'), "Must have accessible role listbox");
   });
 
-  it("verifies all 35 topics are grouped under valid subject categories in topics.js", () => {
+  it("verifies all 51 topics are grouped under valid subject categories in topics.js", () => {
     const topicsContent = fs.readFileSync(topicsFile, "utf8");
 
     // Extract categories
@@ -52,10 +52,10 @@ describe("TopicSelectorDropdown & 3D Top Bar Clean-up", () => {
     }
 
     const totalTopics = Object.values(counts).reduce((a, b) => a + b, 0);
-    assert.strictEqual(totalTopics, 35, "Must have exactly 35 topics");
+    assert.strictEqual(totalTopics, 51, "Must have exactly 51 topics");
     assert.strictEqual(counts.physics, 17, "Must have 17 physics topics");
-    assert.strictEqual(counts.chemistry, 7, "Must have 7 chemistry topics");
-    assert.strictEqual(counts.biology, 6, "Must have 6 biology topics");
+    assert.strictEqual(counts.chemistry, 13, "Must have 13 chemistry topics");
+    assert.strictEqual(counts.biology, 16, "Must have 16 biology topics");
     assert.strictEqual(counts.cs, 2, "Must have 2 cs topics");
     assert.strictEqual(counts.math, 3, "Must have 3 math topics");
   });
