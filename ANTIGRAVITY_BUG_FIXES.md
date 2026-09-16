@@ -7413,6 +7413,9 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - Removed the separate floating `Details` and `Key Concepts (toggle)` buttons when collapsed.
    - Preserved a single, clean `[Controls]` button on the canvas when closed (`absolute left-4 top-4 z-20`).
    - Clicking `[Controls]` reopens the docked sidebar, where students can switch between the "Controls" and "Details" tabs via the header tab switcher.
-4. **Verification**:
+4. **Nested Card Border Elimination**:
+   - Removed the legacy inner `HudPanel` card border (`rounded-xl border border-ink-800 bg-ink-900 shadow-2xl`) and surrounding margins inside the sidebar.
+   - Integrated the title header (`border-b border-ink-800`) and controls directly within the full-height rectangular sidebar container (`aside`), eliminating nested boxes.
+5. **Verification**:
    - Verified that all 1,299 automated unit tests and 34 empirical challenge tests pass without regression.
 

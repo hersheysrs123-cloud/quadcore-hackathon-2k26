@@ -3548,24 +3548,29 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
       }`}
     >
       <div className="relative flex h-full flex-1 flex-col overflow-hidden">
-        <div className="h-full flex-1 overflow-y-auto p-3">
-          <HudPanel
-            title={topic.title}
-            icon={topic.icon}
-            action={
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Hide panel"
-                title="Collapse sidebar (fullscreen 3D view)"
-                suppressHydrationWarning
-                className="shrink-0 rounded p-1 text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" strokeWidth={2} />
-              </button>
-            }
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-ink-800 px-3.5 py-2.5 shrink-0">
+          <div className="flex min-w-0 items-center gap-2">
+            {topic.icon && <topic.icon className="h-4 w-4 shrink-0 text-duck-400" strokeWidth={2} />}
+            <span className="truncate text-xs font-semibold uppercase tracking-wider text-ink-300">
+              {topic.title}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Hide panel"
+            title="Collapse sidebar (fullscreen 3D view)"
+            suppressHydrationWarning
+            className="shrink-0 rounded p-1 text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 cursor-pointer"
           >
-            {/* ─── Controls vs Details Tab Switcher ─── */}
+            <X className="h-4 w-4" strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Scrollable controls body directly in the rectangular sidebar */}
+        <div className="h-full flex-1 overflow-y-auto p-3.5 space-y-3">
+          {/* ─── Controls vs Details Tab Switcher ─── */}
             <div className="mb-3 flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-950/60 p-1">
               <button
                 type="button"
@@ -3722,7 +3727,6 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                 )}
               </div>
             )}
-          </HudPanel>
         </div>
 
         {/* ─── Right Edge Drag-To-Resize Handle (10% to 80% screen width) ─── */}
