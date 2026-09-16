@@ -7349,3 +7349,42 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
    - All **886 unit and integration tests** and **34 empirical challenge tests** passed with 0 failures.
    - Production build compiled successfully (`npm run build`).
    - Next.js production server running on port 3000 verified with HTTP 200 on `/visualizations`.
+
+---
+
+## 144. Simple Machines Precision Dynamometer Test Stand, Expanded Workbench & Coaster Car Aerodynamic Detailing
+
+### 🐛 Problem Statements & Root Causes
+1. **Floating Force Vectors & Workspace Crowding (`SimpleMachinesCanvas.jsx`)**:
+   - Calibrated effort and load force vectors floated suspended in open 3D space at `[3.6, BENCH_Y + 3.6, 0]` and `[4.45, BENCH_Y + 3.6, 0]`, causing them to stick out awkwardly, interfere with the right sidebar HUD, and crowd the lever/pulley mechanisms.
+   - The workbench base previously spanned only $7.6\text{ m}$ (centered at $x = 0.7$, spanning $-3.1$ to $+4.5$), leaving insufficient space on the left side to cleanly mount testing instruments without crowding the machine.
+2. **Work & Force Graph Transitions**:
+   - The work bookkeeping bar gauge previously snapped abruptly when changing parameters due to stepped ceiling quantizations (`Math.ceil(...)`).
+3. **Block-and-Tackle Rope Reeving Tangency**:
+   - In 4-sheave configurations, rope falls needed verified circular rim tangencies $(cx \pm R, y)$ and vertical non-crossing falls down through the sheaves.
+4. **Roller Coaster Floating Headlights & Car Detail Request (`RollerCoasterCanvas.jsx`)**:
+   - Headlight cylinders on the front nose protruded outwards and appeared to float during dynamic motion.
+   - The user requested complete removal of all headlights/lights and extensive authentic mechanical and aerodynamic detailing concentrated specifically on the coaster car, while keeping the track geometry clean.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Expanded Workbench Base & Left Laboratory Wing (`SimpleMachinesCanvas.jsx`)**:
+   - Widened workbench base to $10.2\text{ m}$ centered at $x = -0.4$ (spanning $-5.5\text{ m}$ to $+4.7\text{ m}$), with a matching $10.0\text{ m}$ brushed aluminum workplate and six support pedestals at $x = -5.0, -0.4, +4.2$.
+   - Adjusted camera position to `[0.2, 1.3, 14.6]` with target `[0.2, 0.3, 0]`, providing a spacious widescreen laboratory view.
+2. **Precision Laboratory Dynamometer Test Stand (`DynamometerTestStand`)**:
+   - Mounted a standalone industrial test fixture on the expanded left workbench wing at $x = -3.75$ ($>1.5\text{ m}$ clear of the lever/pulley, completely isolated from the right sidebar).
+   - Features a cast-iron mounting baseplate with hex foundation bolts, twin polished chrome tubular columns ($H = 2.4\text{ m}$), horizontal crossbars, dark slate backplate (`#0f172a` / `#1e293b`), laser-etched graduation scales, and top placard header.
+   - Houses two dedicated force transducer channels spaced $0.84\text{ m}$ apart (Effort Load Cell at $x = -4.13$ and Load Force Transducer at $x = -3.37$) with calibrated `<ForceVector>` arrows and clear non-overlapping `<SceneLabel>` badges.
+3. **Smooth Graph Transitions & Comparative Force Gauges (`SimpleMachinesSidebar`)**:
+   - Implemented continuous dynamic scale factor `Math.max(160, Math.max(workIn, workOut) * 1.12)` eliminating snapping.
+   - Added smooth CSS transitions (`transition-[width] duration-300 ease-out`) across all work and force comparison bars.
+   - Integrated comparative dual-bar live force gauge with dynamic max force normalization.
+4. **Rim-Tangent Block-and-Tackle Reeving**:
+   - Updated `generateRopePoints` with exact tangent coordinate calculations $(cx \pm \text{sheaveR}, y)$ and verified vertical 4-rope non-crossing falls with $Z = \pm 0.04$ alternating offsets.
+5. **Complete Coaster Car Detailing & Headlight Elimination (`RollerCoasterCanvas.jsx`)**:
+   - Completely eliminated all headlights, emissive discs, and floating light meshes.
+   - **Aerodynamics & Exterior**: Front carbon-composite sculpted chin splitter, twin recessed radiator air intakes with center divider, aerodynamic sloped nose fairing, flank side skirts in slate with cyan metallic racing pinstripes (`#0284c7`), and tinted canopy windshield with cowl frame.
+   - **High-Downforce Rear Wing**: Twin vertical endplate pylons, inverted airfoil wing element with endplate winglets, and triple rear underbody venturi diffuser fins.
+   - **Cockpit Interior**: Deep cockpit well, dashboard console with passenger safety grab rail, contoured high-back racing bucket seats with integrated headrests, polished chrome tubular roll-bar safety hoops behind each rider, 4-point safety harness straps with red central quick-release buckles, and aerodynamic racing helmets with dark tinted visors.
+   - **Chassis & Underbody**: Longitudinal structural steel chassis keel, underside copper magnetic eddy-current brake fin blade, and precision 3-wheel safety bogies with hydraulic suspension shock dampers.
+6. **Automated Verification**:
+   - All **1299 unit and integration tests** and **34 empirical challenge tests** passed with 0 failures.

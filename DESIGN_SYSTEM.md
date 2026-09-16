@@ -814,12 +814,27 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
     - **Structural Footing Piers & Ground Platform**:
       - Base Ground Platform: Industrial slate base (`#475569`, roughness `0.7`, metalness `0.35`) with polished brushed aluminum top deck plate (`#cbd5e1`, metalness `0.65`) and perimeter yellow/black hazard safety borders (`#eab308`).
       - Foundation Footing Piers: Heavy concrete block pedestals (`#94a3b8`, roughness `0.85`) with structural steel baseplates (`#64748b`) and 4-corner galvanized anchor bolts (`#cbd5e1`) supporting each track upright column.
-    - **Aerodynamic Coaster Car Detailing**:
-      - Body Shell: Sculpted high-gloss aerodynamic body (`#f59e0b`, metalness `0.5`, roughness `0.25`, emissive `#d97706`), wedge nose cone fairing (`#fbbf24`), and tinted aerodynamic windshield canopy (`#38bdf8`, opacity `0.6`).
-      - Twin LED Headlights: High-intensity front projector headlight discs (`#f8fafc`, emissive `#38bdf8`, emissiveIntensity `2.0`).
-      - Passenger Figurines: Two riders with sculpted colored shirts (`#3b82f6` and `#ef4444`), helmets (`#f1f5f9`), and steel safety lap bar restraints (`#475569`).
-      - 3-Wheel Safety Bogies: 4 complete bogie assemblies (front-left, front-right, rear-left, rear-right) featuring running wheels (top of rail), side friction wheels (inside of rail flange), and up-stop safety wheels (underneath rail to prevent derailment).
+    - **Aerodynamic Coaster Car Detailing (Zero Floating Lights)**:
+      - Body Shell: Sculpted aerodynamic body (`#f59e0b`, metalness `0.6`, roughness `0.22`), sloped aerodynamic nose fairing (`#fbbf24`), and tinted aerodynamic windshield canopy (`#0284c7`, opacity `0.55`) with dark frame cowl.
+      - Exterior Aerodynamics: Sculpted carbon-composite chin splitter tray (`#0f172a`), dual front radiator air intake scoops with center divider, flank rocker panel side skirts with cyan metallic racing pinstripes (`#0284c7`), high-downforce rear airfoil wing with twin vertical endplate pylons & winglets, and triple underbody venturi diffuser fins. Headlights completely eliminated for clean physical authenticity.
+      - Cockpit Interior: Deep interior well (`#0f172a`), dashboard console with chrome passenger safety grab rail, contoured high-back racing bucket seats with integrated headrests, polished chrome tubular roll-bar safety hoops behind each seat (`#e2e8f0`, metalness `0.9`), 4-point safety harness straps with red quick-release central buckles (`#ef4444`), and streamlined racing helmets with dark tinted visors.
+      - Chassis & Bogies: Longitudinal steel chassis keel, underside copper magnetic eddy-current brake fin blade (`#d97706`), and 3-wheel safety bogies with hydraulic suspension shock dampers (`#0284c7`).
 
-
-
-
+27. **3D Simple Machines Dynamometer Test Stand, Widened Workbench & Smooth Work HUD Tokens (`SimpleMachinesCanvas.jsx`)**:
+    - **Expanded Laboratory Workbench Wing**:
+      - Base Slab: Widened to $10.2\text{ m}$ centered at $x = -0.4$ (span $-5.5\text{ m}$ to $+4.7\text{ m}$), finished in laboratory slate gray (`#64748b`, roughness `0.45`, metalness `0.35`).
+      - Brushed Aluminum Top Inlay: $10.0\text{ m} \times 2.3\text{ m}$ plate (`#cbd5e1`, roughness `0.25`, metalness `0.65`).
+      - Support Pedestals: Six cylindrical steel piers positioned across $x = -5.0, -0.4, +4.2$ at $Z = \pm 0.95$.
+      - Studio Camera Framing: Repositioned to `[0.2, 1.3, 14.6]` with target `[0.2, 0.3, 0]` for a balanced widescreen perspective.
+    - **Precision Laboratory Dynamometer Test Stand (`DynamometerTestStand`)**:
+      - Placement & Clearances: Bolted to the left workbench wing at $x = -3.75$, maintaining $>1.5\text{ m}$ of open air clearance to the lever/pulley mechanisms and eliminating any interference with the right sidebar HUD.
+      - Structure: Cast-iron baseplate (`#334155`) with 4 hex foundation bolts, dual polished chrome tubular columns ($H = 2.4\text{ m}$, `#cbd5e1`), horizontal crossbars, dark slate instrument backplate (`#0f172a` / `#1e293b`), and laser-etched graduation scales.
+      - Dual-Channel Force Transducers:
+        - Effort Transducer ($x = -4.13$): Load cell cylinder with amber accent badge, calibrated `<ForceVector>` arrow (`#fbbf24`), and non-overlapping label badge.
+        - Load Transducer ($x = -3.37$): Load cell cylinder with emerald accent badge, calibrated `<ForceVector>` arrow (`#34d399`), and non-overlapping label badge.
+    - **Smooth Work Bookkeeping & Comparative Force Sidebar (`SimpleMachinesSidebar`)**:
+      - Continuous Dynamic Scaling: Normalization factor computed via `Math.max(160, Math.max(workIn, workOut) * 1.12)`, eliminating discrete quantization jumps.
+      - Smooth Transitions: CSS `transition-[width] duration-300 ease-out` applied across all work and force comparison bars for fluid real-time parameter tweaking.
+      - Comparative Dual-Bar Force Gauge: Direct visual comparison of live Effort Force (amber) vs. Load Force (emerald) normalized to maximum instantaneous load.
+    - **Verified Rim-Tangent Block-and-Tackle Reeving**:
+      - Mathematical circular rim tangencies $(cx \pm \text{sheaveR}, y)$ with alternating Z-planes ($Z = \pm 0.04$) across multi-sheave configurations, guaranteeing authentic vertical non-crossing falls for $n = 1, 2, 3, 4$ supporting ropes.

@@ -532,11 +532,11 @@ function generateRopePoints(n, topY, lowerY, spread, sheaveR, pullX, pullY) {
     pts.push([pullX, pullY, 0]);
   } else if (n === 2) {
     // 2 ropes (1 top sheave, 1 bottom sheave): becket anchor on upper block
-    pts.push([topX(0) - sheaveR * 0.45, topY - 0.24, 0.04]);
+    pts.push([topX(0) - sheaveR, topY - 0.24, 0.04]);
     pts.push([botX(0) - sheaveR, lowerY, 0.04]);
     addBottomArc(botX(0), 0.04, true);
     pts.push([botX(0) + sheaveR, lowerY, 0.04]);
-    pts.push([topX(0) - sheaveR * 0.2, topY, -0.04]);
+    pts.push([topX(0) - sheaveR, topY, -0.04]);
     addTopArc(topX(0), -0.04, true);
     pts.push([topX(0) + sheaveR, topY, -0.04]);
     pts.push([pullX, pullY, 0]);
@@ -555,20 +555,20 @@ function generateRopePoints(n, topY, lowerY, spread, sheaveR, pullX, pullY) {
     pts.push([pullX, pullY, 0]);
   } else {
     // 4 ropes (2 top sheaves, 2 bottom sheaves): authentic non-crossing reeving
-    // Fall 1: top becket down to outer rim of lower sheave 0
-    pts.push([topX(0) - sheaveR * 0.45, topY - 0.24, 0.04]);
-    pts.push([botX(0) - sheaveR, lowerY, 0.04]);
-    addBottomArc(botX(0), 0.04, true);
-    // Fall 2: lower sheave 0 inner rim up to top sheave 0 inner rim
+    // Fall 1: top becket down to lower sheave 0 inner rim
+    pts.push([0, topY - 0.24, 0.04]);
     pts.push([botX(0) + sheaveR, lowerY, 0.04]);
-    pts.push([topX(0) + sheaveR * 0.3, topY, -0.04]);
-    addTopArc(topX(0), -0.04, false);
-    // Fall 3: top sheave 0 outer rim down to lower sheave 1 inner rim
+    addBottomArc(botX(0), 0.04, false);
+    // Fall 2: lower sheave 0 outer rim straight UP to top sheave 0 outer rim
+    pts.push([botX(0) - sheaveR, lowerY, 0.04]);
     pts.push([topX(0) - sheaveR, topY, -0.04]);
-    pts.push([botX(1) - sheaveR, lowerY, -0.04]);
-    addBottomArc(botX(1), -0.04, true);
-    // Fall 4: lower sheave 1 outer rim up to top sheave 1 inner rim
+    addTopArc(topX(0), -0.04, true);
+    // Fall 3: top sheave 0 inner rim down to lower sheave 1 outer rim
+    pts.push([topX(0) + sheaveR, topY, -0.04]);
     pts.push([botX(1) + sheaveR, lowerY, -0.04]);
+    addBottomArc(botX(1), -0.04, false);
+    // Fall 4: lower sheave 1 inner rim straight UP to top sheave 1 inner rim
+    pts.push([botX(1) - sheaveR, lowerY, -0.04]);
     pts.push([topX(1) - sheaveR, topY, 0.04]);
     addTopArc(topX(1), 0.04, true);
     // Hauling Fall: top sheave 1 outer rim down to pull handle
@@ -854,10 +854,14 @@ function Pulley({ solved, running, speed, loadN }) {
 function SimpleMachinesSidebar({ solved, loadN }) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const workMax = Math.max(150, Math.ceil((solved.workIn * 1.05) / 25) * 25);
+  const workMax = Math.max(160, Math.max(solved.workIn, solved.workOut) * 1.12);
   const inPct = Math.min(100, Math.max(0, (solved.workIn / workMax) * 100));
   const outPct = Math.min(100, Math.max(0, (solved.workOut / workMax) * 100));
   const wastedPct = Math.min(100, Math.max(0, (solved.wasted / workMax) * 100));
+
+  const maxForce = Math.max(loadN, solved.effortForce, 1);
+  const effortPct = Math.min(100, Math.max(2, (solved.effortForce / maxForce) * 100));
+  const loadPct = Math.min(100, Math.max(2, (loadN / maxForce) * 100));
 
   return (
     <div className="pointer-events-auto absolute right-4 top-4 z-20 flex w-76 sm:w-80 flex-col gap-2.5">
@@ -889,7 +893,7 @@ function SimpleMachinesSidebar({ solved, loadN }) {
             <div className="rounded-lg border border-slate-700/60 bg-slate-800/70 p-2.5">
               <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
                 <span>WORK PER STROKE</span>
-                <span className="font-mono text-slate-400">Scale: {workMax} J</span>
+                <span className="font-mono text-slate-400">Scale: {workMax.toFixed(0)} J</span>
               </div>
 
               <div className="mt-2.5 space-y-2">
@@ -906,7 +910,7 @@ function SimpleMachinesSidebar({ solved, loadN }) {
                   </div>
                   <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-700/80">
                     <div
-                      className="h-full rounded-full bg-amber-400 transition-all duration-300"
+                      className="h-full rounded-full bg-amber-400 transition-[width] duration-300 ease-out"
                       style={{ width: `${inPct}%` }}
                     />
                   </div>
@@ -925,7 +929,7 @@ function SimpleMachinesSidebar({ solved, loadN }) {
                   </div>
                   <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-700/80">
                     <div
-                      className="h-full rounded-full bg-emerald-400 transition-all duration-300"
+                      className="h-full rounded-full bg-emerald-400 transition-[width] duration-300 ease-out"
                       style={{ width: `${outPct}%` }}
                     />
                   </div>
@@ -944,7 +948,7 @@ function SimpleMachinesSidebar({ solved, loadN }) {
                   </div>
                   <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-700/80">
                     <div
-                      className="h-full rounded-full bg-rose-400 transition-all duration-300"
+                      className="h-full rounded-full bg-rose-400 transition-[width] duration-300 ease-out"
                       style={{ width: `${wastedPct}%` }}
                     />
                   </div>
@@ -979,31 +983,59 @@ function SimpleMachinesSidebar({ solved, loadN }) {
               </div>
             </div>
 
-            {/* Live Forces & Travel */}
-            <div className="rounded-lg border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-[11px] space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Effort Required</span>
-                <span className="font-mono font-semibold text-amber-300">
-                  {solved.effortForce.toFixed(1)} N
-                </span>
+            {/* Live Forces & Travel with Comparative Bar Gauge */}
+            <div className="rounded-lg border border-slate-700/60 bg-slate-800/60 px-3 py-2.5 text-[11px] space-y-2">
+              <div className="flex justify-between items-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                <span>FORCE COMPARISON</span>
+                <span className="font-mono text-slate-400">Max: {maxForce.toFixed(0)} N</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Load Weight</span>
-                <span className="font-mono font-semibold text-emerald-300">
-                  {loadN.toFixed(0)} N
-                </span>
+
+              {/* Comparative Visual Bars */}
+              <div className="space-y-1.5 pt-0.5">
+                <div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-amber-300 font-medium">Effort Applied</span>
+                    <span className="font-mono font-semibold text-amber-300">
+                      {solved.effortForce.toFixed(1)} N
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-700/80">
+                    <div
+                      className="h-full rounded-full bg-amber-400 transition-[width] duration-300 ease-out"
+                      style={{ width: `${effortPct}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-emerald-300 font-medium">Load Lifted</span>
+                    <span className="font-mono font-semibold text-emerald-300">
+                      {loadN.toFixed(0)} N
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-700/80">
+                    <div
+                      className="h-full rounded-full bg-emerald-400 transition-[width] duration-300 ease-out"
+                      style={{ width: `${loadPct}%` }}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Effort Travel Sweep</span>
-                <span className="font-mono text-slate-200">
-                  {(solved.effortDistance * 100).toFixed(0)} cm
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Load Lift Height</span>
-                <span className="font-mono text-slate-200">
-                  {(solved.loadDistance * 100).toFixed(0)} cm
-                </span>
+
+              <div className="border-t border-slate-700/50 pt-2 space-y-1 text-slate-400">
+                <div className="flex justify-between items-center">
+                  <span>Effort Travel Sweep</span>
+                  <span className="font-mono text-slate-200">
+                    {(solved.effortDistance * 100).toFixed(0)} cm
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Load Lift Height</span>
+                  <span className="font-mono text-slate-200">
+                    {(solved.loadDistance * 100).toFixed(0)} cm
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1016,6 +1048,138 @@ function SimpleMachinesSidebar({ solved, loadN }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Precision Laboratory Dynamometer Test Stand ────────────────────
+
+function DynamometerTestStand({ position, solved, forceScale, effortDirection, effortLabel }) {
+  return (
+    <group position={position}>
+      {/* Heavy cast-iron base plate bolted to workbench */}
+      <RoundedBox position={[0, 0.04, 0]} args={[1.5, 0.08, 0.6]} radius={0.02} smoothness={3}>
+        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.8} />
+      </RoundedBox>
+
+      {/* Hex mounting bolts */}
+      {[-0.64, 0.64].map((bx) =>
+        [-0.22, 0.22].map((bz) => (
+          <mesh key={`bolt-${bx}-${bz}`} position={[bx, 0.085, bz]}>
+            <cylinderGeometry args={[0.025, 0.025, 0.02, 6]} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.9} />
+          </mesh>
+        )),
+      )}
+
+      {/* Twin structural upright chrome columns */}
+      {[-0.66, 0.66].map((colX) => (
+        <mesh key={`col-${colX}`} position={[colX, 1.25, 0]}>
+          <cylinderGeometry args={[0.028, 0.028, 2.4, 16]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.15} metalness={0.85} />
+        </mesh>
+      ))}
+
+      {/* Top and mid crossbars */}
+      <mesh position={[0, 2.45, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.024, 0.024, 1.36, 16]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.85} />
+      </mesh>
+      <mesh position={[0, 0.18, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.02, 0.02, 1.36, 16]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.85} />
+      </mesh>
+
+      {/* Instrument slate backplate */}
+      <mesh position={[0, 1.3, -0.02]}>
+        <boxGeometry args={[1.28, 2.2, 0.03]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, 1.3, -0.004]}>
+        <boxGeometry args={[1.24, 2.16, 0.005]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.6} metalness={0.2} />
+      </mesh>
+
+      {/* Calibration graduation scale lines */}
+      {[-0.8, -0.4, 0, 0.4, 0.8].map((gy) => (
+        <group key={`grad-${gy}`} position={[0, 1.3 + gy, 0.002]}>
+          <mesh position={[-0.38, 0, 0]}>
+            <boxGeometry args={[0.3, 0.006, 0.002]} />
+            <meshStandardMaterial color="#475569" />
+          </mesh>
+          <mesh position={[0.38, 0, 0]}>
+            <boxGeometry args={[0.3, 0.006, 0.002]} />
+            <meshStandardMaterial color="#475569" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Center divider bar */}
+      <mesh position={[0, 1.3, 0.01]}>
+        <boxGeometry args={[0.012, 2.1, 0.01]} />
+        <meshStandardMaterial color="#334155" />
+      </mesh>
+
+      {/* Stand Header Placard */}
+      <mesh position={[0, 2.34, 0.01]}>
+        <boxGeometry args={[1.15, 0.12, 0.015]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.6} />
+      </mesh>
+      <SceneLabel position={[0, 2.34, 0.03]} tone="text-slate-400">
+        FORCE TRANSDUCERS
+      </SceneLabel>
+
+      {/* Channel 1: Effort Load Cell & Calibrated Force Vector */}
+      <group position={[-0.38, 1.3, 0.04]}>
+        {/* Load cell transducer housing */}
+        <mesh position={[0, 0.82, 0]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.14, 16]} />
+          <meshStandardMaterial color="#475569" roughness={0.3} metalness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.82, 0.055]}>
+          <boxGeometry args={[0.08, 0.05, 0.01]} />
+          <meshStandardMaterial color="#fbbf24" roughness={0.3} metalness={0.5} />
+        </mesh>
+
+        <ForceVector
+          at={[0, 0, 0]}
+          direction={effortDirection}
+          newtons={solved.effortForce}
+          scale={forceScale}
+          colour={ENERGY_COLOURS.workIn}
+          symbol="effort"
+        />
+
+        <SceneLabel position={[0, -0.96, 0]} tone="text-amber-300">
+          {effortLabel}
+        </SceneLabel>
+      </group>
+
+      {/* Channel 2: Load Force Transducer & Calibrated Vector */}
+      <group position={[0.38, 1.3, 0.04]}>
+        {/* Load cell transducer housing */}
+        <mesh position={[0, 0.82, 0]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.14, 16]} />
+          <meshStandardMaterial color="#475569" roughness={0.3} metalness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.82, 0.055]}>
+          <boxGeometry args={[0.08, 0.05, 0.01]} />
+          <meshStandardMaterial color="#34d399" roughness={0.3} metalness={0.5} />
+        </mesh>
+
+        <ForceVector
+          at={[0, 0, 0]}
+          direction={[0, 1, 0]}
+          newtons={solved.loadN}
+          scale={forceScale}
+          colour={ENERGY_COLOURS.workOut}
+          symbol="load"
+        />
+
+        <SceneLabel position={[0, -0.96, 0]} tone="text-emerald-300">
+          it lifts
+        </SceneLabel>
+      </group>
+    </group>
   );
 }
 
@@ -1067,41 +1231,50 @@ export default function SimpleMachinesCanvas({ params = {} }) {
   return (
     <div className="relative w-full h-full">
       <SceneCanvas
-        camera={{ position: [1.5, 1.2, 13.4], fov: 46 }}
-        controls={{ minDistance: 5, maxDistance: 30, target: [1.5, 0.3, 0] }}
+        camera={{ position: [0.2, 1.3, 14.6], fov: 46 }}
+        controls={{ minDistance: 5, maxDistance: 32, target: [0.2, 0.3, 0] }}
         lights={{ ambient: 0.54, keyLight: 0.95 }}
       >
         <Grid
           position={[0, BENCH_Y - 0.001, 0]}
-          args={[26, 14]}
+          args={[28, 14]}
           cellSize={0.5}
           cellColor="#334155"
           sectionSize={2}
           sectionColor="#475569"
-          fadeDistance={34}
+          fadeDistance={36}
           infiniteGrid={false}
         />
 
-        {/* Modern lighter laboratory workbench base */}
-        <RoundedBox position={[0.7, BENCH_Y - 0.12, 0]} args={[7.6, 0.24, 2.5]} radius={0.03} smoothness={3} receiveShadow>
+        {/* Expanded laboratory workbench base - widened to the left */}
+        <RoundedBox position={[-0.4, BENCH_Y - 0.12, 0]} args={[10.2, 0.24, 2.5]} radius={0.03} smoothness={3} receiveShadow>
           <meshStandardMaterial color="#64748b" roughness={0.45} metalness={0.35} />
         </RoundedBox>
 
         {/* Inset top workplate in bright brushed aluminum */}
-        <mesh position={[0.7, BENCH_Y + 0.005, 0]} receiveShadow>
-          <boxGeometry args={[7.4, 0.015, 2.3]} />
+        <mesh position={[-0.4, BENCH_Y + 0.005, 0]} receiveShadow>
+          <boxGeometry args={[10.0, 0.015, 2.3]} />
           <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.65} />
         </mesh>
 
-        {/* Bench corner support pedestals */}
-        {[-3.2, 3.2].map((fx) =>
+        {/* Bench support pedestals across the widened base */}
+        {[-5.0, -0.4, 4.2].map((fx) =>
           [-0.95, 0.95].map((fz) => (
-            <mesh key={`leg-${fx}-${fz}`} position={[0.7 + fx, BENCH_Y - 0.28, fz]}>
+            <mesh key={`leg-${fx}-${fz}`} position={[fx, BENCH_Y - 0.28, fz]}>
               <cylinderGeometry args={[0.1, 0.13, 0.12, 16]} />
               <meshStandardMaterial color="#475569" roughness={0.35} metalness={0.7} />
             </mesh>
           )),
         )}
+
+        {/* Dedicated Laboratory Dynamometer Test Stand on the expanded left base */}
+        <DynamometerTestStand
+          position={[-3.75, BENCH_Y + 0.05, 0.15]}
+          solved={solved}
+          forceScale={forceScale}
+          effortDirection={effortDirection}
+          effortLabel={effortLabel}
+        />
 
         <group position={[0.7, 0, 0]}>
           {lever ? (
@@ -1123,35 +1296,7 @@ export default function SimpleMachinesCanvas({ params = {} }) {
           )}
         </group>
 
-        {/* Shared calibrated force vector comparison markers */}
-        <group position={[3.6, BENCH_Y + 3.6, 0]}>
-          <ForceVector
-            at={[0, 0, 0]}
-            direction={effortDirection}
-            newtons={solved.effortForce}
-            scale={forceScale}
-            colour={ENERGY_COLOURS.workIn}
-            symbol="effort"
-          />
-          <SceneLabel position={[0, 0.42, 0]} tone="text-ink-300">
-            {effortLabel}
-          </SceneLabel>
-        </group>
-        <group position={[4.45, BENCH_Y + 3.6, 0]}>
-          <ForceVector
-            at={[0, 0, 0]}
-            direction={[0, 1, 0]}
-            newtons={solved.loadN}
-            scale={forceScale}
-            colour={ENERGY_COLOURS.workOut}
-            symbol="load"
-          />
-          <SceneLabel position={[0, 0.42, 0]} tone="text-ink-300">
-            it lifts
-          </SceneLabel>
-        </group>
-
-        <SceneLabel position={[0.7, BENCH_Y + 5.9, 0]} accent>
+        <SceneLabel position={[0.2, BENCH_Y + 5.9, 0]} accent>
           {solved.machine.label}
         </SceneLabel>
 

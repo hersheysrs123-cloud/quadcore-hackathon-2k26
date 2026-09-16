@@ -260,74 +260,193 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
 
   return (
     <group ref={cart}>
-      {/* Aerodynamic Body Shell in high-gloss coaster gold */}
-      <RoundedBox args={[0.56, 0.19, 0.32]} radius={0.05} smoothness={3}>
+      {/* ── 1. Aerodynamic Main Body Shell ── */}
+      <RoundedBox args={[0.56, 0.19, 0.32]} radius={0.045} smoothness={3}>
         <meshStandardMaterial
           color="#f59e0b"
-          roughness={0.25}
-          metalness={0.5}
-          emissive="#d97706"
-          emissiveIntensity={0.2}
+          roughness={0.22}
+          metalness={0.6}
         />
       </RoundedBox>
 
-      {/* Aerodynamic Sloped Nose Cone Fairing */}
+      {/* Aerodynamic Sloped Nose Fairing */}
       <mesh position={[0.31, -0.01, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <coneGeometry args={[0.14, 0.18, 16]} />
-        <meshStandardMaterial color="#fbbf24" roughness={0.22} metalness={0.6} />
+        <coneGeometry args={[0.13, 0.18, 16]} />
+        <meshStandardMaterial color="#fbbf24" roughness={0.2} metalness={0.65} />
       </mesh>
 
-      {/* Tinted Windshield Canopy */}
+      {/* Front Sculpted Carbon-Composite Chin Splitter */}
+      <RoundedBox position={[0.32, -0.09, 0]} args={[0.18, 0.015, 0.36]} radius={0.005} smoothness={2}>
+        <meshStandardMaterial color="#0f172a" roughness={0.4} metalness={0.5} />
+      </RoundedBox>
+
+      {/* Front Dual Radiator Air Scoops / Grille */}
+      <mesh position={[0.29, -0.03, 0]}>
+        <boxGeometry args={[0.03, 0.045, 0.22]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.7} metalness={0.2} />
+      </mesh>
+      <mesh position={[0.292, -0.03, 0]}>
+        <boxGeometry args={[0.032, 0.047, 0.02]} />
+        <meshStandardMaterial color="#f59e0b" roughness={0.25} metalness={0.6} />
+      </mesh>
+
+      {/* Aerodynamic Flank Side-Skirts & Racing Accent Pinstripes */}
+      {[-0.165, 0.165].map((fz) => (
+        <group key={`skirt-${fz}`}>
+          {/* Lower rocker panel skirt */}
+          <mesh position={[0, -0.085, fz]}>
+            <boxGeometry args={[0.54, 0.018, 0.014]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.5} />
+          </mesh>
+          {/* Cyan metallic team livery stripe */}
+          <mesh position={[0, 0.01, fz]}>
+            <boxGeometry args={[0.50, 0.012, 0.008]} />
+            <meshStandardMaterial color="#0284c7" roughness={0.25} metalness={0.7} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Tinted Aerodynamic Windshield Canopy */}
       <mesh position={[0.12, 0.13, 0]} rotation={[0, 0, -Math.PI / 8]}>
         <boxGeometry args={[0.18, 0.10, 0.28]} />
-        <meshStandardMaterial color="#38bdf8" transparent opacity={0.6} roughness={0.1} />
+        <meshStandardMaterial color="#0284c7" transparent opacity={0.55} roughness={0.1} />
+      </mesh>
+      {/* Windshield upper cowl frame */}
+      <mesh position={[0.18, 0.105, 0]} rotation={[0, 0, -Math.PI / 8]}>
+        <boxGeometry args={[0.02, 0.015, 0.284]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.7} />
       </mesh>
 
-      {/* Twin Front LED Headlights */}
-      {[-0.10, 0.10].map((dz) => (
-        <group key={`hl-${dz}`} position={[0.39, -0.01, dz]}>
-          <mesh rotation={[0, Math.PI / 2, 0]}>
-            <cylinderGeometry args={[0.024, 0.024, 0.02, 16]} />
-            <meshStandardMaterial color="#f8fafc" emissive="#38bdf8" emissiveIntensity={2.0} />
-          </mesh>
-        </group>
+      {/* ── 2. Rear High-Downforce Airfoil Wing & Diffuser ── */}
+      {/* Wing Vertical Endplate Pylons */}
+      {[-0.13, 0.13].map((wz) => (
+        <mesh key={`wing-pylon-${wz}`} position={[-0.27, 0.13, wz]}>
+          <boxGeometry args={[0.06, 0.12, 0.014]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.7} />
+        </mesh>
+      ))}
+      {/* Inverted Aerodynamic Wing Element */}
+      <mesh position={[-0.28, 0.195, 0]} rotation={[0, 0, -0.12]}>
+        <boxGeometry args={[0.09, 0.016, 0.38]} />
+        <meshStandardMaterial color="#d97706" roughness={0.22} metalness={0.65} />
+      </mesh>
+      {/* Wing Endplate Winglets */}
+      {[-0.19, 0.19].map((wz) => (
+        <mesh key={`winglet-${wz}`} position={[-0.28, 0.20, wz]} rotation={[0, 0, -0.12]}>
+          <boxGeometry args={[0.11, 0.045, 0.008]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.7} />
+        </mesh>
       ))}
 
-      {/* Cockpit Interior Tray */}
-      <mesh position={[-0.04, 0.08, 0]}>
-        <boxGeometry args={[0.34, 0.04, 0.26]} />
-        <meshStandardMaterial color="#1e293b" roughness={0.7} />
+      {/* Underbody Venturi Diffuser Fins */}
+      {[-0.08, 0, 0.08].map((dz) => (
+        <mesh key={`diffuser-${dz}`} position={[-0.26, -0.085, dz]}>
+          <boxGeometry args={[0.08, 0.025, 0.008]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.4} />
+        </mesh>
+      ))}
+
+      {/* ── 3. Cockpit Tub, Bucket Seats & Roll Hoops ── */}
+      {/* Cockpit Interior Well */}
+      <mesh position={[-0.04, 0.07, 0]}>
+        <boxGeometry args={[0.36, 0.06, 0.26]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.8} />
       </mesh>
 
-      {/* Passenger Figurines */}
+      {/* Dashboard Console & Coaster Grab Rail */}
+      <mesh position={[0.15, 0.09, 0]}>
+        <boxGeometry args={[0.03, 0.04, 0.22]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.5} />
+      </mesh>
+      <mesh position={[0.14, 0.115, 0]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.20, 10]} rotation={[Math.PI / 2, 0, 0]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.85} />
+      </mesh>
+
+      {/* Passenger Cockpit Setup */}
       {[-0.14, 0.06].map((dx, pIdx) => (
-        <group key={`rider-${pIdx}`} position={[dx, 0.12, 0]}>
-          {/* Torso */}
+        <group key={`rider-${pIdx}`} position={[dx, 0.10, 0]}>
+          {/* Contoured High-Back Racing Bucket Seat */}
+          <mesh position={[-0.05, 0.08, 0]} rotation={[0, 0, 0.12]}>
+            <boxGeometry args={[0.025, 0.15, 0.20]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.6} />
+          </mesh>
+          <mesh position={[-0.065, 0.17, 0]}>
+            <boxGeometry args={[0.03, 0.045, 0.12]} />
+            <meshStandardMaterial color="#0f172a" roughness={0.5} />
+          </mesh>
+
+          {/* Chrome Tubular Safety Roll-Bar Hoop */}
+          <mesh position={[-0.06, 0.13, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <torusGeometry args={[0.075, 0.010, 8, 16, Math.PI]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.15} metalness={0.9} />
+          </mesh>
+
+          {/* Rider Torso */}
           <mesh position={[0, 0.04, 0]}>
-            <boxGeometry args={[0.10, 0.10, 0.18]} />
-            <meshStandardMaterial color={pIdx === 0 ? "#3b82f6" : "#ef4444"} roughness={0.5} />
+            <boxGeometry args={[0.095, 0.10, 0.17]} />
+            <meshStandardMaterial color={pIdx === 0 ? "#2563eb" : "#dc2626"} roughness={0.5} />
           </mesh>
-          {/* Head & Helmet */}
+
+          {/* 4-Point Safety Harness Straps */}
+          {[-0.04, 0.04].map((sz) => (
+            <mesh key={`harness-${sz}`} position={[0.048, 0.04, sz]}>
+              <boxGeometry args={[0.004, 0.09, 0.022]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.8} />
+            </mesh>
+          ))}
+          {/* Quick-Release Central Harness Buckle */}
+          <mesh position={[0.05, 0.04, 0]}>
+            <boxGeometry args={[0.006, 0.018, 0.018]} />
+            <meshStandardMaterial color="#ef4444" roughness={0.3} metalness={0.4} />
+          </mesh>
+
+          {/* Helmet with Tinted Visor Shield */}
           <mesh position={[0, 0.14, 0]}>
-            <sphereGeometry args={[0.055, 16, 16]} />
-            <meshStandardMaterial color="#f1f5f9" roughness={0.3} metalness={0.2} />
+            <sphereGeometry args={[0.052, 16, 16]} />
+            <meshStandardMaterial color={pIdx === 0 ? "#f8fafc" : "#facc15"} roughness={0.25} metalness={0.3} />
           </mesh>
-          {/* Safety Lap Bar Restraint */}
-          <mesh position={[0.06, 0.06, 0]}>
-            <cylinderGeometry args={[0.014, 0.014, 0.24, 12]} rotation={[Math.PI / 2, 0, 0]} />
-            <meshStandardMaterial color="#475569" roughness={0.3} metalness={0.8} />
+          {/* Aerodynamic dark tinted visor */}
+          <mesh position={[0.036, 0.14, 0]}>
+            <boxGeometry args={[0.022, 0.026, 0.062]} />
+            <meshStandardMaterial color="#0f172a" roughness={0.1} metalness={0.9} />
+          </mesh>
+
+          {/* Padded Lap Bar / Safety Restraint */}
+          <mesh position={[0.055, 0.06, 0]}>
+            <cylinderGeometry args={[0.014, 0.014, 0.22, 12]} rotation={[Math.PI / 2, 0, 0]} />
+            <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.7} />
           </mesh>
         </group>
       ))}
 
-      {/* ── 3-Wheel Safety Bogie Assemblies (Front & Rear, Both Sides) ── */}
+      {/* ── 4. Chassis Frame & Underbody Magnetic Brake Fin ── */}
+      {/* Longitudinal Structural Steel Chassis Keel */}
+      <mesh position={[0, -0.095, 0]}>
+        <boxGeometry args={[0.52, 0.025, 0.06]} />
+        <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.85} />
+      </mesh>
+
+      {/* Copper Magnetic Eddy-Current Brake Fin Blade */}
+      <mesh position={[-0.02, -0.135, 0]}>
+        <boxGeometry args={[0.38, 0.045, 0.008]} />
+        <meshStandardMaterial color="#d97706" roughness={0.3} metalness={0.8} />
+      </mesh>
+
+      {/* ── 5. 3-Wheel Safety Bogie Assemblies with Suspension Dampers ── */}
       {[-0.18, 0.18].map((dx) =>
         [-0.17, 0.17].map((dz) => (
           <group key={`bogie-${dx}-${dz}`} position={[dx, -0.11, dz]}>
-            {/* Bogie Bracket Carrier Plate */}
+            {/* Bogie Carrier Plate */}
             <mesh>
               <boxGeometry args={[0.11, 0.07, 0.03]} />
               <meshStandardMaterial color="#64748b" roughness={0.3} metalness={0.8} />
+            </mesh>
+
+            {/* Hydraulic Shock Damper Strut */}
+            <mesh position={[0, 0.045, 0]}>
+              <cylinderGeometry args={[0.01, 0.01, 0.04, 10]} />
+              <meshStandardMaterial color="#0284c7" roughness={0.3} metalness={0.7} />
             </mesh>
 
             {/* 1. Running Wheel (rides on top of rail) */}
