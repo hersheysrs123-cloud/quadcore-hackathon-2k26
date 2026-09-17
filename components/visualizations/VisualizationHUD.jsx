@@ -561,18 +561,20 @@ function HookesLawSidebarGraph({ params }) {
   const F_L = elasticLimitForce(k);
   const F_F = failureForce(k);
 
-  const isFailed = solved.failed;
-  const activeF = isFailed ? F_F : Math.min(solved.force, F_F);
-  const activeX = solved.extension;
+  // Overloaded is when CURRENT force meets or exceeds the failure threshold
+  const isOverloaded = solved.force >= F_F - 1e-6;
+  const activeF = isOverloaded ? F_F : solved.force;
+  const activeX = isOverloaded ? x_F : solved.extension;
+  const activeStiffness = isOverloaded ? 0 : solved.stiffness;
 
   const yMax = Math.max(F_F, force) * 1.12;
   const xMax = x_F * 1.08;
 
   const width = 280;
-  const height = 130;
+  const height = 132;
   const padL = 34;
   const padR = 14;
-  const padT = 16;
+  const padT = 18;
   const padB = 22;
 
   const plotW = width - padL - padR;
@@ -648,7 +650,7 @@ function HookesLawSidebarGraph({ params }) {
 
   const tangentPoints = useMemo(() => {
     const half = 0.028;
-    const m = isFailed ? 0 : solved.stiffness;
+    const m = activeStiffness;
     const x0 = Math.max(activeX - half, 0);
     const x1 = Math.min(activeX + half, xMax);
     return {
@@ -657,10 +659,10 @@ function HookesLawSidebarGraph({ params }) {
       x1: toSvgX(x1),
       y1: toSvgY(activeF + (x1 - activeX) * m),
     };
-  }, [activeX, activeF, isFailed, solved.stiffness, xMax, yMax]);
+  }, [activeX, activeF, activeStiffness, xMax, yMax]);
 
   // Status Badge
-  const statusBadge = isFailed
+  const statusBadge = isOverloaded
     ? { label: "Broken (Scrap)", badge: "bg-rose-500/20 text-rose-300 border-rose-500/40" }
     : solved.yielding
     ? { label: "Plastic Yielding", badge: "bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse" }
@@ -714,8 +716,8 @@ function HookesLawSidebarGraph({ params }) {
 
         {/* Y Axis Title */}
         <text
-          x={padL - 6}
-          y={padT - 4}
+          x={padL - 4}
+          y={padT - 7}
           textAnchor="end"
           style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
           className="text-[8px] fill-ink-400 font-semibold"
@@ -736,11 +738,11 @@ function HookesLawSidebarGraph({ params }) {
 
         {/* Elastic Limit Vertical Guideline */}
         <line x1={limitX} y1={padT} x2={limitX} y2={baselineY} stroke="#f43f5e" strokeWidth="1.2" strokeDasharray="3 3" opacity="0.8" />
-        <g transform={`translate(${limitX}, ${padT - 6})`}>
-          <rect x="-16" y="-6" width="32" height="11" rx="3" fill="#1e1824" stroke="#f43f5e" strokeWidth="0.8" />
+        <g transform={`translate(${limitX}, ${padT - 7})`}>
+          <rect x="-24" y="-7" width="48" height="13" rx="3" fill="#1e1824" stroke="#f43f5e" strokeWidth="0.8" />
           <text
             x="0"
-            y="2"
+            y="2.5"
             textAnchor="middle"
             style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
             className="text-[7.5px] fill-rose-300 font-bold"
@@ -804,10 +806,10 @@ function HookesLawSidebarGraph({ params }) {
                 <polygon points="0,-4 -3,0 3,0" fill="#fbbf24" />
                 <text
                   x="0"
-                  y="10"
+                  y="12"
                   textAnchor="middle"
                   style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
-                  className="text-[7px] fill-amber-300 font-semibold"
+                  className="text-[7.5px] fill-amber-300 font-bold"
                 >
                   Set: {(unloadData.setM * 100).toFixed(1)}
                 </text>
@@ -829,7 +831,7 @@ function HookesLawSidebarGraph({ params }) {
         />
 
         {/* Overload guide when hung load exceeds spring breaking threshold */}
-        {isFailed && force > F_F + 0.05 && (
+        {isOverloaded && force > F_F + 0.05 && (
           <g>
             <line
               x1={failX}
@@ -855,8 +857,22 @@ function HookesLawSidebarGraph({ params }) {
         )}
 
         {/* Live Operating Point Marker */}
-        <circle cx={markerX} cy={markerY} r={isFailed ? "7" : "6"} fill={isFailed ? "#f43f5e" : "#38bdf8"} opacity="0.25" className="animate-pulse" />
-        <circle cx={markerX} cy={markerY} r={isFailed ? "4" : "3.6"} fill={isFailed ? "#f43f5e" : "#38bdf8"} stroke="#ffffff" strokeWidth="1.5" />
+        <circle
+          cx={markerX}
+          cy={markerY}
+          r={isOverloaded ? "7" : "6"}
+          fill={isOverloaded ? "#f43f5e" : solved.yielded ? "#fbbf24" : solved.yielding ? "#f59e0b" : "#38bdf8"}
+          opacity="0.25"
+          className="animate-pulse"
+        />
+        <circle
+          cx={markerX}
+          cy={markerY}
+          r={isOverloaded ? "4" : "3.6"}
+          fill={isOverloaded ? "#f43f5e" : solved.yielded ? "#fbbf24" : solved.yielding ? "#f59e0b" : "#38bdf8"}
+          stroke="#ffffff"
+          strokeWidth="1.5"
+        />
         <circle cx={markerX} cy={markerY} r="1.3" fill="#ffffff" />
 
         {/* Y Axis numerical tick labels */}
@@ -889,15 +905,17 @@ function HookesLawSidebarGraph({ params }) {
         </text>
 
         {/* X Axis numerical tick labels */}
-        <text
-          x={padL}
-          y={baselineY + 12}
-          textAnchor="start"
-          style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
-          className="text-[8px] fill-ink-500 font-medium"
-        >
-          0cm
-        </text>
+        {(!unloadData || unloadData.setSvgX > padL + 36) && (
+          <text
+            x={padL}
+            y={baselineY + 12}
+            textAnchor="start"
+            style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
+            className="text-[8px] fill-ink-500 font-medium"
+          >
+            0cm
+          </text>
+        )}
         <text
           x={limitX}
           y={baselineY + 12}
@@ -942,11 +960,17 @@ function HookesLawSidebarGraph({ params }) {
           <span className="text-[7.5px] uppercase tracking-wider text-ink-500 font-sans">Stiffness (k)</span>
           <span
             className={`text-[9.5px] font-bold truncate ${
-              isFailed ? "text-rose-400" : solved.elastic ? "text-emerald-400" : "text-amber-400"
+              isOverloaded
+                ? "text-rose-400"
+                : solved.yielding
+                ? "text-amber-400"
+                : solved.yielded
+                ? "text-duck-300"
+                : "text-emerald-400"
             }`}
             style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
           >
-            {isFailed ? "0 (Scrap)" : `${solved.stiffness.toFixed(0)} N/m`}
+            {isOverloaded ? "0 (Scrap)" : `${activeStiffness.toFixed(0)} N/m`}
           </span>
         </div>
       </div>

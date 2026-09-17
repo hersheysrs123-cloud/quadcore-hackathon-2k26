@@ -7510,4 +7510,36 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 4. **Automated Verification**:
    - All 1,299 unit tests across 324 suites and 34 empirical challenge tests pass with zero regressions.
 
+---
+
+## Hooke's Law Unload Line Marker Detachment & Text Overlap Resolution
+
+### 1. Problem Statement
+- After overloading a spring past failure and subsequently reducing the mass slider (e.g. reducing mass down to $100\text{ g} = 0.98\text{ N}$ on a $10\text{ N/m}$ spring with permanent set $7.6\text{ cm}$), the active coordinate marker remained pinned to the maximum failure force ($y = 2.24\text{ N}$) while its X coordinate moved to $17.4\text{ cm}$. This caused the marker and a horizontal green tangent line to float detached in mid-air $1.26\text{ N}$ above the yellow dashed unload line.
+- The elastic limit badge text `"14cm Limit"` overflowed its 32px bounding pill, causing the outer borders to slice through the letters (`"14cm Llmlt"`).
+- The vertical axis title `$F\text{ (N)}$` collided vertically with the top numerical tick label (`"3N"`), and at small permanent sets, the x-axis `"0cm"` label collided with the `"Set: X.X"` text.
+
+### 2. Root Cause
+1. **Conflating Past Yield History with Instantaneous Force State**:
+   - `solved.failed` remains `true` throughout the spring's memory once it has ever reached failure load.
+   - The graph code previously evaluated `const isFailed = solved.failed; const activeF = isFailed ? F_F : Math.min(solved.force, F_F);`, which permanently locked `activeF` to $F_{\text{fail}}$ even when the load was removed.
+   - Because `m = isFailed ? 0 : solved.stiffness`, the tangent slope was also forced to $0\text{ N/m}$ (horizontal) instead of the spring's elastic recovery stiffness $k$.
+2. **Fixed-Dimension SVG Bounding Boxes**:
+   - The elastic limit pill `<rect>` had a fixed width of `32px`, which was narrower than the 42px rendered width of `"14cm Limit"` in `Plus Jakarta Sans`.
+   - `padT` was set to `16px`, causing the `F (N)` axis title at `padT - 4` (`12px`) and the top tick at `padT + 3` (`19px`) to overlap.
+
+### 3. Resolution
+1. **Dynamic Unload Line Tracking (`VisualizationHUD.jsx`)**:
+   - Defined `const isOverloaded = solved.force >= F_F - 1e-6;`, separating instantaneous overload from historical plastic memory.
+   - Set `activeF = isOverloaded ? F_F : solved.force`, `activeX = isOverloaded ? x_F : solved.extension`, and `activeStiffness = isOverloaded ? 0 : solved.stiffness`.
+   - When masses are unloaded, the marker sits **directly on the dashed yellow unload line** ($y = 0.98\text{ N}$, $x = 17.4\text{ cm}$), and the green tangent line aligns with the unload line with slope $k = 10\text{ N/m}$.
+   - The marker color dynamically transitions to gold (`#fbbf24`) during unload and the status badge displays the live permanent set (`Set: 7.6cm`).
+2. **Typography & Clearance Polish**:
+   - Widened the elastic limit pill to `width="48" height="13" rx="3"` (`x="-24"`), cleanly enclosing `"14cm Limit"` with comfortable breathing room.
+   - Adjusted top padding to `padT = 18` and positioned `F (N)` at `padT - 7`, completely eliminating vertical collision with the top numerical tick.
+   - Conditionally suppressed the static `"0cm"` axis tick whenever $unloadData.setSvgX \le padL + 36$, preventing text smearing when permanent set indicators sit near the origin.
+3. **Automated Verification**:
+   - All 1,299 automated unit tests and 34 empirical challenge tests pass with 0 regressions.
+
+
 
