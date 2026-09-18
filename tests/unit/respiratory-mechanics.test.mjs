@@ -1,165 +1,30 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-// ─── Physiological Mechanics & Respiratory Simulation Engine ─────────
-export const RESPIRATORY_PHASES = {
-  INSPIRATION: "inspiration",
-  QUIET_EXPIRATION: "quiet_expiration",
-  FORCED_EXPIRATION: "forced_expiration",
-};
+// ─── Respiratory mechanics ──────────────────────────────────────────
+// This file used to DEFINE the engine it then asserted against: it imported
+// nothing from the application, so every assertion below passed regardless of
+// what RespiratoryCanvas actually did — and RespiratoryCanvas implemented
+// different arithmetic inline, with three different tidal volumes for the
+// same phase. Exactly the failure mode 8bb971b fixed for the binary tree.
+//
+// It now imports the shipping engine.
+// ─────────────────────────────────────────────────────────────────────
 
-/**
- * Calculates instantaneous thoracic volume based on normalized expansion parameter (-1 to +1)
- * Resting FRC = 2.8 L
- * Full Inspiration = ~3.5 L to 3.8 L
- * Forced Expiration (ERV utilized) = ~1.95 L
- */
-export function calculateThoraxVolume(expansion) {
-  if (expansion >= 0) {
-    return Number((2.8 + expansion * 0.7).toFixed(2));
-  } else {
-    return Number((2.8 + expansion * 0.85).toFixed(2));
-  }
-}
+import {
+  RESPIRATORY_PHASES,
+  airflowFromPressure,
+  breathAt,
+  muscleStates,
+  restingState,
+  thoraxVolume,
+} from "../../lib/respiratory.js";
+import { RESPIRATORY_MODEL_CREDITS } from "../../lib/respiratoryCredits.js";
 
-/**
- * Calculates intra-thoracic relative pressure ΔP (relative to Patm = 101.3 kPa)
- * via Boyle's Law inverse relationship with volume change.
- */
-export function calculateIntraThoracicPressure(phase, expansion, timeInPhase = 0.5) {
-  if (phase === RESPIRATORY_PHASES.INSPIRATION) {
-    // Negative pressure peaks mid-inspiration
-    const bell = Math.sin(timeInPhase * Math.PI);
-    return -0.28 * Math.max(0.2, bell);
-  }
-  if (phase === RESPIRATORY_PHASES.QUIET_EXPIRATION) {
-    // Gentle positive pressure during passive elastic recoil
-    const bell = Math.sin(timeInPhase * Math.PI);
-    return 0.22 * Math.max(0.15, bell);
-  }
-  if (phase === RESPIRATORY_PHASES.FORCED_EXPIRATION) {
-    // High positive pressure due to internal intercostal & abdominal compression
-    return 1.15;
-  }
-  return 0;
-}
-
-/**
- * Calculates airway flow rate V̇ (L/s) driven by pressure gradient.
- * Inflow < 0, Outflow > 0.
- */
-export function calculateAirflowRate(pressure) {
-  const airwayResistance = 0.45; // kPa / (L/s)
-  // Flow = ΔP / R
-  return pressure / airwayResistance;
-}
-
-/**
- * Antagonistic Intercostal Activation Engine
- */
-export function getIntercostalMuscleStates(phase) {
-  if (phase === RESPIRATORY_PHASES.INSPIRATION) {
-    return {
-      external: { contracted: true, tension: 1.0, action: "elevate_ribs" },
-      internal: { contracted: false, tension: 0.0, action: "relaxed" },
-      diaphragm: { contracted: true, action: "flatten_down" },
-    };
-  }
-  if (phase === RESPIRATORY_PHASES.QUIET_EXPIRATION) {
-    return {
-      external: { contracted: false, tension: 0.0, action: "relaxed" },
-      internal: { contracted: false, tension: 0.0, action: "relaxed" },
-      diaphragm: { contracted: false, action: "recoil_up" },
-    };
-  }
-  if (phase === RESPIRATORY_PHASES.FORCED_EXPIRATION) {
-    return {
-      external: { contracted: false, tension: 0.0, action: "relaxed" },
-      internal: { contracted: true, tension: 1.0, action: "depress_ribs" },
-      diaphragm: { contracted: false, action: "pushed_up_by_abdominals" },
-    };
-  }
-  return null;
-}
-
-export const RESPIRATORY_MODEL_CREDITS = [
-  {
-    id: "lungs",
-    name: "Photorealistic Human Lungs Model",
-    icon: "🫁",
-    file: "lung.glb",
-    size: "17.1 MB",
-    type: "Clinical 3D Organ Scan",
-    license: "CC-BY-4.0 & MIT",
-    licenseTag: "Permissive / Commercial Allowed",
-    licenseColor: "sky",
-    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
-    originalCreator: "neshallads",
-    sourceUrl: "https://sketchfab.com/3d-models/realistic-human-lungs-ce09f4099a68467880f46e61eb9a3531",
-    author: "yihalem123",
-    project: "Human-Organ3D",
-    repoUrl: "https://github.com/yihalem123/Human-Organ3D",
-    description:
-      "High-resolution clinical 3D organ scan created by neshallads under CC-BY-4.0, featuring bilateral pulmonary lobes, primary bronchi, pulmonary vascular branchings, and tracheobronchial airway tree with dynamic breathing volume expansion.",
-  },
-  {
-    id: "skeleton",
-    name: "Clinical CT-Derived Thoracic Skeleton",
-    icon: "🦴",
-    file: "skeleton_ct.glb",
-    size: "16.3 MB",
-    type: "CT Scan Reconstruction",
-    license: "CC-BY-4.0",
-    licenseTag: "Permissive / Commercial Allowed",
-    licenseColor: "emerald",
-    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
-    originalCreator: "Terrie Simmons-Ehrhardt",
-    sourceUrl: "https://sketchfab.com/3d-models/ct-derived-human-skeleton-7235c83248574ce986dd9e8b35159afa",
-    author: "Meteorkid",
-    project: "Skeleton-Anatomy",
-    repoUrl: "https://github.com/Meteorkid/skeleton-anatomy",
-    description:
-      "Clinical CT scan reconstruction created by Terrie Simmons-Ehrhardt and published under CC-BY-4.0. We isolate 43 anatomical bone nodes (all 24 ribs, T1–T12 thoracic vertebrae, L1–L3 lumbar crura anchors, sternum, and clavicles) with active bucket-handle & pump-handle kinematics.",
-  },
-  {
-    id: "diaphragm",
-    name: "Sculpted Muscular Diaphragm Dome",
-    icon: "🪂",
-    file: "Procedural Mesh",
-    size: "Procedural Vector Shader",
-    type: "Parametric Anatomical Mesh",
-    license: "Original Code (SocraticOS)",
-    licenseTag: "Commercial Allowed",
-    licenseColor: "purple",
-    commercialUse: "Permitted (100% Original Code)",
-    originalCreator: "SocraticOS Core Team",
-    sourceUrl: null,
-    author: "SocraticOS Core Team",
-    project: "SocraticOS Simulator",
-    repoUrl: null,
-    description:
-      "Custom 32-segment parametric radial dome with procedural trifoliate central tendon (centrum tendineum), 3 physiological hiatuses (Caval T8, Esophageal T10, Aortic T12), bilateral vertebral crura, and real-time vertex flattening on inspiration (Y = 1.05 → 0.63).",
-  },
-  {
-    id: "intercostals",
-    name: "Dual-Layer Antagonistic Intercostal Muscles",
-    icon: "💪",
-    file: "Procedural Mesh",
-    size: "Procedural Vector Shader",
-    type: "Striated Myofibril Simulation",
-    license: "Original Code (SocraticOS)",
-    licenseTag: "Commercial Allowed",
-    licenseColor: "rose",
-    commercialUse: "Permitted (100% Original Code)",
-    originalCreator: "SocraticOS Core Team",
-    sourceUrl: null,
-    author: "SocraticOS Core Team",
-    project: "SocraticOS Simulator",
-    repoUrl: null,
-    description:
-      "132 active procedural muscle fascicles across all 11 intercostal spaces with dual-layer antagonistic kinematics (superficial external +35° inspiratory vs deep internal -45° forced expiratory), Canvas-generated striated myofibril textures, and dynamic tension shaders.",
-  },
-];
+const calculateThoraxVolume = thoraxVolume;
+const calculateIntraThoracicPressure = (phase) => restingState(phase).pressureKPa;
+const calculateAirflowRate = airflowFromPressure;
+const getIntercostalMuscleStates = muscleStates;
 
 describe("3D Respiratory Mechanics & Thoracic Physics Engine", () => {
   describe("Volume Dynamics Across Respiratory Phases", () => {
@@ -182,7 +47,7 @@ describe("3D Respiratory Mechanics & Thoracic Physics Engine", () => {
 
   describe("Boyle's Law & Intra-Thoracic Pressure Gradients", () => {
     it("generates negative relative pressure (vacuum) during inspiration", () => {
-      const pInsp = calculateIntraThoracicPressure(RESPIRATORY_PHASES.INSPIRATION, 0.5, 0.5);
+      const pInsp = calculateIntraThoracicPressure(RESPIRATORY_PHASES.INSPIRATION);
       assert.ok(pInsp < 0, "Inspiration must create sub-atmospheric relative pressure");
       assert.ok(pInsp <= -0.2, "Peak inspiration pressure should reach ~ -0.28 kPa");
 
@@ -191,7 +56,7 @@ describe("3D Respiratory Mechanics & Thoracic Physics Engine", () => {
     });
 
     it("generates positive relative pressure during quiet expiration", () => {
-      const pExp = calculateIntraThoracicPressure(RESPIRATORY_PHASES.QUIET_EXPIRATION, 0.5, 0.5);
+      const pExp = calculateIntraThoracicPressure(RESPIRATORY_PHASES.QUIET_EXPIRATION);
       assert.ok(pExp > 0, "Quiet expiration must create positive pressure from recoil");
 
       const flow = calculateAirflowRate(pExp);
@@ -199,7 +64,7 @@ describe("3D Respiratory Mechanics & Thoracic Physics Engine", () => {
     });
 
     it("generates high positive pressure spike during forced expiration", () => {
-      const pForced = calculateIntraThoracicPressure(RESPIRATORY_PHASES.FORCED_EXPIRATION, -0.9, 0.5);
+      const pForced = calculateIntraThoracicPressure(RESPIRATORY_PHASES.FORCED_EXPIRATION);
       assert.ok(pForced >= 1.0, "Forced expiration must spike above +1.0 kPa");
 
       const flow = calculateAirflowRate(pForced);
@@ -272,6 +137,58 @@ describe("3D Respiratory Mechanics & Thoracic Physics Engine", () => {
       assert.strictEqual(intercostals.author, "SocraticOS Core Team");
       assert.strictEqual(intercostals.file, "Procedural Mesh");
       assert.ok(intercostals.commercialUse.includes("Permitted"));
+    });
+  });
+
+  describe("The breathing cycle the scene actually animates", () => {
+    it("completes a quiet breath between FRC and peak tidal volume", () => {
+      let min = Infinity;
+      let max = -Infinity;
+      for (let t = 0; t < 1; t += 0.001) {
+        const v = breathAt(t).volumeL;
+        min = Math.min(min, v);
+        max = Math.max(max, v);
+      }
+      assert.strictEqual(min, 2.8, "A quiet breath must bottom out at FRC");
+      assert.strictEqual(max, 3.5, "A quiet breath must peak at 3.5 L");
+    });
+
+    it("keeps volume continuous across the whole cycle", () => {
+      let biggestStep = 0;
+      let prev = breathAt(0).volumeL;
+      for (let t = 0.001; t < 1; t += 0.001) {
+        const v = breathAt(t).volumeL;
+        biggestStep = Math.max(biggestStep, Math.abs(v - prev));
+        prev = v;
+      }
+      assert.ok(biggestStep < 0.05, `Volume jumped by ${biggestStep} L in one step`);
+    });
+
+    it("drives air IN while inspiring and OUT while expiring", () => {
+      assert.ok(breathAt(0.2).flowLps < 0, "Mid-inspiration flow must be inward");
+      assert.ok(breathAt(0.7).flowLps > 0, "Mid-expiration flow must be outward");
+    });
+
+    it("carries a forced breath through FRC and into the expiratory reserve", () => {
+      const mid = breathAt(0.7, { forced: true });
+      assert.strictEqual(mid.phase, RESPIRATORY_PHASES.FORCED_EXPIRATION);
+      // Halfway through expiration the lungs are passing THROUGH FRC; the
+      // reserve comes out in the second half, which is what distinguishes a
+      // forced breath from a quiet one.
+      assert.ok(Math.abs(mid.volumeL - 2.8) < 0.05, "Mid-expiration should be passing through FRC");
+
+      let min = Infinity;
+      for (let t = 0.4; t < 1; t += 0.001) min = Math.min(min, breathAt(t, { forced: true }).volumeL);
+      assert.strictEqual(min, 1.95, "A forced breath must bottom out at 1.95 L");
+
+      let quietMin = Infinity;
+      for (let t = 0.4; t < 1; t += 0.001) quietMin = Math.min(quietMin, breathAt(t).volumeL);
+      assert.strictEqual(quietMin, 2.8, "A quiet breath must stop at FRC");
+    });
+
+    it("recruits the internal intercostals only when forcing", () => {
+      assert.ok(breathAt(0.7, { forced: true }).internal > 0, "Forced expiration is active");
+      assert.strictEqual(breathAt(0.7).internal, 0, "Quiet expiration is elastic recoil only");
     });
   });
 });

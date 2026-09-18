@@ -41,6 +41,13 @@ import {
   ViewportHint,
 } from "@/components/visualizations/VisualizationHUD";
 import { OrbitControls, useGLTF } from "@react-three/drei";
+import { RESPIRATORY_MODEL_CREDITS } from "@/lib/respiratoryCredits";
+import {
+  PUSH_EVERY_S,
+  RESPIRATORY_PHASES,
+  breathAt,
+  restingState,
+} from "@/lib/respiratory";
 
 // Preload the photorealistic medical 3D GLB assets
 if (typeof window !== "undefined") {
@@ -48,92 +55,26 @@ if (typeof window !== "undefined") {
   useGLTF.preload("/models/skeleton_ct.glb");
 }
 
+/**
+ * Runs one callback per frame. Module scope, deliberately: declared inside the
+ * component this is a new type on every render, and React unmounts and
+ * remounts the subtree — re-subscribing useFrame each time.
+ */
+function FrameController({ onFrame }) {
+  useFrame(onFrame);
+  return null;
+}
+
 // ─── 3D Model Attribution & Open Source Licensing Metadata ──────────────
-export const RESPIRATORY_MODEL_CREDITS = [
-  {
-    id: "lungs",
-    name: "Photorealistic Human Lungs Model",
-    icon: "🫁",
-    file: "lung.glb",
-    size: "17.1 MB",
-    type: "Clinical 3D Organ Scan",
-    license: "CC-BY-4.0 & MIT",
-    licenseTag: "Permissive / Commercial Allowed",
-    licenseColor: "sky",
-    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
-    originalCreator: "neshallads",
-    sourceUrl: "https://sketchfab.com/3d-models/realistic-human-lungs-ce09f4099a68467880f46e61eb9a3531",
-    author: "yihalem123",
-    project: "Human-Organ3D",
-    repoUrl: "https://github.com/yihalem123/Human-Organ3D",
-    description:
-      "High-resolution clinical 3D organ scan created by neshallads under CC-BY-4.0, featuring bilateral pulmonary lobes, primary bronchi, pulmonary vascular branchings, and tracheobronchial airway tree with dynamic breathing volume expansion.",
-  },
-  {
-    id: "skeleton",
-    name: "Clinical CT-Derived Thoracic Skeleton",
-    icon: "🦴",
-    file: "skeleton_ct.glb",
-    size: "16.3 MB",
-    type: "CT Scan Reconstruction",
-    license: "CC-BY-4.0",
-    licenseTag: "Permissive / Commercial Allowed",
-    licenseColor: "emerald",
-    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
-    originalCreator: "Terrie Simmons-Ehrhardt",
-    sourceUrl: "https://sketchfab.com/3d-models/ct-derived-human-skeleton-7235c83248574ce986dd9e8b35159afa",
-    author: "Meteorkid",
-    project: "Skeleton-Anatomy",
-    repoUrl: "https://github.com/Meteorkid/skeleton-anatomy",
-    description:
-      "Clinical CT scan reconstruction created by Terrie Simmons-Ehrhardt and published under CC-BY-4.0. We isolate 43 anatomical bone nodes (all 24 ribs, T1–T12 thoracic vertebrae, L1–L3 lumbar crura anchors, sternum, and clavicles) with active bucket-handle & pump-handle kinematics.",
-  },
-  {
-    id: "diaphragm",
-    name: "Sculpted Muscular Diaphragm Dome",
-    icon: "🪂",
-    file: "Procedural Mesh",
-    size: "Procedural Vector Shader",
-    type: "Parametric Anatomical Mesh",
-    license: "Original Code (SocraticOS)",
-    licenseTag: "Commercial Allowed",
-    licenseColor: "purple",
-    commercialUse: "Permitted (100% Original Code)",
-    originalCreator: "SocraticOS Core Team",
-    sourceUrl: null,
-    author: "SocraticOS Core Team",
-    project: "SocraticOS Simulator",
-    repoUrl: null,
-    description:
-      "Custom 32-segment parametric radial dome with procedural trifoliate central tendon (centrum tendineum), 3 physiological hiatuses (Caval T8, Esophageal T10, Aortic T12), bilateral vertebral crura, and real-time vertex flattening on inspiration (Y = 1.05 → 0.63).",
-  },
-  {
-    id: "intercostals",
-    name: "Dual-Layer Antagonistic Intercostal Muscles",
-    icon: "💪",
-    file: "Procedural Mesh",
-    size: "Procedural Vector Shader",
-    type: "Striated Myofibril Simulation",
-    license: "Original Code (SocraticOS)",
-    licenseTag: "Commercial Allowed",
-    licenseColor: "rose",
-    commercialUse: "Permitted (100% Original Code)",
-    originalCreator: "SocraticOS Core Team",
-    sourceUrl: null,
-    author: "SocraticOS Core Team",
-    project: "SocraticOS Simulator",
-    repoUrl: null,
-    description:
-      "132 active procedural muscle fascicles across all 11 intercostal spaces with dual-layer antagonistic kinematics (superficial external +35° inspiratory vs deep internal -45° forced expiratory), Canvas-generated striated myofibril textures, and dynamic tension shaders.",
-  },
-];
+// RESPIRATORY_MODEL_CREDITS now lives in lib/respiratoryCredits.js, so the
+// attribution test can assert against the table that actually ships.
+export { RESPIRATORY_MODEL_CREDITS };
 
 // ─── Physiological Constants & Formulations ──────────────────────────
-export const RESPIRATORY_PHASES = {
-  INSPIRATION: "inspiration",
-  QUIET_EXPIRATION: "quiet_expiration",
-  FORCED_EXPIRATION: "forced_expiration",
-};
+// RESPIRATORY_PHASES and the breath arithmetic now live in lib/respiratory.js,
+// so the auto-loop, the manual tableaux and the readout cannot disagree about
+// what a tidal volume is. Re-exported because other modules import it here.
+export { RESPIRATORY_PHASES };
 
 const ANATOMICAL_PALETTE = {
   activeMuscle: "#ef4444",
@@ -1341,6 +1282,8 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
 // ─── Main 3D Respiratory Scene Container ──────────────────────────────
 export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [phase, setPhase] = useState(RESPIRATORY_PHASES.INSPIRATION);
+  /** Whether the looping breath is a forced one, so the third phase is reachable while playing. */
+  const [forcedLoop, setForcedLoop] = useState(false);
   const [autoLoop, setAutoLoop] = useState(true);
   const [bpm, setBpm] = useState(14);
   const [cutaway, setCutaway] = useState(0.25);
@@ -1376,6 +1319,10 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [flowRate, setFlowRate] = useState(-0.55);
   const [extTension, setExtTension] = useState(0.9);
   const [intTension, setIntTension] = useState(0.0);
+  /** The live breath, mutated every frame; React hears a throttled copy. */
+  const shown = useRef(restingState(RESPIRATORY_PHASES.INSPIRATION));
+  const pushed = useRef({ phase: null, expansion: null, volumeL: null, pressureKPa: null, flowLps: null, external: null, internal: null });
+  const pushClock = useRef(0);
 
   const cycleTime = useRef(0);
 
@@ -1412,84 +1359,82 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
     };
   }, [isResizing]);
 
+  /**
+   * Drives the breath.
+   *
+   * Two things were wrong with the old loop, and they compounded.
+   *
+   * It called seven React setters EVERY FRAME — setExpansion, setPhase,
+   * setVolume, setPressure, setFlowRate, setExtTension, setIntTension — so a
+   * 2,000-line component holding two multi-megabyte GLB scenes re-rendered at
+   * 60 Hz. Every other scene in the suite mutates refs in useFrame and pushes
+   * to React on a throttle: TimelineDriver uses 10 Hz, ArmDriver 5 Hz.
+   *
+   * And `FrameController` was declared inside the component body, so React saw
+   * a brand-new component TYPE on every render and tore the subtree down and
+   * rebuilt it — which meant unsubscribing and resubscribing useFrame sixty
+   * times a second, on top of the re-renders causing it.
+   *
+   * The arithmetic now comes from lib/respiratory.js (one copy, tested), and
+   * the push is quantised and throttled: React only hears about a value when
+   * it has actually changed by something visible, and at most ten times a
+   * second. The full conversion to ref-mutated meshes is a larger job — the
+   * animated values are threaded as props through hundreds of inline material
+   * properties — and is tracked separately.
+   */
   const handleFrameUpdate = useCallback(
-    (state, rawDelta) => {
+    (_state, rawDelta) => {
       const delta = Math.min(rawDelta, 1 / 30);
+      let next;
+
       if (autoLoop) {
-        const bps = bpm / 60;
-        cycleTime.current = (cycleTime.current + delta * bps) % 1.0;
-        const t = cycleTime.current;
-
-        let curExp = 0;
-        let curPhase = RESPIRATORY_PHASES.QUIET_EXPIRATION;
-
-        if (t < 0.4) {
-          // Continuous S-curve whose derivative starts at 0 and matches the mid-inspiration flow sine
-          const inspProgress = 0.5 * (1 - Math.cos((t / 0.4) * Math.PI));
-          curExp = inspProgress;
-          curPhase = RESPIRATORY_PHASES.INSPIRATION;
-        } else {
-          // Smooth recoil whose derivative matches the expiration flow sine
-          const expProgress = 0.5 * (1 + Math.cos(((t - 0.4) / 0.6) * Math.PI));
-          curExp = expProgress;
-          curPhase = RESPIRATORY_PHASES.QUIET_EXPIRATION;
-        }
-
-        setExpansion(curExp);
-        setPhase(curPhase);
-
-        const curVol = 2.8 + curExp * 0.7;
-        setVolume(curVol);
-
-        let curPres = 0;
-        let curFlow = 0;
-        if (curPhase === RESPIRATORY_PHASES.INSPIRATION) {
-          const midInsp = Math.sin((t / 0.4) * Math.PI);
-          curPres = -0.28 * midInsp;
-          curFlow = -0.65 * midInsp;
-          setExtTension(0.85 * curExp);
-          setIntTension(0.0);
-        } else {
-          const midExp = Math.sin(((t - 0.4) / 0.6) * Math.PI);
-          curPres = 0.22 * midExp;
-          curFlow = 0.52 * midExp;
-          setExtTension(0.0);
-          setIntTension(0.0);
-        }
-        setPressure(curPres);
-        setFlowRate(curFlow);
+        cycleTime.current = (cycleTime.current + delta * (bpm / 60)) % 1.0;
+        next = breathAt(cycleTime.current, { forced: forcedLoop });
       } else {
-        if (phase === RESPIRATORY_PHASES.INSPIRATION) {
-          setExpansion((prev) => THREE.MathUtils.lerp(prev, 1.0, 0.08));
-          setVolume((prev) => THREE.MathUtils.lerp(prev, 3.65, 0.08));
-          setPressure((prev) => THREE.MathUtils.lerp(prev, -0.32, 0.08));
-          setFlowRate((prev) => THREE.MathUtils.lerp(prev, -0.75, 0.08));
-          setExtTension((prev) => THREE.MathUtils.lerp(prev, 1.0, 0.08));
-          setIntTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-        } else if (phase === RESPIRATORY_PHASES.QUIET_EXPIRATION) {
-          setExpansion((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-          setVolume((prev) => THREE.MathUtils.lerp(prev, 2.8, 0.08));
-          setPressure((prev) => THREE.MathUtils.lerp(prev, 0.18, 0.08));
-          setFlowRate((prev) => THREE.MathUtils.lerp(prev, 0.42, 0.08));
-          setExtTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-          setIntTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-        } else if (phase === RESPIRATORY_PHASES.FORCED_EXPIRATION) {
-          setExpansion((prev) => THREE.MathUtils.lerp(prev, -0.92, 0.08));
-          setVolume((prev) => THREE.MathUtils.lerp(prev, 1.95, 0.08));
-          setPressure((prev) => THREE.MathUtils.lerp(prev, 1.15, 0.08));
-          setFlowRate((prev) => THREE.MathUtils.lerp(prev, 3.85, 0.08));
-          setExtTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-          setIntTension((prev) => THREE.MathUtils.lerp(prev, 1.0, 0.08));
-        }
+        // Manual: ease towards the resting tableau for the chosen phase.
+        const goal = restingState(phase);
+        const k = 0.08;
+        const cur = shown.current;
+        next = {
+          phase: goal.phase,
+          expansion: THREE.MathUtils.lerp(cur.expansion, goal.expansion, k),
+          volumeL: THREE.MathUtils.lerp(cur.volumeL, goal.volumeL, k),
+          pressureKPa: THREE.MathUtils.lerp(cur.pressureKPa, goal.pressureKPa, k),
+          flowLps: THREE.MathUtils.lerp(cur.flowLps, goal.flowLps, k),
+          external: THREE.MathUtils.lerp(cur.external, goal.external, k),
+          internal: THREE.MathUtils.lerp(cur.internal, goal.internal, k),
+        };
       }
-    },
-    [autoLoop, bpm, phase]
-  );
 
-  function FrameController() {
-    useFrame(handleFrameUpdate);
-    return null;
-  }
+      shown.current = next;
+
+      // Throttle, then only push what changed.
+      pushClock.current += delta;
+      if (pushClock.current < PUSH_EVERY_S) return;
+      pushClock.current = 0;
+
+      const q = (v, places = 2) => Number(v.toFixed(places));
+      const last = pushed.current;
+      if (next.phase !== last.phase) setPhase(next.phase);
+      if (q(next.expansion) !== last.expansion) setExpansion(q(next.expansion));
+      if (q(next.volumeL) !== last.volumeL) setVolume(q(next.volumeL));
+      if (q(next.pressureKPa) !== last.pressureKPa) setPressure(q(next.pressureKPa));
+      if (q(next.flowLps) !== last.flowLps) setFlowRate(q(next.flowLps));
+      if (q(next.external, 1) !== last.external) setExtTension(q(next.external, 1));
+      if (q(next.internal, 1) !== last.internal) setIntTension(q(next.internal, 1));
+
+      pushed.current = {
+        phase: next.phase,
+        expansion: q(next.expansion),
+        volumeL: q(next.volumeL),
+        pressureKPa: q(next.pressureKPa),
+        flowLps: q(next.flowLps),
+        external: q(next.external, 1),
+        internal: q(next.internal, 1),
+      };
+    },
+    [autoLoop, bpm, forcedLoop, phase]
+  );
 
   return (
     <div className="relative h-full w-full bg-ink-950 overflow-hidden select-none">
@@ -1506,7 +1451,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         <directionalLight position={[-6, -3, -5]} intensity={0.65} color="#38bdf8" />
         <pointLight position={[0, 1.5, 3.5]} intensity={0.9} color="#ffffff" />
 
-        <FrameController />
+        <FrameController onFrame={handleFrameUpdate} />
 
         {/* 1. Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine, Sternum, Clavicles) */}
         {showBones && (
@@ -1670,6 +1615,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   type="button"
                   onClick={() => {
                     setAutoLoop(false);
+                    setForcedLoop(false);
                     setPhase(RESPIRATORY_PHASES.INSPIRATION);
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
@@ -1684,6 +1630,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   type="button"
                   onClick={() => {
                     setAutoLoop(false);
+                    setForcedLoop(false);
                     setPhase(RESPIRATORY_PHASES.QUIET_EXPIRATION);
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
@@ -1698,6 +1645,9 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   type="button"
                   onClick={() => {
                     setAutoLoop(false);
+                    // Pressing Loop after this breathes forcefully, which is the only
+                    // way the third phase was ever reachable while playing.
+                    setForcedLoop(true);
                     setPhase(RESPIRATORY_PHASES.FORCED_EXPIRATION);
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${

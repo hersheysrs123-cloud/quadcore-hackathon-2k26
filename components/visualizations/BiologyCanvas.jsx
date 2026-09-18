@@ -18,8 +18,8 @@ import {
 } from "@/components/visualizations/scene-kit";
 import { STRUCTURE_META } from "@/components/visualizations/topic-options";
 import { OPTIMUM_PH, OPTIMUM_TEMP, enzymeRate, solveEnzyme } from "@/lib/enzymes";
-import { BASE_COLOURS, BASE_NAMES, BACKBONE_COLOURS, COMPLEMENT, sequenceFor } from "@/lib/dna";
-import { organelleFor, solveOsmosis } from "@/lib/cellBiology";
+import { BASE_COLOURS, BASE_NAMES, BACKBONE_COLOURS, COMPLEMENT, PAIR_BONDS, sequenceFor } from "@/lib/dna";
+import { CRENATION_AT, LYSIS_BELOW, organelleFor, solveOsmosis } from "@/lib/cellBiology";
 import { DENATURE_START, DENATURE_END, solveFolding } from "@/lib/proteinFolding";
 import {
   BilayerPatch,
@@ -415,6 +415,9 @@ export function EnzymeScene({ params = {} }) {
 
 const HELIX_UP = new THREE.Vector3(0, 1, 0);
 const linkDelta = new THREE.Vector3();
+/** Scratch endpoints for the stacked hydrogen bonds of one base pair. */
+const RUNG_A = new THREE.Vector3();
+const RUNG_B = new THREE.Vector3();
 
 /**
  * Angle between the two backbones around the helix axis.
@@ -461,6 +464,10 @@ function Helix({ pairs, spin, unzipToken, speed = 1.0 }) {
   const unzip = useRef(0);
   const target = useRef(0);
 
+  useEffect(() => {
+    rungRefs.current = [];
+  }, [pairs]);
+
   const sequence = useMemo(
     () =>
       sequenceFor(pairs),
@@ -505,12 +512,23 @@ function Helix({ pairs, spin, unzipToken, speed = 1.0 }) {
           Math.sin(angle + STRAND_OFFSET) * (RADIUS + spread),
         );
 
-      // The rung is the hydrogen bonding: it stretches as the fork opens and
-      // is gone once the pair has separated.
+      // The rungs ARE the hydrogen bonding, and there are two of them for an
+      // A–T pair and three for a C–G one — which is why C–G is the stronger
+      // pair and why GC-rich DNA takes more heat to separate. They stretch as
+      // the fork opens and are gone once the pair has parted.
       if (rung && a && b) {
-        stretchBetween(rung, a.position, b.position);
-        rung.visible = open < 0.55;
-        rung.material.opacity = clamp(1 - open / 0.55, 0, 1);
+        const count = rung.length;
+        for (let k = 0; k < count; k += 1) {
+          const strand = rung[k];
+          if (!strand) continue;
+          // Stacked vertically, the way a textbook draws them.
+          const lift = (k - (count - 1) / 2) * 0.09;
+          RUNG_A.copy(a.position).y += lift;
+          RUNG_B.copy(b.position).y += lift;
+          stretchBetween(strand, RUNG_A, RUNG_B);
+          strand.visible = open < 0.55;
+          strand.material.opacity = clamp(1 - open / 0.55, 0, 1);
+        }
       }
     }
 
@@ -535,21 +553,26 @@ function Helix({ pairs, spin, unzipToken, speed = 1.0 }) {
         const pb = [Math.cos(angle + STRAND_OFFSET) * RADIUS, y, Math.sin(angle + STRAND_OFFSET) * RADIUS];
         return (
           <group key={i}>
-            {/* Rung — the hydrogen bonds holding one base pair together. */}
-            <mesh
-              ref={(el) => {
-                rungRefs.current[i] = el;
-              }}
-            >
-              <cylinderGeometry args={[0.055, 0.055, 1, 10]} />
-              <meshStandardMaterial
-                color={BASE_COLOURS[base]}
-                emissive={BASE_COLOURS[base]}
-                emissiveIntensity={0.75}
-                transparent
-                roughness={0.4}
-              />
-            </mesh>
+            {/* Rungs — one cylinder per hydrogen bond, so an A–T pair is held
+                by two and a C–G pair by three. */}
+            {Array.from({ length: PAIR_BONDS[base] }, (_, k) => (
+              <mesh
+                key={`r${k}`}
+                ref={(el) => {
+                  if (!rungRefs.current[i]) rungRefs.current[i] = [];
+                  rungRefs.current[i][k] = el;
+                }}
+              >
+                <cylinderGeometry args={[0.038, 0.038, 1, 8]} />
+                <meshStandardMaterial
+                  color={BASE_COLOURS[base]}
+                  emissive={BASE_COLOURS[base]}
+                  emissiveIntensity={0.75}
+                  transparent
+                  roughness={0.4}
+                />
+              </mesh>
+            ))}
 
             {/* Sugar–phosphate backbone: the two rails of the ladder. */}
             {i < pairs - 1 && (
@@ -669,6 +692,68 @@ export function DNAScene({ params = {} }) {
 
 // The organelle table now lives in lib/cellBiology.js, which also records
 // which cell type each organelle belongs to.
+
+/**
+ * Cytoplasm leaving a burst animal cell.
+ *
+ * Fragments start on the membrane and drift outward, fading as they go — the
+ * visible consequence of there being no cell wall to resist the pressure.
+ */
+function LysisSpill({ radius, speed = 1.0 }) {
+  const meshes = useRef([]);
+  const bits = useMemo(
+    () =>
+      Array.from({ length: 22 }, (_, i) => ({
+        // An even-ish scatter over the sphere, so the spill is not one-sided.
+        theta: hashRandom(i * 3.1 + 5) * Math.PI * 2,
+        phi: Math.acos(2 * hashRandom(i * 5.7 + 11) - 1),
+        phase: hashRandom(i * 7.3 + 17),
+        size: 0.06 + hashRandom(i * 9.1 + 23) * 0.09,
+      })),
+    [],
+  );
+  const t = useRef(0);
+
+  useFrame((_, delta) => {
+    t.current += Math.min(delta, 1 / 30) * 0.35 * speed;
+    bits.forEach((b, i) => {
+      const mesh = meshes.current[i];
+      if (!mesh) return;
+      const local = (t.current + b.phase) % 1;
+      const r = radius * (0.9 + local * 0.9);
+      const sinPhi = Math.sin(b.phi);
+      mesh.position.set(
+        Math.cos(b.theta) * sinPhi * r,
+        Math.cos(b.phi) * r,
+        Math.sin(b.theta) * sinPhi * r,
+      );
+      // Fade out as they get away from the cell.
+      mesh.scale.setScalar(b.size * Math.max(0, 1 - local));
+    });
+  });
+
+  return (
+    <>
+      {bits.map((_, i) => (
+        <mesh
+          key={i}
+          ref={(el) => {
+            meshes.current[i] = el;
+          }}
+        >
+          <sphereGeometry args={[1, 8, 8]} />
+          <meshStandardMaterial
+            color={PALETTE.rose}
+            emissive={PALETTE.rose}
+            emissiveIntensity={0.9}
+            transparent
+            opacity={0.7}
+          />
+        </mesh>
+      ))}
+    </>
+  );
+}
 
 function WaterFlow({ direction, active, reach = 4.9, speed = 1.0 }) {
   const meshes = useRef([]);
@@ -812,13 +897,44 @@ export function CellExplorerScene({ params = {} }) {
 
   const layout = isPlant ? PLANT_LAYOUT : ANIMAL_LAYOUT;
 
+  /**
+   * The animal cell's membrane changes SHAPE, not just size.
+   *
+   * Its only response to tonicity used to be a uniform scale, so a cell the
+   * readout called "Lysed (burst)" was drawn 20 % larger than normal and
+   * perfectly intact, and a "Crenated (shrivelled)" one was drawn 10 % smaller
+   * and perfectly smooth. Both are states the topic exists to teach.
+   *
+   * Hypotonic: the surface tension smooths the blob towards a sphere as it
+   * swells, and past the lysis threshold the membrane ruptures.
+   * Hypertonic: the noise amplitude climbs sharply, so the surface crenates
+   * into spicules instead of shrinking smoothly.
+   */
+  const shapeAmp = isPlant
+    ? 0.014
+    : tonicity > 0
+      ? 0.055 + Math.min(1, tonicity / CRENATION_AT) * 0.22
+      : 0.055 * (1 - Math.min(1, -tonicity / Math.abs(LYSIS_BELOW)) * 0.75);
+  // Quantised so dragging the slider does not rebuild the mesh every frame.
+  const ampStep = Math.round(shapeAmp * 60) / 60;
+
   const membraneGeometry = useMemo(
     () =>
       isPlant
         ? makeRoundedBoxGeometry({ size: [7.0, 4.7, 4.7], exponent: 6, amp: 0.014, seed: 9 })
-        : makeBlobGeometry({ radius: ANIMAL_RADIUS, amp: 0.055, freq: 1.5, seed: 17, segments: 76, rings: 52 }),
-    [isPlant],
+        : makeBlobGeometry({
+            radius: ANIMAL_RADIUS,
+            amp: ampStep,
+            // Tighter noise as it crenates: spicules, not gentle lobes.
+            freq: ampStep > 0.1 ? 3.4 : 1.5,
+            seed: 17,
+            segments: 76,
+            rings: 52,
+          }),
+    [isPlant, ampStep],
   );
+
+  const lysed = !isPlant && osmosis.state.startsWith("Lysed");
   useEffect(() => () => membraneGeometry.dispose(), [membraneGeometry]);
 
   const bounds = isPlant ? [3.0, 2.0, 2.0] : [2.4, 2.0, 2.0];
@@ -849,11 +965,13 @@ export function CellExplorerScene({ params = {} }) {
           <Pickable id="membrane" onSelect={setSelected}>
             <mesh geometry={membraneGeometry}>
               <MembraneMaterial
-                color={selected === "membrane" ? PALETTE.gold : PALETTE.sky}
+                // A ruptured membrane is no longer holding anything in, so it
+                // stops being the calm blue envelope and reads as damaged.
+                color={selected === "membrane" ? PALETTE.gold : lysed ? PALETTE.rose : PALETTE.sky}
                 // MembraneMaterial already lifts opacity when selected, so the
                 // base drops here — otherwise picking the membrane draws a
                 // gold film over every organelle you were trying to look at.
-                opacity={selected === "membrane" ? 0.09 : 0.13}
+                opacity={selected === "membrane" ? 0.09 : lysed ? 0.2 : 0.13}
                 selected={selected === "membrane"}
               />
             </mesh>
@@ -953,6 +1071,10 @@ export function CellExplorerScene({ params = {} }) {
             normal={[0, 0, 1]}
           />
         </group>
+
+        {/* Cytoplasm escaping through the tear. Without this, "burst" was a
+            word in the readout with nothing on screen behind it. */}
+        {lysed && <LysisSpill radius={ANIMAL_RADIUS} speed={speed} />}
 
         <WaterFlow
           direction={-tonicity}
