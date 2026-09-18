@@ -1560,7 +1560,9 @@ export const TOPICS = [
           { value: "Cl", label: "Cl · 17" },
         ],
       },
-      { type: "slider", key: "speed", label: "Orbit speed", min: 0, max: 3, step: 0.1, format: (v) => (v === 0 ? "paused" : `${v.toFixed(1)}×`) },
+      // No "speed" slider here: the HUD renders a universal Animation Speed
+      // slider bound to the same key, and two sliders on one parameter is one
+      // too many. The universal one reaches 0 ("paused") too.
       { type: "toggle", key: "highlightValence", label: "Highlight valence shell" },
       { type: "toggle", key: "showShells", label: "Show shell paths" },
       { type: "toggle", key: "showLabels", label: "Show shell labels" },
@@ -2549,7 +2551,8 @@ export const TOPICS = [
     controls: [
       { type: "slider", key: "temperature", label: "Temperature", min: 0, max: 80, step: 1, format: (v) => `${v}°C` },
       { type: "slider", key: "ph", label: "pH", min: 1, max: 14, step: 0.5, format: (v) => v.toFixed(1) },
-      { type: "slider", key: "speed", label: "Animation speed", min: 0.2, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)}×` },
+      // No "speed" slider here — the HUD's universal Animation Speed slider
+      // already writes this key. See the note on `bohr`.
     ],
     concepts: [
       "Enzymes are protein catalysts: the substrate fits a specific active site like a key in a lock, so each enzyme catalyses one reaction.",

@@ -17,6 +17,17 @@ import {
   TrendingDown,
   X,
 } from "lucide-react";
+import { ATOM_COLOURS, describeAtom } from "@/lib/atomicStructure";
+import { solveColumn } from "@/lib/distillation";
+import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
+import { CELL_COLOURS, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
+import { DENATURE_TEMP, ENZYME_COLOURS, OPTIMUM_PH, OPTIMUM_TEMP, solveEnzyme } from "@/lib/enzymes";
+import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, PAIR_BONDS, describeHelix } from "@/lib/dna";
+import { WATER_COLOUR, solveOsmosis } from "@/lib/cellBiology";
+import { STRUCTURE_COLOURS, solveFolding } from "@/lib/proteinFolding";
+import { latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
+import { solveVsepr } from "@/lib/vsepr";
+import { solveEnergetics } from "@/lib/energetics";
 import { solveIncline, surfaceFor } from "@/lib/inclineForces";
 import {
   ELASTIC_LIMIT_EXTENSION,
@@ -333,19 +344,31 @@ export function HudButton({
   );
 }
 
+/**
+ * Row tones. A readout row's third element is a key of this map.
+ *
+ * `neutral`, `sky` and `rose` are here because rows already passed them and
+ * `TONES[tone]` was then `undefined` — which does not throw, it just appends
+ * the literal string "undefined" to the className and silently drops the
+ * colour. The `?? TONES.default` below closes the same hole for anything
+ * added later.
+ */
 const TONES = {
   default: "text-ink-100",
+  neutral: "text-ink-100",
   gold: "text-duck-300",
   good: "text-emerald-400",
   warn: "text-amber-400",
   bad: "text-rose-400",
+  sky: "text-sky-400",
+  rose: "text-rose-400",
 };
 
 export function Stat({ label, value, tone = "default", hint }) {
   return (
     <div className="min-w-0">
       <p className="text-[10px] uppercase tracking-wider text-ink-500">{label}</p>
-      <p className={`truncate text-sm font-medium tabular-nums ${TONES[tone]}`}>{value}</p>
+      <p className={`truncate text-sm font-medium tabular-nums ${TONES[tone] ?? TONES.default}`}>{value}</p>
       {hint && <p className="text-[10px] leading-tight text-ink-500">{hint}</p>}
     </div>
   );
@@ -1946,128 +1969,126 @@ function renderTopicDetailsReadout(topic, params) {
     // ═════════════════════════════════════════════════════════════════════
 
     case "bohr": {
-      const elemKey = params.element || "Na";
-      const data = {
-        H: { name: "Hydrogen", z: 1, n: 0, shells: [1], group: "1" },
-        C: { name: "Carbon", z: 6, n: 6, shells: [2, 4], group: "4" },
-        Na: { name: "Sodium", z: 11, n: 12, shells: [2, 8, 1], group: "1" },
-        Cl: { name: "Chlorine", z: 17, n: 18, shells: [2, 8, 7], group: "7" },
-      }[elemKey] || { name: "Sodium", z: 11, n: 12, shells: [2, 8, 1], group: "1" };
-
-      const valence = data.shells[data.shells.length - 1];
+      const a = describeAtom(params.element || "Na");
 
       readout = {
-        title: `${data.name} Atom (${elemKey})`,
-        subtitle: `Shell configuration: ${data.shells.join(",")}`,
+        title: `${a.name} atom (${a.symbol})`,
+        subtitle: `Shell configuration: ${a.configuration}`,
         rows: [
-          ["Protons (Z)", data.z, "gold"],
-          ["Neutrons", data.n],
-          ["Mass Number (A)", data.z + data.n],
-          ["Electrons", data.z],
-          ["Configuration", data.shells.join(", "), "gold"],
-          ["Valence Electrons", valence, "good"],
-          ["Group / Period", `${data.group} / ${data.shells.length}`],
+          ["Protons (Z)", a.protons, "gold"],
+          ["Neutrons", a.neutrons],
+          ["Mass number (A)", a.massNumber],
+          ["Electrons", a.electrons],
+          ["Configuration", a.shells.join(", "), "gold"],
+          ["Valence electrons", `${a.valence} of ${a.capacity} in the ${a.shellName} shell`, a.full ? "good" : "warn"],
+          ["Group / Period", `${a.group} / ${a.period}`],
         ],
-        note: `Atoms react to achieve a full outer shell. ${
-          elemKey === "Na"
-            ? "Sodium loses 1 electron to form Na⁺ (2,8)."
-            : elemKey === "Cl"
-            ? "Chlorine gains 1 electron to form Cl⁻ (2,8,8)."
-            : "Carbon shares 4 valence electrons via covalent bonds."
-        }`,
+        // One branch per element, from the shared table — the old ternary had
+        // branches for Na and Cl only and printed the carbon note for hydrogen.
+        note: `Atoms react to achieve a full outer shell. ${a.reaction}`,
         noteTone: "good",
       };
 
       legend = {
-        title: "Subatomic Particle Key",
+        title: "Subatomic particle key",
         items: [
-          { color: "#ef4444", shape: "dot", label: "Proton (+1 charge)", note: `${data.z} positive nuclear protons` },
-          { color: "#94a3b8", shape: "dot", label: "Neutron (0 charge)", note: `${data.n} neutral nuclear neutrons` },
-          { color: "#38bdf8", shape: "dot", label: "Core Electron", note: "Filled, stable inner electron shells" },
-          { color: "#fbbf24", shape: "dot", label: "Valence Electron", note: "Outer shell chemically reactive electron" },
-          { color: "#a78bfa", shape: "line", label: "Photon Wave Packet", note: "Quantized light emission during shell drop" },
+          { color: ATOM_COLOURS.proton, shape: "dot", label: "Proton (+1)", note: `${a.protons} in the nucleus` },
+          { color: ATOM_COLOURS.neutron, shape: "dot", label: "Neutron (0)", note: `${a.neutrons} in the nucleus` },
+          { color: ATOM_COLOURS.electron, shape: "dot", label: "Inner-shell electron", note: "a filled, unreactive shell" },
+          {
+            // Valence electrons are only drawn gold while the toggle is on.
+            color: params.highlightValence ? ATOM_COLOURS.valence : ATOM_COLOURS.electron,
+            shape: "dot",
+            label: "Valence electron",
+            note: params.highlightValence
+              ? "the outer shell — where all the chemistry happens"
+              : "turn on “Highlight valence shell” to pick these out",
+          },
         ],
       };
       break;
     }
 
     case "organic": {
-      const family = params.family || "alkane";
-      const n = num(params.carbons, 3);
-      const saturated = family === "alkane";
-
-      let formula = `C${n}H${2 * n + 2}`;
-      if (family === "alkene") formula = `C${n}H${2 * n}`;
-      else if (family === "alkyne") formula = `C${n}H${2 * n - 2}`;
-      else if (family === "alcohol") formula = `C${n}H${2 * n + 1}OH`;
+      // One description, shared with the scene. The panel used to fall through
+      // to the alkane formula for acids and esters (propanoic acid printed as
+      // "C3H8") and to decide saturation with `family === "alkane"`, which
+      // reported ethanol as unsaturated and as decolourising bromine water.
+      const m = describeMolecule(params.family || "alkane", num(params.carbons, 3));
 
       readout = {
-        title: `${family.toUpperCase()} Series`,
-        subtitle: `Molecule formula: ${formula}`,
+        title: `${m.label} series`,
+        subtitle: m.valid ? `${m.name} · ${m.formula}` : `needs ${m.minCarbons}+ carbons`,
         rows: [
-          ["Formula", formula, "gold"],
-          ["Carbon chain length", `C${n}`],
-          ["Saturated", saturated ? "Yes (single bonds)" : "No (unsaturated)", saturated ? "good" : "warn"],
-          ["Bromine test", saturated ? "Orange (No reaction)" : "Decolourised (Clear)", saturated ? undefined : "good"],
+          ["Formula", m.formula, "gold"],
+          ["Name", m.valid ? m.name : "—", m.valid ? undefined : "bad"],
+          ["General formula", m.general],
+          ["Carbon chain length", `C${m.carbons}`],
+          ["Saturated", m.saturated ? "yes — only single C–C bonds" : `no — it has a ${m.unsaturation}`, m.saturated ? "good" : "warn"],
+          ["Bromine water", m.decolourisesBromine ? "decolourised — orange to clear" : "stays orange — no reaction", m.decolourisesBromine ? "good" : undefined],
+          ...(m.functionalGroup ? [["Functional group", m.functionalGroup]] : []),
+          ...(m.crackable ? [["Cracking", "long enough to break in two", "gold"]] : []),
         ],
-        note: saturated
-          ? "Alkanes are saturated hydrocarbons with single C–C bonds."
-          : "Unsaturated hydrocarbons contain double/triple bonds that rapidly decolourise bromine water.",
-        noteTone: "neutral",
+        note: m.valid
+          ? m.note
+          : `${m.label}s need at least ${m.minCarbons} carbons — there is no such thing as a one-carbon ${m.label.toLowerCase()}. Increase the chain length.`,
+        noteTone: m.valid ? "neutral" : "bad",
       };
 
       legend = {
-        title: "Ball and Stick Key",
+        title: "Ball and stick key",
         items: [
-          { color: "#475569", shape: "dot", label: "Carbon Atom (C)", note: "Forms 4 covalent bonds" },
-          { color: "#f8fafc", shape: "dot", label: "Hydrogen Atom (H)", note: "Forms 1 covalent bond" },
-          { color: "#ef4444", shape: "dot", label: "Oxygen Atom (O)", note: "Forms 2 covalent bonds in functional groups" },
-          { color: "#fbbf24", shape: "line", label: "Single Covalent Bond", note: "Shared electron pair (sigma bond)" },
-          { color: "#94a3b8", shape: "line", label: "Double / Triple Bond", note: "Unsaturated pi bond system" },
+          { color: ORGANIC_COLOURS.carbon, shape: "dot", label: "Carbon atom (C)", note: "always forms four bonds" },
+          { color: ORGANIC_COLOURS.hydrogen, shape: "dot", label: "Hydrogen atom (H)", note: "always forms one" },
+          { color: ORGANIC_COLOURS.oxygen, shape: "dot", label: "Oxygen atom (O)", note: "two bonds — in –OH, C=O and –COO–" },
+          // Colours the scene actually draws with: single bonds are the dark
+          // grey, and it is the DOUBLE bond that is gold. The old key had these
+          // the other way round.
+          { color: ORGANIC_COLOURS.single, shape: "line", label: "Single C–C bond", note: "one shared pair — saturated" },
+          ...(m.unsaturation === "C=C"
+            ? [{ color: ORGANIC_COLOURS.double, shape: "line", label: "C=C double bond", note: "two shared pairs — the reactive site" }]
+            : m.unsaturation === "C≡C"
+              ? [{ color: ORGANIC_COLOURS.triple, shape: "line", label: "C≡C triple bond", note: "three shared pairs — very reactive, sp linear" }]
+              : []),
         ],
       };
       break;
     }
 
     case "distillation": {
-      const heat = num(params.heat, 0.7);
-      const furnace = Math.round(250 + heat * 200);
-
-      const fractions = [
-        { name: "Refinery gases", chain: "C1–C4", top: 20, use: "bottled gas fuel", colour: "#ef4444" },
-        { name: "Petrol / Gasoline", chain: "C5–C9", top: 70, use: "fuel for cars", colour: "#fbbf24" },
-        { name: "Naphtha", chain: "C8–C12", top: 120, use: "chemical feedstock", colour: "#a78bfa" },
-        { name: "Kerosene", chain: "C10–C16", top: 170, use: "jet fuel & heating", colour: "#38bdf8" },
-        { name: "Diesel oil", chain: "C14–C20", top: 270, use: "diesel engines", colour: "#34d399" },
-        { name: "Bitumen", chain: "C50+", top: 350, use: "roads & roofing", colour: "#64748b" },
-      ];
-
-      const rising = Math.min(fractions.length, Math.max(1, Math.floor(heat * 7)));
+      const col = solveColumn(num(params.heat, 0.7));
 
       readout = {
-        title: "Fractionating Column",
-        subtitle: "Physical separation of crude oil by boiling point",
+        title: "Fractionating column",
+        subtitle: "A physical separation, not a reaction",
         rows: [
-          ["Furnace Heat", `${furnace}°C`, "gold"],
-          ["Column Top Temp", "~25°C"],
-          ["Separated By", "Boiling Point"],
-          ["Fractions Vaporised", `${rising} of ${fractions.length}`, rising > 3 ? "good" : "warn"],
-          ["Highest Riser", fractions[0].name],
-          ["Base Residue", "Bitumen"],
+          ["Furnace", `${col.furnaceC} °C`, "gold"],
+          ["Top of the column", `~${col.topC} °C`],
+          ["Separated by", "boiling point"],
+          ["Fractions vaporised", `${col.rising} of ${col.total}`, col.rising > 3 ? "good" : "warn"],
+          ["Highest riser", col.highest ? col.highest.name : "nothing — the furnace is cold", col.highest ? undefined : "bad"],
+          ["Left at the base", col.residue ? `${col.residue.name} — it never boils` : "—"],
         ],
-        note: rising <= 2
-          ? "Furnace is too cool for most crude oil to vaporise. Turn up the heat."
-          : "Short chains have weaker intermolecular forces, boiling at lower temperatures to climb highest.",
-        noteTone: rising <= 2 ? "warn" : "good",
+        note: col.tooCool
+          ? `At ${col.furnaceC} °C the furnace is too cool for most of the crude oil to vaporise, so the heavier fractions never leave the base. Turn the heat up.`
+          : "Short chains have weaker forces between their molecules, so they boil at low temperatures and climb highest before condensing. Long chains condense low down; bitumen never boils at all, whatever the furnace does.",
+        noteTone: col.tooCool ? "warn" : "good",
       };
 
       legend = {
-        title: "Fractions Key (Top to Bottom)",
-        items: fractions.map((f) => ({
+        title: "Fractions, top to bottom",
+        // One table, shared with the scene. The panel used to carry its own
+        // with different boiling points, different chain ranges and colours
+        // that matched nothing in the viewport.
+        items: col.fractions.map((f) => ({
           color: f.colour,
           shape: "square",
           label: `${f.name} (${f.chain})`,
-          note: `≤${f.top}°C · ${f.use}`,
+          note: f.residue
+            ? `never vaporises — drained off at the base · ${f.use}`
+            : f.rises
+              ? `≤${f.top} °C · ${f.use}`
+              : `needs more heat than ${col.furnaceC} °C`,
         })),
       };
       break;
@@ -2075,234 +2096,177 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "lattice": {
       const structure = params.structure || "nacl";
-
-      const data = {
-        nacl: {
-          title: "Sodium Chloride (NaCl)",
-          type: "Giant Ionic Lattice",
-          rows: [
-            ["Structure", "Face-Centered Cubic", "gold"],
-            ["Bonding", "Giant Ionic Attraction", "good"],
-            ["Melting Point", "801°C (High)", "good"],
-            ["Solid Conducts", "No (Ions locked)"],
-            ["Liquid Conducts", "Yes (Ions free)", "good"],
-          ],
-          note: "Alternating Na⁺ and Cl⁻ ions held by strong electrostatic attraction in 3D.",
-          keys: [
-            { color: "#fbbf24", shape: "dot", label: "Na⁺ Cation", note: "Positive sodium ion" },
-            { color: "#34d399", shape: "dot", label: "Cl⁻ Anion", note: "Negative chloride ion" },
-            { color: "#38bdf8", shape: "line", label: "Ionic Attraction", note: "Electrostatic matrix bond" },
-          ],
-        },
-        diamond: {
-          title: "Diamond Allotrope",
-          type: "Giant Covalent Network",
-          rows: [
-            ["Structure", "Tetrahedral Carbon", "gold"],
-            ["Bonding", "4 Single Covalent Bonds"],
-            ["Hardness", "Extremely Hard (10 Mohs)", "good"],
-            ["Conductivity", "Non-conductor (No free e⁻)"],
-          ],
-          note: "Every carbon forms 4 strong covalent bonds tetrahedrally, producing extreme hardness.",
-          keys: [
-            { color: "#94a3b8", shape: "dot", label: "Carbon Atom", note: "sp³ hybridized carbon" },
-            { color: "#38bdf8", shape: "line", label: "Covalent Bond", note: "Strong directional covalent link" },
-          ],
-        },
-        graphite: {
-          title: "Graphite Allotrope",
-          type: "Hexagonal Covalent Layers",
-          rows: [
-            ["Structure", "Hexagonal Sheets", "gold"],
-            ["Bonding", "3 Covalent Bonds / Carbon"],
-            ["Delocalised e⁻", "1 per Carbon", "good"],
-            ["Conductivity", "Conducts along layers", "good"],
-            ["Properties", "Soft & Slippery (Lubricant)"],
-          ],
-          note: "Delocalised electrons move freely through hexagonal layers to conduct electricity.",
-          keys: [
-            { color: "#94a3b8", shape: "dot", label: "Carbon Atom", note: "sp² hybridized carbon" },
-            { color: "#fbbf24", shape: "dot", label: "Delocalised Electron", note: "Free electrical charge carrier" },
-            { color: "#64748b", shape: "dash", label: "Interlayer Force", note: "Weak van der Waals attraction" },
-          ],
-        },
-        quartz: {
-          title: "Quartz (SiO₂)",
-          type: "Giant Covalent Network",
-          rows: [
-            ["Structure", "Tetrahedral Silica", "gold"],
-            ["Ratio", "1 Silicon : 2 Oxygen"],
-            ["Melting Point", "1713°C (High)", "good"],
-          ],
-          note: "Each silicon bonds to 4 oxygen atoms; each oxygen bonds to 2 silicons.",
-          keys: [
-            { color: "#fbbf24", shape: "dot", label: "Silicon Atom (Si)", note: "Central tetravalent silicon" },
-            { color: "#ef4444", shape: "dot", label: "Oxygen Atom (O)", note: "Bridging divalent oxygen" },
-            { color: "#38bdf8", shape: "line", label: "Si–O Bond", note: "Strong covalent silicate link" },
-          ],
-        },
-        ice: {
-          title: "Ice (H₂O)",
-          type: "Hydrogen-Bonded Molecular Crystal",
-          rows: [
-            ["Structure", "Open Hexagonal Cage", "gold"],
-            ["Bonding", "Covalent H–O & Hydrogen Bonds"],
-            ["Density", "Lower than liquid water", "warn"],
-          ],
-          note: "Hydrogen bonds hold H₂O molecules in an open tetrahedral lattice, making ice float.",
-          keys: [
-            { color: "#ef4444", shape: "dot", label: "Oxygen Atom", note: "Electronegative central atom" },
-            { color: "#f8fafc", shape: "dot", label: "Hydrogen Atom", note: "Electropositive bonded atom" },
-            { color: "#38bdf8", shape: "dash", label: "Hydrogen Bond", note: "Intermolecular dipole attraction" },
-          ],
-        },
-      }[structure] || {};
+      const facts = latticeFactsFor(structure);
 
       readout = {
-        title: data.title || "Crystal Lattice",
-        subtitle: data.type || "",
-        rows: data.rows || [],
-        note: data.note || "",
+        title: facts.title,
+        subtitle: facts.type,
+        rows: facts.rows,
+        note: facts.note,
         noteTone: "good",
       };
 
       legend = {
-        title: "Lattice Component Key",
-        items: data.keys || [],
+        title: "Lattice component key",
+        // Shared with the scene. The graphite key used to name a gold
+        // "Delocalised Electron" and a dashed "Interlayer Force"; the scene
+        // draws neither, and the gold is actually the middle layer's carbons.
+        items: latticeKeyFor(structure),
       };
       break;
     }
 
     case "electrolysis": {
+      // The scene pushes its run clock into params; the numbers below are
+      // Faraday's laws applied to it. The panel used to print
+      // `Math.round(current * 14)` labelled "Cu atoms" — not atoms, not
+      // tracking the cell, and constant for the whole run.
       const run = Boolean(params.run);
-      const current = num(params.current, 1.0);
-      const deposit = Math.round(current * 14);
+      const cell = solveElectrolysis({
+        current: num(params.current, 1.0),
+        seconds: num(params.liveSeconds, 0),
+        running: run,
+      });
 
       readout = {
-        title: "Electrolysis of Aqueous CuSO₄",
-        subtitle: "Copper electrodes · OIL RIG oxidation & reduction",
+        title: "Electrolysis of aqueous CuSO₄",
+        subtitle: "Copper electrodes · OIL RIG",
         rows: [
-          ["Supply Current", run ? `${current.toFixed(1)} A` : "OFF", run ? "gold" : "bad"],
-          ["Cathode Deposit", run ? `${deposit} Cu atoms` : "0", run ? "good" : undefined],
-          ["Cathode (−) Reaction", "Cu²⁺ + 2e⁻ → Cu (Reduction)", "good"],
-          ["Anode (+) Reaction", "Cu → Cu²⁺ + 2e⁻ (Oxidation)", "warn"],
-          ["Charge Carriers", "Ions in solution, electrons in wire"],
+          ["Supply", run ? `${cell.current.toFixed(1)} A` : "off", run ? "gold" : "bad"],
+          ["Run time", formatRunTime(cell.seconds)],
+          ["Charge passed", `${cell.chargeC.toFixed(0)} C · Q = It`, "gold"],
+          ["Electrons", `${(cell.electronsMol * 1000).toFixed(2)} mmol · Q ÷ F`],
+          ["Copper deposited", `${cell.depositMg.toFixed(1)} mg at the cathode`, cell.depositMg > 0 ? "good" : undefined],
+          ["Copper dissolved", `${cell.depositMg.toFixed(1)} mg from the anode`, cell.depositMg > 0 ? "bad" : undefined],
+          ["Cathode (−)", `reduction · ${cell.cathode}`, "good"],
+          ["Anode (+)", `oxidation · ${cell.anode}`, "bad"],
+          ["Electrolyte concentration", "unchanged — as much Cu²⁺ made as used"],
+          ["Gas given off", "none — both electrodes are copper", "good"],
+          ["Charge carried by", "ions in the solution, electrons in the wire"],
         ],
         note: run
-          ? "Copper dissolves from anode (oxidation) and plates onto cathode (reduction) — purifying copper."
-          : "Supply is off: electrolysis requires electric potential and mobile ions.",
+          ? `Copper leaves the anode, crosses the solution as Cu²⁺ and plates onto the cathode, so the anode thins by exactly what the cathode gains — ${cell.depositMg.toFixed(1)} mg so far. Because the two happen at the same rate the solution never changes colour, and because both electrodes are copper neither gives off a gas. That is electroplating, and it is how copper is purified.`
+          : "The supply is off, so nothing migrates. Electrolysis needs both a potential difference and ions that are free to move — molten or in solution.",
         noteTone: run ? "good" : "bad",
       };
 
       legend = {
-        title: "Electrochemistry Key",
+        title: "Electrochemistry key",
         items: [
-          { color: "#38bdf8", shape: "dot", label: "Cu²⁺ Cation", note: "Positive ion → migrates to negative cathode" },
-          { color: "#fbbf24", shape: "dot", label: "SO₄²⁻ Anion", note: "Negative ion → migrates to positive anode" },
-          { color: "#34d399", shape: "square", label: "Cathode (−) Electrode", note: "Site of copper reduction & metal plating" },
-          { color: "#ef4444", shape: "square", label: "Anode (+) Electrode", note: "Site of copper oxidation & dissolution" },
-          { color: "#fbbf24", shape: "line", label: "External Circuit Current", note: "Electron transport through wires" },
+          { color: CELL_COLOURS.cation, shape: "dot", label: "Cu²⁺ cation (hydrated)", note: "positive → travels to the negative cathode" },
+          { color: CELL_COLOURS.sulfur, shape: "dot", label: "SO₄²⁻ anion (tetrahedral)", note: "negative → travels to the positive anode, but never discharges" },
+          { color: CELL_COLOURS.electron, shape: "dot", label: "Electron", note: "only ever in the wire — never through the solution" },
+          // Both electrodes are copper, and both are drawn as copper. The key
+          // used to show a green cathode and a red anode.
+          { color: CELL_COLOURS.cathode, shape: "square", label: "Cathode (−)", note: "copper — thickens as it plates" },
+          { color: CELL_COLOURS.anode, shape: "square", label: "Anode (+)", note: "copper — thins as it dissolves" },
         ],
       };
       break;
     }
 
     case "vsepr": {
-      const bonding = num(params.bonding, 4);
-      const lone = num(params.lone, 0);
-      const steric = bonding + lone;
-
-      const electronGeom = {
-        2: "Linear",
-        3: "Trigonal Planar",
-        4: "Tetrahedral",
-        5: "Trigonal Bipyramidal",
-        6: "Octahedral",
-      }[steric] || "Tetrahedral";
-
-      const molecularShape = {
-        "2-0": "Linear (180°)",
-        "3-0": "Trigonal Planar (120°)",
-        "2-1": "Bent (~118°)",
-        "4-0": "Tetrahedral (109.5°)",
-        "3-1": "Trigonal Pyramidal (~107°)",
-        "2-2": "Bent (~104.5°)",
-        "5-0": "Trigonal Bipyramidal (90°/120°)",
-        "6-0": "Octahedral (90°)",
-      }[`${bonding}-${lone}`] || `${electronGeom} (${bonding} bonds, ${lone} lone)`;
+      // One solver, shared with the scene. The panel used to look the shape up
+      // in a table that stopped at 6-0 and report a flat `lone × 2.5°` squeeze,
+      // so AX₄E₂ read "Octahedral · 5.0° squeeze" against a scene correctly
+      // drawing a square planar molecule at 90°.
+      const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0));
 
       readout = {
-        title: "VSEPR Molecular Geometry",
-        subtitle: `Steric Number = ${steric} (${bonding} bonding, ${lone} lone)`,
+        title: "VSEPR molecular geometry",
+        subtitle: `${v.notation} · steric number ${v.steric}`,
         rows: [
-          ["Bonding Pairs", bonding, "gold"],
-          ["Lone Pairs", lone, lone > 0 ? "warn" : "good"],
-          ["Steric Number SN", steric],
-          ["Electron Geometry", electronGeom],
-          ["Molecular Shape", molecularShape, "good"],
-          ["Angle Compression", lone > 0 ? `${(lone * 2.5).toFixed(1)}° squeeze` : "Ideal angle", lone > 0 ? "warn" : "good"],
+          ["Bonding pairs (X)", v.bonding, "gold"],
+          ["Lone pairs (E)", v.lone, v.lone > 0 ? "warn" : "good"],
+          ["Steric number", v.steric],
+          ["Electron geometry", v.electronGeometry],
+          ["Molecular shape", v.shape, "gold"],
+          ["Example", v.example],
+          ["Ideal angle", v.hasAngle ? v.idealLabel : "— (diatomic)"],
+          ["Actual angle", v.hasAngle ? `${v.angle.toFixed(1)}°` : "—", v.lone > 0 ? "warn" : "good"],
+          [
+            "Angle compression",
+            !v.hasAngle
+              ? "—"
+              : v.compression < 0.05
+                ? v.lone > 0
+                  ? "none — the lone pairs cancel"
+                  : "none — ideal angles"
+                : `${v.compression.toFixed(1)}° closed by ${v.lone} lone pair${v.lone === 1 ? "" : "s"}`,
+            v.compression >= 0.05 ? "warn" : "good",
+          ],
+          ["Polarity", v.polar ? "polar" : "non-polar", v.polar ? "warn" : "good"],
         ],
-        note: lone > 0
-          ? "Lone pairs are held closer to the central nucleus and exert stronger electrostatic repulsion than bonding pairs, squeezing bond angles below ideal values."
-          : "With zero lone pairs, bonding pairs repel equally into maximum symmetry, yielding exact ideal geometric angles.",
-        noteTone: lone > 0 ? "warn" : "good",
+        note: !v.hasAngle
+          ? "With a single bond there is no angle to compress — any diatomic is linear whatever its lone pairs do. Add a second bonding pair to see VSEPR bite."
+          : v.lone === 0
+            ? "With no lone pairs the electron geometry and the molecular shape are the same thing, and the bond angles sit at their ideal values."
+            : v.cancels
+              ? `The ${v.lone} lone pairs sit opposite each other, so their repulsions cancel and the bond angles stay at the ideal ${v.ideal}°. This is why XeF₄ is a flat square rather than a squashed one.`
+              : `Lone pairs repel more strongly than bonding pairs, so the ${v.bonding} bonds are squeezed from ${v.ideal}° down to about ${v.angle.toFixed(1)}°. You only name the shape from where the atoms are — the lone pairs are invisible in the name.`,
+        noteTone: !v.hasAngle ? "neutral" : v.lone > 0 ? "warn" : "good",
       };
 
       legend = {
-        title: "Electron Domains Key",
+        title: "Electron domains key",
         items: [
-          { color: "#fbbf24", shape: "dot", label: "Central Atom", note: "Core atom providing valence shell" },
-          { color: "#38bdf8", shape: "dot", label: "Bonded Ligand Atom", note: "Peripheral atom in covalent bond" },
-          { color: "#a78bfa", shape: "dot", label: "Non-Bonding Lone Pair", note: "Repels harder, closing bond angles" },
-          { color: "#64748b", shape: "line", label: "Covalent Bond Rod", note: "Shared bonding pair domain" },
-          { color: "#34d399", shape: "line", label: "Bond Angle Arc", note: "Measured inter-bond angle" },
+          { color: "#fbbf24", shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
+          { color: "#38bdf8", shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
+          { color: "#a78bfa", shape: "dot", label: "Lone pair", note: "repels harder — closes the angles" },
+          { color: "#64748b", shape: "line", label: "Bond", note: "a shared pair of electrons" },
         ],
       };
       break;
     }
 
     case "energetics": {
-      const activation = num(params.activation, 90);
-      const deltaH = num(params.deltaH, -60);
-      const catalyst = Boolean(params.catalyst);
-      const catalystDrop = num(params.catalystDrop, 35);
-      const temperature = num(params.temperature, 350);
-
-      const exothermic = deltaH < 0;
-      const floorEa = Math.max(deltaH + 5, 5);
-      const uncatalysed = Math.max(activation, floorEa);
-      const effectiveEa = Math.max(catalyst ? uncatalysed - catalystDrop : uncatalysed, floorEa);
-      const reverseEa = effectiveEa - deltaH;
-
-      const fraction = Math.exp((-effectiveEa * 1000) / (8.314 * temperature));
+      // Shared solver. The panel was missing the rate constant and the
+      // catalyst speed-up — the two numbers that turn a Boltzmann fraction
+      // into an answer to "does this reaction actually go?" — and it never
+      // mentioned that ΔH can force Ea above the value the slider asked for.
+      const e = solveEnergetics({
+        activation: num(params.activation, 90),
+        deltaH: num(params.deltaH, -60),
+        catalyst: Boolean(params.catalyst),
+        catalystDrop: num(params.catalystDrop, 35),
+        temperature: num(params.temperature, 350),
+      });
+      const signed = (v) => `${v > 0 ? "+" : ""}${v.toFixed(0)}`;
 
       readout = {
-        title: "Reaction Energetics & Catalysis",
-        subtitle: exothermic ? "Exothermic (ΔH < 0, energy released)" : "Endothermic (ΔH > 0, energy absorbed)",
+        title: "Reaction energetics & catalysis",
+        subtitle: e.exothermic ? "Exothermic · ΔH < 0, energy released" : "Endothermic · ΔH > 0, energy absorbed",
         rows: [
-          ["Forward Activation Ea", `${effectiveEa.toFixed(0)} kJ/mol`, catalyst ? "good" : "gold"],
-          ["Uncatalysed Barrier", `${uncatalysed.toFixed(0)} kJ/mol`],
-          ["Reverse Activation", `${reverseEa.toFixed(0)} kJ/mol`],
-          ["Enthalpy Change ΔH", `${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)} kJ/mol`, exothermic ? "good" : "warn"],
-          ["Temperature", `${temperature} K (${temperature - 273}°C)`],
-          ["Collision Fraction ≥ Ea", fraction.toExponential(1), fraction > 1e-12 ? "good" : "bad"],
-          ["Catalyst Effect", catalyst ? `Lowers barrier by ${catalystDrop} kJ/mol` : "None", catalyst ? "good" : undefined],
+          ["Forward activation Ea", `${e.effectiveEa.toFixed(0)} kJ/mol`, e.catalyst ? "good" : "gold"],
+          ["…uncatalysed", `${e.uncatalysed.toFixed(0)} kJ/mol`],
+          ["Reverse activation", `${e.reverseEa.toFixed(0)} kJ/mol`],
+          ["Enthalpy change ΔH", `${signed(e.deltaH)} kJ/mol`, e.exothermic ? "good" : "warn"],
+          ["Temperature", `${e.temperature.toFixed(0)} K (${(e.temperature - 273).toFixed(0)} °C)`],
+          ["Collision fraction ≥ Ea", e.fraction.toExponential(1)],
+          ["Rate constant k", `${e.rateConstant.toExponential(1)} s⁻¹`, e.proceeds ? "good" : "bad"],
+          ["Does it go?", e.proceeds ? "yes — at a measurable rate" : "no — far too slow to see", e.proceeds ? "good" : "bad"],
+          ["Catalyst", e.catalyst ? `lowers the barrier by ${e.lowering.toFixed(0)} kJ/mol` : "none", e.catalyst ? "good" : undefined],
+          ["Rate ×", e.catalyst ? e.speedUp.toExponential(1) : "1", e.catalyst ? "good" : undefined],
         ],
-        note: catalyst
-          ? "The catalyst provides an alternative pathway with a lower activation energy (Ea), increasing successful collision frequency without changing overall ΔH."
-          : exothermic
-          ? "Exothermic: energy released during new bond formation exceeds energy absorbed in bond breaking (ΔH is negative)."
-          : "Endothermic: energy required to break bonds exceeds energy released on forming products (ΔH is positive).",
-        noteTone: catalyst || exothermic ? "good" : "neutral",
+        note: e.clampedByDeltaH
+          ? `An endothermic reaction cannot have a forward barrier below ΔH — the products would sit above the transition state. Ea is held at ${e.effectiveEa.toFixed(0)} kJ/mol, just clear of ΔH, rather than the ${e.activation.toFixed(0)} the slider asks for.`
+          : e.catalyst
+            ? `The catalyst offers a different route with a lower barrier, so ${e.speedUp.toExponential(1)}× as many collisions succeed at this temperature. Note ΔH has not moved — a catalyst changes the rate, never the energy released.`
+            : !e.proceeds
+              ? `At ${e.temperature.toFixed(0)} K almost no collision carries ${e.effectiveEa.toFixed(0)} kJ/mol, so k is only ${e.rateConstant.toExponential(1)} s⁻¹ and nothing gets over the barrier. Raise the temperature or add a catalyst.`
+              : e.exothermic
+                ? "The products sit below the reactants, so bond making released more energy than bond breaking absorbed. ΔH is negative and the surroundings warm up."
+                : "The products sit above the reactants: breaking bonds cost more than making them returned. ΔH is positive and the surroundings cool.",
+        noteTone: e.clampedByDeltaH ? "warn" : !e.proceeds ? "bad" : e.catalyst || e.exothermic ? "good" : "warn",
       };
 
       legend = {
-        title: "Energy Profile Key",
+        title: "Energy profile key",
         items: [
-          { color: catalyst ? "#34d399" : "#fbbf24", shape: "line", label: "Reaction Energy Curve", note: "Potential energy along reaction coordinate" },
-          ...(catalyst ? [{ color: "#64748b", shape: "dash", label: "Uncatalysed Barrier", note: "Original higher activation energy curve" }] : []),
-          { color: "#fb7185", shape: "line", label: "Activation Energy (Ea)", note: "Reactants → Transition state summit" },
-          { color: exothermic ? "#34d399" : "#a78bfa", shape: "line", label: "Enthalpy Change (ΔH)", note: "Net energy difference (Products − Reactants)" },
+          { color: e.catalyst ? "#34d399" : "#fbbf24", shape: "line", label: "Reaction path", note: "potential energy along the reaction coordinate" },
+          ...(e.catalyst ? [{ color: "#64748b", shape: "dash", label: "Uncatalysed", note: "the barrier without the catalyst" }] : []),
+          { color: "#fb7185", shape: "line", label: "Ea", note: "reactants → transition state" },
+          { color: e.exothermic ? "#34d399" : "#a78bfa", shape: "line", label: "ΔH", note: "reactants → products" },
         ],
       };
       break;
@@ -2757,199 +2721,208 @@ function renderTopicDetailsReadout(topic, params) {
     // ═════════════════════════════════════════════════════════════════════
 
     case "enzyme": {
-      const temp = num(params.temperature, 37);
-      const ph = num(params.ph, 7.0);
-
-      const denatured = temp > 55 || ph < 3 || ph > 11;
-      let rate = 0;
-      if (!denatured) {
-        rate = Math.round(Math.max(0, 1 - Math.abs(temp - 37) / 25) * Math.max(0, 1 - Math.abs(ph - 7) / 4) * 100);
-      }
+      // Shared solver. The panel used to run a different rate model from the
+      // scene (linear triangles against Gaussians) and denature at 55 °C where
+      // the scene denatures at 50, so at 52 °C it reported 40 % and
+      // "Complementary Lock" over a visibly wrecked active site.
+      const e = solveEnzyme({ temperature: num(params.temperature, 37), ph: num(params.ph, 7.0) });
 
       readout = {
-        title: "Enzyme Kinetics & Catalysis",
-        subtitle: "Lock and key substrate binding",
+        title: "Enzyme kinetics & catalysis",
+        subtitle: "Lock and key · one enzyme, one substrate",
         rows: [
-          ["Catalytic Rate", `${rate}%`, rate > 60 ? "good" : denatured ? "bad" : "warn"],
-          ["Temperature", `${temp}°C`, temp > 50 ? "bad" : undefined],
-          ["pH Level", ph.toFixed(1), Math.abs(ph - 7) > 3 ? "bad" : undefined],
-          ["Optimum Conditions", "37°C, pH 7.0"],
-          ["Active Site State", denatured ? "Denatured (Distorted)" : "Complementary Lock", denatured ? "bad" : "good"],
+          ["Catalytic rate", `${e.ratePercent}%`, e.rate > 0.6 ? "good" : e.rate < 0.2 ? "bad" : "gold"],
+          ["Temperature", `${e.temperature.toFixed(0)} °C`, e.denatured ? "bad" : undefined],
+          ["pH", e.ph.toFixed(1), e.extremePh ? "bad" : undefined],
+          ["Optimum", `${OPTIMUM_TEMP} °C, pH ${OPTIMUM_PH}`],
+          ["Denatures above", `${DENATURE_TEMP} °C`, e.denatured ? "bad" : "good"],
+          ["Active site", e.activeSite, e.denatured || e.extremePh ? "bad" : "good"],
+          ["Reversible?", e.reversible ? "yes — just slower; warming it up recovers the rate" : "no — the shape is permanently changed", e.reversible ? "good" : "bad"],
         ],
-        note: denatured
-          ? "Excessive temperature (>50°C) or extreme pH breaks hydrogen and ionic bonds holding tertiary protein structure, permanently destroying active site shape."
-          : "Near optimum conditions (37°C, pH 7), substrate molecules collide frequently and fit precisely into the complementary catalytic active site.",
-        noteTone: denatured ? "bad" : "good",
+        note: e.denatured
+          ? `Above ${DENATURE_TEMP} °C the active site has permanently changed shape — the substrate no longer fits, and cooling will not bring the rate back. Look at the cliff on the curve.`
+          : e.extremePh
+            ? "Extreme pH distorts the active site too, so the substrate binds poorly. Move pH back towards 7 and the whole curve lifts."
+            : e.tooCold
+              ? "Cold: the particles collide less often and with less energy, so the rate is low — but the enzyme is unharmed and warming it up recovers the rate."
+              : "Near the optimum: frequent, energetic collisions and a perfectly shaped active site.",
+        noteTone: e.denatured ? "bad" : e.extremePh ? "warn" : "good",
       };
 
       legend = {
-        title: "Enzyme Component Key",
+        title: "Enzyme component key",
         items: [
-          { color: "#3b82f6", shape: "square", label: "Enzyme Protein Globule", note: "Folded globular tertiary catalyst" },
-          { color: denatured ? "#ef4444" : "#34d399", shape: "square", label: "Active Catalytic Site", note: denatured ? "Denatured non-functional site" : "Complementary binding cleft" },
-          { color: "#fbbf24", shape: "dot", label: "Substrate Molecule", note: "Reacting substrate key" },
-          { color: "#a78bfa", shape: "dot", label: "Catalysed Products", note: "Released reaction product fragments" },
+          {
+            // The scene draws the enzyme emerald and lerps it to rose as it
+            // unfolds. The key used to show it blue.
+            color: e.distortion > 0.5 ? ENZYME_COLOURS.denatured : ENZYME_COLOURS.enzyme,
+            shape: "square",
+            label: e.distortion > 0.5 ? "Denatured enzyme" : "Enzyme",
+            note: "a protein catalyst — not used up by the reaction",
+          },
+          { color: ENZYME_COLOURS.substrate, shape: "square", label: "Substrate", note: "the key that fits this lock" },
+          { color: ENZYME_COLOURS.product, shape: "square", label: "Products", note: "the two halves, drifting apart after the split" },
+          { color: ENZYME_COLOURS.curve, shape: "line", label: "Rate against temperature", note: "climbs to the optimum, then falls off a cliff" },
+          { color: ENZYME_COLOURS.marker, shape: "dot", label: "Where you are on that curve" },
         ],
       };
       break;
     }
 
     case "dna": {
-      const count = num(params.pairs, 16);
-      const bases = ["A", "T", "G", "C", "C", "A", "T", "G", "A", "T", "C", "G", "T", "A", "G", "C"];
-      const strand1 = bases.slice(0, Math.min(count, bases.length)).join("−");
-      const compMap = { A: "T", T: "A", G: "C", C: "G" };
-      const strand2 = bases.slice(0, Math.min(count, bases.length)).map((b) => compMap[b]).join("−");
+      // Shared generator. The panel used to print a hard-coded sequence
+      // ("A-T-G-C-C-A-T-G…") while the scene drew its own — not one base
+      // matched — and keyed every base to the wrong colour.
+      const h = describeHelix(num(params.pairs, 16));
 
       readout = {
-        title: "DNA Double Helix Structure",
-        subtitle: "Antiparallel complementary nucleotide strands",
+        title: "DNA double helix",
+        subtitle: "Antiparallel complementary strands",
         rows: [
-          ["Base Pairs Shown", count, "gold"],
-          ["Strand 1 (5′→3′)", strand1],
-          ["Strand 2 (3′→5′)", strand2],
-          ["Base Pairing Rules", "A–T (2 H-bonds), C–G (3 H-bonds)", "good"],
-          ["Helix Backbone", "Deoxyribose sugar + phosphate"],
-          ["Turn Frequency", "10.5 base pairs per full 360° turn"],
+          ["Base pairs shown", h.pairs, "gold"],
+          ["Strand 1 (5′→3′)", h.sequence.join("–")],
+          ["Strand 2 (3′→5′)", h.complement.join("–")],
+          ["Pairing rule", "A–T and C–G, always", "good"],
+          ["Hydrogen bonds", `${h.hydrogenBonds} · 2 per A–T, 3 per C–G`],
+          ["Base composition", `A ${h.counts.A} · T ${h.counts.T} · C ${h.counts.C} · G ${h.counts.G}`],
+          ["GC content", `${Math.round(h.gcFraction * 100)}% — more C–G means a stronger helix`],
+          ["Backbone", "deoxyribose sugar + phosphate"],
+          ["Full turn every", `${BASE_PAIRS_PER_TURN} base pairs · ${h.turns.toFixed(1)} turns shown`],
         ],
-        note: "Unzipping breaks weak hydrogen bonds between strands, allowing each strand to serve as a template for semi-conservative DNA replication.",
+        note: "Because the strands are complementary, each one carries the full instructions on its own. Press “Unzip DNA”: the weak hydrogen bonds break, the strong sugar–phosphate backbones do not, and both old strands become templates for new ones. That is semi-conservative replication.",
         noteTone: "good",
       };
 
       legend = {
-        title: "Nucleotide Base Key",
+        title: "Nucleotide base key",
         items: [
-          { color: "#ef4444", shape: "dot", label: "Adenine (A)", note: "Purine base (pairs with Thymine via 2 H-bonds)" },
-          { color: "#38bdf8", shape: "dot", label: "Thymine (T)", note: "Pyrimidine base (pairs with Adenine via 2 H-bonds)" },
-          { color: "#fbbf24", shape: "dot", label: "Cytosine (C)", note: "Pyrimidine base (pairs with Guanine via 3 H-bonds)" },
-          { color: "#34d399", shape: "dot", label: "Guanine (G)", note: "Purine base (pairs with Cytosine via 3 H-bonds)" },
-          { color: "#94a3b8", shape: "line", label: "Sugar-Phosphate Backbone", note: "Antiparallel helical structural chains" },
-          { color: "#e8ebf0", shape: "dash", label: "Hydrogen Bonds", note: "Non-covalent base pairing stabilization" },
+          // Straight from the table the scene colours the bases with. The old
+          // key had all four wrong, and circularly so: A keyed red but drawn
+          // green, T keyed sky but drawn rose, C keyed gold but drawn sky.
+          ...Object.keys(BASE_COLOURS).map((base) => ({
+            color: BASE_COLOURS[base],
+            shape: "dot",
+            label: `${BASE_NAMES[base]} (${base})`,
+            note: `${BASE_CLASS[base]} · pairs with ${BASE_NAMES[COMPLEMENT[base]]} via ${PAIR_BONDS[base]} hydrogen bonds`,
+          })),
+          { color: BACKBONE_COLOURS.strandA, shape: "line", label: "Backbone, strand 1", note: "sugar–phosphate — strong, and never broken by unzipping" },
+          { color: BACKBONE_COLOURS.strandB, shape: "line", label: "Backbone, strand 2", note: "running the opposite way — the strands are antiparallel" },
         ],
       };
       break;
     }
 
     case "cell": {
-      const cellType = params.cellType || "plant";
-      const isPlant = cellType === "plant";
-      const tonicity = num(params.tonicity, 0);
-
-      let stateText = "Normal (Isotonic)";
-      if (tonicity > 0.05) stateText = isPlant ? "Plasmolysed (Hypertonic)" : "Shrivelled (Hypertonic)";
-      else if (tonicity < -0.05) stateText = isPlant ? "Turgid (Hypotonic)" : "Lysis / Burst (Hypotonic)";
+      // Shared solver, and an organelle table that knows which cell type each
+      // organelle belongs to. The key used to list chloroplasts, a vacuole and
+      // a cell wall for animal cells, and omitted smooth ER, ribosomes,
+      // lysosomes, centrioles and the cytoskeleton entirely.
+      const c = solveOsmosis({ cellType: params.cellType || "plant", tonicity: num(params.tonicity, 0) });
 
       readout = {
-        title: isPlant ? "Plant Cell Explorer" : "Animal Cell Explorer",
-        subtitle: "Osmosis: dilute → concentrated water potential",
+        title: c.isPlant ? "Plant cell explorer" : "Animal cell explorer",
+        subtitle: "Osmosis: water moves from dilute to concentrated",
         rows: [
-          ["External Solution", tonicity > 0.05 ? "Concentrated (Hypertonic)" : tonicity < -0.05 ? "Dilute (Hypotonic)" : "Isotonic Equilibrium"],
-          ["Net Water Flow", tonicity > 0.05 ? "Out of cell" : tonicity < -0.05 ? "Into cell" : "Equilibrium"],
-          ["Cell Status", stateText, tonicity < -0.05 && isPlant ? "good" : tonicity > 0.05 ? "warn" : "default"],
-          ["Cellulose Wall", isPlant ? "Yes (Rigid)" : "No", isPlant ? "good" : "bad"],
-          ["Chloroplasts", isPlant ? "Yes (Photosynthesis)" : "No", isPlant ? "good" : "bad"],
-          ["Permanent Vacuole", isPlant ? "Yes (Cell sap)" : "No", isPlant ? "good" : "bad"],
+          ["Outside the cell", c.outside],
+          ["Net water flow", c.flow],
+          ["Cell state", c.state, c.tone],
+          ["…which means", c.detail],
+          ["Cell wall", c.hasWall ? "yes — cellulose, rigid" : "no", c.hasWall ? "good" : "bad"],
+          ["Chloroplasts", c.hasChloroplasts ? "yes" : "no", c.hasChloroplasts ? "good" : "bad"],
+          ["Permanent vacuole", c.hasVacuole ? "yes — cell sap" : "no", c.hasVacuole ? "good" : "bad"],
+          ["Centrioles", c.hasCentrioles ? "yes" : "no", c.hasCentrioles ? "good" : "bad"],
         ],
-        note: isPlant
-          ? "Plant cells are supported by a rigid cellulose wall that withstands turgor pressure when water enters by osmosis."
-          : "Animal cells lack cell walls; placing in pure water causes excessive osmotic intake and lysis (bursting).",
+        note: c.isPlant
+          ? "Click any organelle to identify it, and turn on Cutaway to see inside. The rigid wall is what saves a plant cell: water can push the membrane against it until the cell is turgid, without the cell bursting."
+          : "Click any organelle to identify it, and turn on Cutaway to see inside. With no cell wall, an animal cell has nothing to resist the pressure — too much water in and it bursts.",
         noteTone: "neutral",
       };
 
       legend = {
-        title: "Cell Organelle Key",
+        title: c.isPlant ? "Organelles · plant cell" : "Organelles · animal cell",
         items: [
-          { color: "#a78bfa", shape: "dot", label: "Nucleus & DNA", note: "Controls cellular genetic activity" },
-          { color: "#fb7185", shape: "dot", label: "Mitochondria", note: "Site of aerobic respiration & ATP synthesis" },
-          { color: "#34d399", shape: "dot", label: "Chloroplast (Plants)", note: "Site of photosynthesis (chlorophyll)" },
-          { color: "#38bdf8", shape: "square", label: "Endoplasmic Reticulum", note: "Membrane network for protein synthesis" },
-          { color: "#f59e0b", shape: "square", label: "Golgi Apparatus", note: "Modifies and packages secretory proteins" },
-          { color: "#0ea5e9", shape: "square", label: "Permanent Vacuole", note: "Stores cell sap & maintains turgor (plants)" },
-          { color: "#38bdf8", shape: "square", label: "Cell Membrane", note: "Partially permeable lipid bilayer" },
-          { color: "#10b981", shape: "square", label: "Cellulose Cell Wall", note: "Rigid structural outer support (plants)" },
+          ...c.organelles.map((o) => ({ color: o.colour, shape: "dot", label: o.label, note: o.note })),
+          ...(c.moving
+            ? [{ color: WATER_COLOUR, shape: "dot", label: "Water molecules", note: c.tonicity > 0 ? "leaving by osmosis" : "entering by osmosis" }]
+            : []),
         ],
       };
       break;
     }
 
     case "protein": {
-      const structure = params.structure || "helix";
-      const residues = num(params.residues, 30);
-      const fold = num(params.fold, 1);
-      const temperature = num(params.temperature, 300);
-
-      const denatured = temperature > 320 || fold < 0.35;
+      // Shared solver. The panel used `temperature > 320 || fold < 0.35` where
+      // the scene applies heat as a window multiplying the slider, so a
+      // 74 %-folded helix at 330 K was reported as a random coil — and
+      // "Folded Progress" printed the raw slider, not what was drawn.
+      const f = solveFolding({
+        structure: params.structure || "helix",
+        residues: num(params.residues, 30),
+        fold: num(params.fold, 1),
+        temperature: num(params.temperature, 300),
+      });
+      const structureLabel =
+        f.structure === "helix" ? "α-helix (3.6 residues/turn)" : f.structure === "sheet" ? "β-pleated sheet" : "Random coil";
 
       readout = {
-        title: "Protein Structure & Folding",
-        subtitle: `${structure === "helix" ? "α-Helix" : structure === "sheet" ? "β-Pleated Sheet" : "Random Coil"} Secondary Structure`,
+        title: "Protein structure & folding",
+        subtitle: `${structureLabel} · secondary structure`,
         rows: [
-          ["Residues Count", residues, "gold"],
-          ["Conformation", denatured ? "Denatured (Random Coil)" : structure === "helix" ? "α-Helix (3.6 res/turn)" : structure === "sheet" ? "β-Sheet" : "Unstructured Coil", denatured ? "bad" : "good"],
-          ["Folded Progress", `${Math.round(fold * 100)}%`, fold > 0.8 ? "good" : "warn"],
-          ["Temperature", `${temperature} K (${temperature - 273}°C)`, temperature > 320 ? "bad" : undefined],
-          ["Stabilization", "Hydrogen bonding between N–H and C=O", "good"],
+          ["Residues", f.residues, "gold"],
+          ["Conformation", f.denatured ? "denatured — random coil" : structureLabel, f.denatured ? "bad" : "good"],
+          ["Folding asked for", `${Math.round(f.asked * 100)}%`],
+          ["Actually folded", `${f.foldedPercent}%`, f.folded > 0.8 ? "good" : f.denatured ? "bad" : "warn"],
+          ["Temperature", `${f.temperatureK.toFixed(0)} K (${f.temperatureC.toFixed(0)} °C)`, f.heating ? "warn" : undefined],
+          ["Heat leaves", `${Math.round(f.heatFactor * 100)}% of the fold intact`, f.heatFactor < 0.5 ? "bad" : f.heatFactor < 1 ? "warn" : "good"],
+          ["Hydrogen bonds", f.bondsFormed ? "formed — holding the structure" : "not formed — the partners are out of reach", f.bondsFormed ? "good" : "bad"],
+          ["Stabilised by", "hydrogen bonds between N–H and C=O"],
         ],
-        note: denatured
-          ? "Elevated thermal energy breaks the weak hydrogen bonds holding the secondary structure, causing the polypeptide chain to collapse into an inactive random coil."
-          : structure === "helix"
-          ? "Alpha-helix is held by periodic hydrogen bonds between residue i and residue i+4, producing a spiral of 3.6 residues per turn."
-          : "Beta-sheets are held by hydrogen bonds between adjacent antiparallel polypeptide strands.",
-        noteTone: denatured ? "bad" : "good",
+        note: f.isCoil
+          ? "A random coil has no regular hydrogen bonding and so no fixed shape. Real proteins use coil regions as the hinges between helices and sheets."
+          : f.denatured
+            // Name the control that actually did it, rather than blaming heat
+            // for an unfolding the fold slider caused at room temperature.
+            ? f.cause === "slider"
+              ? `The fold slider is at ${Math.round(f.asked * 100)}%, so the chain has simply not been folded — at ${f.temperatureC.toFixed(0)} °C the hydrogen bonds could hold it perfectly well. Raise the slider and watch it fold.`
+              : `At ${f.temperatureC.toFixed(0)} °C the hydrogen bonds holding the secondary structure have broken and the chain has fallen into a random coil. The sequence of amino acids is untouched — but the shape, and so the function, is gone.`
+            : f.structure === "helix"
+              ? "Each hydrogen bond runs from residue i to residue i+4, four along the chain — that spacing is what forces the backbone into a spiral of 3.6 residues per turn."
+              : "Neighbouring strands run in opposite directions and hydrogen-bond sideways to each other, so the sheet is held across the chain rather than along it.",
+        noteTone: f.denatured ? "bad" : "good",
       };
 
       legend = {
-        title: "Protein Folding Key",
-        items: [
-          { color: "#fbbf24", shape: "dot", label: "Hydrophobic Residue", note: "Non-polar residue packing into internal core" },
-          { color: "#38bdf8", shape: "dot", label: "Hydrophilic Residue", note: "Polar residue facing surrounding solvent" },
-          { color: "#34d399", shape: "dash", label: "Hydrogen Bond", note: "Secondary structure stabilizing interaction" },
-          { color: "#64748b", shape: "line", label: "Polypeptide Backbone", note: "Covalent peptide chain link" },
-          { color: "#fbbf24", shape: "dot", label: "Denatured State", note: "Unfolded disordered conformation" },
-        ],
+        title: "Protein folding key",
+        items: params.colourByType !== false && !f.denatured
+          ? [
+              { color: STRUCTURE_COLOURS.hydrophobic, shape: "dot", label: "Hydrophobic residue", note: "non-polar — packs into the core, away from water" },
+              { color: STRUCTURE_COLOURS.hydrophilic, shape: "dot", label: "Hydrophilic residue", note: "polar — faces the water outside" },
+              { color: STRUCTURE_COLOURS.bond, shape: "dash", label: "Hydrogen bond", note: "weak alone, decisive in numbers" },
+              { color: STRUCTURE_COLOURS.backbone, shape: "line", label: "Polypeptide backbone", note: "the peptide chain itself" },
+            ]
+          : [
+              // Only one entry can own #fbbf24; the old key gave it to both
+              // "Hydrophobic Residue" and "Denatured State" at once.
+              {
+                color: f.denatured ? STRUCTURE_COLOURS.denatured : STRUCTURE_COLOURS[f.structure] ?? STRUCTURE_COLOURS.helix,
+                shape: "dot",
+                label: f.denatured ? "Denatured residue" : "Residue",
+                note: f.denatured ? "unfolded, disordered chain" : "one amino acid",
+              },
+              { color: STRUCTURE_COLOURS.bond, shape: "dash", label: "Hydrogen bond", note: "weak alone, decisive in numbers" },
+              { color: STRUCTURE_COLOURS.backbone, shape: "line", label: "Polypeptide backbone", note: "the peptide chain itself" },
+            ],
       };
       break;
     }
 
-    case "respiratory": {
-      const phase = params?.phase || "inspiration";
-      const vol = params?.thoraxVolumeL ? `${params.thoraxVolumeL} L` : (phase === "forced_expiration" ? "1.95 L" : phase === "quiet_expiration" ? "2.80 L" : "3.50 L");
-      const pres = params?.intraThoracicPressureKPa ? `${params.intraThoracicPressureKPa} kPa` : (phase === "forced_expiration" ? "+1.15 kPa" : phase === "quiet_expiration" ? "+0.18 kPa" : "-0.28 kPa");
-      const flow = params?.airFlowRateLps ? `${params.airFlowRateLps} L/s` : (phase === "forced_expiration" ? "+3.85 L/s" : phase === "quiet_expiration" ? "+0.45 L/s" : "-0.65 L/s");
-      const bpmVal = params?.bpm || 14;
-
-      readout = {
-        title: "Respiratory Mechanics & Thoracic Physics",
-        subtitle: "Boyle's Law: P · V = constant (ΔP relative to Patm = 101.3 kPa)",
-        rows: [
-          ["Current Phase", phase === "inspiration" ? "Inspiration (Active)" : phase === "quiet_expiration" ? "Quiet Expiration (Passive)" : "Forced Expiration (Active)", phase === "inspiration" ? "good" : phase === "forced_expiration" ? "warn" : "gold"],
-          ["Thorax Volume", vol, "good"],
-          ["Intra-thoracic ΔP", pres, pres.startsWith("-") ? "sky" : "warn"],
-          ["Air Flow Rate (V̇)", flow, flow.startsWith("-") ? "sky" : "gold"],
-          ["Breathing Rate", `${bpmVal} BPM`],
-          ["External Intercostals", phase === "inspiration" ? "Active Contraction (Elevating)" : "Passive Relaxation", phase === "inspiration" ? "good" : "neutral"],
-          ["Internal Intercostals", phase === "forced_expiration" ? "Active Contraction (Depressing)" : "Passive Relaxation", phase === "forced_expiration" ? "warn" : "neutral"],
-          ["Diaphragm Action", phase === "inspiration" ? "Contracts & Flattens Downward" : phase === "forced_expiration" ? "Pushed Upward (Abdominal Push)" : "Passively Recoils into Dome", phase === "inspiration" ? "good" : "neutral"],
-        ],
-        note: "Inspiration expands thoracic volume, causing intra-alveolar pressure to fall below atmospheric pressure (-0.3 kPa) and drawing air inward. Quiet expiration relies on elastic recoil; forced expiration actively recruits internal intercostals and abdominal muscles.",
-        noteTone: phase === "forced_expiration" ? "warn" : "good",
-      };
-
-      legend = {
-        title: "Thoracic Anatomy & Physics Key",
-        items: [
-          { color: "#ef4444", shape: "dot", label: "Active Muscle Contraction", note: "Glowing crimson tension shader" },
-          { color: "#475569", shape: "dot", label: "Passive Muscle Relaxation", note: "Muted slate blue resting tone" },
-          { color: "#38bdf8", shape: "dot", label: "Inflow Airway Particles", note: "Fresh ambient oxygen intake" },
-          { color: "#fbbf24", shape: "dot", label: "Outflow Airway Particles", note: "Expired CO2-rich air streams" },
-          { color: "#f1f5f9", shape: "dot", label: "Bony Ribcage & Sternum", note: "Pump-handle & bucket-handle mechanics" },
-          { color: "#93c5fd", shape: "dot", label: "Costal Cartilage & C-Rings", note: "Flexible cartilaginous airway support" },
-          { color: "#fb7185", shape: "dot", label: "Lung Parenchyma", note: "Volumetric lobes expanding synchronously" },
-          { color: "#dc2626", shape: "dot", label: "Diaphragm Dome", note: "Muscular floor flattening down during contraction" },
-        ],
-      };
-      break;
-    }
+    // No `case "respiratory"` here, deliberately.
+    //
+    // `respiratory` sets `ownHud: true` in topics.js, and ThreeDView skips
+    // VisualizationHUD entirely for such topics — RespiratoryCanvas renders
+    // its own panel. A case here can never run. One used to, and it rotted
+    // unnoticed: it printed tidal volumes that disagreed with the scene and
+    // passed tone keys the TONES map did not define.
 
     case "reflex_arc": {
       const stimulus = STIMULI[params.stimulus] ? params.stimulus : "flame";
