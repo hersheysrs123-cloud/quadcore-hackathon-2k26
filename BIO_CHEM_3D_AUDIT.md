@@ -386,6 +386,45 @@ Then make `Stat` fall back safely: `TONES[tone] ?? TONES.default`. One line; rem
 
 ### Phase 2 — Correct the scenes that teach the wrong thing
 
+> **STATUS: LANDED (18 Sep 2026), with one item partially done.**
+>
+> | Item | State |
+> |---|---|
+> | 2.1 bubbles removed | done in Phase 1. The richer electrode-material choice (copper vs inert graphite) is **not** done — see Open below. |
+> | 2.2 cracking | done. Products are real molecules now: CₙH₂ₙ₊₂ → C₍ₙ₋₂₎H₂₍ₙ₋₂₎₊₂ + C₂H₄, verified balanced for every reachable n. |
+> | 2.3 chain geometry | done, and taken further than planned: each turn now takes the angle its carbon's hybridisation dictates, so alkanes are 1.540 Å / 109.5°, alkenes 1.340 Å / 120° on the sp² carbons, alkynes 1.200 Å / 180° on the sp carbons. |
+> | 2.4 quartz + graphite | done. Quartz rebuilt as β-cristobalite, max Si coordination now 4 (was 6). Graphite's delocalised electrons and interlayer forces are **drawn** rather than deleted from the key. |
+> | 2.5 ice | done. H–O–H is exactly 104.50° for every molecule (was 123°), O–H 0.96 Å, O···O 2.76 Å. |
+> | 2.6 residue flag | done in Phase 1. |
+> | 2.7 enzyme | done in Phase 1 (C2, C4, C6). |
+> | 2.8 dna | done. Generator replaced in Phase 1; A–T now drawn with two hydrogen bonds and C–G with three. |
+> | 2.9 lysis / crenation | done. Membrane shape is driven by tonicity and ruptures past the threshold, with cytoplasm escaping. |
+> | 2.10 respiratory | **partial.** `FrameController` hoisted, constants unified into `lib/respiratory.js`, the React push quantised and throttled to 10 Hz, forced expiration made reachable while looping, and the test rewired to the shipping engine — which immediately caught a real bug in the new forced-expiration curve. The full ref-mutation conversion is NOT done. |
+>
+> **Why 2.10 is only partial:** the animated values (`expansion`, `extTension`,
+> `intTension`) are threaded as props through hundreds of inline material
+> properties across `RealisticCTSkeleton`, the intercostal arrays, the
+> diaphragm and the lungs. Converting those to ref reads is a real refactor
+> that needs visual verification, and `requestAnimationFrame` does not fire in
+> this environment's automated browser pane, so no animation-driven change
+> could be watched. The throttle takes the cost from ~420 setState calls a
+> second to at most 70; the remaining work is tracked as **C29-residual**.
+>
+> **Also open from Phase 2:** the electrode-material choice for `electrolysis`
+> (2.1's richer form). The bubbles are gone and the cell is correct as a
+> copper-on-copper purification cell; adding the inert-graphite comparison is
+> a feature, not a defect fix.
+>
+> Verified: `npm test` 1315/1315 (5 new); production build clean; bond lengths,
+> bond angles, Si coordination, H–O–H angle, cracking balance and the breath
+> curve all checked numerically.
+
+---
+
+#### Original plan
+
+
+
 **Goal:** a student who watches the animation carefully is not misled. These are model changes, so each needs a visual check.
 
 **2.1 — `electrolysis`: remove the bubbles** *(B25)*
