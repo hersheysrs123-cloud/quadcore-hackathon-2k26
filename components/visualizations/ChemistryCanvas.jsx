@@ -23,7 +23,7 @@ import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomi
 import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
 import { ELECTRON_GEOMETRY, IDEAL_ANGLE, IDEAL_ANGLE_LABEL, SHAPES, solveVsepr } from "@/lib/vsepr";
-import { ORGANIC_COLOURS, describeMolecule, formulaFor, isValid, nameFor, sub } from "@/lib/organic";
+import { ORGANIC_COLOURS, crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
 import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";
@@ -43,6 +43,9 @@ import RadioactiveDecayCanvas from "@/components/visualizations/RadioactiveDecay
 
 // SHELL_NAMES, SHELL_CAPACITY and ELEMENTS now live in lib/atomicStructure.js,
 // so the Details panel reads the same table this scene draws from.
+
+/** Reused when writing instanced-mesh matrices, so no per-frame allocation. */
+const SCRATCH_OBJECT = new THREE.Object3D();
 
 const shellRadius = (i) => 1.7 + i * 1.15;
 const shellTilt = (i) => [i * 0.5 + 0.18, i * 0.95, i * 0.3];
@@ -319,29 +322,62 @@ function buildMolecule(family, carbons) {
   const isAcid         = family === "acid";
   const isEster        = family === "ester";
 
-  // Alkynes are linear (sp hybridisation) at the triple bond: place C0, C1 and C2
-  // along X (linear 180°), then zig-zag the rest normally.
-  const rise = CC_BOND * CHAIN_Y * 0.5;
+  /** Length of the bond arriving at carbon `i`. */
+  const bondLengthAt = (i) => {
+    if (isAlkeneChain && i === 1) return CC_DOUBLE;
+    if (isAlkyne && i === 1) return CC_TRIPLE;
+    return CC_BOND;
+  };
 
+  /**
+   * Interior bond angle at carbon `i`, degrees — set by its hybridisation.
+   *
+   * sp (on a triple bond) is linear, sp² (on a double bond) is trigonal
+   * planar, and everything else is tetrahedral. Walking the chain by turning
+   * through 180° − this at each carbon is what makes the drawn angle the angle
+   * VSEPR predicts, rather than a single zig-zag applied to every family.
+   */
+  const angleAt = (i) => {
+    if (isAlkyne && i <= 1) return 180;
+    if (isAlkeneChain && i <= 1) return 120;
+    return 109.47;
+  };
+  const turnAt = (i) => ((180 - angleAt(i)) * Math.PI) / 180;
+
+  // The chain is walked bond by bond: each bond takes ITS OWN length, and each
+  // turn takes the angle its carbon's hybridisation dictates.
+  //
+  // Scaling only the x-step by the bond length while holding the rise at the
+  // C–C value does not shorten a bond, it tilts it: a C=C asked to be 1.34 Å
+  // came out at 1.41, on the one topic where that bond is the entire point.
+  // The alkyne had the mirror-image problem — with C0..C2 pinned to y = 0 for
+  // the sp region, resuming the zig-zag gave the C2–C3 bond one rise of travel
+  // instead of two, drawing it at 1.33 Å and bending C2 to 144.7°.
+  let heading = turnAt(1) / 2; // start half a turn up, so the chain straddles x
+  let up = false;
   let x = 0;
-  for (let i = 0; i < n; i += 1) {
-    if (i > 0) {
-      const L =
-        isAlkeneChain && i === 1 ? CC_DOUBLE :
-        isAlkyne       && i === 1 ? CC_TRIPLE :
-        CC_BOND;
-      // For alkynes, triple bond (i=1) and single bond from sp carbon (i=2) are colinear along X
-      const factor = (isAlkyne && (i === 1 || i === 2)) ? 1.0 : CHAIN_X;
-      x += L * factor;
+  let y = 0;
+  chain.push(new THREE.Vector3(0, 0, 0));
+  for (let i = 1; i < n; i += 1) {
+    if (i > 1) {
+      heading += (up ? 1 : -1) * turnAt(i - 1);
+      up = !up;
     }
-    // Alkynes: C0, C1, C2 are all on y = 0 because sp hybridization enforces 180° linear geometry
-    const y = (isAlkyne && i <= 2) ? 0 : ((isAlkyne ? i - 1 : i) % 2 === 0 ? rise : -rise);
+    const L = bondLengthAt(i);
+    x += Math.cos(heading) * L;
+    y += Math.sin(heading) * L;
     chain.push(new THREE.Vector3(x, y, 0));
   }
-  // Centre the finished chain.
-  const midX = (chain[0].x + chain[n - 1].x) / 2;
+
+  // Centre the finished chain on both axes — with per-bond rises the walk no
+  // longer ends where it started vertically.
+  const xs = chain.map((p) => p.x);
+  const ys = chain.map((p) => p.y);
+  const midX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
   chain.forEach((p, i) => {
     p.x -= midX;
+    p.y -= midY;
     atoms.push({ el: "C", position: p.toArray(), index: i });
   });
 
@@ -594,43 +630,47 @@ function AtomsAndBonds({ atoms, bonds }) {
   );
 }
 
-function Molecule({ family, carbons, crackToken, spin, speed = 1.0 }) {
+/**
+ * The molecule, and what happens to it when you crack it.
+ *
+ * Cracking used to be a lie told with a transform: the component partitioned
+ * the ONE molecule geometrically and slid the two halves apart. No bond ever
+ * became a double bond, no hydrogen ever moved, and both "products" were left
+ * as radicals with a dangling valence — while the readout beside it promised
+ * "a shorter alkane plus a useful alkene", and the topic's concept text made
+ * that one of its three headline facts.
+ *
+ * Now the products are built as real molecules. The parent is replaced by an
+ * alkane two carbons shorter and an ethene, which is what CₙH₂ₙ₊₂ →
+ * C₍ₙ₋₂₎H₂₍ₙ₋₂₎₊₂ + C₂H₄ actually gives, and the C=C is drawn by the same
+ * DoubleBond the alkene series uses. `lib/organic.js` owns the arithmetic and
+ * its test asserts the equation balances.
+ */
+function Molecule({ family, carbons, crackToken, spin, speed = 1.0, onCrackedChange }) {
   const group = useRef(null);
-  const leftRef = useRef(null);
-  const rightRef = useRef(null);
-  const breakingRef = useRef(null);
+  const intactRef = useRef(null);
+  const productsRef = useRef(null);
+  const alkaneRef = useRef(null);
+  const alkeneRef = useRef(null);
   const split = useRef(0);
   const target = useRef(0);
+  const wasCracked = useRef(false);
 
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
+  const crackable = isCrackable(family, carbons);
 
-  // Cracking only makes sense for an alkane long enough to break in two.
-  const crackable = family === "alkane" && carbons >= 3;
-
-  /**
-   * Split the molecule after the first carbon and pre-partition it, so the
-   * animation is two group transforms per frame rather than a re-render.
-   */
-  const fragments = useMemo(() => {
-    const pivot = molecule.atoms.find((a) => a.el === "C" && a.index === 0);
-    const cut = pivot ? pivot.position[0] + 0.75 : 0;
-    const sideOf = (p) => (p[0] < cut ? "left" : "right");
+  // The two products, built as molecules in their own right rather than carved
+  // out of the parent. Only built when cracking is possible at all.
+  const products = useMemo(() => {
+    if (!crackable) return null;
+    const spec = crackProducts(carbons);
+    if (!spec) return null;
     return {
-      left: {
-        atoms: molecule.atoms.filter((a) => sideOf(a.position) === "left"),
-        bonds: molecule.bonds.filter(
-          (b) => sideOf(b.from) === "left" && sideOf(b.to) === "left",
-        ),
-      },
-      right: {
-        atoms: molecule.atoms.filter((a) => sideOf(a.position) === "right"),
-        bonds: molecule.bonds.filter(
-          (b) => sideOf(b.from) === "right" && sideOf(b.to) === "right",
-        ),
-      },
-      breaking: molecule.bonds.filter((b) => sideOf(b.from) !== sideOf(b.to)),
+      spec,
+      alkane: buildMolecule("alkane", spec.alkane.carbons),
+      alkene: buildMolecule("alkene", spec.alkene.carbons),
     };
-  }, [molecule]);
+  }, [crackable, carbons]);
 
   useEffect(() => {
     if (!crackToken || !crackable) return undefined;
@@ -639,30 +679,52 @@ function Molecule({ family, carbons, crackToken, spin, speed = 1.0 }) {
       target.current = 0;
       // See the note on the DNA unzip timer: a zero speed must not collapse
       // the hold to an immediate re-join.
-    }, Math.max(800, 2600 / Math.max(speed, 0.05)));
+    }, Math.max(1600, 4200 / Math.max(speed, 0.05)));
     return () => clearTimeout(id);
   }, [crackToken, crackable, speed]);
 
+  // A new family or chain length abandons any crack in progress, so the scene
+  // never shows the products of a molecule that is no longer on screen.
+  useEffect(() => {
+    target.current = 0;
+    split.current = 0;
+  }, [family, carbons]);
+
   useFrame((_, delta) => {
     if (spin && group.current) group.current.rotation.y += delta * 0.35 * speed;
-    split.current = lerp(split.current, target.current, Math.min(1, delta * 2.4 * speed));
-    const offset = crackable ? split.current * 1.7 : 0;
-    if (leftRef.current) leftRef.current.position.x = -offset;
-    if (rightRef.current) rightRef.current.position.x = offset;
-    if (breakingRef.current) breakingRef.current.visible = split.current < 0.05;
+    split.current = lerp(split.current, target.current, Math.min(1, delta * 2.0 * speed));
+    const s = crackable ? split.current : 0;
+
+    // Below the threshold the parent alkane is on screen; above it, the two
+    // products are, drifting apart.
+    const cracked = s > 0.02;
+    if (intactRef.current) intactRef.current.visible = !cracked;
+    if (productsRef.current) productsRef.current.visible = cracked;
+    if (alkaneRef.current) alkaneRef.current.position.x = -s * 2.4;
+    if (alkeneRef.current) alkeneRef.current.position.x = s * 2.4;
+
+    if (cracked !== wasCracked.current) {
+      wasCracked.current = cracked;
+      // Fires on the transition only — never per frame.
+      if (typeof onCrackedChange === "function") onCrackedChange(cracked);
+    }
   });
 
   return (
     <group ref={group}>
-      <group ref={leftRef}>
-        <AtomsAndBonds atoms={fragments.left.atoms} bonds={fragments.left.bonds} />
+      <group ref={intactRef}>
+        <AtomsAndBonds atoms={molecule.atoms} bonds={molecule.bonds} />
       </group>
-      <group ref={rightRef}>
-        <AtomsAndBonds atoms={fragments.right.atoms} bonds={fragments.right.bonds} />
-      </group>
-      <group ref={breakingRef}>
-        <AtomsAndBonds atoms={[]} bonds={fragments.breaking} />
-      </group>
+      {products && (
+        <group ref={productsRef} visible={false}>
+          <group ref={alkaneRef}>
+            <AtomsAndBonds atoms={products.alkane.atoms} bonds={products.alkane.bonds} />
+          </group>
+          <group ref={alkeneRef}>
+            <AtomsAndBonds atoms={products.alkene.atoms} bonds={products.alkene.bonds} />
+          </group>
+        </group>
+      )}
     </group>
   );
 }
@@ -675,20 +737,45 @@ export function OrganicBuilderScene({ params = {} }) {
   const { crackable, general: generalFormula, saturated, unsaturation } = info;
   const hasBondFeature = Boolean(unsaturation);
 
+  // Whether the two products are the thing currently on screen. The Molecule
+  // reports the transition, so this is a state change per crack, not per frame.
+  const [cracked, setCracked] = useState(false);
+  const cracking = useMemo(() => (crackable ? crackProducts(carbons) : null), [crackable, carbons]);
+  useEffect(() => setCracked(false), [family, carbons]);
+
   const readoutNote = !info.valid
     ? `${info.label}s need at least ${info.minCarbons} carbons. Increase the chain length.`
-    : crackable
-      ? `Press "Trigger cracking": this alkane breaks into a shorter alkane plus a useful alkene.`
-      : info.note;
+    : cracked && cracking
+      ? `${cracking.equation} — the long chain has broken into a shorter alkane plus an alkene, and the C=C is the useful part.`
+      : crackable
+        ? `Press "Trigger cracking": this alkane breaks into a shorter alkane plus a useful alkene.`
+        : info.note;
 
 
   return (
     <SceneCanvas camera={{ position: [0, 2.4, carbons > 6 ? 12 : 8.5], fov: 45 }}>
-      <Molecule family={family} carbons={carbons} crackToken={crack} spin={spin} speed={speed} />
+      <Molecule
+        family={family}
+        carbons={carbons}
+        crackToken={crack}
+        spin={spin}
+        speed={speed}
+        onCrackedChange={setCracked}
+      />
 
       <SceneLabel position={[0, -2.6, 0]} accent>
-        {molecule.formula} · {molecule.name}
+        {cracked && cracking ? cracking.equation : `${molecule.formula} · ${molecule.name}`}
       </SceneLabel>
+      {cracked && cracking && (
+        <>
+          <SceneLabel position={[-2.6, 2.4, 0]} tone="text-ink-300">
+            {`${cracking.alkane.formula} · ${cracking.alkane.name}`}
+          </SceneLabel>
+          <SceneLabel position={[2.6, 2.4, 0]} tone="text-emerald-300">
+            {`${cracking.alkene.formula} · ${cracking.alkene.name} — decolourises bromine water`}
+          </SceneLabel>
+        </>
+      )}
 
       <SceneReadout
         hidden={params?.hideOverlayReadout}
@@ -1028,9 +1115,13 @@ function buildNaCl() {
   return { atoms, bonds, layers: null };
 }
 
-function buildDiamond() {
-  // Diamond cubic: an FCC basis plus the same lattice shifted by ¼,¼,¼.
-  const a = 2.4;
+/**
+ * Points of a diamond-cubic lattice, recentred on the origin.
+ *
+ * Shared, because silica is the same net: silicon sits where carbon does, with
+ * an oxygen bridging every bond.
+ */
+function diamondCubicPoints(a = 2.4, cells = 2) {
   const basis = [
     [0, 0, 0],
     [0, 0.5, 0.5],
@@ -1038,9 +1129,9 @@ function buildDiamond() {
     [0.5, 0.5, 0],
   ];
   const points = [];
-  for (let cx = 0; cx < 2; cx += 1) {
-    for (let cy = 0; cy < 2; cy += 1) {
-      for (let cz = 0; cz < 2; cz += 1) {
+  for (let cx = 0; cx < cells; cx += 1) {
+    for (let cy = 0; cy < cells; cy += 1) {
+      for (let cz = 0; cz < cells; cz += 1) {
         basis.forEach(([bx, by, bz]) => {
           points.push([(cx + bx) * a, (cy + by) * a, (cz + bz) * a]);
           points.push([(cx + bx + 0.25) * a, (cy + by + 0.25) * a, (cz + bz + 0.25) * a]);
@@ -1048,23 +1139,33 @@ function buildDiamond() {
       }
     }
   }
+  const centre = (cells * a) / 2;
+  return points.map((p) => [p[0] - centre, p[1] - centre, p[2] - centre]);
+}
 
-  const centre = a; // recentre the 2×2×2 block on the origin
-  const atoms = points
-    .map((p) => [p[0] - centre, p[1] - centre, p[2] - centre])
-    .filter((p) => p.every((c) => c >= -centre - 0.01 && c <= centre + 0.01))
-    .map((position) => ({ position, radius: 0.26, color: "#94a3b8" }));
-
+/** Nearest-neighbour pairs in a diamond-cubic net — the tetrahedral bonds. */
+function diamondCubicBonds(points, a = 2.4) {
   const bondLength = (Math.sqrt(3) / 4) * a;
-  const bonds = [];
-  for (let i = 0; i < atoms.length; i += 1) {
-    for (let j = i + 1; j < atoms.length; j += 1) {
-      const p = atoms[i].position;
-      const q = atoms[j].position;
+  const pairs = [];
+  for (let i = 0; i < points.length; i += 1) {
+    for (let j = i + 1; j < points.length; j += 1) {
+      const p = points[i];
+      const q = points[j];
       const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      if (Math.abs(d - bondLength) < 0.06) bonds.push({ from: p, to: q });
+      if (Math.abs(d - bondLength) < 0.06) pairs.push([i, j]);
     }
   }
+  return pairs;
+}
+
+function buildDiamond() {
+  const a = 2.4;
+  const points = diamondCubicPoints(a);
+  const atoms = points.map((position) => ({ position, radius: 0.26, color: "#94a3b8" }));
+  const bonds = diamondCubicBonds(points, a).map(([i, j]) => ({
+    from: points[i],
+    to: points[j],
+  }));
   return { atoms, bonds, layers: null };
 }
 
@@ -1072,6 +1173,8 @@ function buildGraphite(slide) {
   const acc = 0.82;
   const atoms = [];
   const bonds = [];
+  const sheets = [];
+  const interlayer = [];
   // 335 pm between layers against 142 pm within one — a ratio of 2.36. That
   // gap is the whole story: covalent bonds in the sheet, weak forces across
   // it, so the layers shear while the sheets themselves never break.
@@ -1104,79 +1207,186 @@ function buildGraphite(slide) {
         if (Math.abs(d - acc) < 0.05) bonds.push({ from: sheet[i], to: sheet[j] });
       }
     }
+    sheets.push(sheet);
   });
 
-  return { atoms, bonds, layers: layerY };
+  // The weak forces ACROSS the layers — thin, faint, and drawn between
+  // vertically nearest carbons only. Both colour keys used to name these and
+  // nothing drew them, which is the one structural fact the topic turns on:
+  // strong bonds within a sheet, weak forces between, so the sheets slide
+  // without ever breaking.
+  for (let l = 0; l + 1 < sheets.length; l += 1) {
+    const lower = sheets[l];
+    const upper = sheets[l + 1];
+    for (let i = 0; i < lower.length; i += 4) {
+      let best = null;
+      let bestD = Infinity;
+      for (let j = 0; j < upper.length; j += 1) {
+        const d = Math.hypot(lower[i][0] - upper[j][0], lower[i][2] - upper[j][2]);
+        if (d < bestD) {
+          bestD = d;
+          best = upper[j];
+        }
+      }
+      // Only where the two sheets still roughly line up; a big slide should
+      // visibly stretch and thin these, not drag them across the whole cell.
+      if (best && bestD < acc * 1.6) {
+        interlayer.push({ from: lower[i], to: best, weak: true });
+      }
+    }
+  }
+
+  // One delocalised electron per carbon is the reason graphite conducts, and
+  // it was the one thing the key promised that had no counterpart on screen.
+  // Drawn as a sparse drift of sprites between the sheets rather than one per
+  // atom, which would bury the lattice.
+  const electrons = [];
+  sheets.forEach((sheet, layerIndex) => {
+    for (let i = 1; i < sheet.length; i += 7) {
+      electrons.push({
+        position: [sheet[i][0], sheet[i][1] + 0.34, sheet[i][2]],
+        layer: layerIndex,
+        seed: i,
+      });
+    }
+  });
+
+  return { atoms, bonds, layers: layerY, interlayer, electrons };
 }
 
+/**
+ * Silica as β-cristobalite — the standard teaching model.
+ *
+ * Silicon takes the diamond-cubic net and an oxygen bridges every Si–Si bond,
+ * which gives 4-coordinate silicon, 2-coordinate oxygen and the 1 : 2 ratio,
+ * all at once.
+ *
+ * The old build put silicon on a SIMPLE cubic lattice with an oxygen at each
+ * midpoint. The stoichiometry came out right, which is presumably why it
+ * survived, but the geometry was wrong in the way that matters: interior
+ * silicons carried SIX oxygens at 180° Si–O–Si, while both readouts insisted
+ * the structure was tetrahedral and that each silicon bonds to four oxygens.
+ *
+ * The bridging oxygen is pushed off the Si–Si line so the Si–O–Si angle opens
+ * to roughly the real 144° rather than sitting at a straight 180°.
+ */
 function buildQuartz() {
-  const atoms = [];
+  const a = 2.4;
+  const all = diamondCubicPoints(a);
+  // Drop the corner silicons that a finite block leaves with a single bond:
+  // they read as floating spurs rather than as part of the network.
+  const degree = new Map(all.map((_, i) => [i, 0]));
+  diamondCubicBonds(all, a).forEach(([i, j]) => {
+    degree.set(i, degree.get(i) + 1);
+    degree.set(j, degree.get(j) + 1);
+  });
+  const si = all.filter((_, i) => degree.get(i) >= 2);
+  const atoms = si.map((position) => ({ position, radius: 0.28, color: PALETTE.gold }));
   const bonds = [];
-  const siPos = [];
-  const spacing = 1.6;
-  for (let i = -1; i <= 1; i += 1) {
-    for (let j = -1; j <= 1; j += 1) {
-      for (let k = -1; k <= 1; k += 1) {
-        const pos = [i * spacing, j * spacing, k * spacing];
-        siPos.push(pos);
-        atoms.push({ position: pos, radius: 0.28, color: PALETTE.gold });
-      }
-    }
-  }
-  for (let i = 0; i < siPos.length; i += 1) {
-    for (let j = i + 1; j < siPos.length; j += 1) {
-      const p = siPos[i];
-      const q = siPos[j];
-      const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      if (Math.abs(d - spacing) < 0.05) {
-        const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2 + 0.15, (p[2] + q[2]) / 2];
-        atoms.push({ position: mid, radius: 0.18, color: PALETTE.rose });
-        bonds.push({ from: p, to: mid });
-        bonds.push({ from: mid, to: q });
-      }
-    }
-  }
+
+  // A fixed bend, alternating direction per bridge so the net does not shear
+  // all one way. 0.22 of the bond length lands Si–O–Si near 144°.
+  const BEND = 0.22;
+  diamondCubicBonds(si, a).forEach(([i, j], k) => {
+    const p = si[i];
+    const q = si[j];
+    const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+    // Any direction perpendicular to the bond will do; cross with a fixed axis
+    // and fall back to another when the bond happens to be parallel to it.
+    const axis = new THREE.Vector3(q[0] - p[0], q[1] - p[1], q[2] - p[2]).normalize();
+    let perp = new THREE.Vector3(0, 1, 0).cross(axis);
+    if (perp.lengthSq() < 1e-6) perp = new THREE.Vector3(1, 0, 0).cross(axis);
+    perp.normalize().multiplyScalar(BEND * a * (k % 2 === 0 ? 1 : -1));
+    const o = [mid[0] + perp.x, mid[1] + perp.y, mid[2] + perp.z];
+    atoms.push({ position: o, radius: 0.18, color: PALETTE.rose });
+    bonds.push({ from: p, to: o });
+    bonds.push({ from: o, to: q });
+  });
+
   return { atoms, bonds, layers: null };
 }
 
+/**
+ * Hexagonal ice.
+ *
+ * Every length is scaled from the real molecule rather than eyeballed: O–H is
+ * 0.96 Å, H–O–H is 104.5°, and O···O across a hydrogen bond is 2.76 Å.
+ *
+ * The hydrogens used to sit at fixed offsets of (±0.35, ±0.22, ±0.2), which
+ * subtend 123° — and the bond angle is not a detail here, it is the reason the
+ * cage is open and therefore the reason ice floats, which is the one fact the
+ * readout leads with. The hydrogen bonds were also found by scanning for any
+ * H···O pair between 0.4 and 1.35 world units, so they had no particular
+ * relationship to the molecules they were joining.
+ */
 function buildIce() {
+  const OH = 0.5; // 0.96 Å at this scale
+  const HOH = (104.5 * Math.PI) / 180;
+  const OO = OH * (2.76 / 0.96); // 2.76 Å — the hydrogen-bonded O···O distance
+
   const atoms = [];
   const bonds = [];
-  const levels = [-1.4, 0, 1.4];
-  const r = 1.3;
-  const molecules = [];
+  const oxygens = [];
 
+  // Stacked, alternately rotated hexagonal rings: the open cage of ice Ih.
+  const levels = [-OO, 0, OO];
   levels.forEach((y, l) => {
     for (let i = 0; i < 6; i += 1) {
       const a = (i * Math.PI) / 3 + (l % 2 ? Math.PI / 6 : 0);
-      const ox = Math.cos(a) * r;
-      const oz = Math.sin(a) * r;
-      const oPos = [ox, y, oz];
-      atoms.push({ position: oPos, radius: 0.26, color: PALETTE.rose });
-      const hPos1 = [ox + 0.35, y + (l % 2 === 0 ? 0.22 : -0.22), oz + 0.2];
-      const hPos2 = [ox - 0.35, y + (l % 2 === 0 ? 0.22 : -0.22), oz - 0.2];
-      atoms.push({ position: hPos1, radius: 0.14, color: PALETTE.bone });
-      atoms.push({ position: hPos2, radius: 0.14, color: PALETTE.bone });
-      bonds.push({ from: oPos, to: hPos1 });
-      bonds.push({ from: oPos, to: hPos2 });
-      molecules.push({ o: oPos, h: [hPos1, hPos2] });
+      oxygens.push(new THREE.Vector3(Math.cos(a) * OO, y, Math.sin(a) * OO));
     }
   });
 
-  // Intermolecular hydrogen bonds between H of one molecule and O of neighboring water
-  for (let m1 = 0; m1 < molecules.length; m1++) {
-    for (let hIdx = 0; hIdx < molecules[m1].h.length; hIdx++) {
-      const h = molecules[m1].h[hIdx];
-      for (let m2 = 0; m2 < molecules.length; m2++) {
-        if (m1 === m2) continue;
-        const o = molecules[m2].o;
-        const d = Math.hypot(h[0] - o[0], h[1] - o[1], h[2] - o[2]);
-        if (d > 0.4 && d < 1.35) {
-          bonds.push({ from: h, to: o, color: PALETTE.sky, radius: 0.024, opacity: 0.8 });
-        }
+  // Who is hydrogen-bonded to whom: everything within reach of one O···O.
+  const neighbours = oxygens.map((o, i) =>
+    oxygens
+      .map((q, j) => ({ j, d: o.distanceTo(q) }))
+      .filter((n) => n.j !== i && n.d < OO * 1.25)
+      .sort((a, b) => a.d - b.d)
+      .map((n) => n.j),
+  );
+
+  oxygens.forEach((o, i) => {
+    atoms.push({ position: o.toArray(), radius: 0.26, color: PALETTE.rose });
+
+    // Each molecule DONATES two hydrogen bonds and accepts two — the ice
+    // rules. The two hydrogens are placed at a true 104.5°, in the plane of
+    // the two neighbours they point at and symmetric about the bisector, so
+    // the molecule keeps its real shape while still aiming at the cage.
+    const picks = neighbours[i].slice(0, 2);
+    const dirs = picks.map((j) => oxygens[j].clone().sub(o).normalize());
+    let d1 = dirs[0] ?? new THREE.Vector3(1, 0, 0);
+    let d2 = dirs[1] ?? new THREE.Vector3(0, 1, 0);
+    if (d1.clone().cross(d2).lengthSq() < 1e-6) d2 = new THREE.Vector3(0, 1, 0);
+
+    const bisector = d1.clone().add(d2).normalize();
+    const normal = d1.clone().cross(d2).normalize();
+    const inPlane = normal.clone().cross(bisector).normalize();
+    const half = HOH / 2;
+
+    [1, -1].forEach((sign, k) => {
+      const dir = bisector
+        .clone()
+        .multiplyScalar(Math.cos(half))
+        .addScaledVector(inPlane, sign * Math.sin(half))
+        .normalize();
+      const h = o.clone().addScaledVector(dir, OH);
+      atoms.push({ position: h.toArray(), radius: 0.14, color: PALETTE.bone });
+      // Covalent O–H.
+      bonds.push({ from: o.toArray(), to: h.toArray() });
+      // …and the hydrogen bond running on from it to the acceptor oxygen.
+      const acceptor = picks[k];
+      if (acceptor !== undefined) {
+        bonds.push({
+          from: h.toArray(),
+          to: oxygens[acceptor].toArray(),
+          color: PALETTE.sky,
+          radius: 0.024,
+          opacity: 0.75,
+        });
       }
-    }
-  }
+    });
+  });
 
   return { atoms, bonds, layers: null };
 }
@@ -1184,6 +1394,50 @@ function buildIce() {
 // LATTICE_FACTS and LATTICE_KEYS now live in lib/lattices.js.
 
 /** Lives inside the Canvas — useFrame is only legal below <Canvas>. */
+/**
+ * The delocalised electrons in graphite, drifting within their own sheet.
+ *
+ * Instanced and animated on refs, so adding them costs one draw call rather
+ * than one component per electron.
+ */
+function DelocalisedElectrons({ electrons, speed = 1.0 }) {
+  const mesh = useRef(null);
+  const t = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!mesh.current || electrons.length === 0) return;
+    t.current += Math.min(delta, 0.05) * speed;
+    electrons.forEach((e, i) => {
+      // A slow wander in the plane of the sheet — free to move along the
+      // layer, never across the gap. That is exactly what makes graphite
+      // conduct in one direction and not the other.
+      const a = t.current * 0.6 + e.seed * 1.7;
+      SCRATCH_OBJECT.position.set(
+        e.position[0] + Math.cos(a) * 0.5,
+        e.position[1] + Math.sin(a * 0.7) * 0.05,
+        e.position[2] + Math.sin(a) * 0.5,
+      );
+      SCRATCH_OBJECT.scale.setScalar(0.075 + Math.sin(a * 2.3) * 0.015);
+      SCRATCH_OBJECT.updateMatrix();
+      mesh.current.setMatrixAt(i, SCRATCH_OBJECT.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+
+  if (electrons.length === 0) return null;
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, electrons.length]} frustumCulled={false}>
+      <sphereGeometry args={[1, 8, 8]} />
+      <meshStandardMaterial
+        color={PALETTE.gold}
+        emissive={PALETTE.gold}
+        emissiveIntensity={2.2}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
 function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
   const group = useRef(null);
 
@@ -1204,6 +1458,11 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
             opacity={b.opacity ?? 1}
           />
         ))}
+      {/* Weak forces between the layers — thin and faint against the covalent
+          bonds within a sheet, because that contrast IS the topic. */}
+      {(lattice.interlayer ?? []).map((b, i) => (
+        <Bond key={`w${i}`} from={b.from} to={b.to} radius={0.012} color={PALETTE.sky} opacity={0.4} />
+      ))}
       {lattice.atoms.map((a, i) => (
         <AtomSphere
           key={i}
@@ -1213,6 +1472,7 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
           emissiveIntensity={0.35}
         />
       ))}
+      <DelocalisedElectrons electrons={lattice.electrons ?? []} speed={speed} />
     </group>
   );
 }
