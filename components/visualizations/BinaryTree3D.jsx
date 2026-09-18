@@ -12,6 +12,7 @@ import {
   Stat,
   ViewportHint,
 } from "@/components/visualizations/VisualizationHUD";
+import { buildTree, comparisonPath, traverse } from "@/lib/binaryTree";
 
 // ─── IGCSE Computer Science · Binary search tree ────────────────────
 // Interactive 3D Binary Search Tree (BST) visualizer for node insertion,
@@ -23,43 +24,6 @@ const MAX_NODES = 24;
 const SPACING_X = 1.9;
 const SPACING_Y = 2.0;
 const DEPTH_Z = -0.55;
-
-function insert(node, value) {
-  if (!node) return { value, left: null, right: null };
-  if (value === node.value) return node;
-  if (value < node.value) return { ...node, left: insert(node.left, value) };
-  return { ...node, right: insert(node.right, value) };
-}
-
-function buildTree(values) {
-  return values.reduce((root, value) => insert(root, value), null);
-}
-
-/** The comparison path a search or insert walks, ending at `value` if present. */
-function comparisonPath(root, value) {
-  const path = [];
-  let node = root;
-  while (node) {
-    path.push(node.value);
-    if (value === node.value) break;
-    node = value < node.value ? node.left : node.right;
-  }
-  return path;
-}
-
-function traverse(root, order) {
-  const out = [];
-  const walk = (node) => {
-    if (!node) return;
-    if (order === "pre") out.push(node.value);
-    walk(node.left);
-    if (order === "in") out.push(node.value);
-    walk(node.right);
-    if (order === "post") out.push(node.value);
-  };
-  walk(root);
-  return out;
-}
 
 /**
  * In-order index sets x, depth sets y, and depth also pushes nodes back in z
@@ -104,8 +68,11 @@ function layoutTree(root) {
     }));
 
   // One fixed camera, a scaled group: the tree always fits, however it grows.
+  // The floor has to stay low enough for the worst case an unbalanced tree can
+  // reach — 24 nodes inserted in order is 23 levels deep, and a 0.4 floor left
+  // most of that chain outside the frame with nothing on screen to explain why.
   const scale = Math.max(
-    0.4,
+    0.15,
     Math.min(1, 13 / (spanX + 4), 9 / (spanY + 3)),
   );
 
@@ -139,6 +106,15 @@ const NODE_STYLES = {
     emissive: "#e11d48",
     intensity: 1.9,
     ring: "#fb7185",
+  },
+  // A rejected duplicate is not a search miss — the value is very much present,
+  // which is exactly why it was rejected. Sharing the miss colour told the
+  // student the opposite of what had happened.
+  duplicate: {
+    color: "#155e75",
+    emissive: "#0891b2",
+    intensity: 1.9,
+    ring: "#22d3ee",
   },
   selected: {
     color: "#0369a1",
@@ -266,6 +242,8 @@ export default function BinaryTree3D({ onOpenQuiz }) {
   const [selected, setSelected] = useState(null);
   const [speed, setSpeed] = useState(1);
   const [anim, setAnim] = useState(null);
+  /** Off is a plain BST; on rebalances after every insert. */
+  const [balanced, setBalanced] = useState(false);
 
   // Resizable panel width state (10% to 80% screen width)
   const [panelWidth, setPanelWidth] = useState(() => {
@@ -338,7 +316,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
     window.addEventListener("pointerup", onPointerUp);
   };
 
-  const tree = useMemo(() => buildTree(values), [values]);
+  const tree = useMemo(() => buildTree(values, balanced), [values, balanced]);
   const layout = useMemo(() => layoutTree(tree), [tree]);
 
   // Step the running animation. `cursor` is the index of the highlighted step;
@@ -380,15 +358,20 @@ export default function BinaryTree3D({ onOpenQuiz }) {
     const value = Number.parseInt(insertValue, 10);
     if (!Number.isFinite(value) || value < 1 || value > 99) return;
     if (values.includes(value)) {
-      run(`Insert ${value}`, comparisonPath(tree, value), "missing", "already in tree");
+      run(`Insert ${value}`, comparisonPath(tree, value), "duplicate", "already in tree — a BST holds no duplicates");
       return;
     }
     if (values.length >= MAX_NODES) return;
     const next = [...values, value];
     setValues(next);
     setSelected(null);
-    run(`Insert ${value}`, comparisonPath(buildTree(next), value), "found", "placed");
-  }, [insertValue, values, tree, run]);
+    run(
+      `Insert ${value}`,
+      comparisonPath(buildTree(next, balanced), value),
+      "found",
+      balanced ? "placed, then rebalanced" : "placed",
+    );
+  }, [insertValue, values, tree, run, balanced]);
 
   const handleRandom = useCallback(() => {
     if (values.length >= MAX_NODES) return;
@@ -400,8 +383,13 @@ export default function BinaryTree3D({ onOpenQuiz }) {
     const next = [...values, value];
     setValues(next);
     setSelected(null);
-    run(`Insert ${value}`, comparisonPath(buildTree(next), value), "found", "placed");
-  }, [values, run]);
+    run(
+      `Insert ${value}`,
+      comparisonPath(buildTree(next, balanced), value),
+      "found",
+      balanced ? "placed, then rebalanced" : "placed",
+    );
+  }, [values, run, balanced]);
 
   const handleSearch = useCallback(() => {
     const value = Number.parseInt(searchValue, 10);
@@ -450,7 +438,8 @@ export default function BinaryTree3D({ onOpenQuiz }) {
   const BST_CONCEPTS = [
     "A Binary Search Tree (BST) maintains nodes such that every left descendant is smaller and right descendant is larger.",
     "Tree traversals visit nodes systematically: In-order (left, root, right) yields sorted order; Pre-order is used for cloning; Post-order is used for deletion.",
-    "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced.",
+    "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced. Insert 10, 20, 30, 40 in order with balancing off and the tree becomes a linked list — every search then has to walk the whole chain.",
+    "An AVL tree prevents that by keeping every node's two subtree heights within 1 of each other, rotating whenever an insert breaks the rule. A rotation rearranges three subtrees without disturbing the ordering, so the search property survives it untouched.",
   ];
 
   return (
@@ -529,6 +518,33 @@ export default function BinaryTree3D({ onOpenQuiz }) {
 
           {activeTab === "controls" ? (
             <div className="space-y-3">
+              {/* ─── BST vs self-balancing AVL ─── */}
+              <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-2.5">
+                <button
+                  type="button"
+                  onClick={() => setBalanced((b) => !b)}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-ink-100">Self-balancing (AVL)</p>
+                    <p className="mt-0.5 text-[10px] leading-tight text-ink-400">
+                      {balanced
+                        ? "Rotating after every insert to keep height ≈ log₂n"
+                        : "Plain BST — insert 10, 20, 30… in order to watch it degrade"}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors ${
+                      balanced
+                        ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                        : "bg-ink-800 text-ink-400"
+                    }`}
+                  >
+                    {balanced ? "ON" : "OFF"}
+                  </span>
+                </button>
+              </div>
+
               <div>
                 <p className="mb-1.5 text-[10px] uppercase tracking-wider text-ink-500">
                   Insert node (1–99)
@@ -610,6 +626,9 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                 </span>
                 <p className="text-xs font-medium leading-relaxed text-ink-200">
                   3D Binary Search Tree & AVL Operations — node insertion, searching & traversals
+                </p>
+                <p className="text-[10px] leading-tight text-ink-400">
+                  Currently running as {balanced ? "an AVL tree — rotating to stay balanced" : "a plain BST — no rebalancing"}.
                 </p>
               </div>
 
@@ -705,7 +724,9 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                         className={`mt-2 rounded-md border px-2 py-1.5 text-[10px] leading-relaxed ${
                           anim.outcome === "missing"
                             ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
-                            : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                            : anim.outcome === "duplicate"
+                              ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
+                              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                         }`}
                       >
                         {anim.note}
@@ -750,6 +771,13 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
+                    <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0891b2] border border-[#22d3ee]" />
+                    <div>
+                      <p className="font-semibold text-cyan-300">Duplicate Rejected</p>
+                      <p className="text-[10px] text-ink-400">Value is already in the tree, so the insert is refused</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0284c7] border border-[#38bdf8]" />
                     <div>
                       <p className="font-semibold text-sky-300">Selected Node</p>
@@ -780,6 +808,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                       keywords: "BST, Binary Search Tree, AVL Tree, In-Order Traversal, Pre-Order, Post-Order, O(log n), Root, Leaf Node, Depth",
                     };
                     const bstParams = {
+                      mode: balanced ? "AVL (self-balancing)" : "plain BST (no rebalancing)",
                       nodesCount: layout.count,
                       treeHeight: layout.height,
                       optimalHeight,

@@ -280,6 +280,55 @@ describe("running the cart", () => {
   });
 });
 
+describe("a cart that cannot clear the loop", () => {
+  const mass = 500;
+  // Well under the 2.5R the loop needs, so it is certain to stall on the way up.
+  const track = buildTrack({ releaseHeight: 6, loopRadius: 8 });
+
+  /** Run the cart for `seconds` of scene time and report where it got to. */
+  const run = (seconds) => {
+    let state = startRun({ track, mass });
+    const dt = 1 / 120;
+    let furthest = 0;
+    for (let i = 0; i < seconds * 120; i += 1) {
+      state = stepRun(state, track, { mass, friction: true }, dt);
+      furthest = Math.max(furthest, state.s);
+    }
+    return { state, furthest };
+  };
+
+  it("rolls back down instead of freezing on the rail", () => {
+    const { state, furthest } = run(40);
+    // It must have turned round: the energy budget makes a cart with exactly
+    // zero kinetic energy a fixed point, so it used to stick where it stalled
+    // and never move again.
+    assert.ok(
+      state.s < furthest - 1,
+      `expected the cart to come back down from ${furthest.toFixed(1)}, ended at ${state.s.toFixed(1)}`,
+    );
+  });
+
+  it("never climbs higher than its energy budget allows", () => {
+    let state = startRun({ track, mass });
+    const budget = state.mechanical;
+    for (let i = 0; i < 40 * 120; i += 1) {
+      state = stepRun(state, track, { mass, friction: true }, 1 / 120);
+      const height = sampleAt(track, track.height, state.s);
+      assert.ok(
+        mass * G * height <= budget + 1e-6,
+        `reached ${height.toFixed(2)} m on a budget of ${(budget / (mass * G)).toFixed(2)} m`,
+      );
+    }
+  });
+
+  it("settles somewhere real rather than drifting off the track", () => {
+    const { state } = run(60);
+    assert.ok(Number.isFinite(state.s));
+    assert.ok(state.s >= 0 && state.s <= track.length);
+    assert.ok(Number.isFinite(state.mechanical) && Number.isFinite(state.thermal));
+  });
+});
+
 describe("speed from the energy budget", () => {
   it("returns zero rather than a NaN when there is nothing left", () => {
     assert.equal(speedFrom(0, 500, 10), 0);

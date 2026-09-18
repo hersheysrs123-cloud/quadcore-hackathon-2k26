@@ -328,7 +328,7 @@ export const TOPICS = [
     ],
     concepts: [
       "Convex lenses and concave mirrors converge rays toward a real focus; concave lenses and convex mirrors diverge rays so they appear to originate from a virtual focus.",
-      "The thin-lens formula (1/v − 1/u = 1/f) and spherical mirror formula (1/v + 1/u = 1/f) calculate precise image formation distances and magnifications.",
+      "Lenses and mirrors share one equation, not two: 1/v + 1/u = 1/f, with u and f measured as positive distances and the magnification m = v/u. A converging element focuses real light, so it takes f > 0; a diverging one only appears to, so it takes f < 0.",
       "Real images form where light rays physically intersect and can be caught on a screen; virtual images form where only backward ray projections meet.",
       "Spherical mirrors reverse ray direction via reflection, whereas lenses refract rays through the optical material.",
     ],
@@ -3505,7 +3505,8 @@ export const TOPICS = [
     concepts: [
       "A Binary Search Tree (BST) maintains nodes such that every left descendant is smaller and right descendant is larger.",
       "Tree traversals visit nodes systematically: In-order (left, root, right) yields sorted order; Pre-order is used for cloning; Post-order is used for deletion.",
-      "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced.",
+      "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced — insert values in ascending order with balancing off and the tree becomes a linked list.",
+      "An AVL tree keeps every node's two subtree heights within 1 of each other, rotating whenever an insert breaks that rule. A rotation rearranges three subtrees without disturbing the ordering, so the search property survives it untouched.",
     ],
     quiz: [
       {

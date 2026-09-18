@@ -1659,9 +1659,12 @@ export function LensOpticsScene({ params = {} }) {
   const h = objectHeight;
   const f = focal;
 
-  // Thin optics equations (real-is-positive convention):
-  // Lenses: 1/v - 1/u = 1/f (converging: f > 0, diverging: f < 0)
-  // Mirrors: 1/v + 1/u = 1/f (converging: f > 0, diverging: f < 0)
+  // Real-is-positive convention, and the SAME equation for both lenses and
+  // mirrors: 1/v + 1/u = 1/f. The sliders hand over u and f as positive
+  // magnitudes, so the branches below carry the signs explicitly rather than
+  // relying on a signed f — writing the lens case as 1/v − 1/u = 1/f would be
+  // the Cartesian convention, which needs a negative u for a real object and
+  // would disagree with every number the panel prints.
   const atInfinity = isConverging && Math.abs(u - f) < 0.035;
 
   let v = 0;
@@ -3494,7 +3497,7 @@ export function GasLawsScene({ params = {} }) {
             ? "Hot: the particles carry more kinetic energy, so they hit the walls harder and more often. At fixed V that means p ∝ T — watch pV ÷ T stay put."
             : volume < 0.7
               ? "Compressed: the same collisions are spread over less wall area, so the pressure rises. At fixed T, pV stays constant — Boyle's law."
-              : "Pressure is the total force of the particle collisions per unit area of wall. pV ÷ T holds constant however you move the sliders — that is the gas law."
+              : "Pressure is the total force of the particle collisions per unit area of wall. Move T and V and pV ÷ T refuses to budge — that is the gas law. Adding particles is the one slider that does change it, because pV ÷ T counts how much gas is in there."
         }
         noteTone={temperature > 600 || volume < 0.7 ? "warn" : "neutral"}
       />
@@ -4723,24 +4726,20 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
         s.z += h * s.vz;
         r = Math.max(Math.hypot(s.x, s.z), 0.55);
 
-        // Smooth banked rim containment: prevents satellite from launching out of the potential well at maximum speed
-        if (r > rimR) {
-          const penetration = r - rimR;
-          const kRim = 32.0;
-          const rimAcc = -kRim * penetration;
-          s.vx += (s.x / r) * rimAcc * h;
-          s.vz += (s.z / r) * rimAcc * h;
-          // Dampen outward radial momentum while conserving tangential orbital velocity
-          const vDotR = (s.vx * s.x + s.vz * s.z) / r;
-          if (vDotR > 0) {
-            s.vx -= (s.x / r) * vDotR * 0.35;
-            s.vz -= (s.z / r) * vDotR * 0.35;
-          }
-        }
-
         a = -mu / (r * r * r);
         s.vx += 0.5 * h * a * s.x;
         s.vz += 0.5 * h * a * s.z;
+
+        // A satellite with ε ≥ 0 genuinely never comes back, so it is stopped
+        // at the edge of the drawn well and reported as escaped. The rim used
+        // to push it back and damp its outward velocity, which quietly turned
+        // hyperbolic orbits into bound ones — and the panel went on printing
+        // the ε and e it was busy destroying. A bound orbit is left alone: its
+        // apoapsis can sit outside the sheet, but it does return.
+        if (r > rimR && (s.vx * s.vx + s.vz * s.vz) / 2 - mu / r >= 0) {
+          s.escaped = true;
+          break;
+        }
       }
 
       const r = Math.hypot(s.x, s.z);
@@ -4779,9 +4778,8 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
         energy,
         e,
         period: a ? 2 * Math.PI * Math.sqrt((a * a * a) / mu) : null,
-        escaped: false,
-        beyondView: false,
-        rimBanking: r > rimR - 0.25,
+        escaped: s.escaped,
+        beyondView: !s.escaped && r > rimR,
       });
     }
   });
@@ -4882,18 +4880,20 @@ export function OrbitScene({ params = {} }) {
           ["Eccentricity e", live.e.toFixed(3)],
           ["Energy ε", live.energy.toFixed(2), unbound ? "bad" : "good"],
           ["Period T", live.period ? live.period.toFixed(1) : "—"],
-          ["Orbit", live.rimBanking ? "Rim banked" : shape, shape === "circular" ? "good" : live.rimBanking ? "warn" : unbound ? "bad" : "neutral"],
+          ["Orbit", live.escaped ? "escaped" : shape, shape === "circular" ? "good" : unbound ? "bad" : "neutral"],
         ]}
         note={
-          live.rimBanking
-            ? "At maximum launch speed, the satellite rides up the outer lip and banks along the rim, remaining safely contained within the potential well."
-            : unbound
-              ? "Launch speed exceeds escape velocity (ε ≥ 0): satellite climbs to the outer rim and banks along the potential lip."
-              : shape === "circular"
-                ? "Launch speed matches circular value at this radius: centripetal acceleration balances gravity perfectly."
-                : `Elliptical: ${launchSpeed < circular ? "too slow" : "too fast"} for a circle here, so the satellite ${launchSpeed < circular ? "falls inward, speeds up, and swings back out" : "climbs away, slows down, and falls back"}. Match circular speed ${circular.toFixed(2)} to round it off.`
+          live.escaped
+            ? `Escaped. Launch speed ${launchSpeed.toFixed(2)} reached escape velocity ${escapeSpeed.toFixed(2)} = √2 × the circular speed at this radius, which puts the total energy at ε ≥ 0 — there is no apoapsis to come back from, so the satellite is left at the edge of the sheet. Drop below ${escapeSpeed.toFixed(2)} to bind it into an ellipse.`
+            : live.beyondView
+              ? "Still bound, but its apoapsis is outside the drawn sheet — it has swung out past the edge and will fall back in. Lower the launch speed toward the circular value to keep the whole ellipse in view."
+              : unbound
+                ? "Total energy is ε ≥ 0, so this orbit is not closed — the satellite is on its way out and will not return."
+                  : shape === "circular"
+                    ? "Launch speed matches circular value at this radius: centripetal acceleration balances gravity perfectly."
+                    : `Elliptical: ${launchSpeed < circular ? "too slow" : "too fast"} for a circle here, so the satellite ${launchSpeed < circular ? "falls inward, speeds up, and swings back out" : "climbs away, slows down, and falls back"}. Match circular speed ${circular.toFixed(2)} to round it off.`
         }
-        noteTone={live.rimBanking ? "warn" : unbound ? "neutral" : shape === "circular" ? "good" : "neutral"}
+        noteTone={live.escaped || live.beyondView ? "warn" : shape === "circular" ? "good" : "neutral"}
       />
 
       <SceneLegend
