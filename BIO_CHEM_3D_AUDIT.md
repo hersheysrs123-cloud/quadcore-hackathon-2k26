@@ -23,6 +23,42 @@ This is the biology/chemistry counterpart to `8bb971b` (*"fix(visualizations): c
 
 ## 1. Verdict
 
+> ## ✅ ALL FIVE PHASES COMPLETE — 19 September 2026
+>
+> **87 of 87 defects fixed**, plus 12 more found while fixing them (10 by the
+> legend-fidelity guardrail, 1 by the dead-parameter guardrail, 1 by writing
+> the VSEPR tests).
+>
+> | Phase | What it did | Landed |
+> |---|---|---|
+> | 1 | Eleven `lib/` engines; all eleven drifted HUD cases rewritten to call them | `d909653` |
+> | 2 | Cracking, three lattices, DNA bonds, cell lysis, respiratory throttle | `b610fde` `10e760d` |
+> | 3 | Eleven test files (+211 assertions); `SceneReadout`/`SceneLegend` deleted (97 sites, 1,518 lines) | `639d08f` `661463a` |
+> | 4 | All fifteen second-generation loose ends | `86e14ff` `e8c42fd` |
+> | 5 | Four guardrails, each mutation-tested | `1e28a94` `7890d70` |
+>
+> **Tests: 1,310 → 1,784.** Production build clean throughout.
+>
+> The root cause named below — *"the Details panel is a hand-written second
+> implementation of each scene's readout"* — is now structurally impossible to
+> reintroduce silently. The second copy has no home (the placeholder
+> components are gone), the shared engine is the only definition, and four CI
+> guardrails fail the build if a panel, a key or a test starts drifting again.
+>
+> **Two follow-ups remain, both features rather than defects:**
+> - Inert-graphite electrodes beside the copper purification cell (2.1's
+>   richer form).
+> - A myopia/hypermetropia mode for the eye. `lib/eyeOptics.js` already has
+>   what it needs: a myopic eye is `axialLength` > `n / P`, and the blur
+>   machinery would work unchanged.
+>
+> **One piece of deliberate debt:** three unit tests —
+> `physics-solvers`, `quiz-grading`, `timer-store` — each assert against a
+> private reimplementation of their subject rather than the shipping code.
+> They are quarantined by guardrail 5.3, which enforces the rule everywhere
+> else and fails if one of them is fixed without being taken off the list.
+
+
 **87 defects across 29 topics.** They are not spread evenly. The suite is split cleanly in two:
 
 | Generation | Topics | Engine | Tests | Readout | Defects |
