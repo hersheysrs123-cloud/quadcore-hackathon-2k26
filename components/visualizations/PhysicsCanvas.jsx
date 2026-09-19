@@ -18,6 +18,26 @@ import {
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { mediumColour, mediumName } from "@/components/visualizations/media";
+import {
+  OPTICS_TITLES,
+  imageNature,
+  opticsTypeOf,
+  solveBlock,
+  solveRayOptics,
+} from "@/lib/rayOptics";
+import {
+  COIL_H,
+  COIL_W,
+  currentDirection,
+  emfAt,
+  fluxAt,
+  omegaOf,
+  peakEmf,
+  safeTurnsOf,
+  solveSolenoidInduction,
+} from "@/lib/induction";
+import { SIM_DT, simulateFlight } from "@/lib/projectile";
+import { gasLawReadout } from "@/lib/particleModel";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
 import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
@@ -70,47 +90,6 @@ function wavelengthToHex(nm) {
       .toString(16)
       .padStart(2, "0");
   return `#${channel(r)}${channel(g)}${channel(b)}`;
-}
-
-/**
- * The full parallel-sided block, not just the first surface.
- *
- * The ray refracts on the way in (i → r), crosses the block, then refracts
- * on the way out. Because the two faces are parallel, the second refraction
- * undoes the first exactly: the emergent angle equals the angle of
- * incidence, so the ray leaves parallel to how it arrived, shifted sideways
- * by the lateral displacement d = t·sin(i − r) ÷ cos r.
- */
-/**
- * Fraction of the light reflected at the surface, from the Fresnel equations
- * averaged over the two polarisations (unpolarised light).
- *
- * Refraction is never all-or-nothing: about 4% comes straight back off a
- * glass surface at normal incidence, and the share climbs steeply toward 100%
- * as the ray flattens out — which is why a window is a mirror when you look
- * along it. Drawing the reflected ray at a fixed faintness hid that entirely.
- */
-function fresnelReflectance(i, r, n1, n2) {
-  if (r === null) return 1; // past the critical angle: everything comes back
-  const cosI = Math.cos(i);
-  const cosR = Math.cos(r);
-  const rs = (n1 * cosI - n2 * cosR) / (n1 * cosI + n2 * cosR);
-  const rp = (n1 * cosR - n2 * cosI) / (n1 * cosR + n2 * cosI);
-  return clamp((rs * rs + rp * rp) / 2, 0, 1);
-}
-
-function solveBlock(angleDeg, n1, n2, thickness) {
-  const i = angleDeg * DEG;
-  const sinR = (n1 * Math.sin(i)) / n2;
-  const tir = sinR > 1; // only possible when the block is less dense
-  const r = tir ? null : Math.asin(clamp(sinR, -1, 1));
-  const e = tir ? null : i; // parallel faces ⇒ emergent angle = incident angle
-  const critical = n1 > n2 ? Math.asin(clamp(n2 / n1, -1, 1)) / DEG : null;
-  const cosR = r !== null ? Math.cos(r) : 0;
-  const lateral = tir ? 0 : Math.abs(cosR) < 1e-4 ? 0 : (thickness * Math.sin(i - (r ?? 0))) / cosR;
-  const run = tir ? 0 : clamp(thickness * Math.tan(r ?? 0), -25, 25); // sideways travel inside
-  const reflectance = fresnelReflectance(i, r, n1, n2);
-  return { i, r, e, tir, critical, lateral, run, reflectance };
 }
 
 function arcSweep(centre, from, to, radius, segments = 36) {
@@ -1527,9 +1506,7 @@ function DetailedOptic({ type }) {
 }
 
 export function LensOpticsScene({ params = {} }) {
-  const type = params.opticsType || (params.lensType === "concave" ? "concave_lens" : params.lensType === "convex" ? "convex_lens" : "convex_lens");
-  const isMirror = type.includes("mirror");
-  const isConverging = type === "convex_lens" || type === "concave_mirror";
+  const type = opticsTypeOf(params);
   const focal = typeof params.focal === "number" ? params.focal : 2.5;
   const objectDistance = typeof params.objectDistance === "number" ? params.objectDistance : 5.0;
   const objectHeight = typeof params.objectHeight === "number" ? params.objectHeight : 1.5;
@@ -1541,44 +1518,10 @@ export function LensOpticsScene({ params = {} }) {
   const h = objectHeight;
   const f = focal;
 
-  // Real-is-positive convention, and the SAME equation for both lenses and
-  // mirrors: 1/v + 1/u = 1/f. The sliders hand over u and f as positive
-  // magnitudes, so the branches below carry the signs explicitly rather than
-  // relying on a signed f — writing the lens case as 1/v − 1/u = 1/f would be
-  // the Cartesian convention, which needs a negative u for a real object and
-  // would disagree with every number the panel prints.
-  const atInfinity = isConverging && Math.abs(u - f) < 0.035;
-
-  let v = 0;
-  let real = false;
-  let m = 0;
-  let imgX = 0;
-  let imageHeight = 0;
-
-  if (isConverging) {
-    if (!atInfinity) {
-      if (u > f) {
-        v = (f * u) / (u - f);
-        real = true;
-        m = v / u;
-        imageHeight = -h * m; // Inverted
-        imgX = isMirror ? -v : v; // Real mirror image is in front (x < 0); real lens image is behind (x > 0)
-      } else {
-        v = (f * u) / (f - u);
-        real = false;
-        m = v / u;
-        imageHeight = h * m; // Upright
-        imgX = isMirror ? v : -v; // Virtual mirror image is behind (x > 0); virtual lens image is on object side (x < 0)
-      }
-    }
-  } else {
-    // Diverging optical element: Concave Lens or Convex Mirror
-    v = (f * u) / (u + f);
-    real = false;
-    m = v / u;
-    imageHeight = h * m; // Upright
-    imgX = isMirror ? v : -v; // Virtual mirror image behind (x > 0); virtual lens image on object side (x < 0)
-  }
+  // Where the image is, from lib/rayOptics.js — the same call the HUD makes,
+  // so the panel cannot claim an image the scene is not drawing.
+  const solved = solveRayOptics({ type, focal, objectDistance, objectHeight });
+  const { atInfinity, v, imgX, imageHeight, magnification: m, real, isMirror, isConverging } = solved;
 
   const objectTop = [-u, h, 0];
   const span = atInfinity ? u + 2 * f : Math.max(u, Math.abs(v), 2 * f);
@@ -1641,18 +1584,8 @@ export function LensOpticsScene({ params = {} }) {
   const ray3VirtualPoints = (!real && !atInfinity) ? [[0, ray3HitY, 0], [imgX, ray3HitY, 0]] : null;
   const showThirdRay = !atInfinity && Math.abs(u - f) > 1e-3;
 
-  const nature = atInfinity
-    ? "No image — rays leave parallel (spotlight)"
-    : `${real ? "Real" : "Virtual"}, ${imageHeight < 0 ? "inverted" : "upright"}, ${
-        m > 1.02 ? "magnified" : m < 0.98 ? "diminished" : "same size"
-      }`;
-
-  const titleMap = {
-    convex_lens: "Convex Lens (Converging)",
-    concave_lens: "Concave Lens (Diverging)",
-    concave_mirror: "Concave Mirror (Converging)",
-    convex_mirror: "Convex Mirror (Diverging)",
-  };
+  const nature = imageNature(solved);
+  const titleMap = OPTICS_TITLES;
 
   return (
     <SceneCanvas camera={{ position: [0.5, 3.5, 12], fov: 45 }} lights={{ ambient: 0.85, keyLight: 1.8, rim: "#93c5fd" }}>
@@ -1847,64 +1780,8 @@ export function LensOpticsScene({ params = {} }) {
 }
 
 // ═══ 4 · Electromagnetic induction & Faraday's law ════════════════════
-
-// Half-width and half-height of the coil, and the area they enclose. The
-// scene and the coil both need these, and the flux is wrong if they drift.
-const COIL_W = 1.5;
-const COIL_H = 1.0;
-const COIL_AREA = 2 * COIL_W * 2 * COIL_H;
-
-/**
- * Peak e.m.f. of an N-turn coil of area A turning at ω in a field B.
- * Each turn cuts the same flux, so they add: ε₀ = N B A ω.
- */
-const peakEmf = (field, omega, turns = 1) => turns * field * COIL_AREA * omega;
-
-const omegaOf = (speed) => speed * 1.7;
-
-/**
- * Flux through the coil at rotation angle θ.
- *
- * The coil is built in the XY plane, so its normal starts along +z, and it
- * turns about y — which puts the normal at (sin θ, 0, cos θ). B lies along
- * +x, so Φ = B·A·sin θ, *not* cos θ. Getting this backwards (as this scene
- * did) puts the readout a quarter turn out of step with the model: it
- * announced "cutting no field lines" at the exact moment the coil was drawn
- * edge-on to the field, sweeping across the lines as fast as it ever does.
- */
-const fluxAt = (field, angle) => field * COIL_AREA * Math.sin(angle);
-
-/** ε = −N·dΦ/dt = −N·B·A·ω·cos θ. */
-const emfAt = (field, omega, angle, turns = 1) =>
-  -turns * field * COIL_AREA * omega * Math.cos(angle);
-
-function solveSolenoidInduction({
-  x = 0,
-  velocity = 0,
-  turns = 10,
-  magnetStrength = 1.0,
-  radius = 0.9,
-  flipPoles = false,
-} = {}) {
-  const safeTurns = Math.max(1, Math.round(turns || 1));
-  const polarity = flipPoles ? -1 : 1;
-  const m = (magnetStrength || 1.0) * polarity;
-  const R = radius || 0.9;
-  const denom = Math.pow(x * x + R * R, 1.5);
-  const C = 2.0 * R;
-  const flux = (C * m * R * R) / denom;
-  const dPhi_dx = (-3 * C * m * R * R * x) / Math.pow(x * x + R * R, 2.5);
-  const rawEmf = -safeTurns * dPhi_dx * velocity;
-  const emf = Object.is(rawEmf, -0) || Math.abs(rawEmf) < 1e-12 ? 0 : rawEmf;
-  return {
-    turns: safeTurns,
-    flux: Object.is(flux, -0) || Math.abs(flux) < 1e-12 ? 0 : flux,
-    dPhi_dx: Object.is(dPhi_dx, -0) || Math.abs(dPhi_dx) < 1e-12 ? 0 : dPhi_dx,
-    emf,
-    velocity,
-    direction: Math.abs(emf) < 0.05 ? "none" : emf > 0 ? "clockwise" : "anticlockwise",
-  };
-}
+// The coil geometry and Faraday's law itself live in lib/induction.js, so
+// the HUD readout beside this scene reads the same numbers it does.
 
 /**
  * Universal Laboratory Table / Workbench Base
@@ -2129,7 +2006,7 @@ const TRACE = { width: 5.6, height: 0.82, turns: 2 };
 function EmfTrace({ speed, field, turns, angleRef }) {
   const marker = useRef(null);
   const omega = omegaOf(speed);
-  const safeTurns = Math.max(1, Math.round(turns || 1));
+  const safeTurns = safeTurnsOf(turns);
   const peak = peakEmf(field, omega, safeTurns);
 
   const amp = clamp(peak * 0.016, 0, 1) * TRACE.height;
@@ -2214,7 +2091,7 @@ function GeneratorRig({ params = {} }) {
     showBulb = true,
   } = params || {};
 
-  const safeTurns = Math.max(1, Math.round(turns || 1));
+  const safeTurns = safeTurnsOf(turns);
   const [sample, setSample] = useState(() => ({
     emf: emfAt(field, omegaOf(speed), 0, safeTurns),
     angle: 0,
@@ -2243,8 +2120,7 @@ function GeneratorRig({ params = {} }) {
   const omega = omegaOf(speed);
   const flux = fluxAt(field, sample.angle);
   const peak = peakEmf(field, omega, safeTurns);
-  const direction =
-    Math.abs(sample.emf) < 0.05 ? "none" : sample.emf > 0 ? "clockwise" : "anticlockwise";
+  const direction = currentDirection(sample.emf);
   const cutting = Math.abs(Math.cos(sample.angle));
 
   useFrame((_, delta) => {
@@ -2580,7 +2456,7 @@ function SolenoidRig({ params = {} }) {
     showBulb = true,
   } = params || {};
 
-  const safeTurns = Math.max(1, Math.round(turns || 1));
+  const safeTurns = safeTurnsOf(turns);
   const safePos = typeof magnetPos === "number" && !isNaN(magnetPos) ? magnetPos : 0;
 
   const magnetRef = useRef(null);
@@ -3134,11 +3010,12 @@ export function GasLawsScene({ params = {} }) {
   );
   useEffect(() => () => edges.dispose(), [edges]);
 
-  // p ∝ NT/V, normalised so 60 particles at 300 K in unit volume ≈ 101 kPa.
-  const pressure = 101 * (particles / 60) * (temperature / 300) / volume;
-  // Printed so the constant behind Boyle's and Charles's laws is visible as a
-  // number that refuses to move while p, V and T all do.
-  const pV = pressure * volume;
+  // p ∝ NT/V, from lib/particleModel.js. These three numbers were computed
+  // here and then dropped on the floor: the scene showed a piston moving and
+  // particles speeding up with nothing to read them against, which is the
+  // whole of Boyle's and Charles's laws left as an exercise. The strip below
+  // is where they go — pV is the one that refuses to move while p and V both do.
+  const gas = gasLawReadout({ temperature, volume, particles });
 
   return (
     <SceneCanvas camera={{ position: [4, 3.5, 11], fov: 45 }} controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed }}>
@@ -3200,6 +3077,14 @@ export function GasLawsScene({ params = {} }) {
         animSpeed={params.speed ?? 1}
       />
 
+      {/* The numbers the sliders are actually changing. */}
+      <SceneLabel position={[0, BORE + 1.35, 0]} accent>
+        {`p = ${gas.pressureKPa.toFixed(0)} kPa · V = ${gas.volume.toFixed(2)} · T = ${gas.temperatureK.toFixed(0)} K`}
+      </SceneLabel>
+      <SceneLabel position={[0, BORE + 0.95, 0]}>
+        {`pV = ${gas.pV.toFixed(0)} — unchanged while p and V trade off · ${rate} wall hits/s`}
+      </SceneLabel>
+
     </SceneCanvas>
   );
 }
@@ -3208,8 +3093,6 @@ export function GasLawsScene({ params = {} }) {
 
 /** Roughly how many world units wide the drawn trajectory should be. */
 const PROJECTILE_SPAN = 9;
-const SIM_DT = 0.004;
-const SIM_MAX_TIME = 60;
 /** Runway deck top surface height in world units. */
 const RUNWAY_TOP_Y = 0.28;
 /** Ball radius in world units. */
@@ -3217,96 +3100,9 @@ const BALL_RADIUS = 0.13;
 /** Launch and landing origin height: runway deck surface plus ball radius so ball rests perfectly on deck. */
 const LAUNCH_Y = RUNWAY_TOP_Y + BALL_RADIUS;
 
-/**
- * Integrates the flight until it returns to the ground.
- *
- * Drag is quadratic (F = −k|v|v), not linear: at the speeds a thrown or
- * launched object actually reaches, that is the regime that applies, and it
- * is what makes the trajectory visibly asymmetric — the fall is steeper than
- * the climb, which no textbook parabola ever shows.
- */
-function simulateFlight(speed, angleDeg, gravity, drag, mass) {
-  const angle = angleDeg * DEG;
-  let vx = speed * Math.cos(angle);
-  let vy = speed * Math.sin(angle);
-  let x = 0;
-  let y = 0;
-  let t = 0;
-  const points = [[0, 0, 0]];
-  // Flat typed arrays rather than one object per step: a long lunar flight is
-  // 15 000 steps, this runs twice (with drag and without), and it re-runs on
-  // every frame of a slider drag. Sample i is simply t = i·SIM_DT.
-  const cap = Math.round(SIM_MAX_TIME / SIM_DT) + 2;
-  const sx = new Float32Array(cap);
-  const sy = new Float32Array(cap);
-  const svx = new Float32Array(cap);
-  const svy = new Float32Array(cap);
-  svx[0] = vx;
-  svy[0] = vy;
-  let n = 1;
-  let apex = 0;
-  let apexX = 0;
-
-  while (t < SIM_MAX_TIME && n < cap) {
-    const v = Math.hypot(vx, vy);
-    const k = drag / Math.max(mass, 0.05);
-    const ax = -k * v * vx;
-    const ay = -gravity - k * v * vy;
-
-    vx += ax * SIM_DT;
-    vy += ay * SIM_DT;
-    const nx = x + vx * SIM_DT;
-    const ny = y + vy * SIM_DT;
-    t += SIM_DT;
-
-    if (ny < 0) {
-      // Land exactly on the ground rather than a step below it, so the range
-      // readout does not jitter with the integrator's step size.
-      const f = y / (y - ny || 1);
-      x += (nx - x) * f;
-      y = 0;
-      points.push([x, 0, 0]);
-      sx[n] = x;
-      sy[n] = 0;
-      svx[n] = vx;
-      svy[n] = vy;
-      n += 1;
-      break;
-    }
-
-    x = nx;
-    y = ny;
-    if (y > apex) {
-      apex = y;
-      apexX = x;
-    }
-    // Every step would be 15 000 points for a long flight; every eighth is
-    // still smooth at this scale.
-    if (n % 8 === 0) points.push([x, y, 0]);
-    sx[n] = x;
-    sy[n] = y;
-    svx[n] = vx;
-    svy[n] = vy;
-    n += 1;
-  }
-
-  const last = n - 1;
-  return {
-    points,
-    sx,
-    sy,
-    svx,
-    svy,
-    count: n,
-    range: sx[last],
-    apex,
-    apexX,
-    // The landing step is interpolated, so the true flight time sits a
-    // fraction of a step before the last recorded index.
-    flightTime: last * SIM_DT,
-    impactSpeed: Math.hypot(svx[last], svy[last]),
-  };
-}
+// simulateFlight — the quadratic-drag integrator — lives in
+// lib/projectile.js, so the HUD can quote the flight it draws rather than
+// estimating it.
 
 /** Precision laboratory cannon launcher with bright satin platinum, champagne brass fittings, and protractor scale. */
 function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {

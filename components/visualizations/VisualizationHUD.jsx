@@ -46,10 +46,22 @@ import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coaster
 import { FLUIDS, fluidComparison, solveBuoyancy } from "@/lib/buoyancy";
 import { solveCircuit } from "@/lib/circuits";
 import {
+  OPTICS_TITLES,
+  imageNature,
+  objectZone,
+  opticsTypeOf,
+  solveBlock,
+  solveRayOptics,
+} from "@/lib/rayOptics";
+import { COIL_AREA, fluxAt, solveInduction } from "@/lib/induction";
+import { idealFlight, simulateFlight } from "@/lib/projectile";
+import { gasLawReadout } from "@/lib/particleModel";
+import {
   CHARGE_PER_MARKER,
   MAX_MARKERS,
   chargeOf,
   electronCount,
+  formatForce,
   leakTimeConstant,
   solveStatic,
 } from "@/lib/electrostatics";
@@ -1026,20 +1038,18 @@ function renderTopicDetailsReadout(topic, params) {
       const n1 = num(params.n1, 1.0);
       const n2 = num(params.n2, 1.5);
       const iDeg = num(params.angle, 0);
-      const iRad = (iDeg * Math.PI) / 180;
-      const sinR = (n1 * Math.sin(iRad)) / n2;
       const thickness = num(params.thickness, 3.0);
 
-      const tir = sinR > 1.0;
-      const rRad = tir ? 0 : Math.asin(sinR);
+      // The same solver the scene traces the ray with (lib/rayOptics.js).
+      // This case used to recompute all of it, and got two of them wrong: the
+      // reflected share came from the s-polarisation alone where unpolarised
+      // light is the average of both, and the lateral shift was unguarded at
+      // grazing incidence where cos r goes to zero.
+      const block = solveBlock(iDeg, n1, n2, thickness);
+      const { tir, critical, lateral, reflectance } = block;
+      const iRad = block.i;
+      const rRad = block.r ?? 0;
       const rDeg = (rRad * 180) / Math.PI;
-      const critical = n1 > n2 ? (Math.asin(n2 / n1) * 180) / Math.PI : null;
-
-      const reflectance = tir
-        ? 1.0
-        : Math.pow((n1 * Math.cos(iRad) - n2 * Math.cos(rRad)) / (n1 * Math.cos(iRad) + n2 * Math.cos(rRad)), 2);
-
-      const lateral = tir ? 0 : (thickness * Math.sin(iRad - rRad)) / Math.cos(rRad);
 
       readout = {
         title: "Snell's Law Optics",
@@ -1120,55 +1130,20 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "lenses": {
-      const type = params.opticsType || (params.lensType === "concave" ? "concave_lens" : params.lensType === "convex" ? "convex_lens" : "convex_lens");
-      const isMirror = type.includes("mirror");
-      const isConvex = type.startsWith("convex");
-      const isConcave = type.startsWith("concave");
-      const isConverging = type === "convex_lens" || type === "concave_mirror";
+      const type = opticsTypeOf(params);
       const f = num(params.focal, 2.5);
       const u = num(params.objectDistance, 5);
       const h = num(params.objectHeight, 1.5);
 
-      const atInfinity = isConverging && Math.abs(u - f) < 0.03;
-      let v = 0;
-      let real = false;
-      let m = 0;
-      let natureText = "";
-
-      if (isConverging) {
-        if (!atInfinity) {
-          if (u > f) {
-            v = (f * u) / (u - f);
-            real = true;
-            m = v / u;
-            natureText = u > 2 * f + 0.05
-              ? "Real, Inverted, Diminished"
-              : Math.abs(u - 2 * f) <= 0.05
-              ? "Real, Inverted, Same Size"
-              : "Real, Inverted, Magnified";
-          } else {
-            v = (f * u) / (f - u);
-            real = false;
-            m = v / u;
-            natureText = "Virtual, Upright, Magnified";
-          }
-        }
-      } else {
-        // Diverging element: Concave Lens or Convex Mirror
-        v = (f * u) / (u + f);
-        real = false;
-        m = v / u;
-        natureText = "Virtual, Upright, Diminished";
-      }
-
-      const imgHeight = atInfinity ? 0 : m * h;
-
-      const titleMap = {
-        convex_lens: "Convex Lens (Converging)",
-        concave_lens: "Concave Lens (Diverging)",
-        concave_mirror: "Concave Mirror (Converging)",
-        convex_mirror: "Convex Mirror (Diverging)",
-      };
+      // From lib/rayOptics.js, the same call the scene makes. Kept separately
+      // here, this case called an object "at infinity" within 0.03 of F where
+      // the scene used 0.035, and printed h' as +m·h for a real image the
+      // scene drew inverted — the panel said "Inverted" one row above a
+      // positive height.
+      const solved = solveRayOptics({ type, focal: f, objectDistance: u, objectHeight: h });
+      const { atInfinity, v, imageHeight: imgHeight, magnification: m, real, isMirror, isConverging } = solved;
+      const natureText = imageNature(solved);
+      const titleMap = OPTICS_TITLES;
 
       readout = {
         title: titleMap[type] || "Ray Optics",
@@ -1184,8 +1159,8 @@ function renderTopicDetailsReadout(topic, params) {
           ["Image height h'", atInfinity ? "—" : `${imgHeight.toFixed(2)} cm`],
           ["Magnification m", atInfinity ? "∞" : `${m.toFixed(2)}×`],
           ["Nature", atInfinity ? "None (Spotlight)" : real ? "Real" : "Virtual", real ? "good" : "warn"],
-          ["Orientation", atInfinity ? "—" : real ? "Inverted" : "Upright"],
-          ["Object position", u > 2 * f ? "Beyond 2F (C)" : u > f ? "Between F & 2F" : "Inside F"],
+          ["Orientation", atInfinity ? "—" : solved.inverted ? "Inverted" : "Upright"],
+          ["Object position", objectZone(f, u)],
         ],
         note: atInfinity
           ? "Object is at focal point F: rays leave exactly parallel and never intersect (collimator spotlight)."
@@ -1278,17 +1253,23 @@ function renderTopicDetailsReadout(topic, params) {
         };
       } else {
         const B = num(params.field, 1.0);
-        const flux = B * 6.0;
-        const peak = speed * B * N * 1.5;
+        // From lib/induction.js, the coil the scene actually turns. This case
+        // had its own two lines, and the peak was out by a factor of seven:
+        // the real coil generates N·B·A·ω with A = 6.0 m² and ω = 1.7·speed,
+        // where this printed N·B·speed·1.5.
+        const dynamo = solveInduction({ speed, field: B, turns: N });
+        const flux = fluxAt(B, Math.PI / 2); // Φ₀, the peak of B·A·sin θ
+        const peak = dynamo.peakEmf;
 
         readout = {
           title: "Faraday's Law of Induction (Dynamo)",
           subtitle: "Φ = B A sin θ · ε = −N ΔΦ/Δt",
           rows: [
-            ["Turns N", N, "gold"],
-            ["Coil area A", "6.0 m²"],
+            ["Turns N", dynamo.turns, "gold"],
+            ["Coil area A", `${COIL_AREA.toFixed(1)} m²`],
             ["Max flux Φ₀", `${flux.toFixed(2)} Wb`],
             ["Peak e.m.f. ε₀", `${peak.toFixed(2)} V`, peak > 0.05 ? "good" : "bad"],
+            ["Angular speed ω", `${dynamo.omega.toFixed(2)} rad/s`],
             ["Rotation speed", speed < 0.05 ? "Stopped" : `${speed.toFixed(1)} rev/s`],
             ["Output frequency", `${speed.toFixed(1)} Hz`],
             ["Active loads", "Bulb + Center-Zero Galvanometer"],
@@ -1318,8 +1299,11 @@ function renderTopicDetailsReadout(topic, params) {
       const T = num(params.temperature, 300);
       const V = num(params.volume, 1);
       const N = num(params.particles, 60);
-      const pressure = (N * T) / (V * 180);
-      const pV_T = (pressure * V) / T;
+      // From lib/particleModel.js, the same scale the cylinder label prints.
+      // This case normalised the pressure by (V · 180) and the scene by the
+      // reference point, so the panel read 100 kPa over a scene that said 101.
+      const gas = gasLawReadout({ temperature: T, volume: V, particles: N });
+      const pressure = gas.pressureKPa;
 
       readout = {
         title: "Ideal Gas State (pV = NkT)",
@@ -1330,7 +1314,8 @@ function renderTopicDetailsReadout(topic, params) {
           ["Volume V", `${V.toFixed(2)} V₀`],
           ["Particles N", N],
           ["Mean particle speed", `${Math.sqrt(T / 300).toFixed(2)}×`],
-          ["pV ÷ T constant", pV_T.toFixed(3), "good"],
+          ["pV", gas.pV.toFixed(1), "good"],
+          ["p ÷ T constant", gas.pOverT.toFixed(3), "good"],
         ],
         note: T > 600
           ? "High temperature: particles move faster with higher kinetic energy, hitting walls harder and more frequently."
@@ -1359,14 +1344,16 @@ function renderTopicDetailsReadout(topic, params) {
       const drag = num(params.drag, 0.04);
       const mass = num(params.mass, 1);
 
-      const rad = (angle * Math.PI) / 180;
-      const idealRange = (speed * speed * Math.sin(2 * rad)) / gravity;
-      const idealApex = (speed * speed * Math.sin(rad) * Math.sin(rad)) / (2 * gravity);
-      const idealTime = (2 * speed * Math.sin(rad)) / gravity;
-
-      const dragLossEst = drag > 0 ? Math.min(0.65, drag * 10) : 0;
-      const estRange = idealRange * (1 - dragLossEst);
-      const estApex = idealApex * (1 - dragLossEst * 0.5);
+      // The flight the scene draws, not an estimate of it (lib/projectile.js).
+      // This case guessed: range = ideal × (1 − min(0.65, 10k)), apex at a
+      // hardcoded 44% of that. On a 25 m/s launch into k = 0.06 the guess and
+      // the curve beside it disagreed by metres.
+      const flight = simulateFlight(speed, angle, gravity, drag, mass);
+      const ideal = idealFlight(speed, angle, gravity);
+      const idealRange = ideal.range;
+      const idealApex = ideal.apex;
+      const idealTime = ideal.flightTime;
+      const dragLoss = idealRange > 0 ? Math.max(0, 1 - flight.range / idealRange) : 0;
 
       readout = {
         title: "2D Projectile Trajectory",
@@ -1376,14 +1363,16 @@ function renderTopicDetailsReadout(topic, params) {
           ["Launch Angle θ", `${angle.toFixed(1)}°`],
           ["Gravity g", `${gravity.toFixed(2)} m/s²`],
           ["Drag Coefficient k", `${drag.toFixed(3)}`],
-          ["Range with Drag", `${estRange.toFixed(1)} m`, "good"],
+          ["Range with Drag", `${flight.range.toFixed(1)} m`, "good"],
           ["Ideal Range (No Drag)", `${idealRange.toFixed(1)} m`],
-          ["Apex Height", `${estApex.toFixed(1)} m`],
-          ["Apex Distance", `${(estRange * (drag > 0 ? 0.44 : 0.50)).toFixed(1)} m`],
+          ["Apex Height", `${flight.apex.toFixed(1)} m`],
+          ["Apex Distance", `${flight.apexX.toFixed(1)} m`],
+          ["Flight Time", `${flight.flightTime.toFixed(2)} s`],
           ["Ideal Flight Time", `${idealTime.toFixed(2)} s`],
+          ["Impact Speed", `${flight.impactSpeed.toFixed(1)} m/s`, flight.impactSpeed < speed - 0.05 ? "warn" : undefined],
         ],
         note: drag > 0.005
-          ? `Quadratic drag causes the projectile to lose horizontal momentum throughout its flight, steepening its descent and reducing range by approx ${(dragLossEst * 100).toFixed(0)}%.`
+          ? `Quadratic drag causes the projectile to lose horizontal momentum throughout its flight, steepening its descent and reducing range by ${(dragLoss * 100).toFixed(0)}%.`
           : "With zero atmospheric drag, the flight path is a perfect symmetrical parabola with maximum range achieved at exactly 45°.",
         noteTone: drag > 0.005 ? "warn" : "good",
       };
@@ -1768,8 +1757,7 @@ function renderTopicDetailsReadout(topic, params) {
       const full = solveStatic({ markers: MAX_MARKERS, domeMarkers: 45, separation, target, humidity });
       const half = solveStatic({ markers: MAX_MARKERS, domeMarkers: 45, separation: separation / 2, target, humidity });
       const tau = leakTimeConstant(humidity);
-      const fmt = (n) =>
-        n >= 1 ? `${n.toFixed(2)} N` : n >= 1e-3 ? `${(n * 1e3).toFixed(1)} mN` : `${(n * 1e6).toFixed(0)} µN`;
+      const fmt = formatForce; // lib/electrostatics.js — the scene's own formatter
 
       readout = {
         title: "Static Electricity",

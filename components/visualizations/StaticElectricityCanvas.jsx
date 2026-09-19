@@ -23,6 +23,7 @@ import {
 import {
   DOME_MAX_MARKERS,
   MAX_MARKERS,
+  formatForce,
   leak,
   rub,
   solveStatic,
@@ -830,10 +831,3 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
   );
 }
 
-/** Newtons, in whichever unit keeps the number readable. */
-function formatForce(newtons = 0) {
-  const n = Number.isFinite(newtons) ? Math.abs(newtons) : 0;
-  if (n >= 1) return `${n.toFixed(2)} N`;
-  if (n >= 1e-3) return `${(n * 1e3).toFixed(1)} mN`;
-  return `${(n * 1e6).toFixed(0)} µN`;
-}

@@ -27,7 +27,11 @@ const topLevelFunctions = (src) => [
   ...src.matchAll(/^const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/gm),
 ].map((m) => m[1]);
 
-const importsFromLib = (src) => /from\s+["'](?:\.\.\/)+lib\/|from\s+["']@\/lib\//.test(src);
+const importsFromLib = (src) =>
+  /from\s+["'](?:\.\.\/)+lib\/|from\s+["']@\/lib\//.test(src) ||
+  // A test that has to set globals up before the module loads reaches for a
+  // dynamic import instead; that still counts as reading the shipped engine.
+  /import\(\s*["'](?:(?:\.\.\/)+|@\/)lib\//.test(src);
 
 /**
  * Tests that legitimately declare helpers without touching lib/.
@@ -48,37 +52,25 @@ const STRUCTURAL = new Set([
 const MAX_HELPERS = 2;
 
 /**
- * Known violations, quarantined -- NOT approved.
+ * Tests excused from the rule. Empty, and it stays that way.
  *
- * These are the "two out-of-scope instances" the audit predicted, plus one
- * more the scan turned up. Each defines a working model of its subject and
- * asserts against that model, so each currently proves nothing about the
- * code that ships. They are listed rather than deleted so that the rule can
- * be enforced for every other file today, and so the debt is named instead
- * of passing silently.
+ * This held three entries: physics-solvers, quiz-grading and timer-store,
+ * each of which defined a working model of its subject and asserted against
+ * that model. All three were cleared the way X3 was — the engine was pulled
+ * out into lib/, the application was pointed at it, and then so was the test:
  *
- * Clearing one means extracting the real engine into lib/, pointing the
- * application at it, and pointing the test at it too -- the same move
- * lib/respiratory.js made for X3.
+ *   physics-solvers -> lib/rayOptics.js, lib/induction.js, lib/projectile.js,
+ *                      plus gasLawReadout in lib/particleModel.js, formatForce
+ *                      in lib/electrostatics.js and lib/organic.js's own
+ *                      atomCounts/formulaFor in place of a ninth private copy
+ *   quiz-grading    -> lib/aiService.js, which already exported all three
+ *   timer-store     -> lib/timerStore.js's secondsRemaining / resumeTimer /
+ *                      pauseTimer / clearTimer / clampDurationMins
+ *
+ * Adding a name back here is excusing a test instead of fixing it, and the
+ * size check below is what makes that a deliberate act rather than a quiet one.
  */
-const QUARANTINE = new Map([
-  [
-    "physics-solvers.test.mjs",
-    "Nine private engines (solveRefraction, solveThinLens, solveRayOptics, solveGasLaw, " +
-      "solveInduction, …). getHydrocarbonFormula also duplicates lib/organic.js's formulaFor, " +
-      "so the two can disagree and only one of them ships.",
-  ],
-  [
-    "quiz-grading.test.mjs",
-    "gradeObjectively / fallbackHeatmap / normalizeQuizResult are reimplemented here; the " +
-      "application grades elsewhere.",
-  ],
-  [
-    "timer-store.test.mjs",
-    "calculateSecondsRemaining / startTimer / pauseTimer / resetTimer are reimplemented here; " +
-      "lib/timerStore.js holds the shipping logic.",
-  ],
-]);
+const QUARANTINE = new Map();
 
 describe("no test carries a private copy of the engine it is testing", () => {
   it("scans a real set of unit tests", () => {
@@ -122,11 +114,12 @@ describe("the quarantine stays honest", () => {
     });
   }
 
-  it("does not quarantine more than the three known instances", () => {
+  it("is empty — the debt was cleared, not renamed", () => {
     assert.equal(
       QUARANTINE.size,
-      3,
-      "the quarantine has grown — a new test was excused instead of fixed",
+      0,
+      "a test was excused instead of fixed: extract its engine to lib/, point " +
+        "the application at it, and point the test at it too",
     );
   });
 });
