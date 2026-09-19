@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -310,50 +308,6 @@ export function SortingScene({ params = {} }) {
         {info.label} sort · {info.complexity}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Sort progress"
-        subtitle={`${info.label} — ${info.complexity}`}
-        rows={[
-          ["Elements n", count],
-          ["Comparisons", frame.comparisons, "gold"],
-          ["Writes", frame.writes],
-          ["Total work", `${comparisons} + ${writes}`],
-          ["Step", `${Math.min(cursor + 1, frames.length)} / ${frames.length}`],
-          ["Best / worst", info.extreme],
-          ["Stable", info.stable ? "yes" : "no", info.stable ? "good" : "warn"],
-          ["Status", done ? "sorted" : running ? "running" : "paused", done ? "good" : undefined],
-        ]}
-        note={
-          truncated
-            ? `This trace hit the ${MAX_FRAMES}-frame cap, so playback stops early. Drop n to watch it run to completion.`
-            : done
-              ? `Finished in ${comparisons} comparisons and ${writes} writes. Try the same n with another algorithm and compare those two numbers — that difference is what complexity notation is describing.`
-              : `Gold and rose bars are the elements ${info.label.toLowerCase()} sort is touching right now; green ones are ${algorithm === "insertion" ? "the sorted prefix built so far" : "already in their final position"}.`
-        }
-        noteTone={truncated ? "warn" : done ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Bar states"
-        items={[
-          { color: PALETTE.sky, shape: "square", label: "Unsorted", note: "height is the value" },
-          { color: PALETTE.gold, shape: "square", label: "Comparing", note: "the two being tested" },
-          { color: PALETTE.rose, shape: "square", label: "Swapping", note: "a write to the array" },
-          {
-            color: PALETTE.emerald,
-            shape: "square",
-            // Insertion sort's green prefix is sorted relative to itself, but
-            // a later insertion still shifts those elements along — so it is
-            // not the "will not move again" the other algorithms mean by it.
-            label: algorithm === "insertion" ? "Sorted so far" : "Final position",
-            note:
-              algorithm === "insertion"
-                ? "in order among themselves — later inserts still shift them"
-                : "will not move again",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }

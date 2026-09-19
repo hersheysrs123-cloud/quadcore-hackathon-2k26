@@ -8,8 +8,6 @@ import {
   Halo,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import {
@@ -554,31 +552,6 @@ export default function CircuitBoardCanvas({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={`${solved.spec.label} circuit`}
-        subtitle={solved.spec.summary}
-        rows={[
-          ["R_eq", solved.worked],
-          ["Total current", `${solved.totalCurrent.toFixed(3)} A`, solved.overCurrent ? "bad" : "good"],
-          ...solved.branches.map((b, i) => [
-            `I${i + 1}`,
-            b.open ? "0 A — open" : `${b.current.toFixed(3)} A`,
-            b.open ? "bad" : "good",
-          ]),
-          ["Terminal voltage", `${solved.terminalVoltage.toFixed(2)} V`],
-        ]}
-      />
-
-      <SceneLegend
-        title="Circuit key"
-        items={[
-          { color: CHARGE_COLOURS.electron, label: "Drift electrons", note: "same spacing everywhere — only the speed tracks the current" },
-          { color: COPPER, label: "Copper trace", note: "cut at every junction, each piece with its own current" },
-          { color: "#fbbf24", label: "Filament", note: "brightness follows P = I²R" },
-          { color: "#fb7185", label: "Short circuit", note: "a near-zero path in parallel with the bulbs" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

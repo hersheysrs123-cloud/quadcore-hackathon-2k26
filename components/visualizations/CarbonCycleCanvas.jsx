@@ -9,8 +9,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -567,24 +565,6 @@ export default function CarbonCycleCanvas({ params = {}, setParam }) {
         {`${SIM_YEARS_PER_SECOND * speed} sim-years per second · year ${solved.year.toFixed(0)} · ${longwave ? "showing re-radiated longwave IR" : "showing incoming shortwave sunlight"}`}
       </SceneLabel>
 
-      <SceneReadout
-        title="Carbon cycle"
-        subtitle={`year ${solved.year.toFixed(0)} · combustion ${combustion} % · forest ${forest} %`}
-        rows={[
-          ["Atmospheric CO₂", `${Math.round(solved.ppm)} ppm`],
-          ["Temperature anomaly", `${solved.anomaly >= 0 ? "+" : "−"}${Math.abs(solved.anomaly).toFixed(2)} °C`],
-          ["Exchange balance", `${solved.net >= 0 ? "+" : "−"}${Math.abs(solved.net).toFixed(1)} GtC/yr`],
-        ]}
-      />
-      <SceneLegend
-        title="Carbon flows"
-        items={[
-          { color: COLOURS.photosynthesis, label: "Photosynthesis", note: "air → leaves" },
-          { color: COLOURS.respiration, label: "Respiration", note: "living things → air" },
-          { color: COLOURS.combustion, label: "Combustion", note: "fossil carbon → air" },
-          { color: COLOURS.ocean, label: "Ocean uptake", note: "air → sea" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

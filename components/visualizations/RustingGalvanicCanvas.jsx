@@ -7,8 +7,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -463,22 +461,6 @@ export default function RustingGalvanicCanvas({ params = {}, setParam }) {
         {`${dayLabel(days)} of ${MAX_DAYS} · ${E.label} · nail 4 wrapped in ${P.label.toLowerCase()}${playing ? " · playing" : ""}`}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Rusting & sacrificial protection"
-        subtitle={`${dayLabel(days)} · ${E.label}`}
-        rows={result.tubes.map((t) => [`${t.short}`, t.rusts ? `${t.rustThicknessUm.toFixed(1)} µm` : "no rust", t.rusts ? (t.key === "coupled" && couple.protects ? "good" : "bad") : "good"])}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: "#c2410c", label: "Rust, Fe₂O₃·xH₂O", note: "needs water AND oxygen" },
-          { color: "#f4d35e", label: "Paraffin oil", note: "seals the boiled water from the air" },
-          { color: "#eef2f6", label: "Desiccant", note: "keeps tube 3 dry" },
-          { color: P.colour, label: `${P.label} wrap`, note: P.protects ? "the sacrificial anode" : "the cathode — the nail corrodes for it" },
-          { color: PALETTE.bone, label: "Electron", note: "flows from the more reactive metal to the less" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

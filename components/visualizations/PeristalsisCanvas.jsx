@@ -7,8 +7,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   clamp,
 } from "@/components/visualizations/scene-kit";
@@ -472,14 +470,6 @@ export default function PeristalsisCanvas({ params = {}, setParam }) {
         {oKey === "inverted" ? "upside-down · the wave still delivers" : "right-side up"}
       </SceneLabel>
 
-      <SceneReadout title="Peristalsis" subtitle={`${consistencyFor(cKey).label} · ${orientationFor(oKey).label}`} rows={[]} />
-      <SceneLegend
-        title="Muscle layers"
-        items={[
-          { color: COLOURS.circularContracted, label: "Circular muscle", note: "contracts behind the bolus" },
-          { color: COLOURS.longitudinalContracted, label: "Longitudinal muscle", note: "contracts ahead of it" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

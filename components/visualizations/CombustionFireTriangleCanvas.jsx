@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
   lerp,
@@ -36,7 +34,6 @@ import {
 } from "@/components/visualizations/lab-bench";
 import {
   BASIN_HOLD_S,
-  EQUATIONS,
   O2_EXTINCTION,
   createCombustionState,
   describeFlame,
@@ -622,22 +619,6 @@ export default function CombustionFireTriangleCanvas({ params = {}, setParam }) 
         {description}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Combustion"
-        subtitle={`collar ${profile.label}`}
-        rows={[
-          ["Flame", `${tempC} °C`],
-          ["Equation", profile.equation.text],
-        ]}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: EQUATIONS.incomplete.key === profile.equation.key ? profile.colour : "#f5b731", label: "Yellow flame", note: "incomplete — soot glowing, CO in the exhaust" },
-          { color: "#4f8ff7", label: "Blue flame", note: "complete — CO₂ and water, hottest at the inner cone tip" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

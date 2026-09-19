@@ -192,23 +192,21 @@ export function SceneLabel({
 
 // ─── Corner-pinned panels ───────────────────────────────────────────
 
-/**
- * Declarative placeholder component for scene-level readout specifications.
- * Note: Live parameter and formula readouts are rendered in the unified 2D HUD
- * overlay via `VisualizationHUD.jsx`. This component is preserved as a declarative
- * interface marker for scenes.
- */
-export function SceneReadout() {
-  return null;
-}
-
-/**
- * Declarative placeholder component for scene-level legend specifications.
- * Note: Visual and color keys are rendered dynamically in `VisualizationHUD.jsx`.
- */
-export function SceneLegend() {
-  return null;
-}
+// The two placeholders that used to live here -- SceneReadout and
+// SceneLegend -- are gone. Both returned null, but every scene passed them a
+// full readout spec and colour key anyway: 97 call sites, 1,518 lines of
+// rows, notes and legend entries that rendered nowhere.
+//
+// That was finding X1. The live panels are built by VisualizationHUD from
+// the solveX() engines in lib/, so the scene-side copies had no way of being
+// wrong loudly -- they just drifted. The enzyme scene still carried a 50 degC
+// denaturation note and a rate > 0.6 threshold of its own; the crystal scene
+// still keyed bonds in a colour it had stopped drawing them in.
+//
+// The single definition is the lib/ module, which the scene and the HUD both
+// import. Re-exporting a spec from the scene would move it back out of that
+// shared home -- and could not work anyway, since VisualizationHUD is
+// upstream of the scenes.
 
 // ─── Geometry primitives ────────────────────────────────────────────
 

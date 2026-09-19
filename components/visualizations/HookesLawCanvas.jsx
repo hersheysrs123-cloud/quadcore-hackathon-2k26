@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import { FORCE_COLOURS, ForceVector, useForceScale } from "@/components/visualizations/force-diagram";
@@ -550,28 +548,6 @@ export default function HookesLawCanvas({ params = {}, setParam }) {
 
 
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Spring under load"
-        subtitle="F = kx, below the elastic limit"
-        rows={[
-          ["Force F", `${solved.force.toFixed(2)} N`, "gold"],
-          ["Extension x", `${cmOf(solved.extension).toFixed(2)} cm`],
-          ["Gradient ΔF/Δx", `${solved.stiffness.toFixed(0)} N/m`, solved.elastic ? "good" : "warn"],
-          ["Energy ½kx²", `${solved.elasticEnergy.toFixed(2)} J`],
-          ["Permanent set", solved.yielded ? `${cmOf(solved.permanentSet).toFixed(2)} cm` : "none", solved.yielded ? "bad" : "good"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Force–extension"
-        items={[
-          { color: FORCE_COLOURS.spring, shape: "line", label: "Hooke's law region", note: "straight — gradient is k" },
-          { color: FORCE_COLOURS.applied, shape: "line", label: "Plastic region", note: "bent over — the spring is yielding" },
-          { color: FORCE_COLOURS.limit, shape: "dash", label: "Elastic limit", note: "beyond here it will not spring back" },
-          { color: FORCE_COLOURS.net, shape: "line", label: "Measured gradient", note: "ΔF/Δx where the load sits now" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

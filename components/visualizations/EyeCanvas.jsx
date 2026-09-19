@@ -19,7 +19,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
   clamp,
   hashRandom,
   lerp,
@@ -1519,28 +1518,6 @@ export default function EyeCanvas({ onOpenQuiz }) {
             ))}
         </group>
 
-        <SceneLegend
-          corner="top-right"
-          title={mode === "accommodation" ? "Accommodation" : mode === "pupil" ? "Pupil reflex" : "Anatomy"}
-          items={
-            mode === "accommodation"
-              ? [
-                  { color: solved.inFocus ? PALETTE.gold : PALETTE.rose, shape: "line", label: "Light rays", note: solved.inFocus ? "converging on the fovea" : "missing the retina" },
-                  { color: TISSUE.lens, label: "Crystalline lens", note: solved.ciliary.lens },
-                  { color: TISSUE.ciliary, label: "Ciliary muscle", note: solved.ciliary.muscle },
-                  { color: TISSUE.zonule, shape: "line", label: "Zonules", note: solved.ciliary.zonules },
-                  { color: PALETTE.slate, shape: "dash", label: "Object axis", note: "compressed — not to scale" },
-                ]
-              : mode === "pupil"
-                ? [
-                    { color: PALETTE.rose, shape: "line", label: "Sphincter", note: `circular · ${solved.iris.sphincter}` },
-                    { color: PALETTE.gold, shape: "line", label: "Dilator", note: `radial · ${solved.iris.dilator}` },
-                    { color: "#04070c", label: "Pupil", note: `${solved.iris.diameterMm.toFixed(2)} mm aperture` },
-                    { color: TISSUE.retina, label: "Retina", note: "what the aperture is protecting" },
-                  ]
-                : PARTS.slice(0, 5).map((p) => ({ color: TISSUE.retina, label: p.name, note: p.blurb }))
-          }
-        />
       </SceneCanvas>
 
       <IrisViewport solved={solved} animate expanded={mode === "pupil"} />

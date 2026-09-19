@@ -491,6 +491,64 @@ The animal cell's only tonicity response is a uniform scale. At `tonicity < −0
 
 ### Phase 3 — Extract the engines and delete the duplication
 
+> **STATUS: LANDED (19 Sep 2026).**
+>
+> | Item | Outcome |
+> |---|---|
+> | 3.1 eleven `lib/` modules | done in Phase 1, out of necessity — see below. |
+> | 3.2 eleven HUD cases call `solveX()` | done in Phase 1, same reason. |
+> | 3.3 retire `SceneReadout` / `SceneLegend` | done. 97 call sites and both definitions deleted: **1,518 lines**. |
+> | 3.4 eleven test files | done. 211 new assertions, 1315 → **1526**. |
+>
+> **Why 3.1 and 3.2 landed early.** The plan assumed the HUD cases could be
+> corrected in place. They could not: `VisualizationHUD → BiologyCanvas →
+> RespiratoryCanvas → VisualizationHUD` is an import cycle, so the HUD cannot
+> read anything a scene owns. Sharing had to go through `lib/`, which is
+> exactly what 3.1 asks for — so it was pulled forward rather than adding a
+> third copy of each constant and deleting it a phase later.
+>
+> **Which 3.3 route, and why the plan's preference was overtaken.** The plan
+> preferred route two: scenes export their readout spec, the HUD renders it.
+> That route is now both blocked and unnecessary. Blocked by the same cycle
+> that forced 3.1 — `VisualizationHUD` is upstream of every scene. Unnecessary
+> because the single definition the route was reaching for already exists:
+> it is the `lib/` module, which the scene and the HUD both import freely.
+> Re-exporting a spec from the scene would move the definition *out* of that
+> shared home. So the components and their call sites were deleted.
+>
+> What was deleted was not inert. Every one of the 97 call sites carried a
+> full second copy of its scene's readout and colour key, rendering nowhere:
+> the enzyme scene still held its own `rate > 0.6` threshold and a "~50 °C"
+> denaturation note, the crystal scene still keyed bonds in a colour it had
+> stopped drawing them in. That is X1's supply, and it is gone.
+>
+> **One new defect, found by writing 3.4.** `solveVsepr` measured compression
+> as `ideal − smallestAngle`, and `IDEAL_ANGLE` carries the rounded 109.5°
+> the syllabus prints rather than the 109.4712° the geometry is built from —
+> so a plain tetrahedron with no lone pairs reported a 0.03° compression.
+> Compression is now zero when there are no lone pairs, by definition. The
+> HUD already read "none — ideal angles" below its 0.05° threshold, so nothing
+> on screen changed; the number is simply honest now.
+>
+> **The bar each test file meets:** every reachable slider combination
+> produces a named shape, formula or state, with no fall-through to another
+> family's answer and no `undefined`; every formula the readout prints is
+> derived rather than hard-coded; and the regressions in this report are
+> locked in by name — no-thymine, ester naming, AX₄E₂ = square planar,
+> alcohols and acids saturated, bitumen never rising, flaccid reachable, a
+> 74 %-folded helix at 330 K not called denatured, and the enzyme collapse
+> staying single-valued.
+>
+> Verified: `npm test` 1526/1526; production build clean; and all eleven
+> topics opened in a browser after the deletion — readouts still derive
+> correctly (DNA strand carries all four bases with 41 hydrogen bonds,
+> cell reads Flaccid at isotonic, bitumen never rises, VSEPR AX₄ reports
+> no compression).
+>
+> **Still open:** `C29-residual` and 2.1's richer form, both carried from
+> Phase 2. Phase 4 and Phase 5 untouched.
+
+
 **Goal:** make Phase 1 permanent. Until the readout is derived from the same code the scene runs, it will drift again.
 
 **3.1 — Create eleven `lib/` modules**, following the shape of `lib/redox.js` and `lib/transpiration.js` — pure functions, no React, no three.js, one exported `solveX()` returning everything a scene or a readout could want:

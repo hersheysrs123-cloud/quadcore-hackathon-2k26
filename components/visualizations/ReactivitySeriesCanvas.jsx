@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -652,21 +650,6 @@ export default function ReactivitySeriesCanvas({ params = {}, setParam }) {
         {describeOutcome(focusResult)}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Reactivity series"
-        subtitle={`${M.label} in four solutions`}
-        rows={rack.map((r) => [SOLUTIONS[r.solution].short, r.reacts ? r.ionic : "no reaction", r.reacts ? "good" : undefined])}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: M.colour, label: `${M.label} strip`, note: "the same metal in every beaker" },
-          { color: ION_APPEARANCE.Cu.colour, label: "Cu²⁺(aq)", note: "the blue that fades when copper plates out" },
-          { color: ION_APPEARANCE.Fe.colour, label: "Fe²⁺(aq)", note: "pale green" },
-          { color: PALETTE.bone, label: "Electron", note: "moves inside the metal, never through the solution" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

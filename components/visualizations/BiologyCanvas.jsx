@@ -10,17 +10,15 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { STRUCTURE_META } from "@/components/visualizations/topic-options";
 import { OPTIMUM_PH, OPTIMUM_TEMP, enzymeRate, solveEnzyme } from "@/lib/enzymes";
-import { BASE_COLOURS, BASE_NAMES, BACKBONE_COLOURS, COMPLEMENT, PAIR_BONDS, sequenceFor } from "@/lib/dna";
+import { BASE_COLOURS, BACKBONE_COLOURS, COMPLEMENT, PAIR_BONDS, sequenceFor } from "@/lib/dna";
 import { CRENATION_AT, LYSIS_BELOW, organelleFor, solveOsmosis } from "@/lib/cellBiology";
-import { DENATURE_START, DENATURE_END, solveFolding } from "@/lib/proteinFolding";
+import { DENATURE_END, solveFolding } from "@/lib/proteinFolding";
 import {
   BilayerPatch,
   CellWall,
@@ -355,56 +353,6 @@ export function EnzymeScene({ params = {} }) {
 
       <RateCurve temperature={temperature} ph={ph} />
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Reaction"
-        subtitle="Lock and key · one enzyme, one substrate"
-        rows={[
-          ["Rate", `${Math.round(rate * 100)}%`, rate > 0.6 ? "good" : rate < 0.2 ? "bad" : "gold"],
-          ["Temperature", `${temperature.toFixed(0)}°C`, temperature > 50 ? "bad" : undefined],
-          ["pH", ph.toFixed(1), Math.abs(ph - 7) > 3 ? "bad" : undefined],
-          ["Optimum", "37°C, pH 7"],
-          ["Active site", denatured ? "wrong shape" : "fits the substrate", denatured ? "bad" : "good"],
-          ["Reversible?", denatured ? "no — permanent" : "yes — just slower", denatured ? "bad" : "good"],
-        ]}
-        note={
-          denatured
-            ? "Above ~50 °C the active site has permanently changed shape — the substrate no longer fits, and cooling will not bring the rate back. Look at the cliff on the curve."
-            : Math.abs(ph - OPTIMUM_PH) > 3
-              ? "Extreme pH distorts the active site too, so the substrate binds poorly. Move pH back toward 7 and the whole curve lifts."
-              : temperature < 20
-                ? "Cold: the particles collide less often and with less energy, so the rate is low — but the enzyme is unharmed and warming it up recovers the rate."
-                : "Near the optimum: frequent, energetic collisions and a perfectly shaped active site."
-        }
-        noteTone={denatured ? "bad" : Math.abs(ph - OPTIMUM_PH) > 3 ? "warn" : "good"}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={[
-          {
-            color: denatured ? PALETTE.rose : PALETTE.emerald,
-            label: denatured ? "Denatured enzyme" : "Enzyme",
-            note: "a protein catalyst — not used up",
-          },
-          {
-            color: PALETTE.gold,
-            shape: "square",
-            label: "Substrate → products",
-            note: "splits in two once it has bound",
-          },
-          {
-            color: PALETTE.gold,
-            shape: "line",
-            label: "Rate against temperature",
-            note: "climbs to the optimum, then falls off a cliff",
-          },
-          {
-            color: PALETTE.bone,
-            label: "Where you are on that curve",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -651,39 +599,6 @@ export function DNAScene({ params = {} }) {
         <Helix pairs={count} spin={spin} unzipToken={unzip} speed={speed} />
       </group>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Double helix"
-        subtitle="Two complementary strands"
-        rows={[
-          ["Base pairs shown", count, "gold"],
-          ["Strand 1 (5′→3′)", preview.join("-")],
-          ["Strand 2 (3′→5′)", preview.map((b) => COMPLEMENT[b]).join("-")],
-          ["Pairing rule", "A–T, C–G", "good"],
-          ["Held together by", "hydrogen bonds"],
-          ["Backbone", "sugar + phosphate"],
-          ["Turn every", "10.5 pairs"],
-          ["Grooves", "one major, one minor"],
-        ]}
-        note="Because the strands are complementary, each one carries the full instructions on its own. Press “Unzip DNA”: the weak hydrogen bonds break, and both old strands become templates for new ones. That is replication."
-      />
-
-      <SceneLegend
-        title="Bases and backbone"
-        items={[
-          ...Object.entries(BASE_COLOURS).map(([base, colour]) => ({
-            color: colour,
-            label: `${BASE_NAMES[base]} (${base})`,
-            note: `always pairs with ${BASE_NAMES[COMPLEMENT[base]]} (${COMPLEMENT[base]})`,
-          })),
-          {
-            color: "#94a3b8",
-            shape: "line",
-            label: "Sugar–phosphate backbone",
-            note: "the two rails — strong, and never broken by unzipping",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -1084,54 +999,6 @@ export function CellExplorerScene({ params = {} }) {
         />
       </CutawayProvider>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={isPlant ? "Plant cell" : "Animal cell"}
-        subtitle="Osmosis: water moves dilute → concentrated"
-        rows={[
-          ["Outside the cell", tonicity > 0.05 ? "concentrated" : tonicity < -0.05 ? "dilute" : "same as inside"],
-          ["Net water flow", tonicity > 0.05 ? "out of the cell" : tonicity < -0.05 ? "into the cell" : "none"],
-          ["State", status.text, status.tone === "good" ? "good" : status.tone === "warn" ? "warn" : "bad"],
-          ["Cell wall", isPlant ? "yes — cellulose" : "no", isPlant ? "good" : "bad"],
-          ["Chloroplasts", isPlant ? "yes" : "no", isPlant ? "good" : "bad"],
-          ["Permanent vacuole", isPlant ? "yes" : "no", isPlant ? "good" : "bad"],
-          ["Centrioles", isPlant ? "no" : "yes", isPlant ? "bad" : "good"],
-        ]}
-        note={
-          detail
-            ? `${detail.label}: ${detail.note}`
-            : isPlant
-              ? "Click any organelle to identify it, and turn on Cutaway to see inside them. The rigid wall is what saves a plant cell: water can push the membrane against it until the cell is turgid, without it bursting."
-              : "Click any organelle to identify it, and turn on Cutaway to see inside them. With no cell wall, an animal cell has nothing to resist the pressure — too much water in and it bursts."
-        }
-        noteTone={detail ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title={isPlant ? "Organelles · plant" : "Organelles · animal"}
-        items={[
-          { color: PALETTE.violet, label: "Nucleus", note: "chromatin + nucleolus, inside a pored double membrane" },
-          { color: PALETTE.rose, label: "Mitochondria", note: "cristae — folded inner membrane for respiration" },
-          { color: "#38bdf8", label: "Rough ER", note: "ribosome-studded sheets" },
-          { color: "#22d3ee", label: "Smooth ER", note: "tubules — lipids, no ribosomes" },
-          { color: PALETTE.gold, label: "Golgi apparatus", note: "packages proteins into vesicles" },
-          { color: "#f472b6", label: "Lysosomes", note: "digestive enzymes" },
-          { color: PALETTE.bone, label: "Free ribosomes", note: "where proteins are made" },
-          ...(isPlant
-            ? [
-                { color: PALETTE.emerald, label: "Chloroplasts", note: "grana stacks trap light" },
-                { color: "#0ea5e9", label: "Permanent vacuole", note: "cell sap — its pressure keeps the cell turgid" },
-                { color: "#65a30d", label: "Cell wall", note: "crossed cellulose microfibrils" },
-              ]
-            : [
-                { color: "#a5b4fc", label: "Centrioles", note: "nine microtubule triplets — organise division" },
-                { color: PALETTE.sky, label: "Cell membrane", note: "partially permeable — and the only barrier there is" },
-              ]),
-          ...(water && Math.abs(tonicity) > 0.05
-            ? [{ color: PALETTE.sky, label: "Water molecules", note: tonicity > 0 ? "leaving by osmosis" : "entering by osmosis" }]
-            : []),
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -1339,54 +1206,6 @@ export function ProteinFoldingScene({ params = {} }) {
             : `${info.label} · ${Math.round(folded * 100)}% folded`}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Protein structure"
-        subtitle={`${info.label} — secondary structure`}
-        rows={[
-          ["Residues", count],
-          ["Structure", denatured ? "random coil" : info.label, denatured ? "bad" : "gold"],
-          ["Folded", structure === "coil" ? "—" : `${Math.round(folded * 100)}%`, folded > 0.85 ? "good" : folded < 0.35 ? "bad" : "warn"],
-          ["H-bonds", totalBonds, totalBonds > 0 ? "good" : "bad"],
-          ["Temperature", `${temperature.toFixed(0)} K`, temperature > DENATURE_START ? "warn" : undefined],
-          ["…in celsius", `${(temperature - 273).toFixed(0)} °C`],
-          ...(structure === "helix" ? [["Residues per turn", "3.6"], ["Rise per turn", "0.54 nm"]] : []),
-          ["State", denatured ? "denatured" : "native", denatured ? "bad" : "good"],
-        ]}
-        note={
-          denatured
-            ? "Above about 47 °C the hydrogen bonds holding the secondary structure break, and the chain falls into a random coil. The sequence of amino acids is untouched — but the shape, and so the function, is gone."
-            : structure === "helix"
-              ? "Each hydrogen bond runs from residue i to residue i+4, four along the chain — that spacing is what forces the backbone into a spiral of 3.6 residues per turn."
-              : structure === "sheet"
-                ? "Neighbouring strands run in opposite directions and hydrogen-bond sideways to each other, so the sheet is held across the chain rather than along it."
-                : "With no regular hydrogen bonding the chain has no fixed shape. Real proteins use coil regions as the hinges between helices and sheets."
-        }
-        noteTone={denatured ? "bad" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Folding"
-        items={[
-          ...(colourByType && !denatured
-            ? [
-                {
-                  color: PALETTE.gold,
-                  label: "Hydrophobic",
-                  note:
-                    structure === "helix"
-                      ? "one face of the helix — this is the side that packs into the core"
-                      : structure === "sheet"
-                        ? "every other residue, so they all point the same way"
-                        : "no pattern in an unstructured coil",
-                },
-                { color: PALETTE.sky, label: "Hydrophilic", note: "faces the water outside" },
-              ]
-            : [{ color: denatured ? PALETTE.rose : info.colour, label: "Residue", note: "one amino acid" }]),
-          { color: PALETTE.emerald, shape: "dash", label: "Hydrogen bond", note: "weak alone, decisive in numbers" },
-          { color: PALETTE.slate, shape: "line", label: "Backbone", note: "the peptide chain itself" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

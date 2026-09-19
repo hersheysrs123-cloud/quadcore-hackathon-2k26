@@ -9,8 +9,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
   lerp,
@@ -801,23 +799,6 @@ export default function BacteriaVsVirusCanvas({ params = {}, setParam }) {
         tone={latest === "antibiotic" ? "text-rose-300" : "text-sky-300"}
       />
 
-      <SceneReadout
-        title="Bacterium vs virus"
-        subtitle={status.label}
-        rows={[
-          ["Living?", `bacterium ${bactLiving.met}/${bactLiving.total} · virus ${virusLiving.met}/${virusLiving.total}`],
-          ["Antibiotic efficacy", `bacterium ${eff.bacterium.percent} % · virus ${eff.virus.percent} %`],
-          ["Burst size", `${infection.released} / ${BURST_SIZE}`],
-        ]}
-      />
-      <SceneLegend
-        title="Parts"
-        items={[
-          { color: COLOURS.lattice, label: "Peptidoglycan wall", note: "penicillin's target" },
-          { color: COLOURS.ribosome, label: "70S ribosomes", note: "tetracycline's target" },
-          { color: COLOURS.phageDna, label: "Phage DNA", note: "all the virus brings" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

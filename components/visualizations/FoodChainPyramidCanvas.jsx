@@ -9,8 +9,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -435,19 +433,6 @@ export default function FoodChainPyramidCanvas({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        title="Energy pyramid"
-        subtitle={`insolation ${insolation} % · ${pyramid.doses} toxin dose${pyramid.doses === 1 ? "" : "s"} · apex ${pyramid.apexRemoved ? "removed" : "present"}`}
-        rows={pyramid.tiers.map((t) => [t.organism, `${Math.round(t.energyKJ)} kJ · ${t.population.toLocaleString()}`])}
-      />
-      <SceneLegend
-        title="Flows"
-        items={[
-          { color: COLOURS.energy, label: "Energy passed on", note: "10 % — climbs to the next level" },
-          { color: COLOURS.heat, label: "Energy lost", note: "90 % — heat, waste, uneaten" },
-          { color: COLOURS.toxin, label: "Toxin", note: "×10 concentration per link" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

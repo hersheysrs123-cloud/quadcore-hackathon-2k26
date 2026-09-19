@@ -9,8 +9,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   lerp,
 } from "@/components/visualizations/scene-kit";
@@ -791,19 +789,6 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
 
       <Candle flameRef={(el) => (refs.flame.current = el)} lightRef={(el) => (refs.light.current = el)} />
 
-      <SceneReadout
-        title="Reflex arc"
-        subtitle={`${solved.stimulus} · ${solved.pathway}`}
-        rows={[["Response", solved.fires ? `${solved.responseMs.toFixed(1)} ms` : "none"]]}
-      />
-      <SceneLegend
-        title="Neurons"
-        items={[
-          { color: NEURON_COLOURS.sensory, label: "Sensory neuron" },
-          { color: NEURON_COLOURS.relay, label: "Relay neuron" },
-          { color: NEURON_COLOURS.motor, label: "Motor neuron" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

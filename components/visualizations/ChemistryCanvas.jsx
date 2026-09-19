@@ -11,8 +11,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   circlePoints,
   clamp,
@@ -21,8 +19,8 @@ import {
 } from "@/components/visualizations/scene-kit";
 import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
-import { BOND_COLOUR, latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
-import { ELECTRON_GEOMETRY, IDEAL_ANGLE, IDEAL_ANGLE_LABEL, SHAPES, solveVsepr } from "@/lib/vsepr";
+import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
+import { IDEAL_ANGLE, SHAPES, solveVsepr } from "@/lib/vsepr";
 import { ORGANIC_COLOURS, crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
@@ -231,42 +229,6 @@ export function BohrAtomScene({ params = {} }) {
         {element.symbol} · {element.shells.join(",")}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={element.name}
-        subtitle={`Shells fill 2, then 8, then 8 — ${element.shells.join(",")}`}
-        rows={[
-          ["Proton number Z", element.protons, "gold"],
-          ["Neutrons", element.neutrons],
-          ["Mass number A", element.protons + element.neutrons],
-          ["Electrons", element.protons],
-          ["Configuration", element.shells.join(", "), "gold"],
-          [
-            "Outer shell",
-            `${valence} of ${SHELL_CAPACITY[outer]}`,
-            valence === SHELL_CAPACITY[outer] ? "good" : "bad",
-          ],
-          ["Group / Period", `${element.group} / ${element.shells.length}`],
-        ]}
-        note={element.bonding}
-        noteTone={valence === SHELL_CAPACITY[outer] ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: PALETTE.rose, label: "Proton", note: `positive · ${element.protons} of them` },
-          { color: "#8a92a0", label: "Neutron", note: `neutral · ${element.neutrons} of them` },
-          { color: PALETTE.sky, label: "Electron in an inner shell", note: "full, and unreactive" },
-          {
-            color: highlightValence ? PALETTE.gold : PALETTE.sky,
-            label: "Valence electron",
-            note: highlightValence
-              ? "the outer shell — where all the chemistry happens"
-              : "turn on “Highlight valence shell” to pick these out",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -777,42 +739,6 @@ export function OrganicBuilderScene({ params = {} }) {
         </>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={molecule.valid ? molecule.name : "No such molecule"}
-        subtitle={`${family} · homologous series`}
-        rows={[
-          ["Formula", molecule.formula, "gold"],
-          ["General formula", generalFormula],
-          ["Carbons n", carbons],
-          [
-            "Saturated",
-            saturated ? "yes — only single bonds" : hasBondFeature ? `no — has ${unsaturation}` : "—",
-            saturated ? "good" : "bad",
-          ],
-          ...(family === "acid"  ? [["Functional group", "–COOH (carboxyl)"]] : []),
-          ...(family === "ester" ? [["Functional group", "–COO– (ester linkage)"]] : []),
-          ...(family === "alkene" || family === "alkyne"
-            ? [["Bromine water", family === "alkene" ? "decolourised" : "decolourised (very fast)"]]
-            : []),
-        ]}
-        note={readoutNote}
-        noteTone={!molecule.valid ? "bad" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Ball and stick"
-        items={[
-          { color: ATOM_STYLE.C.color, label: "Carbon", note: "always forms four bonds" },
-          { color: ATOM_STYLE.H.color, label: "Hydrogen", note: "always forms one" },
-          { color: ATOM_STYLE.O.color, label: "Oxygen", note: "two bonds — in –OH, C=O, –COO–" },
-          ...(family === "alkyne"
-            ? [{ color: PALETTE.sky, shape: "line", label: "C≡C triple bond", note: "three shared pairs — very reactive, sp linear" }]
-            : family === "alkene"
-              ? [{ color: PALETTE.gold, shape: "line", label: "C=C double bond", note: "two shared pairs — the reactive site" }]
-              : [{ color: "#3f4854", shape: "line", label: "Single C–C bond", note: "one shared pair — saturated" }]),
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -1049,38 +975,6 @@ export function DistillationScene({ params = {} }) {
         </SceneLabel>
       </group>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Fractionating column"
-        subtitle="A physical separation, not a reaction"
-        rows={[
-          ["Furnace", `${furnace}°C`, "gold"],
-          ["Top of column", "~25°C"],
-          ["Separated by", "boiling point"],
-          ["Fractions vaporised", `${rising} of ${FRACTIONS.length}`, rising > 3 ? "good" : "warn"],
-          ["Highest riser", (FRACTIONS.find((_, i) => rises(heat, i)) ?? { name: "nothing yet" }).name],
-          ["Left at the base", "bitumen"],
-        ]}
-        note={
-          rising <= 2
-            ? "The furnace is too cool for most of the crude oil to vaporise, so the heavier fractions never leave the base. Turn the heat up."
-            : "Short chains have weaker forces between their molecules, so they boil at low temperatures and climb highest before condensing. Long chains condense low down; bitumen never boils at all."
-        }
-        noteTone={rising <= 2 ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Fractions, top to bottom"
-        items={FRACTIONS.map((fraction, i) => ({
-          color: fraction.colour,
-          label: `${fraction.name} · ${fraction.chain}`,
-          note: fraction.residue
-            ? `never vaporises — drained off at the base · ${fraction.use}`
-            : rises(heat, i)
-              ? `≤${fraction.top}°C · ${fraction.use}`
-              : `needs more heat than ${furnace}°C`,
-        }))}
-      />
     </SceneCanvas>
   );
 }
@@ -1507,18 +1401,6 @@ export function CrystalLatticeScene({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={facts.title}
-        subtitle={structure === "nacl" ? "Giant ionic lattice" : structure === "ice" ? "Molecular crystal" : "Giant covalent lattice"}
-        rows={facts.rows}
-        note={facts.note}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={latticeKeyFor(structure)}
-      />
     </SceneCanvas>
   );
 }
@@ -1919,53 +1801,6 @@ export function ElectrolysisScene({ params = {}, setParam }) {
         onClock={pushClock}
       />
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Electrolysis of CuSO₄"
-        subtitle="Copper electrodes · OIL RIG"
-        rows={[
-          ["Supply", run ? `${current.toFixed(1)} A` : "off", run ? "gold" : "bad"],
-          ["Cu²⁺ reaching cathode", `${deposit}`, deposit > 0 ? "good" : undefined],
-          ["Cathode (−)", "gains copper", "good"],
-          ["…by reduction", "Cu²⁺ + 2e⁻ → Cu", "good"],
-          ["Anode (+)", "loses copper", "bad"],
-          ["…by oxidation", "Cu → Cu²⁺ + 2e⁻", "bad"],
-          ["Charge carried by", "ions in solution"],
-        ]}
-        note={
-          run
-            ? "Copper leaves the anode, crosses as Cu²⁺, and plates onto the cathode — so the anode thins as the cathode thickens. That is electroplating, and how copper is purified."
-            : "The supply is off, so nothing migrates. Electrolysis needs both a potential difference and ions that are free to move — molten or in solution."
-        }
-        noteTone={run ? "neutral" : "bad"}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={[
-          {
-            color: "#38bdf8",
-            label: "Cu²⁺ cation (Hydrated)",
-            note: "positive → travels to the negative cathode",
-          },
-          {
-            color: PALETTE.gold,
-            label: "SO₄²⁻ anion (Tetrahedral)",
-            note: "negative → travels to the positive anode",
-          },
-          {
-            color: PALETTE.bone,
-            label: "Electron",
-            note: "only ever in the wire, never in the solution",
-          },
-          {
-            color: "#b45309",
-            shape: "square",
-            label: "Copper electrode",
-            note: "left grows crystal nodes, right dissolves",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -2045,42 +1880,6 @@ export function VseprScene({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="VSEPR"
-        subtitle={`AX${sub(nBonding) || "₁"}${nLone > 0 ? `E${sub(nLone) || "₁"}` : ""}`}
-        rows={[
-          ["Bonding pairs", nBonding],
-          ["Lone pairs", nLone],
-          ["Steric number", geometry.steric],
-          ["Electron geometry", ELECTRON_GEOMETRY[geometry.steric]],
-          ["Molecular shape", shape.name, "gold"],
-          ["Ideal angle", nBonding > 1 ? IDEAL_ANGLE_LABEL[geometry.steric] : "—"],
-          ["Actual angle", nBonding > 1 ? `${geometry.smallestAngle.toFixed(1)}°` : "—", nLone > 0 ? "warn" : "good"],
-          ["Example", shape.example],
-          ["Polarity", geometry.symmetric ? "non-polar" : "polar", geometry.symmetric ? "good" : "warn"],
-        ]}
-        note={
-          nBonding < 2
-            ? "With a single bond there is no angle to compress — any diatomic is linear whatever its lone pairs do. Add a second bonding pair to see VSEPR bite."
-            : nLone === 0
-              ? "With no lone pairs the electron geometry and the molecular shape are the same thing, and the bond angles sit at their ideal values."
-              : geometry.smallestAngle >= ideal - 0.05
-                ? `The ${nLone} lone pairs sit opposite each other, so their repulsions cancel and the bond angles stay at the ideal ${ideal}°. This is why XeF₄ is a flat square rather than a squashed one.`
-                : `Lone pairs repel more strongly than bonding pairs, so the ${nBonding} bonds are squeezed from ${ideal}° down to about ${geometry.smallestAngle.toFixed(1)}°. You only name the shape from where the atoms are — the lone pairs are invisible in the name.`
-        }
-        noteTone={nBonding < 2 ? "neutral" : nLone > 0 ? "warn" : "good"}
-      />
-
-      <SceneLegend
-        title="Electron domains"
-        items={[
-          { color: PALETTE.gold, label: "Central atom", note: "counts its own valence electrons" },
-          { color: PALETTE.sky, label: "Bonded atom", note: "one bonding pair each" },
-          { color: PALETTE.violet, label: "Lone pair", note: "repels harder — closes the angles" },
-          { color: PALETTE.slate, shape: "line", label: "Bond", note: "shared pair of electrons" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -2260,44 +2059,6 @@ export function EnergyProfileScene({ params = {} }) {
         transition state
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Energetics"
-        subtitle={exothermic ? "exothermic — energy released" : "endothermic — energy absorbed"}
-        rows={[
-          ["Activation Ea", `${effectiveEa.toFixed(0)} kJ/mol`, catalyst ? "good" : "gold"],
-          ["…uncatalysed", `${uncatalysed.toFixed(0)} kJ/mol`],
-          ["Reverse Ea", `${reverseEa.toFixed(0)} kJ/mol`],
-          ["ΔH", `${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)} kJ/mol`, exothermic ? "good" : "warn"],
-          ["Temperature", `${temperature.toFixed(0)} K`],
-          ["Fraction ≥ Ea", fraction.toExponential(1)],
-          ["Rate constant k", `${rateConstant.toExponential(1)} s⁻¹`, proceeds ? "good" : "bad"],
-          ["Catalyst", catalyst ? `−${(uncatalysed - effectiveEa).toFixed(0)} kJ/mol` : "none"],
-          ["Rate ×", catalyst ? `${speedUp.toExponential(1)}` : "1", catalyst ? "good" : undefined],
-        ]}
-        note={
-          clampedByDeltaH
-            ? `An endothermic reaction cannot have a forward barrier below ΔH — the products would sit above the transition state. Ea is held at ${effectiveEa.toFixed(0)} kJ/mol, just clear of ΔH.`
-            : catalyst
-              ? `The catalyst offers a different route with a lower barrier, so ${speedUp.toExponential(1)}× as many collisions succeed at this temperature. Note ΔH has not moved — a catalyst changes the rate, never the energy released.`
-              : !proceeds
-                ? `At ${temperature.toFixed(0)} K almost no collision carries ${effectiveEa.toFixed(0)} kJ/mol, so k is only ${rateConstant.toExponential(1)} s⁻¹ and the marker falls back every time. Raise the temperature or add a catalyst.`
-                : exothermic
-                  ? "The products sit below the reactants, so bond making released more energy than bond breaking absorbed. ΔH is negative and the surroundings warm up."
-                  : "The products sit above the reactants: breaking bonds cost more than making them returned. ΔH is positive and the surroundings cool."
-        }
-        noteTone={clampedByDeltaH ? "warn" : !proceeds ? "bad" : catalyst || exothermic ? "good" : "warn"}
-      />
-
-      <SceneLegend
-        title="Energy profile"
-        items={[
-          { color: catalyst ? PALETTE.emerald : PALETTE.gold, shape: "line", label: "Reaction path", note: "energy against reaction coordinate" },
-          ...(catalyst ? [{ color: PALETTE.slate, shape: "dash", label: "Uncatalysed", note: "the barrier without the catalyst" }] : []),
-          { color: PALETTE.rose, shape: "line", label: "Ea", note: "reactants → transition state" },
-          { color: exothermic ? PALETTE.emerald : PALETTE.violet, shape: "line", label: "ΔH", note: "reactants → products" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

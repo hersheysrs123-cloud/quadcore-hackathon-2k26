@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 
@@ -425,55 +423,6 @@ export function GradientDescentScene({ params = {} }) {
         {info.formula}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Descent state"
-        subtitle="xₙ₊₁ = xₙ − α ∇f(xₙ)"
-        rows={[
-          ["Loss f(x, z)", sample.loss.toFixed(3), "gold"],
-          ["Position x", sample.x.toFixed(2)],
-          ["Position z", sample.z.toFixed(2)],
-          ["Slope |∇f|", sample.slope.toFixed(3), sample.slope < 0.01 ? "good" : undefined],
-          ["Learning rate α", rate.toFixed(3)],
-          ["Momentum β", momentum.toFixed(2)],
-          ["Steps taken", sample.steps],
-          [
-            "Status",
-            STATUS_LABEL[sample.status] ?? (running ? "descending" : "paused"),
-            sample.status === "diverged" || sample.status === "unbounded"
-              ? "bad"
-              : sample.status === "converged"
-                ? "good"
-                : undefined,
-          ],
-        ]}
-        note={
-          sample.status === "diverged"
-            ? "Diverged: each step overshot by more than it started from, so the loss climbed away without bound. Lower α and reset."
-            : sample.status === "unbounded"
-              ? "It left the domain while still going downhill — the loss was falling the whole way. This surface has no minimum in that direction, so there is nothing to converge to."
-              : sample.status === "converged"
-                ? `Settled: the gradient here is flat, so every further step moves almost nothing. This is ${info.stationary}`
-                : info.note
-        }
-        noteTone={
-          sample.status === "diverged" || sample.status === "unbounded"
-            ? "bad"
-            : sample.status === "converged"
-              ? "good"
-              : "neutral"
-        }
-      />
-
-      <SceneLegend
-        title="Gradient descent"
-        items={[
-          { color: PALETTE.gold, label: "Current point", note: "the parameters being optimised" },
-          { color: PALETTE.emerald, shape: "line", label: "−∇f", note: "steepest downhill — the step direction" },
-          { color: PALETTE.violet, shape: "square", label: "Low loss", note: "the valleys you are trying to reach" },
-          { color: PALETTE.rose, shape: "square", label: "High loss", note: "steep walls; a large α launches off them" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -660,36 +609,6 @@ export function SolidOfRevolutionScene({ params = {} }) {
         r(y)
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Volume of revolution"
-        subtitle="V = π ∫ r(y)² dy"
-        rows={[
-          ["Curve", info.formula],
-          ["Height H", height.toFixed(1)],
-          ["Cutaway", sweep >= 360 ? "closed" : `${Math.round(sweep)}° shown`],
-          ["Exact V", exact.toFixed(3), "gold"],
-          ["Disc sum", estimate.toFixed(3)],
-          ["Discs n", Math.round(slices)],
-          ["Error", `${(error * 100).toFixed(2)}%`, error < 0.01 ? "good" : error < 0.05 ? "warn" : "bad"],
-        ]}
-        note={
-          error < 0.01
-            ? "With this many discs the staircase is within 1% of the true solid — this is what taking the limit n → ∞ means in practice."
-            : `Each disc is a cylinder of volume π r² Δy. Their sum approximates ${info.solid}; raise n and watch the error fall.`
-        }
-        noteTone={error < 0.01 ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Disc method"
-        items={[
-          { color: PALETTE.emerald, shape: "line", label: "r(y)", note: "the curve being revolved" },
-          { color: PALETTE.gold, shape: "square", label: "Disc", note: "one cylinder, volume π r² Δy" },
-          { color: PALETTE.sky, shape: "square", label: "True solid", note: "the limit as Δy → 0" },
-          { color: PALETTE.slate, shape: "dash", label: "Axis", note: "revolve about y; r is measured from it" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -1231,54 +1150,6 @@ export function UnitCircleWaveScene({ params = {} }) {
         the same motion, plotted against time →
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Circular motion"
-        subtitle={count === 1 ? "y = A sin θ · x = A cos θ" : `Fourier ${wf.label} synthesis`}
-        rows={[
-          ["Angle θ", `${((sample.theta * 180) / Math.PI).toFixed(0)}°`],
-          ["…in radians", sample.theta.toFixed(2)],
-          ["Height y", sample.height.toFixed(2), "gold"],
-          ["sin θ", Math.sin(sample.theta).toFixed(3)],
-          ["cos θ", Math.cos(sample.theta).toFixed(3)],
-          ...(showTangent && sample.tanVal !== undefined
-            ? [["tan θ", sample.tanVal.toFixed(3), "rose"]]
-            : []),
-          ["Amplitude A", amplitude.toFixed(2)],
-          ["Harmonics", count],
-          ...(count > 1
-            ? [
-                [`Target ${wf.label}`, targetAmp.toFixed(2)],
-                ...(wf.hasGibbs
-                  ? [["Overshoot of jump", `${(sample.overshoot * 100).toFixed(1)}%`, "warn"]]
-                  : [["Gibbs overshoot", "0% (continuous)", "good"]]),
-              ]
-            : []),
-        ]}
-        note={
-          count === 1
-            ? "The sine wave is not a separate object from the circle — it is the height of a point going round, drawn against time. One full turn is one wavelength."
-            : `Adding Fourier harmonics of amplitude scaled for a ${waveform} wave shapes the curve toward the target function. ${
-                wf.hasGibbs
-                  ? "The Gibbs phenomenon overshoot settles at about 9% of the jump however many terms you add."
-                  : "The series converges uniformly with quadratic damping (1/k²) and zero overshoot."
-              }`
-        }
-        noteTone={count > 1 && wf.hasGibbs ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Circle → wave"
-        items={[
-          { color: PALETTE.sky, shape: "line", label: "Base circle", note: "radius A, turns at θ" },
-          { color: PALETTE.gold, label: "Tip", note: "its height is the wave value" },
-          { color: PALETTE.gold, shape: "line", label: "sin trace", note: "the tip's height against time" },
-          ...(showTangent ? [{ color: PALETTE.rose, shape: "line", label: "Tangent line (tan θ)", note: "height on vertical line touching x = A" }] : []),
-          ...(showCos ? [{ color: PALETTE.violet, shape: "line", label: "Horizontal trace", note: "cos θ — a quarter turn ahead of the sine" }] : []),
-          ...(showHelix ? [{ color: PALETTE.sky, shape: "line", label: "3D Phase Helix", note: "unrolled 3D spatial trajectory (x, cos θ, sin θ)" }] : []),
-          ...(showTarget ? [{ color: PALETTE.emerald, shape: "line", label: `Target ${wf.label}`, note: "what the Fourier series converges to" }] : []),
-        ]}
-      />
     </SceneCanvas>
   );
 }

@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -626,23 +624,6 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
         </SceneLabel>
       </group>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Particle model"
-        subtitle={`${sub.label} · ${phaseInfo.label}`}
-        rows={[
-          ["Sample", `${tempC.toFixed(1)} °C`],
-          ["Mean KE", `${ke.meanKEzJ.toFixed(2)} ×10⁻²¹ J`],
-        ]}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: sub.colour.solid, label: "Solid", note: "fixed lattice sites, vibrating" },
-          { color: sub.colour.liquid, label: "Liquid", note: "touching, sliding past one another" },
-          { color: sub.colour.gas, label: "Gas", note: "free flight, wall collisions" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

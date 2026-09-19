@@ -7,8 +7,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   clamp,
   hashRandom,
@@ -608,24 +606,6 @@ export default function RadioactiveDecayCanvas({ params = {}, setParam }) {
         </SceneLabel>
       </group>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Radioactive decay"
-        subtitle={md.label}
-        rows={[
-          ["Equation", eq.text],
-          ["Activity", `${activity.toFixed(1)} Bq`],
-        ]}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: PARENT_COLOUR, label: `${md.parent.name} (parent)`, note: "undecayed — same chance every second" },
-          { color: DAUGHTER_COLOUR, label: `${md.daughter.name} (daughter)`, note: "decayed — stable, or the next link in a chain" },
-          { color: PARTICLE_KINDS[primary.kind].colour, label: primary.name, note: md.range },
-          ...(md.emissions.length > 1 ? [{ color: PARTICLE_KINDS.neutrino.colour, label: "neutrino", note: "no charge, no barrier, no click" }] : []),
-        ]}
-      />
     </SceneCanvas>
   );
 }
