@@ -2333,7 +2333,8 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "rusting_galvanic": {
-      const days = num(params.days, 7);
+      // The rack's own clock when it has one, the slider otherwise. See B39.
+      const days = num(params.liveDays, num(params.days, 7));
       const electrolyteKey = ELECTROLYTES[params.electrolyte] ? params.electrolyte : "distilled";
       const partnerKey = PARTNERS[params.partner] ? params.partner : "zinc";
       const r = solveRusting({ days, electrolyte: electrolyteKey, partner: partnerKey });
@@ -3289,6 +3290,16 @@ function renderTopicDetailsReadout(topic, params) {
           ...tierRows,
           ["A fifth link?", `${NEXT_LINK.organism} would receive ${kj(p.nextLink.energyKJ)} · needs ${NEXT_LINK.kjPerIndividual} kJ · ${p.nextLink.viable ? "viable" : "not viable"}`, p.nextLink.viable ? "good" : "bad"],
           ["Total lost as heat & waste", `${kj(p.totalLostKJ)} of ${kj(p.producerKJ)}`],
+          // C36: with the apex gone these transfers describe a chain that is
+          // still rearranging, so the panel says so rather than presenting
+          // them as the steady 10 % ladder above.
+          ...(p.apexRemoved
+            ? [[
+                "Equilibrium",
+                `out of balance — ${p.tiers.filter((t) => t.gaining).map((t) => t.organism).join(" and ")} released, so the transfers above are not the steady 10 % ladder`,
+                "warn",
+              ]]
+            : []),
           ["Apex share of producers' energy", `${(p.apexShare * 100).toFixed(1)} %`],
           ["Biomagnification", `×${TOXIN_MAGNIFICATION} per link · harm ≥ ${TOXIN_HARM_PPM} ppm · lethal ≥ ${TOXIN_LETHAL_PPM} ppm`, p.doses > 0 ? "warn" : undefined],
         ],

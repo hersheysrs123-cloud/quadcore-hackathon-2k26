@@ -1889,8 +1889,22 @@ export function VseprScene({ params = {} }) {
 
 const PROFILE_SAMPLES = 160;
 const PROFILE_HALF = 5;
-/** kJ/mol → world units, so a 150 kJ/mol barrier still fits the viewport. */
-const ENERGY_SCALE = 0.028;
+/**
+ * kJ/mol → world units.
+ *
+ * Sized from the worst case the sliders can reach, not from a comfortable
+ * one. B34: at 0.028 an Ea of 160 kJ/mol put the summit at y = 4.48 with its
+ * label at 4.98, and the usable top of the frustum at the z = 0 plane is
+ * about 4.3 — the camera sits at y = 1.2 looking at the origin, so it is
+ * pitched down and the top edge reaches lower than the half-height alone
+ * suggests. The transition state, which is the whole subject of the diagram,
+ * was drawn off the top of the screen.
+ *
+ * 160 × 0.023 = 3.68, and the label clears at 4.18. The scale stays CONSTANT
+ * across every slider position on purpose: two profiles are only worth
+ * comparing if a centimetre means the same number of kJ in both.
+ */
+const ENERGY_SCALE = 0.023;
 
 /**
  * Energy against reaction coordinate: a sigmoid step from reactants to

@@ -2762,10 +2762,36 @@ export const TOPICS = [
     title: "The Human Eye — Accommodation & Pupil Reflex",
     blurb: "Cutaway eyeball with live ray tracing, a deforming lens, and the iris reflex",
     syllabus: "Biology 2.4 · Coordination & Response",
+    // C28: "short sight" and "long sight" were in here, and the scene has no
+    // defect mode -- searching for either surfaced a topic that does not cover
+    // it. The blur machinery is real and models an object outside the eye's
+    // accommodation range, so "blurred vision" stays; myopia and hypermetropia
+    // are a feature to add, not a keyword to claim. lib/eyeOptics.js already
+    // has what it would need: a myopic eye is axialLength > n / P.
     keywords:
-      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight long sight aqueous vitreous humour",
+      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision aqueous vitreous humour",
     ownHud: true,
-    defaults: {},
+    // C26: the eye draws its own HUD (`ownHud`), but its controls belong in
+    // the shared parameter state like every other topic's, so that switching
+    // away and back keeps them. EyeCanvas reads these through `params`; they
+    // have no `controls` entries because the eye renders its own panel.
+    defaults: {
+      mode: "accommodation",
+      objectDistance: 6,
+      autoAccommodate: true,
+      manualAccommodation: 0,
+      showBlur: true,
+      logLux: 2.6,
+      rayMode: "bundle",
+      showZonules: true,
+      layers: { sclera: true, choroid: true, retina: true, vitreous: true },
+      cutaway: true,
+      showVessels: true,
+      showMuscles: false,
+      showLabels: true,
+      selectedPart: null,
+      showRays: true,
+    },
     controls: [],
     concepts: [
       "Focusing on something NEAR is the active state, and it runs backwards from most people's intuition: the ciliary muscle CONTRACTS, which slackens the suspensory ligaments it was pulling on, and the freed lens springs back to its naturally fat, highly curved shape.",

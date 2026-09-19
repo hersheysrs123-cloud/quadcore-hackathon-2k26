@@ -109,7 +109,29 @@ export function parseTopics() {
         .slice(open + 1, matchBrace(entry, open) - 1)
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/\/\/[^\n]*/g, "");
-      for (const dm of block.matchAll(/(?:^|[,{])\s*([A-Za-z_$][\w$]*)\s*:/gm)) defaults.push(dm[1]);
+      // Only the block's OWN keys. A default whose value is an object (the
+      // eye's `layers`) must not contribute its inner keys as parameters.
+      let at = 0;
+      while (at < block.length) {
+        const c = block[at];
+        if (c === "{" || c === "[" || c === "(") {
+          at = matchBrace(block, at);
+          continue;
+        }
+        if (c === '"' || c === "'" || c === "`") {
+          at += 1;
+          while (at < block.length && block[at] !== c) at += block[at] === "\\" ? 2 : 1;
+          at += 1;
+          continue;
+        }
+        const km = /^([A-Za-z_$][\w$]*)\s*:/.exec(block.slice(at));
+        if (km && (at === 0 || /[\s,{]/.test(block[at - 1]))) {
+          defaults.push(km[1]);
+          at += km[0].length;
+          continue;
+        }
+        at += 1;
+      }
     }
 
     const controls = [];

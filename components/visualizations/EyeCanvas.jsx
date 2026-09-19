@@ -1339,22 +1339,96 @@ const LIGHT_PRESETS = [
 
 const DEFAULT_LAYERS = { sclera: true, choroid: true, retina: true, vitreous: true };
 
-export default function EyeCanvas({ onOpenQuiz }) {
-  const [mode, setMode] = useState("accommodation");
-  const [objectDistance, setObjectDistance] = useState(6);
-  const [autoAccommodate, setAutoAccommodate] = useState(true);
-  const [manualAccommodation, setManualAccommodation] = useState(0);
-  const [showBlur, setShowBlur] = useState(true);
-  const [logLux, setLogLux] = useState(2.6);
-  const [rayMode, setRayMode] = useState("bundle");
-  const [showZonules, setShowZonules] = useState(true);
-  const [layers, setLayers] = useState(DEFAULT_LAYERS);
-  const [cutaway, setCutaway] = useState(true);
-  const [showVessels, setShowVessels] = useState(true);
-  const [showMuscles, setShowMuscles] = useState(false);
-  const [showLabels, setShowLabels] = useState(true);
-  const [selectedPart, setSelectedPart] = useState(null);
-  const [showRays, setShowRays] = useState(true);
+/**
+ * The eye's controls and what they start at.
+ *
+ * C26: these were fifteen `useState` hooks, so every setting was thrown away
+ * the moment you switched topic and came back. Every other scene in the suite
+ * keeps its settings, because `ThreeDView` owns them per topic in
+ * `paramsByTopic` and hands them back on return. `ownHud: true` means the eye
+ * draws its own panel -- it never meant the eye had to own its own state.
+ */
+const EYE_DEFAULTS = {
+  mode: "accommodation",
+  objectDistance: 6,
+  autoAccommodate: true,
+  manualAccommodation: 0,
+  showBlur: true,
+  logLux: 2.6,
+  rayMode: "bundle",
+  showZonules: true,
+  layers: DEFAULT_LAYERS,
+  cutaway: true,
+  showVessels: true,
+  showMuscles: false,
+  showLabels: true,
+  selectedPart: null,
+  showRays: true,
+};
+
+export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
+  // Refs, so the setters below keep a stable identity for ever. Several of
+  // them are captured in `useCallback(..., [])` -- correct for a useState
+  // setter, and it would silently freeze a stale closure for anything that
+  // changed identity per render.
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+  const setParamRef = useRef(setParam);
+  setParamRef.current = setParam;
+
+  const pick = (key) => {
+    const value = params?.[key];
+    return value === undefined ? EYE_DEFAULTS[key] : value;
+  };
+
+  const setters = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.keys(EYE_DEFAULTS).map((key) => [
+          key,
+          (next) => {
+            const current = paramsRef.current?.[key];
+            const resolved =
+              typeof next === "function"
+                ? next(current === undefined ? EYE_DEFAULTS[key] : current)
+                : next;
+            setParamRef.current?.(key, resolved);
+          },
+        ]),
+      ),
+    [],
+  );
+
+  const mode = pick("mode");
+  const setMode = setters.mode;
+  const objectDistance = pick("objectDistance");
+  const setObjectDistance = setters.objectDistance;
+  const autoAccommodate = pick("autoAccommodate");
+  const setAutoAccommodate = setters.autoAccommodate;
+  const manualAccommodation = pick("manualAccommodation");
+  const setManualAccommodation = setters.manualAccommodation;
+  const showBlur = pick("showBlur");
+  const setShowBlur = setters.showBlur;
+  const logLux = pick("logLux");
+  const setLogLux = setters.logLux;
+  const rayMode = pick("rayMode");
+  const setRayMode = setters.rayMode;
+  const showZonules = pick("showZonules");
+  const setShowZonules = setters.showZonules;
+  const layers = pick("layers");
+  const setLayers = setters.layers;
+  const cutaway = pick("cutaway");
+  const setCutaway = setters.cutaway;
+  const showVessels = pick("showVessels");
+  const setShowVessels = setters.showVessels;
+  const showMuscles = pick("showMuscles");
+  const setShowMuscles = setters.showMuscles;
+  const showLabels = pick("showLabels");
+  const setShowLabels = setters.showLabels;
+  const selectedPart = pick("selectedPart");
+  const setSelectedPart = setters.selectedPart;
+  const showRays = pick("showRays");
+  const setShowRays = setters.showRays;
   const [panelOpen, setPanelOpen] = useState(true);
 
   // Resizable panel width state (10% to 80% screen width)

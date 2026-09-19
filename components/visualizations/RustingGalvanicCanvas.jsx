@@ -141,6 +141,19 @@ function RustDriver({ modelRef, days, electrolyte, partner, playing, animSpeed =
     }
 
     m.result = solveRusting({ days: m.shownDays, electrolyte, partner });
+
+    // B39: the words and the picture share one clock.
+    //
+    // `days` is where the SLIDER is; `m.shownDays` is where the rack actually
+    // is, and when you scrub it relaxes toward the slider over about a
+    // quarter-second. The Details panel read `params.days`, so for that
+    // quarter-second it described a day the tubes had not reached -- the
+    // reverse of the usual drift, but the same defect.
+    const live = Math.round(m.shownDays);
+    if (m.pushedLiveDays !== live) {
+      m.pushedLiveDays = live;
+      push("liveDays", live);
+    }
   });
 
   return null;
