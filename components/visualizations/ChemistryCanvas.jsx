@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -11,14 +11,19 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   circlePoints,
   clamp,
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
+import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
+import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
+import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
+import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
+import { solveVsepr } from "@/lib/vsepr";
+import { crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
+import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
 import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";
 import SeparationTechniquesCanvas from "@/components/visualizations/SeparationTechniquesCanvas";
@@ -28,9 +33,6 @@ import RadioactiveDecayCanvas from "@/components/visualizations/RadioactiveDecay
 
 // Chemistry is written in subscripts everywhere except, until now, here —
 // "C3H8" on screen next to CₙH₂ₙ₊₂ in the same panel reads as a typo.
-const SUBSCRIPTS = "₀₁₂₃₄₅₆₇₈₉";
-const sub = (n) => (n <= 1 ? "" : String(n).replace(/\d/g, (d) => SUBSCRIPTS[Number(d)]));
-
 // ─── IGCSE Chemistry · five scenes ──────────────────────────────────
 // Atomic structure, organic molecules, fractional distillation, giant
 // lattices and electrolysis.
@@ -38,48 +40,11 @@ const sub = (n) => (n <= 1 ? "" : String(n).replace(/\d/g, (d) => SUBSCRIPTS[Num
 
 // ═══ 6 · Bohr atom & electron shells ═════════════════════════════════
 
-const SHELL_NAMES = ["K", "L", "M", "N"];
-// The 2, 8, 8 rule taught for the first twenty elements — not full 2n².
-const SHELL_CAPACITY = [2, 8, 8, 2];
+// SHELL_NAMES, SHELL_CAPACITY and ELEMENTS now live in lib/atomicStructure.js,
+// so the Details panel reads the same table this scene draws from.
 
-export const ELEMENTS = {
-  H: {
-    symbol: "H",
-    name: "Hydrogen",
-    protons: 1,
-    neutrons: 0,
-    shells: [1],
-    group: "1",
-    bonding: "One electron short of a full K shell — shares a pair to form H₂ or HCl.",
-  },
-  C: {
-    symbol: "C",
-    name: "Carbon",
-    protons: 6,
-    neutrons: 6,
-    shells: [2, 4],
-    group: "4",
-    bonding: "Four valence electrons, so it shares all four in covalent bonds (CH₄, CO₂).",
-  },
-  Na: {
-    symbol: "Na",
-    name: "Sodium",
-    protons: 11,
-    neutrons: 12,
-    shells: [2, 8, 1],
-    group: "1",
-    bonding: "Loses its single outer electron to form Na⁺, exposing a full shell beneath.",
-  },
-  Cl: {
-    symbol: "Cl",
-    name: "Chlorine",
-    protons: 17,
-    neutrons: 18,
-    shells: [2, 8, 7],
-    group: "7",
-    bonding: "Gains one electron to complete its outer shell, forming Cl⁻.",
-  },
-};
+/** Reused when writing instanced-mesh matrices, so no per-frame allocation. */
+const SCRATCH_OBJECT = new THREE.Object3D();
 
 const shellRadius = (i) => 1.7 + i * 1.15;
 const shellTilt = (i) => [i * 0.5 + 0.18, i * 0.95, i * 0.3];
@@ -138,11 +103,11 @@ function Nucleus({ protons, neutrons, spin, speed = 1.0 }) {
           key={i}
           position={n.position}
           radius={size}
-          color={n.proton ? PALETTE.rose : "#8a92a0"}
+          color={n.proton ? ATOM_COLOURS.proton : ATOM_COLOURS.neutron}
           emissiveIntensity={n.proton ? 0.5 : 0.25}
         />
       ))}
-      <Halo radius={0.3 * Math.cbrt(total) + 0.5} color={PALETTE.rose} />
+      <Halo radius={0.3 * Math.cbrt(total) + 0.5} color={ATOM_COLOURS.proton} />
     </group>
   );
 }
@@ -165,7 +130,7 @@ function Shell({
 
   const rate = 0.9 / Math.pow(index + 1, 1.25); // inner shells sweep faster
   const glow = isValence && highlightValence;
-  const colour = glow ? PALETTE.gold : PALETTE.sky;
+  const colour = glow ? ATOM_COLOURS.valence : ATOM_COLOURS.electron;
 
   useFrame((_, delta) => {
     angle.current += delta * speed * rate;
@@ -183,7 +148,7 @@ function Shell({
       {showRing && (
         <Line
           points={ring}
-          color={glow ? PALETTE.gold : "#38bdf8"}
+          color={glow ? ATOM_COLOURS.valence : ATOM_COLOURS.electron}
           lineWidth={glow ? 2.8 : 2.2}
           transparent
           opacity={dimmed ? 0.2 : glow ? 0.95 : 0.85}
@@ -265,42 +230,6 @@ export function BohrAtomScene({ params = {} }) {
         {element.symbol} · {element.shells.join(",")}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={element.name}
-        subtitle={`Shells fill 2, then 8, then 8 — ${element.shells.join(",")}`}
-        rows={[
-          ["Proton number Z", element.protons, "gold"],
-          ["Neutrons", element.neutrons],
-          ["Mass number A", element.protons + element.neutrons],
-          ["Electrons", element.protons],
-          ["Configuration", element.shells.join(", "), "gold"],
-          [
-            "Outer shell",
-            `${valence} of ${SHELL_CAPACITY[outer]}`,
-            valence === SHELL_CAPACITY[outer] ? "good" : "bad",
-          ],
-          ["Group / Period", `${element.group} / ${element.shells.length}`],
-        ]}
-        note={element.bonding}
-        noteTone={valence === SHELL_CAPACITY[outer] ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: PALETTE.rose, label: "Proton", note: `positive · ${element.protons} of them` },
-          { color: "#8a92a0", label: "Neutron", note: `neutral · ${element.neutrons} of them` },
-          { color: PALETTE.sky, label: "Electron in an inner shell", note: "full, and unreactive" },
-          {
-            color: highlightValence ? PALETTE.gold : PALETTE.sky,
-            label: "Valence electron",
-            note: highlightValence
-              ? "the outer shell — where all the chemistry happens"
-              : "turn on “Highlight valence shell” to pick these out",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -313,20 +242,7 @@ const ATOM_STYLE = {
   O: { radius: 0.32, color: PALETTE.rose },
 };
 
-const CHAIN_NAMES = [
-  "meth", "eth", "prop", "but", "pent", "hex", "hept", "oct", "non", "dec", "undec", "dodec",
-];
-const ALKANE_NAMES = CHAIN_NAMES.map((p) => `${p}ane`);
-const ALKENE_NAMES = ["—", ...CHAIN_NAMES.slice(1).map((p) => `${p}ene`)];
-const ALKYNE_NAMES = ["—", ...CHAIN_NAMES.slice(1).map((p) => `${p}yne`)];
-const ALCOHOL_NAMES = CHAIN_NAMES.map((p) => `${p}anol`);
-const ACID_NAMES   = CHAIN_NAMES.map((p) => `${p}anoic acid`);
-const ESTER_NAMES  = [
-  "methyl methanoate", "methyl ethanoate", "ethyl methanoate",
-  "ethyl ethanoate", "propyl methanoate", "methyl propanoate",
-  "propyl ethanoate", "butyl methanoate", "ethyl propanoate",
-  "methyl butanoate", "propyl propanoate", "butyl ethanoate",
-];
+// CHAIN_NAMES and the per-series name tables now live in lib/organic.js.
 
 // ─── Geometry constants ──────────────────────────────────────────────
 // Real geometry, not a plausible-looking zig-zag.
@@ -369,29 +285,62 @@ function buildMolecule(family, carbons) {
   const isAcid         = family === "acid";
   const isEster        = family === "ester";
 
-  // Alkynes are linear (sp hybridisation) at the triple bond: place C0, C1 and C2
-  // along X (linear 180°), then zig-zag the rest normally.
-  const rise = CC_BOND * CHAIN_Y * 0.5;
+  /** Length of the bond arriving at carbon `i`. */
+  const bondLengthAt = (i) => {
+    if (isAlkeneChain && i === 1) return CC_DOUBLE;
+    if (isAlkyne && i === 1) return CC_TRIPLE;
+    return CC_BOND;
+  };
 
+  /**
+   * Interior bond angle at carbon `i`, degrees — set by its hybridisation.
+   *
+   * sp (on a triple bond) is linear, sp² (on a double bond) is trigonal
+   * planar, and everything else is tetrahedral. Walking the chain by turning
+   * through 180° − this at each carbon is what makes the drawn angle the angle
+   * VSEPR predicts, rather than a single zig-zag applied to every family.
+   */
+  const angleAt = (i) => {
+    if (isAlkyne && i <= 1) return 180;
+    if (isAlkeneChain && i <= 1) return 120;
+    return 109.47;
+  };
+  const turnAt = (i) => ((180 - angleAt(i)) * Math.PI) / 180;
+
+  // The chain is walked bond by bond: each bond takes ITS OWN length, and each
+  // turn takes the angle its carbon's hybridisation dictates.
+  //
+  // Scaling only the x-step by the bond length while holding the rise at the
+  // C–C value does not shorten a bond, it tilts it: a C=C asked to be 1.34 Å
+  // came out at 1.41, on the one topic where that bond is the entire point.
+  // The alkyne had the mirror-image problem — with C0..C2 pinned to y = 0 for
+  // the sp region, resuming the zig-zag gave the C2–C3 bond one rise of travel
+  // instead of two, drawing it at 1.33 Å and bending C2 to 144.7°.
+  let heading = turnAt(1) / 2; // start half a turn up, so the chain straddles x
+  let up = false;
   let x = 0;
-  for (let i = 0; i < n; i += 1) {
-    if (i > 0) {
-      const L =
-        isAlkeneChain && i === 1 ? CC_DOUBLE :
-        isAlkyne       && i === 1 ? CC_TRIPLE :
-        CC_BOND;
-      // For alkynes, triple bond (i=1) and single bond from sp carbon (i=2) are colinear along X
-      const factor = (isAlkyne && (i === 1 || i === 2)) ? 1.0 : CHAIN_X;
-      x += L * factor;
+  let y = 0;
+  chain.push(new THREE.Vector3(0, 0, 0));
+  for (let i = 1; i < n; i += 1) {
+    if (i > 1) {
+      heading += (up ? 1 : -1) * turnAt(i - 1);
+      up = !up;
     }
-    // Alkynes: C0, C1, C2 are all on y = 0 because sp hybridization enforces 180° linear geometry
-    const y = (isAlkyne && i <= 2) ? 0 : ((isAlkyne ? i - 1 : i) % 2 === 0 ? rise : -rise);
+    const L = bondLengthAt(i);
+    x += Math.cos(heading) * L;
+    y += Math.sin(heading) * L;
     chain.push(new THREE.Vector3(x, y, 0));
   }
-  // Centre the finished chain.
-  const midX = (chain[0].x + chain[n - 1].x) / 2;
+
+  // Centre the finished chain on both axes — with per-bond rises the walk no
+  // longer ends where it started vertically.
+  const xs = chain.map((p) => p.x);
+  const ys = chain.map((p) => p.y);
+  const midX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
   chain.forEach((p, i) => {
     p.x -= midX;
+    p.y -= midY;
     atoms.push({ el: "C", position: p.toArray(), index: i });
   });
 
@@ -484,6 +433,16 @@ function buildMolecule(family, carbons) {
       atoms.push({ el: "H", position: hp.toArray() });
       bonds.push({ from: rC1.toArray(), to: hp.toArray() });
     });
+
+    // Methyl methanoate (n=1) has a formyl C–H on the carbonyl carbon, which
+    // is otherwise left with only three bonds. The acid branch above already
+    // handles its own n=1 case; this one was missed, so HCOOCH₃ came out as
+    // C₂H₃O₂ — an impossible formula — instead of C₂H₄O₂.
+    if (n === 1) {
+      const formylHPos = end.clone().addScaledVector(new THREE.Vector3(1, 0, 0), CH_BOND);
+      atoms.push({ el: "H", position: formylHPos.toArray() });
+      bonds.push({ from: end.toArray(), to: formylHPos.toArray() });
+    }
   }
 
   // Hydrogens fill whatever bonding capacity each carbon has left.
@@ -547,28 +506,13 @@ function buildMolecule(family, carbons) {
     }
   }
 
-  const valid = !(family === "alkene" && n < 2) && !(family === "alkyne" && n < 2);
-  const hCount = atoms.filter((a) => a.el === "H").length;
-  const oCount = atoms.filter((a) => a.el === "O").length;
-  const cCount = atoms.filter((a) => a.el === "C").length;
-
-  let formula = "—";
-  let name = "—";
-  if (valid) {
-    if (isAlcohol)       { formula = `C${sub(n)}H${sub(hCount - 1)}OH`; }
-    else if (isAcid)     { formula = `C${sub(cCount)}H${sub(hCount)}O${sub(oCount)}`; }
-    else if (isEster)    { formula = `C${sub(cCount)}H${sub(hCount)}O${sub(oCount)}`; }
-    else                 { formula = `C${sub(n)}H${sub(hCount)}`; }
-
-    if      (family === "alkene")  name = ALKENE_NAMES[n - 1]  || `C${n} alkene`;
-    else if (family === "alkyne")  name = ALKYNE_NAMES[n - 1]  || `C${n} alkyne`;
-    else if (family === "alcohol") name = ALCOHOL_NAMES[n - 1] || `C${n} alcohol`;
-    else if (family === "acid")    name = ACID_NAMES[n - 1]    || `C${n} acid`;
-    else if (family === "ester")   name = ESTER_NAMES[n - 1]   || `C${n} ester`;
-    else                           name = ALKANE_NAMES[n - 1]  || `C${n} alkane`;
-  } else {
-    name = "needs 2+ carbons for this series";
-  }
+  // Name and formula come from lib/organic.js, which the Details panel reads
+  // too. They are closed-form rather than counted off `atoms`, and the module
+  // asserts in its tests that the two agree — which is how the ester's missing
+  // formyl hydrogen showed up.
+  const valid = isValid(family, n);
+  const formula = formulaFor(family, n);
+  const name = nameFor(family, n);
 
   return { atoms, bonds, formula, name, valid };
 }
@@ -649,73 +593,101 @@ function AtomsAndBonds({ atoms, bonds }) {
   );
 }
 
-function Molecule({ family, carbons, crackToken, spin, speed = 1.0 }) {
+/**
+ * The molecule, and what happens to it when you crack it.
+ *
+ * Cracking used to be a lie told with a transform: the component partitioned
+ * the ONE molecule geometrically and slid the two halves apart. No bond ever
+ * became a double bond, no hydrogen ever moved, and both "products" were left
+ * as radicals with a dangling valence — while the readout beside it promised
+ * "a shorter alkane plus a useful alkene", and the topic's concept text made
+ * that one of its three headline facts.
+ *
+ * Now the products are built as real molecules. The parent is replaced by an
+ * alkane two carbons shorter and an ethene, which is what CₙH₂ₙ₊₂ →
+ * C₍ₙ₋₂₎H₂₍ₙ₋₂₎₊₂ + C₂H₄ actually gives, and the C=C is drawn by the same
+ * DoubleBond the alkene series uses. `lib/organic.js` owns the arithmetic and
+ * its test asserts the equation balances.
+ */
+function Molecule({ family, carbons, crackToken, spin, speed = 1.0, onCrackedChange }) {
   const group = useRef(null);
-  const leftRef = useRef(null);
-  const rightRef = useRef(null);
-  const breakingRef = useRef(null);
+  const intactRef = useRef(null);
+  const productsRef = useRef(null);
+  const alkaneRef = useRef(null);
+  const alkeneRef = useRef(null);
   const split = useRef(0);
   const target = useRef(0);
+  const wasCracked = useRef(false);
 
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
+  const crackable = isCrackable(family, carbons);
 
-  // Cracking only makes sense for an alkane long enough to break in two.
-  const crackable = family === "alkane" && carbons >= 3;
-
-  /**
-   * Split the molecule after the first carbon and pre-partition it, so the
-   * animation is two group transforms per frame rather than a re-render.
-   */
-  const fragments = useMemo(() => {
-    const pivot = molecule.atoms.find((a) => a.el === "C" && a.index === 0);
-    const cut = pivot ? pivot.position[0] + 0.75 : 0;
-    const sideOf = (p) => (p[0] < cut ? "left" : "right");
+  // The two products, built as molecules in their own right rather than carved
+  // out of the parent. Only built when cracking is possible at all.
+  const products = useMemo(() => {
+    if (!crackable) return null;
+    const spec = crackProducts(carbons);
+    if (!spec) return null;
     return {
-      left: {
-        atoms: molecule.atoms.filter((a) => sideOf(a.position) === "left"),
-        bonds: molecule.bonds.filter(
-          (b) => sideOf(b.from) === "left" && sideOf(b.to) === "left",
-        ),
-      },
-      right: {
-        atoms: molecule.atoms.filter((a) => sideOf(a.position) === "right"),
-        bonds: molecule.bonds.filter(
-          (b) => sideOf(b.from) === "right" && sideOf(b.to) === "right",
-        ),
-      },
-      breaking: molecule.bonds.filter((b) => sideOf(b.from) !== sideOf(b.to)),
+      spec,
+      alkane: buildMolecule("alkane", spec.alkane.carbons),
+      alkene: buildMolecule("alkene", spec.alkene.carbons),
     };
-  }, [molecule]);
+  }, [crackable, carbons]);
 
   useEffect(() => {
     if (!crackToken || !crackable) return undefined;
     target.current = 1;
     const id = setTimeout(() => {
       target.current = 0;
-    }, Math.max(800, 2600 / speed));
+      // See the note on the DNA unzip timer: a zero speed must not collapse
+      // the hold to an immediate re-join.
+    }, Math.max(1600, 4200 / Math.max(speed, 0.05)));
     return () => clearTimeout(id);
   }, [crackToken, crackable, speed]);
 
+  // A new family or chain length abandons any crack in progress, so the scene
+  // never shows the products of a molecule that is no longer on screen.
+  useEffect(() => {
+    target.current = 0;
+    split.current = 0;
+  }, [family, carbons]);
+
   useFrame((_, delta) => {
     if (spin && group.current) group.current.rotation.y += delta * 0.35 * speed;
-    split.current = lerp(split.current, target.current, Math.min(1, delta * 2.4 * speed));
-    const offset = crackable ? split.current * 1.7 : 0;
-    if (leftRef.current) leftRef.current.position.x = -offset;
-    if (rightRef.current) rightRef.current.position.x = offset;
-    if (breakingRef.current) breakingRef.current.visible = split.current < 0.05;
+    split.current = lerp(split.current, target.current, Math.min(1, delta * 2.0 * speed));
+    const s = crackable ? split.current : 0;
+
+    // Below the threshold the parent alkane is on screen; above it, the two
+    // products are, drifting apart.
+    const cracked = s > 0.02;
+    if (intactRef.current) intactRef.current.visible = !cracked;
+    if (productsRef.current) productsRef.current.visible = cracked;
+    if (alkaneRef.current) alkaneRef.current.position.x = -s * 2.4;
+    if (alkeneRef.current) alkeneRef.current.position.x = s * 2.4;
+
+    if (cracked !== wasCracked.current) {
+      wasCracked.current = cracked;
+      // Fires on the transition only — never per frame.
+      if (typeof onCrackedChange === "function") onCrackedChange(cracked);
+    }
   });
 
   return (
     <group ref={group}>
-      <group ref={leftRef}>
-        <AtomsAndBonds atoms={fragments.left.atoms} bonds={fragments.left.bonds} />
+      <group ref={intactRef}>
+        <AtomsAndBonds atoms={molecule.atoms} bonds={molecule.bonds} />
       </group>
-      <group ref={rightRef}>
-        <AtomsAndBonds atoms={fragments.right.atoms} bonds={fragments.right.bonds} />
-      </group>
-      <group ref={breakingRef}>
-        <AtomsAndBonds atoms={[]} bonds={fragments.breaking} />
-      </group>
+      {products && (
+        <group ref={productsRef} visible={false}>
+          <group ref={alkaneRef}>
+            <AtomsAndBonds atoms={products.alkane.atoms} bonds={products.alkane.bonds} />
+          </group>
+          <group ref={alkeneRef}>
+            <AtomsAndBonds atoms={products.alkene.atoms} bonds={products.alkene.bonds} />
+          </group>
+        </group>
+      )}
     </group>
   );
 }
@@ -723,111 +695,72 @@ function Molecule({ family, carbons, crackToken, spin, speed = 1.0 }) {
 export function OrganicBuilderScene({ params = {} }) {
   const { family = "alkane", carbons = 3, crack = 0, spin = true, speed = 1.0 } = params || {};
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
-  const crackable = family === "alkane" && carbons >= 3;
+  // The same description the Details panel prints.
+  const info = useMemo(() => describeMolecule(family, carbons), [family, carbons]);
+  const { crackable, general: generalFormula, saturated, unsaturation } = info;
+  const hasBondFeature = Boolean(unsaturation);
 
-  const generalFormula = {
-    alkane:  "CₙH₂ₙ₊₂",
-    alkene:  "CₙH₂ₙ",
-    alkyne:  "CₙH₂ₙ₋₂",
-    alcohol: "CₙH₂ₙ₊₁OH",
-    acid:    "CₙH₂ₙO₂ (RCOOH)",
-    ester:   "RCOO–R′",
-  }[family] ?? "";
+  // Whether the two products are the thing currently on screen. The Molecule
+  // reports the transition, so this is a state change per crack, not per frame.
+  const [cracked, setCracked] = useState(false);
+  const cracking = useMemo(() => (crackable ? crackProducts(carbons) : null), [crackable, carbons]);
+  useEffect(() => setCracked(false), [family, carbons]);
 
-  const saturated = ["alkane", "alcohol", "acid", "ester"].includes(family);
-  const hasBondFeature = ["alkene", "alkyne"].includes(family);
+  const readoutNote = !info.valid
+    ? `${info.label}s need at least ${info.minCarbons} carbons. Increase the chain length.`
+    : cracked && cracking
+      ? `${cracking.equation} — the long chain has broken into a shorter alkane plus an alkene, and the C=C is the useful part.`
+      : crackable
+        ? `Press "Trigger cracking": this alkane breaks into a shorter alkane plus a useful alkene.`
+        : info.note;
 
-  const readoutNote = !molecule.valid
-    ? "This series needs at least 2 carbons. Increase the chain length."
-    : crackable
-      ? `Press "Trigger cracking": this alkane breaks into a shorter alkane plus a useful alkene.`
-      : family === "alkene"
-        ? "The C=C double bond decolourises bromine water — the standard test for unsaturation."
-        : family === "alkyne"
-          ? "The C≡C triple bond makes alkynes very reactive; ethyne (acetylene) is used in welding torches."
-          : family === "acid"
-            ? "Carboxylic acids have –COOH: a carbonyl C=O and a hydroxyl –OH on the same carbon. They are weak acids."
-            : family === "ester"
-              ? "Esters form from an acid + alcohol (condensation). The –COO– linkage gives fruits their characteristic smells."
-              : "Each member of the series differs by CH₂, so properties change gradually down the series.";
 
   return (
     <SceneCanvas camera={{ position: [0, 2.4, carbons > 6 ? 12 : 8.5], fov: 45 }}>
-      <Molecule family={family} carbons={carbons} crackToken={crack} spin={spin} speed={speed} />
+      <Molecule
+        family={family}
+        carbons={carbons}
+        crackToken={crack}
+        spin={spin}
+        speed={speed}
+        onCrackedChange={setCracked}
+      />
 
       <SceneLabel position={[0, -2.6, 0]} accent>
-        {molecule.formula} · {molecule.name}
+        {cracked && cracking ? cracking.equation : `${molecule.formula} · ${molecule.name}`}
       </SceneLabel>
+      {cracked && cracking && (
+        <>
+          <SceneLabel position={[-2.6, 2.4, 0]} tone="text-ink-300">
+            {`${cracking.alkane.formula} · ${cracking.alkane.name}`}
+          </SceneLabel>
+          <SceneLabel position={[2.6, 2.4, 0]} tone="text-emerald-300">
+            {`${cracking.alkene.formula} · ${cracking.alkene.name} — decolourises bromine water`}
+          </SceneLabel>
+        </>
+      )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={molecule.valid ? molecule.name : "No such molecule"}
-        subtitle={`${family} · homologous series`}
-        rows={[
-          ["Formula", molecule.formula, "gold"],
-          ["General formula", generalFormula],
-          ["Carbons n", carbons],
-          [
-            "Saturated",
-            saturated ? "yes — only single bonds" : hasBondFeature ? `no — has ${family === "alkyne" ? "C≡C" : "C=C"}` : "—",
-            saturated ? "good" : "bad",
-          ],
-          ...(family === "acid"  ? [["Functional group", "–COOH (carboxyl)"]] : []),
-          ...(family === "ester" ? [["Functional group", "–COO– (ester linkage)"]] : []),
-          ...(family === "alkene" || family === "alkyne"
-            ? [["Bromine water", family === "alkene" ? "decolourised" : "decolourised (very fast)"]]
-            : []),
-        ]}
-        note={readoutNote}
-        noteTone={!molecule.valid ? "bad" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Ball and stick"
-        items={[
-          { color: ATOM_STYLE.C.color, label: "Carbon", note: "always forms four bonds" },
-          { color: ATOM_STYLE.H.color, label: "Hydrogen", note: "always forms one" },
-          { color: ATOM_STYLE.O.color, label: "Oxygen", note: "two bonds — in –OH, C=O, –COO–" },
-          ...(family === "alkyne"
-            ? [{ color: PALETTE.sky, shape: "line", label: "C≡C triple bond", note: "three shared pairs — very reactive, sp linear" }]
-            : family === "alkene"
-              ? [{ color: PALETTE.gold, shape: "line", label: "C=C double bond", note: "two shared pairs — the reactive site" }]
-              : [{ color: "#3f4854", shape: "line", label: "Single C–C bond", note: "one shared pair — saturated" }]),
-        ]}
-      />
     </SceneCanvas>
   );
 }
 
 // ═══ 8 · Fractional distillation ═════════════════════════════════════
 
-// Ordered top (coolest, shortest chains) to bottom (hottest, longest).
-const FRACTIONS = [
-  { name: "Refinery gases", top: 25, use: "bottled gas", colour: "#7dd3fc", chain: "C₁–C₄" },
-  { name: "Petrol", top: 75, use: "car fuel", colour: "#a5b4fc", chain: "C₅–C₁₀" },
-  { name: "Naphtha", top: 150, use: "chemical feedstock", colour: "#c4b5fd", chain: "C₈–C₁₂" },
-  { name: "Kerosene", top: 240, use: "aircraft fuel", colour: "#fcd34d", chain: "C₁₁–C₁₆" },
-  { name: "Diesel oil", top: 320, use: "lorries, trains", colour: "#fb923c", chain: "C₁₅–C₂₀" },
-  {
-    name: "Bitumen",
-    top: 400,
-    use: "road surfacing",
-    colour: "#f87171",
-    chain: "C₃₀+",
-    // Too heavy to vaporise at all — it is drained off, not condensed out.
-    residue: true,
-  },
-];
+// FRACTIONS and the rise predicate now live in lib/distillation.js.
 
 const COLUMN_HEIGHT = 7.6;
 const levelY = (i) => COLUMN_HEIGHT / 2 - 0.6 - i * 1.25;
+/** The fractions that boil — everything but the residue at the base. */
+const VAPOURISING = FRACTIONS.filter((f) => !f.residue);
 
 function Vapours({ heat, flowing, speed = 1.0 }) {
   const group = useRef(null);
   const particles = useMemo(
     () =>
       Array.from({ length: 42 }, (_, i) => ({
-        fraction: i % FRACTIONS.length,
+        // Residues never vaporise, so they get no vapour — index only into
+        // the fractions that can actually climb.
+        fraction: i % VAPOURISING.length,
         phase: hashRandom(i + 3),
         wobble: hashRandom(i + 51) * Math.PI * 2,
         radius: 0.25 + hashRandom(i + 17) * 0.75,
@@ -843,7 +776,7 @@ function Vapours({ heat, flowing, speed = 1.0 }) {
       const mesh = meshes.current[i];
       if (!mesh) return;
       // Furnace heat decides how far up the column a fraction can climb.
-      const reach = clamp((heat - p.fraction * 0.14) * 1.35, 0, 1);
+      const reach = clamp((heat - p.fraction * HEAT_PER_LEVEL) * 1.35, 0, 1);
       const ceiling = levelY(p.fraction);
       const bottom = -COLUMN_HEIGHT / 2 + 0.4;
       const travel = (ceiling - bottom) * reach;
@@ -867,8 +800,8 @@ function Vapours({ heat, flowing, speed = 1.0 }) {
         >
           <sphereGeometry args={[1, 10, 10]} />
           <meshStandardMaterial
-            color={FRACTIONS[p.fraction].colour}
-            emissive={FRACTIONS[p.fraction].colour}
+            color={VAPOURISING[p.fraction].colour}
+            emissive={VAPOURISING[p.fraction].colour}
             emissiveIntensity={1.6}
             toneMapped={false}
           />
@@ -880,8 +813,8 @@ function Vapours({ heat, flowing, speed = 1.0 }) {
 
 export function DistillationScene({ params = {} }) {
   const { heat = 0.7, showLabels = true, flow = true, speed = 1.0 } = params || {};
-  const furnace = Math.round(lerp(250, 450, heat));
-  const rising = FRACTIONS.filter((_, i) => heat - i * 0.14 > 0.05).length;
+  const furnace = furnaceTemperature(heat);
+  const rising = risingCount(heat);
 
   return (
     <SceneCanvas camera={{ position: [7, 1.5, 9], fov: 45 }}>
@@ -917,7 +850,8 @@ export function DistillationScene({ params = {} }) {
       {FRACTIONS.map((fraction, i) => {
         const y = levelY(i);
         // Temperature falls as you climb; the tray glows if vapour reaches it.
-        const reached = heat - i * 0.14 > 0.05;
+        // `rises` returns false for the residue however hot the furnace gets.
+        const reached = rises(heat, i);
         return (
           <group key={fraction.name} position={[0, y, 0]}>
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
@@ -1042,38 +976,6 @@ export function DistillationScene({ params = {} }) {
         </SceneLabel>
       </group>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Fractionating column"
-        subtitle="A physical separation, not a reaction"
-        rows={[
-          ["Furnace", `${furnace}°C`, "gold"],
-          ["Top of column", "~25°C"],
-          ["Separated by", "boiling point"],
-          ["Fractions vaporised", `${rising} of ${FRACTIONS.length}`, rising > 3 ? "good" : "warn"],
-          ["Highest riser", FRACTIONS[0].name],
-          ["Left at the base", "bitumen"],
-        ]}
-        note={
-          rising <= 2
-            ? "The furnace is too cool for most of the crude oil to vaporise, so the heavier fractions never leave the base. Turn the heat up."
-            : "Short chains have weaker forces between their molecules, so they boil at low temperatures and climb highest before condensing. Long chains condense low down; bitumen never boils at all."
-        }
-        noteTone={rising <= 2 ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Fractions, top to bottom"
-        items={FRACTIONS.map((fraction, i) => ({
-          color: fraction.colour,
-          label: `${fraction.name} · ${fraction.chain}`,
-          note: fraction.residue
-            ? `never vaporises — drained off at the base · ${fraction.use}`
-            : heat - i * 0.14 > 0.05
-              ? `≤${fraction.top}°C · ${fraction.use}`
-              : `needs more heat than ${furnace}°C`,
-        }))}
-      />
     </SceneCanvas>
   );
 }
@@ -1108,9 +1010,13 @@ function buildNaCl() {
   return { atoms, bonds, layers: null };
 }
 
-function buildDiamond() {
-  // Diamond cubic: an FCC basis plus the same lattice shifted by ¼,¼,¼.
-  const a = 2.4;
+/**
+ * Points of a diamond-cubic lattice, recentred on the origin.
+ *
+ * Shared, because silica is the same net: silicon sits where carbon does, with
+ * an oxygen bridging every bond.
+ */
+function diamondCubicPoints(a = 2.4, cells = 2) {
   const basis = [
     [0, 0, 0],
     [0, 0.5, 0.5],
@@ -1118,9 +1024,9 @@ function buildDiamond() {
     [0.5, 0.5, 0],
   ];
   const points = [];
-  for (let cx = 0; cx < 2; cx += 1) {
-    for (let cy = 0; cy < 2; cy += 1) {
-      for (let cz = 0; cz < 2; cz += 1) {
+  for (let cx = 0; cx < cells; cx += 1) {
+    for (let cy = 0; cy < cells; cy += 1) {
+      for (let cz = 0; cz < cells; cz += 1) {
         basis.forEach(([bx, by, bz]) => {
           points.push([(cx + bx) * a, (cy + by) * a, (cz + bz) * a]);
           points.push([(cx + bx + 0.25) * a, (cy + by + 0.25) * a, (cz + bz + 0.25) * a]);
@@ -1128,23 +1034,33 @@ function buildDiamond() {
       }
     }
   }
+  const centre = (cells * a) / 2;
+  return points.map((p) => [p[0] - centre, p[1] - centre, p[2] - centre]);
+}
 
-  const centre = a; // recentre the 2×2×2 block on the origin
-  const atoms = points
-    .map((p) => [p[0] - centre, p[1] - centre, p[2] - centre])
-    .filter((p) => p.every((c) => c >= -centre - 0.01 && c <= centre + 0.01))
-    .map((position) => ({ position, radius: 0.26, color: "#94a3b8" }));
-
+/** Nearest-neighbour pairs in a diamond-cubic net — the tetrahedral bonds. */
+function diamondCubicBonds(points, a = 2.4) {
   const bondLength = (Math.sqrt(3) / 4) * a;
-  const bonds = [];
-  for (let i = 0; i < atoms.length; i += 1) {
-    for (let j = i + 1; j < atoms.length; j += 1) {
-      const p = atoms[i].position;
-      const q = atoms[j].position;
+  const pairs = [];
+  for (let i = 0; i < points.length; i += 1) {
+    for (let j = i + 1; j < points.length; j += 1) {
+      const p = points[i];
+      const q = points[j];
       const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      if (Math.abs(d - bondLength) < 0.06) bonds.push({ from: p, to: q });
+      if (Math.abs(d - bondLength) < 0.06) pairs.push([i, j]);
     }
   }
+  return pairs;
+}
+
+function buildDiamond() {
+  const a = 2.4;
+  const points = diamondCubicPoints(a);
+  const atoms = points.map((position) => ({ position, radius: 0.26, color: "#94a3b8" }));
+  const bonds = diamondCubicBonds(points, a).map(([i, j]) => ({
+    from: points[i],
+    to: points[j],
+  }));
   return { atoms, bonds, layers: null };
 }
 
@@ -1152,6 +1068,8 @@ function buildGraphite(slide) {
   const acc = 0.82;
   const atoms = [];
   const bonds = [];
+  const sheets = [];
+  const interlayer = [];
   // 335 pm between layers against 142 pm within one — a ratio of 2.36. That
   // gap is the whole story: covalent bonds in the sheet, weak forces across
   // it, so the layers shear while the sheets themselves never break.
@@ -1184,185 +1102,237 @@ function buildGraphite(slide) {
         if (Math.abs(d - acc) < 0.05) bonds.push({ from: sheet[i], to: sheet[j] });
       }
     }
+    sheets.push(sheet);
   });
 
-  return { atoms, bonds, layers: layerY };
+  // The weak forces ACROSS the layers — thin, faint, and drawn between
+  // vertically nearest carbons only. Both colour keys used to name these and
+  // nothing drew them, which is the one structural fact the topic turns on:
+  // strong bonds within a sheet, weak forces between, so the sheets slide
+  // without ever breaking.
+  for (let l = 0; l + 1 < sheets.length; l += 1) {
+    const lower = sheets[l];
+    const upper = sheets[l + 1];
+    for (let i = 0; i < lower.length; i += 4) {
+      let best = null;
+      let bestD = Infinity;
+      for (let j = 0; j < upper.length; j += 1) {
+        const d = Math.hypot(lower[i][0] - upper[j][0], lower[i][2] - upper[j][2]);
+        if (d < bestD) {
+          bestD = d;
+          best = upper[j];
+        }
+      }
+      // Only where the two sheets still roughly line up; a big slide should
+      // visibly stretch and thin these, not drag them across the whole cell.
+      if (best && bestD < acc * 1.6) {
+        interlayer.push({ from: lower[i], to: best, weak: true });
+      }
+    }
+  }
+
+  // One delocalised electron per carbon is the reason graphite conducts, and
+  // it was the one thing the key promised that had no counterpart on screen.
+  // Drawn as a sparse drift of sprites between the sheets rather than one per
+  // atom, which would bury the lattice.
+  const electrons = [];
+  sheets.forEach((sheet, layerIndex) => {
+    for (let i = 1; i < sheet.length; i += 7) {
+      electrons.push({
+        position: [sheet[i][0], sheet[i][1] + 0.34, sheet[i][2]],
+        layer: layerIndex,
+        seed: i,
+      });
+    }
+  });
+
+  return { atoms, bonds, layers: layerY, interlayer, electrons };
 }
 
+/**
+ * Silica as β-cristobalite — the standard teaching model.
+ *
+ * Silicon takes the diamond-cubic net and an oxygen bridges every Si–Si bond,
+ * which gives 4-coordinate silicon, 2-coordinate oxygen and the 1 : 2 ratio,
+ * all at once.
+ *
+ * The old build put silicon on a SIMPLE cubic lattice with an oxygen at each
+ * midpoint. The stoichiometry came out right, which is presumably why it
+ * survived, but the geometry was wrong in the way that matters: interior
+ * silicons carried SIX oxygens at 180° Si–O–Si, while both readouts insisted
+ * the structure was tetrahedral and that each silicon bonds to four oxygens.
+ *
+ * The bridging oxygen is pushed off the Si–Si line so the Si–O–Si angle opens
+ * to roughly the real 144° rather than sitting at a straight 180°.
+ */
 function buildQuartz() {
-  const atoms = [];
+  const a = 2.4;
+  const all = diamondCubicPoints(a);
+  // Drop the corner silicons that a finite block leaves with a single bond:
+  // they read as floating spurs rather than as part of the network.
+  const degree = new Map(all.map((_, i) => [i, 0]));
+  diamondCubicBonds(all, a).forEach(([i, j]) => {
+    degree.set(i, degree.get(i) + 1);
+    degree.set(j, degree.get(j) + 1);
+  });
+  const si = all.filter((_, i) => degree.get(i) >= 2);
+  const atoms = si.map((position) => ({ position, radius: 0.28, color: PALETTE.gold }));
   const bonds = [];
-  const siPos = [];
-  const spacing = 1.6;
-  for (let i = -1; i <= 1; i += 1) {
-    for (let j = -1; j <= 1; j += 1) {
-      for (let k = -1; k <= 1; k += 1) {
-        const pos = [i * spacing, j * spacing, k * spacing];
-        siPos.push(pos);
-        atoms.push({ position: pos, radius: 0.28, color: PALETTE.gold });
-      }
-    }
-  }
-  for (let i = 0; i < siPos.length; i += 1) {
-    for (let j = i + 1; j < siPos.length; j += 1) {
-      const p = siPos[i];
-      const q = siPos[j];
-      const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      if (Math.abs(d - spacing) < 0.05) {
-        const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2 + 0.15, (p[2] + q[2]) / 2];
-        atoms.push({ position: mid, radius: 0.18, color: PALETTE.rose });
-        bonds.push({ from: p, to: mid });
-        bonds.push({ from: mid, to: q });
-      }
-    }
-  }
+
+  // A fixed bend, alternating direction per bridge so the net does not shear
+  // all one way. 0.22 of the bond length lands Si–O–Si near 144°.
+  const BEND = 0.22;
+  diamondCubicBonds(si, a).forEach(([i, j], k) => {
+    const p = si[i];
+    const q = si[j];
+    const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+    // Any direction perpendicular to the bond will do; cross with a fixed axis
+    // and fall back to another when the bond happens to be parallel to it.
+    const axis = new THREE.Vector3(q[0] - p[0], q[1] - p[1], q[2] - p[2]).normalize();
+    let perp = new THREE.Vector3(0, 1, 0).cross(axis);
+    if (perp.lengthSq() < 1e-6) perp = new THREE.Vector3(1, 0, 0).cross(axis);
+    perp.normalize().multiplyScalar(BEND * a * (k % 2 === 0 ? 1 : -1));
+    const o = [mid[0] + perp.x, mid[1] + perp.y, mid[2] + perp.z];
+    atoms.push({ position: o, radius: 0.18, color: PALETTE.rose });
+    bonds.push({ from: p, to: o });
+    bonds.push({ from: o, to: q });
+  });
+
   return { atoms, bonds, layers: null };
 }
 
+/**
+ * Hexagonal ice.
+ *
+ * Every length is scaled from the real molecule rather than eyeballed: O–H is
+ * 0.96 Å, H–O–H is 104.5°, and O···O across a hydrogen bond is 2.76 Å.
+ *
+ * The hydrogens used to sit at fixed offsets of (±0.35, ±0.22, ±0.2), which
+ * subtend 123° — and the bond angle is not a detail here, it is the reason the
+ * cage is open and therefore the reason ice floats, which is the one fact the
+ * readout leads with. The hydrogen bonds were also found by scanning for any
+ * H···O pair between 0.4 and 1.35 world units, so they had no particular
+ * relationship to the molecules they were joining.
+ */
 function buildIce() {
+  const OH = 0.5; // 0.96 Å at this scale
+  const HOH = (104.5 * Math.PI) / 180;
+  const OO = OH * (2.76 / 0.96); // 2.76 Å — the hydrogen-bonded O···O distance
+
   const atoms = [];
   const bonds = [];
-  const levels = [-1.4, 0, 1.4];
-  const r = 1.3;
-  const molecules = [];
+  const oxygens = [];
 
+  // Stacked, alternately rotated hexagonal rings: the open cage of ice Ih.
+  const levels = [-OO, 0, OO];
   levels.forEach((y, l) => {
     for (let i = 0; i < 6; i += 1) {
       const a = (i * Math.PI) / 3 + (l % 2 ? Math.PI / 6 : 0);
-      const ox = Math.cos(a) * r;
-      const oz = Math.sin(a) * r;
-      const oPos = [ox, y, oz];
-      atoms.push({ position: oPos, radius: 0.26, color: PALETTE.rose });
-      const hPos1 = [ox + 0.35, y + (l % 2 === 0 ? 0.22 : -0.22), oz + 0.2];
-      const hPos2 = [ox - 0.35, y + (l % 2 === 0 ? 0.22 : -0.22), oz - 0.2];
-      atoms.push({ position: hPos1, radius: 0.14, color: PALETTE.bone });
-      atoms.push({ position: hPos2, radius: 0.14, color: PALETTE.bone });
-      bonds.push({ from: oPos, to: hPos1 });
-      bonds.push({ from: oPos, to: hPos2 });
-      molecules.push({ o: oPos, h: [hPos1, hPos2] });
+      oxygens.push(new THREE.Vector3(Math.cos(a) * OO, y, Math.sin(a) * OO));
     }
   });
 
-  // Intermolecular hydrogen bonds between H of one molecule and O of neighboring water
-  for (let m1 = 0; m1 < molecules.length; m1++) {
-    for (let hIdx = 0; hIdx < molecules[m1].h.length; hIdx++) {
-      const h = molecules[m1].h[hIdx];
-      for (let m2 = 0; m2 < molecules.length; m2++) {
-        if (m1 === m2) continue;
-        const o = molecules[m2].o;
-        const d = Math.hypot(h[0] - o[0], h[1] - o[1], h[2] - o[2]);
-        if (d > 0.4 && d < 1.35) {
-          bonds.push({ from: h, to: o, color: PALETTE.sky, radius: 0.024, opacity: 0.8 });
-        }
+  // Who is hydrogen-bonded to whom: everything within reach of one O···O.
+  const neighbours = oxygens.map((o, i) =>
+    oxygens
+      .map((q, j) => ({ j, d: o.distanceTo(q) }))
+      .filter((n) => n.j !== i && n.d < OO * 1.25)
+      .sort((a, b) => a.d - b.d)
+      .map((n) => n.j),
+  );
+
+  oxygens.forEach((o, i) => {
+    atoms.push({ position: o.toArray(), radius: 0.26, color: PALETTE.rose });
+
+    // Each molecule DONATES two hydrogen bonds and accepts two — the ice
+    // rules. The two hydrogens are placed at a true 104.5°, in the plane of
+    // the two neighbours they point at and symmetric about the bisector, so
+    // the molecule keeps its real shape while still aiming at the cage.
+    const picks = neighbours[i].slice(0, 2);
+    const dirs = picks.map((j) => oxygens[j].clone().sub(o).normalize());
+    let d1 = dirs[0] ?? new THREE.Vector3(1, 0, 0);
+    let d2 = dirs[1] ?? new THREE.Vector3(0, 1, 0);
+    if (d1.clone().cross(d2).lengthSq() < 1e-6) d2 = new THREE.Vector3(0, 1, 0);
+
+    const bisector = d1.clone().add(d2).normalize();
+    const normal = d1.clone().cross(d2).normalize();
+    const inPlane = normal.clone().cross(bisector).normalize();
+    const half = HOH / 2;
+
+    [1, -1].forEach((sign, k) => {
+      const dir = bisector
+        .clone()
+        .multiplyScalar(Math.cos(half))
+        .addScaledVector(inPlane, sign * Math.sin(half))
+        .normalize();
+      const h = o.clone().addScaledVector(dir, OH);
+      atoms.push({ position: h.toArray(), radius: 0.14, color: PALETTE.bone });
+      // Covalent O–H.
+      bonds.push({ from: o.toArray(), to: h.toArray() });
+      // …and the hydrogen bond running on from it to the acceptor oxygen.
+      const acceptor = picks[k];
+      if (acceptor !== undefined) {
+        bonds.push({
+          from: h.toArray(),
+          to: oxygens[acceptor].toArray(),
+          color: PALETTE.sky,
+          radius: 0.024,
+          opacity: 0.75,
+        });
       }
-    }
-  }
+    });
+  });
 
   return { atoms, bonds, layers: null };
 }
 
-const LATTICE_FACTS = {
-  nacl: {
-    title: "Sodium chloride",
-    rows: [
-      ["Structure", "giant ionic"],
-      ["Bonding", "electrostatic"],
-      ["Melting point", "801°C"],
-      ["Conducts", "molten / aqueous"],
-    ],
-    note: "Na⁺ and Cl⁻ alternate in every direction. Strong attraction in all directions means a high melting point, and it only conducts once the ions are free to move.",
-  },
-  diamond: {
-    title: "Diamond",
-    rows: [
-      ["Structure", "giant covalent"],
-      ["Bonds per carbon", "4"],
-      ["Melting point", "3550°C"],
-      ["Conducts", "no"],
-    ],
-    note: "Every carbon is covalently bonded to four others in a rigid tetrahedral network — extremely hard, and no free electrons, so it does not conduct.",
-  },
-  graphite: {
-    title: "Graphite",
-    rows: [
-      ["Structure", "giant covalent"],
-      ["Bonds per carbon", "3"],
-      ["Between layers", "weak forces"],
-      ["Conducts", "yes"],
-    ],
-    note: "Three bonds per carbon leaves one delocalised electron, so graphite conducts. Weak forces between layers let them slide, which is why it lubricates.",
-  },
-  quartz: {
-    title: "Quartz (Silicon Dioxide)",
-    rows: [
-      ["Structure", "giant covalent"],
-      ["Formula", "SiO₂"],
-      ["Melting point", "1710°C"],
-      ["Conducts", "no"],
-    ],
-    note: "Silicon atoms linked tetrahedrally by bridging oxygen atoms. Extremely hard mineral with high thermal resistance.",
-  },
-  ice: {
-    title: "Hexagonal Ice (H₂O)",
-    rows: [
-      ["Structure", "molecular crystal"],
-      ["Bonding", "hydrogen bonds"],
-      ["Melting point", "0°C"],
-      ["Density", "less than liquid water"],
-    ],
-    note: "Open hexagonal crystal cage held together by hydrogen bonds between water molecules — why ice floats on liquid water.",
-  },
-};
-
-const LATTICE_KEYS = {
-  nacl: [
-    { color: PALETTE.gold, label: "Na⁺ ion", note: "smaller — it lost an electron" },
-    { color: PALETTE.emerald, label: "Cl⁻ ion", note: "larger — it gained one" },
-    {
-      color: "#3f4854",
-      shape: "line",
-      label: "Electrostatic attraction",
-      note: "strong, and pulling in every direction",
-    },
-  ],
-  diamond: [
-    { color: "#94a3b8", label: "Carbon atom", note: "bonded to four others, tetrahedrally" },
-    {
-      color: "#3f4854",
-      shape: "line",
-      label: "Covalent bond",
-      note: "all four outer electrons used — none left to conduct",
-    },
-  ],
-  graphite: [
-    { color: PALETTE.gold, label: "Carbon in the middle layer", note: "picked out so the slide shows" },
-    { color: "#94a3b8", label: "Carbon in the outer layers" },
-    {
-      color: "#3f4854",
-      shape: "line",
-      label: "Covalent bond within a layer",
-      note: "three per carbon — the fourth electron is delocalised",
-    },
-    {
-      color: PALETTE.sky,
-      shape: "dash",
-      label: "Between the layers",
-      note: "weak forces only — drag the slider and they shear",
-    },
-  ],
-  quartz: [
-    { color: PALETTE.gold, label: "Silicon atom (Si)", note: "tetrahedral coordination" },
-    { color: PALETTE.rose, label: "Oxygen atom (O)", note: "bridges two silicon atoms" },
-    { color: "#3f4854", shape: "line", label: "Si–O Covalent bond" },
-  ],
-  ice: [
-    { color: PALETTE.rose, label: "Oxygen atom (O)" },
-    { color: PALETTE.bone, label: "Hydrogen atom (H)" },
-    { color: PALETTE.sky, shape: "dash", label: "Hydrogen bond cage" },
-  ],
-};
+// LATTICE_FACTS and LATTICE_KEYS now live in lib/lattices.js.
 
 /** Lives inside the Canvas — useFrame is only legal below <Canvas>. */
+/**
+ * The delocalised electrons in graphite, drifting within their own sheet.
+ *
+ * Instanced and animated on refs, so adding them costs one draw call rather
+ * than one component per electron.
+ */
+function DelocalisedElectrons({ electrons, speed = 1.0 }) {
+  const mesh = useRef(null);
+  const t = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!mesh.current || electrons.length === 0) return;
+    t.current += Math.min(delta, 0.05) * speed;
+    electrons.forEach((e, i) => {
+      // A slow wander in the plane of the sheet — free to move along the
+      // layer, never across the gap. That is exactly what makes graphite
+      // conduct in one direction and not the other.
+      const a = t.current * 0.6 + e.seed * 1.7;
+      SCRATCH_OBJECT.position.set(
+        e.position[0] + Math.cos(a) * 0.5,
+        e.position[1] + Math.sin(a * 0.7) * 0.05,
+        e.position[2] + Math.sin(a) * 0.5,
+      );
+      SCRATCH_OBJECT.scale.setScalar(0.075 + Math.sin(a * 2.3) * 0.015);
+      SCRATCH_OBJECT.updateMatrix();
+      mesh.current.setMatrixAt(i, SCRATCH_OBJECT.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+
+  if (electrons.length === 0) return null;
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, electrons.length]} frustumCulled={false}>
+      <sphereGeometry args={[1, 8, 8]} />
+      <meshStandardMaterial
+        color={PALETTE.gold}
+        emissive={PALETTE.gold}
+        emissiveIntensity={2.2}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
 function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
   const group = useRef(null);
 
@@ -1379,10 +1349,15 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
             from={b.from}
             to={b.to}
             radius={b.radius ?? 0.045}
-            color={b.color ?? "#3f4854"}
+            color={b.color ?? BOND_COLOUR}
             opacity={b.opacity ?? 1}
           />
         ))}
+      {/* Weak forces between the layers — thin and faint against the covalent
+          bonds within a sheet, because that contrast IS the topic. */}
+      {(lattice.interlayer ?? []).map((b, i) => (
+        <Bond key={`w${i}`} from={b.from} to={b.to} radius={0.012} color={PALETTE.sky} opacity={0.4} />
+      ))}
       {lattice.atoms.map((a, i) => (
         <AtomSphere
           key={i}
@@ -1392,6 +1367,7 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
           emissiveIntensity={0.35}
         />
       ))}
+      <DelocalisedElectrons electrons={lattice.electrons ?? []} speed={speed} />
     </group>
   );
 }
@@ -1407,7 +1383,7 @@ export function CrystalLatticeScene({ params = {} }) {
     return buildNaCl();
   }, [structure, slide]);
 
-  const facts = LATTICE_FACTS[structure] ?? LATTICE_FACTS.nacl;
+  const facts = latticeFactsFor(structure);
 
   return (
     <SceneCanvas camera={{ position: [6, 4.5, 8], fov: 45 }}>
@@ -1426,18 +1402,6 @@ export function CrystalLatticeScene({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={facts.title}
-        subtitle={structure === "nacl" ? "Giant ionic lattice" : structure === "ice" ? "Molecular crystal" : "Giant covalent lattice"}
-        rows={facts.rows}
-        note={facts.note}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={LATTICE_KEYS[structure] ?? LATTICE_KEYS.nacl}
-      />
     </SceneCanvas>
   );
 }
@@ -1455,7 +1419,7 @@ function SulfateIon({ position, scale = 0.28 }) {
       {/* Central Sulfur Atom */}
       <mesh>
         <sphereGeometry args={[0.35, 16, 16]} />
-        <meshStandardMaterial color="#eab308" emissive="#ca8a04" emissiveIntensity={0.8} />
+        <meshStandardMaterial color={CELL_COLOURS.sulfur} emissive="#ca8a04" emissiveIntensity={0.8} />
       </mesh>
       {/* 4 Oxygen Atoms in Tetrahedral geometry */}
       {[
@@ -1467,7 +1431,7 @@ function SulfateIon({ position, scale = 0.28 }) {
         <group key={idx}>
           <mesh position={pos}>
             <sphereGeometry args={[0.22, 12, 12]} />
-            <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={0.6} />
+            <meshStandardMaterial color={CELL_COLOURS.oxygen} emissive="#dc2626" emissiveIntensity={0.6} />
           </mesh>
           <lineSegments>
             <bufferGeometry
@@ -1492,18 +1456,87 @@ function CopperIon({ position, scale = 0.26 }) {
     <group position={position} scale={scale}>
       <mesh>
         <sphereGeometry args={[0.38, 16, 16]} />
-        <meshStandardMaterial color="#0284c7" emissive="#38bdf8" emissiveIntensity={1.8} toneMapped={false} />
+        <meshStandardMaterial color="#0284c7" emissive={CELL_COLOURS.cation} emissiveIntensity={1.8} toneMapped={false} />
       </mesh>
       {/* Hydration halo ring */}
       <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
         <torusGeometry args={[0.55, 0.04, 12, 24]} />
-        <meshStandardMaterial color="#7dd3fc" emissive="#38bdf8" emissiveIntensity={1.2} transparent opacity={0.6} />
+        <meshStandardMaterial color="#7dd3fc" emissive={CELL_COLOURS.cation} emissiveIntensity={1.2} transparent opacity={0.6} />
       </mesh>
     </group>
   );
 }
 
-function Ions({ current, running, resetToken, onDeposit, animSpeed = 1 }) {
+/**
+ * Oxygen coming off an INERT anode.
+ *
+ * Deliberately absent from the copper cell: a copper anode dissolves in
+ * preference to oxidising water, so nothing gases off there. Graphite cannot
+ * dissolve, so water is oxidised instead and this is what you see.
+ */
+function AnodeGasBubbles({ x, rate = 1, active = true, animSpeed = 1, count = 14 }) {
+  const refs = useRef([]);
+  const seeds = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        phase: hashRandom(i * 3.1 + 7),
+        radius: 0.035 + hashRandom(i * 5.3 + 13) * 0.045,
+        driftZ: (hashRandom(i * 7.7 + 19) - 0.5) * 0.5,
+        driftX: (hashRandom(i * 9.1 + 23) - 0.5) * 0.28,
+      })),
+    [count],
+  );
+  const clock = useRef(0);
+
+  useFrame((_, delta) => {
+    clock.current += Math.min(delta, 0.05) * animSpeed * (0.35 + rate * 0.5);
+    seeds.forEach((seed, i) => {
+      const el = refs.current[i];
+      if (!el) return;
+      if (!active) {
+        el.visible = false;
+        return;
+      }
+      const u = (clock.current + seed.phase) % 1;
+      el.visible = true;
+      el.position.set(x + seed.driftX * u, -TANK.h / 2 + u * (TANK.h - 0.2), seed.driftZ * u);
+      // Bubbles grow as the pressure drops on the way up, and fade at the surface.
+      const scale = 0.6 + u * 0.7;
+      el.scale.setScalar(scale);
+    });
+  });
+
+  return (
+    <group>
+      {seeds.map((seed, i) => (
+        <mesh
+          key={i}
+          ref={(el) => (refs.current[i] = el)}
+          // Placed up the anode from the start, so the very first frame -- and
+          // any environment where useFrame has not run yet -- shows a column
+          // of bubbles rather than a clump at the origin.
+          position={[
+            x + seed.driftX * seed.phase,
+            -TANK.h / 2 + seed.phase * (TANK.h - 0.2),
+            seed.driftZ * seed.phase,
+          ]}
+        >
+          <sphereGeometry args={[seed.radius, 10, 10]} />
+          <meshStandardMaterial
+            color={CELL_COLOURS.bubble}
+            emissive={CELL_COLOURS.bubble}
+            emissiveIntensity={0.35}
+            transparent
+            opacity={0.55}
+            roughness={0.1}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function Ions({ current, running, resetToken, onDeposit, onClock, animSpeed = 1 }) {
   const ions = useMemo(
     () =>
       Array.from({ length: 26 }, (_, i) => ({
@@ -1516,6 +1549,7 @@ function Ions({ current, running, resetToken, onDeposit, animSpeed = 1 }) {
   const state = useRef(null);
   const arrivals = useRef(0);
   const clock = useRef(0);
+  const elapsed = useRef(0);
 
   if (!state.current) {
     state.current = ions.map((ion) => ({
@@ -1527,6 +1561,7 @@ function Ions({ current, running, resetToken, onDeposit, animSpeed = 1 }) {
 
   useEffect(() => {
     if (!resetToken) return;
+    elapsed.current = 0;
     state.current.forEach((s, i) => {
       s.x = (hashRandom(i + 1) - 0.5) * TANK.w * 0.7;
     });
@@ -1556,11 +1591,18 @@ function Ions({ current, running, resetToken, onDeposit, animSpeed = 1 }) {
       el.position.set(s.x, s.y, s.z);
     });
 
+    // Run time only advances while the supply is on — that is what makes it
+    // the quantity Faraday's laws want.
+    if (running) elapsed.current += step * animSpeed;
+
     clock.current += step;
     if (clock.current >= 0.25) {
       if (arrivals.current > 0) onDeposit(arrivals.current);
       arrivals.current = 0;
       clock.current = 0;
+      // Push on the same cadence the rack scenes use, so the HUD re-renders
+      // four times a second rather than sixty.
+      if (typeof onClock === "function") onClock(Math.round(elapsed.current * 10) / 10);
     }
   });
 
@@ -1622,64 +1664,57 @@ function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0 }) {
   );
 }
 
-function ElectrodeBubbles({ x, running, speed, color, animSpeed = 1.0 }) {
-  const meshes = useRef([]);
-  const state = useRef(null);
-  const COUNT = 14;
+// ElectrodeBubbles removed with the bubbles themselves. If the inert-electrode
+// variant is added later (graphite anode: O₂; cathode: Cu, then H₂ once the
+// Cu²⁺ is spent), it wants a gas column again — but keyed to the electrode
+// material, not drawn unconditionally.
 
-  if (!state.current) {
-    state.current = Array.from({ length: COUNT }, (_, i) => ({
-      phase: i / COUNT,
-      rx: (hashRandom(i + 11) - 0.5) * 0.4,
-      rz: (hashRandom(i + 22) - 0.5) * 0.4,
-    }));
-  }
-
-  useFrame((_, delta) => {
-    const step = Math.min(delta, 0.05);
-    state.current.forEach((s, i) => {
-      const mesh = meshes.current[i];
-      if (!mesh) return;
-      if (running) s.phase = (s.phase + step * speed * animSpeed) % 1;
-      const p = s.phase;
-      const y = lerp(-TANK.h / 2 + 0.2, TANK.h / 2 + 0.1, p);
-      const scale = 0.04 + Math.sin(p * Math.PI) * 0.14;
-      mesh.position.set(x + s.rx, y, s.rz);
-      mesh.scale.setScalar(scale);
-    });
-  });
-
-  return (
-    <>
-      {Array.from({ length: COUNT }, (_, i) => (
-        <mesh
-          key={i}
-          ref={(el) => {
-            meshes.current[i] = el;
-          }}
-        >
-          <sphereGeometry args={[1, 12, 12]} />
-          <meshStandardMaterial
-            color={color}
-            emissive={color}
-            emissiveIntensity={2.2}
-            transparent
-            opacity={0.75}
-            toneMapped={false}
-          />
-        </mesh>
-      ))}
-    </>
-  );
-}
-
-export function ElectrolysisScene({ params = {} }) {
-  const { current = 1.0, showLabels = true, run = true, reset = 0, speed = 1.0 } = params || {};
+export function ElectrolysisScene({ params = {}, setParam }) {
+  const {
+    current = 1.0,
+    electrode = "copper",
+    showLabels = true,
+    run = true,
+    reset = 0,
+    speed = 1.0,
+    liveSeconds = 0,
+  } = params || {};
   const [deposit, setDeposit] = useState(0);
+
+  // The electrode material decides the ANODE reaction, and everything the
+  // scene draws differently follows from that one fact: whether the anode
+  // wastes away, whether gas comes off it, and whether the blue survives.
+  const material = electrodeFor(electrode);
+  const cell = useMemo(
+    () => solveElectrolysis({ current, seconds: liveSeconds, running: run, electrode }),
+    [current, liveSeconds, run, electrode],
+  );
+
+  // Copper cell: the solution is never consumed, so it stays full blue.
+  // Inert cell: Cu²⁺ plates out with nothing to replace it, and what is left
+  // behind is sulfuric acid — so the blue drains away.
+  const solutionColour = useMemo(
+    () => new THREE.Color("#0284c7").lerp(new THREE.Color("#cbd5e1"), 1 - cell.blueFraction),
+    [cell.blueFraction],
+  );
+  const pushedSeconds = useRef(-1);
 
   useEffect(() => {
     if (reset) setDeposit(0);
   }, [reset]);
+
+  // The scene owns the run clock; the Details panel reads it back out of
+  // params and turns it into charge and mass. Without this the panel has
+  // nothing to go on but the current, which is how it ended up printing a
+  // constant dressed up as an atom count.
+  const pushClock = useCallback(
+    (seconds) => {
+      if (typeof setParam !== "function" || pushedSeconds.current === seconds) return;
+      pushedSeconds.current = seconds;
+      setParam("liveSeconds", seconds);
+    },
+    [setParam],
+  );
 
   const plating = clamp(0.18 + deposit * 0.0016, 0.18, 0.52);
   const anodeRadius = clamp(0.44 - (plating - 0.18), 0.14, 0.44);
@@ -1744,17 +1779,17 @@ export function ElectrolysisScene({ params = {} }) {
         </group>
       ))}
 
-      {/* Electrolyte solution (Blue CuSO₄ Solution) */}
+      {/* Electrolyte solution — blue CuSO₄, fading to acid on an inert anode */}
       <mesh>
         <boxGeometry args={[TANK.w, TANK.h, TANK.d]} />
         <meshStandardMaterial
-          color="#0284c7"
+          color={solutionColour}
           transparent
-          opacity={0.22}
+          opacity={0.1 + 0.12 * cell.blueFraction}
           depthWrite={false}
           roughness={0.04}
           emissive="#0ea5e9"
-          emissiveIntensity={0.15}
+          emissiveIntensity={0.15 * cell.blueFraction}
         />
       </mesh>
       <lineSegments>
@@ -1780,7 +1815,7 @@ export function ElectrolysisScene({ params = {} }) {
       <group position={[-TANK.w / 2 + 1, 0.45, 0]}>
         <mesh>
           <cylinderGeometry args={[plating, plating, TANK.h + 0.7, 24]} />
-          <meshStandardMaterial color="#b45309" emissive="#b45309" emissiveIntensity={0.45} metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial color={CELL_COLOURS.cathode} emissive={CELL_COLOURS.cathode} emissiveIntensity={0.45} metalness={0.85} roughness={0.2} />
         </mesh>
         {/* Plated copper crystal nodule clusters */}
         {deposit > 0 &&
@@ -1800,23 +1835,50 @@ export function ElectrolysisScene({ params = {} }) {
           ))}
       </group>
 
-      {/* Anode (+) on right, dissolving away with eroded pitting texture */}
+      {/* Anode (+) on the right. A copper one wastes away; a graphite one
+          cannot, which is the whole point of it. */}
       <mesh position={[TANK.w / 2 - 1, 0.45, 0]}>
-        <cylinderGeometry args={[anodeRadius, anodeRadius, TANK.h + 0.7, 24]} />
-        <meshStandardMaterial color="#7c3f12" emissive={PALETTE.gold} emissiveIntensity={0.35} metalness={0.75} roughness={0.45} />
+        <cylinderGeometry
+          args={
+            material.anodeDissolves
+              ? [anodeRadius, anodeRadius, TANK.h + 0.7, 24]
+              : [0.4, 0.4, TANK.h + 0.7, 24]
+          }
+        />
+        <meshStandardMaterial
+          color={material.anodeDissolves ? CELL_COLOURS.anode : CELL_COLOURS.graphite}
+          emissive={material.anodeDissolves ? PALETTE.gold : CELL_COLOURS.graphite}
+          emissiveIntensity={material.anodeDissolves ? 0.35 : 0.12}
+          metalness={material.anodeDissolves ? 0.75 : 0.15}
+          roughness={material.anodeDissolves ? 0.45 : 0.85}
+        />
       </mesh>
 
-      {/* Rising H₂ gas bubbles at cathode (−), O₂ at anode (+) */}
-      <ElectrodeBubbles x={-TANK.w / 2 + 1} running={run} speed={0.35 + current * 0.15} animSpeed={speed} color={PALETTE.sky} />
-      <ElectrodeBubbles x={TANK.w / 2 - 1} running={run} speed={0.25 + current * 0.1} animSpeed={speed} color={PALETTE.gold} />
+      {/* Oxygen off the inert anode: 2H₂O → O₂ + 4H⁺ + 4e⁻ */}
+      {cell.inert && (
+        <AnodeGasBubbles
+          x={TANK.w / 2 - 1}
+          rate={current}
+          active={run}
+          animSpeed={speed}
+        />
+      )}
+
+      {/* The copper cell has no gas at either electrode, deliberately.
+          Copper dissolves in preference to oxidising water, and Cu²⁺
+          discharges in preference to H⁺, so nothing bubbles — which is
+          exactly why the anode thins as the cathode thickens. Bubbles used to
+          be drawn here anyway, contradicting the scene's own "anode wastes
+          away · Cu → Cu²⁺ + 2e⁻" label. They belong to the graphite cell
+          above, where water really is the thing being oxidised. */}
 
       {showLabels && (
         <>
           <SceneLabel position={[-TANK.w / 2 + 1, TANK.h / 2 + 1.5, 0]} tone="text-sky-300">
-            cathode (−) · gains Cu · Cu²⁺ + 2e⁻ → Cu
+            {`cathode (−) · gains Cu · ${material.cathode}`}
           </SceneLabel>
           <SceneLabel position={[TANK.w / 2 - 1, TANK.h / 2 + 1.5, 0]} accent>
-            anode (+) · wastes away · Cu → Cu²⁺ + 2e⁻
+            {`anode (+) · ${material.anodeDissolves ? "wastes away" : "unchanged · gives O₂"} · ${material.anode}`}
           </SceneLabel>
         </>
       )}
@@ -1853,190 +1915,17 @@ export function ElectrolysisScene({ params = {} }) {
         resetToken={reset}
         animSpeed={speed}
         onDeposit={(n) => setDeposit((d) => d + n)}
+        onClock={pushClock}
       />
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Electrolysis of CuSO₄"
-        subtitle="Copper electrodes · OIL RIG"
-        rows={[
-          ["Supply", run ? `${current.toFixed(1)} A` : "off", run ? "gold" : "bad"],
-          ["Cu²⁺ reaching cathode", `${deposit}`, deposit > 0 ? "good" : undefined],
-          ["Cathode (−)", "gains copper", "good"],
-          ["…by reduction", "Cu²⁺ + 2e⁻ → Cu", "good"],
-          ["Anode (+)", "loses copper", "bad"],
-          ["…by oxidation", "Cu → Cu²⁺ + 2e⁻", "bad"],
-          ["Charge carried by", "ions in solution"],
-        ]}
-        note={
-          run
-            ? "Copper leaves the anode, crosses as Cu²⁺, and plates onto the cathode — so the anode thins as the cathode thickens. That is electroplating, and how copper is purified."
-            : "The supply is off, so nothing migrates. Electrolysis needs both a potential difference and ions that are free to move — molten or in solution."
-        }
-        noteTone={run ? "neutral" : "bad"}
-      />
-
-      <SceneLegend
-        title="Key"
-        items={[
-          {
-            color: "#38bdf8",
-            label: "Cu²⁺ cation (Hydrated)",
-            note: "positive → travels to the negative cathode",
-          },
-          {
-            color: PALETTE.gold,
-            label: "SO₄²⁻ anion (Tetrahedral)",
-            note: "negative → travels to the positive anode",
-          },
-          {
-            color: PALETTE.bone,
-            label: "Electron",
-            note: "only ever in the wire, never in the solution",
-          },
-          {
-            color: "#b45309",
-            shape: "square",
-            label: "Copper electrode",
-            note: "left grows crystal nodes, right dissolves",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
 
 // ═══ 6 · VSEPR molecular geometry ════════════════════════════════════
 
-const V3 = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
-const SQ3 = Math.sqrt(3) / 2;
-
-/**
- * Electron-domain directions, one set per steric number.
- *
- * Order matters and is not cosmetic: lone pairs are taken from the END of
- * each list, which is what makes the model reproduce the real shapes. In a
- * trigonal bipyramid the equatorial sites are last, because lone pairs always
- * take equatorial positions; in an octahedron the ±y pair is last, because a
- * second lone pair always goes trans to the first.
- */
-const DOMAIN_DIRECTIONS = {
-  2: [V3(0, 1, 0), V3(0, -1, 0)],
-  3: [V3(1, 0, 0), V3(-0.5, 0, SQ3), V3(-0.5, 0, -SQ3)],
-  4: [V3(1, 1, 1), V3(1, -1, -1), V3(-1, 1, -1), V3(-1, -1, 1)],
-  5: [V3(0, 1, 0), V3(0, -1, 0), V3(1, 0, 0), V3(-0.5, 0, SQ3), V3(-0.5, 0, -SQ3)],
-  6: [V3(1, 0, 0), V3(-1, 0, 0), V3(0, 0, 1), V3(0, 0, -1), V3(0, 1, 0), V3(0, -1, 0)],
-};
-
-const ELECTRON_GEOMETRY = {
-  2: "linear",
-  3: "trigonal planar",
-  4: "tetrahedral",
-  5: "trigonal bipyramidal",
-  6: "octahedral",
-};
-
-const IDEAL_ANGLE = { 2: 180, 3: 120, 4: 109.5, 5: 90, 6: 90 };
-/** Trigonal bipyramidal has two distinct ideal angles; the rest have one. */
-const IDEAL_ANGLE_LABEL = { 2: "180°", 3: "120°", 4: "109.5°", 5: "90° & 120°", 6: "90°" };
-
-/** Keyed by `${bonding}-${lone}` — the AXₙEₘ notation, spelled out. */
-const SHAPES = {
-  // One bonding pair is a diatomic — linear by definition, however many lone
-  // pairs sit behind it. The sliders reach these, so they need naming.
-  "1-0": { name: "Linear (diatomic)", example: "H₂", polar: false },
-  "1-1": { name: "Linear (diatomic)", example: "HF", polar: true },
-  "1-2": { name: "Linear (diatomic)", example: "HCl", polar: true },
-  "1-3": { name: "Linear (diatomic)", example: "CO", polar: true },
-  "2-0": { name: "Linear", example: "BeCl₂", polar: false },
-  "3-0": { name: "Trigonal planar", example: "BF₃", polar: false },
-  "2-1": { name: "Bent", example: "SO₂", polar: true },
-  "4-0": { name: "Tetrahedral", example: "CH₄", polar: false },
-  "3-1": { name: "Trigonal pyramidal", example: "NH₃", polar: true },
-  "2-2": { name: "Bent", example: "H₂O", polar: true },
-  "5-0": { name: "Trigonal bipyramidal", example: "PCl₅", polar: false },
-  "4-1": { name: "Seesaw", example: "SF₄", polar: true },
-  "3-2": { name: "T-shaped", example: "ClF₃", polar: true },
-  "2-3": { name: "Linear", example: "XeF₂", polar: false },
-  "3-3": { name: "T-shaped", example: "—", polar: true },
-  "6-0": { name: "Octahedral", example: "SF₆", polar: false },
-  "5-1": { name: "Square pyramidal", example: "BrF₅", polar: true },
-  "4-2": { name: "Square planar", example: "XeF₄", polar: false },
-};
-
-/** Observed closing of the bond angle per lone pair: 109.5° → 107° → 104.5°. */
-const LONE_PAIR_COMPRESSION = 2.5;
-
-function smallestAngleOf(bonds) {
-  let smallest = 180;
-  for (let i = 0; i < bonds.length; i += 1) {
-    for (let j = i + 1; j < bonds.length; j += 1) {
-      smallest = Math.min(smallest, (bonds[i].angleTo(bonds[j]) * 180) / Math.PI);
-    }
-  }
-  return smallest;
-}
-
-/** Tilts every bond away from the resultant lone-pair direction. */
-function tiltBonds(directions, bonding, push, strength) {
-  const bonds = directions.slice(0, bonding).map((d) => d.clone());
-  if (push && strength > 0) {
-    bonds.forEach((b) => b.addScaledVector(push, -strength).normalize());
-  }
-  return bonds;
-}
-
-/**
- * Lone pairs sit closer to the nucleus and so repel harder than bonding
- * pairs, closing the bond angles by roughly 2.5° each.
- *
- * Rather than tilt the bonds by a fixed amount — which overshot badly on two
- * lone pairs, putting water at 99.8° instead of its real 104.5° — the tilt is
- * solved for: bisect on the push strength until the smallest bond angle lands
- * on the observed value. Where the lone pairs cancel each other (the trans
- * pair in XeF₄, the three equatorial ones in XeF₂) the resultant is zero, no
- * tilt is possible, and the ideal angles correctly survive untouched.
- */
-function vseprGeometry(bonding, lone) {
-  const steric = clamp(bonding + lone, 2, 6);
-  const directions = DOMAIN_DIRECTIONS[steric];
-  const lonePairs = directions.slice(bonding, bonding + lone).map((d) => d.clone());
-
-  let push = null;
-  if (lonePairs.length > 0) {
-    const resultantLone = lonePairs.reduce((acc, d) => acc.add(d), new THREE.Vector3());
-    if (resultantLone.lengthSq() > 1e-6) push = resultantLone.normalize();
-  }
-
-  let bonds = tiltBonds(directions, bonding, push, 0);
-  if (push && bonds.length > 1) {
-    const target = smallestAngleOf(bonds) - LONE_PAIR_COMPRESSION * lone;
-    let lo = 0;
-    let hi = 0.35;
-    for (let i = 0; i < 40; i += 1) {
-      const mid = (lo + hi) / 2;
-      if (smallestAngleOf(tiltBonds(directions, bonding, push, mid)) > target) lo = mid;
-      else hi = mid;
-    }
-    bonds = tiltBonds(directions, bonding, push, lo);
-  }
-
-  // Reported from the geometry actually drawn, so the number in the panel and
-  // the shape on screen cannot drift apart.
-  const smallest = smallestAngleOf(bonds);
-
-  const resultant = bonds.reduce((acc, d) => acc.add(d), new THREE.Vector3());
-  const shapeInfo = SHAPES[`${bonding}-${lone}`];
-  const symmetric = shapeInfo ? !shapeInfo.polar : (resultant.length() < 0.08 && lone === 0);
-  return {
-    steric,
-    bonds,
-    lonePairs,
-    smallestAngle: bonds.length > 1 ? smallest : 0,
-    // A shape is non-polar when bond and lone-pair dipoles cancel (e.g. XeF₄, XeF₂)
-    symmetric,
-  };
-}
+// The domain directions, the shape table and the angle solver now live in
+// lib/vsepr.js, so the Details panel names the same shape this scene draws.
 
 export function VseprScene({ params = {} }) {
   const {
@@ -2049,13 +1938,11 @@ export function VseprScene({ params = {} }) {
     speed = 1.0,
   } = params || {};
 
-  const nBonding = clamp(Math.round(bonding), 1, 6);
-  const nLone = clamp(Math.round(lone), 0, Math.max(0, 6 - nBonding));
-
-  const geometry = useMemo(() => vseprGeometry(nBonding, nLone), [nBonding, nLone]);
-  const key = `${nBonding}-${nLone}`;
-  const shape = SHAPES[key] ?? { name: "—", example: "—", polar: false };
-  const ideal = IDEAL_ANGLE[geometry.steric];
+  // One solve, shared with the Details panel.
+  const solved = useMemo(() => solveVsepr(bonding, lone), [bonding, lone]);
+  const { bonding: nBonding, lone: nLone, geometry } = solved;
+  const shape = { name: solved.shape, example: solved.example, polar: solved.polar };
+  const ideal = solved.ideal;
 
   return (
     <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
@@ -2110,42 +1997,6 @@ export function VseprScene({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="VSEPR"
-        subtitle={`AX${sub(nBonding) || "₁"}${nLone > 0 ? `E${sub(nLone) || "₁"}` : ""}`}
-        rows={[
-          ["Bonding pairs", nBonding],
-          ["Lone pairs", nLone],
-          ["Steric number", geometry.steric],
-          ["Electron geometry", ELECTRON_GEOMETRY[geometry.steric]],
-          ["Molecular shape", shape.name, "gold"],
-          ["Ideal angle", nBonding > 1 ? IDEAL_ANGLE_LABEL[geometry.steric] : "—"],
-          ["Actual angle", nBonding > 1 ? `${geometry.smallestAngle.toFixed(1)}°` : "—", nLone > 0 ? "warn" : "good"],
-          ["Example", shape.example],
-          ["Polarity", geometry.symmetric ? "non-polar" : "polar", geometry.symmetric ? "good" : "warn"],
-        ]}
-        note={
-          nBonding < 2
-            ? "With a single bond there is no angle to compress — any diatomic is linear whatever its lone pairs do. Add a second bonding pair to see VSEPR bite."
-            : nLone === 0
-              ? "With no lone pairs the electron geometry and the molecular shape are the same thing, and the bond angles sit at their ideal values."
-              : geometry.smallestAngle >= ideal - 0.05
-                ? `The ${nLone} lone pairs sit opposite each other, so their repulsions cancel and the bond angles stay at the ideal ${ideal}°. This is why XeF₄ is a flat square rather than a squashed one.`
-                : `Lone pairs repel more strongly than bonding pairs, so the ${nBonding} bonds are squeezed from ${ideal}° down to about ${geometry.smallestAngle.toFixed(1)}°. You only name the shape from where the atoms are — the lone pairs are invisible in the name.`
-        }
-        noteTone={nBonding < 2 ? "neutral" : nLone > 0 ? "warn" : "good"}
-      />
-
-      <SceneLegend
-        title="Electron domains"
-        items={[
-          { color: PALETTE.gold, label: "Central atom", note: "counts its own valence electrons" },
-          { color: PALETTE.sky, label: "Bonded atom", note: "one bonding pair each" },
-          { color: PALETTE.violet, label: "Lone pair", note: "repels harder — closes the angles" },
-          { color: PALETTE.slate, shape: "line", label: "Bond", note: "shared pair of electrons" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -2154,11 +2005,22 @@ export function VseprScene({ params = {} }) {
 
 const PROFILE_SAMPLES = 160;
 const PROFILE_HALF = 5;
-/** kJ/mol → world units, so a 150 kJ/mol barrier still fits the viewport. */
-const ENERGY_SCALE = 0.028;
-const GAS_CONSTANT = 8.314;
-/** Typical Arrhenius pre-exponential factor for a unimolecular step, s⁻¹. */
-const PRE_EXPONENTIAL = 1e13;
+/**
+ * kJ/mol → world units.
+ *
+ * Sized from the worst case the sliders can reach, not from a comfortable
+ * one. B34: at 0.028 an Ea of 160 kJ/mol put the summit at y = 4.48 with its
+ * label at 4.98, and the usable top of the frustum at the z = 0 plane is
+ * about 4.3 — the camera sits at y = 1.2 looking at the origin, so it is
+ * pitched down and the top edge reaches lower than the half-height alone
+ * suggests. The transition state, which is the whole subject of the diagram,
+ * was drawn off the top of the screen.
+ *
+ * 160 × 0.023 = 3.68, and the label clears at 4.18. The scale stays CONSTANT
+ * across every slider position on purpose: two profiles are only worth
+ * comparing if a centimetre means the same number of kJ in both.
+ */
+const ENERGY_SCALE = 0.023;
 
 /**
  * Energy against reaction coordinate: a sigmoid step from reactants to
@@ -2256,15 +2118,12 @@ export function EnergyProfileScene({ params = {} }) {
     speed = 1.0,
   } = params || {};
 
-  const exothermic = deltaH < 0;
-  // The forward barrier can never be lower than ΔH: the products would then
-  // sit above the "peak", and the reverse activation energy would come out
-  // negative. The sliders can reach that combination, so it is clamped.
-  const floorEa = Math.max(deltaH + 5, 5);
-  const uncatalysed = Math.max(activation, floorEa);
-  const effectiveEa = Math.max(catalyst ? uncatalysed - catalystDrop : uncatalysed, floorEa);
-  const reverseEa = effectiveEa - deltaH;
-  const clampedByDeltaH = uncatalysed > activation;
+  // One solve, shared with the Details panel.
+  const e = useMemo(
+    () => solveEnergetics({ activation, deltaH, catalyst, catalystDrop, temperature }),
+    [activation, deltaH, catalyst, catalystDrop, temperature],
+  );
+  const { exothermic, uncatalysed, effectiveEa, reverseEa, clampedByDeltaH } = e;
 
   const bump = useMemo(() => barrierAmplitude(effectiveEa, deltaH), [effectiveEa, deltaH]);
   const baseBump = useMemo(
@@ -2278,17 +2137,7 @@ export function EnergyProfileScene({ params = {} }) {
     [baseBump, deltaH],
   );
 
-  // Arrhenius: the fraction of collisions carrying at least Ea. The ratio of
-  // the two fractions is the whole reason a catalyst speeds a reaction up.
-  const fraction = Math.exp((-effectiveEa * 1000) / (GAS_CONSTANT * temperature));
-  const baseFraction = Math.exp((-uncatalysed * 1000) / (GAS_CONSTANT * temperature));
-  const speedUp = baseFraction > 0 ? fraction / baseFraction : 1;
-  // k = A e^(−Ea/RT). The bare Boltzmann fraction is ~1e−14 for a reaction
-  // that runs perfectly briskly, so judging "does this go?" on the fraction
-  // alone said no to almost everything. A typical A of 10¹³ s⁻¹ turns it into
-  // a rate constant, which is the number that actually answers the question.
-  const rateConstant = PRE_EXPONENTIAL * fraction;
-  const proceeds = rateConstant > 1e-3;
+  const { fraction, speedUp, rateConstant, proceeds } = e;
 
   const peakY = effectiveEa * ENERGY_SCALE;
   const productY = deltaH * ENERGY_SCALE;
@@ -2341,44 +2190,6 @@ export function EnergyProfileScene({ params = {} }) {
         transition state
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Energetics"
-        subtitle={exothermic ? "exothermic — energy released" : "endothermic — energy absorbed"}
-        rows={[
-          ["Activation Ea", `${effectiveEa.toFixed(0)} kJ/mol`, catalyst ? "good" : "gold"],
-          ["…uncatalysed", `${uncatalysed.toFixed(0)} kJ/mol`],
-          ["Reverse Ea", `${reverseEa.toFixed(0)} kJ/mol`],
-          ["ΔH", `${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)} kJ/mol`, exothermic ? "good" : "warn"],
-          ["Temperature", `${temperature.toFixed(0)} K`],
-          ["Fraction ≥ Ea", fraction.toExponential(1)],
-          ["Rate constant k", `${rateConstant.toExponential(1)} s⁻¹`, proceeds ? "good" : "bad"],
-          ["Catalyst", catalyst ? `−${(uncatalysed - effectiveEa).toFixed(0)} kJ/mol` : "none"],
-          ["Rate ×", catalyst ? `${speedUp.toExponential(1)}` : "1", catalyst ? "good" : undefined],
-        ]}
-        note={
-          clampedByDeltaH
-            ? `An endothermic reaction cannot have a forward barrier below ΔH — the products would sit above the transition state. Ea is held at ${effectiveEa.toFixed(0)} kJ/mol, just clear of ΔH.`
-            : catalyst
-              ? `The catalyst offers a different route with a lower barrier, so ${speedUp.toExponential(1)}× as many collisions succeed at this temperature. Note ΔH has not moved — a catalyst changes the rate, never the energy released.`
-              : !proceeds
-                ? `At ${temperature.toFixed(0)} K almost no collision carries ${effectiveEa.toFixed(0)} kJ/mol, so k is only ${rateConstant.toExponential(1)} s⁻¹ and the marker falls back every time. Raise the temperature or add a catalyst.`
-                : exothermic
-                  ? "The products sit below the reactants, so bond making released more energy than bond breaking absorbed. ΔH is negative and the surroundings warm up."
-                  : "The products sit above the reactants: breaking bonds cost more than making them returned. ΔH is positive and the surroundings cool."
-        }
-        noteTone={clampedByDeltaH ? "warn" : !proceeds ? "bad" : catalyst || exothermic ? "good" : "warn"}
-      />
-
-      <SceneLegend
-        title="Energy profile"
-        items={[
-          { color: catalyst ? PALETTE.emerald : PALETTE.gold, shape: "line", label: "Reaction path", note: "energy against reaction coordinate" },
-          ...(catalyst ? [{ color: PALETTE.slate, shape: "dash", label: "Uncatalysed", note: "the barrier without the catalyst" }] : []),
-          { color: PALETTE.rose, shape: "line", label: "Ea", note: "reactants → transition state" },
-          { color: exothermic ? PALETTE.emerald : PALETTE.violet, shape: "line", label: "ΔH", note: "reactants → products" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

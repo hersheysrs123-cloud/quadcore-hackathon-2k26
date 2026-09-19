@@ -1560,7 +1560,9 @@ export const TOPICS = [
           { value: "Cl", label: "Cl · 17" },
         ],
       },
-      { type: "slider", key: "speed", label: "Orbit speed", min: 0, max: 3, step: 0.1, format: (v) => (v === 0 ? "paused" : `${v.toFixed(1)}×`) },
+      // No "speed" slider here: the HUD renders a universal Animation Speed
+      // slider bound to the same key, and two sliders on one parameter is one
+      // too many. The universal one reaches 0 ("paused") too.
       { type: "toggle", key: "highlightValence", label: "Highlight valence shell" },
       { type: "toggle", key: "showShells", label: "Show shell paths" },
       { type: "toggle", key: "showLabels", label: "Show shell labels" },
@@ -1756,9 +1758,18 @@ export const TOPICS = [
     title: "Electrolysis Cell",
     blurb: "Cu²⁺ and SO₄²⁻ migrating to the electrodes",
     syllabus: "Chemistry 5 · Electrochemistry",
-    keywords: "electrolysis anode cathode cation anion electroplating copper sulfate oxidation reduction electrode",
-    defaults: { current: 1, showLabels: true, run: true, reset: 0 },
+    keywords: "electrolysis anode cathode cation anion electroplating copper sulfate oxidation reduction electrode inert graphite carbon oxygen half equation purification",
+    defaults: { current: 1, electrode: "copper", showLabels: true, run: true, reset: 0 },
     controls: [
+      {
+        type: "choice",
+        key: "electrode",
+        label: "Electrodes",
+        options: [
+          { value: "copper", label: "Copper" },
+          { value: "graphite", label: "Graphite (inert)" },
+        ],
+      },
       { type: "slider", key: "current", label: "Current", min: 0.2, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)} A` },
       { type: "toggle", key: "run", label: "Supply on" },
       { type: "toggle", key: "showLabels", label: "Show half-equations" },
@@ -1767,7 +1778,8 @@ export const TOPICS = [
     concepts: [
       "Electrolysis splits an ionic compound using electricity, and only works when the ions are free to move — molten or in solution.",
       "Positive ions (cations, e.g. Cu²⁺) move to the negative cathode and gain electrons — reduction. Negative ions move to the positive anode and lose electrons — oxidation.",
-      "With copper(II) sulfate and copper electrodes, copper dissolves from the anode and plates onto the cathode — the basis of electroplating and copper purification.",
+      "With copper(II) sulfate and COPPER electrodes, copper dissolves from the anode and plates onto the cathode. The copper is only moved from one electrode to the other, so the solution never fades — this is how copper is purified.",
+      "Swap in INERT graphite and the anode cannot dissolve, so water is oxidised instead: 2H₂O → O₂ + 4H⁺ + 4e⁻. Oxygen bubbles off, nothing replaces the copper leaving the solution, and the blue fades as it turns into sulfuric acid. The electrode material decides the anode reaction.",
     ],
     quiz: [
       {
@@ -1895,7 +1907,11 @@ export const TOPICS = [
       catalyst: false,
       catalystDrop: 35,
       temperature: 350,
-      showReverse: true,
+      // B33: `showReverse: true` lived here with no control, no reader and no
+      // effect -- it was meant to toggle a reverse-activation arrow that was
+      // never built, and it read as a working feature. The reverse Ea itself
+      // is real and is shown: solveEnergetics() derives it and the Details
+      // panel prints it.
       spin: false,
     },
     controls: [
@@ -2549,7 +2565,8 @@ export const TOPICS = [
     controls: [
       { type: "slider", key: "temperature", label: "Temperature", min: 0, max: 80, step: 1, format: (v) => `${v}°C` },
       { type: "slider", key: "ph", label: "pH", min: 1, max: 14, step: 0.5, format: (v) => v.toFixed(1) },
-      { type: "slider", key: "speed", label: "Animation speed", min: 0.2, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)}×` },
+      // No "speed" slider here — the HUD's universal Animation Speed slider
+      // already writes this key. See the note on `bohr`.
     ],
     concepts: [
       "Enzymes are protein catalysts: the substrate fits a specific active site like a key in a lock, so each enzyme catalyses one reaction.",
@@ -2755,10 +2772,35 @@ export const TOPICS = [
     title: "The Human Eye — Accommodation & Pupil Reflex",
     blurb: "Cutaway eyeball with live ray tracing, a deforming lens, and the iris reflex",
     syllabus: "Biology 2.4 · Coordination & Response",
+    // C28 was resolved by trimming these, because the scene had no defect
+    // mode and the keywords promised one. It has one now, so they are back --
+    // and this time they are earned.
     keywords:
-      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight long sight aqueous vitreous humour",
+      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight myopia long sight hypermetropia concave convex corrective lens spectacles aqueous vitreous humour",
     ownHud: true,
-    defaults: {},
+    // C26: the eye draws its own HUD (`ownHud`), but its controls belong in
+    // the shared parameter state like every other topic's, so that switching
+    // away and back keeps them. EyeCanvas reads these through `params`; they
+    // have no `controls` entries because the eye renders its own panel.
+    defaults: {
+      mode: "accommodation",
+      objectDistance: 6,
+      autoAccommodate: true,
+      manualAccommodation: 0,
+      showBlur: true,
+      logLux: 2.6,
+      rayMode: "bundle",
+      showZonules: true,
+      layers: { sclera: true, choroid: true, retina: true, vitreous: true },
+      cutaway: true,
+      showVessels: true,
+      showMuscles: false,
+      showLabels: true,
+      selectedPart: null,
+      showRays: true,
+      refractiveErrorD: 0,
+      corrected: false,
+    },
     controls: [],
     concepts: [
       "Focusing on something NEAR is the active state, and it runs backwards from most people's intuition: the ciliary muscle CONTRACTS, which slackens the suspensory ligaments it was pulling on, and the freed lens springs back to its naturally fat, highly curved shape.",

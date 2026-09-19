@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
   lerp,
@@ -768,19 +766,6 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Separation techniques"
-        subtitle={`${STATIONS[stationKey].label} · ${M.label}`}
-        rows={[["Verdict", result.verdict]]}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: M.liquidColour, label: M.label, note: M.title },
-          { color: S.colour, label: `${S.label} (${S.formula})`, note: S.title },
-        ]}
-      />
     </SceneCanvas>
   );
 }

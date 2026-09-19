@@ -5,19 +5,14 @@ import { useFrame } from "@react-three/fiber";
 import { Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  Activity,
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
   Gauge,
   Zap,
 } from "lucide-react";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import { ENERGY_COLOURS } from "@/components/visualizations/energy-bars";
@@ -27,7 +22,6 @@ import {
   minimumReleaseHeight,
   minimumTopSpeed,
   positionAt,
-  sampleAt,
   startRun,
   stepRun,
 } from "@/lib/coasterEnergy";
@@ -797,29 +791,6 @@ export default function RollerCoasterCanvas({ params = {} }) {
           </SceneLabel>
         </group>
 
-        <SceneReadout
-          hidden={params?.hideOverlayReadout}
-          title="Energy on the track"
-          subtitle="GPE + KE = constant"
-          rows={[
-            ["Height", `${live.height.toFixed(1)} m`],
-            ["Speed", `${live.speed.toFixed(1)} m/s`, "gold"],
-            ["GPE", `${(live.gpe / 1000).toFixed(1)} kJ`],
-            ["KE", `${(live.ke / 1000).toFixed(1)} kJ`],
-            ["Heat", `${(live.thermal / 1000).toFixed(1)} kJ`, live.thermal > 0 ? "warn" : "good"],
-            ["g-force", `${live.gForce.toFixed(2)} g`, live.gForce < 0 ? "bad" : live.gForce > 5 ? "warn" : "good"],
-          ]}
-        />
-
-        <SceneLegend
-          title="Energy budget"
-          items={[
-            { color: ENERGY_COLOURS.gpe, label: "GPE = mgh", note: "all of it at the top of the drop" },
-            { color: ENERGY_COLOURS.kinetic, label: "KE = ½mv²", note: "all of it at ground level" },
-            { color: ENERGY_COLOURS.thermal, label: "Heat", note: "friction and brakes — this one never comes back" },
-            { color: ENERGY_COLOURS.total, label: "Total", note: "the line the stack never crosses" },
-          ]}
-        />
       </SceneCanvas>
 
       {/* Solid Bottom Bar HUD for Monitors (G-force dial, speed dial, energy budget bars) */}

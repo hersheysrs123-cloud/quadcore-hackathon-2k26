@@ -16,7 +16,6 @@ import {
 import {
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import {
@@ -950,17 +949,6 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
           overflows={overflows}
         />
 
-        <SceneLegend
-          corner="top-right"
-          title="What to look for"
-          items={[
-            { color: "#05070b", shape: "square", label: "Umbra", note: solved.horizontal.umbraLost ? "gone — the lamp is too wide" : "no light reaches here at all" },
-            ...(solved.horizontal.penumbraWidth > 0.01
-              ? [{ color: "#4a4f5c", shape: "square", label: "Penumbra", note: `fuzzy edge, ${solved.horizontal.penumbraWidth.toFixed(1)} cm wide` }]
-              : []),
-            { color: "#f7f6f1", shape: "square", label: "Screen", note: `shadow is ${solved.magnification.toFixed(2)}× life size` },
-          ]}
-        />
       </SceneCanvas>
 
       {/* ─── Controls ─────────────────────────────────────── */}

@@ -8,8 +8,6 @@ import {
   Halo,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   clamp,
   hashRandom,
@@ -828,28 +826,6 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Static electricity"
-        subtitle={`balloon near the ${solved.spec.label.toLowerCase()}`}
-        rows={[
-          ["On the balloon", `${Math.round(solved.balloonMarkers)} −`],
-          ["On the wool", `${Math.round(solved.sweaterMarkers)} +`],
-          [target === "wall" ? "Induced on the wall" : "On the other object", `${Math.round(solved.otherMarkers)}`],
-          ["Gap", `${(solved.separation * 100).toFixed(1)} cm`],
-          ["Coulomb force", formatForce(solved.force), solved.attracts ? "good" : "bad"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Charge key"
-        items={[
-          { color: CHARGE_COLOURS.electron, label: "− electron", note: "the only thing that moves" },
-          { color: CHARGE_COLOURS.positive, label: "+ unpaired", note: "left behind where an electron used to be" },
-          { color: "#34d399", label: "Attraction", note: "charged to neutral, by induction" },
-          { color: "#5eead4", label: "Water in the air", note: "leaks the charge away" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

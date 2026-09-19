@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
   lerp,
@@ -1000,15 +998,6 @@ export default function MitosisMeiosisCanvas({ params = {}, setParam }) {
 
       <Labels pose={pose} modeKey={mode.key} plan={plan} poison={poison} snapshot={snapshot} />
 
-      <SceneReadout title={mode.short} subtitle={pose ? pose.label : ""} rows={[]} />
-      <SceneLegend
-        title="Chromosomes"
-        items={[
-          { color: COLOURS.maternal, label: "Maternal chromatids", note: "red" },
-          { color: COLOURS.paternal, label: "Paternal chromatids", note: "blue" },
-          { color: COLOURS.microtubule, label: "Spindle microtubules", note: "from the centrosomes" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

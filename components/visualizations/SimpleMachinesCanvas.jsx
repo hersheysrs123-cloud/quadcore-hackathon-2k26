@@ -8,16 +8,11 @@ import {
   ChevronDown,
   ChevronRight,
   Gauge,
-  Layers,
   Scale,
-  Zap,
 } from "lucide-react";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import { ENERGY_COLOURS } from "@/components/visualizations/energy-bars";
@@ -28,7 +23,6 @@ import {
   isLever,
   leverLayout,
   solveMachine,
-  supportingRopes,
 } from "@/lib/simpleMachines";
 
 // ─── Simple machines & mechanical advantage ─────────────────────────
@@ -1300,27 +1294,6 @@ export default function SimpleMachinesCanvas({ params = {} }) {
           {solved.machine.label}
         </SceneLabel>
 
-        <SceneReadout
-          hidden={params?.hideOverlayReadout}
-          title={solved.machine.label}
-          subtitle={solved.machine.order}
-          rows={[
-            ["Load", `${loadN.toFixed(0)} N`],
-            ["Effort needed", `${solved.effortForce.toFixed(1)} N`, solved.losesForce ? "bad" : "good"],
-            ["Mechanical advantage", `${solved.mechanicalAdvantage.toFixed(2)}×`],
-            ["Distance ratio", `${solved.velocityRatio.toFixed(2)}×`],
-            ["Efficiency", `${(solved.efficiency * 100).toFixed(0)}%`],
-          ]}
-        />
-
-        <SceneLegend
-          title="Work bookkeeping"
-          items={[
-            { color: ENERGY_COLOURS.workIn, label: "Work in", note: "effort force × the distance you move it" },
-            { color: ENERGY_COLOURS.workOut, label: "Work out", note: "load × the height it rises" },
-            { color: ENERGY_COLOURS.wasted, label: "Wasted", note: "friction at the pivots and sheaves — heat" },
-          ]}
-        />
       </SceneCanvas>
 
       {/* Right-Hand Sidebar Layout for Work & Advantage Graph */}

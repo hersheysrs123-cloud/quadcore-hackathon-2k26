@@ -12,8 +12,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   clamp,
   hashRandom,
@@ -585,68 +583,6 @@ export function RefractionScene({ params = {} }) {
         Medium 1 · {name1} · n₁ = {n1.toFixed(2)}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Snell's law"
-        subtitle={`${name1} → ${name2} → ${name1}`}
-        rows={[
-          ["Incidence i", `${angle.toFixed(1)}°`, "gold"],
-          ["Refraction r", tir ? "—" : `${(r / DEG).toFixed(1)}°`, tir ? "bad" : "good"],
-          ["Emergence e", tir ? "—" : `${(e / DEG).toFixed(1)}°`, tir ? "bad" : "gold"],
-          ["n₁ sin i", (n1 * Math.sin(i)).toFixed(3), "good"],
-          ["n₂ sin r", tir ? "—" : (n2 * Math.sin(r)).toFixed(3), tir ? "bad" : "good"],
-          ["Lateral shift d", tir ? "—" : Math.abs(lateral).toFixed(2)],
-          ["Critical angle", critical === null ? "none (n₂ ≥ n₁)" : `${critical.toFixed(1)}°`],
-          ["Reflected here", `${(reflectance * 100).toFixed(0)}%`, reflectance > 0.5 ? "bad" : undefined],
-          ["Transmitted", `${((1 - reflectance) * 100).toFixed(0)}%`, reflectance > 0.5 ? "bad" : "good"],
-          ["Speed in medium 2", `${(3 / n2).toFixed(2)}×10⁸ m/s`],
-        ]}
-        note={
-          tir
-            ? `Total internal reflection: i is past the critical angle of ${critical?.toFixed(1)}°, so sin r would have to exceed 1. No light enters medium 2 at all.`
-            : n2 > n1
-              ? "The two middle rows are equal — that is Snell's law. Bends toward the normal and slows on the way in, bends back by the same amount on the way out, so the emergent ray runs parallel to the incident one."
-              : n2 < n1
-                ? "The two middle rows are equal — that is Snell's law. Medium 2 is less dense, so the ray bends away from the normal on entry and back toward it on exit."
-                : "Both media have the same optical density, so there is nothing to bend the ray — it passes straight through."
-        }
-        noteTone={tir ? "bad" : n2 > n1 ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="What you are looking at"
-        items={[
-          {
-            color: beam,
-            shape: "line",
-            label: tir ? "Incident & reflected ray" : "Incident, refracted, emergent ray",
-            note: `${wavelength} nm beam`,
-          },
-          {
-            color: "#8a92a0",
-            shape: "dash",
-            label: "Normal",
-            note: "every angle is measured from this, never from the surface",
-          },
-          {
-            color: "#5b6472",
-            shape: "dash",
-            label: "Undeviated path",
-            note: "where the ray would have gone with no block",
-          },
-          {
-            color: PALETTE.gold,
-            shape: "line",
-            label: "Angles in medium 1",
-            note: "i and e — always equal here",
-          },
-          {
-            color: PALETTE.emerald,
-            shape: "line",
-            label: "Angle in medium 2 · shift d",
-          },
-        ]}
-      />
      </group>
     </SceneCanvas>
   );
@@ -1357,60 +1293,6 @@ export function MotorEffectScene({ params = {} }) {
         </>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Motor effect"
-        subtitle="F = B I L, all three at right angles"
-        rows={[
-          ["Field B", `${field.toFixed(2)} T`, "gold"],
-          ["Current I", `${current.toFixed(2)} A`, "gold"],
-          ["Wire in field L", `${WIRE_LENGTH.toFixed(1)} m`],
-          ["Force F", hasForce ? `${force.toFixed(2)} N` : "0 N", hasForce ? "good" : "bad"],
-          ["First finger", `Field → ${bSign > 0 ? "+x (right)" : "−x (left)"}`],
-          ["Second finger", `Current → ${iSign > 0 ? "+z (front)" : "−z (back)"}`],
-          [
-            "Thumb",
-            hasForce ? `Force → ${fSign > 0 ? "up" : "down"}` : "no motion",
-            hasForce ? "good" : "bad",
-          ],
-        ]}
-        note={
-          !hasForce
-            ? "Turn the current up. With I = 0 there is no second field around the wire for the magnet's field to push against, so F = BIL = 0."
-            : reverseCurrent !== reverseField
-              ? "One input reversed, so the force flipped. That is exactly why a d.c. motor needs a split-ring commutator — it reverses the current every half turn to keep the push going the same way round."
-              : reverseCurrent && reverseField
-                ? "Both inputs reversed, so the force is unchanged — the two flips cancel."
-                : "Hold your left hand this way: First finger Field, seCond finger Current, thuMb Motion."
-        }
-        noteTone={!hasForce ? "bad" : reverseCurrent !== reverseField ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Fleming's left hand"
-        items={[
-          {
-            color: PALETTE.sky,
-            label: "First finger — Field B",
-            note: "N pole → S pole",
-          },
-          {
-            color: PALETTE.gold,
-            label: "seCond finger — Current I",
-            note: "conventional current, + to −",
-          },
-          {
-            color: PALETTE.emerald,
-            label: "thuMb — Force / Motion",
-            note: hasForce ? "the way the wire is pushed" : "zero while I = 0",
-          },
-          {
-            color: PALETTE.rose,
-            shape: "square",
-            label: "North pole",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -1959,72 +1841,6 @@ export function LensOpticsScene({ params = {} }) {
           />
         )}
 
-        <SceneReadout
-          hidden={params?.hideOverlayReadout}
-          title={titleMap[type] || "Ray Optics"}
-          subtitle={isMirror ? "1/v + 1/u = 1/f  ·  m = |v ÷ u|" : "1/v − 1/u = 1/f  ·  m = |v ÷ u|"}
-          rows={[
-            ["Object distance u", `${u.toFixed(1)} cm`],
-            ["Object height h", `${h.toFixed(1)} cm`],
-            ["Focal length f", `${f.toFixed(1)} cm`, "gold"],
-            ["Image distance v", atInfinity ? "∞" : `${Math.abs(v).toFixed(1)} cm`, real ? "good" : "bad"],
-            ["Image height h'", atInfinity ? "—" : `${Math.abs(imageHeight).toFixed(2)} cm`],
-            ["Magnification m", atInfinity ? "∞" : `${m.toFixed(2)}×`],
-            ["Nature", real ? "real" : atInfinity ? "none" : "virtual", real ? "good" : "bad"],
-            ["Orientation", atInfinity ? "—" : imageHeight < 0 ? "inverted" : "upright"],
-            ["Object position", u > 2 * f ? "beyond 2F (C)" : u > f ? "between F & 2F" : "inside F"],
-          ]}
-          note={
-            atInfinity
-              ? "Object is at focal point F: rays leave exactly parallel and never intersect (collimator spotlight)."
-              : nature
-          }
-          noteTone={atInfinity ? "warn" : real ? "good" : "neutral"}
-        />
-
-        <SceneLegend
-          title="Ray construction"
-          items={[
-            {
-              color: PALETTE.gold,
-              label: "Object",
-              note: `upright arrow (h = ${h.toFixed(1)} cm)`,
-            },
-            {
-              color: PALETTE.emerald,
-              shape: "line",
-              label: "Ray 1 — parallel",
-              note: isMirror
-                ? (isConverging ? "reflects through focus F" : "reflects diverging from virtual F")
-                : (isConverging ? "refracts through focus F" : "refracts diverging from virtual F"),
-            },
-            {
-              color: PALETTE.sky,
-              shape: "line",
-              label: isMirror ? "Ray 2 — pole reflection" : "Ray 2 — optical center",
-              note: isMirror
-                ? "reflects at equal angle from mirror vertex"
-                : "passes straight through undeviated",
-            },
-            ...(showConstruction && showThirdRay
-              ? [
-                  {
-                    color: PALETTE.violet,
-                    shape: "line",
-                    label: "Ray 3 — focal ray",
-                    note: "passes through F, emerges parallel to axis",
-                  },
-                ]
-              : []),
-            {
-              color: real ? PALETTE.emerald : PALETTE.rose,
-              label: real ? "Real image" : "Virtual image",
-              note: real
-                ? "rays physically converge — caught on a screen"
-                : "rays diverge — backward projections meet",
-            },
-          ]}
-        />
       </group>
     </SceneCanvas>
   );
@@ -2744,49 +2560,6 @@ function GeneratorRig({ params = {} }) {
 
       <EmfTrace speed={speed} field={field} turns={turns} angleRef={angleRef} />
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Faraday's law · Dynamo"
-        subtitle="Φ = B A sin θ  ·  ε = −N ΔΦ/Δt"
-        rows={[
-          ["Turns N", safeTurns, "gold"],
-          ["Coil area A", `${COIL_AREA.toFixed(1)} m²`],
-          ["Flux Φ per turn", `${flux.toFixed(2)} Wb`],
-          [
-            "e.m.f. now",
-            `${sample.emf.toFixed(2)} V`,
-            Math.abs(sample.emf) > 0.5 * peak ? "gold" : undefined,
-          ],
-          ["Peak e.m.f. ε₀", `${peak.toFixed(2)} V`, peak > 0.05 ? "good" : "bad"],
-          ["Rotation", speed < 0.05 ? "stopped" : `${speed.toFixed(1)} rev/s`],
-          ["Current", direction, direction === "none" ? "bad" : "good"],
-        ]}
-        note={
-          speed < 0.05
-            ? "Stationary coil: the flux through it never changes, so no e.m.f. is induced at all. Motion — or any change of flux — is the whole requirement."
-            : cutting > 0.9
-              ? "The coil is edge-on to the field right now, slicing across the lines as fast as it ever does. Flux is momentarily zero but changing fastest, so the e.m.f. is at its peak."
-              : cutting < 0.15
-                ? "The coil is face-on to the field. Flux is at its maximum but momentarily not changing, so the e.m.f. is zero — maximum flux and maximum e.m.f. never happen together."
-                : "The e.m.f. reverses every half turn, which is exactly what makes the output alternating."
-        }
-        noteTone={speed < 0.05 ? "bad" : cutting > 0.9 ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Generator"
-        items={[
-          { color: PALETTE.rose, shape: "square", label: "N pole", note: "field runs N → S" },
-          { color: PALETTE.sky, shape: "dash", label: "Magnetic field lines B", note: "density ∝ B" },
-          { color: "#ea580c", shape: "line", label: "Copper coil", note: "cuts field lines" },
-          { color: PALETTE.gold, shape: "line", label: "e.m.f. trace & bulb", note: "alternating AC waveform" },
-          {
-            color: "#fbbf24",
-            label: "Slip rings",
-            note: "continuous rings maintain alternating AC",
-          },
-        ]}
-      />
     </>
   );
 }
@@ -3194,57 +2967,6 @@ function SolenoidRig({ params = {} }) {
         showBulb={showBulb}
       />
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Faraday's Law · Solenoid"
-        subtitle="ε = −N (dΦ/dt) = −N (dΦ/dx) · v"
-        rows={[
-          ["Coil turns N", safeTurns, "gold"],
-          ["Magnet position x", `${sample.x > 0 ? "+" : ""}${sample.x.toFixed(2)} cm`],
-          ["Velocity v", `${sample.velocity > 0 ? "+" : ""}${sample.velocity.toFixed(2)} cm/s`],
-          ["Flux Φ per turn", `${sample.flux.toFixed(2)} Wb`],
-          [
-            "Induced e.m.f. ε",
-            `${sample.emf.toFixed(2)} V`,
-            Math.abs(sample.emf) > 0.1 ? "gold" : undefined,
-          ],
-          [
-            "Bulb state",
-            readoutPower > 1.2
-              ? "Glowing brilliant white"
-              : readoutPower > 0.4
-                ? "Glowing bright yellow"
-                : readoutPower > 0.08
-                  ? "Dim amber glow"
-                  : "Off (unpowered)",
-            readoutPower > 0.08 ? "gold" : "neutral",
-          ],
-          [
-            "Current",
-            Math.abs(sample.emf) < 0.05 ? "none" : sample.emf > 0 ? "clockwise" : "anticlockwise",
-            Math.abs(sample.emf) < 0.05 ? "bad" : "good",
-          ],
-        ]}
-        note={
-          !isMoving
-            ? "Stationary magnet: flux is constant (dΦ/dt = 0), so induced e.m.f. is strictly zero. Relative motion is the sole requirement."
-            : isApproaching
-              ? "Approaching coil: flux is rapidly increasing. By Lenz's law, the coil induces a matching pole to repel the incoming magnet."
-              : "Departing coil: flux is decreasing. By Lenz's law, the coil induces an opposite pole to attract the receding magnet."
-        }
-        noteTone={!isMoving ? "bad" : "good"}
-      />
-
-      <SceneLegend
-        title="Solenoid Apparatus"
-        items={[
-          { color: PALETTE.rose, shape: "square", label: "N pole", note: "Red magnetic pole half" },
-          { color: PALETTE.sky, shape: "square", label: "S pole", note: "Blue magnetic pole half" },
-          { color: "#ea580c", shape: "line", label: "Copper Solenoid", note: `${safeTurns}-turn helical winding` },
-          { color: PALETTE.emerald, shape: "line", label: "Lenz's Law B_induced", note: "Opposes rate of change" },
-          { color: PALETTE.gold, shape: "dot", label: "Demonstration bulb", note: "Incandescent filament glow" },
-        ]}
-      />
     </>
   );
 }
@@ -3478,56 +3200,6 @@ export function GasLawsScene({ params = {} }) {
         animSpeed={params.speed ?? 1}
       />
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Gas state"
-        subtitle="p ∝ N T ÷ V"
-        rows={[
-          ["Pressure p", `${pressure.toFixed(0)} kPa`, "gold"],
-          ["Temperature T", `${temperature.toFixed(0)} K`, temperature > 600 ? "warn" : undefined],
-          ["…in celsius", `${(temperature - 273).toFixed(0)} °C`],
-          ["Volume V", `${volume.toFixed(2)} V₀`, volume < 0.7 ? "warn" : undefined],
-          ["Particles N", particles],
-          ["Mean speed", `${Math.sqrt(temperature / 300).toFixed(2)}× (300 K)`],
-          ["Wall hits/s", rate],
-          ["pV ÷ T", (pV / temperature).toFixed(2), "good"],
-        ]}
-        note={
-          temperature > 600
-            ? "Hot: the particles carry more kinetic energy, so they hit the walls harder and more often. At fixed V that means p ∝ T — watch pV ÷ T stay put."
-            : volume < 0.7
-              ? "Compressed: the same collisions are spread over less wall area, so the pressure rises. At fixed T, pV stays constant — Boyle's law."
-              : "Pressure is the total force of the particle collisions per unit area of wall. Move T and V and pV ÷ T refuses to budge — that is the gas law. Adding particles is the one slider that does change it, because pV ÷ T counts how much gas is in there."
-        }
-        noteTone={temperature > 600 || volume < 0.7 ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Kinetic particle model"
-        items={[
-          {
-            color: PALETTE.sky,
-            label: "Cold particle",
-            note: "slower, less kinetic energy",
-          },
-          {
-            color: PALETTE.rose,
-            label: "Hot particle",
-            note: "faster, hits the wall harder",
-          },
-          {
-            color: "#5b6472",
-            shape: "square",
-            label: "Piston",
-            note: "the movable wall — volume is how far along it sits",
-          },
-          {
-            color: PALETTE.gold,
-            label: "Speeds vary",
-            note: "particles share a mean, not a single speed",
-          },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -4364,42 +4036,6 @@ export function ProjectileScene({ params = {} }) {
         />
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Flight"
-        subtitle="quadratic drag · F = −k|v|v"
-        rows={[
-          ["Time t", `${live.t.toFixed(2)} s`],
-          ["Distance x", `${live.x.toFixed(1)} m`],
-          ["Height y", `${live.y.toFixed(1)} m`],
-          ["Speed |v|", `${live.speed.toFixed(1)} m/s`, "gold"],
-          ["Drag force", `${(live.dragForce ?? 0).toFixed(1)} N`, drag > 0.005 ? "warn" : undefined],
-          ["Range", `${flight.range.toFixed(1)} m`, "good"],
-          ["…without drag", `${ideal.range.toFixed(1)} m`],
-          ["Range lost", `${(lost * 100).toFixed(0)}%`, lost > 0.3 ? "bad" : lost > 0.1 ? "warn" : undefined],
-          ["Max height", `${flight.apex.toFixed(1)} m (at ${(flight.apexX ?? 0).toFixed(1)}m)`],
-          ["Flight time", `${flight.flightTime.toFixed(2)} s`],
-          ["Impact speed", `${flight.impactSpeed.toFixed(1)} m/s`],
-        ]}
-        note={
-          drag < 0.005
-            ? "With zero atmospheric drag, the flight path is a perfect symmetrical parabola with apex at exactly 50% range, and 45° yields maximum range."
-            : `Quadratic drag removes momentum throughout flight, causing an asymmetric path with steeper descent and shifting the apex backwards to ${((flight.apexX / (flight.range || 1)) * 100).toFixed(0)}% of range.`
-        }
-        noteTone={lost > 0.3 ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Projectile"
-        items={[
-          { color: PALETTE.emerald, shape: "line", label: "With drag", note: "Asymmetric path — steep descent" },
-          { color: PALETTE.slate, shape: "dash", label: "No drag", note: "Ideal symmetric parabola" },
-          { color: PALETTE.sky, shape: "line", label: "Velocity v", note: "Tangential to trajectory path" },
-          { color: PALETTE.rose, shape: "line", label: "Weight W", note: "Constant downward force (m·g)" },
-          { color: PALETTE.gold, shape: "line", label: "Drag Force F_drag", note: "Quadratic atmospheric drag (−k|v|v)" },
-          { color: PALETTE.emerald, shape: "line", label: "Resultant Force F_net", note: "Vector sum (W + F_drag)" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -4591,40 +4227,6 @@ export function InterferenceScene({ params = {} }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Interference"
-        subtitle={slits === 2 ? "path difference decides it" : "one source — no fringes"}
-        rows={[
-          ["Sources", slits],
-          ["Wavelength λ", wavelength.toFixed(2)],
-          ["Separation d", slits === 2 ? separation.toFixed(2) : "—"],
-          ["Screen distance L", L.toFixed(1)],
-          ["1st max at x", firstOrderX ? firstOrderX.toFixed(2) : "—", "gold"],
-          ["…from d sin θ = λ", firstOrderX ? `${((Math.asin(ratio) * 180) / Math.PI).toFixed(0)}°` : "—"],
-          ["λL ÷ d estimate", fringeSpacing ? fringeSpacing.toFixed(2) : "—", approxError > 0.1 ? "warn" : undefined],
-          ["Highest order m", slits === 2 ? highestOrder : "—"],
-          ["d ÷ λ", slits === 2 ? (separation / wavelength).toFixed(2) : "—"],
-        ]}
-        note={
-          slits === 1
-            ? "One source spreads out as circular wavefronts and the screen is simply brightest opposite it. Switch to two sources to get fringes."
-            : approxError > 0.1
-              ? `Where the path difference is a whole number of wavelengths the crests reinforce; a half-odd number cancels. Note λL÷d is ${(approxError * 100).toFixed(0)}% out here — it assumes small angles, and with d only ${(separation / wavelength).toFixed(1)}λ wide the first order sits at ${((Math.asin(ratio) * 180) / Math.PI).toFixed(0)}°. Narrow λ or widen d to bring the two into line.`
-              : "Where the path difference is a whole number of wavelengths the crests arrive together and reinforce — a bright fringe. Where it is a half-odd number they cancel. Widening d packs the fringes closer; a longer λ spreads them out."
-        }
-        noteTone={slits === 2 && approxError > 0.1 ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Wave field"
-        items={[
-          { color: PALETTE.gold, shape: "square", label: "Crest", note: "displacement upward" },
-          { color: PALETTE.violet, shape: "square", label: "Trough", note: "displacement downward" },
-          { color: PALETTE.gold, label: "Source", note: "coherent — same λ and phase" },
-          { color: "#39424f", shape: "square", label: "Barrier", note: "the slits are the gaps in it" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -4868,43 +4470,6 @@ export function OrbitScene({ params = {} }) {
         μ = GM = {mu.toFixed(1)}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Orbit"
-        subtitle="v² = GM (2÷r − 1÷a)"
-        rows={[
-          ["Radius r", live.r.toFixed(2)],
-          ["Speed v", live.v.toFixed(2), "gold"],
-          ["Circular v at r₀", circular.toFixed(2)],
-          ["Escape v at r₀", escapeSpeed.toFixed(2)],
-          ["Eccentricity e", live.e.toFixed(3)],
-          ["Energy ε", live.energy.toFixed(2), unbound ? "bad" : "good"],
-          ["Period T", live.period ? live.period.toFixed(1) : "—"],
-          ["Orbit", live.escaped ? "escaped" : shape, shape === "circular" ? "good" : unbound ? "bad" : "neutral"],
-        ]}
-        note={
-          live.escaped
-            ? `Escaped. Launch speed ${launchSpeed.toFixed(2)} reached escape velocity ${escapeSpeed.toFixed(2)} = √2 × the circular speed at this radius, which puts the total energy at ε ≥ 0 — there is no apoapsis to come back from, so the satellite is left at the edge of the sheet. Drop below ${escapeSpeed.toFixed(2)} to bind it into an ellipse.`
-            : live.beyondView
-              ? "Still bound, but its apoapsis is outside the drawn sheet — it has swung out past the edge and will fall back in. Lower the launch speed toward the circular value to keep the whole ellipse in view."
-              : unbound
-                ? "Total energy is ε ≥ 0, so this orbit is not closed — the satellite is on its way out and will not return."
-                  : shape === "circular"
-                    ? "Launch speed matches circular value at this radius: centripetal acceleration balances gravity perfectly."
-                    : `Elliptical: ${launchSpeed < circular ? "too slow" : "too fast"} for a circle here, so the satellite ${launchSpeed < circular ? "falls inward, speeds up, and swings back out" : "climbs away, slows down, and falls back"}. Match circular speed ${circular.toFixed(2)} to round it off.`
-        }
-        noteTone={live.escaped || live.beyondView ? "warn" : shape === "circular" ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Gravity well"
-        items={[
-          { color: PALETTE.gold, label: "Central mass", note: "depth of the well ∝ its mass" },
-          { color: PALETTE.emerald, label: "Satellite", note: "in free fall the whole time" },
-          { color: PALETTE.emerald, shape: "line", label: "Path", note: "an ellipse when bound" },
-          { color: PALETTE.sky, shape: "line", label: "Potential", note: "the sheet is −GM ÷ r, not real space" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

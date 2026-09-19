@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useOnClickOutside } from "usehooks-ts";
 import { useGlobalTimer } from "@/lib/timerStore";
 import { Play, Pause, RotateCcw, Plus, Calendar, AlertTriangle, Clock, Trash2 } from "lucide-react";

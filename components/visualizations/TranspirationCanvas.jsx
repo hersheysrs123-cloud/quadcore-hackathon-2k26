@@ -9,8 +9,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   clamp,
   hashRandom,
@@ -763,23 +761,6 @@ export default function TranspirationCanvas({ params = {} }) {
         {`${solved.rateMlPerHour < 10 ? solved.rateMlPerHour.toFixed(1) : Math.round(solved.rateMlPerHour)} mL/hr up the stem`}
       </SceneLabel>
 
-      <SceneReadout
-        title="Transpiration"
-        subtitle={`${solved.soilLabel} · light ${light} % · RH ${humidity} % · wind ${wind} m/s`}
-        rows={[
-          ["Transpiration rate", `${solved.rateMlPerHour.toFixed(1)} mL/hr`],
-          ["Guard cells", solved.poreStatus],
-          ["Xylem tension", `${solved.tensionMPa.toFixed(2)} MPa`],
-        ]}
-      />
-      <SceneLegend
-        title="Pathway"
-        items={[
-          { color: COLOURS.water, label: "Water", note: "soil → root hair → xylem → leaf" },
-          { color: COLOURS.vapour, label: "Vapour", note: "out of the stoma" },
-          { color: COLOURS.potassium, label: "K⁺", note: "into the guard cells with light" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

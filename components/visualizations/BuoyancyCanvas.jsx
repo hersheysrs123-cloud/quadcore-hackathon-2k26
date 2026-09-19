@@ -5,11 +5,8 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -1188,29 +1185,6 @@ export default function BuoyancyCanvas({ params = {} }) {
             : `sinking · ρ_mean ${solved.meanDensity.toFixed(2)} > ρ_fluid ${solved.fluidDensity}`}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Archimedes' principle"
-        subtitle="F_b = ρ_fluid · V_displaced · g"
-        rows={[
-          ["Mass", `${solved.massG.toFixed(0)} g`],
-          ["True weight", `${solved.weight.toFixed(2)} N`, "gold"],
-          ["Displaced", `${solved.overflowML.toFixed(0)} mL`],
-          ["Buoyant force", `${solved.upthrust.toFixed(2)} N`, "good"],
-          ["Scale reads", `${solved.apparentWeight.toFixed(2)} N`],
-          ["Verdict", solved.floats ? "floats" : "sinks", solved.floats ? "good" : "bad"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Buoyancy"
-        items={[
-          { color: FORCE_COLOURS.weight, label: "F_g = mg", note: "the material's own weight, always down" },
-          { color: FORCE_COLOURS.normal, label: "F_b = ρVg", note: "the weight of the fluid pushed aside" },
-          { color: FORCE_COLOURS.applied, label: "Tension T", note: "whatever is left for the scale to carry" },
-          { color: FORCE_COLOURS.net, label: "Mean density", note: "mass ÷ envelope — the number that decides" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

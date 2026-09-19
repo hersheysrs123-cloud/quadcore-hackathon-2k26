@@ -7,8 +7,6 @@ import * as THREE from "three";
 import {
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -1202,29 +1200,6 @@ export default function HeatTransferCanvas({ params = {} }) {
         {`probing ${ROD_MATERIALS[rodMaterial]?.label ?? "Copper"} · scene runs at ${TIME_LAPSE}× real time`}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Three ways heat moves"
-        subtitle="conduction · convection · radiation, all at once"
-        rows={[
-          ["Flame", `${flameTemperature(flameIntensity).toFixed(0)} °C`, "gold"],
-          ["Water bottom", `${sample.waterBottom.toFixed(1)} °C`],
-          ["Water top", `${sample.waterTop.toFixed(1)} °C`],
-          ["Copper tip", `${(sample.tips.copper ?? AMBIENT_C).toFixed(1)} °C`, "good"],
-          ["Wood tip", `${(sample.tips.wood ?? AMBIENT_C).toFixed(1)} °C`, "bad"],
-          ["Plate (radiation only)", `${sample.plateC.toFixed(1)} °C`],
-        ]}
-      />
-
-      <SceneLegend
-        title="Heat transfer"
-        items={[
-          { color: "#c2703b", label: "Conduction", note: "along the rods — the metal itself does not move" },
-          { color: "#a78bfa", label: "Convection", note: "the water moves, and carries its heat with it" },
-          { color: "#fb923c", label: "Radiation", note: "crosses the gap with nothing in between" },
-          { color: "#f5e6c8", label: "Wax beads", note: `let go at ${WAX_MELTING_C} °C — the race, made visible` },
-        ]}
-      />
     </SceneCanvas>
   );
 }

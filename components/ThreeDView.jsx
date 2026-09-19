@@ -9,7 +9,6 @@ import {
   VisualizationHUD,
 } from "@/components/visualizations/VisualizationHUD";
 import {
-  CATEGORY_EMOJI,
   TOPICS,
   TOPICS_BY_ID,
   formatTopicStudyContext,

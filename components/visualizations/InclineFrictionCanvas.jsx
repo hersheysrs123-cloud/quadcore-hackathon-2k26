@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import {
@@ -949,18 +947,6 @@ export default function InclineFrictionCanvas({ params = {} }) {
       />
 
       {/* Free-body diagram legend */}
-      <SceneLegend
-        title="Free-body diagram"
-        items={[
-          { color: FORCE_COLOURS.weight, shape: "line", label: "Weight W", note: "always vertically down" },
-          { color: FORCE_COLOURS.weightParallel, shape: "line", label: "W∥", note: "mg sinθ, down the slope" },
-          { color: FORCE_COLOURS.weightPerpendicular, shape: "line", label: "W⊥", note: "mg cosθ, into the surface" },
-          { color: FORCE_COLOURS.normal, shape: "line", label: "Normal N", note: "balances W⊥ exactly" },
-          { color: FORCE_COLOURS.friction, shape: "line", label: "Friction", note: "opposes motion, never causes it" },
-          { color: FORCE_COLOURS.applied, shape: "line", label: "Applied F", note: "your pull, along the ramp" },
-          { color: FORCE_COLOURS.net, shape: "line", label: "Resultant", note: "what is left over — this is ma" },
-        ]}
-      />
     </SceneCanvas>
 
         {/* Toggle button to reopen telemetry sidebar if closed */}

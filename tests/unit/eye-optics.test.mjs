@@ -316,9 +316,15 @@ describe("solveEye contract", () => {
       for (const lux of [1e-3, 1, 500, 1e5]) {
         for (const auto of [true, false]) {
           const r = solveEye({ objectDistanceM: u, lux, auto, manualAccommodation: 2 });
+          // `farPoint` is legitimately Infinity for any eye that is not
+          // short-sighted -- that IS the answer, not a missing one. Everything
+          // else has to be a real number.
+          const UNBOUNDED = new Set(["farPoint"]);
           for (const [k, v] of Object.entries(r)) {
-            if (typeof v === "number") assert.ok(Number.isFinite(v), `${k} not finite at u=${u} lux=${lux}`);
+            if (typeof v !== "number" || UNBOUNDED.has(k)) continue;
+            assert.ok(Number.isFinite(v), `${k} not finite at u=${u} lux=${lux}`);
           }
+          assert.ok(r.farPoint > 0, `far point ${r.farPoint} at u=${u}`);
           assert.ok(r.pupil > 0 && r.lensRadius > 0 && r.lensThickness > 0);
           assert.ok(r.accommodation >= 0 && r.accommodation <= EYE.accommodationAmplitude);
         }
