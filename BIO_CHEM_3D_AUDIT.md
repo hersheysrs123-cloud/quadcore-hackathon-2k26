@@ -623,6 +623,47 @@ Small, isolated, low-risk.
 
 ### Phase 5 — Guardrails
 
+> **STATUS: LANDED (19 Sep 2026).** All four, and they are not decorative —
+> each was mutation-tested by injecting the defect it exists to catch.
+>
+> | Item | Outcome |
+> |---|---|
+> | 5.1 legend fidelity | done. Found **10** real mismatches on its first run. |
+> | 5.2 readout parity | done, in two halves: structural and behavioural. |
+> | 5.3 no private engines | done. Three existing violations quarantined, not excused. |
+> | 5.4 dead parameters | done. Found **B33** on its first run. |
+>
+> **What 5.1 found.** In every case the legend had been written with an
+> approximate Tailwind hex while the scene drew a `PALETTE` value: the motor's
+> N/S poles keyed `#ef4444`/`#3b82f6` against rose/sky; the hot gas particle
+> keyed pure red when the particles lerp sky → rose and never reach it; three
+> lens colours; the refraction medium block keyed `#0ea5e9`, which is no
+> medium's colour at all. Two more were gaps in Phase 1's own work — the
+> electrolysis scene never imported `CELL_COLOURS`, it re-typed the same
+> literals, and the vsepr and energetics legends re-typed `PALETTE` hexes.
+> All now name the shared table.
+>
+> **How 5.2 works without being able to run the HUD.** `VisualizationHUD.jsx`
+> is JSX using the `@/` alias, so node cannot import it. Structural parity is
+> therefore checked by reading it: both sides must reference the same lib/
+> engine, and the HUD must not contain the arithmetic it used to duplicate —
+> its own Gaussian enzyme model, its own Boltzmann factor, a hard-coded
+> Faraday constant, its own denaturation window, its own osmosis thresholds,
+> the flat `lone × 2.5` squeeze. Behavioural parity sweeps the control ranges
+> read out of `topics.js`, so the grid is what the sliders can actually
+> produce rather than one the test invented.
+>
+> **5.3's quarantine is debt, not approval.** `physics-solvers.test.mjs`,
+> `quiz-grading.test.mjs` and `timer-store.test.mjs` each define a working
+> model of their subject and assert against it, so each proves nothing about
+> what ships — the X3 pattern exactly. `physics-solvers` also carries a
+> `getHydrocarbonFormula` that duplicates `lib/organic.js`. They are listed so
+> the rule can be enforced everywhere else today; the list is checked in both
+> directions, so fixing one fails the test until it is taken off.
+>
+> Verified: `npm test` 1782/1782; production build clean.
+
+
 The point of this phase is that no future audit has to find X1 again.
 
 **5.1 — A legend-fidelity test.** Every `legend.items[].color` must appear as a literal in the scene file that topic dispatches to. That single assertion would have caught B3, B11, B17, B21, B22, B27, C5, C8 and C11 — nine defects, including the worst one in the report.
