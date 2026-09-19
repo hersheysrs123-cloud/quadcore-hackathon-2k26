@@ -1897,7 +1897,11 @@ export const TOPICS = [
       catalyst: false,
       catalystDrop: 35,
       temperature: 350,
-      showReverse: true,
+      // B33: `showReverse: true` lived here with no control, no reader and no
+      // effect -- it was meant to toggle a reverse-activation arrow that was
+      // never built, and it read as a working feature. The reverse Ea itself
+      // is real and is shown: solveEnergetics() derives it and the Details
+      // panel prints it.
       spin: false,
     },
     controls: [

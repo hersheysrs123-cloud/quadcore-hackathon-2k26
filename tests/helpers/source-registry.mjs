@@ -103,19 +103,46 @@ export function parseTopics() {
     const dIdx = entry.indexOf("defaults: {");
     if (dIdx !== -1) {
       const open = entry.indexOf("{", dIdx);
-      const block = entry.slice(open + 1, matchBrace(entry, open) - 1);
-      for (const dm of block.matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)\s*:/g)) defaults.push(dm[1]);
+      // Comments are stripped first: a key that follows an explanatory
+      // comment rather than a comma is still a key.
+      const block = entry
+        .slice(open + 1, matchBrace(entry, open) - 1)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
+      for (const dm of block.matchAll(/(?:^|[,{])\s*([A-Za-z_$][\w$]*)\s*:/gm)) defaults.push(dm[1]);
     }
 
     const controls = [];
+    const controlSpecs = [];
     const cIdx = entry.indexOf("controls: [");
     if (cIdx !== -1) {
       const open = entry.indexOf("[", cIdx);
       const block = entry.slice(open, matchBrace(entry, open));
       for (const cm of block.matchAll(/\bkey: "([A-Za-z_$][\w$]*)"/g)) controls.push(cm[1]);
+
+      // The full spec per control, so a test can sweep exactly the values the
+      // UI can actually produce rather than a range it guessed at.
+      for (const cm of block.matchAll(/\{\s*type:\s*"(\w+)"/g)) {
+        const spec = block.slice(cm.index, matchBrace(block, cm.index));
+        const num = (name) => {
+          const m = spec.match(new RegExp(`\\b${name}:\\s*(-?[\\d.]+)`));
+          return m ? Number(m[1]) : undefined;
+        };
+        const key = (spec.match(/\bkey: "([A-Za-z_$][\w$]*)"/) || [])[1];
+        if (!key) continue;
+        const options = [...spec.matchAll(/\bvalue: "([^"]*)"/g)].map((o) => o[1]);
+        controlSpecs.push({
+          type: cm[1],
+          key,
+          min: num("min"),
+          max: num("max"),
+          step: num("step"),
+          options: options.length ? options : undefined,
+        });
+      }
     }
 
-    topics.push({ id, category, ownHud, defaults, controls, source: entry });
+    topics.push({ id, category, ownHud, defaults, controls, controlSpecs, source: entry });
   }
 
   topicsCache = topics;
