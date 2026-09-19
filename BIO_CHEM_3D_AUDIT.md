@@ -601,6 +601,63 @@ The animal cell's only tonicity response is a uniform scale. At `tonicity < −0
 
 ### Phase 4 — Fix the second-generation loose ends
 
+> **STATUS: LANDED (19 Sep 2026).** All fifteen items. Two were resolved
+> earlier: **B33** by the Phase 5.4 guardrail, which found it on its first
+> run, and **C29-residual** by the intercostal removal in Phase 3.
+>
+> | Item | Outcome |
+> |---|---|
+> | B33 | done in Phase 5.4 — the guardrail found it. |
+> | B34 | done. Scale 0.028 → 0.023, verified at both slider extremes. |
+> | B37 | done. `deltaE` is a magnitude; polarity stays in `direction`. |
+> | B38 | done. Bubbles stop when the anode is consumed. |
+> | B39 | done for the rusting rack; the reactivity rack already did it. |
+> | B40 | done. Salt is a label now, not ten undissolved cubes. |
+> | B41 | done. `MAX_DAYS` 30 → 90, so both anodes can exhaust. |
+> | B42 | done. Electrons run inside the strip, as the key says. |
+> | B43 | done. Soot on the liquid-water basis, −409 → −497. |
+> | C26 | done. Fifteen controls moved into the shared parameter state. |
+> | C27 | done. Three comment numbers corrected; a fourth was already right. |
+> | C28 | done. The keywords stopped promising a defect mode. |
+> | C36 | done. Transfers derive from the cascaded chain. |
+> | C37 | done. Interkinesis no longer pops. |
+> | C38 | done. Comment corrected rather than the code. |
+>
+> **Where the plan's two options diverged, and why.**
+>
+> *B41* offered "lower `wrapMassG` or raise `MAX_DAYS`". Lowering the mass
+> would have been wrong: the wraps are the same ribbon in each metal, and
+> 0.5 g zinc to 0.12 g magnesium is exactly their density ratio. The run is
+> longer instead — zinc exhausts at ~69 days, magnesium at ~30.
+>
+> *C38* offered "normalise `index` so it starts at 0, or correct the comment".
+> Normalising would have been wrong: with no crossovers at all, independent
+> assortment has still produced four distinct gametes, and a gauge reading
+> zero there would say the opposite of what meiosis does. The comment was the
+> thing that was false.
+>
+> *C27* listed three wrong numbers. There were three — 20 D (really 21.3),
+> ~84 % coupling (really 80 %), 9.9/6.2 mm radii (really 8.2/5.1) — and a
+> fourth that looked wrong and was not: "9.0 mm across relaxed" is a
+> diameter, and the function returns a semi-diameter of 4.50 mm.
+>
+> *C28* offered "trim the keywords or add a defect mode". Trimmed. A defect
+> mode is a feature, and `lib/eyeOptics.js` does have what it needs for one
+> (a myopic eye is `axialLength` > `n / P`) — it is worth building, not worth
+> claiming in a keyword list until it exists.
+>
+> **B34 is the one that needed eyes.** The arithmetic said the summit fitted:
+> camera at z = 10.5 with a 46° vertical fov gives a half-height of 4.46, so a
+> peak at 4.48 with a label at 4.98 looked marginal but survivable. It was
+> not. The camera sits at y = 1.2 looking at the origin, so it is pitched down
+> ~6.5° and the top edge only reaches y ≈ 4.3 at the z = 0 plane. The
+> transition state was off-screen entirely at high Ea. Found and fixed against
+> screenshots, not against the formula.
+>
+> Verified: `npm test` 1784/1784; production build clean; the energy profile
+> and the eye both checked in a browser.
+
+
 Small, isolated, low-risk.
 
 - **B37** `lib/redox.js:424` — make `deltaE` the true cell potential: `Math.abs(IRON_POTENTIAL_V − P.potential)`, or rename it `ironMinusPartnerV` and have the HUD drop its `Math.abs`.
