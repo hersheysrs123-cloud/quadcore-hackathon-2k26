@@ -379,8 +379,11 @@ function IonExchange({ index, modelRef, animSpeed = 1 }) {
 
   const electronPath = useMemo(
     () => [
-      [x + STRIP.width * 0.3, LIQUID_TOP - SUBMERGED + 0.15, STRIP.thickness / 2 + 0.05],
-      [x - STRIP.width * 0.3, LIQUID_TOP - 0.2, STRIP.thickness / 2 + 0.05],
+      // Just inside the face, not floating clear of it. The key says the
+      // electron "travels inside the metal only -- ions carry the charge in
+      // solution", and at +0.05 it was drawn out in the solution instead.
+      [x + STRIP.width * 0.3, LIQUID_TOP - SUBMERGED + 0.15, STRIP.thickness / 2 - 0.02],
+      [x - STRIP.width * 0.3, LIQUID_TOP - 0.2, STRIP.thickness / 2 - 0.02],
     ],
     [x],
   );

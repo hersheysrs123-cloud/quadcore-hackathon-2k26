@@ -2360,7 +2360,7 @@ function renderTopicDetailsReadout(topic, params) {
           ["— TUBE 4 · coupled —", `nail + ${P.label.toLowerCase()}`, "gold"],
           ["Anode (oxidised)", couple.anode, couple.protects ? "good" : "bad"],
           ["Cathode (protected)", couple.cathode, couple.protects ? "good" : "bad"],
-          ["Driving voltage ΔE°", `${Math.abs(couple.deltaE).toFixed(2)} V`],
+          ["Driving voltage ΔE°", `${couple.deltaE.toFixed(2)} V`],
           ["Electron flow", couple.direction === "partner_to_iron" ? `${P.symbol} → Fe` : `Fe → ${P.symbol}`, couple.protects ? "good" : "bad"],
           ["Nail rust thickness", `${coupled.rustThicknessUm.toFixed(2)} µm`, couple.protects ? "good" : "bad"],
           ["Nail iron lost", `${coupled.ironLostMg.toFixed(2)} mg`, couple.protects ? "good" : "bad"],

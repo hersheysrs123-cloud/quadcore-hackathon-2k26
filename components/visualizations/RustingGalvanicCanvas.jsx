@@ -293,27 +293,21 @@ function Wrap({ modelRef, partner, animSpeed = 1 }) {
   );
 }
 
-/** Salt crystals on the floor of a tube, drawn only for the brine. */
+/**
+ * Salt water, labelled rather than drawn as lumps.
+ *
+ * This used to scatter ten white cubes across the bottom of the tube. Salt in
+ * salt water is dissolved -- that is what makes it an electrolyte, and the
+ * whole reason tube 4 corrodes faster -- so drawing it as undissolved solid
+ * taught the opposite of the point. Nothing about the NaCl is visible; what
+ * is visible is what it does.
+ */
 function SaltCrystals({ visible }) {
-  const crystals = useMemo(
-    () =>
-      Array.from({ length: 10 }, (_, i) => {
-        const a = hashRandom(i * 4.3 + 31) * Math.PI * 2;
-        const r = hashRandom(i * 6.7 + 37) * (TUBE.radius - 0.2);
-        return { position: [Math.cos(a) * r, TUBE.radius * 0.45 + hashRandom(i * 8.1 + 41) * 0.08, Math.sin(a) * r], scale: 0.04 + hashRandom(i * 9.7 + 43) * 0.04, spin: hashRandom(i * 2.9 + 47) * Math.PI };
-      }),
-    [],
-  );
   if (!visible) return null;
   return (
-    <group>
-      {crystals.map((c, i) => (
-        <mesh key={i} position={c.position} scale={c.scale} rotation={[0, c.spin, 0]}>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color="#f8fafc" roughness={0.4} />
-        </mesh>
-      ))}
-    </group>
+    <SceneLabel position={[0, TUBE.radius * 0.5, TUBE.radius + 0.08]} tone="text-sky-300">
+      3% NaCl (aq) — dissolved
+    </SceneLabel>
   );
 }
 
@@ -343,6 +337,9 @@ function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
 
   const coupled = spec.key === "coupled";
   const P = PARTNERS[partner] ?? PARTNERS.zinc;
+  // `rate={0.5}` here ignored the anode's lifetime, so the hydrogen kept
+  // coming off a magnesium wrap that had been completely consumed.
+  const bubbleRate = coupled ? (modelRef.current?.result?.couple.bubbleRate ?? 0) : 0;
   // Electrons leave whichever metal is higher in the series.
   const toIron = P.potential < IRON_POTENTIAL_V;
   // World-space path for the electrons: between the wrap and the nail head.
@@ -369,8 +366,8 @@ function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
         <Nail tubeIndex={index} modelRef={modelRef} waterline={waterline} animSpeed={animSpeed}>
           {coupled && <Wrap modelRef={modelRef} partner={partner} animSpeed={animSpeed} />}
         </Nail>
-        {coupled && partner === "magnesium" && (
-          <BubbleColumn origin={[NAIL.radius + 0.12, NAIL_BASE_Y + NAIL.tip + 0.7, 0]} top={waterTop(depth) - 0.02} rate={0.5} spread={0.18} count={10} animSpeed={animSpeed} />
+        {coupled && bubbleRate > 0 && (
+          <BubbleColumn origin={[NAIL.radius + 0.12, NAIL_BASE_Y + NAIL.tip + 0.7, 0]} top={waterTop(depth) - 0.02} rate={bubbleRate} spread={0.18} count={10} animSpeed={animSpeed} />
         )}
       </TestTube>
 

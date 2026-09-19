@@ -575,9 +575,27 @@ describe("Sacrificial protection", () => {
   it("computes ΔE° from the two electrode potentials", () => {
     for (const [key, P] of Object.entries(PARTNERS)) {
       const c = solveCouple({ partner: key });
-      assert.ok(close(c.deltaE, IRON_POTENTIAL_V - P.potential, 1e-12));
+      assert.ok(close(c.deltaE, Math.abs(IRON_POTENTIAL_V - P.potential), 1e-12));
     }
     assert.equal(IRON_POTENTIAL_V, METALS.Fe.potential);
+  });
+
+  // B37: ΔE° is a cell potential, so it is a magnitude. It used to be the
+  // signed difference under the label "Driving voltage", and every consumer
+  // wrapped it in Math.abs -- which meant the sign was carried around and
+  // never read. Polarity lives in `direction`, `anode` and `cathode`.
+  it("reports ΔE° as a magnitude, with the polarity carried separately", () => {
+    for (const key of Object.keys(PARTNERS)) {
+      const c = solveCouple({ partner: key });
+      assert.ok(c.deltaE >= 0, `${key} gave a negative driving voltage: ${c.deltaE}`);
+      assert.ok(["partner_to_iron", "iron_to_partner"].includes(c.direction));
+      assert.notEqual(c.anode, c.cathode);
+    }
+    // Copper sits below iron, so the nail is the anode and the couple still
+    // has a real driving voltage -- it just drives the wrong way.
+    const cu = solveCouple({ partner: "copper" });
+    assert.ok(cu.deltaE > 0);
+    assert.equal(cu.anode, "Fe");
   });
 
   it("never lets the wrap go past exhausted", () => {
