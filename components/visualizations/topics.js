@@ -2772,14 +2772,11 @@ export const TOPICS = [
     title: "The Human Eye — Accommodation & Pupil Reflex",
     blurb: "Cutaway eyeball with live ray tracing, a deforming lens, and the iris reflex",
     syllabus: "Biology 2.4 · Coordination & Response",
-    // C28: "short sight" and "long sight" were in here, and the scene has no
-    // defect mode -- searching for either surfaced a topic that does not cover
-    // it. The blur machinery is real and models an object outside the eye's
-    // accommodation range, so "blurred vision" stays; myopia and hypermetropia
-    // are a feature to add, not a keyword to claim. lib/eyeOptics.js already
-    // has what it would need: a myopic eye is axialLength > n / P.
+    // C28 was resolved by trimming these, because the scene had no defect
+    // mode and the keywords promised one. It has one now, so they are back --
+    // and this time they are earned.
     keywords:
-      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision aqueous vitreous humour",
+      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight myopia long sight hypermetropia concave convex corrective lens spectacles aqueous vitreous humour",
     ownHud: true,
     // C26: the eye draws its own HUD (`ownHud`), but its controls belong in
     // the shared parameter state like every other topic's, so that switching
@@ -2801,6 +2798,8 @@ export const TOPICS = [
       showLabels: true,
       selectedPart: null,
       showRays: true,
+      refractiveErrorD: 0,
+      corrected: false,
     },
     controls: [],
     concepts: [

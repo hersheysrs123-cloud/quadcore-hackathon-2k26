@@ -1364,6 +1364,10 @@ const EYE_DEFAULTS = {
   showLabels: true,
   selectedPart: null,
   showRays: true,
+  /** Spectacle prescription, dioptres: −ve short sight, +ve long sight. */
+  refractiveErrorD: 0,
+  /** Whether the correcting lens is being worn. */
+  corrected: false,
 };
 
 export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
@@ -1429,6 +1433,10 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
   const setSelectedPart = setters.selectedPart;
   const showRays = pick("showRays");
   const setShowRays = setters.showRays;
+  const refractiveErrorD = pick("refractiveErrorD");
+  const setRefractiveErrorD = setters.refractiveErrorD;
+  const corrected = pick("corrected");
+  const setCorrected = setters.corrected;
   const [panelOpen, setPanelOpen] = useState(true);
 
   // Resizable panel width state (10% to 80% screen width)
@@ -1500,8 +1508,10 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
         lux,
         auto: autoAccommodate,
         manualAccommodation,
+        refractiveErrorD,
+        corrected,
       }),
-    [objectDistance, lux, autoAccommodate, manualAccommodation],
+    [objectDistance, lux, autoAccommodate, manualAccommodation, refractiveErrorD, corrected],
   );
 
   const toggleLayer = useCallback(
@@ -1524,6 +1534,8 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
     setShowLabels(true);
     setSelectedPart(null);
     setShowRays(true);
+    setRefractiveErrorD(0);
+    setCorrected(false);
   }, []);
 
   const demand = accommodationDemand(objectDistance);
@@ -1656,6 +1668,31 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
                   )}
                   <Toggle label="Out-of-focus preview" checked={showBlur} onChange={setShowBlur} />
                   <Toggle label="Show light rays" checked={showRays} onChange={setShowRays} />
+
+                  {/* Refractive error. The prescription convention: negative
+                      for short sight, positive for long sight. */}
+                  <div className="pt-1 border-t border-ink-800/60">
+                    <Slider
+                      label="Refractive error"
+                      value={refractiveErrorD}
+                      onChange={setRefractiveErrorD}
+                      min={-6}
+                      max={6}
+                      step={0.25}
+                      format={(v) =>
+                        Math.abs(v) < 0.16
+                          ? "0.00 D — emmetropic"
+                          : `${v > 0 ? "+" : ""}${v.toFixed(2)} D — ${v < 0 ? "short sight" : "long sight"}`
+                      }
+                    />
+                    {solved.defect.key !== "none" && (
+                      <Toggle
+                        label={`Wear the ${solved.defect.lens.split(" ")[0]} lens`}
+                        checked={corrected}
+                        onChange={setCorrected}
+                      />
+                    )}
+                  </div>
                   <div>
                     <p className="mb-1.5 text-[10px] uppercase tracking-wider text-ink-500">Ray visualiser</p>
                     <Choice
@@ -1806,6 +1843,22 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
                 value={`±${solved.depthOfFocus.toFixed(2)} D`}
                 tone="neutral"
               />
+              {solved.defect.key !== "none" && (
+                <>
+                  <Pill label="Refractive error" value={`${solved.refractiveErrorD > 0 ? "+" : ""}${solved.refractiveErrorD.toFixed(2)} D`} tone="active" />
+                  <Pill
+                    label="Correcting lens"
+                    value={solved.corrected ? `worn · ${solved.correctionD > 0 ? "+" : ""}${solved.correctionD.toFixed(2)} D` : `off · needs ${solved.defect.lens}`}
+                    tone={solved.corrected ? "good" : "active"}
+                  />
+                  <Pill
+                    label="Far point"
+                    value={Number.isFinite(solved.farPoint) ? `${solved.farPoint.toFixed(2)} m` : "infinity"}
+                    tone={Number.isFinite(solved.farPoint) ? "active" : "good"}
+                  />
+                  <Pill label="Near point" value={`${(solved.nearPoint * 100).toFixed(1)} cm`} tone="neutral" />
+                </>
+              )}
             </div>
 
             {mode === "pupil" && (
@@ -1817,11 +1870,15 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
 
             <p className="mt-3 rounded border border-ink-700 bg-ink-850 px-2 py-1.5 text-[10px] leading-relaxed text-ink-400">
               {mode === "accommodation"
-                ? solved.beyondNearPoint
-                  ? `Closer than the near point (${(1 / EYE.accommodationAmplitude) * 100} cm). The lens is already at maximum curvature and still cannot bend the light enough — this is why small print has to be held at arm's length as the lens stiffens with age.`
-                  : solved.inFocus
-                    ? "Sharp: the ciliary muscle is supplying exactly the accommodation this distance demands, so the rays cross precisely at the fovea."
-                    : `Blurred by ${solved.blurArcmin.toFixed(1)} arcmin. The focus lands ${Math.abs(solved.focusError * 1000).toFixed(2)} mm ${solved.focusError > 0 ? "behind" : "in front of"} the retina, so each object point paints a disc instead of a point.`
+                ? solved.beyondFarPoint
+                  ? `Further away than this eye's far point of ${solved.farPoint.toFixed(2)} m — ${solved.defect.cause}. Accommodation cannot help: the ciliary muscle only ever ADDS power, and this eye already has too much. It needs a ${solved.defect.lens} lens, which is what short sight is corrected with.`
+                  : solved.beyondNearPoint
+                    ? `Closer than this eye's near point of ${(solved.nearPoint * 100).toFixed(1)} cm. The lens is already at maximum curvature and still cannot bend the light enough${solved.defect.key === "hypermetropia" ? " — and a long-sighted eye spends part of its amplitude just reaching infinity, so its near point is pushed further out than the usual 10 cm" : " — this is why small print has to be held at arm's length as the lens stiffens with age"}.`
+                    : solved.inFocus
+                      ? solved.defect.key === "none" || solved.corrected
+                        ? "Sharp: the ciliary muscle is supplying exactly the accommodation this distance demands, so the rays cross precisely at the fovea."
+                        : `Sharp — but this eye is ${solved.refractiveErrorD > 0 ? "+" : ""}${solved.refractiveErrorD.toFixed(2)} D out, and it is holding ${solved.accommodation.toFixed(1)} D of accommodation to do it. ${solved.defect.key === "hypermetropia" ? "A long-sighted eye has to accommodate even for distant objects, which is why the strain is felt long before the blur is." : "Short sight is comfortable here because near work needs less power, not more."}`
+                      : `Blurred by ${solved.blurArcmin.toFixed(1)} arcmin. The focus lands ${Math.abs(solved.focusError * 1000).toFixed(2)} mm ${solved.focusError > 0 ? "behind" : "in front of"} the retina, so each object point paints a disc instead of a point.`
                 : mode === "pupil"
                   ? "The pupil is a coarse control: from starlight to direct sun the light changes by a factor of about 10⁸, and the reflex answers with barely a 14× change in area. Most adaptation is photochemical, in the receptors themselves."
                   : "Three coats, two fluid compartments and one adjustable lens, packed into 24 mm. Every number in this panel is measured off the same model the picture is drawn from."}
