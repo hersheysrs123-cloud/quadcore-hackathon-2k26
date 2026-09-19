@@ -21,6 +21,7 @@ import {
   SceneLabel,
   VectorArrow,
   WebGLCleanup,
+  hashRandom,
 } from "@/components/visualizations/scene-kit";
 import {
   Slider,
@@ -654,8 +655,11 @@ function AirwayParticleStream({ flowRate = 0, active = true }) {
     return Array.from({ length: particleCount }, (_, i) => ({
       u: i / particleCount,
       branch: i % 2 === 0 ? "left" : "right",
-      jitterX: (Math.random() - 0.5) * 0.07,
-      jitterZ: (Math.random() - 0.5) * 0.07,
+      // C35: deterministic, like the rest of the suite. Math.random() here
+      // was memoised, so it was stable within a mount -- but it made the
+      // scene irreproducible across mounts, and across screenshots.
+      jitterX: (hashRandom(i * 2.7 + 11) - 0.5) * 0.07,
+      jitterZ: (hashRandom(i * 3.9 + 29) - 0.5) * 0.07,
     }));
   }, [particleCount]);
 
