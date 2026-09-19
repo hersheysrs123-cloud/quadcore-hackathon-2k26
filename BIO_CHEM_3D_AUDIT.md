@@ -45,12 +45,18 @@ This is the biology/chemistry counterpart to `8bb971b` (*"fix(visualizations): c
 > components are gone), the shared engine is the only definition, and four CI
 > guardrails fail the build if a panel, a key or a test starts drifting again.
 >
-> **Two follow-ups remain, both features rather than defects:**
-> - Inert-graphite electrodes beside the copper purification cell (2.1's
->   richer form).
-> - A myopia/hypermetropia mode for the eye. `lib/eyeOptics.js` already has
->   what it needs: a myopic eye is `axialLength` > `n / P`, and the blur
->   machinery would work unchanged.
+> **Both follow-ups have since been built** (19 Sep 2026), so nothing from
+> this audit is outstanding:
+> - **Inert graphite electrodes** beside the copper purification cell — the
+>   anode oxidises water instead of dissolving, oxygen comes off, and the
+>   electrolyte depletes and fades. Sized as a 25 cm³ microscale cell so the
+>   fade is reachable in eight minutes rather than thirteen hours, which is
+>   the B41 lesson applied to a new feature. `e786cc4`
+> - **Short sight and long sight** for the eye, with correcting lenses. Built
+>   as refractive rather than axial ametropia, deliberately: the axial version
+>   moves the retina, and the retina is drawn — a panel describing a 23.4 mm
+>   globe over a scene drawing a 22.2 mm one would be this audit's own headline
+>   defect. `6063a0d`
 >
 > **One piece of deliberate debt:** three unit tests —
 > `physics-solvers`, `quiz-grading`, `timer-store` — each assert against a
