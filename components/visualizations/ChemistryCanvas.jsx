@@ -20,7 +20,7 @@ import {
 import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
-import { CELL_COLOURS } from "@/lib/electrolysis";
+import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
 import { solveVsepr } from "@/lib/vsepr";
 import { crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
@@ -1467,6 +1467,75 @@ function CopperIon({ position, scale = 0.26 }) {
   );
 }
 
+/**
+ * Oxygen coming off an INERT anode.
+ *
+ * Deliberately absent from the copper cell: a copper anode dissolves in
+ * preference to oxidising water, so nothing gases off there. Graphite cannot
+ * dissolve, so water is oxidised instead and this is what you see.
+ */
+function AnodeGasBubbles({ x, rate = 1, active = true, animSpeed = 1, count = 14 }) {
+  const refs = useRef([]);
+  const seeds = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        phase: hashRandom(i * 3.1 + 7),
+        radius: 0.035 + hashRandom(i * 5.3 + 13) * 0.045,
+        driftZ: (hashRandom(i * 7.7 + 19) - 0.5) * 0.5,
+        driftX: (hashRandom(i * 9.1 + 23) - 0.5) * 0.28,
+      })),
+    [count],
+  );
+  const clock = useRef(0);
+
+  useFrame((_, delta) => {
+    clock.current += Math.min(delta, 0.05) * animSpeed * (0.35 + rate * 0.5);
+    seeds.forEach((seed, i) => {
+      const el = refs.current[i];
+      if (!el) return;
+      if (!active) {
+        el.visible = false;
+        return;
+      }
+      const u = (clock.current + seed.phase) % 1;
+      el.visible = true;
+      el.position.set(x + seed.driftX * u, -TANK.h / 2 + u * (TANK.h - 0.2), seed.driftZ * u);
+      // Bubbles grow as the pressure drops on the way up, and fade at the surface.
+      const scale = 0.6 + u * 0.7;
+      el.scale.setScalar(scale);
+    });
+  });
+
+  return (
+    <group>
+      {seeds.map((seed, i) => (
+        <mesh
+          key={i}
+          ref={(el) => (refs.current[i] = el)}
+          // Placed up the anode from the start, so the very first frame -- and
+          // any environment where useFrame has not run yet -- shows a column
+          // of bubbles rather than a clump at the origin.
+          position={[
+            x + seed.driftX * seed.phase,
+            -TANK.h / 2 + seed.phase * (TANK.h - 0.2),
+            seed.driftZ * seed.phase,
+          ]}
+        >
+          <sphereGeometry args={[seed.radius, 10, 10]} />
+          <meshStandardMaterial
+            color={CELL_COLOURS.bubble}
+            emissive={CELL_COLOURS.bubble}
+            emissiveIntensity={0.35}
+            transparent
+            opacity={0.55}
+            roughness={0.1}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function Ions({ current, running, resetToken, onDeposit, onClock, animSpeed = 1 }) {
   const ions = useMemo(
     () =>
@@ -1601,8 +1670,33 @@ function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0 }) {
 // material, not drawn unconditionally.
 
 export function ElectrolysisScene({ params = {}, setParam }) {
-  const { current = 1.0, showLabels = true, run = true, reset = 0, speed = 1.0 } = params || {};
+  const {
+    current = 1.0,
+    electrode = "copper",
+    showLabels = true,
+    run = true,
+    reset = 0,
+    speed = 1.0,
+    liveSeconds = 0,
+  } = params || {};
   const [deposit, setDeposit] = useState(0);
+
+  // The electrode material decides the ANODE reaction, and everything the
+  // scene draws differently follows from that one fact: whether the anode
+  // wastes away, whether gas comes off it, and whether the blue survives.
+  const material = electrodeFor(electrode);
+  const cell = useMemo(
+    () => solveElectrolysis({ current, seconds: liveSeconds, running: run, electrode }),
+    [current, liveSeconds, run, electrode],
+  );
+
+  // Copper cell: the solution is never consumed, so it stays full blue.
+  // Inert cell: Cu²⁺ plates out with nothing to replace it, and what is left
+  // behind is sulfuric acid — so the blue drains away.
+  const solutionColour = useMemo(
+    () => new THREE.Color("#0284c7").lerp(new THREE.Color("#cbd5e1"), 1 - cell.blueFraction),
+    [cell.blueFraction],
+  );
   const pushedSeconds = useRef(-1);
 
   useEffect(() => {
@@ -1685,17 +1779,17 @@ export function ElectrolysisScene({ params = {}, setParam }) {
         </group>
       ))}
 
-      {/* Electrolyte solution (Blue CuSO₄ Solution) */}
+      {/* Electrolyte solution — blue CuSO₄, fading to acid on an inert anode */}
       <mesh>
         <boxGeometry args={[TANK.w, TANK.h, TANK.d]} />
         <meshStandardMaterial
-          color="#0284c7"
+          color={solutionColour}
           transparent
-          opacity={0.22}
+          opacity={0.1 + 0.12 * cell.blueFraction}
           depthWrite={false}
           roughness={0.04}
           emissive="#0ea5e9"
-          emissiveIntensity={0.15}
+          emissiveIntensity={0.15 * cell.blueFraction}
         />
       </mesh>
       <lineSegments>
@@ -1741,28 +1835,50 @@ export function ElectrolysisScene({ params = {}, setParam }) {
           ))}
       </group>
 
-      {/* Anode (+) on right, dissolving away with eroded pitting texture */}
+      {/* Anode (+) on the right. A copper one wastes away; a graphite one
+          cannot, which is the whole point of it. */}
       <mesh position={[TANK.w / 2 - 1, 0.45, 0]}>
-        <cylinderGeometry args={[anodeRadius, anodeRadius, TANK.h + 0.7, 24]} />
-        <meshStandardMaterial color={CELL_COLOURS.anode} emissive={PALETTE.gold} emissiveIntensity={0.35} metalness={0.75} roughness={0.45} />
+        <cylinderGeometry
+          args={
+            material.anodeDissolves
+              ? [anodeRadius, anodeRadius, TANK.h + 0.7, 24]
+              : [0.4, 0.4, TANK.h + 0.7, 24]
+          }
+        />
+        <meshStandardMaterial
+          color={material.anodeDissolves ? CELL_COLOURS.anode : CELL_COLOURS.graphite}
+          emissive={material.anodeDissolves ? PALETTE.gold : CELL_COLOURS.graphite}
+          emissiveIntensity={material.anodeDissolves ? 0.35 : 0.12}
+          metalness={material.anodeDissolves ? 0.75 : 0.15}
+          roughness={material.anodeDissolves ? 0.45 : 0.85}
+        />
       </mesh>
 
-      {/* No gas bubbles here, deliberately.
-          This is a COPPER anode in copper(II) sulfate. Copper dissolves in
-          preference to oxidising water, and Cu²⁺ discharges in preference to
-          H⁺, so neither electrode gives off a gas — which is exactly why the
-          anode thins as the cathode thickens. Bubbles belong to the inert
-          (graphite) version of this cell, and drawing them here contradicted
-          the scene's own "anode wastes away · Cu → Cu²⁺ + 2e⁻" label six
-          lines below. */}
+      {/* Oxygen off the inert anode: 2H₂O → O₂ + 4H⁺ + 4e⁻ */}
+      {cell.inert && (
+        <AnodeGasBubbles
+          x={TANK.w / 2 - 1}
+          rate={current}
+          active={run}
+          animSpeed={speed}
+        />
+      )}
+
+      {/* The copper cell has no gas at either electrode, deliberately.
+          Copper dissolves in preference to oxidising water, and Cu²⁺
+          discharges in preference to H⁺, so nothing bubbles — which is
+          exactly why the anode thins as the cathode thickens. Bubbles used to
+          be drawn here anyway, contradicting the scene's own "anode wastes
+          away · Cu → Cu²⁺ + 2e⁻" label. They belong to the graphite cell
+          above, where water really is the thing being oxidised. */}
 
       {showLabels && (
         <>
           <SceneLabel position={[-TANK.w / 2 + 1, TANK.h / 2 + 1.5, 0]} tone="text-sky-300">
-            cathode (−) · gains Cu · Cu²⁺ + 2e⁻ → Cu
+            {`cathode (−) · gains Cu · ${material.cathode}`}
           </SceneLabel>
           <SceneLabel position={[TANK.w / 2 - 1, TANK.h / 2 + 1.5, 0]} accent>
-            anode (+) · wastes away · Cu → Cu²⁺ + 2e⁻
+            {`anode (+) · ${material.anodeDissolves ? "wastes away" : "unchanged · gives O₂"} · ${material.anode}`}
           </SceneLabel>
         </>
       )}

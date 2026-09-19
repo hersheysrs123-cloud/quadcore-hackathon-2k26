@@ -1758,9 +1758,18 @@ export const TOPICS = [
     title: "Electrolysis Cell",
     blurb: "Cu²⁺ and SO₄²⁻ migrating to the electrodes",
     syllabus: "Chemistry 5 · Electrochemistry",
-    keywords: "electrolysis anode cathode cation anion electroplating copper sulfate oxidation reduction electrode",
-    defaults: { current: 1, showLabels: true, run: true, reset: 0 },
+    keywords: "electrolysis anode cathode cation anion electroplating copper sulfate oxidation reduction electrode inert graphite carbon oxygen half equation purification",
+    defaults: { current: 1, electrode: "copper", showLabels: true, run: true, reset: 0 },
     controls: [
+      {
+        type: "choice",
+        key: "electrode",
+        label: "Electrodes",
+        options: [
+          { value: "copper", label: "Copper" },
+          { value: "graphite", label: "Graphite (inert)" },
+        ],
+      },
       { type: "slider", key: "current", label: "Current", min: 0.2, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)} A` },
       { type: "toggle", key: "run", label: "Supply on" },
       { type: "toggle", key: "showLabels", label: "Show half-equations" },
@@ -1769,7 +1778,8 @@ export const TOPICS = [
     concepts: [
       "Electrolysis splits an ionic compound using electricity, and only works when the ions are free to move — molten or in solution.",
       "Positive ions (cations, e.g. Cu²⁺) move to the negative cathode and gain electrons — reduction. Negative ions move to the positive anode and lose electrons — oxidation.",
-      "With copper(II) sulfate and copper electrodes, copper dissolves from the anode and plates onto the cathode — the basis of electroplating and copper purification.",
+      "With copper(II) sulfate and COPPER electrodes, copper dissolves from the anode and plates onto the cathode. The copper is only moved from one electrode to the other, so the solution never fades — this is how copper is purified.",
+      "Swap in INERT graphite and the anode cannot dissolve, so water is oxidised instead: 2H₂O → O₂ + 4H⁺ + 4e⁻. Oxygen bubbles off, nothing replaces the copper leaving the solution, and the blue fades as it turns into sulfuric acid. The electrode material decides the anode reaction.",
     ],
     quiz: [
       {

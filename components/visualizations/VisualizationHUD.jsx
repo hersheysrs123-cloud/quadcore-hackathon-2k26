@@ -22,7 +22,7 @@ import { mediumColour } from "@/components/visualizations/media";
 import { ATOM_COLOURS, describeAtom } from "@/lib/atomicStructure";
 import { solveColumn } from "@/lib/distillation";
 import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
-import { CELL_COLOURS, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
+import { CELL_COLOURS, ELECTROLYTE, formatGasVolume, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
 import { DENATURE_TEMP, ENZYME_COLOURS, OPTIMUM_PH, OPTIMUM_TEMP, solveEnzyme } from "@/lib/enzymes";
 import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, PAIR_BONDS, describeHelix } from "@/lib/dna";
 import { WATER_COLOUR, solveOsmosis } from "@/lib/cellBiology";
@@ -2127,28 +2127,47 @@ function renderTopicDetailsReadout(topic, params) {
         current: num(params.current, 1.0),
         seconds: num(params.liveSeconds, 0),
         running: run,
+        electrode: params.electrode ?? "copper",
       });
 
       readout = {
         title: "Electrolysis of aqueous CuSO₄",
-        subtitle: "Copper electrodes · OIL RIG",
+        subtitle: `${cell.material.label} electrodes · OIL RIG`,
         rows: [
+          ["Electrodes", cell.material.label, cell.inert ? "sky" : "gold"],
           ["Supply", run ? `${cell.current.toFixed(1)} A` : "off", run ? "gold" : "bad"],
           ["Run time", formatRunTime(cell.seconds)],
           ["Charge passed", `${cell.chargeC.toFixed(0)} C · Q = It`, "gold"],
           ["Electrons", `${(cell.electronsMol * 1000).toFixed(2)} mmol · Q ÷ F`],
           ["Copper deposited", `${cell.depositMg.toFixed(1)} mg at the cathode`, cell.depositMg > 0 ? "good" : undefined],
-          ["Copper dissolved", `${cell.depositMg.toFixed(1)} mg from the anode`, cell.depositMg > 0 ? "bad" : undefined],
+          // The one row that differs: a copper anode loses exactly what the
+          // cathode gains; an inert one loses nothing and gives off oxygen.
+          cell.inert
+            ? ["Anode loss", "none — graphite is inert", "good"]
+            : ["Copper dissolved", `${cell.depositMg.toFixed(1)} mg from the anode`, cell.depositMg > 0 ? "bad" : undefined],
           ["Cathode (−)", `reduction · ${cell.cathode}`, "good"],
           ["Anode (+)", `oxidation · ${cell.anode}`, "bad"],
-          ["Electrolyte concentration", "unchanged — as much Cu²⁺ made as used"],
-          ["Gas given off", "none — both electrodes are copper", "good"],
+          ["Overall", cell.overall, "gold"],
+          cell.inert
+            ? [
+                "Electrolyte concentration",
+                cell.depleted
+                  ? `exhausted — every Cu²⁺ has plated out; what is left is H₂SO₄`
+                  : `${cell.remainingMolarity.toFixed(3)} mol/dm³ of ${ELECTROLYTE.molarity.toFixed(2)} — ${((1 - cell.blueFraction) * 100).toFixed(1)} % of the Cu²⁺ used, and the blue with it`,
+                cell.depleted ? "bad" : "warn",
+              ]
+            : ["Electrolyte concentration", "unchanged — as much Cu²⁺ made as used", "good"],
+          cell.inert
+            ? ["Gas given off", `oxygen at the anode · ${formatGasVolume(cell.oxygenCm3)} at RTP`, "sky"]
+            : ["Gas given off", "none — both electrodes are copper", "good"],
           ["Charge carried by", "ions in the solution, electrons in the wire"],
         ],
-        note: run
-          ? `Copper leaves the anode, crosses the solution as Cu²⁺ and plates onto the cathode, so the anode thins by exactly what the cathode gains — ${cell.depositMg.toFixed(1)} mg so far. Because the two happen at the same rate the solution never changes colour, and because both electrodes are copper neither gives off a gas. That is electroplating, and it is how copper is purified.`
-          : "The supply is off, so nothing migrates. Electrolysis needs both a potential difference and ions that are free to move — molten or in solution.",
-        noteTone: run ? "good" : "bad",
+        note: !run
+          ? "The supply is off, so nothing migrates. Electrolysis needs both a potential difference and ions that are free to move — molten or in solution."
+          : cell.inert
+            ? `Graphite cannot dissolve, so the anode has to oxidise something else — and it oxidises water: ${cell.anode}. Copper still plates onto the cathode (${cell.depositMg.toFixed(1)} mg so far), but nothing replaces the Cu²⁺ it takes out, so the concentration has fallen from ${ELECTROLYTE.molarity.toFixed(2)} to ${cell.remainingMolarity.toFixed(3)} mol/dm³ in this ${ELECTROLYTE.volumeCm3} cm³ cell, the blue drains away and what is left is sulfuric acid. ${formatGasVolume(cell.oxygenCm3)} of oxygen has come off, and the four electrons per O₂ against two per Cu is why there is exactly half as much gas as there is copper.`
+            : `Copper leaves the anode, crosses the solution as Cu²⁺ and plates onto the cathode, so the anode thins by exactly what the cathode gains — ${cell.depositMg.toFixed(1)} mg so far. Because the two happen at the same rate the solution never changes colour, and because both electrodes are copper neither gives off a gas. That is electroplating, and it is how copper is purified. Switch to graphite and the anode reaction changes completely.`,
+        noteTone: run ? (cell.inert ? "sky" : "good") : "bad",
       };
 
       legend = {
@@ -2157,10 +2176,16 @@ function renderTopicDetailsReadout(topic, params) {
           { color: CELL_COLOURS.cation, shape: "dot", label: "Cu²⁺ cation (hydrated)", note: "positive → travels to the negative cathode" },
           { color: CELL_COLOURS.sulfur, shape: "dot", label: "SO₄²⁻ anion (tetrahedral)", note: "negative → travels to the positive anode, but never discharges" },
           { color: CELL_COLOURS.electron, shape: "dot", label: "Electron", note: "only ever in the wire — never through the solution" },
-          // Both electrodes are copper, and both are drawn as copper. The key
-          // used to show a green cathode and a red anode.
-          { color: CELL_COLOURS.cathode, shape: "square", label: "Cathode (−)", note: "copper — thickens as it plates" },
-          { color: CELL_COLOURS.anode, shape: "square", label: "Anode (+)", note: "copper — thins as it dissolves" },
+          // The cathode is copper either way -- it is copper the moment the
+          // first Cu²⁺ discharges on it. The key used to show a green cathode
+          // and a red anode, neither of which the scene drew.
+          { color: CELL_COLOURS.cathode, shape: "square", label: "Cathode (−)", note: "thickens as copper plates onto it" },
+          cell.inert
+            ? { color: CELL_COLOURS.graphite, shape: "square", label: "Anode (+)", note: "graphite — inert, so it is not consumed" }
+            : { color: CELL_COLOURS.anode, shape: "square", label: "Anode (+)", note: "copper — thins as it dissolves" },
+          ...(cell.inert
+            ? [{ color: CELL_COLOURS.bubble, shape: "dot", label: "Oxygen bubble", note: "from the water: 2H₂O → O₂ + 4H⁺ + 4e⁻" }]
+            : []),
         ],
       };
       break;
