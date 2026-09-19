@@ -8,7 +8,6 @@ import {
   ExternalLink,
   Gauge,
   Info,
-  Layers,
   Maximize2,
   Minimize2,
   Pause,
@@ -271,421 +270,39 @@ function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
   );
 }
 
-// ─── Photorealistic Striated Intercostal Muscles (External & Internal) ──
-function PhotorealisticIntercostalMuscles({
-  expansion = 0,
-  extTension = 0,
-  intTension = 0,
-  muscleMode = "both",
-  showVectors = false,
-  cutaway = 0,
-  muscleTexture,
-}) {
-  // 11 Intercostal Spaces aligned with genuine CT skeleton ribcage coordinates
-  const ctSpaces = useMemo(() => [
-    { id: 1,  yTop: 2.99, yBot: 2.76, xSpan: 0.95, z: 0.38 },
-    { id: 2,  yTop: 2.76, yBot: 2.45, xSpan: 1.10, z: 0.35 },
-    { id: 3,  yTop: 2.45, yBot: 2.13, xSpan: 1.19, z: 0.30 },
-    { id: 4,  yTop: 2.13, yBot: 1.80, xSpan: 1.24, z: 0.23 },
-    { id: 5,  yTop: 1.80, yBot: 1.49, xSpan: 1.26, z: 0.15 },
-    { id: 6,  yTop: 1.49, yBot: 1.14, xSpan: 1.30, z: 0.11 },
-    { id: 7,  yTop: 1.14, yBot: 0.87, xSpan: 1.35, z: 0.05 },
-    { id: 8,  yTop: 0.87, yBot: 0.66, xSpan: 1.38, z: -0.02 },
-    { id: 9,  yTop: 0.66, yBot: 0.44, xSpan: 1.30, z: -0.07 },
-    { id: 10, yTop: 0.44, yBot: 0.16, xSpan: 1.14, z: -0.22 },
-    { id: 11, yTop: 0.16, yBot: 0.03, xSpan: 0.82, z: -0.42 },
-  ], []);
-
-  const lateralScale = 1 + expansion * 0.045;
-  const apElevation = expansion * 0.04;
-
-  const extColor = useMemo(() => {
-    return new THREE.Color(ANATOMICAL_PALETTE.relaxedMuscle).lerp(
-      new THREE.Color(ANATOMICAL_PALETTE.activeMuscle),
-      extTension
-    );
-  }, [extTension]);
-
-  const intColor = useMemo(() => {
-    return new THREE.Color(ANATOMICAL_PALETTE.relaxedMuscle).lerp(
-      new THREE.Color(ANATOMICAL_PALETTE.activeMuscle),
-      intTension
-    );
-  }, [intTension]);
-
-  const opacity = cutaway > 0.75 ? Math.max(0.2, 1 - (cutaway - 0.75) * 3.5) : 0.95;
-  const extRadius = 0.058 * (1 + extTension * 0.36);
-  const intRadius = 0.052 * (1 + intTension * 0.36);
-
-  const renderExternal = muscleMode === "both" || muscleMode === "external";
-  const renderInternal = muscleMode === "both" || muscleMode === "internal";
-
+// ─── Ribcage Kinematic Motion Arrows ──────────────────────────────────
+/**
+ * The three arrows describing how the ribcage itself moves.
+ *
+ * These used to live at the tail of PhotorealisticIntercostalMuscles, which
+ * drew 11 rib spaces x two oblique muscle layers -- every mesh carrying an
+ * inline material that read `expansion`, `extTension` and `intTension` as
+ * props. That geometry is gone; the arrows are not muscle, so they stayed.
+ *
+ * Bucket-handle and pump-handle motion are the two rib movements the topic
+ * teaches, and they are a property of the ribs, not of what pulls them.
+ */
+function RibcageKinematicVectors({ expansion = 0 }) {
   return (
     <group>
-      {ctSpaces.map((space) => {
-        const midY = (space.yTop + space.yBot) / 2 + apElevation;
-        const height = (space.yTop - space.yBot) * 1.08;
-        const rx = space.xSpan * lateralScale;
-        const z = space.z;
-
-        return (
-          <group key={space.id}>
-            {/* ── 1. External Intercostal Layer (+35° Oblique Downward & Forward) ── */}
-            {renderExternal && (
-              <group>
-                {/* Left Side (Anatomical Right / Negative X) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[-rx * 0.58, midY, z - 0.26]} rotation={[0.44, -0.36, 0.38]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[-rx * 0.82, midY, z - 0.1]} rotation={[0.42, -0.32, 0.36]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary (Lateral) */}
-                <mesh position={[-rx * 0.98, midY, z + 0.08]} rotation={[0.40, -0.28, 0.34]} castShadow>
-                  <cylinderGeometry args={[extRadius * 1.08, extRadius * 1.15, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[-rx * 0.90, midY, z + 0.28]} rotation={[0.38, -0.22, 0.30]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[-rx * 0.72, midY, z + 0.48]} rotation={[0.34, -0.16, 0.26]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[-rx * 0.48, midY, z + 0.65]} rotation={[0.30, -0.12, 0.22]} castShadow>
-                  <cylinderGeometry args={[extRadius * 0.95, extRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-
-                {/* Right Side (Anatomical Left / Positive X) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[rx * 0.58, midY, z - 0.26]} rotation={[0.44, 0.36, -0.38]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[rx * 0.82, midY, z - 0.1]} rotation={[0.42, 0.32, -0.36]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary (Lateral) */}
-                <mesh position={[rx * 0.98, midY, z + 0.08]} rotation={[0.40, 0.28, -0.34]} castShadow>
-                  <cylinderGeometry args={[extRadius * 1.08, extRadius * 1.15, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[rx * 0.90, midY, z + 0.28]} rotation={[0.38, 0.22, -0.30]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[rx * 0.72, midY, z + 0.48]} rotation={[0.34, 0.16, -0.26]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[rx * 0.48, midY, z + 0.65]} rotation={[0.30, 0.12, -0.22]} castShadow>
-                  <cylinderGeometry args={[extRadius * 0.95, extRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-              </group>
-            )}
-
-            {/* ── 2. Internal Intercostal Layer (-45° Oblique Downward & Backward) ── */}
-            {renderInternal && (
-              <group>
-                {/* Left Side (Anatomical Right / Negative X, Deep Layer) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[-rx * 0.54, midY, z - 0.24]} rotation={[-0.48, -0.32, -0.38]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[-rx * 0.78, midY, z - 0.08]} rotation={[-0.46, -0.28, -0.34]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary */}
-                <mesh position={[-rx * 0.92, midY, z + 0.08]} rotation={[-0.44, -0.24, -0.30]} castShadow>
-                  <cylinderGeometry args={[intRadius * 1.06, intRadius * 1.12, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[-rx * 0.84, midY, z + 0.28]} rotation={[-0.42, -0.20, -0.26]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[-rx * 0.66, midY, z + 0.48]} rotation={[-0.38, -0.16, -0.22]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[-rx * 0.44, midY, z + 0.65]} rotation={[-0.34, -0.12, -0.18]} castShadow>
-                  <cylinderGeometry args={[intRadius * 0.95, intRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-
-                {/* Right Side (Anatomical Left / Positive X, Deep Layer) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[rx * 0.54, midY, z - 0.24]} rotation={[-0.48, 0.32, 0.38]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[rx * 0.78, midY, z - 0.08]} rotation={[-0.46, 0.28, 0.34]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary */}
-                <mesh position={[rx * 0.92, midY, z + 0.08]} rotation={[-0.44, 0.24, 0.30]} castShadow>
-                  <cylinderGeometry args={[intRadius * 1.06, intRadius * 1.12, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[rx * 0.84, midY, z + 0.28]} rotation={[-0.42, 0.20, 0.26]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[rx * 0.66, midY, z + 0.48]} rotation={[-0.38, 0.16, 0.22]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[rx * 0.44, midY, z + 0.65]} rotation={[-0.34, 0.12, 0.18]} castShadow>
-                  <cylinderGeometry args={[intRadius * 0.95, intRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-              </group>
-            )}
-          </group>
-        );
-      })}
-
-      {/* 3D Kinematic Motion Arrows */}
-      {showVectors && (
-        <group>
-          <KinematicVector
-            from={[-1.4, 1.4, 0.1]}
-            to={[-1.4 - expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
-            color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-            label={expansion >= 0 ? "Ribcage Up & Out (Bucket-Handle)" : "Ribcage Recoil (Down & In)"}
-          />
-          <KinematicVector
-            from={[1.4, 1.4, 0.1]}
-            to={[1.4 + expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
-            color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-            label={expansion >= 0 ? "Transverse Thorax Expansion" : "Passive Elastic Recoil"}
-          />
-          <KinematicVector
-            from={[0, 1.8, 1.2]}
-            to={[0, 1.8 + expansion * 0.36, 1.2 + expansion * 0.34]}
-            color={PALETTE.gold}
-            label="Pump-Handle AP Elevation"
-          />
-        </group>
-      )}
+      <KinematicVector
+        from={[-1.4, 1.4, 0.1]}
+        to={[-1.4 - expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
+        color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
+        label={expansion >= 0 ? "Ribcage Up & Out (Bucket-Handle)" : "Ribcage Recoil (Down & In)"}
+      />
+      <KinematicVector
+        from={[1.4, 1.4, 0.1]}
+        to={[1.4 + expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
+        color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
+        label={expansion >= 0 ? "Transverse Thorax Expansion" : "Passive Elastic Recoil"}
+      />
+      <KinematicVector
+        from={[0, 1.8, 1.2]}
+        to={[0, 1.8 + expansion * 0.36, 1.2 + expansion * 0.34]}
+        color={PALETTE.gold}
+        label="Pump-Handle AP Elevation"
+      />
     </group>
   );
 }
@@ -1102,12 +719,6 @@ function AnatomicalLabels({ visible = true }) {
       <SceneLabel position={[0, 1.04, 1.25]}>
         Xiphoid Process
       </SceneLabel>
-      <SceneLabel position={[1.65, 1.62, 0.35]} accent>
-        External Intercostals (+35° Insp.)
-      </SceneLabel>
-      <SceneLabel position={[-1.65, 1.62, 0.35]} accent>
-        Internal Intercostals (-45° Exp.)
-      </SceneLabel>
       <SceneLabel position={[1.45, 0.85, 0.85]}>
         Right Lung (3 Lobes)
       </SceneLabel>
@@ -1277,8 +888,6 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [cutaway, setCutaway] = useState(0.25);
   const [showBones, setShowBones] = useState(true);
   const [showLungs, setShowLungs] = useState(true);
-  const [showMuscles, setShowMuscles] = useState(true);
-  const [muscleMode, setMuscleMode] = useState("both"); // "both" | "external" | "internal"
   const [showDiaphragm, setShowDiaphragm] = useState(true);
   const [showAirflow, setShowAirflow] = useState(true);
   const [showVectors, setShowVectors] = useState(true);
@@ -1452,18 +1061,8 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           </Suspense>
         )}
 
-        {/* 2. Photorealistic Striated Intercostal Muscles (External & Internal Layers) */}
-        {showMuscles && (
-          <PhotorealisticIntercostalMuscles
-            expansion={expansion}
-            extTension={extTension}
-            intTension={intTension}
-            muscleMode={muscleMode}
-            showVectors={showVectors}
-            cutaway={cutaway}
-            muscleTexture={muscleTexture}
-          />
-        )}
+        {/* 2. Ribcage kinematics (the intercostal geometry has been removed) */}
+        {showVectors && <RibcageKinematicVectors expansion={expansion} />}
 
         {/* 3. Sculpted Muscular Diaphragm Dome with Central Tendon & Hiatuses */}
         {showDiaphragm && (
@@ -1711,56 +1310,6 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                 checked={showDiaphragm}
                 onChange={setShowDiaphragm}
               />
-              <Toggle
-                label="Striated Intercostal Muscles"
-                checked={showMuscles}
-                onChange={setShowMuscles}
-              />
-
-              {/* Muscle Layer Selector */}
-              {showMuscles && (
-                <div className="pt-1 pb-0.5 px-0.5">
-                  <div className="text-[9px] font-semibold text-ink-400 mb-1">
-                    Intercostal Muscle Layer:
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => setMuscleMode("both")}
-                      className={`py-1 px-1 rounded text-center font-medium transition-all ${
-                        muscleMode === "both"
-                          ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
-                          : "bg-ink-900/60 text-ink-400 border border-ink-800 hover:bg-ink-850"
-                      }`}
-                    >
-                      Both Layers
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMuscleMode("external")}
-                      className={`py-1 px-1 rounded text-center font-medium transition-all ${
-                        muscleMode === "external"
-                          ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                          : "bg-ink-900/60 text-ink-400 border border-ink-800 hover:bg-ink-850"
-                      }`}
-                    >
-                      External (Insp)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMuscleMode("internal")}
-                      className={`py-1 px-1 rounded text-center font-medium transition-all ${
-                        muscleMode === "internal"
-                          ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
-                          : "bg-ink-900/60 text-ink-400 border border-ink-800 hover:bg-ink-850"
-                      }`}
-                    >
-                      Internal (Exp)
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="pt-1 border-t border-ink-800/60 space-y-1">
                 <Toggle
                   label="Airway Particle Vectors"
@@ -1907,7 +1456,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   </span>
                 </div>
                 <p className="text-ink-300 text-[11px] leading-relaxed">
-                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-duck-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm and intercostal muscles are 100% original SocraticOS code.
+                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-duck-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm is 100% original SocraticOS code.
                 </p>
               </div>
 

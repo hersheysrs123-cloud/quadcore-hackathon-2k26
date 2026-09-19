@@ -545,8 +545,32 @@ The animal cell's only tonicity response is a uniform scale. At `tonicity < −0
 > cell reads Flaccid at isotonic, bitumen never rises, VSEPR AX₄ reports
 > no compression).
 >
-> **Still open:** `C29-residual` and 2.1's richer form, both carried from
-> Phase 2. Phase 4 and Phase 5 untouched.
+> **Still open:** 2.1's richer form, carried from Phase 2 and now logged as a
+> feature request. Phase 4 and Phase 5 untouched.
+>
+> **C29-residual — reduced, not closed (19 Sep 2026).** On Harshith's
+> instruction the intercostal muscle geometry was removed outright:
+> `PhotorealisticIntercostalMuscles` drew 11 rib spaces x two oblique layers,
+> every mesh carrying an inline material that read `expansion`, `extTension`
+> and `intTension` as props. That was 485 lines and roughly 130 meshes, and it
+> was the bulk of what made the ref-mutation conversion a large job.
+>
+> `extTension` and `intTension` now have **no 3D consumers at all** — they feed
+> only the DOM gauges. The antagonistic pair survives as physiology: the gauges
+> still read `muscleStates()` from `lib/respiratory.js`, and the concept text is
+> unchanged. What is lost is the visual of the pair, which is a real cost and
+> was flagged before the cut.
+>
+> Removed with it, because they described geometry that is no longer drawn: the
+> two 3D anatomical labels, the "Striated Intercostal Muscles" visibility
+> toggle, the three-way muscle-layer selector, and a credits line claiming
+> original authorship of the muscle meshes. The three ribcage kinematic arrows
+> were **kept** — bucket-handle and pump-handle are rib motion, not muscle — and
+> lifted into a `RibcageKinematicVectors` component of their own.
+>
+> `expansion` still threads as a prop to the diaphragm, the lungs and the
+> skeleton, so the 10 Hz throttle is still doing real work and the conversion
+> is still unfinished. It is now a much smaller job than it was.
 
 
 **Goal:** make Phase 1 permanent. Until the readout is derived from the same code the scene runs, it will drift again.
