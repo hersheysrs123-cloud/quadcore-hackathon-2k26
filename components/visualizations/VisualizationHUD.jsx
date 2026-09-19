@@ -17,6 +17,8 @@ import {
   TrendingDown,
   X,
 } from "lucide-react";
+import { PALETTE } from "@/components/visualizations/scene-kit";
+import { mediumColour } from "@/components/visualizations/media";
 import { ATOM_COLOURS, describeAtom } from "@/lib/atomicStructure";
 import { solveColumn } from "@/lib/distillation";
 import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
@@ -1070,7 +1072,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#38bdf8", shape: "line", label: "Incident / Refracted / Emergent Ray", note: `${params.wavelength || 520} nm beam` },
           { color: "#fbbf24", shape: "line", label: "Reflected Ray", note: "Fresnel partial reflection / TIR" },
           { color: "#64748b", shape: "dash", label: "Normal Line", note: "Perpendicular (90°) boundary reference" },
-          { color: "#0ea5e9", shape: "square", label: "Optical Medium Block", note: `Refractive index n = ${n2.toFixed(2)}` },
+          { color: mediumColour(medium2), shape: "square", label: "Optical Medium Block", note: `Refractive index n = ${n2.toFixed(2)}` },
         ],
       };
       break;
@@ -1110,8 +1112,8 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#38bdf8", shape: "line", label: "First finger — Field B", note: "Magnetic flux lines (N → S)" },
           { color: "#fbbf24", shape: "line", label: "seCond finger — Current I", note: "Conventional current (+ to −)" },
           { color: "#34d399", shape: "line", label: "Thumb — Motion / Force F", note: "Resulting Lorentz force vector" },
-          { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Magnetic source pole" },
-          { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Magnetic sink pole" },
+          { color: PALETTE.rose, shape: "square", label: "North Pole (N)", note: "Magnetic source pole" },
+          { color: PALETTE.sky, shape: "square", label: "South Pole (S)", note: "Magnetic sink pole" },
         ],
       };
       break;
@@ -1222,10 +1224,10 @@ function renderTopicDetailsReadout(topic, params) {
               : "Passes undeviated through optical center",
           },
           ...(isMirror
-            ? [{ color: "#a855f7", shape: "line", label: "Ray 3 (Vertex Reflection)", note: "Reflects at equal angle from mirror pole" }]
-            : [{ color: "#a855f7", shape: "line", label: "Ray 3 (Focal Ray → Parallel)", note: "Passes through F, emerges parallel to axis" }]),
-          { color: real ? "#10b981" : "#f43f5e", shape: "square", label: "Formed Image Arrow", note: natureText || "Projected image" },
-          { color: "#f43f5e", shape: "dash", label: "Virtual Ray Extension", note: "Apparent ray back-projection behind surface" },
+            ? [{ color: PALETTE.violet, shape: "line", label: "Ray 3 (Vertex Reflection)", note: "Reflects at equal angle from mirror pole" }]
+            : [{ color: PALETTE.violet, shape: "line", label: "Ray 3 (Focal Ray → Parallel)", note: "Passes through F, emerges parallel to axis" }]),
+          { color: real ? PALETTE.emerald : PALETTE.rose, shape: "square", label: "Formed Image Arrow", note: natureText || "Projected image" },
+          { color: PALETTE.rose, shape: "dash", label: "Virtual Ray Extension", note: "Apparent ray back-projection behind surface" },
           { color: "#64748b", shape: "line", label: "Principal Axis", note: "Central horizontal optical reference" },
         ],
       };
@@ -1341,7 +1343,7 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Particle Kinetic Key",
         items: [
-          { color: "#ef4444", shape: "dot", label: "Hot Gas Particle", note: "High kinetic energy / speed" },
+          { color: PALETTE.rose, shape: "dot", label: "Hot Gas Particle", note: "High kinetic energy / speed" },
           { color: "#38bdf8", shape: "dot", label: "Cold Gas Particle", note: "Lower kinetic energy / speed" },
           { color: "#64748b", shape: "square", label: "Piston / Cylinder Wall", note: "Enclosed volume boundary" },
           { color: "#fbbf24", shape: "dot", label: "Wall Collision Impulses", note: "Transfers momentum to generate pressure" },
@@ -2209,10 +2211,10 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Electron domains key",
         items: [
-          { color: "#fbbf24", shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
-          { color: "#38bdf8", shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
-          { color: "#a78bfa", shape: "dot", label: "Lone pair", note: "repels harder — closes the angles" },
-          { color: "#64748b", shape: "line", label: "Bond", note: "a shared pair of electrons" },
+          { color: PALETTE.gold, shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
+          { color: PALETTE.sky, shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
+          { color: PALETTE.violet, shape: "dot", label: "Lone pair", note: "repels harder — closes the angles" },
+          { color: PALETTE.slate, shape: "line", label: "Bond", note: "a shared pair of electrons" },
         ],
       };
       break;
@@ -2262,10 +2264,10 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Energy profile key",
         items: [
-          { color: e.catalyst ? "#34d399" : "#fbbf24", shape: "line", label: "Reaction path", note: "potential energy along the reaction coordinate" },
-          ...(e.catalyst ? [{ color: "#64748b", shape: "dash", label: "Uncatalysed", note: "the barrier without the catalyst" }] : []),
-          { color: "#fb7185", shape: "line", label: "Ea", note: "reactants → transition state" },
-          { color: e.exothermic ? "#34d399" : "#a78bfa", shape: "line", label: "ΔH", note: "reactants → products" },
+          { color: e.catalyst ? PALETTE.emerald : PALETTE.gold, shape: "line", label: "Reaction path", note: "potential energy along the reaction coordinate" },
+          ...(e.catalyst ? [{ color: PALETTE.slate, shape: "dash", label: "Uncatalysed", note: "the barrier without the catalyst" }] : []),
+          { color: PALETTE.rose, shape: "line", label: "Ea", note: "reactants → transition state" },
+          { color: e.exothermic ? PALETTE.emerald : PALETTE.violet, shape: "line", label: "ΔH", note: "reactants → products" },
         ],
       };
       break;
@@ -2704,7 +2706,7 @@ function renderTopicDetailsReadout(topic, params) {
         title: "Decay Key",
         items: [
           { color: "#fbbf24", shape: "dot", label: `${M.parent.name} (parent)`, note: "undecayed — the same chance every second" },
-          { color: "#3b4658", shape: "dot", label: `${M.daughter.name} (daughter)`, note: "decayed — its nucleus has changed" },
+          { color: "#3f4652", shape: "dot", label: `${M.daughter.name} (daughter)`, note: "decayed — its nucleus has changed" },
           { color: PK.colour, shape: "dot", label: `${primary.display} ${primary.name}`, note: M.range },
           ...(M.emissions.length > 1 ? [{ color: PARTICLE_KINDS.neutrino.colour, shape: "dot", label: `${M.emissions[1].display} ${M.emissions[1].name}`, note: "no charge — through the plates, the barrier and the tube" }] : []),
           { color: "#a78bfa", shape: "dash", label: "N₀e^(−λt)", note: "the prediction the sample is judged against" },
@@ -3376,7 +3378,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#a3e635", shape: "square", label: "Stigma", note: v.key === "insect" ? "Sticky knob inside the flower" : "Feathery sieve held out in the air" },
           { color: "#c7e8a8", shape: "line", label: "Style", note: "The tube grows down its middle" },
           { color: "#86c96b", shape: "square", label: "Ovary (cut open) with ovules", note: "Stigma + style + ovary = carpel" },
-          { color: "#fef3c7", shape: "line", label: "Pollen tube", note: "Grows ~1.5 mm/h towards the micropyle" },
+          { color: "#fcd34d", shape: "line", label: "Pollen tube", note: "Grows ~1.5 mm/h towards the micropyle" },
           { color: "#38bdf8", shape: "dot", label: "Tube nucleus", note: "Leads the growing tip" },
           { color: "#a78bfa", shape: "dot", label: "Generative nucleus / polar nuclei", note: "Divides into 2 sperm · 2 polar nuclei await the second" },
           { color: "#fb7185", shape: "dot", label: "Sperm nuclei (n) / egg cell (n)", note: "Sperm + egg → zygote" },

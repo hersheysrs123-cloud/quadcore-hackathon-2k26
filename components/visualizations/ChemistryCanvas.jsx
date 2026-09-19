@@ -20,6 +20,7 @@ import {
 import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
+import { CELL_COLOURS } from "@/lib/electrolysis";
 import { solveVsepr } from "@/lib/vsepr";
 import { crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
@@ -1418,7 +1419,7 @@ function SulfateIon({ position, scale = 0.28 }) {
       {/* Central Sulfur Atom */}
       <mesh>
         <sphereGeometry args={[0.35, 16, 16]} />
-        <meshStandardMaterial color="#eab308" emissive="#ca8a04" emissiveIntensity={0.8} />
+        <meshStandardMaterial color={CELL_COLOURS.sulfur} emissive="#ca8a04" emissiveIntensity={0.8} />
       </mesh>
       {/* 4 Oxygen Atoms in Tetrahedral geometry */}
       {[
@@ -1430,7 +1431,7 @@ function SulfateIon({ position, scale = 0.28 }) {
         <group key={idx}>
           <mesh position={pos}>
             <sphereGeometry args={[0.22, 12, 12]} />
-            <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={0.6} />
+            <meshStandardMaterial color={CELL_COLOURS.oxygen} emissive="#dc2626" emissiveIntensity={0.6} />
           </mesh>
           <lineSegments>
             <bufferGeometry
@@ -1455,12 +1456,12 @@ function CopperIon({ position, scale = 0.26 }) {
     <group position={position} scale={scale}>
       <mesh>
         <sphereGeometry args={[0.38, 16, 16]} />
-        <meshStandardMaterial color="#0284c7" emissive="#38bdf8" emissiveIntensity={1.8} toneMapped={false} />
+        <meshStandardMaterial color="#0284c7" emissive={CELL_COLOURS.cation} emissiveIntensity={1.8} toneMapped={false} />
       </mesh>
       {/* Hydration halo ring */}
       <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
         <torusGeometry args={[0.55, 0.04, 12, 24]} />
-        <meshStandardMaterial color="#7dd3fc" emissive="#38bdf8" emissiveIntensity={1.2} transparent opacity={0.6} />
+        <meshStandardMaterial color="#7dd3fc" emissive={CELL_COLOURS.cation} emissiveIntensity={1.2} transparent opacity={0.6} />
       </mesh>
     </group>
   );
@@ -1720,7 +1721,7 @@ export function ElectrolysisScene({ params = {}, setParam }) {
       <group position={[-TANK.w / 2 + 1, 0.45, 0]}>
         <mesh>
           <cylinderGeometry args={[plating, plating, TANK.h + 0.7, 24]} />
-          <meshStandardMaterial color="#b45309" emissive="#b45309" emissiveIntensity={0.45} metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial color={CELL_COLOURS.cathode} emissive={CELL_COLOURS.cathode} emissiveIntensity={0.45} metalness={0.85} roughness={0.2} />
         </mesh>
         {/* Plated copper crystal nodule clusters */}
         {deposit > 0 &&
@@ -1743,7 +1744,7 @@ export function ElectrolysisScene({ params = {}, setParam }) {
       {/* Anode (+) on right, dissolving away with eroded pitting texture */}
       <mesh position={[TANK.w / 2 - 1, 0.45, 0]}>
         <cylinderGeometry args={[anodeRadius, anodeRadius, TANK.h + 0.7, 24]} />
-        <meshStandardMaterial color="#7c3f12" emissive={PALETTE.gold} emissiveIntensity={0.35} metalness={0.75} roughness={0.45} />
+        <meshStandardMaterial color={CELL_COLOURS.anode} emissive={PALETTE.gold} emissiveIntensity={0.35} metalness={0.75} roughness={0.45} />
       </mesh>
 
       {/* No gas bubbles here, deliberately.
