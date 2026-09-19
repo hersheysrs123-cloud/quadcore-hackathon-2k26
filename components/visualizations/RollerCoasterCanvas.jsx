@@ -5,15 +5,12 @@ import { useFrame } from "@react-three/fiber";
 import { Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  Activity,
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
   Gauge,
   Zap,
 } from "lucide-react";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
   clamp,
@@ -25,7 +22,6 @@ import {
   minimumReleaseHeight,
   minimumTopSpeed,
   positionAt,
-  sampleAt,
   startRun,
   stepRun,
 } from "@/lib/coasterEnergy";

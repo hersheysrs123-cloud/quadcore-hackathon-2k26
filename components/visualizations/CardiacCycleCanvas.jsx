@@ -9,7 +9,6 @@ import {
   SceneLabel,
   clamp,
   hashRandom,
-  lerp,
 } from "@/components/visualizations/scene-kit";
 import { StageCaption, StageCycleDriver } from "@/components/visualizations/stage-stepper";
 import {

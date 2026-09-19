@@ -8,12 +8,9 @@ import {
   ChevronDown,
   ChevronRight,
   Gauge,
-  Layers,
   Scale,
-  Zap,
 } from "lucide-react";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
   clamp,
@@ -26,7 +23,6 @@ import {
   isLever,
   leverLayout,
   solveMachine,
-  supportingRopes,
 } from "@/lib/simpleMachines";
 
 // ─── Simple machines & mechanical advantage ─────────────────────────

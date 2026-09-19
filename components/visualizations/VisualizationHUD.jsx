@@ -34,7 +34,6 @@ import {
   FAILURE_EXTENSION,
   elasticLimitForce,
   failureForce,
-  loadCurve,
   loadForce,
   loadingExtension,
   permanentSet,

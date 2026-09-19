@@ -18,7 +18,7 @@ import { STRUCTURE_META } from "@/components/visualizations/topic-options";
 import { OPTIMUM_PH, OPTIMUM_TEMP, enzymeRate, solveEnzyme } from "@/lib/enzymes";
 import { BASE_COLOURS, BACKBONE_COLOURS, COMPLEMENT, PAIR_BONDS, sequenceFor } from "@/lib/dna";
 import { CRENATION_AT, LYSIS_BELOW, organelleFor, solveOsmosis } from "@/lib/cellBiology";
-import { DENATURE_END, solveFolding } from "@/lib/proteinFolding";
+import { solveFolding } from "@/lib/proteinFolding";
 import {
   BilayerPatch,
   CellWall,

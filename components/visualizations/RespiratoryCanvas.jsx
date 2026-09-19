@@ -4,25 +4,16 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  Activity,
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
   ChevronRight,
   ExternalLink,
-  Eye,
   Gauge,
   Info,
   Layers,
-  Lightbulb,
   Maximize2,
   Minimize2,
   Pause,
   Play,
-  RotateCcw,
-  SlidersHorizontal,
   Sparkles,
-  Wind,
   X,
 } from "lucide-react";
 import {
@@ -33,10 +24,7 @@ import {
   WebGLCleanup,
 } from "@/components/visualizations/scene-kit";
 import {
-  HudButton,
-  HudPanel,
   Slider,
-  Stat,
   Toggle,
   ViewportHint,
 } from "@/components/visualizations/VisualizationHUD";

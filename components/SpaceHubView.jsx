@@ -15,10 +15,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
-  Info,
   Shield,
   Palette,
-  ExternalLink,
   ChevronDown,
   Pencil,
 } from "lucide-react";
@@ -26,12 +24,10 @@ import { SPACE_ICON_OPTIONS } from "@/lib/constants";
 import {
   getSpaceDocuments,
   addSpaceDocument,
-  updateSpaceDocument,
   deleteSpaceDocument,
   toggleSpaceDocumentActive,
   getSpaceSettings,
   saveSpaceSettings,
-  getActiveSyllabusForSpace,
   extractSyllabusTextFromFile,
 } from "@/lib/storageService";
 

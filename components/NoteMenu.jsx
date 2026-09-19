@@ -10,7 +10,6 @@ import {
   Copy,
   Edit3,
   FolderInput,
-  ExternalLink,
   BarChart2,
   ArrowRightLeft,
   ArrowLeftRight,

@@ -20,8 +20,8 @@ import {
 import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
-import { IDEAL_ANGLE, SHAPES, solveVsepr } from "@/lib/vsepr";
-import { ORGANIC_COLOURS, crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
+import { solveVsepr } from "@/lib/vsepr";
+import { crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
 import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";

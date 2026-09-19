@@ -5,7 +5,6 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
   clamp,
