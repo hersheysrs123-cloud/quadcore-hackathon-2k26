@@ -16,7 +16,7 @@
 node --test tests/e2e_caret_navigation.test.js
 ```
 
-### 2. Execute Full Project Test Suite (All 266+ Tests)
+### 2. Execute Full Project Test Suite (about 1,990 tests at last count)
 ```bash
 npm test
 ```

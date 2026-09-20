@@ -18,7 +18,7 @@
 
 ## Test Architecture
 - **Test Runner**: Node.js Native Test Runner (`node --test tests/e2e_caret_navigation.test.js`)
-- **Execution Command**: `npm test` runs full suite (all existing 184+ tests across 22 files plus new E2E test suite).
+- **Execution Command**: `npm test` runs the full suite (about 1,990 tests across 90+ files at last count, including this E2E suite).
 - **Test File Location**: `tests/e2e_caret_navigation.test.js`
 
 ## Coverage Thresholds
