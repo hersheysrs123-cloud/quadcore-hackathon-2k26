@@ -8,6 +8,7 @@ quadcore-hackathon-2k26/
 │   ├── aiService.js                      # Isomorphic client-side AI service coordinating Gemini API & user keys
 │   ├── backup.js                         # .socratic JSON workspace & space backup packager with folder/bookmark support
 │   ├── blocks.js                         # Text extractors, concept mappers & slash-menu relevance ranking (`rankSlashItems`)
+│   ├── buoyancy.js                       # PURE PHYSICS: Archimedes' principle, material vs envelope volume, fluid densities, waterline integration, hull displacement & apparent weight
 │   ├── constants.js                      # Default SPACES definition (School, Personal, Misc, Journal)
 │   ├── db.js                             # Dexie.js IndexedDB schema v8 (12 stores), auto-seeding & graphics detection
 │   ├── demoNotes.js                      # 7 comprehensive seeded notes across all 4 spaces with full 19-block suites
@@ -59,7 +60,7 @@ quadcore-hackathon-2k26/
 │   ├── carriers.js                       # PURE PHYSICS: charge-carrier drift paths for the circuit and static scenes
 │   ├── electrostatics.js                 # PURE PHYSICS: triboelectric transfer, Coulomb force, induction, humidity leakage
 │   ├── heatTransfer.js                   # PURE PHYSICS: conduction, convection and radiation
-│   ├── shadowSolids.js                   # Shadow-lab shape library (17 shapes) and solid builders
+│   ├── shadowSolids.js                   # Shadow-lab shape library (20 shapes) and solid builders
 │   ├── gemini.js                         # Direct REST Gemini client with structured outputs & usage tracking
 │   ├── mastery.js                        # Mastery status vocabulary (Solid ● / Shaky ◐ / Gap ○) & rollup algorithms
 │   ├── mathUtils.js                      # LaTeX delimiter parsing & regex segmentation for MathText
