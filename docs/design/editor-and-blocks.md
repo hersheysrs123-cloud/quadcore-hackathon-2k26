@@ -8,7 +8,7 @@
   - **Cover Banners**: Spans **100% full horizontal width** (`w-full h-44 md:h-52`) across the top of the Notes tab. Presets include *Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, and *Socratic Gold*. Hovering the banner reveals `[ 🖼️ Change Cover ]` pill in the top-right.
   - **Note Icon**: Large `text-5xl` emoji above title; clicking triggers the emoji selector, while hovering allows changing or removing the icon.
 
-- **19 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Table Grid Block, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Canvas Whiteboard.
+- **20 Block Types**: Text, Headings (H1–H4), Bullet List, Numbered List, To-Do List, Toggle List, Callout Box, Columns Block, Table Grid Block, Quote, LaTeX Math Equation, Inline Math (`inlinemath`), Divider, Site Bookmark Embed, Media Embed, Code Snippet, and Nested Sub-Page (`page`).
 - **Full Width & Standard Layout Variants**:
   - Standard Reading Column (Default): `max-w-3xl px-10 mx-auto`.
   - Full Width Viewport: `w-full max-w-none px-6 md:px-12 mx-auto`.
