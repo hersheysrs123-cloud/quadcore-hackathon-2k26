@@ -31,7 +31,7 @@
   - **Focus engine**: `page` joins the standalone-embed set (`["divider","site","media","page"]`) — `focusBlock` focuses `#page_<blockId>`, so `ArrowUp` from the block below, `ArrowDown` from the title, and `Backspace` at the start of the next block land on the card.
 
 - **Universal Cross-Block Focus Engine & Natural Arrow Navigation (`focusBlock`)**:
-  - Centralized `focusBlock(targetBlock, position = "start" | "end")` dispatcher ensuring deterministic focus and caret placement across all 19 block types.
+  - Centralized `focusBlock(targetBlock, position = "start" | "end")` dispatcher ensuring deterministic focus and caret placement across all 20 block types.
   - **Ref Registration Protection**: `EditorBlock` guards ref registration with `if (registerRef && contentRef.current)`, preventing child refs (e.g. `CodeBlock`'s `textareaRef`) from being overwritten by `null`.
   - **Bidirectional Vertical Traversal (`handleExitDown` / `handleExitUp`)**: Moving downward smoothly places caret at the logical start of any block (including `MathBlock`, `ColumnsBlock`, and embed cards). Moving upward lands at the true end of the previous block (bottom-right cell of `TableBlock`, end of snippet in `CodeBlock`, last column content in `ColumnsBlock`).
   - **Seamless Horizontal Transitions (`ArrowRight` at block end)**: Steps seamlessly from text blocks into complex and embed blocks without trapping the cursor.
