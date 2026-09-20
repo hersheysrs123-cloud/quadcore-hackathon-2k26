@@ -30,16 +30,16 @@ SocraticOS operates entirely local-first using **Dexie.js** (IndexedDB database 
    - *Fields*: `id`, `title`, `time` (24h "HH:MM"), `days` (Array of weekday numbers 0-6), `enabled`, `sound`, `createdAt`, `updatedAt`
 8. `settings`: Key-value application settings.
    - *Index*: `key, value`
-   - *Keys*: `apiKey`, `gfx_graphicsPreset`, `gfx_targetFps`, `gfx_pixelRatio`, `gfx_enableShadows`, `gfx_enableAntialias`, `gfx_autoPauseHidden`, `editor_click_to_append`, `space_switcher_layout`, `socratic_syllabus_statement`, `socratic_syllabus_enabled`, `socratic_theme`
+   - *Keys*: `gemini_api_key`, `gfx_graphicsPreset`, `gfx_targetFps`, `gfx_pixelRatio`, `gfx_enableShadows`, `gfx_enableAntialias`, `gfx_autoPauseHidden`, `editor_click_to_append`, `space_switcher_layout`, `socratic_syllabus_statement`, `socratic_syllabus_enabled` (`socratic_theme` is stored in `localStorage`)
 9. `quizzes`: Saved exam and quiz objects.
    - *Index*: `id, spaceId, noteId, title, difficulty, status, createdAt, updatedAt`
-   - *Fields*: `id`, `spaceId`, `noteId`, `noteIds` (Array of string note IDs), `title`, `difficulty`, `questions` (Array of 7 question objects), `status` ("in_progress" | "completed"), `draftAnswers` (Object map of answer states), `draftIndex` (Integer current question index), `score`, `diagnostic`, `createdAt`, `updatedAt`
+   - *Fields*: `id`, `spaceId`, `noteId`, `noteIds` (Array of string note IDs), `title`, `difficulty`, `questions` (Array of question objects across 7 question types), `status` ("pending" | "in_progress" | "completed"), `result` (`{ score, summary, heatmap, gradedAnswers, completedAt }`), `draftAnswers` (Object map of answer states), `draftIndex` (Integer current question index), `createdAt`, `updatedAt`
 10. `quizTrash`: Soft-deleted quizzes pending 24-hour auto-purge.
     - *Index*: `id, deletedAt`
     - *Fields*: Complete quiz document + `deletedAt` ISO timestamp
 11. `spaceDocuments`: Per-space uploaded syllabus and curriculum documents for AI feeding.
     - *Index*: `id, spaceId, name, active, createdAt, updatedAt`
-    - *Fields*: `id`, `spaceId`, `name`, `content`, `size`, `type`, `active` (boolean toggle), `createdAt`, `updatedAt`
+    - *Fields*: `id`, `spaceId`, `name`, `text`, `size`, `active` (boolean toggle), `createdAt`, `updatedAt`
 12. `spaceSettings`: Per-space Space Hub settings (added in v7).
     - *Index*: `spaceId, updatedAt`
     - *Fields*: `spaceId`, `academicLevel`, `aiPersona`, `strictness`, `icon` and `blurb` (custom space emoji and tagline), `updatedAt`
