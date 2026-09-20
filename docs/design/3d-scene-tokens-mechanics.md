@@ -27,7 +27,7 @@
 17. **3D Archimedes Buoyancy Vessel & Apparatus Design Tokens (`BuoyancyCanvas.jsx`, `lib/buoyancy.js`)**:
     - **Luminous Laboratory Lighting**: Ambient intensity elevated to 0.88, directional key light elevated to 1.45 (`#ffffff`), banishing dark muddy shadows across materials and liquid transmission.
     - **Laboratory Workbench Base & Satin Gantry**: Elevated laboratory table base (`#64748b` rounded slab with `#e2e8f0` brushed aluminum surface inlay), unified with Simple Machines. Vertical upright columns and overhead crosshead beam in bright satin anodized aluminum (`#94a3b8`, metalness 0.8, roughness 0.25).
-    - **Crystalline Acrylic Overflow Tank & Cylinder**: Five-panel transparent acrylic tank ($34\text{ cm} \times 20\text{ cm} \times 24\text{ cm}$, `#b8c9dc` at reduced opacity 0.13 with transmission 0.78 and roughness 0.10) elevated on workbench base, with angled overflow spout positioned at water height ($18\text{ cm}$) aligned with catch cylinder ($x = 3.8$). Cylinder foot lightened to `#94a3b8` with pure white graduation ticks (`#f1f5f9`).
+    - **Crystalline Acrylic Overflow Tank & Cylinder**: Five-panel transparent acrylic tank ($40\text{ cm} \times 24\text{ cm} \times 27\text{ cm}$, `#b8c9dc` at reduced opacity 0.13 with transmission 0.78 and roughness 0.04) elevated on workbench base, with angled overflow spout positioned at water height ($20\text{ cm}$) aligned with catch cylinder ($x = 4.0$). Cylinder foot lightened to `#94a3b8` with pure white graduation ticks (`#f1f5f9`).
     - **Bright Spring Scale Assembly**: Anodized aluminum casing (`#64748b`), pure white dial face plate (`#f8fafc`), light stem (`#cbd5e1`), polished chrome suspension hook (`#f1f5f9`), and white suspension cord (`#f1f5f9`).
     - **Light Modern Marine Craft (`RealisticBoat`)**:
       - Lofted outer hull with tapered bow cutwater stem, flared deadrise topsides, curved sheer line, flat transom stern, and centerline keel skeg (`colour` material finish with metalness 0.6, roughness 0.35).
@@ -37,8 +37,8 @@
       - Titanium marine slate transverse bilge ribs (`#5b6b80`) crossing the cockpit floor.
       - Flooded/swamped state rendering an internal fluid volume matching fluid refraction, colour, and surface level.
     - **Radiant Fluid & Solid Color Palette**:
-      - Fluids: Air (`#cbd5e1`), Gasoline (bright solar yellow `#fef08a`, opacity 0.30), Freshwater (luminous clear sky `#38bdf8`, opacity 0.38), Saltwater (vibrant luminous turquoise `#5eead4`, opacity 0.42), Honey (golden radiant amber `#fbbf24`, opacity 0.58), Mercury (liquid silver `#e2e8f0`, roughness 0.15).
-      - Solids: Oak Wood (blonde grain `#d4a373`), Ice (glowing glacial crystal `#e0f2fe`, opacity 0.88), Aluminium (bright billet `#e2e8f0`), Steel (bright stainless steel `#b8c5d6`), Gold (24k yellow gold `#fde047`).
+      - Fluids: Air (`#cbd5e1`), Gasoline (bright solar yellow `#fef08a`, opacity 0.42), Freshwater (luminous clear sky `#38bdf8`, opacity 0.38), Saltwater (vibrant luminous turquoise `#5eead4`, opacity 0.42), Honey (golden radiant amber `#fbbf24`, opacity 0.58), Mercury (liquid silver `#dbe4ee`, roughness 0.1).
+      - Solids: Oak Wood (blonde grain `#d4a373`), Ice (glowing glacial crystal `#7fb4ff`), Aluminium (bright billet `#e2e8f0`), Steel (bright stainless steel `#b8c5d6`), Gold (24k yellow gold `#fde047`).
     - **Directional Overflow Spout Stream**: Discrete fluid droplets (`sphereGeometry` $r=0.075$) with fluid opacity 0.85 animating downward along a parabolic trajectory from spout to cylinder solely during positive volume accumulation (`targetML - shownML > 0.6`), instantly dormant when volume is lowered.
 
 24. **3D Incline Plane & Friction Laboratory Apparatus Design Tokens (`InclineFrictionCanvas.jsx`)**:
