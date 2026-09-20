@@ -801,7 +801,7 @@ function SettingsModal({
                   <div className="space-y-0.5 pr-2">
                     <p className="text-sm font-semibold text-ink-100">Take the SocraticOS Onboarding Tour</p>
                     <p className="text-xs text-ink-300">
-                      Explore all 19 editor blocks, Quizzes Studio, Space Hub syllabus, 27 3D simulations, multi-timer HUD, and power shortcuts.
+                      Explore all 19 editor blocks, Quizzes Studio, Space Hub syllabus, 50+ 3D simulations, multi-timer HUD, and power shortcuts.
                     </p>
                   </div>
                   <button
