@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -16,7 +16,6 @@ import {
   ROD_LENGTH,
   ROD_MATERIALS,
   TIME_LAPSE,
-  WATER_TIME_CONSTANT,
   WAX_MELTING_C,
   absorbedPower,
   flameColour,
@@ -26,12 +25,13 @@ import {
   irradianceAt,
   mixHex,
   nodeTimeConstant,
+  SHINY_EMISSIVITY,
   plateEquilibrium,
   plateTimeConstant,
   radiatedPower,
   relax,
   steadyExcessFraction,
-  waterAsymptote,
+  stepWaterMean,
   waterFrom,
 } from "@/lib/heatTransfer";
 
@@ -128,6 +128,7 @@ function createModel() {
     waterMean: AMBIENT_C,
     water: waterFrom(AMBIENT_C, 0),
     plateC: AMBIENT_C,
+    shinyC: AMBIENT_C,
     flame: { lit: false, temperatureC: AMBIENT_C, colour: flameColour(0), height: 0 },
     radiated: 0,
     irradiance: 0,
@@ -159,7 +160,7 @@ function ThermalDriver({ modelRef, intensity, onSample, animSpeed = 1 }) {
 
     // Water: one first-order lag toward wherever this flame would take it,
     // capped at the boil by `waterFrom`.
-    m.waterMean = relax(m.waterMean, waterAsymptote(intensity), WATER_TIME_CONSTANT, dt);
+    m.waterMean = stepWaterMean(m.waterMean, intensity, dt);
     m.water = waterFrom(m.waterMean, intensity);
 
     // Rods: every node chases its own steady value with its own time
@@ -182,6 +183,15 @@ function ThermalDriver({ modelRef, intensity, onSample, animSpeed = 1 }) {
     // The plate, warmed by radiation alone.
     const plateTarget = plateEquilibrium(intensity);
     m.plateC = relax(m.plateC, plateTarget, plateTimeConstant(Math.max(plateTarget, AMBIENT_C)), dt);
+    // Its silvered twin: same flame, same distance, a surface that reflects
+    // nearly everything that reaches it.
+    const shinyTarget = plateEquilibrium(intensity, undefined, undefined, SHINY_EMISSIVITY);
+    m.shinyC = relax(
+      m.shinyC,
+      shinyTarget,
+      plateTimeConstant(Math.max(shinyTarget, AMBIENT_C), SHINY_EMISSIVITY),
+      dt,
+    );
 
     const lit = flameIsLit(intensity);
     m.flame.lit = lit;
@@ -194,7 +204,7 @@ function ThermalDriver({ modelRef, intensity, onSample, animSpeed = 1 }) {
 
     // Ceiling for the false-colour ramp. Eased rather than snapped, so the
     // whole image does not re-key every time one probe ticks over.
-    const peak = Math.max(m.water.bottom, m.rods.copper.tipC, m.plateC, AMBIENT_C + 20);
+    const peak = Math.max(m.water.bottom, m.rods.copper.tipC, m.plateC, m.shinyC, AMBIENT_C + 20);
     m.hottestC += (peak - m.hottestC) * Math.min(dt * 1.5, 1);
 
     since.current += delta;
@@ -207,6 +217,7 @@ function ThermalDriver({ modelRef, intensity, onSample, animSpeed = 1 }) {
         speed: m.water.speed,
         boiling: m.water.boiling,
         plateC: m.plateC,
+        shinyC: m.shinyC,
         hottestC: m.hottestC,
         tips: Object.fromEntries(ROD_LAYOUT.map(({ key }) => [key, m.rods[key].tipC])),
       });
@@ -218,17 +229,254 @@ function ThermalDriver({ modelRef, intensity, onSample, animSpeed = 1 }) {
 
 // ─── Bench, burner and flame ────────────────────────────────────────
 
-function Bench() {
+// ─── The lab ────────────────────────────────────────────────────────
+
+/**
+ * The room behind the bench: a light wall, a floor, a shelf of reagent bottles
+ * (one of them the potassium permanganate the dye comes from), and a clock.
+ *
+ * The clock is there for a reason. The scene runs at TIME_LAPSE times real
+ * speed, and a caption saying so is easy to skim past; a clock whose hands
+ * visibly race, and whose reading is the REAL elapsed time the apparatus would
+ * have needed, makes the point without a word.
+ */
+const WALL_Z = -3.4;
+const FLOOR_Y = -3.3;
+
+function Room({ modelRef }) {
+  const minute = useRef(null);
+  const second = useRef(null);
+
+  useFrame(() => {
+    const s = modelRef.current.seconds * TIME_LAPSE;
+    if (second.current) second.current.rotation.z = -((s % 60) / 60) * Math.PI * 2;
+    if (minute.current) minute.current.rotation.z = -(s / 3600) * Math.PI * 2;
+  });
+
+  const bottles = [
+    { x: -7.3, colour: "#f9a8d4", height: 0.78 },
+    { x: -6.55, colour: "#a7f3d0", height: 0.62 },
+    { x: -5.8, colour: "#c4b5fd", height: 0.72, label: "KMnO₄" },
+    { x: -5.05, colour: "#fde68a", height: 0.66 },
+  ];
+
   return (
     <group>
-      <mesh position={[0, BENCH_Y - 0.16, 0]} receiveShadow>
-        <boxGeometry args={[15, 0.32, 5.4]} />
-        <meshStandardMaterial color="#8c9cb3" roughness={0.75} metalness={0.2} />
+      {/* Back wall, skirting and floor. */}
+      <mesh position={[0, 2.2, WALL_Z]}>
+        <planeGeometry args={[40, 11]} />
+        <meshStandardMaterial color="#c3cee0" roughness={0.95} />
       </mesh>
-      <mesh position={[0, BENCH_Y - 0.34, -2.6]}>
-        <boxGeometry args={[15, 0.1, 0.2]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.7} />
+      <mesh position={[0, FLOOR_Y + 0.14, WALL_Z + 0.04]}>
+        <boxGeometry args={[40, 0.28, 0.08]} />
+        <meshStandardMaterial color="#9eabbf" roughness={0.8} />
       </mesh>
+      <mesh position={[0, FLOOR_Y, WALL_Z + 8]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[40, 16]} />
+        <meshStandardMaterial color="#a2afc4" roughness={0.9} />
+      </mesh>
+
+      {/* Shelf and bottles. */}
+      <mesh position={[-6.2, 2.75, WALL_Z + 0.32]}>
+        <boxGeometry args={[3.6, 0.09, 0.62]} />
+        <meshStandardMaterial color="#d9c3a3" roughness={0.7} />
+      </mesh>
+      {[-7.7, -4.7].map((x) => (
+        <mesh key={x} position={[x, 2.6, WALL_Z + 0.32]}>
+          <boxGeometry args={[0.07, 0.3, 0.55]} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.4} />
+        </mesh>
+      ))}
+      {bottles.map((b) => (
+        <group key={b.x} position={[b.x, 2.8 + b.height / 2, WALL_Z + 0.32]}>
+          <mesh>
+            <cylinderGeometry args={[0.27, 0.27, b.height, 18]} />
+            <meshStandardMaterial color={b.colour} transparent opacity={0.85} roughness={0.2} />
+          </mesh>
+          <mesh position={[0, b.height / 2 + 0.11, 0]}>
+            <cylinderGeometry args={[0.1, 0.13, 0.22, 14]} />
+            <meshStandardMaterial color={b.colour} transparent opacity={0.85} roughness={0.2} />
+          </mesh>
+          <mesh position={[0, b.height / 2 + 0.26, 0]}>
+            <cylinderGeometry args={[0.13, 0.13, 0.1, 14]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.5} />
+          </mesh>
+          <mesh position={[0, 0, 0.275]}>
+            <planeGeometry args={[0.36, 0.26]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+      <SceneLabel position={[-5.8, 3.95, WALL_Z + 0.5]} tone="text-ink-400">
+        KMnO₄ — the dye
+      </SceneLabel>
+
+      {/* Wall clock, running at the scene's rate. */}
+      <group position={[6.5, 5.7, WALL_Z + 0.05]}>
+        <mesh>
+          <circleGeometry args={[0.85, 40]} />
+          <meshStandardMaterial color="#fafcff" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0, 0.01]}>
+          <torusGeometry args={[0.85, 0.07, 10, 44]} />
+          <meshStandardMaterial color="#8593a8" roughness={0.4} metalness={0.3} />
+        </mesh>
+        {Array.from({ length: 12 }, (_, i) => {
+          const a = (i / 12) * Math.PI * 2;
+          return (
+            <mesh
+              key={i}
+              position={[Math.sin(a) * 0.68, Math.cos(a) * 0.68, 0.02]}
+              rotation={[0, 0, -a]}
+            >
+              <boxGeometry args={[0.04, i % 3 === 0 ? 0.16 : 0.09, 0.01]} />
+              <meshStandardMaterial color="#475569" />
+            </mesh>
+          );
+        })}
+        <group ref={minute} position={[0, 0, 0.03]}>
+          <mesh position={[0, 0.25, 0]}>
+            <boxGeometry args={[0.055, 0.58, 0.012]} />
+            <meshStandardMaterial color="#334155" />
+          </mesh>
+        </group>
+        <group ref={second} position={[0, 0, 0.045]}>
+          <mesh position={[0, 0.3, 0]}>
+            <boxGeometry args={[0.022, 0.68, 0.012]} />
+            <meshStandardMaterial color="#ef4444" />
+          </mesh>
+        </group>
+        <mesh position={[0, 0, 0.06]}>
+          <circleGeometry args={[0.06, 12]} />
+          <meshStandardMaterial color="#334155" />
+        </mesh>
+        <SceneLabel position={[0, 1.3, 0.2]} tone="text-ink-400">
+          {`lab clock · runs ${TIME_LAPSE}× fast`}
+        </SceneLabel>
+      </group>
+    </group>
+  );
+}
+
+/**
+ * The bench: a worktop on a cabinet, with a heat-proof mat under the burner and
+ * a centimetre rule laid out from the flame to the plates.
+ *
+ * The rule is the honest version of the "15 cm of air" caption. The whole
+ * radiation half of the topic is an inverse-square law in that distance, and a
+ * distance that is only written down is one nobody checks.
+ */
+function Bench({ intensity }) {
+  const ruleZ = 1.72;
+  const ticks = useMemo(() => {
+    const positions = [];
+    for (let i = 0; i <= 15; i += 1) {
+      const x = -cm(i);
+      const len = i % 5 === 0 ? 0.2 : 0.1;
+      positions.push(x, BENCH_Y + 0.07, ruleZ - 0.14, x, BENCH_Y + 0.07, ruleZ - 0.14 + len);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return g;
+  }, []);
+  useEffect(() => () => ticks.dispose(), [ticks]);
+
+  return (
+    <group>
+      {/* Worktop and cabinet. */}
+      <mesh position={[0, BENCH_Y - 0.08, 0]}>
+        <boxGeometry args={[15, 0.16, 5.6]} />
+        <meshStandardMaterial color="#cfd8e5" roughness={0.6} metalness={0.1} />
+      </mesh>
+      <mesh position={[0, BENCH_Y - 0.16 - 0.25, -0.1]}>
+        <boxGeometry args={[14.4, 0.5, 5.2]} />
+        <meshStandardMaterial color="#dde4ee" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, FLOOR_Y + 0.07, -0.1]}>
+        <boxGeometry args={[14.4, 0.14, 5]} />
+        <meshStandardMaterial color="#9aa8bc" roughness={0.8} />
+      </mesh>
+      {[-4.8, 0, 4.8].map((x) => (
+        <group key={x}>
+          <mesh position={[x, BENCH_Y - 0.43, 2.51]}>
+            <boxGeometry args={[4.5, 0.4, 0.03]} />
+            <meshStandardMaterial color="#e2e8f2" roughness={0.6} />
+          </mesh>
+          <mesh position={[x, BENCH_Y - 0.33, 2.56]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.025, 0.025, 0.7, 8]} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.6} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Heat-proof mat. */}
+      <mesh position={[-1.7, BENCH_Y + 0.015, 0]}>
+        <boxGeometry args={[7.6, 0.03, 3.4]} />
+        <meshStandardMaterial color="#aebbd0" roughness={0.95} />
+      </mesh>
+
+      {/* The rule, flame to plate. */}
+      <mesh position={[PLATE_X / 2, BENCH_Y + 0.035, ruleZ]}>
+        <boxGeometry args={[Math.abs(PLATE_X) + 0.25, 0.03, 0.34]} />
+        <meshStandardMaterial color="#fde9a2" roughness={0.6} />
+      </mesh>
+      <lineSegments geometry={ticks}>
+        <lineBasicMaterial color="#64748b" />
+      </lineSegments>
+      <SceneLabel position={[0.05, BENCH_Y + 0.32, ruleZ]} tone="text-ink-400">
+        0
+      </SceneLabel>
+      <SceneLabel position={[PLATE_X / 2, BENCH_Y + 0.32, ruleZ]} tone="text-ink-400">
+        15 cm from the flame
+      </SceneLabel>
+
+      <GasSupply intensity={intensity} />
+    </group>
+  );
+}
+
+/**
+ * The gas tap on the bench and the hose that runs from it to the burner. The
+ * knob turns with the flame slider, so "open the gas" is something you can see
+ * being done rather than a number that changed.
+ */
+function GasSupply({ intensity }) {
+  const hose = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(2.1, BENCH_Y + 0.25, -1.55),
+      new THREE.Vector3(1.75, BENCH_Y + 0.08, -0.95),
+      new THREE.Vector3(1.05, BENCH_Y + 0.07, -0.4),
+      new THREE.Vector3(0.4, BENCH_Y + 0.1, -0.05),
+      new THREE.Vector3(cm(0.95) + 0.03, BENCH_Y + 0.34, 0),
+    ]);
+    return new THREE.TubeGeometry(curve, 40, 0.055, 8, false);
+  }, []);
+  useEffect(() => () => hose.dispose(), [hose]);
+
+  const open = clamp(intensity / 100, 0, 1);
+  return (
+    <group>
+      <mesh geometry={hose}>
+        <meshStandardMaterial color="#5b6b82" roughness={0.75} />
+      </mesh>
+      <mesh position={[2.1, BENCH_Y + 0.3, -1.6]}>
+        <boxGeometry args={[0.34, 0.6, 0.34]} />
+        <meshStandardMaterial color="#c6a25a" roughness={0.35} metalness={0.6} />
+      </mesh>
+      <mesh position={[2.1, BENCH_Y + 0.72, -1.6]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.24, 10]} />
+        <meshStandardMaterial color="#c6a25a" roughness={0.35} metalness={0.6} />
+      </mesh>
+      {/* The knob: a lever that swings from crosswise (shut) to in-line (open). */}
+      <group position={[2.1, BENCH_Y + 0.86, -1.6]} rotation={[0, open * (Math.PI / 2), 0]}>
+        <mesh>
+          <boxGeometry args={[0.62, 0.08, 0.1]} />
+          <meshStandardMaterial color={open > 0.02 ? "#f59e0b" : "#ef4444"} roughness={0.5} />
+        </mesh>
+      </group>
+      <SceneLabel position={[2.1, BENCH_Y + 1.35, -1.6]} tone="text-ink-400">
+        {open > 0.02 ? "gas tap · open" : "gas tap · shut"}
+      </SceneLabel>
     </group>
   );
 }
@@ -276,20 +524,25 @@ function BunsenBurner({ modelRef, animSpeed = 1 }) {
       {/* Base, barrel and the air collar that decides the flame's colour. */}
       <mesh position={[0, BENCH_Y + 0.09, 0]}>
         <cylinderGeometry args={[cm(3.4), cm(4), 0.18, 24]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.5} metalness={0.55} />
+        <meshStandardMaterial color="#8593a8" roughness={0.5} metalness={0.55} />
       </mesh>
       <mesh position={[0, (BENCH_Y + FLAME_Y) / 2, 0]}>
         <cylinderGeometry args={[cm(0.75), cm(0.9), FLAME_Y - BENCH_Y, 20]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.8} />
+        <meshStandardMaterial color="#8593a8" roughness={0.35} metalness={0.8} />
       </mesh>
       <mesh position={[0, BENCH_Y + 0.55, 0]}>
         <cylinderGeometry args={[cm(1.1), cm(1.1), 0.26, 20]} />
-        <meshStandardMaterial color="#8996a8" roughness={0.3} metalness={0.85} />
+        <meshStandardMaterial color="#b9c4d4" roughness={0.3} metalness={0.85} />
       </mesh>
-      {/* Gas hose, running off the bench. */}
-      <mesh position={[-0.55, BENCH_Y + 0.12, 0.3]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.055, 0.055, 1.1, 10]} />
-        <meshStandardMaterial color="#1f2731" roughness={0.9} />
+      {/* The air hole in the collar — the thing that turns the flame blue. */}
+      <mesh position={[0, BENCH_Y + 0.55, cm(1.1) + 0.005]}>
+        <planeGeometry args={[0.13, 0.13]} />
+        <meshBasicMaterial color="#1e293b" />
+      </mesh>
+      {/* The needle valve at the base, where the hose joins. */}
+      <mesh position={[cm(0.95) + 0.05, BENCH_Y + 0.34, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.085, 0.085, 0.16, 12]} />
+        <meshStandardMaterial color="#c6a25a" roughness={0.35} metalness={0.6} />
       </mesh>
 
       {/* Unit-height cones, scaled in the frame loop. */}
@@ -333,18 +586,18 @@ function Tripod() {
         return (
           <mesh key={a} position={[x * 0.72, (BENCH_Y + 0) / 2, z * 0.72]} rotation={[z * 0.09, 0, -x * 0.09]}>
             <cylinderGeometry args={[0.045, 0.045, Math.abs(BENCH_Y), 10]} />
-            <meshStandardMaterial color="#5b6472" roughness={0.4} metalness={0.75} />
+            <meshStandardMaterial color="#8593a8" roughness={0.4} metalness={0.75} />
           </mesh>
         );
       })}
       <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[cm(4.6), 0.045, 8, 30]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.4} metalness={0.75} />
+        <meshStandardMaterial color="#8593a8" roughness={0.4} metalness={0.75} />
       </mesh>
       {/* Ceramic-centred gauze — what actually spreads the flame. */}
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[cm(11), cm(11)]} />
-        <meshStandardMaterial color="#6b7280" roughness={0.85} metalness={0.3} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#a4afbf" roughness={0.85} metalness={0.2} side={THREE.DoubleSide} />
       </mesh>
       <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[cm(3.2), 24]} />
@@ -379,7 +632,7 @@ function WaterColumn({ modelRef, flir }) {
       const f = i / (discs - 1);
       const t = m.water.bottom + (m.water.top - m.water.bottom) * f;
       mesh.material.color.set(
-        flir ? flirColour(t, AMBIENT_C, m.hottestC) : mixHex("#2f6f95", "#e06a3a", clamp((t - 20) / 80, 0, 1)),
+        flir ? flirColour(t, AMBIENT_C, m.hottestC) : mixHex("#63b8e0", "#f2905a", clamp((t - 20) / 80, 0, 1)),
       );
     }
   });
@@ -395,11 +648,11 @@ function WaterColumn({ modelRef, flir }) {
           position={[0, WATER_BOTTOM_Y + (height * (i + 0.5)) / discs, 0]}
         >
           <cylinderGeometry args={[cm(BEAKER.radius - BEAKER.wall), cm(BEAKER.radius - BEAKER.wall), height / discs, 30, 1, true]} />
-          <meshPhysicalMaterial
-            color="#2f6f95"
+          <meshStandardMaterial
+            color="#63b8e0"
             transparent
-            opacity={flir ? 0.72 : 0.4}
-            roughness={0.1}
+            opacity={flir ? 0.62 : 0.4}
+            roughness={0.2}
             depthWrite={false}
             side={THREE.DoubleSide}
           />
@@ -407,7 +660,7 @@ function WaterColumn({ modelRef, flir }) {
       ))}
       <mesh position={[0, WATER_TOP_Y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[cm(BEAKER.radius - BEAKER.wall), 30]} />
-        <meshStandardMaterial color="#7fd0ef" transparent opacity={0.5} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#b4e6f8" transparent opacity={0.5} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
@@ -418,17 +671,18 @@ function BeakerGlass() {
     <group>
       <mesh position={[0, BEAKER_BASE_Y, 0]}>
         <cylinderGeometry args={[cm(BEAKER.radius), cm(BEAKER.radius), cm(0.5), 32]} />
-        <meshPhysicalMaterial color="#9fd6e8" transparent opacity={0.24} roughness={0.05} />
+        <meshStandardMaterial color="#9fd6e8" transparent opacity={0.24} roughness={0.1} />
       </mesh>
       <mesh position={[0, BEAKER_BASE_Y + cm(BEAKER.height) / 2, 0]}>
         <cylinderGeometry args={[cm(BEAKER.radius), cm(BEAKER.radius), cm(BEAKER.height), 34, 1, true]} />
-        <meshPhysicalMaterial
+        {/* Plain alpha, not `transmission`: a transmissive material makes three
+            render the WHOLE scene a second time into an offscreen buffer every
+            frame, and this scene has a room in it now. */}
+        <meshStandardMaterial
           color="#9fd6e8"
           transparent
-          opacity={0.15}
-          roughness={0.04}
-          transmission={0.6}
-          thickness={0.3}
+          opacity={0.17}
+          roughness={0.08}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
@@ -440,8 +694,136 @@ function BeakerGlass() {
       </mesh>
       <mesh position={[0, RIM_Y, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[cm(BEAKER.radius), 0.022, 8, 34]} />
-        <meshPhysicalMaterial color="#c3e6f2" transparent opacity={0.35} roughness={0.05} />
+        <meshStandardMaterial color="#c3e6f2" transparent opacity={0.35} roughness={0.1} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * The graduations printed on the beaker: 50 mL steps up to the 250 mL the water
+ * is poured to, long marks at 100 and 200.
+ */
+function BeakerMarks() {
+  const ticks = useMemo(() => {
+    const positions = [];
+    const R = cm(BEAKER.radius) + 0.006;
+    for (let ml = 50; ml <= 250; ml += 50) {
+      const y = WATER_BOTTOM_Y + ((ml / 250) * BEAKER.waterDepth * S);
+      const long = ml % 100 === 0;
+      const a1 = 0.55;
+      const a2 = long ? 0.9 : 0.78;
+      positions.push(R * Math.sin(a1), y, R * Math.cos(a1), R * Math.sin(a2), y, R * Math.cos(a2));
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return g;
+  }, []);
+  useEffect(() => () => ticks.dispose(), [ticks]);
+  return (
+    <lineSegments geometry={ticks}>
+      <lineBasicMaterial color="#64748b" />
+    </lineSegments>
+  );
+}
+
+/**
+ * Bubbles rising from the hot floor of the beaker, and steam above it.
+ *
+ * Nothing in the water changed between a beaker at 30 °C and one at 99 °C except
+ * temperature, and a scene that shows no bubbles at the boil is asking the eye
+ * to believe a number. The count follows how hot the bottom is (dissolved gas
+ * comes out first, then the boil proper), and the steam follows the boil
+ * fraction the model already computes — the moment the thermometer stops rising
+ * is the moment the steam starts, which is the latent-heat point made visible.
+ */
+function BoilingBubbles({ modelRef, animSpeed = 1 }) {
+  const bubbles = useRef(null);
+  const steam = useRef(null);
+  const nBubbles = 60;
+  const nSteam = 24;
+  const inner = cm(BEAKER.radius - BEAKER.wall);
+
+  const seeds = useMemo(
+    () =>
+      Array.from({ length: nBubbles }, (_, i) => ({
+        angle: hashRandom(i * 2.3 + 1) * Math.PI * 2,
+        radius: Math.sqrt(hashRandom(i * 3.1 + 5)) * inner * 0.82,
+        rate: 0.5 + hashRandom(i * 4.7 + 9) * 0.9,
+        offset: hashRandom(i * 6.1 + 13),
+        size: 0.55 + hashRandom(i * 7.3 + 17) * 0.9,
+      })),
+    [inner],
+  );
+  const steamSeeds = useMemo(
+    () =>
+      Array.from({ length: nSteam }, (_, i) => ({
+        angle: hashRandom(i * 2.9 + 3) * Math.PI * 2,
+        radius: Math.sqrt(hashRandom(i * 3.7 + 7)) * inner * 0.7,
+        rate: 0.18 + hashRandom(i * 5.1 + 11) * 0.22,
+        offset: hashRandom(i * 6.7 + 19),
+      })),
+    [inner],
+  );
+
+  useFrame((state) => {
+    const m = modelRef.current;
+    const t = state.clock.elapsedTime * animSpeed;
+    const activity = clamp((m.water.bottom - 55) / 45, 0, 1);
+    const boil = m.water.boilFraction;
+    const depth = WATER_TOP_Y - WATER_BOTTOM_Y;
+
+    const b = bubbles.current;
+    if (b) {
+      const shown = Math.floor(nBubbles * activity * (0.35 + 0.65 * boil + 0.2));
+      for (let i = 0; i < nBubbles; i += 1) {
+        const s = seeds[i];
+        const phase = (t * s.rate * (0.5 + boil) + s.offset) % 1;
+        const live = i < shown;
+        SCRATCH_OBJECT.position.set(
+          Math.cos(s.angle) * s.radius * (1 + 0.1 * Math.sin(phase * 9 + i)),
+          WATER_BOTTOM_Y + 0.05 + phase * (depth - 0.08),
+          Math.sin(s.angle) * s.radius,
+        );
+        SCRATCH_OBJECT.scale.setScalar(live ? s.size * (0.55 + 0.7 * phase) : 0);
+        SCRATCH_OBJECT.updateMatrix();
+        b.setMatrixAt(i, SCRATCH_OBJECT.matrix);
+      }
+      b.instanceMatrix.needsUpdate = true;
+    }
+
+    const st = steam.current;
+    if (st) {
+      st.visible = boil > 0.02;
+      if (st.visible) {
+        for (let i = 0; i < nSteam; i += 1) {
+          const s = steamSeeds[i];
+          const phase = (t * s.rate + s.offset) % 1;
+          SCRATCH_OBJECT.position.set(
+            Math.cos(s.angle) * s.radius + Math.sin(phase * 5 + i) * 0.12,
+            WATER_TOP_Y + 0.1 + phase * 2.4,
+            Math.sin(s.angle) * s.radius,
+          );
+          SCRATCH_OBJECT.scale.setScalar(0.6 + phase * 2.0);
+          SCRATCH_OBJECT.updateMatrix();
+          st.setMatrixAt(i, SCRATCH_OBJECT.matrix);
+        }
+        st.instanceMatrix.needsUpdate = true;
+        st.material.opacity = 0.2 * boil;
+      }
+    }
+  });
+
+  return (
+    <group>
+      <instancedMesh ref={bubbles} args={[undefined, undefined, nBubbles]} frustumCulled={false}>
+        <sphereGeometry args={[cm(0.2), 8, 8]} />
+        <meshBasicMaterial color="#ecfbff" transparent opacity={0.8} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={steam} args={[undefined, undefined, nSteam]} frustumCulled={false} visible={false}>
+        <sphereGeometry args={[0.12, 10, 10]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
     </group>
   );
 }
@@ -542,7 +924,7 @@ function DyeTracers({ modelRef, dropSignal, animSpeed = 1 }) {
       // through the beaker, and settles to a permanent faint tint so the
       // current stays readable long after the crystal has dissolved.
       const dilution = clamp(Math.max(age.current[i], 0) / 26, 0, 1);
-      SCRATCH_COLOUR.set(mixHex("#4c1d95", "#c4b5fd", dilution));
+      SCRATCH_COLOUR.set(mixHex("#c026d3", "#f5d0fe", dilution));
       mesh.setColorAt(i, SCRATCH_COLOUR);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -554,7 +936,7 @@ function DyeTracers({ modelRef, dropSignal, animSpeed = 1 }) {
   useLayoutEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    SCRATCH_COLOUR.set("#4c1d95");
+    SCRATCH_COLOUR.set("#c026d3");
     for (let i = 0; i < count; i += 1) mesh.setColorAt(i, SCRATCH_COLOUR);
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [count]);
@@ -564,8 +946,8 @@ function DyeTracers({ modelRef, dropSignal, animSpeed = 1 }) {
       <sphereGeometry args={[cm(0.16), 7, 7]} />
       <meshStandardMaterial
         color="#ffffff"
-        emissive="#3b0764"
-        emissiveIntensity={0.35}
+        emissive="#a21caf"
+        emissiveIntensity={0.3}
         roughness={0.6}
         transparent
         opacity={0.88}
@@ -768,6 +1150,11 @@ function Rod({ materialKey, angle, modelRef, flir, atomic, tipC, selected, animS
 
   return (
     <group position={[pivotX, RIM_Y, 0]} rotation={[0, 0, angle * DEG - Math.PI / 2]}>
+      {/* The clip where the rod rests on the rim of the beaker. */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[ROD_RADIUS_W * 1.55, 0.024, 8, 18]} />
+        <meshStandardMaterial color="#7c8ba1" roughness={0.4} metalness={0.4} />
+      </mesh>
       <instancedMesh
         ref={bodyRef}
         args={[undefined, undefined, ROD_NODES]}
@@ -775,7 +1162,7 @@ function Rod({ materialKey, angle, modelRef, flir, atomic, tipC, selected, animS
         visible={!atomic}
       >
         <cylinderGeometry args={[ROD_RADIUS_W, ROD_RADIUS_W, segment * 1.04, 14]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.35} metalness={0.55} />
+        <meshStandardMaterial color="#ffffff" roughness={0.4} metalness={0.3} />
       </instancedMesh>
 
       {/* In atomic mode the metal becomes a ghost so the lattice reads. */}
@@ -855,13 +1242,13 @@ function TipProbe({ modelRef, materialKey, localY, flir }) {
     if (!mesh) return;
     const t = m.rods[materialKey].tipC;
     mesh.material.color.set(
-      flir ? flirColour(t, AMBIENT_C, m.hottestC) : mixHex("#94a3b8", "#ef4444", clamp((t - AMBIENT_C) / 70, 0, 1)),
+      flir ? flirColour(t, AMBIENT_C, m.hottestC) : mixHex("#cbd5e1", "#ef4444", clamp((t - AMBIENT_C) / 70, 0, 1)),
     );
   });
   return (
     <mesh ref={ref} position={[0, localY, 0]}>
       <sphereGeometry args={[ROD_RADIUS_W * 1.5, 14, 12]} />
-      <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.3} />
+      <meshStandardMaterial color="#cbd5e1" roughness={0.4} metalness={0.3} />
     </mesh>
   );
 }
@@ -906,6 +1293,14 @@ function Thermometer({ position, read, modelRef, label, maxC = 120 }) {
           side={THREE.DoubleSide}
         />
       </mesh>
+      {[0, 20, 40, 60, 80, 100, 120]
+        .filter((v) => v <= maxC)
+        .map((v) => (
+          <mesh key={v} position={[0.075, (v / maxC) * tube, 0]}>
+            <boxGeometry args={[v % 40 === 0 ? 0.1 : 0.055, 0.008, 0.008]} />
+            <meshBasicMaterial color="#64748b" />
+          </mesh>
+        ))}
       <mesh ref={bulb} position={[0, -0.06, 0]}>
         <sphereGeometry args={[0.085, 14, 12]} />
         <meshStandardMaterial color="#b91c1c" emissive="#7f1d1d" emissiveIntensity={0.5} roughness={0.35} />
@@ -924,6 +1319,9 @@ function Thermometer({ position, read, modelRef, label, maxC = 120 }) {
 }
 
 // ─── Radiation ──────────────────────────────────────────────────────
+
+/** The two plates stand side by side, either side of the beam's axis. */
+const PLATE_Z = { black: 0.66, shiny: -0.66 };
 
 /**
  * Wavefronts leaving the flame in every direction.
@@ -968,7 +1366,7 @@ function RadiationRings({ modelRef, animSpeed = 1 }) {
           rotation={[Math.PI / 2, 0, 0]}
         >
           <torusGeometry args={[1, 0.016, 6, 60]} />
-          <meshBasicMaterial color="#fb923c" transparent opacity={0} depthWrite={false} toneMapped={false} />
+          <meshBasicMaterial color="#f97316" transparent opacity={0} depthWrite={false} toneMapped={false} />
         </mesh>
       ))}
     </group>
@@ -976,18 +1374,22 @@ function RadiationRings({ modelRef, animSpeed = 1 }) {
 }
 
 /**
- * The share of that radiation which happens to reach the plate, as a train of
- * quanta running down a sine.
+ * The share of that radiation which happens to reach the plates, as trains of
+ * quanta running down a sine — three streams to each plate.
  *
- * Drawn as travelling packets rather than a static squiggle so the point lands
- * that something is crossing the gap — through air that stays cold, with
- * nothing touching and nothing flowing.
+ * Packets rather than a static squiggle, so the point lands that something is
+ * crossing the gap through air that stays cold. And at the silvered plate a
+ * few of them turn round and come back: what a shiny surface does with the
+ * radiation it does not absorb is the whole difference between the two.
  */
 function RadiationBeam({ modelRef, animSpeed = 1 }) {
   const meshRef = useRef(null);
-  const count = 18;
+  const bounceRef = useRef(null);
+  const perPlate = 9;
+  const count = perPlate * 2;
+  const bounces = 8;
   const from = useMemo(() => new THREE.Vector3(-cm(2), FLAME_Y + 0.35, 0), []);
-  const to = useMemo(() => new THREE.Vector3(PLATE_X + 0.22, FLAME_Y + 0.2, 0), []);
+  const toX = PLATE_X + 0.22;
 
   useFrame((state) => {
     const mesh = meshRef.current;
@@ -995,20 +1397,22 @@ function RadiationBeam({ modelRef, animSpeed = 1 }) {
     const m = modelRef.current;
     const strength = clamp(m.radiated / 370, 0, 1);
     mesh.visible = strength > 0.01;
+    if (bounceRef.current) bounceRef.current.visible = strength > 0.01;
     if (!mesh.visible) return;
 
     const t = state.clock.elapsedTime * animSpeed;
     const rays = 3;
     for (let i = 0; i < count; i += 1) {
-      const ray = i % rays;
-      const phase = ((t * 0.85 + (Math.floor(i / rays) / (count / rays))) % 1);
-      const x = from.x + (to.x - from.x) * phase;
-      const base = from.y + (to.y - from.y) * phase;
-      const spread = (ray - 1) * 0.34;
+      const plate = i < perPlate ? PLATE_Z.black : PLATE_Z.shiny;
+      const j = i % perPlate;
+      const ray = j % rays;
+      const phase = (t * 0.85 + Math.floor(j / rays) / (perPlate / rays)) % 1;
+      const targetY = FLAME_Y + 0.2;
+      const spread = (ray - 1) * 0.3;
       SCRATCH_OBJECT.position.set(
-        x,
-        base + spread + Math.sin(phase * 26 + ray * 2.1) * 0.12,
-        (ray - 1) * 0.12,
+        from.x + (toX - from.x) * phase,
+        from.y + (targetY - from.y) * phase + spread * phase + Math.sin(phase * 26 + ray * 2.1) * 0.1,
+        plate * phase + (ray - 1) * 0.06,
       );
       SCRATCH_OBJECT.scale.setScalar(0.6 + 0.5 * strength);
       SCRATCH_OBJECT.updateMatrix();
@@ -1016,59 +1420,100 @@ function RadiationBeam({ modelRef, animSpeed = 1 }) {
     }
     mesh.instanceMatrix.needsUpdate = true;
     mesh.material.opacity = 0.35 + 0.5 * strength;
+
+    // Reflected packets leave the silvered face and head back the way they came,
+    // fanning out, fading as they go.
+    const bounce = bounceRef.current;
+    if (bounce) {
+      for (let i = 0; i < bounces; i += 1) {
+        const phase = (t * 0.6 + i / bounces) % 1;
+        const spread = ((i % 4) - 1.5) * 0.35;
+        SCRATCH_OBJECT.position.set(
+          toX + phase * 1.9,
+          FLAME_Y + 0.2 + spread * phase * 1.3,
+          PLATE_Z.shiny - phase * 0.7 - (i % 2) * 0.1,
+        );
+        SCRATCH_OBJECT.scale.setScalar(0.55 * (1 - phase * 0.6));
+        SCRATCH_OBJECT.updateMatrix();
+        bounce.setMatrixAt(i, SCRATCH_OBJECT.matrix);
+      }
+      bounce.instanceMatrix.needsUpdate = true;
+      bounce.material.opacity = 0.5 * strength;
+    }
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
-      <sphereGeometry args={[0.06, 8, 8]} />
-      <meshBasicMaterial color="#fdba74" transparent opacity={0.6} depthWrite={false} toneMapped={false} />
-    </instancedMesh>
+    <group>
+      <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
+        <sphereGeometry args={[0.06, 8, 8]} />
+        <meshBasicMaterial color="#fb923c" transparent opacity={0.6} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={bounceRef} args={[undefined, undefined, bounces]} frustumCulled={false}>
+        <sphereGeometry args={[0.06, 8, 8]} />
+        <meshBasicMaterial color="#fdba74" transparent opacity={0.4} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+    </group>
   );
 }
 
 /**
- * The blackened plate on its stand.
+ * A plate on its stand, one blackened and one silvered.
  *
- * It is deliberately not touching the bench near the flame, is not in the path
- * of any rising air, and has no rod running to it. Whatever it gains crossed
- * the gap as radiation, and its thermometer is the proof.
+ * Neither is touching anything, in the path of any rising air, or wired to
+ * anything. Whatever they gain crossed the gap as radiation, and their
+ * thermometers are the proof. They are the same size and the same distance
+ * from the flame — the only thing that differs is the surface, which is the
+ * whole point of having two.
  */
-function RadiationPlate({ modelRef, flir, plateC }) {
+function RadiationPlate({ modelRef, flir, kind, tempC }) {
   const faceRef = useRef(null);
+  const black = kind === "black";
+  const z = PLATE_Z[kind];
 
   useFrame(() => {
     const m = modelRef.current;
     if (!faceRef.current) return;
+    const c = black ? m.plateC : m.shinyC;
     faceRef.current.material.color.set(
-      flir ? flirColour(m.plateC, AMBIENT_C, m.hottestC) : mixHex("#1a1d24", "#8b3a1e", clamp((m.plateC - AMBIENT_C) / 45, 0, 1)),
+      flir
+        ? flirColour(c, AMBIENT_C, m.hottestC)
+        : black
+          ? mixHex("#2b303b", "#b4502c", clamp((c - AMBIENT_C) / 45, 0, 1))
+          : mixHex("#e6ebf2", "#f6cfae", clamp((c - AMBIENT_C) / 25, 0, 1)),
     );
   });
 
   return (
-    <group position={[PLATE_X, 0, 0]}>
-      <mesh position={[0, BENCH_Y + 0.06, 0]}>
-        <cylinderGeometry args={[0.42, 0.48, 0.12, 20]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.6} metalness={0.5} />
+    <group position={[PLATE_X, 0, z]}>
+      <mesh position={[0, BENCH_Y + 0.05, 0]}>
+        <cylinderGeometry args={[0.3, 0.34, 0.1, 20]} />
+        <meshStandardMaterial color="#8593a8" roughness={0.5} metalness={0.3} />
       </mesh>
       <mesh position={[0, (BENCH_Y + FLAME_Y) / 2 + 0.1, 0]}>
-        <cylinderGeometry args={[0.05, 0.05, FLAME_Y - BENCH_Y + 0.2, 12]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
+        <cylinderGeometry args={[0.045, 0.045, FLAME_Y - BENCH_Y + 0.2, 12]} />
+        <meshStandardMaterial color="#9aa8bc" roughness={0.35} metalness={0.4} />
       </mesh>
-      <mesh ref={faceRef} position={[0.03, FLAME_Y + 0.2, 0]} rotation={[0, Math.PI / 2, 0]}>
+      {/* Clamp: a boss on the pole and a short arm holding the plate. */}
+      <mesh position={[0.0, FLAME_Y + 0.2, 0]}>
+        <boxGeometry args={[0.16, 0.16, 0.16]} />
+        <meshStandardMaterial color="#7c8ba1" roughness={0.4} metalness={0.4} />
+      </mesh>
+      <mesh ref={faceRef} position={[0.09, FLAME_Y + 0.2, 0]} rotation={[0, Math.PI / 2 - 0.5, 0]}>
         <boxGeometry args={[cm(5), cm(5), 0.05]} />
-        <meshStandardMaterial color="#1a1d24" roughness={0.95} metalness={0.1} />
+        <meshStandardMaterial
+          color={black ? "#2b303b" : "#e6ebf2"}
+          roughness={black ? 0.95 : 0.18}
+          metalness={black ? 0.1 : 0.25}
+        />
       </mesh>
       <Thermometer
-        position={[-0.42, FLAME_Y - 0.35, 0.1]}
+        position={[-0.5, FLAME_Y - 0.35, 0]}
         modelRef={modelRef}
-        read={(m) => m.plateC}
+        read={(m) => (black ? m.plateC : m.shinyC)}
         maxC={80}
       />
-      <SceneLabel position={[0, FLAME_Y + 1.05, 0]} accent>
-        {`blackened plate · ${plateC.toFixed(1)} °C`}
-      </SceneLabel>
-      <SceneLabel position={[0, FLAME_Y - 1.5, 0]} tone="text-ink-400">
-        touching nothing · 15 cm of air
+      <SceneLabel position={[0, FLAME_Y + (black ? 1.0 : 1.5), 0]} accent={black} tone="text-ink-200">
+        {`${black ? "blackened" : "silvered"} plate · ${tempC.toFixed(1)} °C`}
       </SceneLabel>
     </group>
   );
@@ -1094,6 +1539,9 @@ function ThermalScaleBar({ hottestC, visible }) {
       <SceneLabel position={[0.62, 2.6, 0]} tone="text-ink-300">
         {`${hottestC.toFixed(0)} °C`}
       </SceneLabel>
+      <SceneLabel position={[0.62, 1.3, 0]} tone="text-ink-300">
+        {`${((AMBIENT_C + hottestC) / 2).toFixed(0)} °C`}
+      </SceneLabel>
       <SceneLabel position={[0.62, 0, 0]} tone="text-ink-300">
         {`${AMBIENT_C} °C`}
       </SceneLabel>
@@ -1105,6 +1553,25 @@ function ThermalScaleBar({ hottestC, visible }) {
 }
 
 // ─── The scene ──────────────────────────────────────────────────────
+
+/**
+ * Everything that never changes with the numbers: the room, the bench, the
+ * tripod, the glassware. The thermal sample re-renders the scene six times a
+ * second, and re-reconciling a hundred static meshes each time was pure cost —
+ * memoised, this only re-renders when the gas tap moves.
+ */
+const StaticSet = memo(function StaticSet({ modelRef, intensity }) {
+  return (
+    <>
+      <Room modelRef={modelRef} />
+      <Bench intensity={intensity} />
+      <Tripod />
+      <BeakerGlass />
+      <BeakerMarks />
+      <ConvectionArrows />
+    </>
+  );
+});
 
 export default function HeatTransferCanvas({ params = {} }) {
   const {
@@ -1125,6 +1592,7 @@ export default function HeatTransferCanvas({ params = {} }) {
     speed: 0,
     boiling: false,
     plateC: AMBIENT_C,
+    shinyC: AMBIENT_C,
     hottestC: AMBIENT_C + 40,
     tips: Object.fromEntries(ROD_LAYOUT.map(({ key }) => [key, AMBIENT_C])),
   });
@@ -1134,21 +1602,19 @@ export default function HeatTransferCanvas({ params = {} }) {
 
   return (
     <SceneCanvas
-      camera={{ position: [0.5, 1.4, 14.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 32, target: [0, 1.5, 0] }}
-      lights={{ ambient: flir ? 0.4 : 0.6, keyLight: flir ? 0.75 : 1.2 }}
+      camera={{ position: [0.5, 1.1, 13.4], fov: 46 }}
+      controls={{ minDistance: 5, maxDistance: 32, target: [0, 0.9, 0] }}
+      lights={{ ambient: flir ? 0.75 : 0.85, keyLight: flir ? 1.0 : 1.3 }}
     >
       <ThermalDriver modelRef={modelRef} intensity={flameIntensity} onSample={setSample} animSpeed={speed} />
 
-      <Bench />
+      <StaticSet modelRef={modelRef} intensity={flameIntensity} />
       <BunsenBurner modelRef={modelRef} animSpeed={speed} />
-      <Tripod />
 
       {/* ── Convection ── */}
       <WaterColumn modelRef={modelRef} flir={flir} />
       <DyeTracers modelRef={modelRef} dropSignal={dyeDrop} animSpeed={speed} />
-      <ConvectionArrows />
-      <BeakerGlass />
+      <BoilingBubbles modelRef={modelRef} animSpeed={speed} />
 
       <Thermometer
         position={[-cm(1.6), WATER_TOP_Y - 0.55, cm(BEAKER.radius) + 0.18]}
@@ -1186,7 +1652,11 @@ export default function HeatTransferCanvas({ params = {} }) {
       {/* ── Radiation ── */}
       <RadiationRings modelRef={modelRef} animSpeed={speed} />
       <RadiationBeam modelRef={modelRef} animSpeed={speed} />
-      <RadiationPlate modelRef={modelRef} flir={flir} plateC={sample.plateC} />
+      <RadiationPlate modelRef={modelRef} flir={flir} kind="black" tempC={sample.plateC} />
+      <RadiationPlate modelRef={modelRef} flir={flir} kind="shiny" tempC={sample.shinyC} />
+      <SceneLabel position={[PLATE_X, FLAME_Y + 2.0, 0]} tone="text-ink-400">
+        touching nothing · 15 cm of air
+      </SceneLabel>
 
       <ThermalScaleBar hottestC={sample.hottestC} visible={flir} />
 

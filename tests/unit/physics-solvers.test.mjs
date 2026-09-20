@@ -33,6 +33,7 @@ import {
   currentDirection,
   emfAt,
   fluxAt,
+  inducedFieldOf,
   omegaOf,
   peakEmf,
   safeTurnsOf,
@@ -40,6 +41,28 @@ import {
   solveSolenoidInduction,
 } from "../../lib/induction.js";
 import { SIM_DT, idealFlight, simulateFlight } from "../../lib/projectile.js";
+import {
+  ESCAPE_RATIO,
+  G_SCENE,
+  VIEW_MAX,
+  VIEW_MIN,
+  advanceOrbit,
+  framing,
+  muOf,
+  solveOrbit,
+  speedRegime,
+  stepOrbit,
+} from "../../lib/orbit.js";
+import {
+  FIELD_HALF_X,
+  FIELD_NEAR_Z,
+  SCREEN_CELLS,
+  SCREEN_DISTANCE,
+  SCREEN_Z,
+  brightFringes,
+  fringePosition,
+  screenIntensity,
+} from "../../lib/interference.js";
 import { formatForce } from "../../lib/electrostatics.js";
 import { GAS_REFERENCE, gasLawReadout } from "../../lib/particleModel.js";
 import { atomCounts, formulaFor, MAX_CARBONS } from "../../lib/organic.js";
@@ -399,7 +422,9 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
     });
 
     it("computes zero induced EMF and zero omega when stationary (speed = 0)", () => {
-      const res = solveInduction({ speed: 0, field: 1.5, turns: 5, angle: 0 });
+      // Edge-on is where a turning coil would be at its best, so a zero here
+      // is the coil not turning, not the coil being at a quiet angle.
+      const res = solveInduction({ speed: 0, field: 1.5, turns: 5, angle: Math.PI / 2 });
       assert.strictEqual(res.omega, 0);
       assert.strictEqual(res.peakEmf, 0);
       assert.strictEqual(res.emf, 0);
@@ -427,40 +452,71 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
       assert.ok(res.peakEmf > 1.0 * 3 * 1.5 * 6, "and it is far more than the old estimate");
     });
 
-    it("shows peak EMF occurs at edge-on rotation (cos θ = ±1) and zero flux", () => {
-      // At angle = 0, coil lies in XY, normal along Z, cutting lines fastest
-      const edgeOn = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: 0 });
-      assert.strictEqual(edgeOn.cuttingRate, 1);
-      assert.strictEqual(edgeOn.flux, 0);
-      assert.strictEqual(Math.abs(edgeOn.emf), edgeOn.peakEmf);
+    it("follows the textbook: Φ = BA cos θ, ε = NBAω sin θ, with θ = 0 face-on", () => {
+      // Face-on the coil's normal lies along B: flux is greatest and is not
+      // changing, so there is no e.m.f.
+      const faceOn = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: 0 });
+      assert.strictEqual(faceOn.cuttingRate, 0);
+      assert.strictEqual(faceOn.emf, 0);
+      assert.strictEqual(faceOn.flux, 6.0); // 1.0 T · 6.0 m² · cos 0
+      assert.strictEqual(faceOn.flux, fluxAt(1.0, 0));
 
-      // At angle = π/2, coil faces field: maximum flux, zero EMF
-      const faceOn = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: Math.PI / 2 });
-      assert.ok(Math.abs(faceOn.cuttingRate) < 1e-6);
-      assert.ok(Math.abs(faceOn.emf) < 1e-6);
-      assert.ok(Math.abs(faceOn.flux - 6.0) < 1e-6); // 1.0 * 6.0 m² * sin(π/2) = 6.0 Wb
-      assert.strictEqual(faceOn.flux, fluxAt(1.0, Math.PI / 2));
+      // Edge-on the coil sweeps across the field lines as fast as it ever
+      // does: no flux through it, and the e.m.f. at its peak.
+      const edgeOn = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: Math.PI / 2 });
+      assert.strictEqual(edgeOn.cuttingRate, 1);
+      assert.ok(Math.abs(edgeOn.flux) < 1e-9);
+      assert.strictEqual(Math.abs(edgeOn.emf), edgeOn.peakEmf);
     });
 
     it("reverses the induced current over half a turn", () => {
-      const a = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: 0 });
-      const b = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: Math.PI });
+      const a = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: Math.PI / 2 });
+      const b = solveInduction({ speed: 1.0, field: 1.0, turns: 3, angle: (3 * Math.PI) / 2 });
       assert.strictEqual(a.emf, -b.emf);
       assert.notStrictEqual(a.direction, b.direction);
-      assert.strictEqual(a.emf, emfAt(1.0, a.omega, 0, 3));
+      assert.strictEqual(a.emf, emfAt(1.0, a.omega, Math.PI / 2, 3));
+    });
+
+    it("takes its sign from Lenz's law: ε = −N dΦ/dt, checked against the flux itself", () => {
+      // Differentiate the flux numerically and compare — if the sign of emfAt
+      // ever drifts from −N dΦ/dt this fails, whatever the convention says.
+      const omega = omegaOf(1.0);
+      const N = 3;
+      const e = 1e-5;
+      for (const theta of [0.3, 1.2, 2.5, 3.6, 5.0]) {
+        const dPhi_dtheta = (fluxAt(1.0, theta + e) - fluxAt(1.0, theta - e)) / (2 * e);
+        const expected = -N * dPhi_dtheta * omega;
+        assert.ok(Math.abs(emfAt(1.0, omega, theta, N) - expected) < 1e-6, `θ = ${theta}`);
+      }
+      // Just after face-on the flux is falling, so the current opposes that
+      // by making a field along the normal: anticlockwise, from the normal's tip.
+      assert.strictEqual(solveInduction({ speed: 1.0, turns: 3, angle: 0.4 }).direction, "anticlockwise");
+      assert.strictEqual(solveInduction({ speed: 1.0, turns: 3, angle: 3.6 }).direction, "clockwise");
+    });
+
+    it("quotes the frequency as ω/2π, not the slider value", () => {
+      // One slider unit is 1.7 rad/s, i.e. 0.27 Hz — the readout used to
+      // print "1.0 Hz" for it.
+      const res = solveInduction({ speed: 1.0 });
+      assert.ok(Math.abs(res.frequencyHz - 1.7 / (2 * Math.PI)) < 1e-12);
+      assert.ok(Math.abs(res.period * res.frequencyHz - 1) < 1e-12);
+      assert.strictEqual(solveInduction({ speed: 0 }).period, Infinity);
     });
 
     it("rests the needle rather than flickering a direction at near-zero emf", () => {
       assert.strictEqual(currentDirection(0), "none");
       assert.strictEqual(currentDirection(-0), "none");
       assert.strictEqual(currentDirection(0.049), "none");
-      assert.strictEqual(currentDirection(0.051), "clockwise");
-      assert.strictEqual(currentDirection(-0.051), "anticlockwise");
+      assert.strictEqual(currentDirection(0.051), "anticlockwise");
+      assert.strictEqual(currentDirection(-0.051), "clockwise");
+      assert.strictEqual(inducedFieldOf(0.049), 0);
+      assert.strictEqual(inducedFieldOf(0.051), 1);
+      assert.strictEqual(inducedFieldOf(-0.051), -1);
     });
 
     it("clamps safe turns to minimum 1 for undefined or zero inputs", () => {
-      const res1 = solveInduction({ speed: 1.0, field: 1.0, turns: 0 });
-      const res2 = solveInduction({ speed: 1.0, field: 1.0, turns: undefined });
+      const res1 = solveInduction({ speed: 1.0, field: 1.0, turns: 0, angle: 1 });
+      const res2 = solveInduction({ speed: 1.0, field: 1.0, turns: undefined, angle: 1 });
       assert.ok(res1.peakEmf > 0);
       assert.ok(res2.peakEmf > 0);
       assert.strictEqual(res1.peakEmf, res2.peakEmf);
@@ -469,20 +525,55 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
       assert.strictEqual(safeTurnsOf(-4), 1);
     });
 
-    it("computes zero EMF for stationary bar magnet (velocity = 0) even at peak flux position (x = 0)", () => {
-      const res = solveSolenoidInduction({ x: 0, velocity: 0, turns: 10 });
-      assert.strictEqual(res.emf, 0);
-      assert.strictEqual(res.direction, "none");
-      assert.ok(res.flux > 0);
-      assert.strictEqual(res.dPhi_dx, 0, "flux is at its peak, so its gradient is zero");
+    it("computes zero EMF for a stationary bar magnet (velocity = 0), wherever it is", () => {
+      const centred = solveSolenoidInduction({ x: 0, velocity: 0, turns: 10 });
+      assert.strictEqual(centred.emf, 0);
+      assert.strictEqual(centred.direction, "none");
+      assert.ok(centred.flux > 0);
+      assert.strictEqual(centred.dPhi_dx, 0, "flux is at its peak, so its gradient is zero");
+      // Held with a pole in the coil the flux is changing with position, but
+      // not with time — still nothing.
+      const held = solveSolenoidInduction({ x: 1.3, velocity: 0, turns: 10 });
+      assert.ok(held.flux > 0);
+      assert.strictEqual(held.emf, 0);
     });
 
     it("reverses EMF direction when moving inward vs outward along solenoid axis", () => {
-      const movingIn = solveSolenoidInduction({ x: -1.5, velocity: 2.0, turns: 10 });
-      const movingOut = solveSolenoidInduction({ x: 1.5, velocity: 2.0, turns: 10 });
+      const movingIn = solveSolenoidInduction({ x: -1.35, velocity: 2.0, turns: 10 });
+      const movingOut = solveSolenoidInduction({ x: 1.35, velocity: 2.0, turns: 10 });
       assert.ok(movingIn.emf < 0);
       assert.ok(movingOut.emf > 0);
       assert.notStrictEqual(movingIn.direction, movingOut.direction);
+    });
+
+    it("makes an induced field that opposes the change in flux (Lenz), by finite difference", () => {
+      // Flux linkage is measured along +x, so the induced field must point
+      // against dλ/dt: −1 while it is growing, +1 while it is shrinking.
+      const flux = (x) => solveSolenoidInduction({ x, velocity: 0, turns: 5 }).linkage;
+      for (const [x, v] of [[-1.35, 1], [-0.6, 1], [0.6, 1], [1.35, 1], [1.35, -1], [-1.35, -1]]) {
+        const dLambda_dt = ((flux(x + 1e-4) - flux(x - 1e-4)) / 2e-4) * v;
+        const res = solveSolenoidInduction({ x, velocity: v, turns: 5 });
+        assert.ok(Math.abs(res.emf + dLambda_dt) < 1e-6, `ε = −dλ/dt at x=${x}, v=${v}`);
+        assert.strictEqual(res.inducedField, dLambda_dt > 0 ? -1 : 1, `Lenz at x=${x}, v=${v}`);
+      }
+    });
+
+    it("peaks as a pole passes the coil, not with the magnet centred in it", () => {
+      // A 2.7-long bar: the flux changes fastest when an end reaches the
+      // coil, i.e. with the magnet's centre about half a length (1.35) away.
+      // A point-dipole model put the peak at ±0.46, with the magnet mostly inside.
+      const at = (x) => Math.abs(solveSolenoidInduction({ x, velocity: 1.0, turns: 4 }).emf);
+      let bestX = 0;
+      let best = 0;
+      for (let x = 0; x <= 3; x += 0.05) {
+        if (at(x) > best) {
+          best = at(x);
+          bestX = x;
+        }
+      }
+      assert.ok(bestX > 1.1 && bestX < 1.6, `peak at x = ${bestX.toFixed(2)}, expected near 1.35`);
+      assert.ok(at(0) < 1e-9, "and nothing at all with the magnet centred");
+      assert.ok(at(0.46) < 0.4 * best, "the old peak position is now well below the maximum");
     });
 
     it("reverses EMF sign when magnet poles are flipped (flipPoles = true)", () => {
@@ -490,25 +581,375 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
       const flipped = solveSolenoidInduction({ x: -1.5, velocity: 2.0, turns: 10, flipPoles: true });
       assert.strictEqual(flipped.emf, -normal.emf);
       assert.strictEqual(flipped.flux, -normal.flux);
+      assert.strictEqual(flipped.inducedField, -normal.inducedField);
     });
 
-    it("scales EMF linearly with coil turns and magnet velocity", () => {
-      const base = solveSolenoidInduction({ x: -1.0, velocity: 1.0, turns: 5 });
-      const doubleTurns = solveSolenoidInduction({ x: -1.0, velocity: 1.0, turns: 10 });
-      const doubleSpeed = solveSolenoidInduction({ x: -1.0, velocity: 2.0, turns: 5 });
-      assert.ok(Math.abs(doubleTurns.emf - base.emf * 2) < 1e-9);
+    it("scales EMF with coil turns and exactly with magnet velocity", () => {
+      const base = solveSolenoidInduction({ x: -1.0, velocity: 1.0, turns: 4 });
+      const doubleTurns = solveSolenoidInduction({ x: -1.0, velocity: 1.0, turns: 8 });
+      const doubleSpeed = solveSolenoidInduction({ x: -1.0, velocity: 2.0, turns: 4 });
+      // The turns sit side by side on a compact bobbin, so each links very
+      // nearly the same flux and ε ∝ N holds to within a few percent.
+      const ratio = doubleTurns.emf / base.emf;
+      assert.ok(ratio > 1.9 && ratio < 2.1, `doubling N gave ×${ratio.toFixed(3)}`);
       assert.ok(Math.abs(doubleSpeed.emf - base.emf * 2) < 1e-9);
+      // And it is linear in the magnet strength.
+      const strong = solveSolenoidInduction({ x: -1.0, velocity: 1.0, turns: 4, magnetStrength: 2.4 });
+      const weak = solveSolenoidInduction({ x: -1.0, velocity: 1.0, turns: 4, magnetStrength: 1.2 });
+      assert.ok(Math.abs(strong.emf - weak.emf * 2) < 1e-9);
     });
 
     it("falls off with distance, so the magnet matters most near the coil", () => {
       const near = solveSolenoidInduction({ x: 0.2, velocity: 1.0, turns: 10 });
-      const far = solveSolenoidInduction({ x: 4.0, velocity: 1.0, turns: 10 });
-      // Φ ∝ (x² + R²)^−1.5, so twenty times the offset is ~90 times the flux.
+      const far = solveSolenoidInduction({ x: 6.0, velocity: 1.0, turns: 10 });
       assert.ok(Math.abs(near.flux) > Math.abs(far.flux) * 50, "flux falls off steeply");
-      assert.ok(Math.abs(near.emf) > Math.abs(far.emf) * 50);
+      assert.ok(
+        Math.abs(solveSolenoidInduction({ x: 8, velocity: 1, turns: 10 }).emf) <
+          0.05 * Math.abs(solveSolenoidInduction({ x: 1.35, velocity: 1, turns: 10 }).emf),
+        "a magnet well clear of the coil hardly moves the needle",
+      );
       const offTheBench = solveSolenoidInduction({ x: 40, velocity: 1.0, turns: 10 });
       assert.strictEqual(offTheBench.direction, "none", "too far out to move the needle");
     });
+  });
+
+  describe("Two-Source Interference & the Screen", () => {
+    const pair = (d) => [-d / 2, d / 2];
+
+    it("measures the screen distance from the sources, the L every fringe formula needs", () => {
+      assert.strictEqual(SCREEN_DISTANCE, SCREEN_Z - FIELD_NEAR_Z);
+      assert.ok(Math.abs(SCREEN_DISTANCE - 10.7) < 1e-12, "the HUD used to print 10.2 for this");
+    });
+
+    it("samples the whole screen finely and evenly", () => {
+      const cells = screenIntensity(pair(2.2), 1.2, 0.62);
+      assert.strictEqual(cells.length, SCREEN_CELLS);
+      assert.ok(SCREEN_CELLS >= 200, "fine enough that a fringe is many cells wide");
+      assert.strictEqual(cells[0].x, -FIELD_HALF_X);
+      assert.ok(Math.abs(cells.at(-1).x - FIELD_HALF_X) < 1e-9);
+      const step = cells[1].x - cells[0].x;
+      for (let i = 2; i < cells.length; i += 1) assert.ok(Math.abs(cells[i].x - cells[i - 1].x - step) < 1e-9);
+      assert.ok(cells.every((c) => c.level >= 0 && c.level <= 1 + 1e-12), "levels are fractions of the peak");
+      assert.ok(Math.max(...cells.map((c) => c.level)) === 1, "and the brightest cell is exactly 1");
+    });
+
+    it("puts each bright fringe on an intensity maximum, and each half-order on a minimum", () => {
+      // The closed form and the phasor sum are independent routes to the same
+      // pattern, so agreement to within a cell means the labels are in the
+      // right place — not merely near it.
+      for (const [d, lambda] of [[4.5, 0.5], [3.0, 0.8], [3.6, 0.6]]) {
+        const cells = screenIntensity(pair(d), lambda, 0.62);
+        const cell = cells[1].x - cells[0].x;
+        const near = (x, r) => cells.filter((c) => Math.abs(c.x - x) <= r);
+        for (const { order, x } of brightFringes(d, lambda)) {
+          const peak = near(x, 0.5).reduce((a, b) => (b.level > a.level ? b : a));
+          assert.ok(Math.abs(peak.x - x) <= 1.5 * cell, `d=${d} λ=${lambda} m=${order}: peak at ${peak.x.toFixed(3)}, predicted ${x.toFixed(3)}`);
+          assert.ok(peak.level > 0.85, `m=${order} is a bright fringe (level ${peak.level.toFixed(2)})`);
+        }
+        const dark = fringePosition(0.5, d, lambda);
+        const trough = near(dark, 0.5).reduce((a, b) => (b.level < a.level ? b : a));
+        assert.ok(Math.abs(trough.x - dark) <= 1.5 * cell && trough.level < 0.02, `d=${d}: dark fringe at ${dark.toFixed(3)}`);
+      }
+    });
+
+    it("beats the far-field L·tan θ, which is only good when L is much larger than d", () => {
+      const d = 4.5;
+      const lambda = 0.5;
+      const farField = (m) => SCREEN_DISTANCE * Math.tan(Math.asin((m * lambda) / d));
+      // In this tank the far-field estimate is measurably off at high order...
+      assert.ok(Math.abs(fringePosition(4, d, lambda) - farField(4)) > 0.05);
+      // ...and the exact formula turns into it as the screen recedes.
+      const far = 1e5;
+      const exact = fringePosition(3, d, lambda, far);
+      const approx = far * Math.tan(Math.asin((3 * lambda) / d));
+      assert.ok(Math.abs(exact - approx) / approx < 1e-4, `${exact} vs ${approx}`);
+    });
+
+    it("mirrors about the centre line and has no fringe beyond the slit separation", () => {
+      assert.strictEqual(fringePosition(-2, 4.5, 0.5), -fringePosition(2, 4.5, 0.5));
+      assert.strictEqual(fringePosition(0, 4.5, 0.5), 0);
+      // The path difference can never exceed d, so mλ ≥ d has nowhere to land.
+      assert.strictEqual(fringePosition(1, 1.0, 1.2), null);
+      assert.strictEqual(fringePosition(2, 2.2, 1.2), null);
+      assert.strictEqual(fringePosition(1, 0, 1.2), null);
+    });
+
+    it("lists the bright fringes that land on the screen, left to right, centre included", () => {
+      const list = brightFringes(4.5, 0.5);
+      assert.deepStrictEqual(list.map((f) => f.order), [-4, -3, -2, -1, 0, 1, 2, 3, 4]);
+      for (let i = 1; i < list.length; i += 1) assert.ok(list[i].x > list[i - 1].x, "ascending");
+      assert.ok(list.every((f) => Math.abs(f.x) <= FIELD_HALF_X), "and all on the screen");
+      // With these slits the first order is off the screen, so only the centre is left.
+      assert.deepStrictEqual(brightFringes(2.2, 1.2).map((f) => f.order), [0]);
+      // A wavelength as long as the separation gives one fringe and no others.
+      assert.deepStrictEqual(brightFringes(1.0, 1.0).map((f) => f.order), [0]);
+    });
+
+    it("gives a single source a smooth falling profile with no fringes", () => {
+      const cells = screenIntensity([0], 1.2, 0.62);
+      const mid = cells[(cells.length - 1) / 2];
+      assert.strictEqual(mid.x, 0);
+      assert.strictEqual(mid.level, 1);
+      for (let i = (cells.length - 1) / 2 + 1; i < cells.length; i += 1) {
+        assert.ok(cells[i].level < cells[i - 1].level, "falls steadily away from the axis");
+      }
+    });
+  });
+
+  describe("Gravity Wells & Orbital Motion", () => {
+    /** Flies a launch with the scene's own integrator and reports what it did. */
+    const fly = (launch, seconds, h = 0.002) => {
+      const o = solveOrbit(launch);
+      const s = { x: launch.launchRadius, z: 0, vx: 0, vz: launch.launchSpeed };
+      const e0 = o.energy;
+      const L0 = s.x * s.vz - s.z * s.vx;
+      let rmin = Infinity;
+      let rmax = 0;
+      let drift = 0;
+      let lDrift = 0;
+      for (let t = 0; t < seconds; t += h) {
+        stepOrbit(s, o.mu, h);
+        const r = Math.hypot(s.x, s.z);
+        rmin = Math.min(rmin, r);
+        rmax = Math.max(rmax, r);
+        drift = Math.max(drift, Math.abs((s.vx * s.vx + s.vz * s.vz) / 2 - o.mu / r - e0));
+        lDrift = Math.max(lDrift, Math.abs(s.x * s.vz - s.z * s.vx - L0));
+      }
+      return { o, s, rmin, rmax, drift, lDrift, r: Math.hypot(s.x, s.z), v: Math.hypot(s.vx, s.vz) };
+    };
+
+    it("takes μ from one place: G·M, with G fixed for the scene", () => {
+      assert.strictEqual(G_SCENE, 6);
+      assert.strictEqual(muOf(1), 6);
+      assert.strictEqual(muOf(2.5), 15);
+      assert.strictEqual(solveOrbit({ mass: 3 }).mu, 18);
+    });
+
+    it("makes a circle at exactly √(μ/r), and an escape at exactly √2 times that", () => {
+      const r = 3.4;
+      const circ = solveOrbit({ mass: 1, launchRadius: r, launchSpeed: Math.sqrt(6 / r) });
+      assert.ok(circ.eccentricity < 1e-9);
+      assert.strictEqual(circ.kind, "circular");
+      assert.ok(Math.abs(circ.periapsis - r) < 1e-9 && Math.abs(circ.apoapsis - r) < 1e-9);
+      assert.ok(Math.abs(circ.period - (2 * Math.PI * r) / circ.circularSpeed) < 1e-9);
+
+      const esc = solveOrbit({ mass: 1, launchRadius: r, launchSpeed: Math.sqrt(12 / r) });
+      assert.ok(Math.abs(esc.energy) < 1e-12, "ε = 0 at the escape speed");
+      assert.ok(Math.abs(esc.eccentricity - 1) < 1e-9, "a parabola, e = 1");
+      assert.ok(Math.abs(esc.escapeSpeed / esc.circularSpeed - Math.SQRT2) < 1e-12);
+    });
+
+    it("obeys Kepler's third law, T² = 4π²a³/μ, whatever the launch", () => {
+      for (const launch of [
+        { mass: 1, launchRadius: 3.4, launchSpeed: 1.7 },
+        { mass: 2, launchRadius: 2.0, launchSpeed: 3.0 },
+        { mass: 0.5, launchRadius: 5.0, launchSpeed: 0.9 },
+        { mass: 3, launchRadius: 6.0, launchSpeed: 2.0 },
+      ]) {
+        const o = solveOrbit(launch);
+        assert.ok(o.bound, JSON.stringify(launch));
+        const k = (o.period * o.period) / (o.semiMajor ** 3);
+        assert.ok(Math.abs(k - (4 * Math.PI * Math.PI) / o.mu) < 1e-9, JSON.stringify(launch));
+      }
+    });
+
+    it("has the launch point as the closest point above circular speed and the farthest below it", () => {
+      const fast = solveOrbit({ mass: 1, launchRadius: 3.4, launchSpeed: 1.7 });
+      const slow = solveOrbit({ mass: 1, launchRadius: 3.4, launchSpeed: 0.9 });
+      assert.ok(Math.abs(fast.periapsis - 3.4) < 1e-9 && fast.apoapsis > 3.4);
+      assert.ok(Math.abs(slow.apoapsis - 3.4) < 1e-9 && slow.periapsis < 3.4);
+      // Energy and angular momentum fix both, and the two ends average to a.
+      assert.ok(Math.abs((fast.periapsis + fast.apoapsis) / 2 - fast.semiMajor) < 1e-9);
+    });
+
+    it("leaves a satellite that has escape speed with the speed left over at infinity, ½v∞² = ε", () => {
+      const o = solveOrbit({ mass: 1, launchRadius: 3.4, launchSpeed: 2.5 });
+      assert.strictEqual(o.bound, false);
+      assert.strictEqual(o.kind, "hyperbolic");
+      assert.strictEqual(o.apoapsis, null);
+      assert.strictEqual(o.period, null);
+      assert.ok(Math.abs(o.speedAtInfinity - Math.sqrt(2.5 * 2.5 - o.escapeSpeed ** 2)) < 1e-12);
+    });
+
+    it("flies the orbit the formulae promise: a closed circle, and an ellipse between periapsis and apoapsis", () => {
+      // A circle comes back to where it started after exactly one period.
+      const c = solveOrbit({ mass: 1, launchRadius: 3.4, launchSpeed: Math.sqrt(6 / 3.4) });
+      const lap = fly({ mass: 1, launchRadius: 3.4, launchSpeed: Math.sqrt(6 / 3.4) }, c.period);
+      assert.ok(Math.hypot(lap.s.x - 3.4, lap.s.z) < 0.01, `back to (${lap.s.x.toFixed(4)}, ${lap.s.z.toFixed(4)})`);
+      assert.ok(lap.rmax - lap.rmin < 1e-5, "and never leaves radius 3.4");
+
+      // An ellipse sweeps out exactly the radii the conic says.
+      const launch = { mass: 1, launchRadius: 3.4, launchSpeed: 1.7 };
+      const o = solveOrbit(launch);
+      const run = fly(launch, o.period * 1.02);
+      assert.ok(Math.abs(run.rmin - o.periapsis) < 1e-3, `rmin ${run.rmin} vs ${o.periapsis}`);
+      assert.ok(Math.abs(run.rmax - o.apoapsis) < 2e-3, `rmax ${run.rmax} vs ${o.apoapsis}`);
+    });
+
+    it("conserves energy and angular momentum over many orbits — it never spirals in", () => {
+      const run = fly({ mass: 1, launchRadius: 3.4, launchSpeed: 1.7 }, 300);
+      assert.ok(run.drift < 1e-5, `energy wandered by ${run.drift}`);
+      assert.ok(run.lDrift < 1e-9, `angular momentum drifted by ${run.lDrift}`);
+    });
+
+    it("never stops a satellite that is leaving: the maxed-out launch flies on, out past 100 units", () => {
+      // Light central mass, biggest radius, fastest launch — the corner of the
+      // sliders. This used to be frozen at the edge of a sheet 7 units wide.
+      const launch = { mass: 0.3, launchRadius: 6, launchSpeed: 3.5 };
+      const o = solveOrbit(launch);
+      assert.strictEqual(o.bound, false);
+      const run = fly(launch, 40, 0.004);
+      assert.ok(run.r > 100, `only reached r = ${run.r.toFixed(1)}`);
+      // Still moving at essentially the speed the energy says it has left.
+      assert.ok(run.v > o.speedAtInfinity && run.v < o.speedAtInfinity * 1.02, `v = ${run.v} vs v∞ ${o.speedAtInfinity}`);
+      // And the strongest pull the sliders allow, at the other end of the range.
+      const heavy = fly({ mass: 3, launchRadius: 6, launchSpeed: 3.5 }, 40, 0.004);
+      assert.ok(heavy.r > 80 && heavy.drift < 1e-4);
+    });
+
+    it("sizes every launch the sliders allow, so the camera can be told how much room to leave", () => {
+      // The widest bound orbit the controls can make: still finite, still closed.
+      const wide = solveOrbit({ mass: 3, launchRadius: 6, launchSpeed: 2.4 });
+      assert.ok(wide.bound && wide.apoapsis > 100 && Number.isFinite(wide.period));
+      for (const mass of [0.3, 1, 3]) {
+        for (const launchRadius of [1.6, 3.4, 6]) {
+          for (const launchSpeed of [0.2, 1.35, 3.5]) {
+            const o = solveOrbit({ mass, launchRadius, launchSpeed });
+            assert.ok(o.periapsis > 0 && o.periapsis <= launchRadius + 1e-9, "the closest point is never beyond the launch point");
+            assert.ok(o.bound === (o.energy < 0));
+            if (o.bound) assert.ok(o.apoapsis >= launchRadius - 1e-9 && Number.isFinite(o.period));
+          }
+        }
+      }
+    });
+    it("reads the launch speed as a multiple of circular speed, meaning the same at any radius and mass", () => {
+      // e = |ratio² − 1| whatever the radius and the central mass, so the
+      // slider says the same thing wherever the others are set: 1 is a circle,
+      // √2 is escape.
+      for (const ratio of [0.5, 0.8, 1, 1.2, 1.35]) {
+        for (const [mass, launchRadius] of [[0.3, 6], [1, 3.4], [3, 1.6]]) {
+          const o = solveOrbit({ mass, launchRadius, launchRatio: ratio });
+          assert.ok(Math.abs(o.eccentricity - Math.abs(ratio * ratio - 1)) < 1e-9, `ratio ${ratio}, M=${mass}, r=${launchRadius}`);
+          assert.ok(Math.abs(o.launchSpeed - ratio * o.circularSpeed) < 1e-12);
+          assert.ok(Math.abs(o.speedRatio - ratio) < 1e-12);
+        }
+      }
+      assert.strictEqual(solveOrbit({ launchRatio: 1 }).kind, "circular");
+      assert.strictEqual(solveOrbit({ launchRatio: 1 }).bound, true);
+      assert.ok(Math.abs(solveOrbit({ launchRatio: ESCAPE_RATIO }).energy) < 1e-12, "√2 is exactly escape");
+      assert.strictEqual(solveOrbit({ launchRatio: 1.42 }).bound, false);
+      assert.strictEqual(solveOrbit({ launchRatio: 1.41 }).bound, true);
+      // Defaults to a circle, and an outright speed still wins if one is given.
+      assert.strictEqual(solveOrbit({}).kind, "circular");
+      assert.strictEqual(solveOrbit({ launchSpeed: 2, launchRatio: 1 }).launchSpeed, 2);
+    });
+
+    it("names what each launch does, so the slider can say it beside its number", () => {
+      const say = (launchRatio, extra = {}) => speedRegime({ launchRatio, ...extra });
+      assert.strictEqual(say(1), "circular");
+      assert.strictEqual(say(1.004), "circular");
+      assert.strictEqual(say(0.6), "falls inward");
+      assert.strictEqual(say(1.1), "ellipse");
+      assert.strictEqual(say(1.3), "near escape");
+      assert.strictEqual(say(1.42), "escapes");
+      assert.strictEqual(say(1.7), "escapes");
+    });
+
+    it("never calls a launch 'near escape' when the satellite leaves the view anyway", () => {
+      // Just under √2 the ellipse is bound but far wider than the view: it is
+      // shown leaving, so the word says that instead of 'near escape'.
+      const almost = speedRegime({ mass: 1, launchRadius: 3.4, launchRatio: 1.4 });
+      assert.strictEqual(almost, "bound, leaves view");
+      assert.strictEqual(solveOrbit({ launchRatio: 1.4 }).bound, true);
+      // The word follows the physics AND the picture at every setting of the sliders.
+      for (const mass of [0.3, 1, 3]) {
+        for (const launchRadius of [1.6, 3.4, 6]) {
+          for (let r = 0.3; r <= 1.7001; r += 0.01) {
+            const o = solveOrbit({ mass, launchRadius, launchRatio: r });
+            const word = speedRegime({ mass, launchRadius, launchRatio: r });
+            const where = `${mass}/${launchRadius}/${r.toFixed(2)}: ${word}`;
+            assert.strictEqual(word === "escapes", !o.bound && Math.abs(r - 1) >= 0.005, where);
+            if (word === "near escape" || word === "ellipse") assert.ok(framing(o, launchRadius).fits, where);
+            if (word === "bound, leaves view") assert.ok(o.bound && !framing(o, launchRadius).fits, where);
+          }
+        }
+      }
+    });
+
+    it("frames every launch inside the drawn sheet, so nothing leaves it by a wide margin", () => {
+      // The sheet is 60 units across in radius; the frame never asks for more than VIEW_MAX.
+      assert.ok(VIEW_MAX < 60);
+      for (const mass of [0.3, 1, 3]) {
+        for (const launchRadius of [1.6, 3.4, 6]) {
+          for (let ratio = 0.3; ratio <= 1.7001; ratio += 0.1) {
+            const o = solveOrbit({ mass, launchRadius, launchRatio: ratio });
+            const f = framing(o, launchRadius);
+            assert.ok(f.viewRadius >= VIEW_MIN && f.viewRadius <= VIEW_MAX, `${mass}/${launchRadius}/${ratio}: ${f.viewRadius}`);
+            assert.ok(f.viewRadius >= launchRadius, "the launch point is always in view");
+            if (f.fits) assert.ok(o.apoapsis * 1.1 <= f.viewRadius + 1e-9, "and a orbit that fits, fits whole");
+          }
+        }
+      }
+      // The default circle is framed as tightly as the camera allows; a barely-bound
+      // ellipse and an escape are cut off at the frame.
+      const circle = framing(solveOrbit({ launchRatio: 1 }), 3.4);
+      assert.strictEqual(circle.viewRadius, VIEW_MIN);
+      assert.strictEqual(circle.fits, true);
+      const wide = framing(solveOrbit({ launchRatio: 1.4 }), 3.4);
+      assert.strictEqual(wide.viewRadius, VIEW_MAX);
+      assert.strictEqual(wide.fits, false);
+      const away = framing(solveOrbit({ launchRatio: 1.6 }), 3.4);
+      assert.strictEqual(away.fits, false);
+      assert.ok(away.viewRadius > 3.4 && away.viewRadius <= VIEW_MAX);
+    });
+
+    it("flies accurately at any time-scale: a lap in a few huge frames is still a lap", () => {
+      const launch = { mass: 1, launchRadius: 3.4, launchRatio: 1 };
+      const o = solveOrbit(launch);
+      for (const frame of [0.033, 0.33, 3.3]) {
+        // one period of simulated time, cut into frames of `frame` seconds each
+        const s = { x: 3.4, z: 0, vx: 0, vz: o.launchSpeed };
+        let t = 0;
+        while (t < o.period - 1e-9) {
+          const dt = Math.min(frame, o.period - t);
+          advanceOrbit(s, o.mu, dt);
+          t += dt;
+        }
+        assert.ok(Math.hypot(s.x - 3.4, s.z) < 0.02, `frame ${frame}s: ended ${Math.hypot(s.x - 3.4, s.z).toFixed(4)} from the start`);
+      }
+    });
+
+    it("conserves energy in an eccentric orbit across many orbits, at 1× and at 100×", () => {
+      for (const frame of [0.033, 3.3]) {
+        const o = solveOrbit({ mass: 1, launchRadius: 3.4, launchRatio: 0.6 });
+        const s = { x: 3.4, z: 0, vx: 0, vz: o.launchSpeed };
+        const e0 = o.energy;
+        let worst = 0;
+        for (let t = 0; t < o.period * 20; t += frame) {
+          advanceOrbit(s, o.mu, frame);
+          const r = Math.hypot(s.x, s.z);
+          worst = Math.max(worst, Math.abs((s.vx * s.vx + s.vz * s.vz) / 2 - o.mu / r - e0));
+        }
+        assert.ok(worst < 2e-3, `frame ${frame}s: energy wandered by ${worst}`);
+      }
+    });
+
+    it("bounds the work per frame and can be stopped part-way", () => {
+      const o = solveOrbit({ mass: 3, launchRadius: 1.6, launchRatio: 1 });
+      const s = { x: 1.6, z: 0, vx: 0, vz: o.launchSpeed };
+      // A frame of ten minutes cannot be flown in ten thousand steps: it is cut off, not frozen.
+      const steps = advanceOrbit(s, o.mu, 600, undefined, 1500);
+      assert.strictEqual(steps, 1500);
+      // The callback can end the frame early, as when the satellite has left the view.
+      const t = { x: 6, z: 0, vx: 0, vz: 3 };
+      let seen = 0;
+      advanceOrbit(t, 6, 5, () => {
+        seen += 1;
+        return seen < 10;
+      });
+      assert.strictEqual(seen, 10);
+    });
+
   });
 
   describe("Electrostatic Force Formatting & Safety", () => {
@@ -543,13 +984,68 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
       const res = simulateFlight(u, angle, g, 0, 1);
       const expected = idealFlight(u, angle, g);
 
-      assert.ok(Math.abs(res.range - expected.range) < 0.15, `Range ${res.range} matches analytical ${expected.range}`);
-      assert.ok(Math.abs(res.apex - expected.apex) < 0.1, `Apex ${res.apex} matches analytical ${expected.apex}`);
-      assert.ok(Math.abs(res.flightTime - expected.flightTime) < 0.05, `Flight time matches analytical`);
+      // The step is second order and a vacuum's acceleration is constant, so
+      // the numerical flight IS the closed-form one — not merely close to it.
+      // (A first-order step ran 0.06–0.14 m short, and the drawn "(vac)" range
+      // then disagreed with the readout's ideal range in the first decimal.)
+      assert.ok(Math.abs(res.range - expected.range) < 0.005, `Range ${res.range} matches analytical ${expected.range}`);
+      assert.ok(Math.abs(res.apex - expected.apex) < 0.005, `Apex ${res.apex} matches analytical ${expected.apex}`);
+      assert.ok(Math.abs(res.flightTime - expected.flightTime) < 0.001, `Flight time matches analytical`);
       // In vacuum, trajectory is perfectly symmetric: apex horizontal position occurs at 50% of range
-      assert.ok(Math.abs(res.apexX / res.range - 0.5) < 0.02, `Apex occurs at 50% of range`);
+      assert.ok(Math.abs(res.apexX / res.range - 0.5) < 0.002, `Apex occurs at 50% of range`);
       // Impact speed matches launch speed
-      assert.ok(Math.abs(res.impactSpeed - u) < 0.1, `Impact speed matches launch speed`);
+      assert.ok(Math.abs(res.impactSpeed - u) < 0.01, `Impact speed matches launch speed`);
+    });
+
+    it("agrees with the closed form across launches, planets and angles", () => {
+      for (const [u, a, g] of [[22, 45, 9.81], [40, 45, 9.81], [40, 85, 1.62], [40, 30, 24.79], [5, 5, 9.81]]) {
+        const n = simulateFlight(u, a, g, 0, 1);
+        const c = idealFlight(u, a, g);
+        const tag = `u=${u} θ=${a} g=${g}`;
+        assert.ok(Math.abs(n.range - c.range) < 0.005, `${tag}: range ${n.range} vs ${c.range}`);
+        assert.ok(Math.abs(n.apex - c.apex) < 0.005, `${tag}: apex`);
+        assert.ok(Math.abs(n.flightTime - c.flightTime) < 0.001, `${tag}: time`);
+        // Landing at launch height, so the ball comes back down at the launch speed.
+        assert.ok(Math.abs(n.impactSpeed - u) < 0.01, `${tag}: impact speed ${n.impactSpeed}`);
+        // ... with the vertical component exactly reversed and the horizontal untouched.
+        assert.ok(Math.abs(n.svx[n.count - 1] - u * Math.cos((a * Math.PI) / 180)) < 0.01, `${tag}: vx`);
+        assert.ok(Math.abs(n.svy[n.count - 1] + u * Math.sin((a * Math.PI) / 180)) < 0.01, `${tag}: vy`);
+      }
+    });
+
+    it("stays accurate with drag, checked against an independent fine-step RK4", () => {
+      // A reference written here, with a step eight times smaller and a
+      // fourth-order scheme, so agreement means the drag term is integrated
+      // right — not just that the vacuum case is.
+      const reference = (u, angleDeg, g, drag, mass, dt = 0.0005) => {
+        const kk = drag / mass;
+        const acc = (vx, vy) => [-kk * Math.hypot(vx, vy) * vx, -g - kk * Math.hypot(vx, vy) * vy];
+        const a = (angleDeg * Math.PI) / 180;
+        let [x, y, vx, vy, t] = [0, 0, u * Math.cos(a), u * Math.sin(a), 0];
+        for (;;) {
+          const k1 = acc(vx, vy);
+          const k2 = acc(vx + 0.5 * dt * k1[0], vy + 0.5 * dt * k1[1]);
+          const k3 = acc(vx + 0.5 * dt * k2[0], vy + 0.5 * dt * k2[1]);
+          const k4 = acc(vx + dt * k3[0], vy + dt * k3[1]);
+          const nvx = vx + (dt / 6) * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]);
+          const nvy = vy + (dt / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]);
+          const nx = x + (dt / 2) * (vx + nvx);
+          const ny = y + (dt / 2) * (vy + nvy);
+          if (ny < 0) {
+            const f = y / (y - ny);
+            return { range: x + (nx - x) * f, time: t + f * dt, impact: Math.hypot(vx + (nvx - vx) * f, vy + (nvy - vy) * f) };
+          }
+          [x, y, vx, vy, t] = [nx, ny, nvx, nvy, t + dt];
+        }
+      };
+      for (const [u, a, g, k, m] of [[25, 45, 9.81, 0.06, 1], [40, 30, 9.81, 0.25, 0.5], [22, 60, 3.72, 0.1, 2], [30, 80, 9.81, 0.15, 1]]) {
+        const n = simulateFlight(u, a, g, k, m);
+        const r = reference(u, a, g, k, m);
+        const tag = `u=${u} θ=${a} g=${g} k=${k} m=${m}`;
+        assert.ok(Math.abs(n.range - r.range) < 0.01, `${tag}: range ${n.range} vs ${r.range}`);
+        assert.ok(Math.abs(n.flightTime - r.time) < 0.003, `${tag}: time ${n.flightTime} vs ${r.time}`);
+        assert.ok(Math.abs(n.impactSpeed - r.impact) < 0.02, `${tag}: impact ${n.impactSpeed} vs ${r.impact}`);
+      }
     });
 
     it("demonstrates asymmetric flight path with air resistance (descent is steeper than climb, apex > 50% of range)", () => {
@@ -607,7 +1103,10 @@ describe("Physics & Chemistry Mathematical Solvers", () => {
 
     it("samples the path the scene draws on the same clock as the flight time", () => {
       const res = simulateFlight(22, 45, 9.81, 0.04, 1);
-      assert.strictEqual(res.flightTime, (res.count - 1) * SIM_DT);
+      // Sample i is at t = i·SIM_DT; the last is the landing, at the moment it
+      // crosses the ground — inside the final step, not on the sample grid.
+      assert.ok(res.flightTime <= (res.count - 1) * SIM_DT + 1e-12);
+      assert.ok(res.flightTime > (res.count - 2) * SIM_DT);
       assert.ok(res.count > 100, `${res.count} samples for a ~3 s flight`);
       assert.strictEqual(res.svx.length, res.svy.length);
       // Every sample up to the landing index is on the ground or above it.

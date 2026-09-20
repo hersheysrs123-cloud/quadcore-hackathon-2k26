@@ -438,20 +438,37 @@ export default function HookesLawCanvas({ params = {}, setParam }) {
 
   // A different spring constant IS a different spring, so its history goes
   // with it — as does explicitly fitting a fresh one.
+  //
+  // This must fire on those two things ONLY. It listed the recorded peak among
+  // its dependencies, so every time the load rose past the peak — the effect
+  // above writing the new one — it fired, wiped the peak, and set the effect
+  // above off again: an endless ping-pong that React cut off after fifty
+  // rounds ("Maximum update depth exceeded"), leaving whichever value happened
+  // to be written last. A spring that had been overloaded then quite often
+  // forgot it, and the graph showed no permanent set.
+  const seenSpring = useRef(null);
   useEffect(() => {
+    const seen = seenSpring.current;
+    if (seen && seen.springConstant === springConstant && seen.newSpring === newSpring) return;
+    seenSpring.current = { springConstant, newSpring };
     setLocalPeakForce(0);
-    if (setParam && paramPeakForce !== 0) setParam("peakForce", 0);
-  }, [springConstant, newSpring, paramPeakForce, setParam]);
+    if (setParam) setParam("peakForce", 0);
+  }, [springConstant, newSpring, setParam]);
 
   // The overload button takes the coil well past yield in one go, which is the
   // demonstration a student should not have to hunt for on the mass slider.
+  // Like the reset, it belongs to its own button: the recorded peak is not a
+  // reason to run it again.
+  const seenOverload = useRef(overload);
   useEffect(() => {
+    if (overload === seenOverload.current) return;
+    seenOverload.current = overload;
     if (overload > 0) {
       const nextPeak = elasticLimitForce(springConstant) * 1.4;
       setLocalPeakForce(nextPeak);
-      if (setParam && paramPeakForce !== nextPeak) setParam("peakForce", nextPeak);
+      if (setParam) setParam("peakForce", nextPeak);
     }
-  }, [overload, springConstant, paramPeakForce, setParam]);
+  }, [overload, springConstant, setParam]);
 
   const solved = useMemo(
     () => solveSpring({ massKg: hangingMass, k: springConstant, peakForce }),

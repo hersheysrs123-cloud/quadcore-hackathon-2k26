@@ -34,6 +34,7 @@ export const FORCE_COLOURS = {
   friction: "#2dd4bf",
   applied: "#fbbf24",
   net: "#34d399",
+  stop: "#94a3b8",
   velocity: "#e8ebf0",
   spring: "#38bdf8",
   limit: "#f43f5e",

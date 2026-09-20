@@ -9,6 +9,7 @@ import {
   elasticLimitForce,
   extensionFor,
   failureForce,
+  forceAxisMax,
   loadCurve,
   loadForce,
   loadingExtension,
@@ -207,6 +208,36 @@ describe("the plotted curve matches the solver", () => {
     const k = 80;
     const c = loadCurve(k, elasticLimitForce(k) * 1.3);
     assert.deepEqual(c.plastic[0], c.elastic[1]);
+  });
+});
+
+describe("the graph's force axis", () => {
+  it("runs to a round number that clears the largest force, with a little headroom", () => {
+    assert.equal(forceAxisMax(17.92), 20);
+    assert.equal(forceAxisMax(2.24), 2.5);
+    assert.equal(forceAxisMax(0.336), 0.4);
+    assert.equal(forceAxisMax(0), 1);
+    for (const f of [0.05, 0.5, 2.24, 11.2, 17.92, 33.6, 37.6, 60, 250]) {
+      const top = forceAxisMax(f);
+      assert.ok(top >= f * 1.04 - 1e-9, `${top} clears ${f}`);
+      assert.ok(top <= f * 1.04 * 1.34, `${top} is not wastefully high for ${f}`);
+    }
+  });
+
+  it("puts every spring's failure point on the plot, whatever k is on the slider", () => {
+    for (let k = 10; k <= 150; k += 5) {
+      assert.ok(forceAxisMax(failureForce(k)) > failureForce(k), `k = ${k}`);
+    }
+  });
+
+  it("gives gridlines whose true values print exactly to two decimals", () => {
+    // The midpoint is half the top; it must be representable, so the label
+    // printed for it is the value — not a rounded one.
+    for (const f of [0.05, 0.336, 2.24, 4.5, 11.2, 17.92, 37.6]) {
+      const top = forceAxisMax(f);
+      const printed = Math.round((top / 2) * 100) / 100;
+      assert.ok(close(printed, top / 2, 0.005), `${top / 2} printed as ${printed}`);
+    }
   });
 });
 

@@ -483,6 +483,103 @@ function exactVolume(r, height, panels = 400) {
   return (Math.PI * height * h * sum) / 3;
 }
 
+const DISC_SEGMENTS = 48;
+
+/**
+ * One Riemann disc, drawn without any coplanar faces.
+ *
+ * The discs are flush, so a disc's top face and the next disc's bottom face
+ * share a plane. Drawing both full caps made the depth buffer flip between
+ * them frame to frame (the radial streaks). Each cap is instead drawn only
+ * where it is exposed, as the ring between the neighbour's radius and its own,
+ * and skipped when the neighbour is at least as wide and covers it entirely.
+ *
+ * `below` / `above` are the neighbouring radii, or undefined at the ends of
+ * the stack, where the full cap shows.
+ */
+function RiemannDisc({ disc, below, above, phiLength, even }) {
+  const { y, radius, thickness } = disc;
+  const half = thickness / 2;
+  const cut = phiLength < Math.PI * 2 - 1e-3;
+
+  const geo = useMemo(() => {
+    const ring = (inner) =>
+      new THREE.LatheGeometry(
+        [new THREE.Vector2(inner, 0), new THREE.Vector2(radius, 0)],
+        DISC_SEGMENTS,
+        0,
+        phiLength
+      );
+    const wall = new THREE.CylinderGeometry(radius, radius, thickness, DISC_SEGMENTS, 1, true, 0, phiLength);
+    const bottomInner = below === undefined ? 0 : below;
+    const topInner = above === undefined ? 0 : above;
+    return {
+      wall,
+      bottom: bottomInner < radius ? ring(bottomInner) : null,
+      top: topInner < radius ? ring(topInner) : null,
+      // The flat faces the sweep angle exposes, where the wedge is missing.
+      cutFace: cut ? new THREE.PlaneGeometry(radius, thickness) : null,
+    };
+  }, [radius, thickness, phiLength, below, above, cut]);
+
+  useEffect(
+    () => () => {
+      Object.values(geo).forEach((g) => g && g.dispose());
+    },
+    [geo]
+  );
+
+  // Both cut faces share this material. polygonOffset nudges them behind the
+  // emerald profile curve, which lies in the φ = 0 face and would fight it.
+  const material = (
+    <meshStandardMaterial
+      color={even ? "#fcd34d" : "#b45309"}
+      emissive={even ? "#d97706" : "#78350f"}
+      emissiveIntensity={0.16}
+      roughness={0.38}
+      metalness={0.18}
+      transparent
+      opacity={0.92}
+      side={THREE.DoubleSide}
+      polygonOffset
+      polygonOffsetFactor={1}
+      polygonOffsetUnits={1}
+    />
+  );
+
+  return (
+    <group position={[0, y, 0]}>
+      <mesh geometry={geo.wall}>{material}</mesh>
+      {geo.bottom && (
+        <mesh geometry={geo.bottom} position={[0, -half, 0]}>
+          {material}
+        </mesh>
+      )}
+      {geo.top && (
+        <mesh geometry={geo.top} position={[0, half, 0]}>
+          {material}
+        </mesh>
+      )}
+      {geo.cutFace && (
+        <>
+          {/* φ = 0: the plane x = 0, running out along +z. */}
+          <mesh geometry={geo.cutFace} position={[0, 0, radius / 2]} rotation={[0, -Math.PI / 2, 0]}>
+            {material}
+          </mesh>
+          {/* φ = phiLength: the same face turned to the far end of the sweep. */}
+          <mesh
+            geometry={geo.cutFace}
+            position={[(Math.sin(phiLength) * radius) / 2, 0, (Math.cos(phiLength) * radius) / 2]}
+            rotation={[0, phiLength - Math.PI / 2, 0]}
+          >
+            {material}
+          </mesh>
+        </>
+      )}
+    </group>
+  );
+}
+
 export function SolidOfRevolutionScene({ params = {} }) {
   const {
     curve = "bell",
@@ -586,22 +683,14 @@ export function SolidOfRevolutionScene({ params = {} }) {
 
       {showDiscs &&
         discs.map((d, i) => (
-          <mesh key={i} position={[0, d.y, 0]}>
-            {/* Flush contiguous Riemann discs with high-contrast alternating gold & bronze layers */}
-            <cylinderGeometry
-              args={[d.radius, d.radius, d.thickness, 48, 1, false, 0, phiLength]}
-            />
-            <meshStandardMaterial
-              color={i % 2 === 0 ? "#fcd34d" : "#b45309"}
-              emissive={i % 2 === 0 ? "#d97706" : "#78350f"}
-              emissiveIntensity={0.16}
-              roughness={0.38}
-              metalness={0.18}
-              transparent
-              opacity={0.92}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+          <RiemannDisc
+            key={i}
+            disc={d}
+            below={discs[i - 1]?.radius}
+            above={discs[i + 1]?.radius}
+            phiLength={phiLength}
+            even={i % 2 === 0}
+          />
         ))}
 
       <Line points={profile} color={PALETTE.emerald} lineWidth={3.2} />

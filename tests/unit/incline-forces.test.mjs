@@ -3,17 +3,22 @@ import assert from "node:assert/strict";
 import {
   FRICTION_SURFACES,
   G,
-  RAMP_LENGTH_M,
+  TRAVEL_LIMIT_M,
   advanceBlock,
   angleOfRepose,
   holdingRange,
   maxStaticFriction,
+  niceCeil,
   normalForce,
+  slideForecast,
   solveIncline,
+  solveMotion,
+  traceAxes,
   weightComponents,
 } from "../../lib/inclineForces.js";
 
 const close = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
+const RAMP_LENGTH_HALF = 2;
 
 describe("resolving weight on a slope", () => {
   it("puts the whole weight into the normal on the flat and none into the slope", () => {
@@ -181,7 +186,7 @@ describe("the block's motion", () => {
 
   it("accelerates down a slope past the angle of repose", () => {
     let m = { position: 0, velocity: 0 };
-    for (let i = 0; i < 60; i += 1) m = advanceBlock(m, opts(), 0.016);
+    for (let i = 0; i < 30; i += 1) m = advanceBlock(m, opts(), 0.016);
     assert.ok(m.velocity < 0, "should be heading down the slope");
     assert.ok(m.position < 0);
   });
@@ -189,7 +194,7 @@ describe("the block's motion", () => {
   it("stops at the bottom of the ramp instead of sailing off it", () => {
     let m = { position: 0, velocity: 0 };
     for (let i = 0; i < 4000; i += 1) m = advanceBlock(m, opts(), 0.016);
-    assert.ok(close(m.position, -RAMP_LENGTH_M / 2, 1e-9));
+    assert.ok(close(m.position, -TRAVEL_LIMIT_M, 1e-9));
     assert.equal(m.velocity, 0);
   });
 
@@ -217,7 +222,7 @@ describe("the block's motion", () => {
     for (let i = 0; i < 50; i += 1) {
       m = advanceBlock(m, extremeOpts, 0.016);
     }
-    assert.ok(close(m.position, RAMP_LENGTH_M / 2, 1e-4), "must be at top barrier");
+    assert.ok(close(m.position, TRAVEL_LIMIT_M, 1e-4), "must be at top barrier");
     assert.equal(m.velocity, 0, "velocity must be exactly 0 at the barrier");
 
     // Hold under max force for 200 more frames: must remain at 0 velocity with zero chatter
@@ -234,8 +239,147 @@ describe("the block's motion", () => {
     for (let i = 0; i < 50; i += 1) {
       m = advanceBlock(m, opts90, 0.016);
     }
-    assert.ok(close(m.position, RAMP_LENGTH_M / 2, 1e-4), "must be at top barrier");
+    assert.ok(close(m.position, TRAVEL_LIMIT_M, 1e-4), "must be at top barrier");
     assert.equal(m.velocity, 0, "velocity must be exactly 0 at the barrier");
     assert.equal(m.solved.acceleration, 0, "acceleration must be 0 while resting against barrier");
+  });
+});
+
+describe("the block against its stop, and the graph that records the slide", () => {
+  const opts = (over) => ({ massKg: 10, angleDeg: 40, surface: "wood", appliedForce: 0, ...over });
+
+  it("travels a distance the crate can actually cover: half the ramp less half the crate and the stop", () => {
+    assert.ok(TRAVEL_LIMIT_M < RAMP_LENGTH_HALF, "the centre never reaches the end of the ramp");
+    assert.ok(RAMP_LENGTH_HALF - TRAVEL_LIMIT_M > 0.3, "and leaves room for half a crate");
+  });
+
+  it("moves the block exactly, however long the frames are: x = ½at², v = at", () => {
+    const o = opts();
+    const a = solveIncline({ ...o, velocity: 0 }).acceleration; // negative: down the slope
+    for (const dt of [0.004, 0.016, 0.05, 0.15]) {
+      let m = { position: 0, velocity: 0 };
+      let t = 0;
+      while (t < 0.6 - 1e-9) {
+        m = advanceBlock(m, o, dt);
+        t += dt;
+      }
+      assert.ok(close(m.velocity, a * t, 1e-9), `v at dt=${dt}`);
+      assert.ok(close(m.position, 0.5 * a * t * t, 1e-9), `x at dt=${dt}`);
+    }
+  });
+
+  it("arrives at the stop at exactly √(2|a|d), and says when it got there", () => {
+    const o = opts();
+    const f = slideForecast(o);
+    // A big step that overshoots the stop: the answer must not depend on it.
+    for (const dt of [0.004, 0.016, 0.15]) {
+      let m = { position: 0, velocity: 0 };
+      let elapsed = 0;
+      let hit = null;
+      for (let i = 0; i < 2000 && !hit; i += 1) {
+        m = advanceBlock(m, o, dt);
+        if (m.hitBarrier) {
+          hit = m;
+          elapsed += m.hitTime;
+        } else {
+          elapsed += dt;
+        }
+      }
+      assert.ok(hit, "it reaches the stop");
+      assert.ok(close(Math.abs(hit.arrivalVelocity), f.impactSpeed, 1e-9), `impact speed at dt=${dt}`);
+      assert.ok(close(elapsed, f.timeToStop, 1e-9), `time at dt=${dt}`);
+      assert.equal(hit.velocity, 0);
+      assert.ok(close(hit.position, -TRAVEL_LIMIT_M, 1e-12));
+    }
+  });
+
+  it("checks the impact against the textbook: v² = 2as with a = g(sinθ − μk cosθ)", () => {
+    const f = slideForecast(opts());
+    const a = 9.81 * (Math.sin((40 * Math.PI) / 180) - 0.3 * Math.cos((40 * Math.PI) / 180));
+    assert.ok(close(Math.abs(f.acceleration), a, 1e-9));
+    assert.ok(close(f.impactSpeed, Math.sqrt(2 * a * TRAVEL_LIMIT_M), 1e-9));
+    assert.equal(f.direction, -1, "down the slope");
+  });
+
+  it("forecasts nothing for a block the slope cannot move, and an upward slide for a strong pull", () => {
+    const still = slideForecast(opts({ angleDeg: 10 }));
+    assert.equal(still.slides, false);
+    assert.equal(still.timeToStop, null);
+    const up = slideForecast(opts({ angleDeg: 10, appliedForce: 300 }));
+    assert.equal(up.slides, true);
+    assert.equal(up.direction, 1);
+  });
+
+  it("draws the stop's push, so a block pinned against it balances on the diagram", () => {
+    const o = opts();
+    const pinned = solveMotion(o, { position: -TRAVEL_LIMIT_M, velocity: 0 });
+    assert.equal(pinned.atBarrier, "bottom");
+    assert.equal(pinned.netForce, 0);
+    // Weight along the slope (down), friction and the stop's push (both up) sum to zero.
+    const along = -pinned.weightParallel + pinned.friction + pinned.stopForce;
+    assert.ok(close(along, 0, 1e-9), `unbalanced by ${along}`);
+    assert.ok(pinned.stopForce > 0, "the bottom stop pushes up the slope");
+    // Away from a stop there is no such force.
+    assert.equal(solveMotion(o, { position: 0, velocity: 0 }).stopForce, undefined);
+    // Pulled hard against the top stop, the stop pushes back down the slope.
+    const top = solveMotion(opts({ angleDeg: 10, appliedForce: 300 }), { position: TRAVEL_LIMIT_M, velocity: 0 });
+    assert.equal(top.atBarrier, "top");
+    assert.ok(top.stopForce < 0);
+    assert.ok(close(300 - top.weightParallel + top.friction + top.stopForce, 0, 1e-9));
+  });
+
+  it("picks round axis limits, at or just above the value they have to hold", () => {
+    assert.equal(niceCeil(4.06), 4.5);
+    assert.equal(niceCeil(1.01), 1.2);
+    assert.equal(niceCeil(0.083), 0.09);
+    assert.equal(niceCeil(41), 45);
+    for (const x of [0.013, 0.7, 1, 3.98, 9.99, 12, 250]) {
+      const n = niceCeil(x);
+      assert.ok(n >= x && n < x * 1.34, `${x} → ${n}`);
+    }
+  });
+
+  it("fixes the velocity graph's axes from the physics, so they never rescale mid-run", () => {
+    // Slides down: the run ends inside the window, the speed inside the range, zero at the top.
+    for (const o of [opts(), opts({ angleDeg: 60 }), opts({ surface: "teflon", angleDeg: 5 }), opts({ angleDeg: 80, massKg: 1 })]) {
+      const f = slideForecast(o);
+      const ax = traceAxes(f);
+      assert.ok(f.slides);
+      assert.ok(ax.tMax >= f.timeToStop && ax.tMax <= f.timeToStop * 1.6, "window fits the run");
+      assert.equal(ax.vMax, 0);
+      assert.ok(-ax.vMin >= f.impactSpeed, "range holds the impact speed");
+    }
+    // Pulled up: zero at the bottom.
+    const up = traceAxes(slideForecast(opts({ angleDeg: 10, appliedForce: 300 })));
+    assert.equal(up.vMin, 0);
+    assert.ok(up.vMax > 0);
+    // Holds still: a symmetric window with the zero line in the middle.
+    const still = traceAxes(slideForecast(opts({ angleDeg: 10 })));
+    assert.deepEqual(still, { tMax: 4, vMin: -2, vMax: 2 });
+  });
+
+  it("never lets the plotted curve leave its axes, whatever the settings", () => {
+    for (const surface of ["teflon", "wood", "rubber"]) {
+      for (const angleDeg of [3, 15, 30, 45, 70, 90]) {
+        for (const appliedForce of [-500, -120, 0, 80, 500]) {
+          for (const massKg of [1, 10, 50]) {
+            const o = { massKg, angleDeg, surface, appliedForce };
+            const ax = traceAxes(slideForecast(o));
+            let m = { position: 0, velocity: 0 };
+            let t = 0;
+            for (let i = 0; i < 4000 && t <= ax.tMax; i += 1) {
+              m = advanceBlock(m, o, 0.016);
+              t += m.hitBarrier ? m.hitTime : 0.016;
+              const v = m.hitBarrier ? m.arrivalVelocity : m.velocity;
+              assert.ok(v >= ax.vMin - 1e-9 && v <= ax.vMax + 1e-9, `${JSON.stringify(o)} v=${v} outside [${ax.vMin}, ${ax.vMax}]`);
+              if (m.hitBarrier) {
+                assert.ok(t <= ax.tMax + 1e-9, `${JSON.stringify(o)} stops at ${t} after the window ${ax.tMax}`);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
   });
 });

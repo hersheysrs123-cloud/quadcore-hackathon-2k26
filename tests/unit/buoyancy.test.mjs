@@ -1,20 +1,31 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  APPARATUS,
   FLUIDS,
   G,
+  HULL_BLOCK,
   HULL_ENVELOPE,
+  HULL_FORM,
+  HULL_UNIT_VOLUME,
   MAX_DENSITY,
   MAX_VOLUME,
   MIN_DENSITY,
   MIN_VOLUME,
   SHAPES,
   SOLIDS,
+  TANK_INSIDE,
   buoyantForce,
+  catchRange,
   fluidComparison,
+  formatNewtons,
   gaugePressure,
+  hullDraftFraction,
+  hullSection,
+  isOverflowing,
   massKg,
   shapeMetrics,
+  springScaleRange,
   solidPresetFor,
   solveBuoyancy,
   waterlineFraction,
@@ -228,7 +239,17 @@ describe("geometry", () => {
   it("reads a prism's waterline straight off the volume fraction", () => {
     for (const f of [0, 0.25, 0.5, 0.92, 1]) {
       assert.ok(close(waterlineFraction("cube", f), f, 1e-9));
-      assert.ok(close(waterlineFraction("hull", f), f, 1e-9));
+    }
+  });
+
+  it("gives the lumpy rock the ellipsoid's waterline, not a prism's", () => {
+    for (const f of [0.2, 0.6, 0.9]) {
+      assert.ok(close(waterlineFraction("rock", f), waterlineFraction("sphere", f), 1e-9));
+    }
+    // And a rock's own volume is the slider's, as an ellipsoid: pi/6 * L * W * H.
+    for (const v of VOLUMES) {
+      const m = shapeMetrics("rock", v);
+      assert.ok(close((Math.PI / 6) * m.length * m.width * m.height, v, 1e-6), `V=${v}`);
     }
   });
 
@@ -304,31 +325,148 @@ describe("nothing produces a NaN", () => {
   });
 });
 
-describe("boat hull proportions and tank boundary containment", () => {
-  it("keeps hull length, width, and height within the apparatus tank envelope across all slider volumes", () => {
-    // Tank inside clearance: width ~32.9 cm, depth ~18.9 cm, height 24 cm
-    const TANK_INSIDE_WIDTH = 32.9;
-    const TANK_INSIDE_DEPTH = 18.9;
+describe("the hull is one body, in the numbers and in the picture", () => {
+  /**
+   * Immersed volume of the unit hull at waterline `y`, worked out a different
+   * way from the solver: slice the body by HEIGHT (width at each level, read off
+   * the section outline by interpolation) instead of clipping it by station.
+   */
+  function immersedByLevels(y) {
+    const stations = 240;
+    const levels = 320;
+    let volume = 0;
+    for (let i = 0; i < stations; i += 1) {
+      const section = hullSection((i + 0.5) / stations); // ascending in height
+      const yTop = Math.min(y, section[section.length - 1][1]);
+      const yBot = section[0][1];
+      if (yTop <= yBot) continue;
+      const widthAt = (level) => {
+        for (let k = 0; k < section.length - 2; k += 1) {
+          const [x0, y0] = section[k];
+          const [x1, y1] = section[k + 1];
+          if (level <= y1 + 1e-12) return x0 + ((x1 - x0) * (level - y0)) / (y1 - y0);
+        }
+        return section[section.length - 2][0];
+      };
+      let area = 0;
+      for (let j = 0; j < levels; j += 1) {
+        area += 2 * widthAt(yBot + ((j + 0.5) / levels) * (yTop - yBot)) * ((yTop - yBot) / levels);
+      }
+      volume += area * (HULL_FORM.length / stations);
+    }
+    return volume;
+  }
 
-    for (let v = MIN_VOLUME; v <= MAX_VOLUME; v += 25) {
-      const m = shapeMetrics("hull", v);
-      assert.ok(m.length < TANK_INSIDE_WIDTH, `Hull length ${m.length} cm exceeds tank width ${TANK_INSIDE_WIDTH} at V=${v}`);
-      assert.ok(m.width < TANK_INSIDE_DEPTH, `Hull width ${m.width} cm exceeds tank depth ${TANK_INSIDE_DEPTH} at V=${v}`);
-      assert.ok(m.length > m.width, `Length should exceed beam for boat: L=${m.length}, W=${m.width}`);
-      assert.ok(close(m.footprint * m.height, m.envelopeCC, 1e-6));
+  it("sinks the drawn hull to the waterline that holds exactly the displaced volume", () => {
+    for (const f of [0.05, 0.2, 0.4, 0.65, 0.9]) {
+      const draft = hullDraftFraction(f);
+      const displaced = immersedByLevels(-0.5 + draft);
+      assert.ok(close(displaced / HULL_UNIT_VOLUME, f, 0.006), `f=${f}: got ${displaced / HULL_UNIT_VOLUME}`);
     }
   });
 
-  it("floats steel in freshwater with realistic waterline draft below the gunwales", () => {
+  it("sits a fuller-than-a-box hull deeper than the old box did, but not absurdly so", () => {
+    // A hull is narrower at the keel than at the deck, so displacing a given
+    // volume takes MORE draft than the straight-sided box said.
+    for (const f of [0.1, 0.3, 0.65]) {
+      assert.ok(hullDraftFraction(f) > f, `f=${f}`);
+    }
+    assert.ok(HULL_BLOCK > 0.45 && HULL_BLOCK < 0.8, `block coefficient ${HULL_BLOCK}`);
+    assert.ok(close(hullDraftFraction(0), 0, 1e-9) && close(hullDraftFraction(1), 1, 1e-9));
+  });
+
+  it("is monotonic: more displaced volume never means a shallower draft", () => {
+    let last = -1;
+    for (let f = 0; f <= 1.0001; f += 0.02) {
+      const d = hullDraftFraction(f);
+      assert.ok(d >= last - 1e-12, `dropped at ${f}`);
+      last = d;
+    }
+  });
+
+  it("holds its envelope in the drawn body, and reports the same size to the scene", () => {
+    for (const v of VOLUMES) {
+      const m = shapeMetrics("hull", v);
+      assert.ok(close(m.height ** 3 * HULL_UNIT_VOLUME, m.envelopeCC, 1e-6), `V=${v}`);
+      assert.ok(close(m.length, HULL_FORM.length * m.height, 1e-9));
+      assert.ok(close(m.width, HULL_FORM.beam * m.height, 1e-9));
+    }
+  });
+
+  it("fits inside the overflow can at every volume the slider can make", () => {
+    for (let v = MIN_VOLUME; v <= MAX_VOLUME; v += 10) {
+      const m = shapeMetrics("hull", v);
+      assert.ok(m.length < TANK_INSIDE.width, `length ${m.length} vs ${TANK_INSIDE.width} at V=${v}`);
+      assert.ok(m.width < TANK_INSIDE.depth, `beam ${m.width} vs ${TANK_INSIDE.depth} at V=${v}`);
+      assert.ok(m.length > m.width, "a boat is longer than it is wide");
+    }
+  });
+
+  it("holds a hull that has gone under clear of the bottom of the can", () => {
+    // Held four centimetres down when there is room, and as deep as there is room for when not.
+    for (const volume of [50, 200, 350, 500]) {
+      const b = solveBuoyancy({ density: MAX_DENSITY, volume, fluid: "freshwater", shape: "hull" });
+      assert.equal(b.swamped, true);
+      assert.ok(b.topDepth >= 0.3 - 1e-9);
+      assert.ok(b.topDepth + b.metrics.height <= APPARATUS.waterDepth + 1e-9, `V=${volume}: bottom below the can`);
+    }
+    const small = solveBuoyancy({ density: MAX_DENSITY, volume: 50, shape: "hull" });
+    assert.equal(small.topDepth, APPARATUS.immersionDepth);
+  });
+
+  it("floats steel in freshwater with a realistic draft, below the deck", () => {
     const b = solveBuoyancy({ density: 7.85, volume: 200, fluid: "freshwater", shape: "hull" });
     assert.equal(b.floats, true, "Steel hull should float in freshwater");
     assert.ok(b.draftCm < b.metrics.height, "Draft must be strictly less than hull height");
-    assert.ok(b.submergedFraction > 0.5 && b.submergedFraction < 0.8, `Expected draft ~65%, got ${b.submergedFraction}`);
+    assert.ok(b.submergedFraction > 0.5 && b.submergedFraction < 0.8, `Expected ~65% by volume, got ${b.submergedFraction}`);
+    assert.ok(b.draftFraction > b.submergedFraction, "and the draft is deeper than the volume fraction");
+    assert.ok(b.freeboardCm > 0);
+  });
+});
+
+describe("a hull in air", () => {
+  it("is not flooded, because air cannot flood it - it still pushes aside its whole envelope", () => {
+    const b = solveBuoyancy({ density: 7.85, volume: 200, fluid: "air", shape: "hull" });
+    assert.equal(b.floats, false);
+    assert.equal(b.swamped, false);
+    assert.ok(close(b.displacedCC, b.metrics.envelopeCC, 1e-9));
+  });
+});
+
+describe("the instruments read what they should", () => {
+  it("never lets a floating hull overflow the catch cylinder", () => {
+    for (const c of everyCase()) {
+      const b = solveBuoyancy(c);
+      assert.ok(b.overflowML <= catchRange(b.overflowML) + 1e-9, JSON.stringify(c));
+    }
+    assert.equal(catchRange(200), 500);
+    assert.equal(catchRange(540), 1000);
+    assert.equal(catchRange(5750), 10000);
+  });
+
+  it("picks the smallest spring balance that reads the true weight", () => {
+    assert.equal(springScaleRange(0.4), 1);
+    assert.equal(springScaleRange(5.3), 10);
+    assert.equal(springScaleRange(10), 20, "a full-scale reading is not a reading");
+    for (const c of everyCase()) {
+      const b = solveBuoyancy(c);
+      const range = springScaleRange(b.weight);
+      assert.ok(b.weight <= range * 0.98 + 1e-9 || range === 200, JSON.stringify(c));
+    }
+  });
+
+  it("prints air's upthrust as a real number, not 0.00 N", () => {
+    const air = solveBuoyancy({ density: 2.7, volume: 200, fluid: "air", shape: "cube" });
+    assert.ok(air.upthrust > 0 && air.upthrust < 0.01);
+    assert.match(formatNewtons(air.upthrust), /^\d+\.\d+ mN$/);
+    assert.equal(formatNewtons(1.96), "1.96 N");
+    assert.equal(formatNewtons(0), "0.00 N");
+    assert.equal(formatNewtons(NaN), "0.00 N");
   });
 });
 
 describe("overflow spout stream directional pouring logic", () => {
-  const isPouring = (shownML, targetML, threshold = 0.6) => targetML - shownML > threshold;
+  const isPouring = isOverflowing;
 
   it("activates stream only when catch cylinder is receiving displaced fluid (target > shown)", () => {
     assert.equal(isPouring(100, 250), true, "Water should pour from spout when filling catch cylinder");

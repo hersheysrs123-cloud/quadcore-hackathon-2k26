@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Grid, Html, Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
   AtomSphere,
   Bond,
+  CANVAS_BG,
   DEG,
   Halo,
   PALETTE,
@@ -28,15 +29,25 @@ import {
 import {
   COIL_H,
   COIL_W,
-  currentDirection,
+  MAGNET_OMEGA,
+  SOLENOID_RADIUS,
+  TURN_PITCH,
   emfAt,
-  fluxAt,
   omegaOf,
   peakEmf,
   safeTurnsOf,
   solveSolenoidInduction,
 } from "@/lib/induction";
 import { SIM_DT, simulateFlight } from "@/lib/projectile";
+import { advanceOrbit, framing, muOf, solveOrbit } from "@/lib/orbit";
+import {
+  FIELD_FAR_Z,
+  FIELD_HALF_X,
+  FIELD_NEAR_Z,
+  SCREEN_Z,
+  brightFringes,
+  screenIntensity,
+} from "@/lib/interference";
 import { gasLawReadout } from "@/lib/particleModel";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
@@ -769,11 +780,9 @@ function FlemingLeftHand({ bSign, iSign }) {
         <meshStandardMaterial color={ROBO_DARK} roughness={0.6} metalness={0.8} />
       </mesh>
       
-      {/* Armor plating over the arm */}
+      {/* Vent strips along the arm */}
       {[-1.3, -1.9, -2.5, -3.1].map((x) => (
         <group key={x} position={[x, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.38, 0.38, 0.3, 32]} />
-          <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.1} metalness={1.0} />
           {/* Neon Green Vent strips */}
           {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
             <mesh key={`vent-${angle}`} position={[Math.cos(angle)*0.38, 0, Math.sin(angle)*0.38]} rotation={[0, Math.PI/2, 0]}>
@@ -854,89 +863,6 @@ function FlemingLeftHand({ bSign, iSign }) {
             </mesh>
           ))
         )}
-
-        {/* Internal Palm Data Streams (particles) */}
-        {[-0.8, -0.6, -0.4].map((x, i) => (
-           <mesh key={`stream-${i}`} position={[x, -0.45, 0.06]} rotation={[0, 0, 0]}>
-             <cylinderGeometry args={[0.02, 0.02, 1.1, 8]} />
-             <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={4.0} />
-           </mesh>
-        ))}
-
-        {/* Segmented Armor Plates on Back of Hand */}
-        {[-0.3, 0.3].map((offsetZ, i) => (
-          <group key={offsetZ} position={[-0.6, 0.48, 0.06 + offsetZ]}>
-            <mesh scale={[0.8, 0.1, 0.35]}>
-              <boxGeometry args={[1.9, 1.0, 1.4]} />
-              <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.1} metalness={1.0} />
-            </mesh>
-            {/* Edge highlights */}
-            <mesh scale={[0.82, 0.11, 0.37]}>
-              <boxGeometry args={[1.9, 1.0, 1.4]} />
-              <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.2} wireframe />
-            </mesh>
-          </group>
-        ))}
-
-        {/* Warning Stripes on Armor Plates */}
-        <mesh position={[-0.6, 0.54, -0.24]} rotation={[0, 0, Math.PI/4]}>
-           <planeGeometry args={[0.8, 0.1]} />
-           <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={2.5} />
-        </mesh>
-        
-        {/* Central Power Core on Back of Hand */}
-        <mesh position={[-0.6, 0.52, 0.06]} rotation={[Math.PI/2, 0, 0]}>
-          <torusGeometry args={[0.3, 0.08, 16, 32]} />
-          <meshStandardMaterial color={ROBO_DARK} roughness={0.6} metalness={0.9} />
-        </mesh>
-        <mesh position={[-0.6, 0.52, 0.06]} rotation={[Math.PI/2, 0, 0]}>
-          <torusGeometry args={[0.22, 0.05, 16, 32]} />
-          <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.1} metalness={1.0} />
-        </mesh>
-        <mesh position={[-0.6, 0.5, 0.06]} rotation={[Math.PI/2, 0, 0]}>
-          <cylinderGeometry args={[0.18, 0.18, 0.06, 32]} />
-          <meshStandardMaterial color={ROBO_PURPLE} emissive={ROBO_PURPLE} emissiveIntensity={5.0} />
-        </mesh>
-        {/* Wireframe Hex Grid overlaying the core */}
-        <mesh position={[-0.6, 0.55, 0.06]} rotation={[Math.PI/2, 0, 0]}>
-          <cylinderGeometry args={[0.2, 0.2, 0.02, 6]} />
-          <meshStandardMaterial color="#ffffff" wireframe emissive="#ffffff" emissiveIntensity={3.0} />
-        </mesh>
-        
-        {/* Complex Floating Holographic UI System above Core */}
-        <group position={[-0.6, 0.65, 0.06]} rotation={[Math.PI/2, 0, 0]}>
-          <mesh position={[0,0,0]}>
-            <torusGeometry args={[0.35, 0.005, 16, 64]} />
-            <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={5.0} />
-          </mesh>
-          <mesh position={[0,0,-0.08]} rotation={[0, 0, Math.PI/4]}>
-            <torusGeometry args={[0.45, 0.003, 16, 6] /* Hexagon ring */} />
-            <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={4.0} />
-          </mesh>
-          <mesh position={[0,0,-0.16]}>
-            <torusGeometry args={[0.55, 0.002, 16, 64]} />
-            <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={5.0} />
-          </mesh>
-        </group>
-        
-        {/* Holographic Datapad floating next to wrist */}
-        <group position={[-1.2, 0.8, -0.6]} rotation={[Math.PI/6, Math.PI/4, 0]}>
-          <mesh>
-             <planeGeometry args={[1.2, 0.8]} />
-             <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={1.0} transparent opacity={0.3} />
-          </mesh>
-          <mesh position={[0, 0, 0.01]}>
-             <planeGeometry args={[1.2, 0.8]} />
-             <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={4.0} wireframe />
-          </mesh>
-          {/* Data bars */}
-          {[-0.3, -0.1, 0.1, 0.3].map((y, i) => (
-             <mesh key={`bar-${i}`} position={[-0.2, y, 0.02]}>
-               <planeGeometry args={[Math.random() * 0.6 + 0.1, 0.05]} />
-               <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={5.0} />
-             </mesh>
-          ))}
-        </group>
 
         {/* ── Ring finger: Curled into palm ──────── */}
         <RoboFinger
@@ -1820,8 +1746,39 @@ function LaboratoryBench() {
 /**
  * Modern Laboratory Center-Zero Galvanometer
  * Base sits on table (y = -3.30), standing upright into clear view.
+ *
+ * The scale is an arc about the needle's own pivot, so the tip sweeps along
+ * it. It used to be drawn about a different centre and the needle fell short
+ * of the scale at full deflection.
  */
+const METER = { pivotY: 0.33, arcR: 0.72, needle: 0.66, sweep: 1.05 };
+
+const meterPoint = (angle, r) => [
+  r * Math.sin(angle),
+  METER.pivotY + r * Math.cos(angle),
+  0.21,
+];
+
 function LaboratoryGalvanometer({ position = [-1.3, -3.3, 1.35], needleRef }) {
+  const arc = useMemo(
+    () =>
+      Array.from({ length: 25 }, (_, i) =>
+        meterPoint(-METER.sweep + (2 * METER.sweep * i) / 24, METER.arcR),
+      ),
+    [],
+  );
+  const ticks = useMemo(
+    () =>
+      [-1, -0.5, 0, 0.5, 1].map((f) => {
+        const long = f === 0 ? 0.11 : 0.07;
+        return [
+          meterPoint(f * METER.sweep, METER.arcR),
+          meterPoint(f * METER.sweep, METER.arcR + long),
+        ];
+      }),
+    [],
+  );
+
   return (
     <group position={position}>
       {/* Slate chassis box: base at y=0, height 1.3 */}
@@ -1839,46 +1796,22 @@ function LaboratoryGalvanometer({ position = [-1.3, -3.3, 1.35], needleRef }) {
         <planeGeometry args={[1.96, 1.06]} />
         <meshStandardMaterial color="#f8fafc" roughness={0.8} />
       </mesh>
-      {/* Scale arc */}
-      <Line
-        points={[
-          [-0.75, 0.83, 0.21],
-          [-0.38, 1.01, 0.21],
-          [0, 1.07, 0.21],
-          [0.38, 1.01, 0.21],
-          [0.75, 0.83, 0.21],
-        ]}
-        color="#64748b"
-        lineWidth={1.5}
-      />
-      {[
-        { x: -0.65, y1: 0.87, y2: 0.95 },
-        { x: -0.35, y1: 1.0, y2: 1.08 },
-        { x: 0, y1: 1.07, y2: 1.15 },
-        { x: 0.35, y1: 1.0, y2: 1.08 },
-        { x: 0.65, y1: 0.87, y2: 0.95 },
-      ].map((t, idx) => (
-        <Line
-          key={idx}
-          points={[
-            [t.x, t.y1, 0.21],
-            [t.x * 0.95, t.y2, 0.21],
-          ]}
-          color="#475569"
-          lineWidth={1.8}
-        />
+      {/* Scale arc, concentric with the needle pivot, and its ticks */}
+      <Line points={arc} color="#64748b" lineWidth={1.5} />
+      {ticks.map((pts, idx) => (
+        <Line key={idx} points={pts} color="#475569" lineWidth={1.8} />
       ))}
 
-      {/* Needle pivot center at y = 0.33 */}
-      <mesh position={[0, 0.33, 0.22]}>
-        <cylinderGeometry args={[0.08, 0.08, 0.06, 16]} rotation={[Math.PI / 2, 0, 0]} />
+      {/* Needle pivot */}
+      <mesh position={[0, METER.pivotY, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.06, 16]} />
         <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.1} />
       </mesh>
 
       {/* Pivoted high-visibility red needle */}
-      <group ref={needleRef} position={[0, 0.33, 0.23]}>
-        <mesh position={[0, 0.4, 0]}>
-          <boxGeometry args={[0.035, 0.8, 0.02]} />
+      <group ref={needleRef} position={[0, METER.pivotY, 0.23]}>
+        <mesh position={[0, METER.needle / 2, 0]}>
+          <boxGeometry args={[0.035, METER.needle, 0.02]} />
           <meshStandardMaterial
             color="#ef4444"
             emissive="#ef4444"
@@ -1889,22 +1822,23 @@ function LaboratoryGalvanometer({ position = [-1.3, -3.3, 1.35], needleRef }) {
       </group>
 
       {/* Terminal binding posts */}
-      <mesh position={[-0.85, 0.2, 0.22]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} rotation={[Math.PI / 2, 0, 0]} />
+      <mesh position={[-0.85, 0.2, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
         <meshStandardMaterial color="#ef4444" roughness={0.3} metalness={0.5} />
       </mesh>
-      <mesh position={[0.85, 0.2, 0.22]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} rotation={[Math.PI / 2, 0, 0]} />
+      <mesh position={[0.85, 0.2, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
         <meshStandardMaterial color="#1e293b" roughness={0.3} metalness={0.5} />
       </mesh>
 
-      <SceneLabel position={[0, 0.8, 0.22]} tone="text-ink-400">
+      {/* Centre-zero, with the two senses of deflection labelled outside the arc */}
+      <SceneLabel position={[0, 1.2, 0.22]} tone="text-ink-400">
         0
       </SceneLabel>
-      <SceneLabel position={[-0.65, 0.7, 0.22]} tone="text-ink-500">
+      <SceneLabel position={[-0.82, 0.58, 0.22]} tone="text-ink-500">
         −
       </SceneLabel>
-      <SceneLabel position={[0.65, 0.7, 0.22]} tone="text-ink-500">
+      <SceneLabel position={[0.82, 0.58, 0.22]} tone="text-ink-500">
         +
       </SceneLabel>
       <SceneLabel position={[0, -0.28, 0]} tone="text-ink-400">
@@ -1998,27 +1932,84 @@ function DemonstrationBulb({ position = [1.8, -3.3, 1.35], powerRef, showBulb = 
   );
 }
 
+/** Cumulative arc length at each vertex of a polyline. */
+function polylineLengths(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i += 1) {
+    cum.push(
+      cum[i - 1] +
+        Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1], pts[i][2] - pts[i - 1][2]),
+    );
+  }
+  return cum;
+}
+
+/** The point a distance `s` along a polyline, wrapping round at the ends. */
+function pointAlong(pts, cum, s) {
+  const total = cum[cum.length - 1];
+  const d = ((s % total) + total) % total;
+  let i = 1;
+  while (i < cum.length - 1 && cum[i] < d) i += 1;
+  const t = (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1);
+  const a = pts[i - 1];
+  const b = pts[i];
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/** A wire drawn as straight lengths with a rounded joint at every bend. */
+function Wire({ pts, radius = 0.05, color = "#ea580c", emissive = "#fb923c" }) {
+  return (
+    <>
+      {pts.slice(1).map((p, i) => (
+        <Bond key={i} from={pts[i]} to={p} radius={radius} color={color} emissive={emissive} />
+      ))}
+      {pts.slice(1, -1).map((p, i) => (
+        <mesh key={`joint-${i}`} position={p}>
+          <sphereGeometry args={[radius, 12, 12]} />
+          <meshStandardMaterial
+            color={color}
+            emissive={emissive}
+            emissiveIntensity={0.7}
+            roughness={0.4}
+            metalness={0.2}
+          />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
 /**
- * Live e.m.f.–time trace for AC Generator over two full turns.
+ * Live e.m.f.–time trace for AC Generator over two periods.
+ *
+ * The vertical scale steps through round voltages (5, 10, 20, 50 …) and the
+ * ends of it are labelled, so the height of the wave is a real reading. It
+ * used to be clamped to a fixed height, which flattened every setting above
+ * a modest N·B·speed onto the same wave.
  */
-const TRACE = { width: 5.6, height: 0.82, turns: 2 };
+const TRACE = { width: 5.6, height: 0.82, periods: 2 };
+const VOLT_STEPS = [5, 10, 20, 50, 100, 200, 500, 1000];
+const voltScale = (peak) =>
+  VOLT_STEPS.find((v) => v >= peak) ?? Math.ceil(peak / 1000) * 1000;
 
 function EmfTrace({ speed, field, turns, angleRef }) {
   const marker = useRef(null);
   const omega = omegaOf(speed);
   const safeTurns = safeTurnsOf(turns);
   const peak = peakEmf(field, omega, safeTurns);
+  const fullScale = voltScale(peak);
 
-  const amp = clamp(peak * 0.016, 0, 1) * TRACE.height;
-  const sweep = TRACE.turns * Math.PI * 2;
+  const amp = (peak / fullScale) * TRACE.height;
+  const sweep = TRACE.periods * Math.PI * 2;
   const xOf = (angle) => -TRACE.width / 2 + (((angle % sweep) + sweep) % sweep) / sweep * TRACE.width;
-  const yOf = (angle) => -amp * Math.cos(angle);
+  // ε = N B A ω sin ωt: zero at t = 0, rising, back to zero at T/2.
+  const yOf = (angle) => amp * Math.sin(angle);
 
   const curve = useMemo(() => {
     const pts = [];
     for (let k = 0; k <= 200; k += 1) {
       const angle = (k / 200) * sweep;
-      pts.push([-TRACE.width / 2 + (k / 200) * TRACE.width, yOf(angle), 0]);
+      pts.push([-TRACE.width / 2 + (k / 200) * TRACE.width, amp * Math.sin(angle), 0]);
     }
     return pts;
   }, [amp, sweep]);
@@ -2028,24 +2019,42 @@ function EmfTrace({ speed, field, turns, angleRef }) {
     marker.current.position.set(xOf(angleRef.current), yOf(angleRef.current), 0);
   });
 
+  const left = -TRACE.width / 2;
   return (
     <group position={[0, 4.0, 0]}>
-      {/* Zero line */}
+      {/* Time axis (ε = 0) */}
       <Line
         points={[
-          [-TRACE.width / 2 - 0.3, 0, 0],
+          [left - 0.3, 0, 0],
           [TRACE.width / 2 + 0.3, 0, 0],
         ]}
         color={PALETTE.line}
         lineWidth={1.4}
       />
-      {/* Half-turn gridlines */}
+      {/* Full-scale limits, so the wave's height can be read off */}
+      {[TRACE.height, -TRACE.height].map((y) => (
+        <Line
+          key={y}
+          points={[
+            [left, y, 0],
+            [TRACE.width / 2, y, 0],
+          ]}
+          color={PALETTE.line}
+          lineWidth={1}
+          transparent
+          opacity={0.3}
+          dashed
+          dashSize={0.1}
+          gapSize={0.14}
+        />
+      ))}
+      {/* Half-period gridlines: T/2, T and 3T/2 */}
       {[0.25, 0.5, 0.75].map((t) => (
         <Line
           key={t}
           points={[
-            [-TRACE.width / 2 + t * TRACE.width, -TRACE.height, 0],
-            [-TRACE.width / 2 + t * TRACE.width, TRACE.height, 0],
+            [left + t * TRACE.width, -TRACE.height, 0],
+            [left + t * TRACE.width, TRACE.height, 0],
           ]}
           color={PALETTE.line}
           lineWidth={1}
@@ -2068,15 +2077,37 @@ function EmfTrace({ speed, field, turns, angleRef }) {
         />
       </mesh>
 
-      <SceneLabel position={[-TRACE.width / 2 - 0.75, 0, 0]} tone="text-ink-400">
-        0 V
+      <SceneLabel position={[left - 0.75, TRACE.height, 0]} tone="text-ink-400">
+        {`+${fullScale} V`}
+      </SceneLabel>
+      <SceneLabel position={[left - 0.75, 0, 0]} tone="text-ink-400">
+        0
+      </SceneLabel>
+      <SceneLabel position={[left - 0.75, -TRACE.height, 0]} tone="text-ink-400">
+        {`−${fullScale} V`}
+      </SceneLabel>
+      <SceneLabel position={[0, -TRACE.height - 0.28, 0]} tone="text-ink-400">
+        T
+      </SceneLabel>
+      <SceneLabel position={[TRACE.width / 2, -TRACE.height - 0.28, 0]} tone="text-ink-400">
+        2T
+      </SceneLabel>
+      <SceneLabel position={[TRACE.width / 2 + 0.6, 0, 0]} tone="text-ink-400">
+        t
       </SceneLabel>
       <SceneLabel position={[0, TRACE.height + 0.35, 0]} accent>
-        induced e.m.f. against time · two full turns
+        induced e.m.f. ε = NBAω sin ωt · two periods
       </SceneLabel>
     </group>
   );
 }
+
+// The two coil ends sit either side of the axle, and each goes down to its
+// own slip ring.
+const GEN_LEAD_X = 0.13;
+// Spacing between successive turns of the winding, along the coil's normal.
+const GEN_WIRE_PITCH = 0.13;
+const GEN_DOTS = 20;
 
 /**
  * Generator Assembly Sub-Rig (Inside Canvas)
@@ -2092,10 +2123,7 @@ function GeneratorRig({ params = {} }) {
   } = params || {};
 
   const safeTurns = safeTurnsOf(turns);
-  const [sample, setSample] = useState(() => ({
-    emf: emfAt(field, omegaOf(speed), 0, safeTurns),
-    angle: 0,
-  }));
+  const [emfNow, setEmfNow] = useState(0);
   const angleRef = useRef(0);
 
   const coil = useRef(null);
@@ -2118,10 +2146,22 @@ function GeneratorRig({ params = {} }) {
   }, []);
 
   const omega = omegaOf(speed);
-  const flux = fluxAt(field, sample.angle);
   const peak = peakEmf(field, omega, safeTurns);
-  const direction = currentDirection(sample.emf);
-  const cutting = Math.abs(Math.cos(sample.angle));
+
+  // One continuous wire wound `safeTurns` times, open at the bottom: it starts
+  // on one side of the axle and finishes on the other, and those two ends are
+  // all that reach the slip rings. (It used to be a closed rectangle with both
+  // leads on the bottom edge, which shorted the output through the coil.)
+  // The path runs up the right-hand side, so it is anticlockwise seen from the
+  // coil's normal — the way a positive e.m.f. drives the current.
+  const winding = useMemo(() => {
+    const flat = [[GEN_LEAD_X, -hh]];
+    for (let k = 0; k < safeTurns; k += 1) flat.push([w, -hh], [w, hh], [-w, hh], [-w, -hh]);
+    flat.push([-GEN_LEAD_X, -hh]);
+    const zSpan = GEN_WIRE_PITCH * (safeTurns - 1);
+    const pts = flat.map(([x, y], i) => [x, y, -zSpan / 2 + (zSpan * i) / (flat.length - 1)]);
+    return { pts, cum: polylineLengths(pts), zSpan };
+  }, [safeTurns, w, hh]);
 
   useFrame((_, delta) => {
     const step = Math.min(delta, 0.05);
@@ -2129,7 +2169,9 @@ function GeneratorRig({ params = {} }) {
 
     const emf = emfAt(field, omega, angleRef.current, safeTurns);
 
-    if (coil.current) coil.current.rotation.y = angleRef.current;
+    // θ = 0 is the coil face-on to the field (its normal along +x), which is
+    // where the flux is greatest and the e.m.f. zero.
+    if (coil.current) coil.current.rotation.y = Math.PI / 2 + angleRef.current;
     if (needle.current) needle.current.rotation.z = clamp(-emf * 0.015, -1.05, 1.05);
 
     // Physical power dissipation: P = V^2 / R
@@ -2156,52 +2198,36 @@ function GeneratorRig({ params = {} }) {
       bulbRef.current.light.distance = clamp(3.0 + power * 2.5, 3.0, 9.0);
     }
 
-    // Dynamic magnetic flux sheet inside coil aperture
+    // The flux sheet shows |Φ| = B A |cos θ|: full when face-on, gone edge-on.
     if (fluxPlane.current) {
-      const sinAngle = Math.abs(Math.sin(angleRef.current));
-      fluxPlane.current.material.opacity = 0.04 + sinAngle * 0.38 * Math.min(field, 1.5);
+      const face = Math.abs(Math.cos(angleRef.current));
+      fluxPlane.current.material.opacity = 0.04 + face * 0.38 * Math.min(field, 1.5);
     }
 
-    // Circulating charge flow particles along coil perimeter
+    // Conventional current, carried round the actual wire. Positive e.m.f.
+    // runs the way the path is drawn; negative runs it backwards.
     if (showCurrent) {
-      currentPhase.current += step * emf * 1.6;
-      const perim = 2 * (2 * w + 2 * hh);
+      currentPhase.current += step * emf * 0.2;
+      const total = winding.cum[winding.cum.length - 1];
       currentDots.current.forEach((dot, idx) => {
         if (!dot) return;
-        const s = (((idx / 16) * perim + currentPhase.current) % perim + perim) % perim;
-        let px = 0;
-        let py = 0;
-        if (s < 2 * w) {
-          px = -w + s;
-          py = hh;
-        } else if (s < 2 * w + 2 * hh) {
-          px = w;
-          py = hh - (s - 2 * w);
-        } else if (s < 4 * w + 2 * hh) {
-          px = w - (s - (2 * w + 2 * hh));
-          py = -hh;
-        } else {
-          px = -w;
-          py = -hh + (s - (4 * w + 2 * hh));
-        }
-        dot.position.set(px, py, 0);
+        const p = pointAlong(winding.pts, winding.cum, (idx / GEN_DOTS) * total + currentPhase.current);
+        dot.position.set(p[0], p[1], p[2]);
       });
     }
 
     sampleClock.current += step;
     if (sampleClock.current > 0.1) {
       sampleClock.current = 0;
-      setSample({ emf, angle: angleRef.current });
+      setEmfNow(emf);
     }
   });
 
-  const corners = [
-    [-w, hh, 0],
-    [w, hh, 0],
-    [w, -hh, 0],
-    [-w, -hh, 0],
-  ];
-  const windings = Array.from({ length: safeTurns }, (_, k) => (k - (safeTurns - 1) / 2) * 0.13);
+  // Steady arrows would be right for half a turn and wrong for the other half:
+  // these follow the sign of the e.m.f. and go out while it passes through zero.
+  const arrow =
+    Math.abs(emfNow) < Math.max(0.05, 0.04 * peak) ? 0 : Math.sign(emfNow);
+  const arrowZ = winding.zSpan / 2 + 0.2;
 
   return (
     <>
@@ -2228,14 +2254,14 @@ function GeneratorRig({ params = {} }) {
         <meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.2} />
       </mesh>
 
-      {/* Magnetic Field Lines */}
+      {/* Magnetic Field Lines, N to S, running from face to face of the poles */}
       {showFieldLines &&
         fieldLines.map(({ y, z }, i) => (
           <group key={i}>
             <Line
               points={[
-                [-2.8, y, z],
-                [2.8, y, z],
+                [-3.05, y, z],
+                [3.05, y, z],
               ]}
               color={PALETTE.sky}
               lineWidth={1.2}
@@ -2271,27 +2297,18 @@ function GeneratorRig({ params = {} }) {
             />
           </mesh>
 
-          {/* Stacked Copper Turns */}
-          {windings.map((dz, k) =>
-            corners.map((c, i) => (
-              <Bond
-                key={`${k}-${i}`}
-                from={[c[0], c[1], c[2] + dz]}
-                to={[
-                  corners[(i + 1) % corners.length][0],
-                  corners[(i + 1) % corners.length][1],
-                  corners[(i + 1) % corners.length][2] + dz,
-                ]}
-                radius={0.06}
-                color="#ea580c"
-                emissive="#fb923c"
-              />
-            )),
-          )}
+          {/* The winding: one wire, N turns, both ends free */}
+          <Wire pts={winding.pts} radius={0.055} />
+
+          {/* Insulating mount joining the winding to the axle */}
+          <mesh position={[0, -1.13, 0]}>
+            <boxGeometry args={[0.16, 0.12, winding.zSpan + 0.3]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.7} metalness={0.3} />
+          </mesh>
 
           {/* Dynamic charge flow particles */}
           {showCurrent &&
-            Array.from({ length: 16 }, (_, idx) => (
+            Array.from({ length: GEN_DOTS }, (_, idx) => (
               <mesh
                 key={idx}
                 ref={(el) => {
@@ -2309,43 +2326,64 @@ function GeneratorRig({ params = {} }) {
               </mesh>
             ))}
 
-          {/* Leads down to slip rings */}
-          <Bond from={[w, -hh, 0]} to={[0.16, -1.45, 0]} radius={0.045} color="#ea580c" />
-          <Bond from={[-w, -hh, 0]} to={[-0.16, -1.85, 0]} radius={0.045} color="#ea580c" />
+          {/* Coil ends, one to each slip ring */}
+          <Wire
+            pts={[
+              winding.pts[0],
+              [GEN_LEAD_X, -1.14, 0],
+              [GEN_LEAD_X, -1.45, 0],
+              [0.2, -1.45, 0],
+            ]}
+            radius={0.04}
+          />
+          <Wire
+            pts={[
+              winding.pts[winding.pts.length - 1],
+              [-GEN_LEAD_X, -1.14, 0],
+              [-GEN_LEAD_X, -1.85, 0],
+              [-0.2, -1.85, 0],
+            ]}
+            radius={0.04}
+          />
 
-          {/* Central Drive Shaft */}
-          <mesh position={[0, -2.1, 0]}>
-            <cylinderGeometry args={[0.07, 0.07, 2.6, 16]} />
+          {/* Drive shaft, carrying the mount and the two rings */}
+          <mesh position={[0, -2.295, 0]}>
+            <cylinderGeometry args={[0.07, 0.07, 2.21, 16]} />
             <meshStandardMaterial color="#f1f5f9" metalness={0.9} roughness={0.15} />
           </mesh>
 
-          {/* Polished Brass Slip Rings */}
+          {/* Polished Brass Slip Rings, each held off the shaft by a spoke */}
           {[-1.45, -1.85].map((y) => (
-            <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <torusGeometry args={[0.24, 0.06, 12, 32]} />
-              <meshStandardMaterial
-                color="#fbbf24"
-                metalness={0.88}
-                roughness={0.18}
-                emissive="#f59e0b"
-                emissiveIntensity={0.15}
-              />
-            </mesh>
+            <group key={y}>
+              <mesh position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[0.24, 0.06, 12, 32]} />
+                <meshStandardMaterial
+                  color="#fbbf24"
+                  metalness={0.88}
+                  roughness={0.18}
+                  emissive="#f59e0b"
+                  emissiveIntensity={0.15}
+                />
+              </mesh>
+              <Bond from={[0, y, -0.24]} to={[0, y, 0.24]} radius={0.028} color="#475569" />
+            </group>
           ))}
 
-          {showCurrent && (
+          {/* Induced current: right side up, left side down is anticlockwise
+              seen from the normal — the direction of a positive e.m.f. */}
+          {showCurrent && arrow !== 0 && (
             <>
               <VectorArrow
-                from={[w, -0.5, 0]}
-                to={[w, 0.6, 0]}
+                from={[w, arrow > 0 ? -0.5 : 0.6, arrowZ]}
+                to={[w, arrow > 0 ? 0.6 : -0.5, arrowZ]}
                 color={PALETTE.gold}
                 radius={0.04}
                 headLength={0.26}
                 headRadius={0.11}
               />
               <VectorArrow
-                from={[-w, 0.5, 0]}
-                to={[-w, -0.6, 0]}
+                from={[-w, arrow > 0 ? 0.5 : -0.6, arrowZ]}
+                to={[-w, arrow > 0 ? -0.6 : 0.5, arrowZ]}
                 color={PALETTE.gold}
                 radius={0.04}
                 headLength={0.26}
@@ -2377,10 +2415,12 @@ function GeneratorRig({ params = {} }) {
         </SceneLabel>
       </group>
 
-      {/* Insulated Wiring Down to Galvanometer & Bulb */}
+      {/* Insulated wiring from the brushes down to the galvanometer & bulb.
+          The brushes sit in a group raised 0.2, so their world height is
+          their local height + 0.2 — the wires begin on the underside of each. */}
       <Line
         points={[
-          [-0.42, -1.85, 0],
+          [-0.42, -1.73, 0],
           [-0.42, -3.25, 0],
           [-2.15, -3.25, 1.15],
           [-2.15, -3.10, 1.35],
@@ -2390,7 +2430,7 @@ function GeneratorRig({ params = {} }) {
       />
       <Line
         points={[
-          [0.42, -1.45, 0],
+          [0.42, -1.33, 0],
           [0.42, -3.25, 0],
           [-0.45, -3.25, 1.15],
           [-0.45, -3.10, 1.35],
@@ -2402,7 +2442,7 @@ function GeneratorRig({ params = {} }) {
         <>
           <Line
             points={[
-              [-0.42, -1.85, 0],
+              [-0.42, -1.73, 0],
               [-0.42, -3.25, 0],
               [1.46, -3.25, 1.15],
               [1.46, -3.15, 1.35],
@@ -2412,7 +2452,7 @@ function GeneratorRig({ params = {} }) {
           />
           <Line
             points={[
-              [0.42, -1.45, 0],
+              [0.42, -1.33, 0],
               [0.42, -3.25, 0],
               [2.14, -3.25, 1.15],
               [2.14, -3.15, 1.35],
@@ -2439,6 +2479,25 @@ function GeneratorRig({ params = {} }) {
     </>
   );
 }
+
+// ─── Bar magnet & solenoid ───────────────────────────────────────────
+
+/** Where the wire is at angle `a` round a helix of `turns` turns (in the coil's own frame). */
+function helixPoint(a, turns) {
+  // Anticlockwise seen from +x as `a` grows — the direction of a positive
+  // e.m.f. — advancing one TURN_PITCH per turn. It starts and finishes at the
+  // bottom of the coil, where the leads go down.
+  return [
+    -(turns * TURN_PITCH) / 2 + (a / (2 * Math.PI)) * TURN_PITCH,
+    -SOLENOID_RADIUS * Math.cos(a),
+    -SOLENOID_RADIUS * Math.sin(a),
+  ];
+}
+
+// Half the length of the bobbin the coil is wound on, and the flange radius.
+const BOBBIN_HALF = 0.75;
+const BOBBIN_BORE = 0.9;
+const BOBBIN_FLANGE = 1.18;
 
 /**
  * Solenoid Assembly Sub-Rig (Inside Canvas)
@@ -2468,13 +2527,42 @@ function SolenoidRig({ params = {} }) {
   const currentPhase = useRef(0);
   const sampleClock = useRef(0);
 
-  const [sample, setSample] = useState(() => ({
-    emf: 0,
-    flux: 0,
-    dPhi_dx: 0,
-    velocity: 0,
-    x: safePos,
-  }));
+  const [sample, setSample] = useState(() => ({ emf: 0, inducedField: 0 }));
+
+  // Picking the auto-shaker up where the magnet is, not where it last left off.
+  useEffect(() => {
+    if (autoOscillate) oscPhase.current = Math.asin(clamp(magnetX.current / 3.2, -1, 1));
+  }, [autoOscillate]);
+
+  const chargeCount = clamp(safeTurns * 6, 12, 36);
+
+  // A real helix, wound anticlockwise from +x, starting and ending at the bottom.
+  const span = 2 * Math.PI * safeTurns;
+  const helix = useMemo(() => {
+    const steps = safeTurns * 40;
+    const pts = [];
+    for (let i = 0; i <= steps; i += 1) {
+      pts.push(new THREE.Vector3(...helixPoint((i / steps) * span, safeTurns)));
+    }
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), steps * 2, 0.05, 10, false);
+  }, [safeTurns, span]);
+  useEffect(() => () => helix.dispose(), [helix]);
+
+  const flange = useMemo(
+    () =>
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(BOBBIN_BORE, -0.04),
+          new THREE.Vector2(BOBBIN_FLANGE, -0.04),
+          new THREE.Vector2(BOBBIN_FLANGE, 0.04),
+          new THREE.Vector2(BOBBIN_BORE, 0.04),
+          new THREE.Vector2(BOBBIN_BORE, -0.04),
+        ],
+        48,
+      ),
+    [],
+  );
+  useEffect(() => () => flange.dispose(), [flange]);
 
   useFrame((_, delta) => {
     const step = Math.min(delta, 0.05);
@@ -2482,10 +2570,10 @@ function SolenoidRig({ params = {} }) {
     let v = 0;
 
     if (autoOscillate) {
-      oscPhase.current += step * speed * 2.2;
-      const targetX = 3.2 * Math.sin(oscPhase.current);
-      v = (targetX - x) / Math.max(step, 0.001);
-      x = targetX;
+      const rate = speed * MAGNET_OMEGA;
+      oscPhase.current += step * rate;
+      x = 3.2 * Math.sin(oscPhase.current);
+      v = 3.2 * Math.cos(oscPhase.current) * rate;
     } else {
       const targetX = typeof magnetPos === "number" && !isNaN(magnetPos) ? magnetPos : 0;
       const diff = targetX - x;
@@ -2501,7 +2589,6 @@ function SolenoidRig({ params = {} }) {
       velocity: v,
       turns: safeTurns,
       magnetStrength,
-      radius: 0.92,
       flipPoles,
     });
 
@@ -2533,35 +2620,27 @@ function SolenoidRig({ params = {} }) {
       bulbRef.current.light.distance = clamp(3.0 + power * 2.5, 3.0, 9.0);
     }
 
-    // Circulating charges in the solenoid windings
+    // Conventional current round the actual turns: positive e.m.f. runs the
+    // way the helix is wound, negative the other way, and nothing at rest.
     if (showCurrent) {
-      currentPhase.current += step * induction.emf * 3.0;
+      currentPhase.current += step * 0.1 * clamp(induction.emf, -60, 60);
       chargesRef.current.forEach((dot, idx) => {
         if (!dot) return;
-        const angle = (idx / 12) * Math.PI * 2 + currentPhase.current;
-        dot.position.y = 0.96 * Math.sin(angle);
-        dot.position.z = 0.96 * Math.cos(angle);
+        const a = (((idx / chargeCount) * span + currentPhase.current) % span + span) % span;
+        const p = helixPoint(a, safeTurns);
+        dot.position.set(p[0], p[1], p[2]);
       });
     }
 
     sampleClock.current += step;
     if (sampleClock.current > 0.1) {
       sampleClock.current = 0;
-      setSample({
-        emf: induction.emf,
-        flux: induction.flux,
-        dPhi_dx: induction.dPhi_dx,
-        velocity: v,
-        x,
-      });
+      setSample({ emf: induction.emf, inducedField: induction.inducedField });
     }
   });
 
-  const turnSpacing = safeTurns > 1 ? 2.6 / (safeTurns - 1) : 0;
-  const turnPositions = Array.from({ length: safeTurns }, (_, k) =>
-    safeTurns > 1 ? -1.3 + k * turnSpacing : 0,
-  );
-
+  // Field lines leave the north pole and re-enter at the south, so the arrow on
+  // each outer loop points from N to S.
   const dipoleLoops = useMemo(() => {
     const loops = [];
     for (let i = 0; i < 6; i++) {
@@ -2576,98 +2655,92 @@ function SolenoidRig({ params = {} }) {
         const lr = 1.75 * Math.sin(t);
         pts.push([lx, lr * ca, lr * sa]);
       }
-      loops.push(pts);
+      loops.push({ pts, top: [0, 1.75 * ca, 1.75 * sa] });
     }
     return loops;
   }, []);
 
-  const isMoving = Math.abs(sample.velocity) > 0.08;
-  const isApproaching = sample.x * sample.velocity < 0;
-
-  // Real-time instantaneous power for readout
-  const vRated = 85.0;
-  const readoutRatio = Math.abs(sample.emf) / vRated;
-  const readoutPower = clamp(Math.pow(readoutRatio, 1.6), 0, 2.8);
+  // The bar's field inside the coil is what Lenz's law answers: the induced
+  // field points along the axis, and the end it leaves from is a north pole.
+  const north = sample.inducedField;
+  const startPt = helixPoint(0, safeTurns);
+  const endPt = helixPoint(span, safeTurns);
+  // The coil ends go straight down to the bench, then along it to the two
+  // instruments. Each wire starts at its own end of the helix: the group the
+  // coil sits in is raised 0.2, hence the + 0.2.
+  const circuitWire = (from, side, terminal) => [
+    [from[0], 0.2 + from[1], 0],
+    [from[0], -1.1, 0],
+    [side * 0.55, -1.4, 0],
+    [side * 0.55, -3.25, 0],
+    [terminal[0], -3.25, 1.15],
+    terminal,
+  ];
 
   return (
     <>
       {/* Bench Baseplate (y = -3.48, top surface at y = -3.30) */}
       <LaboratoryBench />
 
-      {/* Guide Rail Bench Stanchions (4 pillars from bench y = -3.30 to rails y = -0.70) */}
-      {[-3.6, 3.6].map((gx) =>
-        [-0.6, 0.6].map((gz) => (
-          <mesh key={`${gx}-${gz}`} position={[gx, -2.0, gz]}>
-            <cylinderGeometry args={[0.04, 0.06, 2.6, 12]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
-          </mesh>
-        )),
-      )}
-
-      {/* Polished Guide Rails on Bench */}
-      <mesh position={[0, -0.7, -0.6]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.04, 11, 16]} />
-        <meshStandardMaterial color="#f1f5f9" metalness={0.92} roughness={0.1} />
-      </mesh>
-      <mesh position={[0, -0.7, 0.6]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.04, 11, 16]} />
-        <meshStandardMaterial color="#f1f5f9" metalness={0.92} roughness={0.1} />
-      </mesh>
-
-      {/* Solenoid Assembly at y = 0.2 */}
+      {/* Non-magnetic guide rod along the axis, held at both ends well clear of
+          the magnet's travel. The magnet slides on it; nothing else has to pass
+          through the coil. */}
       <group position={[0, 0.2, 0]}>
-        {/* Transparent acrylic support tube */}
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.92, 0.92, 3.8, 32, 1, true]} />
-          <meshPhysicalMaterial
-            color="#e2e8f0"
-            transparent
-            opacity={0.22}
-            roughness={0.1}
-            transmission={0.85}
-          />
+          <cylinderGeometry args={[0.04, 0.04, 11.2, 16]} />
+          <meshStandardMaterial color="#f1f5f9" metalness={0.92} roughness={0.1} />
         </mesh>
-
-        {/* Aluminum Stanchions from bench (-3.30) to tube (+0.20) */}
-        {[-1.5, 1.5].map((sx) => (
-          <mesh key={sx} position={[sx, -1.55, 0]}>
-            <cylinderGeometry args={[0.08, 0.08, 3.5, 16]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
-          </mesh>
-        ))}
-
-        {/* Helical copper coil turns */}
-        {turnPositions.map((tx, idx) => (
-          <group key={idx} position={[tx, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <mesh>
-              <torusGeometry args={[0.96, 0.055, 12, 40]} />
-              <meshStandardMaterial
-                color="#ea580c"
-                emissive="#fb923c"
-                emissiveIntensity={0.2}
-                metalness={0.8}
-                roughness={0.2}
-              />
+        {[-5.5, 5.5].map((px) => (
+          <group key={px}>
+            <mesh position={[px, -1.75, 0]}>
+              <cylinderGeometry args={[0.07, 0.09, 3.5, 14]} />
+              <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
+            </mesh>
+            <mesh position={[px, 0, 0]}>
+              <sphereGeometry args={[0.13, 16, 16]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.2} />
             </mesh>
           </group>
         ))}
 
-        {/* Pitch segments linking coil turns */}
-        {turnPositions.slice(0, -1).map((tx, idx) => (
-          <Line
-            key={`link-${idx}`}
-            points={[
-              [tx, 0.96, 0],
-              [turnPositions[idx + 1], 0.96, 0],
-            ]}
-            color="#ea580c"
-            lineWidth={3.0}
+        {/* Bobbin: a clear tube between two flanges, standing on a post under each */}
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[BOBBIN_BORE, BOBBIN_BORE, BOBBIN_HALF * 2, 40, 1, true]} />
+          <meshPhysicalMaterial
+            color="#e2e8f0"
+            transparent
+            opacity={0.2}
+            roughness={0.1}
+            transmission={0.85}
+            side={THREE.DoubleSide}
           />
+        </mesh>
+        {[-BOBBIN_HALF, BOBBIN_HALF].map((fx) => (
+          <group key={fx}>
+            <mesh geometry={flange} position={[fx, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <meshStandardMaterial color="#cbd5e1" metalness={0.5} roughness={0.35} />
+            </mesh>
+            <mesh position={[fx, -(BOBBIN_FLANGE + 3.5) / 2, 0]}>
+              <cylinderGeometry args={[0.09, 0.09, 3.5 - BOBBIN_FLANGE, 16]} />
+              <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
+            </mesh>
+          </group>
         ))}
+
+        {/* The winding */}
+        <mesh geometry={helix}>
+          <meshStandardMaterial
+            color="#ea580c"
+            emissive="#fb923c"
+            emissiveIntensity={0.2}
+            metalness={0.8}
+            roughness={0.2}
+          />
+        </mesh>
 
         {/* Circulating charge dots visualizing induced current flow */}
         {showCurrent &&
-          Array.from({ length: 12 }, (_, idx) => (
+          Array.from({ length: chargeCount }, (_, idx) => (
             <mesh
               key={`charge-${idx}`}
               ref={(el) => {
@@ -2685,12 +2758,13 @@ function SolenoidRig({ params = {} }) {
             </mesh>
           ))}
 
-        {/* Lenz's Law opposing magnetic field indicator */}
-        {isMoving && (
-          <group position={[0, 0, 0]}>
+        {/* Lenz's law: the induced field opposes the change in flux, and the
+            end of the coil it leaves from is a north pole. */}
+        {north !== 0 && (
+          <group>
             <VectorArrow
-              from={[sample.velocity > 0 ? 0.6 : -0.6, 0, 0]}
-              to={[sample.velocity > 0 ? -0.6 : 0.6, 0, 0]}
+              from={[-0.6 * north, 0, 0]}
+              to={[0.6 * north, 0, 0]}
               color={PALETTE.emerald}
               radius={0.06}
               headLength={0.32}
@@ -2698,6 +2772,12 @@ function SolenoidRig({ params = {} }) {
             />
             <SceneLabel position={[0, 1.45, 0]} tone="text-emerald-400">
               B_induced opposes ΔΦ
+            </SceneLabel>
+            <SceneLabel position={[1.85 * north, -1.2, 0]} tone="text-rose-300">
+              induced N
+            </SceneLabel>
+            <SceneLabel position={[-1.85 * north, -1.2, 0]} tone="text-sky-300">
+              induced S
             </SceneLabel>
           </group>
         )}
@@ -2707,18 +2787,8 @@ function SolenoidRig({ params = {} }) {
         </SceneLabel>
       </group>
 
-      {/* Movable Bar Magnet */}
+      {/* Movable Bar Magnet, threaded on the guide rod */}
       <group ref={magnetRef} position={[magnetX.current, 0.2, 0]}>
-        {/* Sliding Sled on Guide Rails */}
-        <mesh position={[0, -0.9, 0]}>
-          <boxGeometry args={[1.8, 0.25, 1.4]} />
-          <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
-        </mesh>
-        <mesh position={[0, -0.45, 0]}>
-          <cylinderGeometry args={[0.06, 0.06, 0.8, 12]} />
-          <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
-        </mesh>
-
         {/* North Pole Half */}
         <mesh
           position={[flipPoles ? -0.7 : 0.7, 0, 0]}
@@ -2769,66 +2839,40 @@ function SolenoidRig({ params = {} }) {
           S
         </SceneLabel>
 
-        {/* Dipole Field Lines moving with the magnet */}
+        {/* Dipole Field Lines moving with the magnet, arrowed from N to S */}
         {showFieldLines &&
-          dipoleLoops.map((pts, idx) => (
-            <Line
-              key={`loop-${idx}`}
-              points={pts}
-              color="#38bdf8"
-              lineWidth={1.4}
-              transparent
-              opacity={0.35}
-              dashed
-              dashSize={0.24}
-              gapSize={0.16}
-            />
+          dipoleLoops.map(({ pts, top }, idx) => (
+            <group key={`loop-${idx}`}>
+              <Line
+                points={pts}
+                color="#38bdf8"
+                lineWidth={1.4}
+                transparent
+                opacity={0.35}
+                dashed
+                dashSize={0.24}
+                gapSize={0.16}
+              />
+              <mesh position={top} rotation={[0, 0, flipPoles ? -Math.PI / 2 : Math.PI / 2]}>
+                <coneGeometry args={[0.07, 0.22, 12]} />
+                <meshStandardMaterial
+                  color="#38bdf8"
+                  emissive="#38bdf8"
+                  emissiveIntensity={0.9}
+                  toneMapped={false}
+                />
+              </mesh>
+            </group>
           ))}
       </group>
 
-      {/* Circuit wiring from Solenoid down along bench to Galvanometer & Bulb */}
-      <Line
-        points={[
-          [-1.5, -1.55, 0],
-          [-1.5, -3.25, 0],
-          [-2.15, -3.25, 1.15],
-          [-2.15, -3.10, 1.35],
-        ]}
-        color="#ea580c"
-        lineWidth={2.2}
-      />
-      <Line
-        points={[
-          [1.5, -1.55, 0],
-          [1.5, -3.25, 0],
-          [-0.45, -3.25, 1.15],
-          [-0.45, -3.10, 1.35],
-        ]}
-        color="#38bdf8"
-        lineWidth={2.2}
-      />
+      {/* Circuit wiring from the two ends of the coil to the galvanometer & bulb */}
+      <Line points={circuitWire(startPt, -1, [-2.15, -3.1, 1.35])} color="#ea580c" lineWidth={2.2} />
+      <Line points={circuitWire(endPt, 1, [-0.45, -3.1, 1.35])} color="#38bdf8" lineWidth={2.2} />
       {showBulb && (
         <>
-          <Line
-            points={[
-              [-1.5, -1.55, 0],
-              [-1.5, -3.25, 0],
-              [1.46, -3.25, 1.15],
-              [1.46, -3.15, 1.35],
-            ]}
-            color="#ea580c"
-            lineWidth={2.2}
-          />
-          <Line
-            points={[
-              [1.5, -1.55, 0],
-              [1.5, -3.25, 0],
-              [2.14, -3.25, 1.15],
-              [2.14, -3.15, 1.35],
-            ]}
-            color="#38bdf8"
-            lineWidth={2.2}
-          />
+          <Line points={circuitWire(startPt, -1, [1.46, -3.15, 1.35])} color="#ea580c" lineWidth={2.2} />
+          <Line points={circuitWire(endPt, 1, [2.14, -3.15, 1.35])} color="#38bdf8" lineWidth={2.2} />
         </>
       )}
 
@@ -3535,6 +3579,27 @@ function Projectile({
 
   const wakeGroup = useRef(null);
 
+  // Weight, drag and the net force are all forces, so they are drawn on ONE
+  // scale — that is what makes F_net the visible vector sum of the other two.
+  // They each used their own scale and their own minimum length, so the net
+  // arrow was not the sum of the others and a light ball's weight was drawn
+  // four times too long. The scale is set by the strongest force anywhere in
+  // the flight, so the biggest arrow is always 2 units and none clips.
+  const forceScale = useMemo(() => {
+    const weight = mass * gravity;
+    let strongest = weight;
+    const stride = Math.max(1, Math.floor(flight.count / 400));
+    for (let i = 0; i < flight.count; i += stride) {
+      const vx = flight.svx[i];
+      const vy = flight.svy[i];
+      const sp = Math.hypot(vx, vy);
+      const fx = -drag * sp * vx;
+      const fy = -drag * sp * vy;
+      strongest = Math.max(strongest, Math.hypot(fx, fy), Math.hypot(fx, fy - weight));
+    }
+    return 2.0 / Math.max(strongest, 1e-6);
+  }, [flight, mass, gravity, drag]);
+
   // Reset flight clock only upon debounced replayKey trigger, preserving smooth continuity during slider drags
   useEffect(() => {
     clock.current = 0;
@@ -3576,19 +3641,19 @@ function Projectile({
 
       // 2. Weight force W = mg (rose) - constant downward
       const wMag = mass * gravity;
-      const wLen = clamp(wMag * 0.045, 0.35, 1.8);
+      const wLen = wMag * forceScale;
       updateVector(wArrowRef, wShaftRef, wHeadRef, wLabelRef, 0, -1, wLen);
 
       // 3. Drag force F_drag = -k|v|v (amber) - opposes velocity
       const fDrag = drag * (pvx * pvx + pvy * pvy);
-      const dLen = drag > 0.001 ? clamp(fDrag * 0.05, 0.12, 2.0) : 0;
+      const dLen = fDrag * forceScale;
       updateVector(dArrowRef, dShaftRef, dHeadRef, dLabelRef, -dirVx, -dirVy, dLen);
 
       // 4. Net resultant force F_net = W + F_drag (emerald)
       const fNetX = -drag * speed * pvx;
       const fNetY = -mass * gravity - drag * speed * pvy;
       const fNetMag = Math.hypot(fNetX, fNetY);
-      const netLen = clamp(fNetMag * 0.042, 0.22, 2.2);
+      const netLen = fNetMag * forceScale;
       const dirNetX = fNetMag > 1e-4 ? fNetX / fNetMag : 0;
       const dirNetY = fNetMag > 1e-4 ? fNetY / fNetMag : -1;
       updateVector(netArrowRef, netShaftRef, netHeadRef, netLabelRef, dirNetX, dirNetY, netLen);
@@ -3739,8 +3804,6 @@ export function ProjectileScene({ params = {} }) {
     [speed, angle, gravity, mass],
   );
 
-  const lost = ideal.range > 0 ? 1 - flight.range / ideal.range : 0;
-
   // Fit whichever is the binding dimension: a near-vertical lob is limited by
   // its apex, a flat one by its range.
   const scale = clamp(
@@ -3838,13 +3901,9 @@ export function ProjectileScene({ params = {} }) {
 
 // ═══ 7 · Two-source wave interference ════════════════════════════════
 
-const FIELD_HALF_X = 6;
-const FIELD_NEAR_Z = -4.2;
-const FIELD_FAR_Z = 6;
+// The tank's geometry, and the screen pattern on it, live in lib/interference.js
+// so the HUD quotes the same distances and fringe positions the scene draws.
 const FIELD_SEGMENTS = 60;
-const SCREEN_CELLS = 61;
-/** Where the screen strip is drawn — and so the distance the paths must use. */
-const SCREEN_Z = FIELD_FAR_Z + 0.5;
 
 /** Live sum of the source waves, displaced into the mesh each frame. */
 function InterferenceField({ sources, wavelength, amplitude, speed }) {
@@ -3910,30 +3969,167 @@ function InterferenceField({ sources, wavelength, amplitude, speed }) {
   );
 }
 
+// The screen, top to bottom: the intensity graph, the fringe strip in its open
+// frame, and beneath it a ruler and the order of each bright fringe.
+const SCREEN_H = 0.9;
+const SCREEN_Y = 0.5;
+const PLOT_BASE = 1.3;
+const PLOT_H = 1.0;
+
+/** A minus sign that is a minus sign, for the order labels. */
+const orderText = (m) => (m < 0 ? `−${-m}` : `${m}`);
+
 /**
- * Time-averaged intensity along the screen. Summing the complex phasors and
- * squaring is what produces fringes; summing the instantaneous heights would
- * just show the wave sloshing.
+ * The fringe pattern on the screen: one cell per sample, drawn as a single
+ * instanced strip so a fine sampling costs nothing, with the same pattern
+ * plotted above it as an intensity curve and every bright fringe named by
+ * its order m (path difference = mλ) at the position it really lands.
  */
-function screenIntensity(sources, wavelength, amplitude) {
-  const k = (Math.PI * 2) / wavelength;
-  const cells = [];
-  let peak = 1e-9;
-  for (let c = 0; c < SCREEN_CELLS; c += 1) {
-    const x = -FIELD_HALF_X + (2 * FIELD_HALF_X * c) / (SCREEN_CELLS - 1);
-    let re = 0;
-    let im = 0;
-    for (let s = 0; s < sources.length; s += 1) {
-      const r = Math.max(Math.hypot(x - sources[s], SCREEN_Z - FIELD_NEAR_Z), 0.35);
-      const a = amplitude / Math.sqrt(r);
-      re += a * Math.cos(k * r);
-      im += a * Math.sin(k * r);
+function FringeScreen({ cells, fringes }) {
+  const strip = useRef(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const colour = useMemo(() => new THREE.Color(), []);
+  const dark = useMemo(() => new THREE.Color("#0d141d"), []);
+  const bright = useMemo(() => new THREE.Color(PALETTE.gold), []);
+  const cellWidth = (2 * FIELD_HALF_X) / (cells.length - 1);
+
+  useLayoutEffect(() => {
+    const mesh = strip.current;
+    if (!mesh) return;
+    cells.forEach((cell, i) => {
+      dummy.position.set(cell.x, SCREEN_Y, SCREEN_Z);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      // A little gamma, so the dim skirts of a fringe still read as light.
+      colour.copy(dark).lerp(bright, Math.pow(cell.level, 0.8));
+      mesh.setColorAt(i, colour);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [cells, dummy, colour, dark, bright]);
+
+  const plot = useMemo(
+    () => cells.map((c) => [c.x, PLOT_BASE + PLOT_H * c.level, SCREEN_Z]),
+    [cells],
+  );
+
+  // A ruler along the lower edge (a tick per metre), and a faint guide from
+  // each bright fringe up through the graph.
+  const ruler = useMemo(() => {
+    const v = [];
+    for (let x = -FIELD_HALF_X; x <= FIELD_HALF_X; x += 1) {
+      const long = x % 2 === 0 ? 0.13 : 0.07;
+      v.push(x, SCREEN_Y - SCREEN_H / 2 - 0.02, SCREEN_Z, x, SCREEN_Y - SCREEN_H / 2 - 0.02 - long, SCREEN_Z);
     }
-    const intensity = re * re + im * im;
-    peak = Math.max(peak, intensity);
-    cells.push({ x, intensity });
-  }
-  return cells.map((c) => ({ ...c, level: c.intensity / peak }));
+    return new Float32Array(v);
+  }, []);
+  const guides = useMemo(() => {
+    const v = [];
+    for (const f of fringes) {
+      v.push(f.x, SCREEN_Y - SCREEN_H / 2, SCREEN_Z, f.x, PLOT_BASE + PLOT_H, SCREEN_Z);
+    }
+    return new Float32Array(v);
+  }, [fringes]);
+
+  return (
+    <group>
+      {/* An open frame, not a plate: the screen is lit on the side the waves
+          arrive from, so nothing solid may sit between that side and the strip.
+          (A backing plate there hid the whole pattern from anyone looking at
+          the screen from the tank.) The strip's own dark colour is what makes
+          a dark fringe dark. */}
+      {[-1, 1].map((side) => (
+        <mesh key={`rail-${side}`} position={[0, SCREEN_Y + side * (SCREEN_H / 2 + 0.06), SCREEN_Z]}>
+          <boxGeometry args={[2 * FIELD_HALF_X + cellWidth + 0.24, 0.07, 0.16]} />
+          <meshStandardMaterial color="#39424f" roughness={0.5} metalness={0.4} />
+        </mesh>
+      ))}
+      {[-1, 1].map((side) => (
+        <mesh key={`post-${side}`} position={[side * (FIELD_HALF_X + cellWidth / 2 + 0.09), SCREEN_Y, SCREEN_Z]}>
+          <boxGeometry args={[0.07, SCREEN_H + 0.19, 0.16]} />
+          <meshStandardMaterial color="#39424f" roughness={0.5} metalness={0.4} />
+        </mesh>
+      ))}
+
+      <instancedMesh
+        ref={strip}
+        args={[undefined, undefined, cells.length]}
+        frustumCulled={false}
+      >
+        <boxGeometry args={[cellWidth, SCREEN_H, 0.12]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+
+      <lineSegments>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[ruler, 3]} />
+        </bufferGeometry>
+        <lineBasicMaterial color="#64748b" />
+      </lineSegments>
+      {fringes.length > 0 && (
+        <lineSegments>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[guides, 3]} />
+          </bufferGeometry>
+          <lineBasicMaterial color={PALETTE.gold} transparent opacity={0.16} />
+        </lineSegments>
+      )}
+
+      {/* Intensity against position, on the same axis as the strip */}
+      <Line
+        points={[
+          [-FIELD_HALF_X, PLOT_BASE, SCREEN_Z],
+          [FIELD_HALF_X, PLOT_BASE, SCREEN_Z],
+        ]}
+        color={PALETTE.line}
+        lineWidth={1}
+      />
+      <Line
+        points={[
+          [-FIELD_HALF_X, PLOT_BASE + PLOT_H, SCREEN_Z],
+          [FIELD_HALF_X, PLOT_BASE + PLOT_H, SCREEN_Z],
+        ]}
+        color={PALETTE.line}
+        lineWidth={1}
+        transparent
+        opacity={0.3}
+        dashed
+        dashSize={0.12}
+        gapSize={0.12}
+      />
+      <Line points={plot} color={PALETTE.gold} lineWidth={1.8} />
+
+      <SceneLabel position={[-FIELD_HALF_X - 0.55, PLOT_BASE + PLOT_H, SCREEN_Z]} tone="text-ink-400">
+        1
+      </SceneLabel>
+      <SceneLabel position={[-FIELD_HALF_X - 0.55, PLOT_BASE, SCREEN_Z]} tone="text-ink-400">
+        0
+      </SceneLabel>
+      <SceneLabel position={[0, PLOT_BASE + PLOT_H + 0.32, SCREEN_Z]} tone="text-ink-400">
+        relative intensity I
+      </SceneLabel>
+      <SceneLabel position={[-FIELD_HALF_X - 0.95, SCREEN_Y, SCREEN_Z]} tone="text-ink-400">
+        screen
+      </SceneLabel>
+
+      {/* Which bright fringe is which: the order m, where path difference = mλ */}
+      {fringes.length > 0 && (
+        <SceneLabel position={[-FIELD_HALF_X - 0.95, SCREEN_Y - SCREEN_H / 2 - 0.4, SCREEN_Z]} tone="text-ink-400">
+          order m
+        </SceneLabel>
+      )}
+      {fringes.map((f) => (
+        <SceneLabel
+          key={f.order}
+          position={[f.x, SCREEN_Y - SCREEN_H / 2 - 0.4, SCREEN_Z]}
+          accent={f.order === 0}
+          tone={f.order === 0 ? undefined : "text-ink-300"}
+        >
+          {orderText(f.order)}
+        </SceneLabel>
+      ))}
+    </group>
+  );
 }
 
 export function InterferenceScene({ params = {} }) {
@@ -3956,19 +4152,15 @@ export function InterferenceScene({ params = {} }) {
     [sources, wavelength, amplitude],
   );
 
-  const L = SCREEN_Z - FIELD_NEAR_Z;
-  // Young's λL/d is a small-angle approximation, and at the separations this
-  // scene allows the angles are not small — so the exact first-order position
-  // from d sin θ = mλ is shown beside it. Printing only the approximation put
-  // a number on screen that visibly disagreed with the fringes next to it.
-  const ratio = wavelength / separation;
-  const fringeSpacing = slits === 2 ? wavelength * L / separation : null;
-  const firstOrderX = slits === 2 && ratio <= 1 ? L * Math.tan(Math.asin(ratio)) : null;
-  const approxError = firstOrderX ? Math.abs(fringeSpacing - firstOrderX) / firstOrderX : 0;
-  const highestOrder = slits === 2 ? Math.floor(separation / wavelength) : 0;
+  // Bright fringes by order, at the positions they really land (exact for this
+  // tank, not the far-field L·tan θ). A single source has no such series.
+  const fringes = useMemo(
+    () => (slits === 2 ? brightFringes(separation, wavelength) : []),
+    [slits, separation, wavelength],
+  );
 
   return (
-    <SceneCanvas camera={{ position: [0, 8.5, 11.5], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+    <SceneCanvas camera={{ position: [0, 9.2, 12.8], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed, target: [0, 0.3, 1.6] }}>
       <InterferenceField sources={sources} wavelength={wavelength} amplitude={amplitude} speed={speed} />
 
       {/* The barrier, with a gap at each slit. */}
@@ -3997,31 +4189,11 @@ export function InterferenceScene({ params = {} }) {
         </mesh>
       ))}
 
-      {showScreen &&
-        cells.map((cell, i) => (
-          <mesh key={i} position={[cell.x, 0.5, SCREEN_Z]}>
-            <boxGeometry args={[(2 * FIELD_HALF_X) / SCREEN_CELLS, 0.9, 0.12]} />
-            <meshStandardMaterial
-              color={PALETTE.gold}
-              emissive={PALETTE.gold}
-              emissiveIntensity={cell.level * 2.4}
-              // Dark fringes must read as genuinely dark, so opacity tracks
-              // intensity as well as glow.
-              transparent
-              opacity={0.22 + cell.level * 0.78}
-              toneMapped={false}
-            />
-          </mesh>
-        ))}
+      {showScreen && <FringeScreen cells={cells} fringes={fringes} />}
 
       <SceneLabel position={[0, 1.4, FIELD_NEAR_Z - 0.7]} accent>
         {slits === 1 ? "single source" : `two sources · d = ${separation.toFixed(1)}`}
       </SceneLabel>
-      {showScreen && (
-        <SceneLabel position={[0, 1.4, SCREEN_Z]} tone="text-ink-400">
-          screen
-        </SceneLabel>
-      )}
 
     </SceneCanvas>
   );
@@ -4029,127 +4201,230 @@ export function InterferenceScene({ params = {} }) {
 
 // ═══ 8 · Gravity wells & orbital motion ══════════════════════════════
 
-const WELL_HALF = 7;
-const WELL_SEGMENTS = 64;
-const ORBIT_TRAIL_MAX = 1400;
-/** Gravitational constant in scene units — chosen so a 1.0 mass looks right. */
-const G_SCENE = 6;
+// The sheet is 60 units in radius. It used to be 7, ringed by a raised lip, and
+// a satellite launched hard enough to leave was frozen at the edge of it — so
+// turning the sliders up simply stopped the demonstration. Nothing here is a
+// wall any more: the sheet is a picture of the potential that fades out with
+// distance, and a satellite that is leaving just keeps going.
+const WELL_RADIUS = 60;
+/** Inside this the sheet stops deepening: the funnel has a floor. */
+const WELL_CORE = 0.9;
+const WELL_DEPTH_CAP = 9;
+const WELL_RING_SEGMENTS = 128;
+const WELL_SPOKES = 36;
+const WELL_SPOKE_SAMPLES = 160;
+/** Room for many orbits of a close ellipse, or the whole of a long flight out. */
+const ORBIT_TRAIL_MAX = 12000;
+/** The default camera's distance from the origin, and how far it will follow. */
+const FOLLOW_DISTANCE = 14.5;
+const FOLLOW_MAX_REACH = 160;
+/**
+ * Only a numerical backstop: a body this far out is beyond anything the camera
+ * will follow, and the coordinates are heading somewhere float precision
+ * would begin to matter. It is not a boundary of the scene.
+ */
+const ORBIT_GIVE_UP = 5000;
+/** Real seconds the path is left on show after the satellite leaves the view. */
+const RELAUNCH_DELAY = 0.9;
 
-/** Rubber-sheet analogy: depth ∝ −μ/r with smooth perimeter retaining rim lip. */
+/** Rubber-sheet analogy: depth = −μ/r, exactly, down to a floor at the core. */
 function wellDepth(r, mu) {
-  const base = -mu / Math.max(r, 0.9) + mu / WELL_HALF;
-  // Raised perimeter rim lip ensuring satellite containment at maximum launch speeds
-  const rimDist = Math.max(0, r - (WELL_HALF - 1.2));
-  const rimLip = rimDist > 0 ? rimDist * rimDist * 0.28 : 0;
-  return clamp(base + rimLip, -9, 0.45);
+  return Math.max(-mu / Math.max(r, WELL_CORE), -WELL_DEPTH_CAP);
+}
+
+/** Radii of the drawn rings: every unit near the centre, sparser further out. */
+const WELL_RING_RADII = (() => {
+  const radii = [];
+  for (let r = 1; r <= WELL_RADIUS; r += r < 10 ? 1 : r < 24 ? 2 : 4) radii.push(r);
+  return radii;
+})();
+
+/** Ring and spoke vertices of the sheet, with the colour each fades to at range. */
+function buildWell() {
+  const pos = [];
+  const radii = [];
+  const col = [];
+  const near = new THREE.Color(PALETTE.sky);
+  const far = new THREE.Color(CANVAS_BG);
+  const tint = new THREE.Color();
+
+  const vertex = (r, angle) => {
+    pos.push(r * Math.cos(angle), 0, r * Math.sin(angle));
+    radii.push(r);
+    // Fade into the background over the outer half, so the sheet has no edge.
+    const t = THREE.MathUtils.smoothstep(r / WELL_RADIUS, 0.45, 1);
+    tint.copy(near).lerp(far, t);
+    col.push(tint.r, tint.g, tint.b);
+  };
+
+  for (const r of WELL_RING_RADII) {
+    for (let j = 0; j < WELL_RING_SEGMENTS; j += 1) {
+      vertex(r, (j / WELL_RING_SEGMENTS) * Math.PI * 2);
+      vertex(r, ((j + 1) / WELL_RING_SEGMENTS) * Math.PI * 2);
+    }
+  }
+  // Spokes are sampled geometrically, closely near the centre where the funnel
+  // is steep and coarsely out on the flat, so the silhouette stays smooth.
+  for (let k = 0; k < WELL_SPOKES; k += 1) {
+    const angle = (k / WELL_SPOKES) * Math.PI * 2;
+    const at = (i) => WELL_CORE * Math.pow(WELL_RADIUS / WELL_CORE, i / WELL_SPOKE_SAMPLES);
+    for (let i = 0; i < WELL_SPOKE_SAMPLES; i += 1) {
+      vertex(at(i), angle);
+      vertex(at(i + 1), angle);
+    }
+  }
+  return {
+    positions: new Float32Array(pos),
+    radii: new Float32Array(radii),
+    colours: new Float32Array(col),
+  };
 }
 
 function GravityWell({ mass }) {
-  const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(WELL_HALF * 2, WELL_HALF * 2, WELL_SEGMENTS, WELL_SEGMENTS);
-    g.rotateX(-Math.PI / 2);
-    return g;
-  }, []);
-
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  const geo = useRef(null);
+  const well = useMemo(buildWell, []);
+  const mu = muOf(mass);
 
   // Depth is the only thing the mass changes, so the vertices are rewritten
-  // in place rather than rebuilding the whole grid.
+  // in place rather than rebuilding the web.
   useEffect(() => {
-    const mu = G_SCENE * mass;
-    const pos = geometry.attributes.position;
-    for (let i = 0; i < pos.count; i += 1) {
-      const r = Math.hypot(pos.getX(i), pos.getZ(i));
-      pos.setY(i, wellDepth(r, mu));
-    }
-    pos.needsUpdate = true;
-    geometry.computeVertexNormals();
-  }, [geometry, mass]);
+    const { positions, radii } = well;
+    for (let i = 0; i < radii.length; i += 1) positions[i * 3 + 1] = wellDepth(radii[i], mu);
+    if (geo.current) geo.current.attributes.position.needsUpdate = true;
+  }, [well, mu]);
 
   return (
     <group>
-      <mesh geometry={geometry}>
-        <meshBasicMaterial wireframe color={PALETTE.sky} transparent opacity={0.2} />
-      </mesh>
-      {/* Luminous containment rim marking the outer boundary of the potential well */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, wellDepth(WELL_HALF - 0.25, G_SCENE * mass) + 0.02, 0]}>
-        <ringGeometry args={[WELL_HALF - 0.32, WELL_HALF - 0.18, 64]} />
-        <meshBasicMaterial color={PALETTE.sky} transparent opacity={0.45} side={THREE.DoubleSide} />
-      </mesh>
+      <lineSegments frustumCulled={false}>
+        <bufferGeometry ref={geo}>
+          <bufferAttribute attach="attributes-position" args={[well.positions, 3]} />
+          <bufferAttribute attach="attributes-color" args={[well.colours, 3]} />
+        </bufferGeometry>
+        <lineBasicMaterial vertexColors transparent opacity={0.55} />
+      </lineSegments>
+      {/* A sense of scale, since there is a lot more sheet than there is orbit */}
+      {[10, 20, 40].map((r) => (
+        <SceneLabel key={r} position={[r, wellDepth(r, mu) + 0.2, 0]} tone="text-ink-500">
+          r = {r}
+        </SceneLabel>
+      ))}
     </group>
   );
 }
 
+/** The satellite's state at launch: at (r, 0), moving sideways at the launch speed. */
+const launchState = (launchRadius, launchSpeed) => ({
+  x: launchRadius,
+  z: 0,
+  vx: 0,
+  vz: launchSpeed,
+  count: 0,
+  lastX: Infinity,
+  lastZ: 0,
+  // Seconds since it left the view, or null while it is still in it.
+  leftFor: null,
+  gone: false,
+});
+
+const _ndc = new THREE.Vector3();
+
 /**
- * Leapfrog (kick–drift–kick) integration. A naive Euler step bleeds energy
- * every orbit and the ellipse visibly spirals in — leapfrog is symplectic, so
- * a closed orbit stays closed for as long as you leave it running.
- * Includes smooth banked rim containment so the satellite never launches out of the well.
+ * Flies the satellite (lib/orbit.js) and draws its path.
+ *
+ * It is never frozen against a wall. What it does when it leaves the view is
+ * the user's choice: with `loopEscape` it is shown leaving, then relaunched
+ * from the start, so the picture never ends up a speck in an empty sheet; with
+ * it off it simply keeps going and the camera follows it out.
  */
-function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTrail, onSample, speed = 1 }) {
+function Satellite({
+  mass,
+  launchRadius,
+  launchSpeed,
+  running,
+  resetKey,
+  showTrail,
+  speed = 1,
+  reachRef,
+  viewRadius,
+  loopEscape,
+  leavingNote,
+}) {
   const body = useRef(null);
   const trailLine = useRef(null);
   const trailGeo = useRef(null);
   const trail = useMemo(() => new Float32Array(ORBIT_TRAIL_MAX * 3), []);
-  const state = useRef({ x: 0, z: 0, vx: 0, vz: 0, count: 0, sampleAcc: 0, escaped: false });
+  const state = useRef(launchState(launchRadius, launchSpeed));
+  const [leaving, setLeaving] = useState(false);
+  const camera = useThree((s) => s.camera);
 
-  const mu = G_SCENE * mass;
-  const rimR = WELL_HALF - 0.25;
+  const mu = muOf(mass);
 
   useEffect(() => {
-    state.current = {
-      x: launchRadius,
-      z: 0,
-      vx: 0,
-      vz: launchSpeed,
-      count: 0,
-      sampleAcc: 0,
-      escaped: false,
-    };
-  }, [launchRadius, launchSpeed, mass, resetKey]);
+    state.current = launchState(launchRadius, launchSpeed);
+    reachRef.current = launchRadius;
+    setLeaving(false);
+  }, [launchRadius, launchSpeed, mass, resetKey, reachRef]);
 
   useFrame((_, delta) => {
     const s = state.current;
-    const step = Math.min(delta, 0.033) * speed;
+    const real = Math.min(delta, 0.033);
 
-    if (running && !s.escaped) {
-      const substeps = 4;
-      const h = step / substeps;
-      for (let n = 0; n < substeps; n += 1) {
-        let r = Math.max(Math.hypot(s.x, s.z), 0.55);
-        let a = -mu / (r * r * r);
-        s.vx += 0.5 * h * a * s.x;
-        s.vz += 0.5 * h * a * s.z;
-        s.x += h * s.vx;
-        s.z += h * s.vz;
-        r = Math.max(Math.hypot(s.x, s.z), 0.55);
-
-        a = -mu / (r * r * r);
-        s.vx += 0.5 * h * a * s.x;
-        s.vz += 0.5 * h * a * s.z;
-
-        // A satellite with ε ≥ 0 genuinely never comes back, so it is stopped
-        // at the edge of the drawn well and reported as escaped. The rim used
-        // to push it back and damp its outward velocity, which quietly turned
-        // hyperbolic orbits into bound ones — and the panel went on printing
-        // the ε and e it was busy destroying. A bound orbit is left alone: its
-        // apoapsis can sit outside the sheet, but it does return.
-        if (r > rimR && (s.vx * s.vx + s.vz * s.vz) / 2 - mu / r >= 0) {
-          s.escaped = true;
-          break;
-        }
+    if (s.leftFor !== null) {
+      // Out of view: let the path be seen, then start again.
+      s.leftFor += real;
+      if (loopEscape && s.leftFor >= RELAUNCH_DELAY) {
+        state.current = launchState(launchRadius, launchSpeed);
+        reachRef.current = launchRadius;
+        setLeaving(false);
       }
+    } else if (running && !s.gone) {
+      advanceOrbit(s, mu, real * speed, (st) => {
+        const r = Math.hypot(st.x, st.z);
+        if (r > reachRef.current) reachRef.current = r;
 
-      const r = Math.hypot(s.x, s.z);
-      // Once full the trail slides back by one point rather than wrapping:
-      // a wrapping buffer is drawn in index order, so the seam joined the
-      // newest point to the oldest with a chord straight across the orbit.
-      if (s.count >= ORBIT_TRAIL_MAX) trail.copyWithin(0, 3);
-      else s.count += 1;
-      const o = (s.count - 1) * 3;
-      trail[o] = s.x;
-      trail[o + 1] = wellDepth(r, mu) + 0.12;
-      trail[o + 2] = s.z;
+        // It has left when it crosses the edge of the picture — the camera's
+        // own frame, not a radius, which sat well inside the edge and made the
+        // path stop with the satellite still plainly on screen. It has to be
+        // out past the launch point too, so a camera turned to hide the launch
+        // does not relaunch it in a loop.
+        let out = false;
+        if (loopEscape) {
+          if (r > 2.5 * viewRadius) out = true;
+          else if (r > Math.max(0.6 * viewRadius, 1.05 * launchRadius)) {
+            _ndc.set(st.x, wellDepth(r, mu) + 0.22, st.z).project(camera);
+            out = Math.abs(_ndc.x) > 1 || Math.abs(_ndc.y) > 1;
+          }
+        }
+
+        // A point on the path whenever it has moved a little, a little more the
+        // further out it is — so the path is smooth close in and still covers a
+        // whole flight, not just the last few seconds of it, far out. The
+        // crossing itself always gets one, so the path runs right to the edge.
+        if (out || Math.hypot(st.x - st.lastX, st.z - st.lastZ) >= 0.03 + 0.006 * r) {
+          // Once full the trail slides back by one point rather than wrapping:
+          // a wrapping buffer is drawn in index order, so the seam joined the
+          // newest point to the oldest with a chord straight across the orbit.
+          if (st.count >= ORBIT_TRAIL_MAX) trail.copyWithin(0, 3);
+          else st.count += 1;
+          const o = (st.count - 1) * 3;
+          trail[o] = st.x;
+          trail[o + 1] = wellDepth(r, mu) + 0.12;
+          trail[o + 2] = st.z;
+          st.lastX = st.x;
+          st.lastZ = st.z;
+        }
+
+        if (out) {
+          st.leftFor = 0;
+          return false;
+        }
+        if (r > ORBIT_GIVE_UP) {
+          st.gone = true;
+          return false;
+        }
+        return true;
+      });
+      if (s.leftFor !== null) setLeaving(true);
     }
 
     const r = Math.max(Math.hypot(s.x, s.z), 0.001);
@@ -4158,27 +4433,6 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
       trailGeo.current.setDrawRange(0, s.count);
       trailGeo.current.attributes.position.needsUpdate = true;
       if (trailLine.current) trailLine.current.visible = showTrail && s.count > 1;
-    }
-
-    s.sampleAcc += step;
-    if (s.sampleAcc >= 0.15) {
-      s.sampleAcc = 0;
-      const v = Math.hypot(s.vx, s.vz);
-      const energy = (v * v) / 2 - mu / r;
-      // Specific angular momentum in the orbital plane; with the eccentricity
-      // formula it classifies the conic without having to fit the path.
-      const L = s.x * s.vz - s.z * s.vx;
-      const e = Math.sqrt(Math.max(0, 1 + (2 * energy * L * L) / (mu * mu)));
-      const a = energy < 0 ? -mu / (2 * energy) : null;
-      onSample({
-        r,
-        v,
-        energy,
-        e,
-        period: a ? 2 * Math.PI * Math.sqrt((a * a * a) / mu) : null,
-        escaped: s.escaped,
-        beyondView: !s.escaped && r > rimR,
-      });
     }
   });
 
@@ -4194,52 +4448,87 @@ function Satellite({ mass, launchRadius, launchSpeed, running, resetKey, showTra
         </bufferGeometry>
         <lineBasicMaterial color={PALETTE.emerald} transparent opacity={0.7} />
       </line>
+      {leaving && (
+        <SceneLabel position={[0, 3.1, 0]} tone="text-rose-300">
+          {leavingNote}
+        </SceneLabel>
+      )}
     </group>
   );
+}
+
+const _followOffset = new THREE.Vector3();
+
+/**
+ * Frames the orbit: the camera sits back far enough to see out to
+ * `viewRadius` (lib/orbit.js sizes that for the launch) and stays there, so
+ * the picture does not zoom around while the satellite moves.
+ *
+ * With `follow` — the relaunch loop switched off — it instead keeps backing
+ * off as the satellite goes further, up to a limit. It lets go the moment the
+ * user takes the camera themselves, and takes over again on a fresh launch.
+ */
+function FollowZoom({ viewRadius, follow, reachRef, resetKey }) {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls);
+  // The distance this last set; null means adopt whatever the camera has now.
+  const applied = useRef(null);
+
+  useEffect(() => {
+    applied.current = null;
+  }, [viewRadius, resetKey, follow]);
+
+  useFrame(() => {
+    if (!controls) return;
+    const reach = follow
+      ? Math.min(Math.max(viewRadius, reachRef.current), FOLLOW_MAX_REACH)
+      : viewRadius;
+    const want = Math.max(FOLLOW_DISTANCE, 3.0 * reach);
+
+    _followOffset.copy(camera.position).sub(controls.target);
+    const dist = _followOffset.length();
+    if (applied.current !== null && Math.abs(dist - applied.current) > 0.02 * applied.current) return;
+    if (Math.abs(want - dist) < 0.05) {
+      applied.current = dist;
+      return;
+    }
+    const next = dist + (want - dist) * 0.06;
+    camera.position.copy(controls.target).addScaledVector(_followOffset, next / dist);
+    applied.current = next;
+  });
+
+  return null;
 }
 
 export function OrbitScene({ params = {} }) {
   const {
     mass = 1,
     launchRadius = 3.4,
-    launchSpeed = 1.35,
-    speed = 1.0,
+    launchRatio = 1,
+    timeScale = 1,
     running = true,
     reset = 0,
     showTrail = true,
     showWell = true,
+    loopEscape = true,
     spin = false,
   } = params || {};
 
-  const mu = G_SCENE * mass;
-  // The speed that would make this exact radius a circle — the reference the
-  // launch slider is really being compared against.
-  const circular = Math.sqrt(mu / launchRadius);
-  const escapeSpeed = Math.sqrt((2 * mu) / launchRadius);
-
-  // Seeded from the launch conditions rather than zero, so the panel does not
-  // read "hyperbolic" for the first fraction of a second of every orbit.
-  const [live, setLive] = useState(() => ({
-    r: launchRadius,
-    v: launchSpeed,
-    energy: (launchSpeed * launchSpeed) / 2 - mu / launchRadius,
-    e: 0,
-    period: null,
-    escaped: false,
-    beyondView: false,
-  }));
-
-  const unbound = live.energy >= 0;
-  const shape = unbound
-    ? live.e > 1.02
-      ? "hyperbolic"
-      : "escape"
-    : live.e < 0.04
-      ? "circular"
-      : "elliptical";
+  // The launch speed is a multiple of the circular speed at that radius, so the
+  // slider means the same thing whatever the radius and mass: 1 a circle, √2
+  // an escape.
+  const orbit = solveOrbit({ mass, launchRadius, launchRatio });
+  const mu = orbit.mu;
+  const { viewRadius } = framing(orbit, launchRadius);
+  const reach = useRef(launchRadius);
 
   return (
-    <SceneCanvas camera={{ position: [0, 9.5, 11], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+    <SceneCanvas
+      camera={{ position: [0, 9.5, 11], fov: 46, far: 2000 }}
+      // The camera turns at a gentle fixed pace: the time-scale can run to 100×,
+      // and a camera spinning 100× as fast is no use to anyone.
+      controls={{ autoRotate: spin, autoRotateSpeed: 0.45, maxDistance: 500 }}
+    >
       {showWell && <GravityWell mass={mass} />}
 
       {/* Central body, sunk to the bottom of its own well. */}
@@ -4254,13 +4543,18 @@ export function OrbitScene({ params = {} }) {
       <Satellite
         mass={mass}
         launchRadius={launchRadius}
-        launchSpeed={launchSpeed}
+        launchSpeed={orbit.launchSpeed}
         running={running}
         resetKey={reset}
         showTrail={showTrail}
-        onSample={setLive}
-        speed={speed}
+        speed={timeScale}
+        reachRef={reach}
+        viewRadius={viewRadius}
+        loopEscape={loopEscape}
+        leavingNote={orbit.bound ? "beyond the view — relaunching" : "escaped the well — relaunching"}
       />
+
+      <FollowZoom viewRadius={viewRadius} follow={!loopEscape} reachRef={reach} resetKey={reset} />
 
       <SceneLabel position={[0, 1.5, 0]} accent>
         μ = GM = {mu.toFixed(1)}

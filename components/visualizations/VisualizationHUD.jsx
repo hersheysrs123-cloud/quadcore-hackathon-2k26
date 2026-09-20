@@ -30,12 +30,13 @@ import { STRUCTURE_COLOURS, solveFolding } from "@/lib/proteinFolding";
 import { latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
 import { solveVsepr } from "@/lib/vsepr";
 import { solveEnergetics } from "@/lib/energetics";
-import { solveIncline, surfaceFor } from "@/lib/inclineForces";
+import { slideForecast, solveIncline, surfaceFor } from "@/lib/inclineForces";
 import {
   ELASTIC_LIMIT_EXTENSION,
   FAILURE_EXTENSION,
   elasticLimitForce,
   failureForce,
+  forceAxisMax,
   loadForce,
   loadingExtension,
   permanentSet,
@@ -43,8 +44,8 @@ import {
 } from "@/lib/hookesLaw";
 import { isLever, solveMachine } from "@/lib/simpleMachines";
 import { buildTrack, minimumReleaseHeight, minimumTopSpeed } from "@/lib/coasterEnergy";
-import { FLUIDS, fluidComparison, solveBuoyancy } from "@/lib/buoyancy";
-import { solveCircuit } from "@/lib/circuits";
+import { FLUIDS, fluidComparison, formatNewtons, solveBuoyancy } from "@/lib/buoyancy";
+import { solveCircuit, strandedBulbs } from "@/lib/circuits";
 import {
   OPTICS_TITLES,
   imageNature,
@@ -53,7 +54,9 @@ import {
   solveBlock,
   solveRayOptics,
 } from "@/lib/rayOptics";
-import { COIL_AREA, fluxAt, solveInduction } from "@/lib/induction";
+import { COIL_AREA, MAGNET_OMEGA, fluxAt, solveInduction } from "@/lib/induction";
+import { FIELD_HALF_X, SCREEN_DISTANCE, fringePosition } from "@/lib/interference";
+import { VIEW_MAX, solveOrbit } from "@/lib/orbit";
 import { idealFlight, simulateFlight } from "@/lib/projectile";
 import { gasLawReadout } from "@/lib/particleModel";
 import {
@@ -377,11 +380,15 @@ const TONES = {
   rose: "text-rose-400",
 };
 
-export function Stat({ label, value, tone = "default", hint }) {
+export function Stat({ label, value, tone = "default", hint, wide = false }) {
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${wide ? "col-span-2" : ""}`}>
       <p className="text-[10px] uppercase tracking-wider text-ink-500">{label}</p>
-      <p className={`truncate text-sm font-medium tabular-nums ${TONES[tone] ?? TONES.default}`}>{value}</p>
+      <p
+        className={`${wide ? "break-words" : "truncate"} text-sm font-medium tabular-nums ${TONES[tone] ?? TONES.default}`}
+      >
+        {value}
+      </p>
       {hint && <p className="text-[10px] leading-tight text-ink-500">{hint}</p>}
     </div>
   );
@@ -423,7 +430,8 @@ function ControlField({ control, params, setParam, setParams }) {
           min={control.min}
           max={control.max}
           step={control.step ?? 1}
-          format={control.format}
+          // A label may depend on the other controls (the orbit slider's does).
+          format={control.format && ((v) => control.format(v, params))}
         />
       );
 
@@ -603,8 +611,11 @@ function HookesLawSidebarGraph({ params }) {
   const activeX = isOverloaded ? x_F : solved.extension;
   const activeStiffness = isOverloaded ? 0 : solved.stiffness;
 
-  const yMax = Math.max(F_F, force) * 1.12;
+  // A round top for the axis, so its printed labels ARE its gridline values.
+  const yMax = forceAxisMax(Math.max(F_F, force));
   const xMax = x_F * 1.08;
+  /** A gridline value as printed: exact, with no trailing zeros. */
+  const newtons = (v) => `${Math.round(v * 100) / 100}N`;
 
   const width = 280;
   const height = 132;
@@ -627,16 +638,17 @@ function HookesLawSidebarGraph({ params }) {
   const peakF = Math.min(peakForce, F_F);
   const peakX = Math.min(loadingExtension(peakF, k), x_F);
 
-  // Smooth fillet around elastic limit (x_L, F_L)
-  const kp = (F_F - F_L) / Math.max(x_F - x_L, 1e-6);
-  const delta = 0.014; // 1.4 cm fillet transition
-  const filletP0 = { x: x_L - delta, y: F_L - delta * k };
-  const filletCorner = { x: x_L, y: F_L };
-  const filletP1 = { x: x_L + delta, y: F_L + delta * kp };
+  // The curve is drawn exactly as the solver has it: a straight Hooke's-law
+  // line up to the elastic limit, then a straight, shallower plastic branch.
+  // It used to be rounded off at the corner with a 1.4 cm fillet, which is not
+  // in the model — the plotted curve then missed the operating point by a
+  // little wherever it sat near the limit, and the end of a partly drawn
+  // plastic branch could land off the curve altogether.
 
   // 1. Full Capability Envelope (faint reference background)
   const envelopePath = useMemo(() => {
-    return `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(filletP0.x)} ${toSvgY(filletP0.y)} Q ${toSvgX(filletCorner.x)} ${toSvgY(filletCorner.y)} ${toSvgX(filletP1.x)} ${toSvgY(filletP1.y)} L ${toSvgX(x_F)} ${toSvgY(F_F)}`;
+    return `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(x_L)} ${toSvgY(F_L)} L ${toSvgX(x_F)} ${toSvgY(F_F)}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [k, xMax, yMax]);
 
   // 2. Active Elastic Path & Area Fill
@@ -646,24 +658,16 @@ function HookesLawSidebarGraph({ params }) {
     const stroke = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(endX)} ${toSvgY(endF)}`;
     const fill = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(endX)} ${toSvgY(endF)} L ${toSvgX(endX)} ${baselineY} L ${toSvgX(0)} ${baselineY} Z`;
     return { elasticStrokeD: stroke, elasticFillD: fill };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peakX, k, xMax, yMax, baselineY]);
 
   // 3. Active Plastic Path & Area Fill (when peakForce > F_L)
   const { plasticStrokeD, plasticFillD } = useMemo(() => {
     if (peakF <= F_L) return { plasticStrokeD: "", plasticFillD: "" };
-
-    let stroke = "";
-    if (peakX <= filletP1.x) {
-      const t = Math.max(0, Math.min((peakX - filletP0.x) / (filletP1.x - filletP0.x || 1), 1));
-      const midX = (1 - t) * filletP0.x + t * filletCorner.x;
-      const midY = (1 - t) * filletP0.y + t * filletCorner.y;
-      stroke = `M ${toSvgX(filletP0.x)} ${toSvgY(filletP0.y)} Q ${toSvgX(midX)} ${toSvgY(midY)} ${toSvgX(peakX)} ${toSvgY(peakF)}`;
-    } else {
-      stroke = `M ${toSvgX(filletP0.x)} ${toSvgY(filletP0.y)} Q ${toSvgX(filletCorner.x)} ${toSvgY(filletCorner.y)} ${toSvgX(filletP1.x)} ${toSvgY(filletP1.y)} L ${toSvgX(peakX)} ${toSvgY(peakF)}`;
-    }
-
-    const fill = `${stroke} L ${toSvgX(peakX)} ${baselineY} L ${toSvgX(filletP0.x)} ${baselineY} Z`;
+    const stroke = `M ${toSvgX(x_L)} ${toSvgY(F_L)} L ${toSvgX(peakX)} ${toSvgY(peakF)}`;
+    const fill = `${stroke} L ${toSvgX(peakX)} ${baselineY} L ${toSvgX(x_L)} ${baselineY} Z`;
     return { plasticStrokeD: stroke, plasticFillD: fill };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peakF, peakX, F_L, k, xMax, yMax, baselineY]);
 
   // 4. Unload line (from peak point down to permanent set)
@@ -783,7 +787,7 @@ function HookesLawSidebarGraph({ params }) {
             style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
             className="text-[7.5px] fill-rose-300 font-bold"
           >
-            14cm Limit
+            {(x_L * 100).toFixed(0)}cm Limit
           </text>
         </g>
 
@@ -919,7 +923,7 @@ function HookesLawSidebarGraph({ params }) {
           style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
           className="text-[8px] fill-ink-400 font-medium"
         >
-          {yMax.toFixed(0)}N
+          {newtons(yMax)}
         </text>
         <text
           x={padL - 4}
@@ -928,7 +932,7 @@ function HookesLawSidebarGraph({ params }) {
           style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
           className="text-[8px] fill-ink-500 font-medium"
         >
-          {(yMax / 2).toFixed(0)}N
+          {newtons(yMax / 2)}
         </text>
         <text
           x={padL - 4}
@@ -1227,10 +1231,11 @@ function renderTopicDetailsReadout(topic, params) {
             ["Coil turns N", N, "gold"],
             ["Magnet dipole field", `${strength.toFixed(1)} T`],
             ["Magnet position x", pos],
-            ["Motion mode", auto ? `Harmonic oscillation (${speed.toFixed(1)} Hz)` : "Manual slider"],
+            // The shaker turns at MAGNET_OMEGA rad/s per slider unit: f = ω / 2π, not the slider value.
+            ["Motion mode", auto ? `Harmonic oscillation (${((speed * MAGNET_OMEGA) / (2 * Math.PI)).toFixed(2)} Hz)` : "Manual slider"],
             ["Pole orientation", flipped ? "South leading (S ⇄ N)" : "North leading (N ⇄ S)"],
             ["Active indicators", "Galvanometer + Incandescent Bulb"],
-            ["Lenz's law status", "Opposes relative magnet motion"],
+            ["Lenz's law status", "Induced B opposes the change in flux ΔΦ"],
           ],
           note: !auto && Math.abs(num(params.magnetPos, 0)) < 0.05
             ? "Magnet resting at coil center: flux is maximized but NOT changing (dΦ/dt = 0). Induced e.m.f. is strictly 0 V!"
@@ -1245,8 +1250,10 @@ function renderTopicDetailsReadout(topic, params) {
           items: [
             { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Red magnetic pole half" },
             { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Blue magnetic pole half" },
-            { color: "#ea580c", shape: "line", label: "Copper Solenoid Coils", note: "Multi-turn helical winding" },
-            { color: "#38bdf8", shape: "dash", label: "Dipole Field Lines B", note: "Radiates N → S with the magnet" },
+            { color: "#ea580c", shape: "line", label: "Copper Solenoid Coils", note: "One wire wound N times, both ends to the meter" },
+            { color: "#fef08a", shape: "dot", label: "Charge dots", note: "Conventional current (+ to −); reverses as the magnet enters vs leaves" },
+            { color: PALETTE.emerald, shape: "square", label: "Induced field B", note: "Opposes ΔΦ; the end it leaves from is an induced north pole" },
+            { color: "#38bdf8", shape: "dash", label: "Field Lines B", note: "Arrowed from N to S outside the magnet" },
             { color: "#fef08a", shape: "dot", label: "Demonstration Light Bulb", note: "Incandescent filament glow (P ∝ ε²)" },
             { color: "#334155", shape: "square", label: "Center-Zero Galvanometer", note: "Deflects ± to show induced current direction" },
           ],
@@ -1258,20 +1265,22 @@ function renderTopicDetailsReadout(topic, params) {
         // the real coil generates N·B·A·ω with A = 6.0 m² and ω = 1.7·speed,
         // where this printed N·B·speed·1.5.
         const dynamo = solveInduction({ speed, field: B, turns: N });
-        const flux = fluxAt(B, Math.PI / 2); // Φ₀, the peak of B·A·sin θ
+        const flux = fluxAt(B, 0); // Φ₀ = B·A, the peak of B·A·cos θ
         const peak = dynamo.peakEmf;
 
         readout = {
           title: "Faraday's Law of Induction (Dynamo)",
-          subtitle: "Φ = B A sin θ · ε = −N ΔΦ/Δt",
+          subtitle: "Φ = B A cos θ · ε = −N dΦ/dt = NBAω sin ωt",
           rows: [
             ["Turns N", dynamo.turns, "gold"],
             ["Coil area A", `${COIL_AREA.toFixed(1)} m²`],
             ["Max flux Φ₀", `${flux.toFixed(2)} Wb`],
             ["Peak e.m.f. ε₀", `${peak.toFixed(2)} V`, peak > 0.05 ? "good" : "bad"],
             ["Angular speed ω", `${dynamo.omega.toFixed(2)} rad/s`],
-            ["Rotation speed", speed < 0.05 ? "Stopped" : `${speed.toFixed(1)} rev/s`],
-            ["Output frequency", `${speed.toFixed(1)} Hz`],
+            // f = ω / 2π. The slider unit is 1.7 rad/s (0.27 Hz), so quoting the
+            // slider value here as hertz overstated the frequency almost fourfold.
+            ["Output frequency f = ω/2π", speed < 0.05 ? "Stopped" : `${dynamo.frequencyHz.toFixed(2)} Hz`],
+            ["Period T", speed < 0.05 ? "—" : `${dynamo.period.toFixed(1)} s`],
             ["Active loads", "Bulb + Center-Zero Galvanometer"],
           ],
           note: speed < 0.05
@@ -1286,7 +1295,8 @@ function renderTopicDetailsReadout(topic, params) {
             { color: "#ef4444", shape: "square", label: "North Pole (N)", note: "Magnetic field source" },
             { color: "#3b82f6", shape: "square", label: "South Pole (S)", note: "Magnetic field sink" },
             { color: "#38bdf8", shape: "dash", label: "Magnetic Field Lines B", note: "Flux density vector lines" },
-            { color: "#ea580c", shape: "line", label: "Copper Coil Winding", note: "Rotates to cut magnetic field" },
+            { color: "#ea580c", shape: "line", label: "Copper Coil Winding", note: "One wire wound N times; its two ends go to the slip rings" },
+            { color: "#fef08a", shape: "dot", label: "Charge dots & gold arrows", note: "Conventional current (+ to −); reverses every half turn" },
             { color: "#fef08a", shape: "dot", label: "Demonstration Light Bulb", note: "Flashes at each AC voltage crest" },
             { color: "#334155", shape: "square", label: "Center-Zero Galvanometer", note: "Needle tracks instantaneous e.m.f." },
           ],
@@ -1338,7 +1348,9 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "projectile": {
-      const speed = num(params.launchSpeed ?? params.speed, 22);
+      // launchSpeed only: `speed` is the animation-speed slider, and falling back to it
+      // would print a launch of "1 m/s" over a scene that fires at 22.
+      const speed = num(params.launchSpeed, 22);
       const angle = num(params.angle, 45);
       const gravity = num(params.gravity, 9.81);
       const drag = num(params.drag, 0.04);
@@ -1362,7 +1374,7 @@ function renderTopicDetailsReadout(topic, params) {
           ["Launch Speed v₀", `${speed.toFixed(1)} m/s`, "gold"],
           ["Launch Angle θ", `${angle.toFixed(1)}°`],
           ["Gravity g", `${gravity.toFixed(2)} m/s²`],
-          ["Drag Coefficient k", `${drag.toFixed(3)}`],
+          ["Drag constant k", drag === 0 ? "vacuum" : `${drag.toFixed(3)} kg/m`],
           ["Range with Drag", `${flight.range.toFixed(1)} m`, "good"],
           ["Ideal Range (No Drag)", `${idealRange.toFixed(1)} m`],
           ["Apex Height", `${flight.apex.toFixed(1)} m`],
@@ -1385,7 +1397,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#38bdf8", shape: "line", label: "Velocity Vector v", note: "Instantaneous tangential velocity" },
           { color: "#fb7185", shape: "line", label: "Weight Vector W", note: "Constant downward gravitational force (m·g)" },
           { color: "#fbbf24", shape: "line", label: "Drag Force F_drag", note: "Quadratic air resistance (−k|v|v)" },
-          { color: "#34d399", shape: "line", label: "Resultant Force F_net", note: "Vector sum of weight and air drag (W + F_drag)" },
+          { color: "#34d399", shape: "line", label: "Resultant Force F_net", note: "Vector sum of weight and air drag (W + F_drag); all three force arrows share one scale" },
           { color: "#fbbf24", shape: "dot", label: "Projectile Mass m", note: `${mass} kg launch mass` },
         ],
       };
@@ -1396,11 +1408,14 @@ function renderTopicDetailsReadout(topic, params) {
       const slits = num(params.slits, 2);
       const separation = num(params.separation, 2.2);
       const wavelength = num(params.wavelength, 1.2);
-      const L = 10.2;
+      // The tank's own screen distance (lib/interference.js). This case carried
+      // its own L = 10.2 beside a scene whose screen is 10.7 from the sources.
+      const L = SCREEN_DISTANCE;
 
-      const ratio = wavelength / separation;
       const fringeSpacing = slits === 2 ? (wavelength * L) / separation : null;
-      const firstOrderX = slits === 2 && ratio <= 1 ? L * Math.tan(Math.asin(ratio)) : null;
+      // Exact for this tank — the same position the order labels sit at — rather
+      // than the far-field L·tan θ, which is only good when L is much larger than d.
+      const firstOrderX = slits === 2 ? fringePosition(1, separation, wavelength, L) : null;
       const highestOrder = slits === 2 ? Math.floor(separation / wavelength) : 0;
 
       readout = {
@@ -1411,8 +1426,8 @@ function renderTopicDetailsReadout(topic, params) {
           ["Wavelength λ", `${wavelength.toFixed(2)} m`],
           ["Slit Separation d", slits === 2 ? `${separation.toFixed(2)} m` : "—"],
           ["Screen Distance L", `${L.toFixed(1)} m`],
-          ["1st Max Position x", firstOrderX ? `${firstOrderX.toFixed(2)} m` : "—", "good"],
-          ["λL ÷ d Estimate", fringeSpacing ? `${fringeSpacing.toFixed(2)} m` : "—"],
+          ["1st Max Position x", firstOrderX ? `${firstOrderX.toFixed(2)} m${firstOrderX > FIELD_HALF_X ? " · off the screen" : ""}` : "—", firstOrderX && firstOrderX > FIELD_HALF_X ? "warn" : "good"],
+          ["Spacing ≈ λL ÷ d", fringeSpacing ? `${fringeSpacing.toFixed(2)} m` : "—"],
           ["Highest Order m_max", slits === 2 ? highestOrder : "—"],
         ],
         note: slits === 1
@@ -1428,7 +1443,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#a78bfa", shape: "square", label: "Wave Trough", note: "Negative displacement ripple valley" },
           { color: "#fbbf24", shape: "dot", label: "Slit Source Emitter", note: "Coherent wave source in phase" },
           { color: "#39424f", shape: "square", label: "Double Slit Barrier", note: "Opaque aperture obstacle" },
-          { color: "#fbbf24", shape: "line", label: "Screen Intensity Fringes", note: "Constructive interference maxima" },
+          { color: "#fbbf24", shape: "line", label: "Screen Fringes & Intensity Graph", note: "Bright fringes are maxima; the curve above plots the same pattern, and each bright fringe is labelled by its order m" },
         ],
       };
       break;
@@ -1437,31 +1452,39 @@ function renderTopicDetailsReadout(topic, params) {
     case "orbits": {
       const mass = num(params.mass, 1);
       const launchRadius = num(params.launchRadius, 3.4);
-      const launchSpeed = num(params.launchSpeed, 1.35);
-      const mu = 6 * mass;
+      // The launch speed is a multiple of the circular speed at that radius.
+      const launchRatio = num(params.launchRatio, 1);
+      const loops = params.loopEscape !== false;
 
-      const circular = Math.sqrt(mu / launchRadius);
-      const escapeSpeed = Math.sqrt((2 * mu) / launchRadius);
-      const energy = (launchSpeed * launchSpeed) / 2 - mu / launchRadius;
-      const unbound = energy >= 0;
+      // The conic the scene actually flies (lib/orbit.js). This case carried its
+      // own copy of μ, and labelled scene units as AU, km/s and J/kg — none of
+      // which these numbers are, as the topic itself says.
+      const orbit = solveOrbit({ mass, launchRadius, launchRatio });
+      const { mu, circularSpeed: circular, escapeSpeed, energy } = orbit;
+      const unbound = !orbit.bound;
 
       readout = {
         title: "Keplerian Gravitational Orbits",
         subtitle: "Specific orbital energy ε = v²/2 − GM/r",
         rows: [
-          ["Grav Parameter μ", `${mu.toFixed(1)}`, "gold"],
-          ["Launch Radius r₀", `${launchRadius.toFixed(2)} AU`],
-          ["Launch Speed v₀", `${launchSpeed.toFixed(2)} km/s`, "gold"],
-          ["Circular Speed v_c", `${circular.toFixed(2)} km/s`],
-          ["Escape Speed v_esc", `${escapeSpeed.toFixed(2)} km/s`],
-          ["Orbital Energy ε", `${energy.toFixed(2)} J/kg`, unbound ? "bad" : "good"],
-          ["Trajectory Type", unbound ? "Hyperbolic (Escape)" : Math.abs(launchSpeed - circular) < 0.05 ? "Circular" : "Elliptical", unbound ? "bad" : "good"],
+          ["Grav Parameter μ = GM", `${mu.toFixed(1)}`, "gold"],
+          ["Launch Radius r₀", `${launchRadius.toFixed(2)} units`],
+          ["Launch Speed v₀", `${orbit.launchSpeed.toFixed(2)} units/s · ${launchRatio.toFixed(2)}× v_c`, "gold"],
+          ["Circular Speed v_c", `${circular.toFixed(2)} units/s`],
+          ["Escape Speed v_esc", `${escapeSpeed.toFixed(2)} units/s`],
+          ["Orbital Energy ε", `${energy.toFixed(2)} units²/s²`, unbound ? "bad" : "good"],
+          ["Eccentricity e", orbit.eccentricity.toFixed(2)],
+          ["Closest / farthest r", unbound ? `${orbit.periapsis.toFixed(1)} / ∞` : `${orbit.periapsis.toFixed(1)} / ${orbit.apoapsis.toFixed(1)}`],
+          ["Period T", unbound ? "never returns" : `${orbit.period.toFixed(1)} s`],
+          ["Trajectory Type", unbound ? "Hyperbolic (Escape)" : orbit.kind === "circular" ? "Circular" : "Elliptical", unbound ? "bad" : "good"],
         ],
         note: unbound
-          ? "Launch speed exceeds escape velocity (ε ≥ 0): the satellite is on an open hyperbolic path and will permanently escape the gravitational well."
-          : Math.abs(launchSpeed - circular) < 0.05
+          ? `Launch speed reaches escape velocity (ε ≥ 0, i.e. ≥ 1.41 × v_c): the satellite is on an open hyperbolic path and never returns. ${loops ? "It is shown leaving, then relaunched." : "It keeps going, and the camera follows it out."}`
+          : orbit.kind === "circular"
           ? "Launch speed matches circular velocity: centripetal force exactly balances gravitational attraction, maintaining constant orbital radius."
-          : "Launch speed is bounded (ε < 0): the satellite travels in a stable elliptical orbit around the central focus.",
+          : orbit.apoapsis * 1.1 > VIEW_MAX
+          ? `Launch speed is bounded (ε < 0) but only just: the ellipse is far wider than the view, so the satellite is shown leaving it${loops ? " and relaunched" : ""}. It does return, after T = ${orbit.period.toFixed(0)} s.`
+          : "Launch speed is bounded (ε < 0): the satellite travels in a stable elliptical orbit around the central focus, and the camera backs off to fit the whole of it.",
         noteTone: unbound ? "bad" : "good",
       };
 
@@ -1471,7 +1494,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#fbbf24", shape: "dot", label: "Central Mass (Star / Planet)", note: "Gravitational source creating potential well" },
           { color: "#34d399", shape: "dot", label: "Orbiting Satellite", note: "Body in continuous gravitational free-fall" },
           { color: "#34d399", shape: "line", label: "Orbital Path Trail", note: "Closed elliptical or open escape trajectory" },
-          { color: "#38bdf8", shape: "line", label: "Spacetime Potential Sheet", note: "Depth represents −GM/r potential energy" },
+          { color: "#38bdf8", shape: "line", label: "Potential Well Sheet", note: "Depth is −GM/r, the potential per kg — a picture of the potential, not of space; it fades out with distance and is not a wall" },
         ],
       };
       break;
@@ -1488,6 +1511,8 @@ function renderTopicDetailsReadout(topic, params) {
       // is what stops the two drifting apart.
       const f = solveIncline({ massKg: mass, angleDeg: angle, surface: key, appliedForce: applied });
       const slips = angle > f.reposeAngle + 1e-9;
+      // When it does go, how long and how fast until it meets the end stop.
+      const slide = slideForecast({ massKg: mass, angleDeg: angle, surface: key, appliedForce: applied });
 
       readout = {
         title: "Block on an Incline",
@@ -1505,6 +1530,12 @@ function renderTopicDetailsReadout(topic, params) {
           ["Resultant ΣF", `${f.netForce.toFixed(1)} N`, Math.abs(f.netForce) < 0.05 ? "good" : "warn"],
           ["Acceleration a", `${f.acceleration.toFixed(2)} m/s²`, f.isStatic ? "good" : "bad"],
           ["State", f.isStatic ? "in equilibrium" : "sliding", f.isStatic ? "good" : "bad"],
+          ...(slide.slides
+            ? [
+                ["Time to the end stop", `${slide.timeToStop.toFixed(2)} s ${slide.direction > 0 ? "up" : "down"} the ramp`],
+                ["Speed on reaching it", `${slide.impactSpeed.toFixed(2)} m/s`, "gold"],
+              ]
+            : []),
           ["Angle of repose", `${f.reposeAngle.toFixed(1)}°`, slips ? "bad" : "good"],
         ],
         note: f.isStatic
@@ -1525,6 +1556,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#2dd4bf", label: "Friction f", note: f.isStatic ? "a reaction, ≤ μs·N" : "fixed at μk·N once sliding" },
           { color: "#fbbf24", label: "Applied force F", note: "acts along the ramp, so N is unchanged" },
           { color: "#34d399", label: "Resultant ΣF", note: "whatever is left over — this is ma" },
+          { color: "#94a3b8", label: "Stop reaction R", note: "the end stop's push, drawn only once the block is pressed against it" },
         ],
       };
       break;
@@ -1609,7 +1641,11 @@ function renderTopicDetailsReadout(topic, params) {
           ["Efficiency", `${(m.efficiency * 100).toFixed(1)}%`, m.efficiency > 0.9 ? "good" : "warn"],
         ],
         note: m.losesForce
-          ? `This machine costs force rather than saving it: ${m.effortForce.toFixed(0)} N of effort to lift ${loadN.toFixed(0)} N. What you get back is speed and reach — the load moves ${(1 / m.velocityRatio).toFixed(1)}× further than your hand does. Your forearm is built this way.`
+          ? !lever
+            ? `A single pulley saves no force: ${m.effortForce.toFixed(0)} N of effort to lift ${loadN.toFixed(0)} N, a little more than the load because of friction in the sheave. What it changes is the direction of the pull — you haul down instead of lifting up — and your hand moves exactly as far as the load. Add sheaves to start saving force.`
+            : m.velocityRatio < 1
+            ? `This machine costs force rather than saving it: ${m.effortForce.toFixed(0)} N of effort to lift ${loadN.toFixed(0)} N. What you get back is speed and reach — the load moves ${(1 / m.velocityRatio).toFixed(1)}× further than your hand does.${type === "lever3" ? " Your forearm is built this way." : ""}`
+            : `The two arms are almost equal, so the lever saves no force: it takes ${m.effortForce.toFixed(0)} N to lift ${loadN.toFixed(0)} N — a little more than the load, because of friction at the pivot. Lengthen the effort arm to start saving force.`
           : `The effort is ${m.mechanicalAdvantage.toFixed(2)}× smaller than the load, and has to move ${m.velocityRatio.toFixed(2)}× further. Multiply those and you are back where you started — no machine reduces the work, only the force.`,
         noteTone: m.losesForce ? "warn" : "good",
       };
@@ -1662,7 +1698,7 @@ function renderTopicDetailsReadout(topic, params) {
         note: !clears
           ? `Below the threshold. At the top of the loop the cart would only have ${vTop.toFixed(1)} m/s, and it needs √(gR) = ${vNeeded.toFixed(1)} m/s for gravity alone to supply the centripetal force. Any slower and the rail would have to pull the cart inward, which it cannot — so the cart falls away from the track. Raise the release height above ${minH.toFixed(1)} m.`
           : rough
-            ? `Clears the loop, and note the mass is irrelevant to that: it appears on both sides of ½mv² = mgh and cancels. With friction on, some of the starting ${(startEnergy / 1000).toFixed(0)} kJ ends up as heat in the wheels and brakes — the three bars still add to the same total, but the heat bar never gives anything back.`
+            ? `The figures above are the frictionless ideal, so with friction on they are an upper bound: some of the starting ${(startEnergy / 1000).toFixed(0)} kJ ends up as heat in the wheels and brakes, and a release only just over 2.5 R can fall short — the live verdict on the scene says whether it does. The three bars still add to the same total; the heat bar never gives anything back. The mass is irrelevant to the ideal answer: it appears on both sides of ½mv² = mgh and cancels.`
             : `Clears the loop with ${vTop.toFixed(1)} m/s against the ${vNeeded.toFixed(1)} m/s needed. With no friction, GPE and KE simply trade places: every metre of height lost buys exactly ½v² of speed, whatever the cart weighs.`,
         noteTone: !clears ? "bad" : rough ? "warn" : "good",
       };
@@ -1697,7 +1733,10 @@ function renderTopicDetailsReadout(topic, params) {
         rows: [
           ["Supply emf", `${voltage.toFixed(1)} V`, "gold"],
           ["Each bulb", `${bulbR.toFixed(0)} Ω`],
-          [c.formula, c.worked, "gold"],
+          // "wide" rows take both columns and wrap: the worked equation and the
+          // per-bulb lines are far longer than half the sidebar and were being
+          // cut off mid-number with an ellipsis.
+          [c.formula, c.worked, "gold", "wide"],
           ["R of the network", ohms(c.networkR)],
           ...(shorted ? [["With the short fitted", ohms(c.externalR), "bad"]] : []),
           ["Total current from the pack", `${c.totalCurrent.toFixed(3)} A`, c.overCurrent ? "bad" : "default"],
@@ -1705,6 +1744,7 @@ function renderTopicDetailsReadout(topic, params) {
             `I${i + 1} — branch ${b.id}`,
             b.open ? "0 A — branch open" : `${b.current.toFixed(3)} A`,
             b.open ? "bad" : "good",
+            b.open ? "wide" : undefined,
           ]),
           ...(shorted ? [["Through the jumper", `${c.shortCurrent.toFixed(2)} A`, "bad"]] : []),
           ["Volts across the network", `${c.networkVoltage.toFixed(2)} V`],
@@ -1715,6 +1755,7 @@ function renderTopicDetailsReadout(topic, params) {
               ? "unscrewed — infinite resistance"
               : `${b.voltage.toFixed(2)} V · ${b.power.toFixed(2)} W · ${(b.brightness * 100).toFixed(0)}% bright`,
             b.removed ? "bad" : b.lit ? "good" : "warn",
+            "wide",
           ]),
           ["Bulbs lit", `${lit} of ${c.bulbs.length}`, lit === 0 ? "bad" : "good"],
           ["Wasted inside the pack", `${c.internalLoss.toFixed(2)} W`, c.overCurrent ? "bad" : "default"],
@@ -1724,7 +1765,9 @@ function renderTopicDetailsReadout(topic, params) {
           : shorted
             ? `The jumper is a ${c.externalR.toFixed(3)} Ω path in parallel with the bulbs, so ${((c.shortCurrent / c.totalCurrent) * 100).toFixed(0)}% of the ${c.totalCurrent.toFixed(1)} A takes it and the bulbs are left with ${c.networkVoltage.toFixed(2)} V. The current is limited only by the pack's own 0.5 Ω, which is why ${c.internalLoss.toFixed(1)} W is now being dissipated inside the battery itself.`
             : unscrewed
-              ? `Bulb A is out of its socket and its branch is open, but the rest of the board is unaffected — each parallel branch is its own loop back to the battery. Note the total current has FALLEN to ${c.totalCurrent.toFixed(2)} A: one fewer path means more resistance, not less.`
+              ? strandedBulbs(c).length > 0
+                ? `Bulb A is out of its socket, and bulb ${strandedBulbs(c).join(" and ")} goes dark with it — they are in series on the same branch, so A's gap is ${strandedBulbs(c).length > 1 ? "their" : "its"} only path as well. Only the parallel branch survives, because each branch is its own loop back to the battery. The total current has FALLEN to ${c.totalCurrent.toFixed(2)} A: one fewer path means more resistance, not less.`
+                : `Bulb A is out of its socket and its branch is open, but the rest of the board is unaffected — each parallel branch is its own loop back to the battery. Note the total current has FALLEN to ${c.totalCurrent.toFixed(2)} A: one fewer path means more resistance, not less.`
               : topology === "parallel"
                 ? `Each branch sits across the supply, so both bulbs run at ${(c.bulbs[0].brightness * 100).toFixed(0)}% and the branch currents add to ${c.totalCurrent.toFixed(2)} A. In series the same two bulbs would draw ${solveCircuit({ topology: "series", voltage, bulbR }).totalCurrent.toFixed(2)} A and run at a quarter of the power — adding a parallel branch lowers R_eq and raises the demand on the supply.`
                 : topology === "series"
@@ -1765,19 +1808,21 @@ function renderTopicDetailsReadout(topic, params) {
         rows: [
           ["Gap r", `${(separation * 100).toFixed(1)} cm`, "gold"],
           ["Charge per marker", `${(CHARGE_PER_MARKER * 1e9).toFixed(0)} nC`],
-          ["Balloon at full charge", `${MAX_MARKERS} markers · ${(chargeOf(MAX_MARKERS) * 1e9).toFixed(0)} nC`],
+          ["Balloon at full charge", `${MAX_MARKERS} markers · ${(chargeOf(MAX_MARKERS) * 1e9).toFixed(0)} nC`, "default", "wide"],
           ["Electrons that moved", electronCount(MAX_MARKERS).toExponential(2)],
           ["Left behind on the wool", `${MAX_MARKERS} unpaired +`, "warn"],
           [
             target === "wall" ? "Induced on the wall" : "On the other object",
             `${Math.round(full.otherMarkers)} markers`,
           ],
-          ["F at this gap", fmt(full.force), full.attracts ? "good" : "bad"],
+          // These figures are for a fully charged balloon (24 markers), so they
+          // stay meaningful before the first rub; the scene's label is the live one.
+          ["F at this gap, full charge", fmt(full.force), full.attracts ? "good" : "bad", "wide"],
           ["…as a multiple of its weight", `${full.forceInWeights.toFixed(1)}×`],
-          ["F at half the gap", `${fmt(half.force)} — 4× larger`, "gold"],
+          ["F at half the gap", `${fmt(half.force)} — 4× larger`, "gold", "wide"],
           ["Direction", full.attracts ? "attraction" : "repulsion", full.attracts ? "good" : "bad"],
           ...(target === "wall"
-            ? [["Sticks to the wall?", full.sticks ? "yes — friction holds it" : "no — it slides down", full.sticks ? "good" : "warn"]]
+            ? [["Sticks to the wall?", full.sticks ? "yes — friction holds it" : "no — it slides down", full.sticks ? "good" : "warn", "wide"]]
             : []),
           ["Air humidity", `${humidity.toFixed(0)}% RH`],
           ["Charge time constant", `${tau.toFixed(1)} s`, humidity > 70 ? "bad" : humidity > 45 ? "warn" : "good"],
@@ -1798,7 +1843,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#38bdf8", label: "− electrons", note: "the only thing that actually moves" },
           { color: "#fb7185", label: "+ unpaired", note: "not added — simply left behind where an electron used to be" },
           { color: "#34d399", label: "Attraction", note: "charged to neutral, via induction — always" },
-          { color: "#5eead4", label: "Water in the air", note: `leaks the charge away with a ${tau.toFixed(0)} s time constant` },
+          { color: "#14b8a6", label: "Water in the air", note: `leaks the charge away with a ${tau.toFixed(0)} s time constant` },
           { color: "#e8ebf0", label: "Conservation", note: "the + count and the − count are always equal" },
         ],
       };
@@ -1819,6 +1864,9 @@ function renderTopicDetailsReadout(topic, params) {
         .map((f) => f.label);
 
       const hull = b.shape.envelope > 1;
+      const isAir = b.fluid.density < 0.01;
+      // Air's upthrust is a few pascals of pressure difference: kPa to three places prints them as 0.001.
+      const fmtPressure = (pa) => (pa >= 100 ? `${(pa / 1000).toFixed(3)} kPa` : `${pa.toFixed(2)} Pa`);
 
       readout = {
         title: "Archimedes' Principle",
@@ -1831,12 +1879,12 @@ function renderTopicDetailsReadout(topic, params) {
           ["Mean density m ÷ V_env", `${b.meanDensity.toFixed(3)} g/cm³`, b.floats ? "good" : "bad"],
           ["Fluid density ρ_f", `${b.fluidDensity} g/cm³`],
           ["Density ratio ρ_mean/ρ_f", b.densityRatio.toFixed(3), b.floats ? "good" : "bad"],
-          ["Fluid displaced", `${b.overflowML.toFixed(0)} cm³ = ${b.displacedMassG.toFixed(0)} g`],
-          ["Buoyant force F_b = ρVg", `${b.upthrust.toFixed(2)} N`, "good"],
-          ["…from the pressure difference", `${b.pressureUpthrust.toFixed(2)} N`],
-          ["Apparent weight", `${b.apparentWeight.toFixed(2)} N`, b.floats ? "good" : "default"],
+          ["Fluid displaced", `${b.overflowML.toFixed(0)} cm³ = ${b.displacedMassG < 10 ? b.displacedMassG.toFixed(2) : b.displacedMassG.toFixed(0)} g`],
+          ["Buoyant force F_b = ρVg", formatNewtons(b.upthrust), "good"],
+          ["…from the pressure difference", formatNewtons(b.pressureUpthrust)],
+          ["Apparent weight", formatNewtons(b.apparentWeight), b.floats ? "good" : "default"],
           ["Weight apparently lost", `${(b.weightLostFraction * 100).toFixed(1)}%`],
-          ["Resultant F_b − W", `${b.netForce.toFixed(2)} N`, Math.abs(b.netForce) < 0.005 ? "good" : b.netForce > 0 ? "good" : "bad"],
+          ["Resultant F_b − W", `${b.netForce < 0 ? "−" : ""}${formatNewtons(b.netForce)}`, Math.abs(b.netForce) < 0.005 ? "good" : b.netForce > 0 ? "good" : "bad"],
           ...(b.floats
             ? [
                 ["Submerged", `${(b.submergedFraction * 100).toFixed(1)}% by volume`, "good"],
@@ -1844,29 +1892,31 @@ function renderTopicDetailsReadout(topic, params) {
                 ["Freeboard", `${b.freeboardCm.toFixed(2)} cm`, b.freeboardCm < 0.4 ? "warn" : "good"],
               ]
             : [
-                ["Pressure on the top face", `${(b.pressureTop / 1000).toFixed(3)} kPa`],
-                ["Pressure on the base", `${(b.pressureBottom / 1000).toFixed(3)} kPa`],
-                ["Difference across it", `${(b.pressureDifference / 1000).toFixed(3)} kPa`, "gold"],
+                ["Pressure on the top face", fmtPressure(b.pressureTop)],
+                ["Pressure on the base", fmtPressure(b.pressureBottom)],
+                ["Difference across it", fmtPressure(b.pressureDifference), "gold"],
                 ["Released, it would accelerate", `${Math.abs(b.acceleration).toFixed(2)} m/s² ${b.acceleration > 0 ? "up" : "down"}`, "bad"],
               ]),
           ["Floats in", floatsIn.length ? floatsIn.join(", ") : "none of the six", floatsIn.length ? "good" : "bad"],
         ],
-        note: b.swamped
-          ? `The hull has gone under, and a swamped hull displaces only the steel it is made of — ${b.overflowML.toFixed(0)} cm³ instead of the ${b.metrics.envelopeCC.toFixed(0)} cm³ it displaced while it floated. That is why a breach is fatal so quickly: the buoyancy does not fall off gradually, it collapses to a twelfth as soon as the air is replaced by water.`
+        note: isAir
+          ? `Air is a fluid too, and this ${b.shape.label.toLowerCase()} pushes aside ${b.overflowML.toFixed(0)} cm³ of it — but that much air weighs only ${formatNewtons(b.upthrust)}, ${(b.weightLostFraction * 100).toFixed(2)}% of the ${formatNewtons(b.weight)} weight. That is why nobody notices it, and why weighing something in air is treated as weighing it in a vacuum. Switch to water and the same object suddenly loses ${(fluidComparison({ density, volume, shape }).find((f) => f.key === "freshwater").upthrust).toFixed(2)} N.`
+          : b.swamped
+          ? `The hull has gone under, and a swamped hull displaces only the steel it is made of — ${b.overflowML.toFixed(0)} cm³ instead of the ${b.metrics.envelopeCC.toFixed(0)} cm³ it displaced while it floated. That is why a breach is fatal so quickly: the buoyancy does not fall off gradually, it collapses to a ${b.shape.envelope}th as soon as the air is replaced by water.`
           : b.floats
             ? hull
               ? `The steel is still ${density.toFixed(2)} g/cm³ — nothing about the material changed. What changed is the volume it pushes aside: spread over the hull's ${b.metrics.envelopeCC.toFixed(0)} cm³ envelope the SAME ${b.massG.toFixed(0)} g comes out at ${b.meanDensity.toFixed(2)} g/cm³, below the fluid's ${b.fluidDensity}, so it floats with ${(b.freeboardCm).toFixed(1)} cm of freeboard. Switch the shape to a rock and watch the identical metal sink.`
-              : `Floating, and it has sunk until it displaced exactly its own weight: ${b.overflowML.toFixed(0)} cm³ of ${b.fluid.label.toLowerCase()} weighs ${b.upthrust.toFixed(2)} N, which is W to the last decimal. The fraction submerged is just ρ_object ÷ ρ_fluid = ${b.densityRatio.toFixed(2)}, so the string is slack and the scale reads nothing at all.`
-            : `Sinking: at ${b.meanDensity.toFixed(2)} g/cm³ it cannot displace its own weight even fully under. The scale still reads ${b.apparentWeight.toFixed(2)} N rather than ${b.weight.toFixed(2)} N, and that missing ${b.upthrust.toFixed(2)} N is exactly the weight of the ${b.overflowML.toFixed(0)} cm³ in the measuring cylinder. Lower it deeper and the reading will not budge — both faces gain pressure equally, and only the difference lifts.`,
-        noteTone: b.swamped ? "bad" : b.floats ? "good" : "warn",
+              : `Floating, and it has sunk until it displaced exactly its own weight: ${b.overflowML.toFixed(0)} cm³ of ${b.fluid.label.toLowerCase()} weighs ${formatNewtons(b.upthrust)}, which is W to the last decimal. The fraction submerged is just ρ_object ÷ ρ_fluid = ${b.densityRatio.toFixed(2)}, so the string is slack and the scale reads nothing at all.`
+            : `Sinking: at ${b.meanDensity.toFixed(2)} g/cm³ it cannot displace its own weight even fully under. The scale still reads ${formatNewtons(b.apparentWeight)} rather than ${formatNewtons(b.weight)}, and that missing ${formatNewtons(b.upthrust)} is exactly the weight of the ${b.overflowML.toFixed(0)} cm³ ${b.fluid.density < 0.01 ? "of air pushed aside" : "in the measuring cylinder"}. Lower it deeper and the reading will not budge — both faces gain pressure equally, and only the difference lifts.`,
+        noteTone: isAir ? "warn" : b.swamped ? "bad" : b.floats ? "good" : "warn",
       };
 
       legend = {
         title: "Buoyancy Key",
         items: [
           { color: "#fb7185", label: "Weight W = mg", note: `${b.weight.toFixed(2)} N of material, always straight down` },
-          { color: "#38bdf8", label: "Upthrust F_b = ρVg", note: `${b.upthrust.toFixed(2)} N — the weight of the ${b.overflowML.toFixed(0)} cm³ in the cylinder` },
-          { color: "#fbbf24", label: "Tension T", note: `${b.apparentWeight.toFixed(2)} N — whatever the fluid did not carry` },
+          { color: "#38bdf8", label: "Upthrust F_b = ρVg", note: `${formatNewtons(b.upthrust)} — the weight of the ${b.overflowML.toFixed(0)} cm³ ${b.fluid.density < 0.01 ? "of air pushed aside" : "in the cylinder"}` },
+          { color: "#fbbf24", label: "Tension T", note: `${formatNewtons(b.apparentWeight)} — whatever the fluid did not carry` },
           { color: "#34d399", label: "Mean density", note: `${b.meanDensity.toFixed(2)} g/cm³ against the fluid's ${b.fluidDensity} — this decides it` },
           { color: FLUIDS[fluidKey]?.colour ?? "#38bdf8", label: b.fluid.label, note: b.fluid.title },
         ],
@@ -1908,9 +1958,17 @@ function renderTopicDetailsReadout(topic, params) {
           ["— RADIATION —", "no medium required", "gold"],
           ["Radiated by the flame", `${h.radiatedPower.toFixed(1)} W`],
           ["Reaching the plate", `${h.irradiance.toFixed(0)} W/m² at 15 cm`],
-          ["Absorbed by the plate", `${(h.absorbedPower * 1000).toFixed(0)} mW`],
-          ["Plate temperature", `${h.plateC.toFixed(1)} °C`, h.plateC > 35 ? "warn" : "good"],
-          ["Plate rise above room", `${(h.plateC - h.ambientC).toFixed(1)} K`, "gold"],
+          ["Absorbed by the blackened plate", `${(h.absorbedPower * 1000).toFixed(0)} mW`],
+          ["Blackened plate", `${h.plateC.toFixed(1)} °C`, h.plateC > 35 ? "warn" : "good"],
+          ["Blackened plate, rise above room", `${(h.plateC - h.ambientC).toFixed(1)} K`, "gold"],
+          ["Silvered plate (same size, same distance)", `${h.shinyC.toFixed(1)} °C`],
+          ["Silvered plate, rise above room", `${(h.shinyC - h.ambientC).toFixed(2)} K`, "gold"],
+          [
+            "Absorbed: black vs silver",
+            `${(h.absorbedPower * 1000).toFixed(0)} mW vs ${(h.shinyAbsorbedPower * 1000).toFixed(0)} mW`,
+            "default",
+            "wide",
+          ],
         ],
         note: !h.lit
           ? "The burner is out, so all three transfers have nothing to move: the rods, the water and the plate are all at room temperature. Open the gas and watch which one responds first — the plate, at the speed of light, before the water has warmed at all."
@@ -1929,7 +1987,7 @@ function renderTopicDetailsReadout(topic, params) {
             note: `k = 385 vs wood's 0.15 — a factor of ${(ROD_MATERIALS.copper.k / ROD_MATERIALS.wood.k).toFixed(0)}, and no material moves`,
           },
           {
-            color: "#a78bfa",
+            color: "#c026d3",
             label: "Convection",
             note: `the dye IS the current — hot water rises because it is ${Math.abs(h.water.densityDifference).toFixed(1)} kg/m³ lighter`,
           },
@@ -1937,6 +1995,11 @@ function renderTopicDetailsReadout(topic, params) {
             color: "#fb923c",
             label: "Radiation",
             note: `${h.radiatedPower.toFixed(0)} W leaving the flame, spreading as 1/r² and needing no medium`,
+          },
+          {
+            color: "#e6ebf2",
+            label: "Silvered plate",
+            note: `a shiny surface absorbs only ${(h.shinyAbsorbedPower / Math.max(h.absorbedPower, 1e-12) * 100).toFixed(0)}% of what the black one does, so it warms by only ${(h.shinyC - h.ambientC).toFixed(1)} K where the black one warms by ${(h.plateC - h.ambientC).toFixed(1)} K`,
           },
           {
             color: "#f5e6c8",
@@ -3846,9 +3909,11 @@ function renderTopicDetailsReadout(topic, params) {
           <span className="text-[9.5px] font-mono text-ink-500">{readout.subtitle}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-0.5">
-          {readout.rows.map(([label, value, tone], i) => (
-            <Stat key={i} label={label} value={value} tone={tone || "default"} />
+        {/* `grid-flow-row-dense` lets a short row backfill the cell a full-width
+            row would otherwise leave empty beside it. */}
+        <div className="grid grid-flow-row-dense grid-cols-2 gap-x-2 gap-y-1.5 pt-0.5">
+          {readout.rows.map(([label, value, tone, layout], i) => (
+            <Stat key={i} label={label} value={value} tone={tone || "default"} wide={layout === "wide"} />
           ))}
         </div>
 
