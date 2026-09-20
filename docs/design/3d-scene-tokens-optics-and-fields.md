@@ -112,8 +112,8 @@
     - **Detailed Light Sources (`LightSource`)**:
       - Pinpoint Torch: Dark gunmetal barrel (`#1e293b`, metalness `0.7`, roughness `0.45`) with triple ribbed knurled grip rings (`#0f172a`), stepped tailcap (`#334155`) with red click switch (`#ef4444`), stepped brass retaining collar (`#d4af37`, metalness `0.85`, roughness `0.25`), specular chrome parabolic reflector dish (`#f8fafc`, metalness `0.96`, roughness `0.08`), transparent convex optical glass lens disc (`#e0f2fe`, transmission `0.85`, opacity `0.35`, ior `1.5`), and radiant tungsten filament emitter (`#fffbe8`, emissive `#ffe9a8`, emissiveIntensity `3.4`).
       - Wide Troffer Lamp: Formed industrial sheet metal reflector hood (`#1e293b`, metalness `0.5`, roughness `0.6`) with polished aluminum inner trough liner (`#cbd5e1`, metalness `0.85`), twin angled tubular stanchion yoke struts (`#334155`, metalness `0.7`), molded ceramic bi-pin socket end caps (`#475569`) with brass terminal rings (`#d4af37`), frosted fluorescent diffuser tube (`#fef9c3`, emissive `#fef08a`, emissiveIntensity `2.5`), and glowing cathode core wire (`#ffffff`, emissive `#fffbeb`, emissiveIntensity `3.5`).
-    - **3D Test Objects & Shelf Registry (8 Shapes)**:
-      - Cylindrical Rod, Cube, Upright Cone, Sphere, Torus Ring, 4-Sided Square Pyramid, Letter T, Letter L.
+    - **3D Test Objects & Shelf Registry (20 Shapes)**:
+      - 13 solids (cylinder, cube, cuboid, sphere, hemisphere, cone, square pyramid, prism, octahedron, ring, pipe, capsule, egg) and 7 flat cut-outs (star, heart, cross, arrow, letter T, letter L, letter F).
       - Torus Ring: Annular torus mesh casting a donut shadow with a clear light aperture at $0^\circ$ and a solid rectangular bar at $90^\circ$ edge-on.
       - Square Pyramid: 4-sided pyramid transitioning from a triangular silhouette at $0^\circ$ to a square base silhouette at $90^\circ$.
       - Letter L: Correctly oriented standard upright "L" across 3D solid, 3D projection screen, and 2D HUD preview card.
