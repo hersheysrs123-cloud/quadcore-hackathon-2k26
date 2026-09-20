@@ -186,7 +186,7 @@ A comprehensive suite of 51 real-time interactive 3D STEM simulations built usin
 ### 🎓 11. Interactive Onboarding Tutorial & Feature Walkthrough
 - **9 Interactive Chapters Covering 100+ Capabilities** ([`InteractiveTutorial.jsx`](../components/InteractiveTutorial.jsx)):
   - **Philosophy & 100% Local-First Architecture**: Active retrieval vs rereading, 12-table Dexie.js v8 storage, and spaces workflow with interactive concept cards.
-  - **19-Block Editor & KaTeX Studio**: Interactive category filter across all 19 block types and live typography font switcher (`Default Sans`, `Classic Serif`, `Developer Mono`, `Script`, `Grotesk`).
+  - **19-Block Editor & KaTeX Studio**: Interactive category filter across all 19 block types and live typography font switcher (`Default Sans`, `Classic Serif`, `Developer Mono`).
   - **AI Study Suite**: Interactive 3-way drawer preview (AI Tutor Socratic chat, Explain Panel structured breakdown, and an **interactive live mini-quiz** with real-time feedback).
   - **Quizzes Studio & 7 Question Types**: Interactive question type explorer and live step-ordering puzzle.
   - **Space Hub & Curriculum Grounding**: Interactive academic standard simulator (IGCSE, IB, AP, University).
