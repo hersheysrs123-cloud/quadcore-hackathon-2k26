@@ -22,7 +22,7 @@
 - **Rich Media & Bookmarks**:
   - Site Bookmark Cards: `#181c27` background, 🌐 icon, cyan hyperlink (`#38bdf8`), and muted URL subtitle (`#94a3b8`).
   - Media Embeds: Responsive `<img />`, native `<audio controls>`, `<video controls>`, and 16:9 aspect-ratio responsive YouTube `<iframe>` embeds (`media-youtube` container with 56.25% padding-bottom or `aspect-video`) with editable captions and `25%` / `50%` / `100%` width preset styling.
-  - Canvas Whiteboard: Dashed card container (`#181c27`, border `#475569`) with 🎨 icon and `[Canvas Drawing]` label.
+  - Sub-Page Cards: `#181c27` background, page emoji icon, white bold title, muted `Sub-page` subtitle, and `→` arrow.
   - Checkboxes & Toggles: Custom check boxes (`.todo-check.checked` `#0284c7` with checkmark, `.todo-check.unchecked` `#181c27`) and native collapsible `<details><summary>`.
   - Tables: Responsive dark container (`#181c27`) with gold headers (`#f7d67c`) and subtle row borders (`#232938`).
 
