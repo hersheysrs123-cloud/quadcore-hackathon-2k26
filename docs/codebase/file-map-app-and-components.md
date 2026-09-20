@@ -25,7 +25,7 @@ quadcore-hackathon-2k26/
 │   ├── AITutorPanel.jsx                  # Interactive AI Tutor drawer: real-time doubts, LaTeX math, quick prompts & space context
 │   ├── AddBookmarkModal.jsx              # Quick add/edit bookmark modal with instant URL normalization & live favicon
 │   ├── AlarmOverlay.jsx                  # Calming glassmorphic study break modal with gentle chime & snooze controls
-│   ├── BlockNoteEditor.jsx               # 19-block Notion-style editor with slash menu, 6-dots handles, covers & stats
+│   ├── BlockNoteEditor.jsx               # 20-block Notion-style editor with slash menu, 6-dots handles, covers & stats
 │   ├── CalendarView.jsx                  # Study schedule calendar, month navigation, agenda, Pomodoro integration & alarms
 │   ├── CommandPalette.jsx                # Ctrl+K global fuzzy search modal for notes, bookmarks, views, and settings
 │   ├── ConfidenceHeatmap.jsx             # Per-session sub-topic confidence heatmap (Solid / Shaky / Gap)
