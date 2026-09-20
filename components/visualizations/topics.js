@@ -73,6 +73,7 @@ import {
   Zap,
 } from "lucide-react";
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
+import { speedRegime } from "@/lib/orbit";
 import {
   ALGORITHM_OPTIONS,
   AQUEOUS_SOLUTION_OPTIONS,
@@ -91,6 +92,7 @@ import {
   HEAT_VIEW_OPTIONS,
   METAL_STRIP_OPTIONS,
   NERVE_PATHWAY_OPTIONS,
+  ORBIT_TIME_SCALE_OPTIONS,
   POLLINATION_VECTOR_OPTIONS,
   ROD_MATERIAL_OPTIONS,
   SACRIFICIAL_METAL_OPTIONS,
@@ -464,8 +466,8 @@ export const TOPICS = [
     concepts: [
       "Faraday's Law: An e.m.f. is induced in a conductor whenever there is a change in the magnetic flux linking it (ε = −N ΔΦ/Δt).",
       "Relative motion is required: A stationary magnet inside a coil produces constant flux (ΔΦ/Δt = 0), yielding zero induced e.m.f.",
-      "Lenz's Law: The direction of the induced e.m.f. and current always opposes the change in flux that caused it.",
-      "In an AC generator, rotating a coil continuously alters the flux linkage angle, generating a smooth alternating voltage waveform.",
+      "Lenz's Law: The induced current always flows so as to oppose the change in flux that caused it — an approaching north pole meets an induced north pole at the near end of the coil, and a receding one is held back by an induced south pole.",
+      "In an AC generator the flux linking the coil is Φ = BA cos ωt, so ε = NBAω sin ωt: zero when the coil is face-on to the field, greatest when it is edge-on, and reversing every half turn (f = ω/2π).",
     ],
     quiz: [
       {
@@ -576,7 +578,7 @@ export const TOPICS = [
       { type: "slider", key: "angle", label: "Launch angle θ", min: 5, max: 85, step: 1, format: (v) => `${v}°` },
       { type: "slider", key: "launchSpeed", label: "Launch speed u", min: 5, max: 40, step: 1, format: (v) => `${v} m/s` },
       { type: "choice", key: "gravity", label: "Gravitational field g", columns: 4, options: GRAVITY_OPTIONS },
-      { type: "slider", key: "drag", label: "Drag coefficient k", min: 0, max: 0.25, step: 0.005, format: (v) => (v === 0 ? "vacuum" : v.toFixed(3)) },
+      { type: "slider", key: "drag", label: "Drag constant k", min: 0, max: 0.25, step: 0.005, format: (v) => (v === 0 ? "vacuum" : `${v.toFixed(3)} kg/m`) },
       { type: "slider", key: "mass", label: "Mass m", min: 0.2, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)} kg` },
       { type: "toggle", key: "showIdeal", label: "Compare with no drag" },
       { type: "toggle", key: "showVectors", label: "Show force vectors" },
@@ -587,7 +589,7 @@ export const TOPICS = [
     concepts: [
       "Without drag the horizontal and vertical motions are completely independent: horizontal velocity never changes, vertical velocity changes at g. That independence is what makes the path a parabola and puts the maximum range at 45°.",
       "Air resistance acts along the path and against it, with a size that grows as v². Because it is always opposing the motion, it bleeds horizontal speed the whole flight — so the descent is steeper than the climb and the path stops being symmetric.",
-      "With drag, the optimum launch angle drops below 45°, and a heavier object of the same shape travels further: the drag deceleration is k|v|v ÷ m, so more mass means the same force decelerates it less.",
+      "With drag, the optimum launch angle drops below 45°, and a heavier object of the same shape travels further: the drag force is k|v|v (k in kg/m, lumping together air density, shape and area), so the deceleration is k|v|v ÷ m and more mass means the same force decelerates it less.",
     ],
     quiz: [
       {
@@ -696,14 +698,19 @@ export const TOPICS = [
     syllabus: "Physics 1.7 · Gravitation",
     keywords:
       "gravity orbital motion satellite ellipse kepler escape velocity circular orbit eccentricity gravitational potential well centripetal force period newton universal gravitation",
+    // The universal 0.1–3× slider is no use to a lap that takes minutes: orbits
+    // carry their own time-scale control, up to 100×, in the list below.
+    hideSpeedSlider: true,
     defaults: {
       mass: 1,
       launchRadius: 3.4,
-      launchSpeed: 1.35,
+      launchRatio: 1,
+      timeScale: 1,
       running: true,
       reset: 0,
       showTrail: true,
       showWell: true,
+      loopEscape: true,
       spin: false,
     },
     controls: [
@@ -711,10 +718,28 @@ export const TOPICS = [
       // solar-mass label would invite reading real years off the panel.
       { type: "slider", key: "mass", label: "Central mass M", min: 0.3, max: 3, step: 0.05, format: (v) => `${v.toFixed(2)} M₀` },
       { type: "slider", key: "launchRadius", label: "Launch radius r", min: 1.6, max: 6, step: 0.1, format: (v) => v.toFixed(1) },
-      { type: "slider", key: "launchSpeed", label: "Launch speed v", min: 0.2, max: 3.5, step: 0.05, format: (v) => v.toFixed(2) },
+      // A multiple of the circular speed at that radius, not a bare speed: 1 is a
+      // circle and √2 (1.41) is escape at ANY radius and mass, so the slider
+      // means the same thing wherever the others are set — and says what it does.
+      {
+        type: "slider",
+        key: "launchRatio",
+        label: "Launch speed v (× circular)",
+        min: 0.3,
+        max: 1.7,
+        step: 0.01,
+        format: (v, params = {}) => {
+          const regime = speedRegime({ mass: params.mass, launchRadius: params.launchRadius, launchRatio: v });
+          return `${v.toFixed(2)}× · ${regime === "circular" ? "circle" : regime}`;
+        },
+      },
+      // Not `speed`: the HUD drops any control on that key, because the universal
+      // Animation Speed slider owns it — and that one is hidden for this topic.
+      { type: "choice", key: "timeScale", label: "Time scale", columns: 4, options: ORBIT_TIME_SCALE_OPTIONS },
       { type: "toggle", key: "running", label: "Run orbit" },
       { type: "toggle", key: "showTrail", label: "Show path" },
       { type: "toggle", key: "showWell", label: "Show potential well" },
+      { type: "toggle", key: "loopEscape", label: "Relaunch when it leaves the view" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
       { type: "action", key: "reset", label: "Relaunch satellite", icon: RotateCcw },
     ],
@@ -942,6 +967,10 @@ export const TOPICS = [
           { value: "pulley", label: "Block & tackle", title: "n sheaves sharing the load between n ropes" },
         ],
       },
+      // One slider, read differently by each class (lib/simpleMachines.js): it
+      // moves the fulcrum on a class 1, but the fulcrum is pinned at the end of
+      // a class 2 or 3, where it moves the load or the effort instead. Labelled
+      // "Fulcrum position" for all three it told a student the wrong thing.
       {
         type: "slider",
         key: "armPosition",
@@ -950,7 +979,27 @@ export const TOPICS = [
         max: 0.9,
         step: 0.01,
         format: (v) => `${(v * 100).toFixed(0)}% along the bar`,
-        when: (params) => (params?.machineType ?? "lever1") !== "pulley",
+        when: (params) => (params?.machineType ?? "lever1") === "lever1",
+      },
+      {
+        type: "slider",
+        key: "armPosition",
+        label: "Load position",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        format: (v) => `${(v * 100).toFixed(0)}% of the way from the fulcrum to the effort`,
+        when: (params) => params?.machineType === "lever2",
+      },
+      {
+        type: "slider",
+        key: "armPosition",
+        label: "Effort position",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        format: (v) => `${(v * 100).toFixed(0)}% of the way from the fulcrum to the load`,
+        when: (params) => params?.machineType === "lever3",
       },
       {
         type: "slider",

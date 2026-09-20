@@ -7,8 +7,8 @@ import * as THREE from "three";
 import {
   ChevronDown,
   ChevronRight,
-  Gauge,
   Scale,
+  X,
 } from "lucide-react";
 import {
   SceneCanvas,
@@ -19,7 +19,7 @@ import { ENERGY_COLOURS } from "@/components/visualizations/energy-bars";
 import { FORCE_COLOURS, ForceVector } from "@/components/visualizations/force-diagram";
 import {
   BEAM_LENGTH_M,
-  LIFT_M,
+  MAX_END_DROP_M,
   isLever,
   leverLayout,
   solveMachine,
@@ -38,8 +38,13 @@ import {
 /** World units per metre. */
 const S = 2.1;
 const BENCH_Y = -1.9;
-/** Height of the lever pivot above the workbench top to prevent bar dipping under base. */
-const PIVOT_HEIGHT_ABOVE_BENCH = 1.22;
+/**
+ * Height of the lever pivot above the workbench top: the furthest either end
+ * may swing below it (lib/simpleMachines.js), plus a margin above the bench.
+ */
+const PIVOT_HEIGHT_ABOVE_BENCH = MAX_END_DROP_M * S + 0.22;
+/** The longest a force arrow is drawn on the bench itself, world units. */
+const BENCH_ARROW = 1.0;
 /** Seconds for one complete lift-and-lower stroke. */
 const STROKE_PERIOD = 4.2;
 
@@ -51,8 +56,10 @@ const STROKE_PERIOD = 4.2;
  */
 function LoadStack({ position = [0, 0, 0], loadN = 300, tone = "#f1f5f9" }) {
   const plates = clamp(Math.round(loadN / 45), 1, 10);
-  const plateThick = 0.082;
-  const plateSpacing = 0.095;
+  const plateThick = 0.078;
+  // Ten plates hang about 1.14 units below the eyelet; the pivot is only 1.22
+  // above the bench, so any looser spacing pushed the tray into it.
+  const plateSpacing = 0.088;
   const totalH = plates * plateSpacing + 0.04;
   const spindleH = totalH + 0.22;
 
@@ -133,16 +140,16 @@ function Lever({ type, solved, running, speed, loadN, forceScale }) {
   const pivotX = layout.fulcrum * S - beam / 2;
   const pivotY = BENCH_Y + PIVOT_HEIGHT_ABOVE_BENCH;
 
-  const leftArmWorld = layout.fulcrum * S;
-  const rightArmWorld = (BEAM_LENGTH_M - layout.fulcrum) * S;
   const tiltsClockwise = layout.load < layout.fulcrum;
-  const downArmWorld = tiltsClockwise ? rightArmWorld : leftArmWorld;
 
-  const maxSafeDropWorld = Math.max(PIVOT_HEIGHT_ABOVE_BENCH - 0.22, 0.25);
-  const maxAllowedSin = clamp(maxSafeDropWorld / Math.max(downArmWorld, 0.001), 0.05, 0.95);
-  const maxAngle = Math.asin(clamp(solved.loadDistance / Math.max(layout.loadArm, 1e-6), 0, maxAllowedSin));
+  // The stroke (lib/simpleMachines.js strokeLift) is already sized to fit, so
+  // the bar swings by exactly the angle that raises the load by that much. A
+  // second, different clamp here used to stop it short of the stroke the
+  // readouts quote.
+  const maxAngle = Math.asin(clamp(solved.loadDistance / Math.max(layout.loadArm, 1e-6), 0, 0.99));
 
   const beamCenterOffset = beam / 2 - layout.fulcrum * S;
+  const effortArrow = Math.min(solved.effortForce * (forceScale || 0), BENCH_ARROW);
   const isClass1 = type === "lever1";
 
   // Animation refs for zero-state useFrame updates
@@ -390,15 +397,18 @@ function Lever({ type, solved, running, speed, loadN, forceScale }) {
         </SceneLabel>
 
         {/* Gravitational weight vector arrow at load */}
+        {/* Drawn beside the stack, not through it: from the middle of the
+            stack straight down it ran through the tray and into the bench. */}
         {forceScale && (
           <ForceVector
-            at={[0, -0.95, 0]}
+            at={[0.42, -0.1, 0]}
             direction={[0, -1, 0]}
             newtons={loadN}
             scale={forceScale}
             colour={ENERGY_COLOURS.workOut}
             symbol=""
             showValue={false}
+            maxLength={BENCH_ARROW}
           />
         )}
       </group>
@@ -415,15 +425,18 @@ function Lever({ type, solved, running, speed, loadN, forceScale }) {
         </mesh>
 
         {/* Effort force vector arrow */}
-        {forceScale && (
+        {/* The push arrives AT the handle: tail out in the air, head on the
+            grip. It used to start on the handle and point through it and the bar. */}
+        {forceScale && effortArrow > 0 && (
           <ForceVector
-            at={[0, tiltsClockwise ? 0.42 : -0.42, 0]}
+            at={[0, tiltsClockwise ? 0.52 + effortArrow : -0.52 - effortArrow, 0]}
             direction={tiltsClockwise ? [0, -1, 0] : [0, 1, 0]}
             newtons={solved.effortForce}
             scale={forceScale}
             colour={ENERGY_COLOURS.workIn}
             symbol=""
             showValue={false}
+            maxLength={BENCH_ARROW}
           />
         )}
       </group>
@@ -830,7 +843,7 @@ function Pulley({ solved, running, speed, loadN }) {
         y1={topY - drop - 1.15}
         y2={topY - drop - 1.15 + maxRise}
         colour={ENERGY_COLOURS.workOut}
-        label={`safe rises ${(solved.loadDistance * 100).toFixed(0)} cm`}
+        label={`load rises ${(solved.loadDistance * 100).toFixed(0)} cm`}
       />
       <TravelMarker
         x={pullX + 0.45}
@@ -845,7 +858,7 @@ function Pulley({ solved, running, speed, loadN }) {
 
 // ─── Right-Hand Sidebar HUD for Work & Advantage Graph ───────────────
 
-function SimpleMachinesSidebar({ solved, loadN }) {
+function SimpleMachinesSidebar({ solved, loadN, onClose }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const workMax = Math.max(160, Math.max(solved.workIn, solved.workOut) * 1.12);
@@ -858,7 +871,7 @@ function SimpleMachinesSidebar({ solved, loadN }) {
   const loadPct = Math.min(100, Math.max(2, (loadN / maxForce) * 100));
 
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-20 flex w-76 sm:w-80 flex-col gap-2.5">
+    <aside className="z-10 flex h-full w-[320px] shrink-0 flex-col gap-2.5 overflow-y-auto border-l border-slate-800 bg-slate-950/70 p-3 backdrop-blur-md">
       <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/90 p-3.5 shadow-2xl backdrop-blur-md">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700/70 pb-2.5">
@@ -871,14 +884,24 @@ function SimpleMachinesSidebar({ solved, loadN }) {
               <p className="text-[11px] text-slate-400">{solved.machine.label}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+              title="Close the panel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {!collapsed && (
@@ -1041,11 +1064,18 @@ function SimpleMachinesSidebar({ solved, loadN }) {
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }
 
 // ─── Precision Laboratory Dynamometer Test Stand ────────────────────
+
+/**
+ * The longest arrow on the gauges, as a share of the bench arrows: the stand's
+ * load cell sits 0.75 above the needle's zero, and the arrows must stop short
+ * of it going up and clear of the captions going down.
+ */
+const GAUGE_ARROW = 0.7;
 
 function DynamometerTestStand({ position, solved, forceScale, effortDirection, effortLabel }) {
   return (
@@ -1138,13 +1168,16 @@ function DynamometerTestStand({ position, solved, forceScale, effortDirection, e
           at={[0, 0, 0]}
           direction={effortDirection}
           newtons={solved.effortForce}
-          scale={forceScale}
+          scale={forceScale * GAUGE_ARROW}
           colour={ENERGY_COLOURS.workIn}
-          symbol="effort"
+          symbol=""
+          showValue={false}
         />
 
+        {/* The number is printed, not left to the arrow: whichever force is
+            much the smaller draws too short to see, and its value went with it. */}
         <SceneLabel position={[0, -0.96, 0]} tone="text-amber-300">
-          {effortLabel}
+          {`${effortLabel} · ${solved.effortForce.toFixed(1)} N`}
         </SceneLabel>
       </group>
 
@@ -1164,13 +1197,14 @@ function DynamometerTestStand({ position, solved, forceScale, effortDirection, e
           at={[0, 0, 0]}
           direction={[0, 1, 0]}
           newtons={solved.loadN}
-          scale={forceScale}
+          scale={forceScale * GAUGE_ARROW}
           colour={ENERGY_COLOURS.workOut}
-          symbol="load"
+          symbol=""
+          showValue={false}
         />
 
         <SceneLabel position={[0, -0.96, 0]} tone="text-emerald-300">
-          it lifts
+          {`it lifts · ${solved.loadN.toFixed(0)} N`}
         </SceneLabel>
       </group>
     </group>
@@ -1191,22 +1225,10 @@ export default function SimpleMachinesCanvas({ params = {} }) {
 
   const lever = isLever(machineType);
 
-  const lift = useMemo(() => {
-    if (!lever) return LIFT_M;
-    const layout = leverLayout(machineType, armPosition);
-    if (machineType === "lever1") {
-      const tiltsClockwise = layout.load < layout.fulcrum;
-      const downArmM = tiltsClockwise ? layout.effortArm : layout.loadArm;
-      const maxSafeDropM = Math.max(PIVOT_HEIGHT_ABOVE_BENCH - 0.22, 0.25) / S;
-      const maxSin = clamp(maxSafeDropM / Math.max(downArmM, 0.001), 0.05, 0.55);
-      return Math.min(LIFT_M, layout.loadArm * maxSin);
-    }
-    return Math.min(LIFT_M, 0.35 * layout.loadArm);
-  }, [lever, machineType, armPosition]);
-
+  // Same solve as the Details panel: solveMachine picks the stroke that fits.
   const solved = useMemo(
-    () => solveMachine({ type: machineType, p: armPosition, sheaves, loadN, lift }),
-    [machineType, armPosition, sheaves, loadN, lift],
+    () => solveMachine({ type: machineType, p: armPosition, sheaves, loadN }),
+    [machineType, armPosition, sheaves, loadN],
   );
 
   const dynamicSpeed = useMemo(() => {
@@ -1217,13 +1239,19 @@ export default function SimpleMachinesCanvas({ params = {} }) {
   const effortDirection = machineType === "lever2" || machineType === "lever3" ? [0, 1, 0] : [0, -1, 0];
   const effortLabel = machineType === "lever2" || machineType === "lever3" ? "you lift" : machineType === "pulley" ? "you pull" : "you push";
 
+  // The larger of the two forces is drawn BENCH_ARROW long and the other to the
+  // same scale, so the comparison holds. A fixed 650 N ceiling drew every
+  // arrow under 50 N too short to see.
   const forceScale = useMemo(
-    () => 1.6 / Math.max(650, solved.loadN, solved.effortForce),
+    () => BENCH_ARROW / Math.max(solved.loadN, solved.effortForce, 1),
     [solved.loadN, solved.effortForce],
   );
 
+  const [panelOpen, setPanelOpen] = useState(true);
+
   return (
-    <div className="relative w-full h-full">
+    <div className="relative flex h-full w-full flex-row overflow-hidden">
+      <div className="relative h-full min-w-0 flex-1">
       <SceneCanvas
         camera={{ position: [0.2, 1.3, 14.6], fov: 46 }}
         controls={{ minDistance: 5, maxDistance: 32, target: [0.2, 0.3, 0] }}
@@ -1296,8 +1324,22 @@ export default function SimpleMachinesCanvas({ params = {} }) {
 
       </SceneCanvas>
 
-      {/* Right-Hand Sidebar Layout for Work & Advantage Graph */}
-      <SimpleMachinesSidebar solved={solved} loadN={loadN} />
+      {!panelOpen && (
+        <button
+          type="button"
+          onClick={() => setPanelOpen(true)}
+          className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800"
+          title="Open the work and advantage panel"
+        >
+          <Scale className="h-3.5 w-3.5 text-duck-300" />
+          <span>Work &amp; advantage</span>
+        </button>
+      )}
+      </div>
+
+      {/* The panel is a column beside the scene, not a card laid over it: over
+          the scene it covered the lever's effort end at ordinary window widths. */}
+      {panelOpen && <SimpleMachinesSidebar solved={solved} loadN={loadN} onClose={() => setPanelOpen(false)} />}
     </div>
   );
 }

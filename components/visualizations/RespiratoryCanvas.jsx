@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -156,7 +156,7 @@ function KinematicVector({ from, to, color, label, visible = true }) {
 }
 
 // ─── Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine T1-T12, Sternum, Clavicles) ─
-function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
+const RealisticCTSkeleton = memo(function RealisticCTSkeleton({ breathRef, cutaway = 0, visible = true }) {
   if (!visible) return null;
   const { scene } = useGLTF("/models/skeleton_ct.glb");
   const groupRef = useRef(null);
@@ -220,6 +220,14 @@ function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
 
   useFrame(() => {
     if (!groupRef.current) return;
+    // The live breath, read off the ref the frame loop mutates. Threading it
+    // in as a prop is what made this component — two multi-megabyte GLBs —
+    // re-render ten times a second.
+    const expansion = breathRef.current.expansion;
+
+    // The group's own transform, mutated rather than re-rendered.
+    groupRef.current.position.y = -2.66 + expansion * 0.08;
+    groupRef.current.scale.set(11.2 * (1 + expansion * 0.035), 11.2, 11.2 * (1 + expansion * 0.04));
 
     // Cutaway opacity
     const opacity = cutaway > 0.8 ? Math.max(0.12, 1 - (cutaway - 0.8) * 4.5) : 1;
@@ -256,20 +264,11 @@ function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
   });
 
   return (
-    <group
-      ref={groupRef}
-      position={[-0.01, -2.66 + expansion * 0.08, 0.26]}
-      rotation={[0, 0, 0]}
-      scale={[
-        11.2 * (1 + expansion * 0.035),
-        11.2,
-        11.2 * (1 + expansion * 0.04),
-      ]}
-    >
+    <group ref={groupRef} position={[-0.01, -2.66, 0.26]} rotation={[0, 0, 0]} scale={11.2}>
       <primitive object={clonedScene} />
     </group>
   );
-}
+});
 
 // ─── Ribcage Kinematic Motion Arrows ──────────────────────────────────
 /**
@@ -309,22 +308,25 @@ function RibcageKinematicVectors({ expansion = 0 }) {
 }
 
 // ─── Sculpted Muscular Diaphragm Dome with Central Tendon, Hiatuses & Crura ───
-function SculptedDiaphragmDome({
-  expansion = 0,
+const SculptedDiaphragmDome = memo(function SculptedDiaphragmDome({
+  breathRef,
   isContracted = false,
-  showVectors = false,
   cutaway = 0,
   muscleTexture,
   tendonTexture,
 }) {
   const meshRef = useRef(null);
+  // Everything the apex height moves, held by ref so the frame loop can
+  // drive it without React re-rendering the dome, its 16 fibre slips, the
+  // trifoliate tendon and the two crura.
+  const fibresRef = useRef([]);
+  const tendonRef = useRef(null);
+  const cruraRef = useRef([]);
 
   // Dynamic central tendon apex height (Y):
   // Resting / Expiration: arches high into the thoracic cavity at Y = 1.05
   // Inspiration (Active Contraction): flattens downward to Y = 0.63
-  const domeApexY = useMemo(() => {
-    return 1.05 - expansion * 0.42;
-  }, [expansion]);
+  const apexYFor = (expansion) => 1.05 - expansion * 0.42;
 
   // Initial parametric dome geometry
   const domeGeometry = useMemo(() => {
@@ -397,6 +399,7 @@ function SculptedDiaphragmDome({
 
   useFrame(() => {
     if (!meshRef.current) return;
+    const domeApexY = apexYFor(breathRef.current.expansion);
     const pos = meshRef.current.geometry.attributes.position;
     const radialSegments = 32;
     const rings = 16;
@@ -425,6 +428,18 @@ function SculptedDiaphragmDome({
 
     pos.needsUpdate = true;
     meshRef.current.geometry.computeVertexNormals();
+
+    // The fibre slips hang a fixed distance below the apex...
+    for (const fibre of fibresRef.current) {
+      if (fibre) fibre.position.y = domeApexY - 0.12;
+    }
+    // ...the tendon sits just above it...
+    if (tendonRef.current) tendonRef.current.position.y = domeApexY + 0.02;
+    // ...and the crura stretch between the apex and their vertebral anchor.
+    const cruraScale = Math.max(0.2, Math.abs(domeApexY - (-0.65)));
+    const [right, left] = cruraRef.current;
+    if (right) { right.position.y = (domeApexY - 0.70) / 2; right.scale.y = cruraScale; }
+    if (left) { left.position.y = (domeApexY - 0.38) / 2; left.scale.y = cruraScale; }
   });
 
   const muscleColor = isContracted ? ANATOMICAL_PALETTE.activeMuscle : "#881337";
@@ -438,8 +453,6 @@ function SculptedDiaphragmDome({
       return { angle, id: i };
     });
   }, []);
-
-  const cruraScale = Math.max(0.2, Math.abs(domeApexY - (-0.65)));
 
   return (
     <group>
@@ -462,11 +475,11 @@ function SculptedDiaphragmDome({
       {radialRays.map((ray) => {
         const x = -Math.sin(ray.angle) * 0.72;
         const z = 0.25 + Math.cos(ray.angle) * 0.52;
-        const y = domeApexY - 0.12;
         return (
           <mesh
             key={ray.id}
-            position={[x, y, z]}
+            ref={(node) => { fibresRef.current[ray.id] = node; }}
+            position={[x, 0, z]}
             rotation={[-0.3 * Math.cos(ray.angle), ray.angle, -0.3 * Math.sin(ray.angle)]}
           >
             <cylinderGeometry args={[0.032, 0.046, 0.65, 8]} />
@@ -483,7 +496,7 @@ function SculptedDiaphragmDome({
       })}
 
       {/* Trifoliate Central Tendon with Anatomical Hiatuses */}
-      <group position={[0, domeApexY + 0.02, 0.25]} rotation={[-Math.PI / 2, 0, 0]}>
+      <group ref={tendonRef} position={[0, 0, 0.25]} rotation={[-Math.PI / 2, 0, 0]}>
         {/* Anterior Leaflet */}
         <mesh position={[0, 0.16, 0]}>
           <circleGeometry args={[0.38, 24]} />
@@ -545,36 +558,47 @@ function SculptedDiaphragmDome({
 
       {/* Lumbar Crura Anchoring into L1-L3 Vertebrae */}
       <mesh
-        position={[0.07, (domeApexY - 0.70) / 2, -0.18]}
+        ref={(node) => { cruraRef.current[0] = node; }}
+        position={[0.07, 0, -0.18]}
         rotation={[0.22, 0, 0]}
-        scale={[1, cruraScale, 1]}
       >
         <cylinderGeometry args={[0.085, 0.075, 1.0, 12]} />
         <meshStandardMaterial color="#881337" roughness={0.48} transparent opacity={opacity} />
       </mesh>
       <mesh
-        position={[-0.07, (domeApexY - 0.38) / 2, -0.18]}
+        ref={(node) => { cruraRef.current[1] = node; }}
+        position={[-0.07, 0, -0.18]}
         rotation={[0.22, 0, 0]}
-        scale={[1, cruraScale, 1]}
       >
         <cylinderGeometry args={[0.08, 0.07, 1.0, 12]} />
         <meshStandardMaterial color="#881337" roughness={0.48} transparent opacity={opacity} />
       </mesh>
 
-      {showVectors && (
-        <KinematicVector
-          from={[0, 1.05, 0.25]}
-          to={[0, domeApexY, 0.25]}
-          color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-          label={expansion >= 0 ? "Diaphragm Descent & Flattening (Vertical Lift)" : "Elastic Dome Recoil"}
-        />
-      )}
     </group>
+  );
+});
+
+/**
+ * The arrow describing where the dome is heading.
+ *
+ * It lives outside SculptedDiaphragmDome so the dome can be memoised. An
+ * arrow is a line and a label — VectorArrow rebuilds its geometry from
+ * `from`/`to`, so this one is still prop-driven and still re-renders with
+ * the readout. That is three meshes, not a deforming 512-vertex dome.
+ */
+function DiaphragmVector({ expansion = 0 }) {
+  return (
+    <KinematicVector
+      from={[0, 1.05, 0.25]}
+      to={[0, 1.05 - expansion * 0.42, 0.25]}
+      color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
+      label={expansion >= 0 ? "Diaphragm Descent & Flattening (Vertical Lift)" : "Elastic Dome Recoil"}
+    />
   );
 }
 
 // ─── Photorealistic Medical Scanned Lungs (GLB Model Asset) ───────────
-function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
+const PhotorealisticMedicalLungs = memo(function PhotorealisticMedicalLungs({ breathRef, cutaway = 0 }) {
   const { scene } = useGLTF("/models/lung.glb");
   const modelRef = useRef(null);
 
@@ -595,6 +619,8 @@ function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
 
   useFrame(() => {
     if (!modelRef.current) return;
+    const expansion = breathRef.current.expansion;
+    modelRef.current.position.y = 0.42 + expansion * 0.04;
     // Anatomical 3D volume expansion driving synchronous lateral, vertical, and AP swelling
     const baseScale = 11.2;
     const sX = baseScale * (1 + expansion * 0.12);
@@ -614,15 +640,11 @@ function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
   });
 
   return (
-    <group
-      ref={modelRef}
-      position={[0, 0.42 + expansion * 0.04, 0.82]}
-      rotation={[0, 0, 0]}
-    >
+    <group ref={modelRef} position={[0, 0.42, 0.82]} rotation={[0, 0, 0]}>
       <primitive object={clonedScene} />
     </group>
   );
-}
+});
 
 // ─── Dynamic Airway Particle Streams (Trachea & Bronchi) ───────────────
 function AirwayParticleStream({ flowRate = 0, active = true }) {
@@ -1058,7 +1080,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         {showBones && (
           <Suspense fallback={null}>
             <RealisticCTSkeleton
-              expansion={expansion}
+              breathRef={shown}
               cutaway={cutaway}
               visible={showBones}
             />
@@ -1070,21 +1092,23 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
 
         {/* 3. Sculpted Muscular Diaphragm Dome with Central Tendon & Hiatuses */}
         {showDiaphragm && (
-          <SculptedDiaphragmDome
-            expansion={expansion}
-            isContracted={phase === RESPIRATORY_PHASES.INSPIRATION}
-            showVectors={showVectors}
-            cutaway={cutaway}
-            muscleTexture={muscleTexture}
-            tendonTexture={tendonTexture}
-          />
+          <>
+            <SculptedDiaphragmDome
+              breathRef={shown}
+              isContracted={phase === RESPIRATORY_PHASES.INSPIRATION}
+              cutaway={cutaway}
+              muscleTexture={muscleTexture}
+              tendonTexture={tendonTexture}
+            />
+            {showVectors && <DiaphragmVector expansion={expansion} />}
+          </>
         )}
 
         {/* 4. Photorealistic Medical Scanned Lungs */}
         {showLungs && (
           <Suspense fallback={null}>
             <PhotorealisticMedicalLungs
-              expansion={expansion}
+              breathRef={shown}
               cutaway={cutaway}
             />
           </Suspense>

@@ -22,7 +22,15 @@ import {
   useRollingTrace,
   useWedgeGeometry,
 } from "@/components/visualizations/force-diagram";
-import { RAMP_LENGTH_M, advanceBlock, solveIncline, surfaceFor } from "@/lib/inclineForces";
+import {
+  RAMP_LENGTH_M,
+  TRAVEL_LIMIT_M,
+  advanceBlock,
+  slideForecast,
+  solveMotion,
+  surfaceFor,
+  traceAxes,
+} from "@/lib/inclineForces";
 
 // ─── Incline plane · Newton's laws & friction ───────────────────────
 // A cargo block on an adjustable ramp, with every force that acts on it drawn
@@ -44,10 +52,13 @@ const RAMP_DEPTH = 1.5;
 const PLANK = 0.14;
 const BLOCK = 0.52;
 const HALF_BLOCK = (BLOCK * 1.35) / 2;
-
-/** Longest velocity the trace plots before it clips, m/s. */
-const TRACE_SPEED = 6;
-const TRACE_SECONDS = 8;
+/**
+ * How thick the stop at each end of the plank is. It is what is left of the
+ * plank once the crate has travelled the physics' limit (lib/inclineForces.js),
+ * so the crate is drawn touching the stop at exactly the moment the physics
+ * stops it.
+ */
+const STOP_WORLD = RAMP_WORLD / 2 - HALF_BLOCK - TRAVEL_LIMIT_M * SCALE;
 
 // ─── The block ──────────────────────────────────────────────────────
 
@@ -176,6 +187,10 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         colour={FORCE_COLOURS.weight}
         symbol="W = mg"
         showLabel={showLabels}
+        // W and its perpendicular component end close together on a gentle
+        // slope, so the two labels would sit on top of each other: W's drops
+        // clear of it while the components are showing.
+        labelOffset={showComponents ? 0.95 : 0.4}
       />
 
       {showComponents && (
@@ -244,6 +259,21 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         />
       )}
 
+      {/* The end stop's push, when the crate is pressed against it — without it
+          a crate at rest against the stop has a resultant of zero and arrows
+          that visibly do not add up. */}
+      {solved.atBarrier && Math.abs(solved.stopForce) > 0.05 && (
+        <ForceVector
+          at={nudge(0, -0.46)}
+          direction={up}
+          newtons={solved.stopForce}
+          scale={scale}
+          colour={FORCE_COLOURS.stop}
+          symbol="R (stop)"
+          showLabel={showLabels}
+        />
+      )}
+
       {showNet && Math.abs(solved.netForce) > 0.05 && (
         <ForceVector
           at={nudge(0, -0.3)}
@@ -272,41 +302,46 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
  * sees throttled samples, which is what keeps a sixty-hertz simulation from
  * re-rendering a HUD sixty times a second.
  */
-function BlockMotion({ options, running, speed = 1, resetKey, onSample, onTrace, maxTime = TRACE_SECONDS }) {
+function BlockMotion({ options, running, speed = 1, resetKey, onSample, onTrace, onReset, traceWindow }) {
   const elapsed = useRef(0);
   const finished = useRef(false);
 
   const step = useCallback(
     (motion, dt) => {
-      // If trace has reached the end of the graph time window or block hit barrier, stop
-      if (elapsed.current >= maxTime || finished.current) {
-        return motion;
-      }
-      const nextElapsed = Math.min(elapsed.current + dt, maxTime);
-      const actualDt = nextElapsed - elapsed.current;
-      elapsed.current = nextElapsed;
-      const next = advanceBlock(motion, options, actualDt);
-      if (next.hitBarrier) {
-        onTrace(elapsed.current, next.arrivalVelocity ?? next.velocity, actualDt);
-        finished.current = true;
-      } else {
-        onTrace(elapsed.current, next.velocity, actualDt);
+      // Once it has met a stop the run is over; the block stays put.
+      if (finished.current) return motion;
+
+      const next = advanceBlock(motion, options, dt);
+      // Landing on the stop mid-step: the clock stops when it got there, not
+      // at the end of the frame, so the time on the graph is the physics' own.
+      elapsed.current += next.hitBarrier ? next.hitTime : dt;
+
+      if (next.hitBarrier) finished.current = true;
+      // The graph has a fixed window (lib/inclineForces.js works it out from
+      // the physics). A block that stays put is not recorded past it.
+      if (elapsed.current <= traceWindow + 1e-9) {
+        onTrace(elapsed.current, next.hitBarrier ? next.arrivalVelocity : next.velocity, dt);
       }
       return next;
     },
-    [options, onTrace, maxTime],
+    [options, onTrace, traceWindow],
   );
 
   const motion = useBodyMotion({ step, onSample, running, speed });
 
   // A reset puts the crate back in the middle of the ramp with the clock and
-  // the trace both wiped, rather than leaving a stale curve on the graph.
+  // the trace both wiped, rather than leaving a stale curve on the graph. The
+  // trace is wiped HERE, in the same effect that restarts the clock, and not
+  // in a separate one up in the parent: two effects left it to their order
+  // whether a point from the old run could land after the wipe, and a graph
+  // that holds two runs end to end is what that looks like.
   useEffect(() => {
     motion.current = { position: 0, velocity: 0 };
     elapsed.current = 0;
     finished.current = false;
+    onReset();
     onSample(motion.current, 0);
-  }, [resetKey, motion, onSample]);
+  }, [resetKey, motion, onSample, onReset]);
 
   return null;
 }
@@ -322,10 +357,13 @@ function InclineGripBar({ solved, surface, rampAngle }) {
   const surf = surfaceFor(surface);
   const gripPct = Math.min(100, Math.max(0, (solved.gripUsed || 0) * 100));
   const isVerge = solved.onTheVerge;
-  const isSliding = !solved.isStatic;
+  const isHeld = Boolean(solved.atBarrier);
+  const isSliding = !solved.isStatic && !isHeld;
 
   const barColor = isSliding
     ? "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"
+    : isHeld
+    ? "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]"
     : isVerge
     ? "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]"
     : "bg-teal-400";
@@ -340,12 +378,14 @@ function InclineGripBar({ solved, surface, rampAngle }) {
           className={`rounded px-1.5 py-0.5 text-[9.5px] font-mono font-bold uppercase ${
             isSliding
               ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+              : isHeld
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
               : isVerge
               ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse"
               : "bg-teal-500/20 text-teal-300 border border-teal-500/40"
           }`}
         >
-          {isSliding ? "Sliding" : isVerge ? "On The Verge" : "Equilibrium"}
+          {isSliding ? "Sliding" : isHeld ? "Held by stop" : isVerge ? "On The Verge" : "Equilibrium"}
         </span>
       </div>
 
@@ -371,9 +411,15 @@ function InclineGripBar({ solved, surface, rampAngle }) {
         <div className="flex justify-between font-mono">
           <span className="text-ink-400">Friction Force:</span>
           <span className="text-ink-200 font-semibold">
-            {solved.atBarrier ? `held by ${solved.atBarrier} stop` : `${solved.frictionMagnitude.toFixed(1)} N`}
+            {`${solved.frictionMagnitude.toFixed(1)} N`}
           </span>
         </div>
+        {solved.atBarrier && (
+          <div className="flex justify-between font-mono">
+            <span className="text-ink-400">Push of the {solved.atBarrier} stop:</span>
+            <span className="text-ink-200 font-semibold">{Math.abs(solved.stopForce).toFixed(1)} N</span>
+          </div>
+        )}
         <div className="flex justify-between font-mono">
           <span className="text-ink-400">Max Static Limit (fs,max):</span>
           <span className="text-ink-200">{(solved.normal * surf.muS).toFixed(1)} N</span>
@@ -389,27 +435,34 @@ function InclineGripBar({ solved, surface, rampAngle }) {
   );
 }
 
+/** A tick value as it should read on an axis: no trailing zeros, no float dust. */
+const tick = (v) => String(Math.round(v * 100) / 100);
+
 /**
- * 2D Velocity Trace graph plotted over time with adaptive zero-axis.
+ * Velocity against time for the run.
+ *
+ * The axes are fixed before the run starts (`traceAxes`, from the physics), so
+ * the curve grows across a still frame instead of the whole plot rescaling
+ * under it every time the window or the range is outgrown. Sign is the one the
+ * whole scene uses: positive is up the ramp.
  */
-function InclineVelocityGraph({ tracePoints, xMax, yMin, yMax, latest, markerLabel, solved, latestTime }) {
+function InclineVelocityGraph({ tracePoints, tMax, vMin, vMax, latest, markerLabel, solved, latestTime, slides }) {
   const width = 280;
-  const height = 120;
-  const padL = 34;
-  const padR = 10;
-  const padT = 12;
-  const padB = 20;
+  const height = 158;
+  const padL = 36;
+  const padR = 12;
+  const padT = 14;
+  const padB = 30;
 
   const graphW = width - padL - padR;
   const graphH = height - padT - padB;
 
-  const toSvgX = (t) => padL + (clamp(t, 0, xMax) / (xMax || 1)) * graphW;
-  const toSvgY = (v) => {
-    const range = (yMax - yMin) || 1;
-    return padT + ((yMax - v) / range) * graphH;
-  };
+  const toSvgX = (t) => padL + (clamp(t, 0, tMax) / (tMax || 1)) * graphW;
+  const toSvgY = (v) => padT + ((vMax - clamp(v, vMin, vMax)) / ((vMax - vMin) || 1)) * graphH;
 
   const zeroY = toSvgY(0);
+  const yTicks = [vMax, (vMax + vMin) / 2, vMin];
+  const xTicks = [0, tMax / 2, tMax];
 
   const pathD = useMemo(() => {
     if (!tracePoints || tracePoints.length < 2) return "";
@@ -419,11 +472,13 @@ function InclineVelocityGraph({ tracePoints, xMax, yMin, yMax, latest, markerLab
       if (!Number.isFinite(x) || !Number.isFinite(y)) return acc;
       return `${acc} ${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
     }, "");
-  }, [tracePoints, xMax, yMin, yMax]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracePoints, tracePoints.length, tMax, vMin, vMax]);
 
-  const latestSvg = latest && Number.isFinite(latest[0]) && Number.isFinite(latest[1])
-    ? { x: toSvgX(latest[0]), y: toSvgY(latest[1]) }
-    : null;
+  const latestSvg =
+    latest && Number.isFinite(latest[0]) && Number.isFinite(latest[1])
+      ? { x: toSvgX(latest[0]), y: toSvgY(latest[1]) }
+      : null;
 
   return (
     <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
@@ -431,44 +486,52 @@ function InclineVelocityGraph({ tracePoints, xMax, yMin, yMax, latest, markerLab
         <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
           Velocity Trace v(t)
         </span>
-        <span className="font-mono text-[10px] text-ink-400">
-          {latestTime.toFixed(2)}s / {xMax}s
-        </span>
+        <span className="font-mono text-[10px] text-ink-400">t = {latestTime.toFixed(2)} s</span>
       </div>
 
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none overflow-visible">
-        {/* Horizontal gridlines */}
-        <line x1={padL} y1={padT} x2={width - padR} y2={padT} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
-        <line x1={padL} y1={padT + graphH / 2} x2={width - padR} y2={padT + graphH / 2} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
-        <line x1={padL} y1={padT + graphH} x2={width - padR} y2={padT + graphH} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
+        {/* Gridlines and their values, top / middle / bottom */}
+        {yTicks.map((v, i) => {
+          const y = toSvgY(v);
+          return (
+            <g key={`y-${i}`}>
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
+              <text x={padL - 5} y={y + 3} textAnchor="end" className="text-[8.5px] fill-ink-400 font-mono">
+                {tick(v)}
+              </text>
+            </g>
+          );
+        })}
+        {xTicks.map((t, i) => {
+          const x = toSvgX(t);
+          return (
+            <g key={`x-${i}`}>
+              <line x1={x} y1={padT} x2={x} y2={padT + graphH} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" opacity="0.55" />
+              <text x={x} y={padT + graphH + 11} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="text-[8.5px] fill-ink-400 font-mono">
+                {tick(t)}
+              </text>
+            </g>
+          );
+        })}
 
-        {/* Zero baseline */}
-        {zeroY >= padT && zeroY <= padT + graphH && (
-          <line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke="#64748b" strokeWidth="1.2" />
-        )}
+        {/* v = 0 — where the block is at rest */}
+        <line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke="#64748b" strokeWidth="1.2" />
 
-        {/* Y Axis labels */}
-        <text x={padL - 4} y={padT + 4} textAnchor="end" className="text-[8.5px] fill-ink-500 font-mono">
-          {yMax > 0 && yMin < 0 ? `+${yMax}` : yMax}
+        {/* Axis titles */}
+        <text x={padL} y={padT - 4} textAnchor="start" className="text-[8.5px] fill-ink-500 font-mono">
+          v (m/s)
         </text>
-        {zeroY >= padT + 10 && zeroY <= padT + graphH - 10 && (
-          <text x={padL - 4} y={zeroY + 3} textAnchor="end" className="text-[8.5px] fill-ink-400 font-mono">
-            0
+        <text x={width - padR} y={height - 3} textAnchor="end" className="text-[8.5px] fill-ink-500 font-mono">
+          t (s)
+        </text>
+
+        {/* Nothing to plot for a block that is being held */}
+        {!slides && (
+          <text x={padL + graphW / 2} y={padT + graphH / 2 - 8} textAnchor="middle" className="text-[9px] fill-ink-500 font-mono">
+            held by friction: v = 0
           </text>
         )}
-        <text x={padL - 4} y={padT + graphH + 3} textAnchor="end" className="text-[8.5px] fill-ink-500 font-mono">
-          {yMin}
-        </text>
 
-        {/* X Axis labels */}
-        <text x={padL} y={height - 4} textAnchor="start" className="text-[8.5px] fill-ink-500 font-mono">
-          0s
-        </text>
-        <text x={width - padR} y={height - 4} textAnchor="end" className="text-[8.5px] fill-ink-500 font-mono">
-          {xMax}s
-        </text>
-
-        {/* Trace path */}
         {pathD && (
           <path
             d={pathD}
@@ -480,7 +543,6 @@ function InclineVelocityGraph({ tracePoints, xMax, yMin, yMax, latest, markerLab
           />
         )}
 
-        {/* Marker */}
         {latestSvg && (
           <g transform={`translate(${latestSvg.x}, ${latestSvg.y})`}>
             <circle r="3.5" fill="#34d399" />
@@ -489,10 +551,14 @@ function InclineVelocityGraph({ tracePoints, xMax, yMin, yMax, latest, markerLab
         )}
       </svg>
 
-      {/* Marker readout pill */}
+      <div className="flex items-center justify-between text-[10px] font-mono text-ink-500">
+        <span>+ up the ramp</span>
+        {solved.atBarrier && <span className="text-amber-300">hit the end stop</span>}
+      </div>
+
       {markerLabel && (
         <div className="flex items-center justify-between text-[11px] pt-1 border-t border-ink-800/60 font-mono">
-          <span className="text-ink-400">Current Velocity:</span>
+          <span className="text-ink-400">{solved.atBarrier ? "Speed on hitting the stop:" : "Current Velocity:"}</span>
           <span className={`font-bold ${solved.atBarrier ? "text-amber-300" : latest?.[1] >= 0 ? "text-emerald-300" : "text-sky-300"}`}>
             {markerLabel}
           </span>
@@ -596,34 +662,12 @@ export default function InclineFrictionCanvas({ params = {} }) {
 
   // The solve the arrows are drawn from uses the CURRENT velocity, so friction
   // switches from static to kinetic in the diagram at the same instant the
-  // block starts to move rather than a frame later.
-  // Also account for barrier contact: when resting against the top or bottom stop,
-  // the mechanical barrier supplies an equal reaction force, keeping the block at rest.
-  const solved = useMemo(() => {
-    const raw = solveIncline({ ...options, velocity: live.velocity });
-    const limit = RAMP_LENGTH_M / 2;
-    const atTop = live.position >= limit - 1e-4;
-    const atBottom = live.position <= -limit + 1e-4;
-    if (atTop && (live.velocity > 0 || raw.netForce > 0)) {
-      return {
-        ...raw,
-        netForce: 0,
-        acceleration: 0,
-        isStatic: true,
-        atBarrier: "top",
-      };
-    }
-    if (atBottom && (live.velocity < 0 || raw.netForce < 0)) {
-      return {
-        ...raw,
-        netForce: 0,
-        acceleration: 0,
-        isStatic: true,
-        atBarrier: "bottom",
-      };
-    }
-    return raw;
-  }, [options, live.velocity, live.position]);
+  // block starts to move rather than a frame later. Pressed against an end
+  // stop, the stop's push is part of it (lib/inclineForces.js).
+  const solved = useMemo(
+    () => solveMotion(options, live),
+    [options, live.velocity, live.position],
+  );
 
   const scale = useForceScale(
     [solved.weight, solved.normal, Math.abs(solved.appliedForce), solved.grip],
@@ -632,73 +676,34 @@ export default function InclineFrictionCanvas({ params = {} }) {
 
   const onTrace = useCallback(
     (t, v, dt) => trace.push(t, v, dt),
-    [trace],
+    [trace.push],
   );
   const onSample = useCallback((motion) => setLive({ ...motion }), []);
 
-  // Wiping the trace has to happen outside the frame loop, and the reset
-  // counter is the only thing that should do it.
-  useEffect(() => {
-    trace.reset([[0, 0]]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reset, rampAngle, surface, blockMass, appliedForce]);
+  // Wiping the trace happens from BlockMotion's reset (below), alongside the
+  // clock. `trace.reset` and `trace.push` are stable, so this stays stable.
+  const onReset = useCallback(() => trace.reset([[0, 0]]), [trace.reset]);
 
   const b = RAMP_WORLD * Math.cos(frame.radians);
   const h = RAMP_WORLD * Math.sin(frame.radians);
   const wedge = useWedgeGeometry(b, h, RAMP_DEPTH);
 
-  // Keep the crate on the plank rather than half off the end of it.
-  const along = clamp(RAMP_WORLD / 2 + live.position * SCALE, HALF_BLOCK, RAMP_WORLD - HALF_BLOCK);
+  // The physics stops the crate's centre TRAVEL_LIMIT_M from the middle, which
+  // is exactly where its end meets the stop — so no clamping is needed here.
+  const along = RAMP_WORLD / 2 + live.position * SCALE;
 
   const tracePoints = trace.points;
   const latest = tracePoints.length ? tracePoints[tracePoints.length - 1] : null;
 
-  // Dynamic Y range that adapts to motion direction:
-  // - Purely positive motion (uphill pull): yMin = 0, yMax = peak (zero axis at bottom, no middle line!)
-  // - Purely negative motion (downhill slide): yMin = -peak, yMax = 0 (zero axis at top)
-  // - Bipolar motion (reverses): symmetric -peak to +peak
-  const { yMin, yMax } = useMemo(() => {
-    let minV = 0;
-    let maxV = 0;
-    for (let i = 0; i < tracePoints.length; i += 1) {
-      const v = tracePoints[i][1];
-      if (v < minV) minV = v;
-      if (v > maxV) maxV = v;
-    }
-    const hasNeg = minV < -0.15;
-    const hasPos = maxV > 0.15;
-
-    if (!hasNeg && !hasPos) {
-      return { yMin: 0, yMax: 4 };
-    }
-    if (!hasNeg) {
-      const top = Math.max(2, Math.ceil(maxV * 1.15));
-      return { yMin: 0, yMax: top };
-    }
-    if (!hasPos) {
-      const bottom = Math.min(-2, Math.floor(minV * 1.15));
-      return { yMin: bottom, yMax: 0 };
-    }
-    const peak = Math.max(2, Math.ceil(Math.max(Math.abs(minV), Math.abs(maxV)) * 1.15));
-    return { yMin: -peak, yMax: peak };
-  }, [tracePoints]);
+  // What the run will be, worked out before it starts, so the graph's axes
+  // stay put while the curve is drawn across them.
+  const forecast = useMemo(() => slideForecast(options), [options]);
+  const axes = useMemo(() => traceAxes(forecast), [forecast]);
 
   const latestTime = latest ? latest[0] : 0;
-  const xMax = useMemo(() => {
-    if (solved.atBarrier && latestTime > 0.1) {
-      return Math.max(1.0, Math.ceil(latestTime * 1.25 * 2) / 2);
-    }
-    return Math.max(2.0, Math.min(TRACE_SECONDS, Math.ceil(Math.max(latestTime, 1) * 1.25)));
-  }, [solved.atBarrier, latestTime]);
-
-  const xLabel = solved.atBarrier && latestTime > 0.1
-    ? `time · ${latestTime.toFixed(2)}s to stop`
-    : `time · ${xMax}s window`;
 
   const markerLabel = latest
-    ? solved.atBarrier
-      ? `impact: ${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
-      : `${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
+    ? `${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
     : undefined;
 
   return (
@@ -838,11 +843,13 @@ export default function InclineFrictionCanvas({ params = {} }) {
             </group>
           );
         })}
-        {/* Bottom stopper bumper on the plank catching the crate */}
-        <mesh position={[-RAMP_WORLD / 2 + 0.04, PLANK / 2 + 0.06, 0]}>
-          <boxGeometry args={[0.08, 0.12, RAMP_DEPTH + 0.08]} />
-          <meshStandardMaterial color="#94a3b8" roughness={0.35} metalness={0.65} />
-        </mesh>
+        {/* A stop at each end of the plank, where the crate is brought to rest */}
+        {[-1, 1].map((end) => (
+          <mesh key={`stop-${end}`} position={[end * (RAMP_WORLD / 2 - STOP_WORLD / 2), PLANK / 2 + 0.06, 0]}>
+            <boxGeometry args={[STOP_WORLD, 0.12, RAMP_DEPTH + 0.08]} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.35} metalness={0.65} />
+          </mesh>
+        ))}
       </group>
 
       {/* ── Top Pulley Wheel and Applied Pull Taut Tow String ── */}
@@ -940,10 +947,11 @@ export default function InclineFrictionCanvas({ params = {} }) {
         options={options}
         running={running}
         speed={speed}
-        maxTime={TRACE_SECONDS}
+        traceWindow={axes.tMax}
         resetKey={`${reset}-${rampAngle}-${surface}-${blockMass}-${appliedForce}`}
         onSample={onSample}
         onTrace={onTrace}
+        onReset={onReset}
       />
 
       {/* Free-body diagram legend */}
@@ -986,9 +994,10 @@ export default function InclineFrictionCanvas({ params = {} }) {
           <InclineGripBar solved={solved} surface={surface} rampAngle={rampAngle} />
           <InclineVelocityGraph
             tracePoints={tracePoints}
-            xMax={xMax}
-            yMin={yMin}
-            yMax={yMax}
+            tMax={axes.tMax}
+            vMin={axes.vMin}
+            vMax={axes.vMax}
+            slides={forecast.slides}
             latest={latest}
             markerLabel={markerLabel}
             solved={solved}

@@ -78,11 +78,22 @@ export const FRICTION_SURFACE_OPTIONS = Object.entries(FRICTION_SURFACES).map(([
   title: `${s.label} — μs = ${s.muS}, μk = ${s.muK}`,
 }));
 
+/**
+ * How fast simulated time runs against the clock, for the orbit scene. The
+ * universal Animation Speed slider stops at 3×, which is nothing to a wide
+ * ellipse whose lap takes minutes — so orbits get their own, up to 100×.
+ */
+export const ORBIT_TIME_SCALE_OPTIONS = [0.5, 1, 2, 5, 10, 25, 50, 100].map((value) => ({
+  value,
+  label: `${value}×`,
+  title: `${value}× real time`,
+}));
+
 export const GRAVITY_OPTIONS = [
   { value: 1.62, label: "Moon", title: "1.62 m/s²" },
   { value: 3.72, label: "Mars", title: "3.72 m/s²" },
   { value: 9.81, label: "Earth", title: "9.81 m/s²" },
-  { value: 24.8, label: "Jupiter", title: "24.79 m/s²" },
+  { value: 24.79, label: "Jupiter", title: "24.79 m/s²" },
 ];
 
 // ─── Chemistry ──────────────────────────────────────────────────────
@@ -198,7 +209,8 @@ export const FLUID_OPTIONS = Object.entries(FLUIDS).map(([value, f]) => ({
  */
 export const SOLID_PRESET_OPTIONS = Object.entries(SOLIDS).map(([value, s]) => ({
   value,
-  label: s.label,
+  // Five buttons share one row of the panel; "Aluminium" does not fit in one.
+  label: s.short ?? s.label,
   title: s.title,
 }));
 

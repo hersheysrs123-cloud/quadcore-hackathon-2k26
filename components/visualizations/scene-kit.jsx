@@ -160,6 +160,10 @@ export function SceneCanvas({
 
 // ─── In-scene text ──────────────────────────────────────────────────
 
+// No `backdrop-blur` on these: a label is re-positioned every frame, and a
+// blurred backdrop behind thirty moving elements makes the browser re-blur the
+// canvas under each of them on every frame. The fill is 85% opaque already, so
+// the blur was close to invisible and the cost was not.
 export function SceneLabel({
   position,
   children,
@@ -178,7 +182,7 @@ export function SceneLabel({
       zIndexRange={zIndexRange}
     >
       <span
-        className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm ${
+        className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
           accent
             ? "border-duck-500/50 bg-duck-500/15 text-duck-300"
             : `border-ink-800 bg-ink-950/85 ${tone}`

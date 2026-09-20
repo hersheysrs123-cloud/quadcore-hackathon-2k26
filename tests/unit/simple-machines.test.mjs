@@ -5,12 +5,14 @@ import {
   LEVER_EFFICIENCY,
   LIFT_M,
   MACHINES,
+  MAX_END_DROP_M,
   SHEAVE_EFFICIENCY,
   efficiencyOf,
   isLever,
   leverLayout,
   leverSwing,
   solveMachine,
+  strokeLift,
   supportingRopes,
   velocityRatio,
 } from "../../lib/simpleMachines.js";
@@ -293,3 +295,48 @@ describe("bookkeeping", () => {
   });
 });
 
+describe("the stroke the bench actually swings", () => {
+  const sweep = (fn) => {
+    for (const type of ["lever1", "lever2", "lever3"]) {
+      for (let p = 0.1; p <= 0.9001; p += 0.01) fn(type, p);
+    }
+  };
+
+  it("is the same in the solve as in the scene, so the Details panel and the bench agree", () => {
+    sweep((type, p) => {
+      assert.equal(solveMachine({ type, p, loadN: 300 }).loadDistance, strokeLift(type, p));
+    });
+    assert.equal(solveMachine({ type: "pulley", sheaves: 3, loadN: 300 }).loadDistance, LIFT_M);
+  });
+
+  it("never asks for more than a full stroke, and shortens it where the geometry cannot give one", () => {
+    sweep((type, p) => assert.ok(strokeLift(type, p) <= LIFT_M + 1e-12, `${type} ${p}`));
+    // A load arm of 0.48 m cannot rise 25 cm without the bar swinging past 30 degrees.
+    assert.ok(strokeLift("lever1", 0.2) < LIFT_M);
+    assert.ok(strokeLift("lever2", 0.1) < LIFT_M);
+    // A long load arm is not held back.
+    assert.equal(strokeLift("lever3", 0.5), LIFT_M);
+  });
+
+  it("keeps the low end of the bar clear of the bench: it never swings below the pivot by more than the clearance", () => {
+    sweep((type, p) => {
+      const { loadArm, effortArm } = leverLayout(type, p);
+      const lift = strokeLift(type, p);
+      const sin = lift / loadArm;
+      assert.ok(sin < 1, "the load can actually rise that far");
+      if (type === "lever1") {
+        // The effort end is the one that goes down.
+        assert.ok(effortArm * sin <= MAX_END_DROP_M + 1e-9, `lever1 p=${p.toFixed(2)} drops ${(effortArm * sin).toFixed(3)} m`);
+      }
+    });
+  });
+
+  it("gives an effort end travel of exactly the distance ratio times the lift, at that stroke", () => {
+    sweep((type, p) => {
+      const m = solveMachine({ type, p, loadN: 200 });
+      const { loadArm, effortArm } = leverLayout(type, p);
+      const sin = m.loadDistance / loadArm;
+      assert.ok(close(effortArm * sin, m.effortDistance, 1e-9), `${type} ${p.toFixed(2)}`);
+    });
+  });
+});

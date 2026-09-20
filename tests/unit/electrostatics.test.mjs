@@ -5,9 +5,11 @@ import {
   CHARGE_PER_MARKER,
   COULOMB_K,
   DOME_MAX_MARKERS,
+  DOME_RADIUS,
   ELEMENTARY_CHARGE,
   MAX_MARKERS,
   TARGETS,
+  TRIBOELECTRIC,
   chargeOf,
   coulombForce,
   domeVoltage,
@@ -185,6 +187,13 @@ describe("Van de Graaff", () => {
     assert.ok(v > 2e4 && v < 5e5, `${v.toExponential(2)} V is not a desktop generator`);
   });
 
+  it("is the voltage of the dome that is drawn: 0.155 m, which is 0.62 world units at 4 per metre", () => {
+    // The scene derives its dome from DOME_RADIUS. Pin the number so a change
+    // here is a decision about the picture as well as the physics.
+    assert.equal(DOME_RADIUS, 0.155);
+    assert.ok(close(DOME_RADIUS * 4, 0.62, 1e-12));
+  });
+
   it("scales the potential linearly with the charge on it", () => {
     assert.ok(close(domeVoltage(40), 2 * domeVoltage(20), 1e-6));
     assert.equal(domeVoltage(0), 0);
@@ -228,5 +237,20 @@ describe("the solved scene", () => {
 
   it("reports saturation as the fraction of the ceiling reached", () => {
     assert.ok(close(solveStatic({ markers: MAX_MARKERS / 2 }).saturation, 0.5, 1e-12));
+  });
+});
+
+describe("the triboelectric series", () => {
+  it("is listed from the most electron-losing to the most electron-gaining", () => {
+    const ranks = TRIBOELECTRIC.map((m) => m.rank);
+    assert.deepEqual(ranks, [...ranks].sort((a, b) => a - b));
+    // Electron losers are positive, gainers negative, with the split in the right place.
+    const signs = TRIBOELECTRIC.map((m) => m.sign);
+    assert.deepEqual(signs, [...signs].sort((a, b) => b - a));
+  });
+
+  it("puts the wool the balloon is rubbed on above the latex", () => {
+    const rank = (k) => TRIBOELECTRIC.find((m) => m.key === k).rank;
+    assert.ok(rank("wool") < rank("latex"), "electrons go from wool to latex");
   });
 });

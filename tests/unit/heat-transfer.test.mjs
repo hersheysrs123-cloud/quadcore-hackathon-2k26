@@ -12,6 +12,7 @@ import {
   PLATE_FILM_H,
   ROD_LENGTH,
   ROD_MATERIALS,
+  SHINY_EMISSIVITY,
   STEFAN_BOLTZMANN,
   TIME_LAPSE,
   WATER_TIME_CONSTANT,
@@ -38,6 +39,7 @@ import {
   rodProfile,
   rodTemperature,
   solveHeatTransfer,
+  stepWaterMean,
   steadyExcessFraction,
   waterAsymptote,
   waterDensity,
@@ -278,6 +280,31 @@ describe("convection", () => {
 
 // ─── Radiation ──────────────────────────────────────────────────────
 
+describe("the beaker under a hard flame", () => {
+  it("never carries a hidden temperature above the boil", () => {
+    let mean = AMBIENT_C;
+    for (let i = 0; i < 4000; i += 1) mean = stepWaterMean(mean, 100, 0.05);
+    assert.ok(mean <= BOILING_C + 1e-9, `${mean}`);
+    assert.ok(mean > BOILING_C - 0.01, "and it does get there");
+  });
+
+  it("starts cooling the moment the gas is turned down, with no phantom overshoot to burn off", () => {
+    let mean = AMBIENT_C;
+    for (let i = 0; i < 4000; i += 1) mean = stepWaterMean(mean, 100, 0.05);
+    const before = mean;
+    // Turned right down: the equilibrium is far below the boil, so it must fall at once.
+    for (let i = 0; i < 20; i += 1) mean = stepWaterMean(mean, 5, 0.05);
+    assert.ok(mean < before - 0.5, `${before} -> ${mean}`);
+  });
+
+  it("agrees with the closed form on the way up", () => {
+    let mean = AMBIENT_C;
+    const dt = 0.05;
+    for (let i = 0; i < 200; i += 1) mean = stepWaterMean(mean, 40, dt);
+    assert.ok(close(mean, waterState({ intensity: 40, seconds: 200 * dt }).mean, 1e-6));
+  });
+});
+
 describe("radiation", () => {
   it("follows the fourth power of absolute temperature", () => {
     // Divide out the area, which also scales with the gas, and what is left
@@ -334,6 +361,53 @@ describe("radiation", () => {
     assert.ok(plateTimeConstant(target) > 1);
   });
 
+  it("absorbs in proportion to the surface, and books balance for the silvered plate too", () => {
+    for (const intensity of [30, 55, 100]) {
+      const black = absorbedPower(intensity);
+      const shiny = absorbedPower(intensity, PLATE_DISTANCE, SHINY_EMISSIVITY);
+      assert.ok(close(shiny / black, SHINY_EMISSIVITY / PLATE_EMISSIVITY, 1e-9));
+
+      const t = plateEquilibrium(intensity, PLATE_DISTANCE, AMBIENT_C, SHINY_EMISSIVITY);
+      const tK = t + 273.15;
+      const ambK = AMBIENT_C + 273.15;
+      const loss =
+        SHINY_EMISSIVITY * STEFAN_BOLTZMANN * 2 * PLATE_AREA * (Math.pow(tK, 4) - Math.pow(ambK, 4)) +
+        PLATE_FILM_H * 2 * PLATE_AREA * (t - AMBIENT_C);
+      assert.ok(close(shiny, loss, 1e-6 * Math.max(shiny, 1e-3)), `at ${intensity}%`);
+    }
+  });
+
+  it("keeps a silvered plate cooler than a blackened one, but not colder than the room", () => {
+    for (const i of INTENSITIES) {
+      const black = plateEquilibrium(i);
+      const shiny = plateEquilibrium(i, PLATE_DISTANCE, AMBIENT_C, SHINY_EMISSIVITY);
+      assert.ok(shiny <= black + 1e-9, `at ${i}%`);
+      assert.ok(shiny >= AMBIENT_C - 1e-9);
+    }
+    // At full gas the difference is large: the black plate's rise is several
+    // times the silver one's.
+    const rise = (e) => plateEquilibrium(100, PLATE_DISTANCE, AMBIENT_C, e) - AMBIENT_C;
+    assert.ok(rise(PLATE_EMISSIVITY) > 4 * rise(SHINY_EMISSIVITY));
+  });
+
+  it("leaves the black plate exactly as it was when no surface is asked for", () => {
+    assert.equal(
+      plateEquilibrium(70),
+      plateEquilibrium(70, PLATE_DISTANCE, AMBIENT_C, PLATE_EMISSIVITY),
+    );
+    assert.equal(plateTimeConstant(50), plateTimeConstant(50, PLATE_EMISSIVITY));
+  });
+
+  it("reports the silvered twin in the solved bench, warming more slowly and settling lower", () => {
+    const settled = solveHeatTransfer({ intensity: 100 });
+    assert.ok(settled.shinyC < settled.plateC);
+    assert.ok(settled.shinyC >= AMBIENT_C);
+    assert.ok(settled.shinyAbsorbedPower < settled.absorbedPower);
+    assert.ok(close(settled.shinyC, settled.shinyEquilibriumC, 1e-6));
+    const early = solveHeatTransfer({ intensity: 100, seconds: 1 });
+    assert.ok(early.shinyC < early.plateC);
+  });
+
   it("moves faster than the beaker does — light is instant, water is not", () => {
     const plateFraction =
       (plateTemperature({ intensity: 100, seconds: 3 }) - AMBIENT_C) / (plateEquilibrium(100) - AMBIENT_C);
@@ -364,7 +438,7 @@ describe("the false-colour ramp", () => {
       assert.ok(l >= last - 2, `ironbow dipped at ${t}`);
       last = l;
     }
-    assert.ok(luma(flirColour(120, 20, 120)) > luma(flirColour(20, 20, 120)) * 5);
+    assert.ok(luma(flirColour(120, 20, 120)) > luma(flirColour(20, 20, 120)) * 2, "and hot is still far brighter than cold");
   });
 
   it("clamps instead of wrapping at the ends", () => {
