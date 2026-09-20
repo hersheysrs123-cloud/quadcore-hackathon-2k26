@@ -21,6 +21,7 @@ quadcore-hackathon-2k26/
 │       ├── stage-stepper.jsx             # SHARED: StageCycleDriver (HUD stage index + playing flag ⇄ pure stepper machine; tweens to hold points, plays & wraps, per-stage tempo, lock/arrest, onFrame/onTick) & StageCaption
 │       ├── MitosisMeiosisCanvas.jsx      # 2n = 4 cell: lathe membrane that furrows into daughters, 8 vertex-coloured dynamic-tube chromatids (X / V / chiasma), instanced spindle, envelopes, chromatin, colchicine arrest; meiosis II in two turned cells
 │       ├── CardiacCycleCanvas.jsx        # Sectioned 4-chamber heart: half-shell chambers + dynamic cut faces, hinged valve leaflets, blood streams, conduction tubes with draw-range sweep, Wiggers panel + live ECG strip
+│       ├── RespiratoryCanvas.jsx         # Photorealistic CT thorax, lungs & deforming diaphragm driven by shared breath constants, vector arrows, and resizable HUD
 │       ├── tube-transit.jsx              # SHARED: ProfiledTube (in-place ring-stack tube), TubeRings (tori on a profile), TubeFlow (recycling stream)
 │       ├── arm-rig.jsx                   # SHARED: scapula/humerus/radius/ulna/hand kinematic chain, volume-preserving muscle bellies & tendons
 │       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, lattices, electrolysis, VSEPR, energetics + dispatcher for the split-out redox scenes
@@ -36,7 +37,7 @@ quadcore-hackathon-2k26/
 │       ├── vessel-rack.jsx               # SHARED: Bench, VesselRack (pad/ring slots + numbered tags), Beaker & TestTube (liquidRef group, meniscus, oil, stopper, desiccant), ElectronStream, ElectronArrow, BubbleColumn, relaxTo
 │       ├── PhysicsCanvas.jsx             # Wave refraction, motor effect, thin lenses, induction, kinetic gas laws, projectile motion (quadratic drag solver, forward upright cannon, zero-Z-fight runway), gravity wells & orbital motion (symplectic leapfrog orbits, banked perimeter retaining rim lip & high-speed satellite containment) + dispatcher for split-out physics scenes
 │       ├── EyeCanvas.jsx                 # Cutaway human eye: accommodation, pupil reflex & anatomy mode with resizable controls HUD
-│       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; 8 shapes (incl. ring with open hole & pyramid), dynamic 3D rotation shadow tracking & backside reversal for L/T shapes, smooth continuous corner rounding, dynamic anti-clipping pedestal clearance, elevated lamp heights & forward-mounted pinpoint torch, and resizable HUD
+│       ├── ShadowLabCanvas.jsx           # Torch/object/screen bench; 20 shapes (incl. ring with open hole & pyramid), dynamic 3D rotation shadow tracking & backside reversal for L/T shapes, smooth continuous corner rounding, dynamic anti-clipping pedestal clearance, elevated lamp heights & forward-mounted pinpoint torch, and resizable HUD
 │       ├── InclineFrictionCanvas.jsx     # Ramp free-body diagram, static/kinetic friction & right telemetry sidebar HUD (2D velocity graph, static grip capacity bar, forces & dynamics stats grid; decluttered 3D viewport with collapsible sidebar)
 │       ├── HookesLawCanvas.jsx           # Spring, ruler & slotted masses with live force-extension graph embedded in the left HUD sidebar & compact controls layout (speed-scaled; centered 3D camera & zero in-canvas billboard clutter)
 │       ├── SimpleMachinesCanvas.jsx      # Zero-state useFrame 60fps animation, authentic lever hinges (Class 1 triangular wedge vs Class 2/3 stanchion clevis), under-beam suspended slotted load, verified rim-tangent 4-rope non-crossing reeving, widened workbench base with dedicated Laboratory Dynamometer Stand (x = -3.75), and smooth CSS transition right sidebar HUD
@@ -46,11 +47,12 @@ quadcore-hackathon-2k26/
 │       ├── BuoyancyCanvas.jsx            # Overflow can, measuring cylinder, spring scale & floating hull bobbing (speed-scaled)
 │       ├── HeatTransferCanvas.jsx        # Conduction rods, convection currents/dye, & radiation plate/beam (speed-scaled)
 │       ├── TopicSelectorDropdown.jsx     # Custom styled subject-separated 3D model selector dropdown with instant search, discipline quick-filters & dark ink styling
-│       ├── ShapeDropdown.jsx             # Shadow-lab shape picker: 17 shapes in two groups (13 solids, 4 flat cut-outs) with previews
+│       ├── ShapeDropdown.jsx             # Shadow-lab shape picker: 20 shapes in two groups (13 solids, 7 flat cut-outs) with previews
 │       ├── force-diagram.jsx             # SHARED: free-body arrows on one force scale, GraphPanel, rolling traces, slope frames & speed integration
 │       ├── charge-carriers.jsx           # SHARED: electron & charge flow paths, carrier instancing, charge signs
 │       ├── energy-bars.jsx               # SHARED: energy/work column charts with Y-axis line & horizontal scale grid divisions, calibrated scaleMax (grouped + stacked total) & needle DialGauge
 │       ├── cell-organelles.jsx           # Procedural 3D organelle geometry (nucleus, mitochondria, chloroplast, etc.)
+│       ├── BinaryTree3D.jsx              # Interactive 3D Binary Search Tree (BST) visualizer for node insertion, searching, traversals, and tree metrics
 │       ├── CSCanvas.jsx                  # Computer Science canvas dispatcher (BST / AVL tree and 3D sorting visualizer)
 │       ├── MathCanvas.jsx                # Gradient descent on loss surfaces (smooth 60fps direct-ref tangent vector & non-occluded surface-subdivided trail), solids of revolution (flush 1.0 thickness & high-contrast gold/bronze layers), unit circle & Fourier series (multi-waveform Fourier synthesis, tangent geometry & 3D phase helix)
 │       ├── media.js                      # Refractive index presets (air, water, glass, diamond, perspex)
