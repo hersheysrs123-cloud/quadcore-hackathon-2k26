@@ -5,7 +5,7 @@
 ### 14. AI Note Reformatter Visual Feedback
 - **Floating Banner Position**: `fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-fade-in select-none`.
 - **Banner Surface**: `flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-ink-900/95 border border-duck-500/50 shadow-2xl backdrop-blur-md text-xs font-semibold text-duck-200 ring-4 ring-duck-400/20`.
-- **Active Trigger Button State (`NoteMenu.jsx`)**: `bg-duck-500/15 border border-duck-500/30 text-duck-200 cursor-wait pointer-events-none` with spinning sparkle and pulsing `"AI"` tag.
+- **Active Trigger Button State (`NoteMenu.jsx`)**: `bg-duck-500/15 border border-duck-500/30 text-duck-200 cursor-wait` with spinning sparkle and pulsing `"AI"` tag.
 
 ### 19. Space Hub & Per-Space Curriculum Document Tokens
 - **Space Hub Viewport**: `flex-1 flex flex-col h-full bg-ink-950 text-ink-100 overflow-y-auto`.
