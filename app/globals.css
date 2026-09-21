@@ -49,11 +49,19 @@
   --color-ink-400: #9aa2bc;
   --color-ink-200: #d6dbed;
   --color-ink-100: #f1f3fa;
+  /* Half-steps the components already ask for (`text-ink-300`, `border-ink-750`).
+   * Tailwind v4 generates nothing for an undefined colour, so until these
+   * existed those ~270 classes were silently inert. */
+  --color-ink-750: #2f364b;
+  --color-ink-300: #b8bfd6;
 
   /* The Duck Accent */
+  --color-duck-100: #fdf1d0;
+  --color-duck-200: #fae3a3;
   --color-duck-300: #f7d67c;
   --color-duck-400: #f0c04a;
   --color-duck-500: #d9a227;
+  --color-duck-700: #8a6410;
 
   /* ── Mastery status scale (Solid / Shaky / Gap) ────────────────────
    * Reserved meanings. Never reuse these as decoration or as a series
@@ -70,6 +78,8 @@
   --color-solid-400: #22c55e;
   --color-solid-500: #0ca30c;
   --color-shaky-500: #ec835a;
+  --color-gap-300: #f08080;
+  --color-gap-400: #e35d5d;
   --color-gap-500: #d03b3b;
 }
 
@@ -87,16 +97,25 @@
   --color-ink-400: #1f2937;
   --color-ink-200: #111827;
   --color-ink-100: #000000;
+  --color-ink-750: #848b99;
+  --color-ink-300: #182130;
 
+  /* 100 and 200 are the emphasis-text steps (selected command-palette row), so
+   * on a white surface they are the darkest browns, not brighter oranges. */
+  --color-duck-100: #6b2f0b;
+  --color-duck-200: #7c3a0d;
   --color-duck-300: #d97706;
   --color-duck-400: #b45309;
   --color-duck-500: #92400e;
+  --color-duck-700: #78350f;
 
   /* Re-stepped for the light surface, not an automatic flip. */
   --color-solid-300: #16a34a;
   --color-solid-400: #15803d;
   --color-solid-500: #0a7d0a;
   --color-shaky-500: #ea580c;
+  --color-gap-300: #b91c1c;
+  --color-gap-400: #991b1b;
   --color-gap-500: #b02a2a;
 }
 

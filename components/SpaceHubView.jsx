@@ -479,7 +479,7 @@ export default function SpaceHubView({
             </div>
 
             {loadingDocs ? (
-              <div className="rounded-2xl border border-ink-800 bg-ink-855/40 p-8 text-center text-xs text-ink-500">
+              <div className="rounded-2xl border border-ink-800 bg-ink-850/40 p-8 text-center text-xs text-ink-500">
                 Loading space documents...
               </div>
             ) : documents.length === 0 ? (

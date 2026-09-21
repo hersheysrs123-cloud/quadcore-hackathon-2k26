@@ -1135,7 +1135,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
 5. **HUD & Navigation Integration (`components/Workspace.jsx`, `components/CommandPalette.jsx`)**:
    * Added `🎯 Quizzes` tab button in HUD, view switcher in main body, and `Ctrl+K` command palette item.
 6. **Automated Verification**:
-   * Created [`tests/unit/quiz-studio-flow.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/quiz-studio-flow.test.mjs).
+   * Created [`tests/unit/quiz-studio-flow.test.mjs`](tests/unit/quiz-studio-flow.test.mjs).
    * All **124 unit & integration tests across 44 test suites** pass. Production Next.js build (`npm run build`) succeeded with exit code 0.
 
 ---
@@ -1750,7 +1750,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * `handleCellChange` guarantees dense array allocations (`while (newRow.length <= colIndex) newRow.push("")`).
    * `getNormalizedTableData` supports `columns`/`data` aliases and enforces non-empty fallback structures.
 7. **Comprehensive Unit Testing Suite**:
-   * Created [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying all 14 table scenarios and edge cases.
+   * Created [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying all 14 table scenarios and edge cases.
    * Total test suite expanded to **204 passing tests** across 59 suites (`npm test`).
 
 ---
@@ -1776,7 +1776,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * **Cell Hover `ƒ(x)` Quick Action**: A hover button on each table cell (`ƒ(x)`) allows one-click equation creation.
    * **Keyboard Shortcut (`Ctrl+M` / `Cmd+M`)**: Pressing `Ctrl+M` or `Cmd+M` while focused in any table cell opens the equation popover immediately.
 4. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying lossless round-tripping of LaTeX equations inside markdown table cells.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying lossless round-tripping of LaTeX equations inside markdown table cells.
    * All 205 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1798,7 +1798,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Guaranteed deep cloning via `JSON.parse(JSON.stringify(blocksRef.current))` whenever snapshots are pushed to `pastBlocks` or `futureBlocks`.
    * Guaranteed deep cloning when restoring previous states on `Ctrl+Z` (Undo) and next states on `Ctrl+Y` / `Ctrl+Shift+Z` (Redo).
 3. **Automated Unit Testing**:
-   * Added state machine unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying that column and row deletions are 100% losslessly undoable and redoable with all cell values preserved.
+   * Added state machine unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying that column and row deletions are 100% losslessly undoable and redoable with all cell values preserved.
    * All 207 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1822,7 +1822,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Directly updated `targetEl` with `setBlockDOMFromText(targetEl, newCellText)`.
    * Updated `tableData` and passed `recordHistory = true` to allow immediate Undo/Redo (`Ctrl+Z` / `Ctrl+Y`).
 3. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) validating `removeFormulaFromCellText` and `updateFormulaInCellText` across isolated formulas and formulas embedded in sentences.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) validating `removeFormulaFromCellText` and `updateFormulaInCellText` across isolated formulas and formulas embedded in sentences.
    * All 209 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1852,7 +1852,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Uses `onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}` on all toolbar buttons to ensure clicking buttons does not collapse the active text selection.
    * Dispatches input events to the active `contentEditable` element to trigger synchronous markdown and table cell state serialization.
 2. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) validating markdown selection wrapping and viewport edge clamping.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) validating markdown selection wrapping and viewport edge clamping.
    * All 211 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1872,7 +1872,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Implemented `removeFormulaAtIndex(text, targetIndex)` and `updateFormulaAtIndex(text, targetIndex, newFormula)` to scan formula tokens sequentially and delete or update strictly the target occurrence at `targetIndex`.
    * Provided fallback non-global single replacement (`new RegExp(...)` without `/g`) when index resolution is unavailable.
 3. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying that deleting a specific copy of a duplicate formula in cells with 2 or 3 identical equations leaves the remaining instances completely untouched.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying that deleting a specific copy of a duplicate formula in cells with 2 or 3 identical equations leaves the remaining instances completely untouched.
    * All 212 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1895,7 +1895,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Created `recordHistorySnapshot` in `BlockNoteEditor` and passed it as `onRecordHistory` to `TextSelectionToolbar`.
    * Snapshots `blocksRef.current` (deep cloned) into `pastBlocks` before any formatting command executes, enabling instant, lossless `Ctrl+Z` / `Ctrl+Y` undo/redo across both regular blocks and table cells.
 3. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) testing instant formula compilation and table history restoration.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) testing instant formula compilation and table history restoration.
    * All 213 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1917,7 +1917,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Synced across note creation, note duplication, workspace export/import, and automatic unmount saves.
    * Enables each note to have its own independent font style (e.g. Physics in *Mono*, History in *Serif*, Reflection in *Handwriting*).
 4. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying font mapping, CSS class application, and multi-note style isolation.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying font mapping, CSS class application, and multi-note style isolation.
    * All 215 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -5207,12 +5207,12 @@ Users identified two visual inconsistencies during print and PDF export:
 ## 88. Universal 3D Visualization Sidebar Controls Resizability Standard (`ShadowLabCanvas.jsx` & `EyeCanvas.jsx`)
 
 ### Problem Statement
-- In the "Light, Shadows & Straight Lines" optical bench 3D visualization ([`ShadowLabCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ShadowLabCanvas.jsx)), the sidebar controls panel was hardcoded to a static width of `w-[288px]` and lacked any drag-to-resize handle or width responsiveness.
-- A comprehensive audit of all 36 3D interactive visualizations in SocraticOS revealed that while 32 topics driven by [`VisualizationHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/VisualizationHUD.jsx), [`BinaryTree3D.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BinaryTree3D.jsx) (`binary_tree`), and [`RespiratoryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/RespiratoryCanvas.jsx) (`respiratory`) possessed drag-to-resize sidebar capabilities, both `ShadowLabCanvas.jsx` (`shadows`) and [`EyeCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/EyeCanvas.jsx) (`eye`) were constrained to static non-resizable containers (`w-[288px]` and `w-[286px]`).
+- In the "Light, Shadows & Straight Lines" optical bench 3D visualization ([`ShadowLabCanvas.jsx`](components/visualizations/ShadowLabCanvas.jsx)), the sidebar controls panel was hardcoded to a static width of `w-[288px]` and lacked any drag-to-resize handle or width responsiveness.
+- A comprehensive audit of all 36 3D interactive visualizations in SocraticOS revealed that while 32 topics driven by [`VisualizationHUD.jsx`](components/visualizations/VisualizationHUD.jsx), [`BinaryTree3D.jsx`](components/visualizations/BinaryTree3D.jsx) (`binary_tree`), and [`RespiratoryCanvas.jsx`](components/visualizations/RespiratoryCanvas.jsx) (`respiratory`) possessed drag-to-resize sidebar capabilities, both `ShadowLabCanvas.jsx` (`shadows`) and [`EyeCanvas.jsx`](components/visualizations/EyeCanvas.jsx) (`eye`) were constrained to static non-resizable containers (`w-[288px]` and `w-[286px]`).
 
 ### Root Cause Analysis
 1. **Dedicated HUD Routing (`ownHud: true`)**:
-   - In [`components/visualizations/topics.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/topics.js), 4 specialized topics specify `ownHud: true`: `shadows`, `eye`, `respiratory`, and `binary_tree`.
+   - In [`components/visualizations/topics.js`](components/visualizations/topics.js), 4 specialized topics specify `ownHud: true`: `shadows`, `eye`, `respiratory`, and `binary_tree`.
    - Because `app/visualizations/page.jsx` and `components/ThreeDView.jsx` bypass the shared `VisualizationHUD` when `topic.ownHud === true`, each of these dedicated scenes is responsible for rendering its own control overlay.
 2. **Missing Resize State & Handle Elements**:
    - `BinaryTree3D.jsx` and `RespiratoryCanvas.jsx` had been updated with dynamic width states and drag-to-resize handles.
@@ -5231,7 +5231,7 @@ Users identified two visual inconsistencies during print and PDF export:
    - Added right-edge drag bar with `cursor-ew-resize`, hover highlighting (`group-hover:bg-duck-400/80`), and active styling.
    - Added bottom-right corner grip SVG indicator (`cursor-nwse-resize`) matching `VisualizationHUD.jsx` and `BinaryTree3D.jsx`.
 4. **Automated Verification & Unit Tests**:
-   - Created [`tests/unit/topic-sidebar-resize.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/topic-sidebar-resize.test.mjs) verifying:
+   - Created [`tests/unit/topic-sidebar-resize.test.mjs`](tests/unit/topic-sidebar-resize.test.mjs) verifying:
      - All 36 topics have valid HUD routing (32 via `VisualizationHUD` and 4 via dedicated scenes).
      - `VisualizationHUD.jsx`, `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx` all implement resizable width states and resize handles.
      - Mathematical width clamping correctly respects the 10% to 80% viewport limits.
@@ -5247,7 +5247,7 @@ Users identified two visual inconsistencies during print and PDF export:
 
 ### Root Cause Analysis
 1. **Redundant Horizontal Navigation Strip (`Category & Topic Quick Switch Strip`)**:
-   - Both [`components/ThreeDView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ThreeDView.jsx) and [`app/visualizations/page.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/app/visualizations/page.jsx) rendered a secondary horizontal bar with category filter chips and horizontally scrolling topic buttons.
+   - Both [`components/ThreeDView.jsx`](components/ThreeDView.jsx) and [`app/visualizations/page.jsx`](app/visualizations/page.jsx) rendered a secondary horizontal bar with category filter chips and horizontally scrolling topic buttons.
    - This secondary strip consumed 40px+ of vertical space and introduced redundant topic selection state (`category`, `visibleTopics`).
 2. **Unstyled Native `<select>` Selector**:
    - The topic selector was rendered as a plain `<select>` dropdown with `appearance-none` and basic borders.
@@ -5264,7 +5264,7 @@ Users identified two visual inconsistencies during print and PDF export:
    - **`components/ThreeDView.jsx`**: Removed the second horizontal scroll bar completely. Replaced unstyled `<select>` with `<TopicSelectorDropdown currentTopicId={topicId} onSelectTopic={selectTopic} />`. Cleaned up unused `category` and `visibleTopics` state. Moved the floating "Show top bars" button into the main body for fullscreen focus mode.
    - **`app/visualizations/page.jsx`**: Removed the second horizontal scroll bar completely. Replaced `<select>` and redundant header search input with `<TopicSelectorDropdown currentTopicId={topicId} onSelectTopic={selectTopic} />`. Repositioned floating "Show top bars" button in the canvas viewport.
 3. **Automated Verification & Unit Tests**:
-   - Created [`tests/unit/topic-selector-dropdown.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/topic-selector-dropdown.test.mjs) verifying:
+   - Created [`tests/unit/topic-selector-dropdown.test.mjs`](tests/unit/topic-selector-dropdown.test.mjs) verifying:
      - `TopicSelectorDropdown.jsx` implements subject grouping, quick filter pills, search input, click-outside dismissal, and Escape key handling.
      - All 35 topics across the 5 scientific disciplines (`physics`: 17, `chemistry`: 7, `biology`: 6, `cs`: 2, `math`: 3) are mapped and cataloged.
      - Both `ThreeDView.jsx` and `app/visualizations/page.jsx` integrate `TopicSelectorDropdown` and have the legacy second horizontal scrolling strip completely removed.

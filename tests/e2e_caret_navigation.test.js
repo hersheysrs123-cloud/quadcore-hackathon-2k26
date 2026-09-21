@@ -6,7 +6,7 @@
  *
  * Test Architecture:
  * - Runner: Node.js Native Test Runner (node:test, node:assert/strict)
- * - Scope: Tiers 1–4 (82 Test Cases) as specified in TEST_INFRA.md and PROJECT.md
+ * - Scope: Tiers 1–4 (82 Test Cases) as specified in docs/TEST_INFRA.md and PROJECT.md
  *   • Tier 1: Feature Coverage (F1 to F7, 35 Tests)
  *   • Tier 2: Boundary & Corner Cases (F1 to F7, 35 Tests)
  *   • Tier 3: Cross-Feature Combinations (C1 to C7, 7 Tests)

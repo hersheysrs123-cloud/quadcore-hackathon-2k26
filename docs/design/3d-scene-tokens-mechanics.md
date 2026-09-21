@@ -1,0 +1,182 @@
+# Design — 3D scene tokens: mechanics
+
+> Part of the [SocraticOS design system](../../DESIGN_SYSTEM.md). Simple machines, buoyancy, incline, Hooke's law, roller coaster and the dynamometer test stand (conventions 16, 17, 24–27).
+
+16. **3D Simple Machines & Mechanics Apparatus Tokens (`SimpleMachinesCanvas.jsx`)**:
+    - **Workbench Base**: Modern elevated laboratory table base (`#64748b` rounded slab with `#cbd5e1` brushed aluminum surface inlay and `#475569` corner support pedestals), replacing dark low-contrast surfaces. Floor grid lines balanced at `#334155` / `#475569`.
+    - **Precision Balance Beam**: Luminous light blonde birch wood finish (`#f6ede0`) with extruded aluminum reinforcement rails (`#e2e8f0`). Features etched metric ruler graduations (20cm divisions), machined aluminum center pivot hub (`#cbd5e1`), center pivot pin (`#f8fafc`), and an instrument-grade balance deflection needle (`#ef4444`).
+    - **Fulcrum Assembly & Elevation Clearance**: Polished metallic aluminum wedge (`#e2e8f0`, height 1.10) elevated on a bench shoe plate (`#cbd5e1`) to `PIVOT_HEIGHT_ABOVE_BENCH = 1.22` above `BENCH_Y`. Includes apex saddle collar (`#cbd5e1`), transverse axle pin (`#f8fafc`), front-facing angular deflection scale (`#f8fafc`) with red center zero and ±10° tick marks, and strict kinematic angle clamping ensuring the lever beam maintains $\ge 0.05$ clearance and never penetrates or dips under the workbench base.
+    - **Laboratory Slotted Mass Load**:
+      - Central polished suspension spindle (`#f8fafc`) with top circular hanger ring (`#e2e8f0`).
+      - Base carrier plate (`#cbd5e1`) supporting stacked precision slotted weights in alternating chrome/platinum (`#f1f5f9` / `#e2e8f0`), raised hub bosses, and radial cutout slot notches.
+      - Block-and-tackle safe load updated to light platinum (`#cbd5e1`) with heavy-duty lifting shackle, corner angle plates, and brass combination dial (`#fbbf24`).
+    - **Energy & Work Bar Graph Instrumentation (`energy-bars.jsx`)**:
+      - Calibrated absolute energy scale (`scaleMax = 150 J` baseline) scaling bars linearly with load and effort rather than self-normalizing.
+      - Integrated slate Y-axis vertical line, horizontal dashed scale division lines at 50% and 100% of scale, and left-axis numerical value labels.
+      - Elevated chart mount (`y = BENCH_Y + 0.45`, `x = 5.1`) maintaining clean separation above workbench top with full visibility in standard camera frustums.
+    - **Physics Dynamics & Class Vector Tokens (`SimpleMachinesCanvas.jsx`)**:
+      - **Dynamic Rotational Inertia**: Stroke cadence scales realistically with load mass (`speed / ((loadN / 200)^0.22)`), visually showing inertial resistance under heavy loads.
+      - **Lever Class Effort Directions & Labels**: Class 1 seesaw uses downward press `[0, -1, 0]` ("you push"), Pulley uses downward pull `[0, -1, 0]` ("you pull"), while Class 2 and Class 3 upward levers use `[0, 1, 0]` ("you lift") with load rising in unison.
+      - **In-Situ Apparatus Force Vectors**: Live calibrated force arrows mounted directly at the lever beam's effort grip and load hanger (`forceScale = 1.6 / Math.max(650, loadN, effortForce)`), displaying real-time proportional growth and contraction with slider adjustments.
+    - **Block and Tackle Gantry Rigging & Sheave Housing Tokens (`SimpleMachinesCanvas.jsx`)**:
+      - **Laboratory Gantry Frame**: Twin base footing shoes (`#64748b`) with chrome anchor bolts, vertical structural columns (`#94a3b8`, $r=0.055$, $h=4.8$) with reinforcement collars, and an overhead crosshead I-beam (`#475569`) with lower guide rails (`#cbd5e1`).
+      - **Upper & Lower Block Housings**: Steel cheek casings (`#64748b` with rounded corners), bright stainless through-axle pins (`#f8fafc`), and becket tie-off lugs. Lower block includes a vertical swivel shank and forged crane hook (`#e2e8f0`) connected via shackle to the vault load.
+      - **Continuous Tangent Arc Rope Threading**: Rope geometry generates multi-point circular arc tangencies around sheave grooves ($R=0.22$) without clipping through pulley centers. Accurately alternates between upper and lower sheaves and terminates at lower (odd $n$) or upper (even $n$) becket.
+      - **Kinematic Hauling Travel & Pulling Grip**: Free hauling lead routes over an exit sheave to an ergonomic knurled aluminum handle (`#e2e8f0`) with gold brass caps (`#fbbf24`), traveling exactly $n \times \text{loadDistance} \times \text{phase}$ with co-located effort travel markers and live pull direction vector.
+
+17. **3D Archimedes Buoyancy Vessel & Apparatus Design Tokens (`BuoyancyCanvas.jsx`, `lib/buoyancy.js`)**:
+    - **Luminous Laboratory Lighting**: Ambient intensity elevated to 0.88, directional key light elevated to 1.45 (`#ffffff`), banishing dark muddy shadows across materials and liquid transmission.
+    - **Laboratory Workbench Base & Satin Gantry**: Elevated laboratory table base (`#64748b` rounded slab with `#e2e8f0` brushed aluminum surface inlay), unified with Simple Machines. Vertical upright columns and overhead crosshead beam in bright satin anodized aluminum (`#94a3b8`, metalness 0.8, roughness 0.25).
+    - **Crystalline Acrylic Overflow Tank & Cylinder**: Five-panel transparent acrylic tank ($40\text{ cm} \times 24\text{ cm} \times 27\text{ cm}$, `#b8c9dc` at reduced opacity 0.13 with transmission 0.78 and roughness 0.04) elevated on workbench base, with angled overflow spout positioned at water height ($20\text{ cm}$) aligned with catch cylinder ($x = 4.0$). Cylinder foot lightened to `#94a3b8` with pure white graduation ticks (`#f1f5f9`).
+    - **Bright Spring Scale Assembly**: Anodized aluminum casing (`#64748b`), pure white dial face plate (`#f8fafc`), light stem (`#cbd5e1`), polished chrome suspension hook (`#f1f5f9`), and white suspension cord (`#f1f5f9`).
+    - **Light Modern Marine Craft (`RealisticBoat`)**:
+      - Lofted outer hull with tapered bow cutwater stem, flared deadrise topsides, curved sheer line, flat transom stern, and centerline keel skeg (`colour` material finish with metalness 0.6, roughness 0.35).
+      - Open interior hold with inner deck floor and bulkheads demonstrating the large air cavity explaining Archimedes flotation.
+      - Titanium marine slate gunwale rub-rail capping, foredeck plate with polished chrome mooring bitt, and aft quarterdeck (`#5b6b80`).
+      - Bright blonde teak center thwart bench (`#d4a373`) equipped with a polished chrome marine lifting eyelet ring (`#f1f5f9`, metalness 0.88, roughness 0.2) directly anchored to the spring scale suspension line.
+      - Titanium marine slate transverse bilge ribs (`#5b6b80`) crossing the cockpit floor.
+      - Flooded/swamped state rendering an internal fluid volume matching fluid refraction, colour, and surface level.
+    - **Radiant Fluid & Solid Color Palette**:
+      - Fluids: Air (`#cbd5e1`), Gasoline (bright solar yellow `#fef08a`, opacity 0.42), Freshwater (luminous clear sky `#38bdf8`, opacity 0.38), Saltwater (vibrant luminous turquoise `#5eead4`, opacity 0.42), Honey (golden radiant amber `#fbbf24`, opacity 0.58), Mercury (liquid silver `#dbe4ee`, roughness 0.1).
+      - Solids: Oak Wood (blonde grain `#d4a373`), Ice (glowing glacial crystal `#7fb4ff`), Aluminium (bright billet `#e2e8f0`), Steel (bright stainless steel `#b8c5d6`), Gold (24k yellow gold `#fde047`).
+    - **Directional Overflow Spout Stream**: Discrete fluid droplets (`sphereGeometry` $r=0.075$) with fluid opacity 0.85 animating downward along a parabolic trajectory from spout to cylinder solely during positive volume accumulation (`targetML - shownML > 0.6`), instantly dormant when volume is lowered.
+
+24. **3D Incline Plane & Friction Laboratory Apparatus Design Tokens (`InclineFrictionCanvas.jsx`)**:
+    - **High-Visibility Studio Lighting**:
+      - Ambient Light: `0.85` intensity for clear visibility across all geometric faces.
+      - Directional Key Light: `1.7` intensity with balanced specular highlights.
+    - **Apparatus Base & Extruded Aluminum Fixtures**:
+      - Base Plate: Satin brushed aluminum (`#94a3b8`, metalness `0.65`, roughness `0.35`).
+      - Spirit Level Vial: Luminous emerald vial (`#4ade80`, emissive `#4ade80`, emissiveIntensity `1.5`).
+      - Rear Upright Support Mast: Extruded structural aluminum rail (`#94a3b8`, metalness `0.8`, roughness `0.25`).
+      - Sliding Collar & Knob: Precision silver collar (`#cbd5e1`) with knurled brass knob (`#fbbf24`).
+      - Pivot Knuckles & Pin: Polished steel brackets (`#94a3b8`) with brass hinge pin (`#fbbf24`).
+    - **Ramp Plank & Track Geometry**:
+      - Wedge Incline Support: Light satin anodized silver (`#cbd5e1`, roughness `0.35`, metalness `0.35`).
+      - Ramp Track Materials:
+        - Polished Maple Wood: Warm honey birch (`#d4a373`, roughness `0.55`).
+        - Teflon (PTFE): Pure porcelain white (`#f1f5f9`, metalness `0.35`, roughness `0.08`).
+        - Neoprene Rubber: Modern slate blue-gray (`#64748b`, roughness `0.85`).
+      - Guide Channel Rails: Mirror-finish extruded chrome (`#e2e8f0`, metalness `0.85`, roughness `0.2`).
+      - Graduation Ruler Ticks: Crisp contrast markings (`#0f172a`, width `2.2` / `1.4`) with clear distance labels (`text-ink-200`).
+      - Pulley & Pull String: Chrome pulley wheel (`#f1f5f9`) with brass axle pin (`#fbbf24`) and high-tensile gold nylon cable (`#f59e0b`, width `2.8`).
+    - **Cargo Crate Materials & Detailing**:
+      - Wood Body: Bright golden honey cedar (`#d4924b`, roughness `0.55`) with chestnut reinforcement banding (`#a06030`).
+      - Corner Brackets: Gleaming polished brass brackets (`#fbbf24`, metalness `0.85`).
+      - Lifting Handles: High-contrast chrome handles (`#e2e8f0`) with slate recessed wells (`#475569`).
+    - **Right Telemetry Sidebar & Analytics HUD Tokens**:
+      - Sidebar Container: Dedicated docked `<aside>` (`w-[320px]`, `border-l border-ink-800 bg-ink-900/95 backdrop-blur-md shadow-2xl`) cleanly separated from the 3D WebGL viewport.
+      - Sidebar Header: `border-b border-ink-800/70 pb-1`, `Activity` icon in `text-duck-300`, title in `text-xs font-bold uppercase tracking-wider text-ink-100`, and close button (`X`, `hover:bg-ink-800 hover:text-ink-100`).
+      - Static Grip Capacity Bar (`InclineGripBar`):
+        - Container: `rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2`.
+        - State Badges:
+          - Equilibrium: `bg-teal-500/20 text-teal-300 border border-teal-500/40`.
+          - On The Verge: `bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse`.
+          - Sliding: `bg-rose-500/20 text-rose-300 border border-rose-500/40`.
+        - Capacity Gauge Bar: Recessed pill track (`h-3.5 border border-ink-700/80 bg-ink-900 p-0.5 shadow-inner`) with `100%` breakaway limit ceiling line (`w-1 bg-white/80`).
+        - Numerical Breakdown Card: Compact monospace card (`bg-ink-900/60 p-2 text-[10.5px] border border-ink-800/80`) displaying instantaneous friction force, static breakaway limit $f_{s,\max} = \mu_s N$, and angle of repose $\theta_r$.
+      - 2D SVG Velocity Trace Graph (`InclineVelocityGraph`):
+        - Frame: `viewBox="0 0 280 120"` SVG canvas within `rounded-xl border border-ink-800 bg-ink-950/70 p-3`.
+        - Grid & Axes: Subtle dashed gridlines (`#2e3b52`, dasharray `3 3`), solid zero reference baseline (`#64748b`), and clean monospace axis bounds (`text-[8.5px] fill-ink-500 font-mono`).
+        - Adaptive Velocity Curve: Real-time SVG `<path>` in cyan velocity accent (`FORCE_COLOURS.velocity`, width `2.2`, linecap `round`) with active terminal coordinate marker (`#34d399`) and halo.
+        - Dynamic Range Scaling: Automatically binds zero baseline to bottom for pure uphill motion ($v \ge 0$) or top for pure downhill motion ($v \le 0$), expanding resolution.
+        - Terminal Impact Pill: Bottom readout pill displaying instantaneous velocity or impact landing velocity (`impact: -2.34 m/s`).
+      - Forces & Dynamics Stats Grid (`InclineStatsGrid`):
+        - Layout: 2-column tabular grid (`grid-cols-2 gap-x-2.5 gap-y-2 pt-1`) in card container with section header and subtitle (`m = 10 kg · wood`).
+        - Metric Tokens:
+          - Acceleration ($a$): `text-ink-200` (static) / `text-rose-400` (accelerating).
+          - Net Force ($\Sigma F$): `text-emerald-400` (equilibrium) / `text-amber-400` (unbalanced).
+          - Velocity ($v$): `text-duck-300` font-bold.
+          - Ramp Angle ($\theta$) & Slope Weight ($W_\parallel$): `text-amber-300` (gold).
+          - Normal Force ($N$): `text-sky-300`.
+          - Applied Pull ($F$) & Mass ($m$): `text-ink-200`.
+          - Static & Kinetic Coefficients ($\mu_s, \mu_k$): `text-ink-200`.
+      - Telemetry Reopen Trigger:
+        - Floating button (`top-4 right-4 z-20`) with glassmorphic backing (`border border-ink-700 bg-ink-900/90 backdrop-blur text-ink-200 hover:bg-ink-800 hover:text-white`), `Activity` icon (`text-duck-300`), and `Telemetry` label to reopen the panel on demand.
+      - Centered Camera Framing: Apparatus centered at `position: [0.6, 1.4, 12.8]` with OrbitControls target at `[0.6, 0.2, 0]`.
+
+25. **3D Hooke's Law Apparatus & Extension Graph Tokens (`HookesLawCanvas.jsx`, `force-diagram.jsx`)**:
+    - **Spring Geometry & Texture Safety Bounds**:
+      - Spring Coil Mesh: Helical `TubeGeometry` with 18 turns, radius $0.075\text{ m}$, tube radius $0.0075\text{ m}$, 160 tubular segments.
+      - Metallic Shader: High-reflectance chrome-steel (`#cbd5e1`, metalness `0.85`, roughness `0.25`, specular highlight fidelity).
+      - Deformation Clamping: Vertical stretch ratio strictly bounded between $0.65$ and $2.5$. Solid height minimum length $0.085\text{ m}$. Ensures tube surface normals never invert and vertex windings remain counter-clockwise under high kinetic impulse.
+    - **GraphPanel Formatter Tokens**:
+      - Units & Numerical Formatter: Supports customizable `xFormat` and `yFormat` functions for physical coordinate mapping.
+      - Extension Mode: Formatted as `${(x * 100).toFixed(0)}cm` with monospace typography (`text-[9px] font-mono text-ink-400`).
+      - Non-Negative Zero Clamping: Suppresses extraneous leading `+` signs when $yMin \ge -0.05$ (e.g., `0`, `5.0`, `10.0 N` instead of `+0`, `+5.0`, `+10.0 N`).
+    - **Physical 3D Meter Rule & Double-Sided Scale Tokens**:
+      - Ruler Body: Solid 3D box slab (`args={[0.66, 0.48 * S, 0.04]}`), finished in satin ivory rule coating (`#f3efe6`, roughness `0.65`, metalness `0.12`).
+      - Protective End Caps: Machined brass end bindings (`#d4af37`, roughness `0.3`, metalness `0.8`) protecting upper and lower ends.
+      - Dual-Sided Vector Markings: Millimeter, centimeter, and 5-centimeter graduation ticks (`#1e293b`) rendered symmetrically at $Z = +0.022$ and $Z = -0.022$ with edge wrap notches.
+      - Dual-Sided Caliper Pointer: Double needle indicator arms ($Z = \pm 0.05$) with tip needle connecting front and back at the scale face.
+    - **Left Sidebar Force–Extension Graph & Compact Controls Tokens (`VisualizationHUD.jsx`, `HookesLawSidebarGraph`)**:
+      - Embedding: Force–Extension plot mounted directly inside the docked left sidebar Controls tab.
+      - Spacing & Fit Optimization:
+        - Sidebar scrollable container reduced to `p-2.5 space-y-2` (down from `p-3.5 space-y-3`).
+        - Tab Switcher and Speed Slider margins compacted to `mb-2`.
+        - Action buttons ("Exceed limit" and "Fresh spring") paired in a 2-column grid (`grid grid-cols-2 gap-1.5`) with compact padding (`text-[11px] py-1.5 px-2`), saving ~45px of vertical screen height.
+      - SVG Frame & Curve Tokens:
+        - Frame: `viewBox="0 0 280 132"` SVG canvas within `rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 shadow-inner` with `textRendering="geometricPrecision"`.
+        - Typography & Clearance Tokens:
+          - Labels, Headings & Badges: `style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}`.
+          - Numbers, Ticks & Units: `style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}`.
+          - Top Axis Title Clearance: `padT = 18` with $F\text{ (N)}$ positioned at `padT - 7`, providing clean negative vertical clearance above the top numerical tick.
+          - Elastic Limit Badge Dimension: Widened to `width="48" height="13" rx="3"` (from 32px), completely enclosing `14cm Limit` without letter boundary truncation.
+          - Collision-Protected X-Axis Ticks: `0cm` tick is conditionally suppressed when permanent set $unloadData.setSvgX \le padL + 36$, preventing text smearing at small sets.
+        - Area Gradient Fills:
+          - Elastic Fill: `#hookeElasticGrad` (`stopColor="#38bdf8" stopOpacity="0.22" -> "0.02"`).
+          - Plastic Fill: `#hookePlasticGrad` (`stopColor="#f59e0b" stopOpacity="0.20" -> "0.02"`).
+        - Smooth Yield Knee Curvature: Continuous $C^1$-smooth quadratic fillet knee at the $14\text{ cm}$ elastic limit ($\delta = 1.4\text{ cm}$ radius), smoothly blending the linear Hooke's slope into the plastic yield curve.
+        - Background Full Envelope: Faint reference guide (`#334155`, strokeWidth 1.2, dasharray `3 3`, opacity 0.45) tracing the spring's complete operational capability up to failure.
+        - Elastic Curve: Sky blue stroke (`#38bdf8`, strokeWidth 2.4, linecap round) representing Hooke's Law $F = kx$.
+        - Plastic Curve: Warm amber stroke (`#f59e0b`, strokeWidth 2.4, linecap round, linejoin round) showing plastic yield.
+        - Unload Curve & Elastic Recovery Tracking: Dashed gold line (`#fbbf24`, strokeWidth 1.8, dasharray `4 3`, linecap round) running down to permanent set. The active marker rides directly along this line with elastic stiffness $k$ when masses are unloaded after plastic yield or failure.
+        - Elastic Limit Boundary: Vertical dashed rose line (`#f43f5e`, strokeWidth 1.2, dasharray `3 3`) with top pill badge `14cm Limit`.
+        - Measured Tangent: Mint green segment (`#34d399`, strokeWidth 1.8, linecap round, opacity 0.9) tracking instantaneous stiffness.
+        - Overload Protection & Guide: When hung load actively exceeds failure force, the marker remains anchored at the failure capacity point $(30\text{ cm}, F_{\text{fail}})$, with a vertical dashed rose guide line (`#f43f5e`, strokeWidth 1.4, dasharray `3 3`) extending up to the hung load point with a `Hung: X.X N` pip, preventing floating marker detachment.
+        - Working Point Marker: Triple-layer dot (outer pulsing aura at 0.25 opacity, crisp ring stroke `#ffffff`, and central white core; rose `#f43f5e` when actively overloaded, gold `#fbbf24` when on unload line, amber `#f59e0b` when yielding, sky `#38bdf8` when virgin elastic).
+        - Status Badge: High-contrast pill (`Hooke's Law (F=kx)` in emerald, `Plastic Yielding` in pulse amber, `Set: X.X cm` in gold, or `Broken (Scrap)` in rose).
+        - Bottom Metric Cards: 3-column dark inset card grid for Applied Load ($F$), Extension ($x$), and Stiffness ($k$).
+      - Viewport Decluttering & Camera Framing:
+        - Zero in-canvas 3D Drei Billboards in the WebGL scene.
+        - Centered camera target at `[0.15, -0.2, 0]` and position `[0.15, 0.3, 12.5]` for optimal apparatus framing.
+
+26. **3D Roller Coaster Loop-the-Loop & Energy Conservation Tokens (`RollerCoasterCanvas.jsx`)**:
+    - **Solid Bottom Bar HUD Architecture (`RollerCoasterBottomBar`)**:
+      - Placement & Layout: Fixed viewport bottom overlay (`absolute bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto`), max width `96vw`.
+      - Backing Surface: Solid studio slate container (`#1e2638`, border `#38455c`, rounded-2xl, shadow-2xl, backdrop-blur-md, px-5 py-3). Banishes unbacked floating 3D text and monitors from the Three.js viewport.
+      - Segmented Energy Stack Bar: Three-color full-width energy bar (GPE in sky `#38bdf8`, KE in emerald `#34d399`, Thermal/Heat in rose `#f87171`), demonstrating that $GPE + KE + Thermal = \text{constant}$.
+      - Analog Speedometer SVG Dial: Circular gauge ($0\text{--}45\text{ m/s}$) with emerald progress arc, dark dial face (`#1e293b`), and live digital readout.
+      - Passenger G-Force SVG Dial: Circular gauge ($-2\text{ g}$ to $+8\text{ g}$) with sky-to-rose color shift, redline threshold indicator ($>5\text{ g}$), and blackout risk warning badge.
+      - Real-Time Verdict Pill: High-contrast state badge indicating loop clearance (`text-emerald-300`), derailment speed deficit (`text-rose-300`), or excessive passenger g-force (`text-amber-300`).
+    - **High-Detail Steel Coaster Track Architecture**:
+      - Running Rails: Dual swept stainless steel tubes with polished chrome finish (`#f8fafc`, metalness `0.96`, roughness `0.16`).
+      - Central Tubular Spine: Heavy-gauge structural backbone pipe (`#94a3b8`, metalness `0.85`, roughness `0.28`) running parallel beneath the track centerline.
+      - Triangular Web Cross-Ties: Steel sleepers (`#cbd5e1`) and diagonal web struts welding both running rails to the central backbone pipe at regular intervals.
+    - **Structural Footing Piers & Ground Platform**:
+      - Base Ground Platform: Industrial slate base (`#475569`, roughness `0.7`, metalness `0.35`) with polished brushed aluminum top deck plate (`#cbd5e1`, metalness `0.65`) and perimeter yellow/black hazard safety borders (`#eab308`).
+      - Foundation Footing Piers: Heavy concrete block pedestals (`#94a3b8`, roughness `0.85`) with structural steel baseplates (`#64748b`) and 4-corner galvanized anchor bolts (`#cbd5e1`) supporting each track upright column.
+    - **Aerodynamic Coaster Car Detailing (Zero Floating Lights)**:
+      - Body Shell: Sculpted aerodynamic body (`#f59e0b`, metalness `0.6`, roughness `0.22`), sloped aerodynamic nose fairing (`#fbbf24`), and tinted aerodynamic windshield canopy (`#0284c7`, opacity `0.55`) with dark frame cowl.
+      - Exterior Aerodynamics: Sculpted carbon-composite chin splitter tray (`#0f172a`), dual front radiator air intake scoops with center divider, flank rocker panel side skirts with cyan metallic racing pinstripes (`#0284c7`), high-downforce rear airfoil wing with twin vertical endplate pylons & winglets, and triple underbody venturi diffuser fins. Headlights completely eliminated for clean physical authenticity.
+      - Cockpit Interior: Deep interior well (`#0f172a`), dashboard console with chrome passenger safety grab rail, contoured high-back racing bucket seats with integrated headrests, polished chrome tubular roll-bar safety hoops behind each seat (`#e2e8f0`, metalness `0.9`), 4-point safety harness straps with red quick-release central buckles (`#ef4444`), and streamlined racing helmets with dark tinted visors.
+      - Chassis & Bogies: Longitudinal steel chassis keel, underside copper magnetic eddy-current brake fin blade (`#d97706`), and 3-wheel safety bogies with hydraulic suspension shock dampers (`#0284c7`).
+
+27. **3D Simple Machines Dynamometer Test Stand, Widened Workbench & Smooth Work HUD Tokens (`SimpleMachinesCanvas.jsx`)**:
+    - **Expanded Laboratory Workbench Wing**:
+      - Base Slab: Widened to $10.2\text{ m}$ centered at $x = -0.4$ (span $-5.5\text{ m}$ to $+4.7\text{ m}$), finished in laboratory slate gray (`#64748b`, roughness `0.45`, metalness `0.35`).
+      - Brushed Aluminum Top Inlay: $10.0\text{ m} \times 2.3\text{ m}$ plate (`#cbd5e1`, roughness `0.25`, metalness `0.65`).
+      - Support Pedestals: Six cylindrical steel piers positioned across $x = -5.0, -0.4, +4.2$ at $Z = \pm 0.95$.
+      - Studio Camera Framing: Repositioned to `[0.2, 1.3, 14.6]` with target `[0.2, 0.3, 0]` for a balanced widescreen perspective.
+    - **Precision Laboratory Dynamometer Test Stand (`DynamometerTestStand`)**:
+      - Placement & Clearances: Bolted to the left workbench wing at $x = -3.75$, maintaining $>1.5\text{ m}$ of open air clearance to the lever/pulley mechanisms and eliminating any interference with the right sidebar HUD.
+      - Structure: Cast-iron baseplate (`#334155`) with 4 hex foundation bolts, dual polished chrome tubular columns ($H = 2.4\text{ m}$, `#cbd5e1`), horizontal crossbars, dark slate instrument backplate (`#0f172a` / `#1e293b`), and laser-etched graduation scales.
+      - Dual-Channel Force Transducers:
+        - Effort Transducer ($x = -4.13$): Load cell cylinder with amber accent badge, calibrated `<ForceVector>` arrow (`#fbbf24`), and non-overlapping label badge.
+        - Load Transducer ($x = -3.37$): Load cell cylinder with emerald accent badge, calibrated `<ForceVector>` arrow (`#34d399`), and non-overlapping label badge.
+    - **Smooth Work Bookkeeping & Comparative Force Sidebar (`SimpleMachinesSidebar`)**:
+      - Continuous Dynamic Scaling: Normalization factor computed via `Math.max(160, Math.max(workIn, workOut) * 1.12)`, eliminating discrete quantization jumps.
+      - Smooth Transitions: CSS `transition-[width] duration-300 ease-out` applied across all work and force comparison bars for fluid real-time parameter tweaking.
+      - Comparative Dual-Bar Force Gauge: Direct visual comparison of live Effort Force (amber) vs. Load Force (emerald) normalized to maximum instantaneous load.
+    - **Verified Rim-Tangent Block-and-Tackle Reeving**:
+      - Mathematical circular rim tangencies $(cx \pm \text{sheaveR}, y)$ with alternating Z-planes ($Z = \pm 0.04$) across multi-sheave configurations, guaranteeing authentic vertical non-crossing falls for $n = 1, 2, 3, 4$ supporting ropes.
