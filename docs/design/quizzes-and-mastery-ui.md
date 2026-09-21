@@ -42,10 +42,10 @@
 - **Responsive Padding**: Header `px-6 sm:px-8 py-4`, Form Body `px-6 sm:px-8 py-5 sm:py-6 space-y-6`, Footer `px-6 sm:px-8 py-4`.
 - **2-Column Section Heading Selector**: When scoping by section, headings render inside `grid grid-cols-1 md:grid-cols-2 gap-2` within a `max-h-60 overflow-y-auto` scroll area, doubling visible items and eliminating vertical bloat.
 - **Categorized Slider Grids**:
-  - Mathematics & Science Reasoning: `grid grid-cols-1 sm:grid-cols-2 gap-3.5`.
-  - Objective Assessment: `grid grid-cols-1 sm:grid-cols-2 gap-3.5`.
-  - Applied & Written Analysis: `grid grid-cols-1 sm:grid-cols-3 gap-3.5` (Code Input, Short Answer, Long Essay).
-- **Difficulty Grid**: `grid grid-cols-2 sm:grid-cols-4 gap-2.5`.
+  - Mathematics & Science Reasoning: `grid grid-cols-1 sm:grid-cols-2 gap-3`.
+  - Objective Assessment: `grid grid-cols-1 sm:grid-cols-2 gap-3`.
+  - Applied & Written Analysis: `grid grid-cols-1 sm:grid-cols-3 gap-3` (Code Input, Short Answer, Long Essay).
+- **Difficulty Grid**: `grid grid-cols-2 sm:grid-cols-4 gap-2`.
 
 ### 18. Zero-Lag Range Sliders & UI Performance Standards (`quiz-slider`)
 - **Track Transition Discipline**: Range sliders with dynamic inline gradient tracks (such as `QuestionCountSlider`) must NEVER use `transition: all` or transition the CSS `background` property. Background gradient interpolation cannot be hardware accelerated and induces 150ms frame drops during pointer events.
