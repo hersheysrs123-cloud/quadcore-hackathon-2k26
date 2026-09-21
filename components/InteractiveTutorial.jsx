@@ -354,7 +354,7 @@ export const TUTORIAL_STEPS = [
     badgeEmoji: "✍️",
     title: "19-Block Notion-Grade Studio, KaTeX & Fonts",
     description:
-      "Type '/' on any line to open the 22-item slash menu. Format notes with 19 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
+      "Type '/' on any line to open the 23-item slash menu. Format notes with 19 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
     render: ({ onNavigateTab }) => {
       const [activeCategory, setActiveCategory] = useState("All");
       const [previewFont, setPreviewFont] = useState("sans");

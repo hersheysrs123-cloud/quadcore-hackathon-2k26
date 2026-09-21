@@ -2127,7 +2127,7 @@ export const TOPICS = [
         step: 1,
         format: (v) => dayLabel(v),
       },
-      { type: "toggle", key: "playing", label: "Play the 30 days" },
+      { type: "toggle", key: "playing", label: "Play the 90 days" },
       {
         type: "choice",
         key: "electrolyte",
