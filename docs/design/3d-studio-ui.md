@@ -9,7 +9,7 @@ Two shared modules own the colour vocabulary for the mechanics scenes, so the sa
 - **Free-body forces** (`FORCE_COLOURS`): Weight `#fb7185` (rose) · W∥ = mg sinθ `#fb923c` (orange) · W⊥ = mg cosθ `#a78bfa` (violet) · Normal `#38bdf8` (sky) · Friction `#2dd4bf` (teal) · Applied `#fbbf24` (gold) · Resultant `#34d399` (emerald) · Elastic limit `#f43f5e`.
   - The two components of the weight are deliberately different hues from each other but both warm, so they read as halves of the red weight vector they were resolved from.
 - **Energy & work stores** (`ENERGY_COLOURS`): GPE `#a78bfa` (violet) · KE `#38bdf8` (sky) · Thermal / wasted `#fb7185` (rose) · Work in `#fbbf24` (gold) · Work out `#34d399` (emerald) · Total `#e8ebf0` (bone).
-- **Arrow scaling**: `useForceScale` normalises the largest force in a diagram to a fixed 1.7 world units. Fixing the scale instead sends arrows off-screen when the mass slider moves; scaling each arrow to its own length destroys the comparison a free-body diagram exists for.
+- **Arrow scaling**: `useForceScale` normalises the largest force in a diagram to a fixed 1.75 world units. Fixing the scale instead sends arrows off-screen when the mass slider moves; scaling each arrow to its own length destroys the comparison a free-body diagram exists for.
 - **Panel chrome**: instrument backings are `#0d121c` at `0.88`–`0.90` opacity; gridlines and axes use `PALETTE.line` / `PALETTE.slate`; every panel is titled with an `accent` `SceneLabel` and captioned with a `text-ink-400` one.
 - **`DialGauge`**: 240° sweep, needle in the series colour, and an optional `redline` arc in the thermal rose — a reading past the redline recolours the needle, so a dangerous value says so without a caption.
 
