@@ -68,7 +68,7 @@
 - **Shortcuts Tab**: Reference for all global keyboard shortcuts (`Ctrl+K`, `Ctrl+I`, `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `/`).
 - **3D & Graphics Tab**: Performance presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
 - **API Keys Tab**: Personal Google Gemini API key configuration stored 100% privately in Dexie IndexedDB.
-- **Backup & Reset Tab**: Export/import `.socratic` JSON packages and table-targeted factory reset with math captcha verification.
+- **Backup & Reset Tab**: Export/import `.socratic` JSON packages and table-targeted factory reset with typed `"RESET"` confirmation.
 
 ### 6. Modal Dialogs & Overlay Layouts
 - **Backdrop**: `fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in`.
