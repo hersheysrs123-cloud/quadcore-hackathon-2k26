@@ -54,9 +54,9 @@
     6. `short_answer`: Concise mechanistic free response graded via LLM rubric.
     7. `long_answer`: In-depth essay/derivation evaluated across structured criteria.
   - **1-Click STEM Presets**:
-    - 🎓 **IGCSE Gr.10 STEM**: Balanced distribution (3 MCQ, 1 Multi-Select, 2 Value Input, 1 Step Order, 1 Code, 2 Short Answer).
-    - 🧮 **Pure Math & Derivations**: Focused on mathematical rigor (2 MCQ, 3 Value Input, 2 Step Order, 1 Multi-Select).
-    - 💻 **Computer Science**: Algorithm design & logic (2 MCQ, 3 Code Input, 1 Step Order, 1 Multi-Select).
+    - 🎓 **IGCSE Gr.10 STEM**: Balanced distribution (3 MCQ, 1 Multi-Select, 2 Value Input, 1 Step Order, 1 Short Answer — 8 Qs).
+    - 🧮 **Pure Math & Derivations**: Focused on mathematical rigor (2 MCQ, 3 Value Input, 2 Step Order, 1 Short Answer — 8 Qs).
+    - 💻 **Computer Science**: Algorithm design & logic (2 MCQ, 2 Multi-Select, 2 Code Input, 1 Step Order, 1 Short Answer — 8 Qs).
     - ⚡ **Quick 5 MCQ**: Rapid 5-question multiple choice diagnostic.
   - **Categorized Question Sliders**: Grouped cleanly into *Mathematics & Science Reasoning* (Value Input, Step Ordering, Code Input), *Objective Assessment* (Multiple Choice, Multi-Select), and *Applied Analysis* (Short Answer, Long Essay).
   - Proportional question type sliders with custom gold gradient track fills and direct number inputs.
