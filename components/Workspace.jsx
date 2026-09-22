@@ -1871,6 +1871,11 @@ export default function Workspace() {
             if (!pid) return;
             handleCreateSubPage(pid, undefined, { insertCard: true, open: true });
           }}
+          onReorderNotes={handleReorderNotes}
+          onDeleteMultipleNotes={handleDeleteMultipleNotes}
+          onMoveMultipleNotes={handleMoveMultipleNotes}
+          onToggleFavoriteMultipleNotes={handleToggleFavoriteMultipleNotes}
+          onDuplicateMultipleNotes={handleDuplicateMultipleNotes}
           trashNotes={trashNotes}
           onRecoverNote={handleRecoverNote}
           onPermanentlyDeleteNote={handlePermanentlyDeleteNote}

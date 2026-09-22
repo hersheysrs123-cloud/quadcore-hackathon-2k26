@@ -2,11 +2,32 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOnClickOutside } from "usehooks-ts";
-import { ChevronDown, ChevronRight, Pencil, Plus, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FolderInput,
+  GripVertical,
+  ListChecks,
+  Pencil,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import NoteMenu from "@/components/NoteMenu";
-import { CreateSpaceModal, EditSpaceModal, TrashModal } from "@/components/Sidebar";
+import {
+  BatchDeleteConfirmModal,
+  BatchMoveModal,
+  CreateSpaceModal,
+  EditSpaceModal,
+  TrashModal,
+} from "@/components/Sidebar";
 import { saveAllSpaces } from "@/lib/storageService";
-import { buildNoteTree, getAncestorIds } from "@/lib/noteHierarchy";
+import { buildNoteTree, getAncestorIds, normalizeParentId } from "@/lib/noteHierarchy";
 
 const EXPANDED_KEY = "socratic_sidebar_expanded_notes";
 
@@ -15,8 +36,12 @@ const EXPANDED_KEY = "socratic_sidebar_expanded_notes";
  *
  * It does exactly three things: pick a space, find a note, open a note.
  * Global tools (timer, calendar, 3D, bookmarks) moved to the rail, so this
- * panel no longer has to carry them. Drag-to-reorder and multi-select from
- * the original sidebar are intentionally left out of this prototype.
+ * panel no longer has to carry them.
+ *
+ * Two behaviours are carried over from the original sidebar because nothing
+ * else replaces them: drag-to-reorder (strictly within one sibling group, so
+ * a page can never be dropped under a different parent by accident) and a
+ * multi-select mode with star / duplicate / move / delete bulk actions.
  */
 export default function NotesPanel({
   spaces = [],
@@ -37,6 +62,11 @@ export default function NotesPanel({
   onRenameNote,
   onDeleteNote,
   onCreateSubPage,
+  onReorderNotes,
+  onDeleteMultipleNotes,
+  onMoveMultipleNotes,
+  onToggleFavoriteMultipleNotes,
+  onDuplicateMultipleNotes,
   trashNotes = [],
   onRecoverNote,
   onPermanentlyDeleteNote,
@@ -50,6 +80,14 @@ export default function NotesPanel({
   const [query, setQuery] = useState("");
   const switcherRef = useRef(null);
   useOnClickOutside(switcherRef, () => setSwitcherOpen(false));
+
+  // Reorder (drag) and bulk-edit (multi-select) are mutually exclusive modes.
+  const [draggingNoteId, setDraggingNoteId] = useState(null);
+  const [dragOverInfo, setDragOverInfo] = useState(null); // { id, position: "top" | "bottom" }
+  const [isMultiSelecting, setIsMultiSelecting] = useState(false);
+  const [selectedNoteIds, setSelectedNoteIds] = useState(new Set());
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchMoveOpen, setBatchMoveOpen] = useState(false);
 
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === "undefined") return new Set();
@@ -99,6 +137,62 @@ export default function NotesPanel({
     });
   }, []);
 
+  // Leaving the space, emptying it, or searching all drop you out of
+  // selection mode so the bulk bar can never act on a stale set.
+  useEffect(() => {
+    setIsMultiSelecting(false);
+    setSelectedNoteIds(new Set());
+    setDraggingNoteId(null);
+    setDragOverInfo(null);
+  }, [activeSpace]);
+
+  useEffect(() => {
+    if (notes.length === 0 && isMultiSelecting) {
+      setIsMultiSelecting(false);
+      setSelectedNoteIds(new Set());
+    }
+  }, [notes.length, isMultiSelecting]);
+
+  const toggleSelectNote = useCallback((noteId) => {
+    setSelectedNoteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllToggle = useCallback(() => {
+    setSelectedNoteIds((prev) => (prev.size === notes.length ? new Set() : new Set(notes.map((n) => n.id))));
+  }, [notes]);
+
+  const selectedNotesList = useMemo(
+    () => notes.filter((n) => selectedNoteIds.has(n.id)),
+    [notes, selectedNoteIds]
+  );
+  const allSelectedAreStarred =
+    selectedNotesList.length > 0 && selectedNotesList.every((n) => Boolean(n.isFavorite));
+
+  const endDrag = useCallback(() => {
+    setDraggingNoteId(null);
+    setDragOverInfo(null);
+  }, []);
+
+  /** Moves `sourceId` next to `targetId` inside their shared sibling list. */
+  const dropOnSibling = useCallback(
+    (siblings, sourceId, targetId, placeAfter) => {
+      const fromIdx = siblings.findIndex((item) => item.id === sourceId);
+      if (fromIdx === -1) return;
+      const updated = [...siblings];
+      const [moved] = updated.splice(fromIdx, 1);
+      let toIdx = updated.findIndex((item) => item.id === targetId);
+      if (toIdx === -1) updated.push(moved);
+      else updated.splice(placeAfter ? toIdx + 1 : toIdx, 0, moved);
+      onReorderNotes?.(activeSpace, updated);
+    },
+    [activeSpace, onReorderNotes]
+  );
+
   const handleCreateSpace = useCallback(
     (newSpace) => {
       try {
@@ -139,20 +233,126 @@ export default function NotesPanel({
     onCreateSubPage,
   };
 
-  function renderRow(n, depth, { showChevron = true } = {}) {
+  function renderRow(n, depth, { showChevron = true, reorderable = true } = {}) {
     const children = tree.childrenOf.get(n.id) || [];
     const hasChildren = showChevron && children.length > 0;
     const isOpen = hasChildren && expanded.has(n.id);
     const isActive = n.id === activeNoteId;
+    const isSelected = selectedNoteIds.has(n.id);
+    const isDragging = draggingNoteId === n.id;
+    const isDragOver = dragOverInfo?.id === n.id;
+    const indentPx = 4 + depth * 14;
+
+    // Reordering is only ever allowed between true siblings.
+    const parentKey =
+      normalizeParentId(n.parentId) && tree.byId.has(normalizeParentId(n.parentId))
+        ? normalizeParentId(n.parentId)
+        : null;
+    const siblings = parentKey === null ? tree.roots : tree.childrenOf.get(parentKey) || [];
+    const canReorder = reorderable && !isMultiSelecting && Boolean(onReorderNotes);
 
     return (
-      <li key={n.id} data-note-id={n.id} data-depth={depth}>
+      <li key={n.id} data-note-id={n.id} data-depth={depth} className="relative">
         <div
-          className={`group flex items-center gap-1 rounded-lg pr-1 transition-colors ${
-            isActive ? "bg-ink-800 text-ink-100" : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
-          }`}
-          style={{ paddingLeft: `${4 + depth * 14}px` }}
+          onDragOver={
+            canReorder
+              ? (e) => {
+                  const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+                  if (!sourceId || sourceId === n.id) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!siblings.some((sib) => sib.id === sourceId)) {
+                    e.dataTransfer.dropEffect = "none";
+                    setDragOverInfo((prev) => (prev?.id === n.id ? null : prev));
+                    return;
+                  }
+                  e.dataTransfer.dropEffect = "move";
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const position = e.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+                  setDragOverInfo((prev) =>
+                    prev?.id === n.id && prev?.position === position ? prev : { id: n.id, position }
+                  );
+                }
+              : undefined
+          }
+          onDragLeave={
+            canReorder
+              ? (e) => {
+                  e.stopPropagation();
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setDragOverInfo((prev) => (prev?.id === n.id ? null : prev));
+                  }
+                }
+              : undefined
+          }
+          onDrop={
+            canReorder
+              ? (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+                  endDrag();
+                  if (!sourceId || sourceId === n.id) return;
+                  if (!siblings.some((sib) => sib.id === sourceId)) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  dropOnSibling(siblings, sourceId, n.id, e.clientY >= rect.top + rect.height / 2);
+                }
+              : undefined
+          }
+          className={`group relative flex items-center gap-1 rounded-lg pr-1 transition-colors ${
+            isMultiSelecting && isSelected
+              ? "bg-duck-500/15 text-duck-200 ring-1 ring-duck-400/40"
+              : isActive
+              ? "bg-ink-800 text-ink-100"
+              : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
+          } ${isDragging ? "opacity-30" : draggingNoteId ? "opacity-60" : ""}`}
+          style={{ paddingLeft: `${indentPx}px` }}
         >
+          {isDragOver && (
+            <div
+              aria-hidden="true"
+              style={{ left: `${indentPx}px` }}
+              className={`pointer-events-none absolute right-0 z-20 h-0.5 rounded-full bg-duck-400 ${
+                dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
+              }`}
+            />
+          )}
+
+          {isMultiSelecting ? (
+            <button
+              type="button"
+              onClick={() => toggleSelectNote(n.id)}
+              title={isSelected ? "Deselect note" : "Select note"}
+              aria-pressed={isSelected}
+              className="flex h-5 w-5 shrink-0 items-center justify-center"
+            >
+              <span
+                className={`flex h-4 w-4 items-center justify-center rounded transition-colors ${
+                  isSelected
+                    ? "border border-duck-400 bg-duck-500 text-ink-950"
+                    : "border border-ink-600 bg-ink-850 hover:border-duck-400/70"
+                }`}
+              >
+                {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+              </span>
+            </button>
+          ) : canReorder ? (
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                setDraggingNoteId(n.id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", n.id);
+              }}
+              onDragEnd={endDrag}
+              title="Drag to reorder note"
+              className="flex h-5 w-5 shrink-0 cursor-grab items-center justify-center text-ink-600 opacity-0 transition-opacity hover:text-duck-300 active:cursor-grabbing group-hover:opacity-100"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </div>
+          ) : null}
+
           {hasChildren ? (
             <button
               type="button"
@@ -167,7 +367,7 @@ export default function NotesPanel({
           )}
           <button
             type="button"
-            onClick={() => onSelectNote?.(n)}
+            onClick={() => (isMultiSelecting ? toggleSelectNote(n.id) : onSelectNote?.(n))}
             className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-[13px]"
             title={n.title || "Untitled Note"}
           >
@@ -177,14 +377,16 @@ export default function NotesPanel({
             </span>
             {n.isFavorite && <Star className="h-3 w-3 shrink-0 fill-duck-400 text-duck-400" />}
           </button>
-          <NoteMenu
-            mode="sidebar"
-            note={n}
-            {...menuProps}
-            variant="icon"
-            align="right"
-            className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-          />
+          {!isMultiSelecting && (
+            <NoteMenu
+              mode="sidebar"
+              note={n}
+              {...menuProps}
+              variant="icon"
+              align="right"
+              className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+            />
+          )}
         </div>
         {hasChildren && isOpen && (
           <ul className="mt-0.5 space-y-0.5">{children.map((c) => renderRow(c, depth + 1))}</ul>
@@ -309,15 +511,92 @@ export default function NotesPanel({
         <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
           {searchResults ? `${searchResults.length} found` : "Notes"}
         </p>
-        <button
-          type="button"
-          onClick={onCreateNote}
-          title="New note"
-          className="rounded-md p-1 text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          {notes.length > 0 && !searchResults && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsMultiSelecting((v) => !v);
+                setSelectedNoteIds(new Set());
+                endDrag();
+              }}
+              title={isMultiSelecting ? "Exit multi-select mode" : "Select multiple notes"}
+              aria-pressed={isMultiSelecting}
+              className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                isMultiSelecting
+                  ? "bg-duck-500/20 font-semibold text-duck-300 ring-1 ring-duck-400/40"
+                  : "text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+              }`}
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+              <span>{isMultiSelecting ? "Done" : "Select"}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCreateNote}
+            title="New note"
+            className="rounded-md p-1 text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {isMultiSelecting && (
+        <div className="mx-3 mt-2 space-y-2 rounded-xl border border-ink-750 bg-ink-850/90 p-2">
+          <div className="flex items-center justify-between px-1 text-xs font-medium">
+            <span className="text-ink-200">
+              <strong className="font-bold text-duck-300">{selectedNoteIds.size}</strong> of {notes.length} selected
+            </span>
+            <button
+              type="button"
+              onClick={handleSelectAllToggle}
+              className="text-[11px] font-medium text-duck-400 hover:text-duck-300 hover:underline"
+            >
+              {selectedNoteIds.size === notes.length ? "Deselect all" : "Select all"}
+            </button>
+          </div>
+          <div className="grid grid-cols-4 gap-1 border-t border-ink-800/80 pt-1.5">
+            <BulkAction
+              icon={Star}
+              label={allSelectedAreStarred ? "Unstar" : "Star"}
+              title={allSelectedAreStarred ? "Unstar selected notes" : "Star selected notes"}
+              disabled={selectedNoteIds.size === 0}
+              iconClass={`text-duck-400 ${allSelectedAreStarred ? "fill-duck-400" : ""}`}
+              onClick={() => onToggleFavoriteMultipleNotes?.(Array.from(selectedNoteIds))}
+            />
+            <BulkAction
+              icon={Copy}
+              label="Copy"
+              title="Duplicate selected notes"
+              disabled={selectedNoteIds.size === 0}
+              iconClass="text-ink-300"
+              onClick={() => {
+                const ids = Array.from(selectedNoteIds);
+                setSelectedNoteIds(new Set());
+                onDuplicateMultipleNotes?.(ids);
+              }}
+            />
+            <BulkAction
+              icon={FolderInput}
+              label="Move"
+              title="Move selected notes to another space"
+              disabled={selectedNoteIds.size === 0}
+              iconClass="text-ink-300"
+              onClick={() => setBatchMoveOpen(true)}
+            />
+            <BulkAction
+              icon={Trash2}
+              label="Delete"
+              title="Move selected notes to trash"
+              disabled={selectedNoteIds.size === 0}
+              iconClass="text-gap-400"
+              onClick={() => setBatchDeleteOpen(true)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="mt-1 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {notes.length === 0 ? (
@@ -336,10 +615,36 @@ export default function NotesPanel({
           searchResults.length === 0 ? (
             <p className="px-2 py-4 text-center text-xs text-ink-500">Nothing matches “{query}”.</p>
           ) : (
-            <ul className="space-y-0.5">{searchResults.map((n) => renderRow(n, 0, { showChevron: false }))}</ul>
+            <ul className="space-y-0.5">
+              {searchResults.map((n) => renderRow(n, 0, { showChevron: false, reorderable: false }))}
+            </ul>
           )
         ) : (
-          <ul className="space-y-0.5" data-testid="sidebar-note-tree">
+          <ul
+            className="space-y-0.5"
+            data-testid="sidebar-note-tree"
+            onDragOver={(e) => {
+              if (isMultiSelecting || e.target !== e.currentTarget) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              if (isMultiSelecting || e.target !== e.currentTarget) return;
+              e.preventDefault();
+              const sourceId = draggingNoteId || e.dataTransfer.getData("text/plain");
+              endDrag();
+              if (!sourceId) return;
+              // Dropping on the empty space below the list sends a top-level
+              // note to the end; sub-pages keep their parent.
+              const roots = tree.roots;
+              const fromIdx = roots.findIndex((item) => item.id === sourceId);
+              if (fromIdx === -1 || fromIdx === roots.length - 1) return;
+              const updated = [...roots];
+              const [moved] = updated.splice(fromIdx, 1);
+              updated.push(moved);
+              onReorderNotes?.(activeSpace, updated);
+            }}
+          >
             {tree.roots.map((n) => renderRow(n, 0))}
           </ul>
         )}
@@ -381,6 +686,31 @@ export default function NotesPanel({
         canDelete={spaces.length > 1}
         spaces={spaces}
       />
+      <BatchDeleteConfirmModal
+        open={batchDeleteOpen}
+        count={selectedNoteIds.size}
+        notes={selectedNotesList}
+        onClose={() => setBatchDeleteOpen(false)}
+        onConfirm={async () => {
+          const ids = Array.from(selectedNoteIds);
+          setBatchDeleteOpen(false);
+          setSelectedNoteIds(new Set());
+          await onDeleteMultipleNotes?.(ids);
+        }}
+      />
+      <BatchMoveModal
+        open={batchMoveOpen}
+        count={selectedNoteIds.size}
+        currentSpace={activeSpace}
+        spaces={spaces}
+        onClose={() => setBatchMoveOpen(false)}
+        onSelectTargetSpace={async (targetSpace) => {
+          const ids = Array.from(selectedNoteIds);
+          setBatchMoveOpen(false);
+          setSelectedNoteIds(new Set());
+          await onMoveMultipleNotes?.(ids, targetSpace);
+        }}
+      />
       <TrashModal
         open={trashOpen}
         onClose={() => setTrashOpen(false)}
@@ -391,5 +721,21 @@ export default function NotesPanel({
         onPermanentlyDeleteAll={onPermanentlyDeleteAllNotes}
       />
     </aside>
+  );
+}
+
+/** One cell of the bulk-action grid: icon over a one-word label. */
+function BulkAction({ icon: Icon, label, title, disabled, onClick, iconClass = "" }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-ink-300 transition-colors hover:bg-ink-800 hover:text-ink-100 disabled:pointer-events-none disabled:opacity-30"
+    >
+      <Icon className={`h-3.5 w-3.5 ${iconClass}`} />
+      <span className="text-[10px] font-medium leading-none">{label}</span>
+    </button>
   );
 }

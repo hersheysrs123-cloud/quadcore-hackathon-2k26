@@ -1641,7 +1641,7 @@ export function TrashModal({
 }
 
 // ─── Batch Delete Confirmation Dialog ────────────────────────────────
-function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
+export function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
   if (!open || count === 0) return null;
 
   return (
@@ -1720,7 +1720,7 @@ function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }
 }
 
 // ─── Batch Move to Space Modal ──────────────────────────────────────
-function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
+export function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
   if (!open || count === 0) return null;
 
   return (
