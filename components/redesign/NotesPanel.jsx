@@ -51,6 +51,7 @@ export default function NotesPanel({
   onEditSpace,
   onDeleteSpace,
   onOpenSpaceHub,
+  spaceSwitcherLayout = "dropdown",
   notesBySpace = {},
   activeNoteId,
   onSelectNote,
@@ -395,9 +396,65 @@ export default function NotesPanel({
     );
   }
 
+  const isGrid = spaceSwitcherLayout === "grid";
+
   return (
     <aside className="no-print flex h-full w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900">
-      {/* Space switcher */}
+      {/* Space switcher — a dropdown trigger, or a one-click tile grid. */}
+      {isGrid ? (
+        <div className="px-3 pt-3">
+          <div className="grid grid-cols-2 gap-1.5">
+            {spaces.map((s) => {
+              const active = s.name === activeSpace;
+              return (
+                <div
+                  key={s.name}
+                  className={`group/sp relative flex items-center rounded-xl border px-2 py-2 transition-colors ${
+                    active
+                      ? "border-duck-500/60 bg-duck-500/15 font-semibold text-duck-300"
+                      : "border-ink-750 bg-ink-850/80 text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-ink-100"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSelectSpace?.(s.name)}
+                    title={`Switch to ${s.name}`}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  >
+                    <span className="shrink-0 text-sm leading-none">{s.icon || "📂"}</span>
+                    <span className="truncate text-xs">{s.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingSpace(s)}
+                    title="Edit space"
+                    className="ml-1 shrink-0 rounded p-0.5 text-ink-500 opacity-0 transition-opacity hover:bg-ink-700 hover:text-ink-100 group-hover/sp:opacity-100"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-1.5 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-duck-400 hover:bg-ink-850"
+            >
+              <Plus className="h-3 w-3" /> New space
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenSpaceHub?.()}
+              title="Space settings & syllabus"
+              className="flex items-center justify-center rounded-lg px-2 py-1.5 text-ink-400 hover:bg-ink-850 hover:text-ink-100"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="relative px-3 pt-3" ref={switcherRef}>
         <button
           type="button"
@@ -487,6 +544,7 @@ export default function NotesPanel({
           </div>
         )}
       </div>
+      )}
 
       {/* Search */}
       <div className="px-3 pt-2">

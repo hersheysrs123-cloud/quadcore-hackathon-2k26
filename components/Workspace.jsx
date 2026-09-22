@@ -249,6 +249,31 @@ export default function Workspace() {
     []
   );
 
+  // Space switcher layout ("dropdown" | "grid"). Settings owns the control,
+  // NotesPanel renders it, so the preference has to live here between them.
+  const spaceSwitcherLayout = useLiveQuery(
+    async () => {
+      const item = await db.settings.get("space_switcher_layout");
+      return item?.value === "grid" ? "grid" : "dropdown";
+    },
+    [],
+    "dropdown"
+  );
+
+  const handleSpaceSwitcherLayoutChange = useCallback(async (layout) => {
+    const next = layout === "grid" ? "grid" : "dropdown";
+    try {
+      localStorage.setItem("socraticos_space_switcher_layout", next);
+    } catch {
+      /* convenience mirror only */
+    }
+    try {
+      await db.settings.put({ key: "space_switcher_layout", value: next });
+    } catch (err) {
+      console.error("Failed to save space switcher layout setting:", err);
+    }
+  }, []);
+
   const liveSessions = useLiveQuery(
     async () => {
       if (!db.studySessions) return [];
@@ -1856,6 +1881,7 @@ export default function Workspace() {
           onEditSpace={handleEditSpace}
           onDeleteSpace={handleDeleteSpace}
           onOpenSpaceHub={() => setActiveTab("spacehub")}
+          spaceSwitcherLayout={spaceSwitcherLayout}
           notesBySpace={notesBySpace}
           activeNoteId={activeNoteObj?.id || null}
           onSelectNote={handleSelectNote}
@@ -2134,6 +2160,8 @@ export default function Workspace() {
         setTheme={setTheme}
         onResetData={handleResetData}
         spaces={spaces}
+        spaceSwitcherLayout={spaceSwitcherLayout}
+        onSpaceSwitcherLayoutChange={handleSpaceSwitcherLayoutChange}
         onStartTutorial={() => {
           setSettingsOpen(false);
           setTutorialOpen(true);
