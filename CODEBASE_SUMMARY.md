@@ -1,19 +1,19 @@
 # SocraticOS — Comprehensive Codebase Summary & Handover Guide
 
 > **To any AI Assistant or Developer taking over**: 
-> This document provides an exhaustive, authoritative technical overview of **SocraticOS** (`quadcore-hackathon-2k26`). It explains the architecture, local-first IndexedDB storage model, UI component hierarchy, 20-block note editor, 51-topic 3D scientific simulation studio across 5 STEM domains, AI tutoring & diagnostic quiz engines, multi-timer HUD system, export/import engine, design system tokens, and operational gotchas.
+> This document provides an exhaustive, authoritative technical overview of **SocraticOS** (`quadcore-hackathon-2k26`). It explains the architecture, local-first IndexedDB storage model, Literature poem annotation, UI component hierarchy, 20-block note editor, 51-topic 3D scientific simulation studio across 5 STEM domains, AI tutoring & diagnostic quiz engines, multi-timer HUD system, export/import engine, design system tokens, and operational gotchas.
 
 ---
 
 ## 📌 1. Executive Summary & Tech Stack
 
-**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes across 7 question types, an interactive space-grounded AI Tutor, multi-timer HUDs, website bookmarking with folder hierarchies, and an aggregate mastery heatmap tracking sub-topic confidence over time.
+**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes across 7 question types, an interactive space-grounded AI Tutor, multi-timer HUDs, website bookmarking with folder hierarchies, a Literature workspace for annotating poems with overlapping close-reading analysis, and an aggregate mastery heatmap tracking sub-topic confidence over time.
 
 ### Tech Stack:
 - **Framework**: Next.js 15.0.0 (App Router, Turbopack / Webpack build engine)
 - **UI & Logic**: React 19 (Server & Client Components), Tailwind CSS v4 (`@tailwindcss/postcss`, dynamic CSS variable design tokens)
 - **State Management & Hooks**: **Zustand** v5 (`persist` middleware, auto-sleep ticker engine) + **usehooks-ts** v3 (`useOnClickOutside` standardized event hooks)
-- **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v8) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, folders, bookmarks, quizzes, quiz trash, space documents, and graphics settings
+- **Database & Storage**: Local-first IndexedDB via **Dexie.js** (`SocraticOS_LocalDB` v9) — 100% offline, private, zero-latency browser storage for notes, trash, calendar events, study sessions, alarms, folders, bookmarks, quizzes, quiz trash, space documents, Literature poems, and graphics settings
 - **AI Integration**: Direct **Google Gemini API** (`lib/gemini.js` with OpenAPI 3.0 schema enforcement) + Client-side Dexie API Key storage with fallback to `/api/` server routes (`app/api/explain`, `app/api/quiz/generate`, `app/api/quiz/grade`, `app/api/reformat`, `app/api/tutor/chat`). `lib/aiService.js` provides isomorphic client/server AI orchestration
 - **3D Engine**: Three.js (r185), `@react-three/fiber` (v9), `@react-three/drei` (v10), custom Canvas engines with OrbitControls, procedural & clinical CT geometry, and WebGL lifecycle memory management
 - **Math & Equation Engine**: KaTeX (`katex`) for full block and in-sentence `$formula$` inline math rendering
@@ -29,7 +29,7 @@ The annotated file tree is split by area so each file stays readable:
 
 | File | Covers |
 | :--- | :--- |
-| [file-map-app-and-components.md](docs/codebase/file-map-app-and-components.md) | `app/` (pages, API routes, error boundaries) and `components/` (28 app-UI components) |
+| [file-map-app-and-components.md](docs/codebase/file-map-app-and-components.md) | `app/` (pages, API routes, error boundaries) and `components/` (29 app-UI components + `components/literature/`) |
 | [file-map-3d-visualizations.md](docs/codebase/file-map-3d-visualizations.md) | `components/visualizations/` — every 3D scene, the shared kits and the topic registry |
 | [file-map-lib.md](docs/codebase/file-map-lib.md) | `lib/` — one pure engine per 3D topic, plus storage, AI, export and editor services |
 | [file-map-tests-scripts-docs.md](docs/codebase/file-map-tests-scripts-docs.md) | `tests/` (78 unit files, integration, e2e, the four guardrails), `scripts/`, `docs/` and root files |
@@ -41,7 +41,7 @@ components, each with one job:
 
 | Component | Owns |
 | :--- | :--- |
-| `NavRail.jsx` | The always-visible left rail: the seven sections (Home, Notes, Quizzes, Mastery, Calendar, 3D Lab, Saved), the running-timer readout, quick capture, search, theme toggle and Settings |
+| `NavRail.jsx` | The always-visible left rail: the eight sections (Home, Notes, Quizzes, Mastery, Calendar, 3D Lab, Literature, Saved), the running-timer readout, quick capture, search, theme toggle and Settings |
 | `NotesPanel.jsx` | The contextual panel shown **only** in Notes: space switcher (dropdown or grid), search, the nested note tree, drag-to-reorder, multi-select bulk actions, Trash |
 | `TopBar.jsx` | Breadcrumb with overflow menu, back/forward, panel toggle, save status, the Explain / Quiz me / Tutor switcher, the note `⋯` menu and focus mode |
 | `HomeView.jsx` | The Home overview: greeting, counts, recent notes, the timer HUD and the tutorial entry point |
@@ -66,11 +66,12 @@ shell behaviour is in question.
 | [3d-cs-and-math.md](docs/codebase/3d-cs-and-math.md) | C — the 2 computer-science and 3 mathematics scenes |
 | [ai-quizzes-and-mastery.md](docs/codebase/ai-quizzes-and-mastery.md) | E — AI tutor, explain, reformatter · F — Quizzes Studio, generation, grading, mastery |
 | [spaces-export-and-web-saver.md](docs/codebase/spaces-export-and-web-saver.md) | G — Space Hub · H — export/import/backup · I — web saver · J — trash and reset |
+| [literature.md](docs/codebase/literature.md) | M — Literature: the poem/annotation model, the pure range logic, the selection↔range DOM contract, the components and where it plugs into the shell |
 | [tutorial-and-performance.md](docs/codebase/tutorial-and-performance.md) | K — onboarding tutorial · L — performance architecture |
 
 ## 🗄️ 4. Local-First Database Architecture
 
-Dexie schema v8, all 12 object stores and where the network is used: [database.md](docs/codebase/database.md).
+Dexie schema v9, all 13 object stores and where the network is used: [database.md](docs/codebase/database.md).
 
 ## 🎨 5. Design System Quick Reference
 

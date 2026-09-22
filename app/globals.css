@@ -1419,3 +1419,173 @@ html.light .katex-inline-node:hover {
 .katex-inline-node .katex {
   color: inherit !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Literature — poem canvas
+   ═══════════════════════════════════════════════════════════════
+   The one part of the Literature section Tailwind cannot express.
+   Overlapping annotations are drawn as STACKED UNDERLINES built from
+   layered linear-gradients on the segment's own background, because:
+
+     · every visual state is a background layer, so turning a highlight
+       on or off never changes metrics and never reflows the poem;
+     · a segment covered by three annotations needs three lines at three
+       different offsets, which no border or text-decoration can do;
+     · the text stays a flat run of spans, so selection offsets (and the
+       `data-start` contract PoemCanvas relies on) stay exact.
+
+   Depth 1 is the duck accent nearest the text, depth 2 adds a muted
+   second line, depth 3+ adds a third. `--lit-u-pad` is the reserved
+   space beneath each line that the stack is drawn into. */
+.lit-poem {
+  --lit-u-pad: 11px;
+  counter-reset: lit-ln;
+}
+
+.lit-line {
+  position: relative;
+  padding-left: 2px;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Line numbers appear on hover only: always-on numbering competes with the
+   poem for attention, and this is a reading surface first. */
+.lit-line::before {
+  counter-increment: lit-ln;
+  content: counter(lit-ln);
+  position: absolute;
+  left: -34px;
+  width: 24px;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-600);
+  top: 0.9em;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.lit-poem:hover .lit-line::before {
+  opacity: 1;
+}
+
+.lit-line.is-blank {
+  height: 1.1em;
+  line-height: 1.1em;
+}
+
+.lit-line.is-blank::before {
+  content: "";
+  counter-increment: lit-ln;
+}
+
+.lit-seg {
+  padding-bottom: var(--lit-u-pad);
+  background-repeat: no-repeat;
+  background-image: none;
+  border-radius: 1px;
+}
+
+.lit-seg.has-ann {
+  cursor: pointer;
+  background-image:
+    linear-gradient(to bottom, var(--lit-tint, transparent) 0 calc(100% - var(--lit-u-pad)), transparent 0),
+    var(--lit-u-layers, none);
+}
+
+.lit-seg[data-depth="1"] {
+  --lit-u-layers:
+    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px);
+}
+
+.lit-seg[data-depth="2"] {
+  --lit-u-layers:
+    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px),
+    linear-gradient(to top, transparent 0 4px, var(--color-duck-700) 4px 6px, transparent 6px);
+}
+
+.lit-seg[data-depth="3"] {
+  --lit-u-layers:
+    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px),
+    linear-gradient(to top, transparent 0 4px, var(--color-duck-700) 4px 6px, transparent 6px),
+    linear-gradient(to top, transparent 0 0, var(--color-shaky-500) 0 2px, transparent 2px);
+}
+
+.lit-seg.has-ann:hover {
+  --lit-tint: color-mix(in srgb, var(--color-duck-400) 12%, transparent);
+}
+
+.lit-seg.is-hot {
+  --lit-tint: color-mix(in srgb, var(--color-duck-400) 18%, transparent);
+}
+
+.lit-seg.is-open {
+  --lit-tint: color-mix(in srgb, var(--color-duck-400) 28%, transparent);
+}
+
+/* Numbered markers. The digits live in a pseudo-element so they are invisible
+   both to text selection and to the character-offset maths in PoemCanvas —
+   put them in a text node and every range after the first marker shifts. */
+.lit-marker {
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  vertical-align: super;
+  color: var(--color-duck-300);
+  background: color-mix(in srgb, var(--color-duck-400) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-duck-400) 35%, transparent);
+  border-radius: 3px;
+  padding: 1.5px 3px 1.5px 3.5px;
+  margin: 0 1px 0 1.5px;
+  cursor: pointer;
+  user-select: none;
+  display: inline-block;
+  position: relative;
+  top: -0.15em;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.lit-marker::after {
+  content: attr(data-n);
+}
+
+.lit-marker:hover,
+.lit-marker.is-hot {
+  background: var(--color-duck-400);
+  color: var(--color-ink-950);
+  border-color: var(--color-duck-400);
+}
+
+.lit-marker.is-open {
+  background: var(--color-duck-300);
+  color: var(--color-ink-950);
+  border-color: var(--color-duck-300);
+}
+
+/* A marker for the 2nd+ phrase of a multi-part annotation is dimmed, so a
+   rhyme pair reads as "one note, seen twice" rather than as two notes. */
+.lit-marker.is-part {
+  opacity: 0.72;
+}
+
+/* Test mode: the poem stays perfectly readable and only the analysis is
+   hidden, because the point is recall of your own reading, not of the text. */
+.lit-blurable.is-hidden {
+  filter: blur(5px);
+  opacity: 0.85;
+  user-select: none;
+  cursor: pointer;
+  color: var(--color-ink-500);
+}
+
+.lit-blurable.is-hidden * {
+  pointer-events: none;
+}

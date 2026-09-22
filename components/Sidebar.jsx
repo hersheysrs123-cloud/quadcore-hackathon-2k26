@@ -51,6 +51,8 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
       ? "Notes & Content Blocks"
       : target === "calendar"
       ? "Calendar Events"
+      : target === "literature"
+      ? "Literature Poems & Annotations"
       : "ALL WORKSPACE DATA";
 
   const isConfirmed = userAnswer.trim() === "RESET";
@@ -1004,6 +1006,21 @@ export function SettingsModal({
                     </div>
                   </div>
                   <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Events</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetTarget("literature")}
+                  className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">📖</span>
+                    <div>
+                      <div className="font-bold text-ink-100">Factory Reset Literature</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Clear all poems and annotations</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Poems</span>
                 </button>
               </div>
 

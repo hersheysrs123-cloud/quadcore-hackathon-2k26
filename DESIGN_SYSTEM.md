@@ -103,6 +103,8 @@ SocraticOS features 3 per-note typography font families configured in `app/globa
 
 Two further classes, `.font-note-handwriting` (Caveat) and `.font-note-geometric` (Plus Jakarta Sans), are defined in `app/globals.css` but `NOTE_FONTS` in `NoteMenu.jsx` does not offer them, so the picker shows three.
 
+`.font-note-serif` has one use outside the note editor: the **Literature** section sets the poem, its title, and everything quoting it (annotation quotes, popover headers, phrase chips, line-editor inputs) in it, so quoted text always reads as *the poem* rather than as chrome. That is the only sanctioned crossing of the note-font / chrome line; everything else in Literature stays on `--font-ui`. See [literature-ui.md](docs/design/literature-ui.md).
+
 - **Note Title**: `text-4xl font-extrabold tracking-tight text-ink-100` (substantially larger than H1).
 - **Headings**:
   - **H1**: `text-3xl font-bold tracking-tight text-ink-100`
@@ -125,6 +127,7 @@ Component and pattern specs, one file per area (section numbers are unchanged fr
 | [print-and-export.md](docs/design/print-and-export.md) | 7 Print stylesheet · 8 Standalone HTML export · 29 Export preview |
 | [quizzes-and-mastery-ui.md](docs/design/quizzes-and-mastery-ui.md) | 11 Note combobox · 13 Deletion modal · 16 Quiz runner · 17 Quiz creator · 18 Sliders · 25 IGCSE question types · 26 Mastery dashboard |
 | [ai-and-spaces-ui.md](docs/design/ai-and-spaces-ui.md) | 14 AI reformatter · 19 Space Hub · 20 AI tutor drawer |
+| [literature-ui.md](docs/design/literature-ui.md) | 30 Literature: poem typography, the stacked-underline geometry, markers, blur/recall, panel drawers, z-index ladder |
 | [3d-studio-ui.md](docs/design/3d-studio-ui.md) | 21 Physics diagrams · 22 Contextual controls · 23 Sidebar resizing · 24 Respiratory · 27 Model credits · topic selector |
 
 ## 🛠️ Code Conventions for AI & Developers

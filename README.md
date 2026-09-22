@@ -33,6 +33,7 @@ Open [localhost:3000](http://localhost:3000) for the landing page or go straight
 | 🎯 **Quizzes** | Quizzes Studio with 7 question types (MCQ, multi-select, value input, code, step ordering, short answer, essay), resumable runs, review reports and a Solid / Shaky / Gap mastery heatmap |
 | 🧪 **3D Studio** | 51 simulations across five subjects, each with live controls, a Details tab and a colour key (below) |
 | ⏱️ **Focus** | Multi-timer HUD (Pomodoro, breaks, custom), study calendar, recurring alarms |
+| 📖 **Literature** | Annotate poems with overlapping close-reading analysis (stacked underlines, numbered markers, one note across several phrases), a Normal/Test recall mode, a line editor that keeps annotations attached, per-poem intro and conclusion, JSON backups |
 | 🔖 **Web Saver** | Bookmark folders per space with favicons; Netscape HTML import/export |
 | 📦 **Export** | `.socratic` backups, `.docx`, `.html`, `.txt`, `.md`, PDF via print, drag-and-drop import |
 | 🎓 **Tutorial** | 9-chapter interactive onboarding, replayable from Settings or the command palette |
@@ -50,6 +51,8 @@ The full tour is in [docs/FEATURES.md](docs/FEATURES.md).
 | `/` | Open the block menu on any line |
 | `Ctrl + Z` / `Ctrl + Y` | Undo / redo (`Ctrl + Shift + Z` also redoes) |
 | `$formula$` | Type inline LaTeX; it compiles to a KaTeX pill when you close the `$` |
+| `Ctrl/Cmd + E` | Literature: attach analysis to the words you have selected in a poem |
+| `Alt + T` | Literature: switch between Normal and Test mode |
 
 ## 🧪 3D Studio — 51 Topics
 
@@ -83,6 +86,7 @@ Every topic has a **Controls** tab and a live **Details** tab with calculated re
 app/            Pages (landing, /workspace, /visualizations) and the five AI routes under api/
 components/     App UI: Workspace, BlockNoteEditor, quiz and space views, timers, export
   redesign/         The application shell: NavRail, NotesPanel, TopBar, HomeView
+  literature/       The Literature section: poem canvas, analysis panel, popovers, line editor
   visualizations/   Every 3D scene, the shared kits, the topic registry (topics.js) and the HUD
 lib/            Pure engines (one per 3D topic) plus storage, AI, export and editor services
 tests/          Unit, integration, e2e, the caret-navigation suite and four guardrail tests
@@ -91,7 +95,7 @@ docs/           Feature guide, technical reference, design specs, audits
 
 ## 🛡️ Offline-First & Privacy
 
-- **All your data stays in the browser**: notes, quizzes, bookmarks and settings live in IndexedDB (`SocraticOS_LocalDB`, v8, 12 stores). There is no server database and no account.
+- **All your data stays in the browser**: notes, quizzes, bookmarks and settings live in IndexedDB (`SocraticOS_LocalDB`, v9, 13 stores). There is no server database and no account.
 - **Only the AI features use the network**: calls go from your browser to Google's Gemini API with your saved key, or through the five `/api/*` routes, which use `GOOGLE_API_KEY` from `.env.local` and return `503` with a clear message if it is missing.
 
 ## 🎨 Design

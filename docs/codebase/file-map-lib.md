@@ -66,8 +66,10 @@ quadcore-hackathon-2k26/
 │   ├── mathUtils.js                      # LaTeX delimiter parsing & regex segmentation for MathText
 │   ├── schemas.js                        # OpenAPI 3.0 schemas for Gemini structured outputs
 │   ├── shadowOptics.js                   # Geometric shadow formation solver, bench constraints, umbra/penumbra, signed 3D rotation projection & materials
+│   ├── literature.js                     # Pure poem/annotation logic: ranges, overlap segmentation, reading-order numbering, line remapping, import sanitising (no DOM, no Dexie)
+│   ├── literatureService.js              # Dexie CRUD for db.poems, JSON import/export, one-time legacy-localStorage adoption & sample seeding, UI prefs
 │   ├── noteHierarchy.js                  # Pure, cycle-safe nested sub-page helpers (tree build, descendants, ancestors/breadcrumbs, deep tree clone, restore parent resolution)
-│   ├── storageService.js                 # Dexie CRUD service for notes (subtree-cascading trash/restore/move), folders, bookmarks, trash, calendar, alarms, quizzes, space documents, extractSyllabusTextFromFile & reset
+│   ├── storageService.js                 # Dexie CRUD service for notes (subtree-cascading trash/restore/move), folders, bookmarks, trash, calendar, alarms, quizzes, space documents, extractSyllabusTextFromFile & reset (space rename/delete and factory reset also cover db.poems)
 │   ├── syntaxHighlighter.js              # PrismJS-powered AST tokenizer & syntax highlighter for 10 programming languages
 │   ├── timerStore.js                     # Reactive Zustand multi-timer store with persist middleware, legacy migration & 0% idle CPU auto-sleep ticker
 │   ├── tutorialData.js                   # Authoritative registry of 9 onboarding tutorial chapters & 19 editor blocks

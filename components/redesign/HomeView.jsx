@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import {
   ArrowRight,
   BarChart3,
+  BookOpen,
   Box,
   CalendarDays,
   Check,
@@ -115,6 +116,24 @@ export default function HomeView({
       return 0;
     }
   }, [activeSpace]);
+
+  /* One query for both numbers: the annotation count is only derivable by
+     reading the poems anyway, so counting separately would fetch them twice. */
+  const literatureStats = useLiveQuery(async () => {
+    try {
+      if (!db.poems) return { poems: 0, annotations: 0 };
+      const rows = await db.poems.where("spaceId").equals(activeSpace).toArray();
+      return {
+        poems: rows.length,
+        annotations: rows.reduce((sum, p) => sum + (p.annotations?.length || 0), 0),
+      };
+    } catch {
+      return { poems: 0, annotations: 0 };
+    }
+  }, [activeSpace]);
+
+  const poemCount = literatureStats?.poems ?? 0;
+  const annotationCount = literatureStats?.annotations ?? 0;
 
   const steps = [
     { label: "Open a note and read it", done: spaceNotes.length > 0, action: () => recent[0] && onOpenNote?.(recent[0]) },
@@ -347,6 +366,35 @@ export default function HomeView({
               className="ml-auto flex items-center gap-2 rounded-xl border border-ink-800 px-3.5 py-2 text-sm font-medium text-ink-200 transition-colors hover:border-ink-700 hover:bg-ink-850"
             >
               <Plus className="h-4 w-4" /> Create a quiz
+            </button>
+          </div>
+        </Card>
+
+        {/* Literature */}
+        <Card
+          title="Literature"
+          icon={BookOpen}
+          className="lg:col-span-5"
+          action={<LinkButton onClick={() => onNavigate?.("literature")}>Open Literature</LinkButton>}
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums text-ink-100">{poemCount ?? 0}</span>
+              <span className="text-sm text-ink-500">
+                {poemCount === 1 ? "poem" : "poems"} in {activeSpace}
+              </span>
+            </div>
+            <div className="h-8 w-px bg-ink-800" aria-hidden="true" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums text-ink-100">{annotationCount ?? 0}</span>
+              <span className="text-sm text-ink-500">analysis notes</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate?.("literature")}
+              className="ml-auto flex items-center gap-2 rounded-xl border border-ink-800 px-3.5 py-2 text-sm font-medium text-ink-200 transition-colors hover:border-ink-700 hover:bg-ink-850"
+            >
+              <BookOpen className="h-4 w-4" /> Annotate a poem
             </button>
           </div>
         </Card>

@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Box,
   Bookmark,
+  BookOpen,
   Clock,
   Zap,
   Search,
@@ -33,6 +34,7 @@ const SECTIONS = [
   { id: "mastery", label: "Mastery", icon: BarChart3, hint: "What you actually understood" },
   { id: "calendar", label: "Calendar", icon: CalendarDays, hint: "Schedule, timers and alarms" },
   { id: "3d", label: "3D Lab", icon: Box, hint: "Interactive 3D models" },
+  { id: "literature", label: "Literature", icon: BookOpen, hint: "Annotate and revise poems" },
   { id: "websaver", label: "Saved", icon: Bookmark, hint: "Bookmarks and links" },
 ];
 

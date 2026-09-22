@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Search, Settings, FileText, Calendar, Box, Activity, Bookmark, Globe } from "lucide-react";
+import { Search, Settings, FileText, Calendar, Box, Activity, Bookmark, BookOpen, Globe } from "lucide-react";
 import { db } from "@/lib/db";
 import { getAncestorChain, formatBreadcrumbText } from "@/lib/noteHierarchy";
 
@@ -37,6 +37,7 @@ export default function CommandPalette({
       { id: "action_calendar", type: "View", title: "Open Calendar", icon: <Calendar size={16} />, onSelect: () => setActiveTab("calendar") },
       { id: "action_websaver", type: "View", title: "Open Web Saver (Bookmarks)", icon: <Bookmark size={16} />, onSelect: () => setActiveTab("websaver") },
       { id: "action_3d", type: "View", title: "Open 3D Visualizations", icon: <Box size={16} />, onSelect: () => setActiveTab("3d") },
+      { id: "action_literature", type: "View", title: "Open Literature (Poems & Analysis)", icon: <BookOpen size={16} />, onSelect: () => setActiveTab("literature") },
       { id: "action_quizzes", type: "View", title: "Open Quizzes Studio", icon: <span>🎯</span>, onSelect: () => setActiveTab("quizzes") },
       { id: "action_mastery", type: "View", title: "Open Mastery Dashboard", icon: <Activity size={16} />, onSelect: () => setActiveTab("mastery") },
     ];

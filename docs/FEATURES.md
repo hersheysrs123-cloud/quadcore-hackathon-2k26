@@ -177,15 +177,28 @@ A comprehensive suite of 51 real-time interactive 3D STEM simulations built usin
 - **Netscape HTML Bookmarks Import & Export** ([`exportImport.js`](../lib/exportImport.js)): One-click import and export of standard Netscape HTML bookmarks files (`<!DOCTYPE NETSCAPE-Bookmark-file-1>`), compatible with Chrome, Firefox, Safari, Edge, Arc, and Brave.
 - **Quick Add Bookmark Modal** ([`AddBookmarkModal.jsx`](../components/AddBookmarkModal.jsx)): Instant URL paste, live favicon preview, folder selector, tag management with chip badges, and keyboard shortcuts (`Escape` closes, `Ctrl+Enter` saves).
 
-### 📦 10. Multi-Format Export, Import & Backup Engine
+### 📖 10. Literature — Poem Annotation & Revision
+
+- **Layered Close Reading** ([`LiteratureView.jsx`](../components/LiteratureView.jsx)): Build up an annotated reading of a poem line by line, then revise from it. Poems live in the active space alongside its notes and quizzes.
+- **Overlapping Annotations, Properly**: Select any words — across line *and* stanza breaks — and attach analysis. Annotated words carry an underline; where two annotations overlap a second line appears beneath them, a third adds another. Two completely different readings of *exactly* the same words are supported, and neither replaces the other. Clicking words covered by several annotations opens a chooser.
+- **One Analysis, Several Phrases**: To attach a single piece of analysis to two separate places — a pair of rhyme words, a repeated image — open the editor on the first phrase, then select the second in the poem and click **+ Add selected phrase**. Both appear as chips and save as one annotation, with dimmed superscript markers on the later parts.
+- **Numbered Markers in Reading Order**: Small superscript numbers mark where each annotation ends. Numbering is derived from position in the poem, not insertion order, so an annotation added halfway up renumbers everything below it automatically.
+- **Normal vs Test Mode (`Alt + T`)**: *Normal* keeps the poem clean — hover or click an annotation to read it, nothing is permanently printed beside the text. *Test* keeps the poem fully readable and blurs every analysis; click any card to reveal it, click again to hide, with **Reveal all** / **Hide all** in the header. The poem itself is never blurred: the thing being recalled is your reading of it.
+- **Line Editor with Annotation Remapping** ([`PoemLinesModal.jsx`](../components/literature/PoemLinesModal.jsx)): `Enter` starts a new line, `Backspace` on an empty line removes it, `Alt + ↑`/`↓` reorders, and pasting several lines at once splits them automatically. Moving lines keeps their annotations attached; deleting a line deletes the analysis attached to it, and the app reports exactly how much was dropped.
+- **Intro & Conclusion Drafting**: A per-poem introduction and conclusion, kept separately, autosaved as you type, with a live word count.
+- **JSON Backup & Restore**: **Export** downloads every poem, annotation, introduction and conclusion for the space; **Import** restores it, either adding alongside what you have or replacing it. The format is unchanged from the standalone Literature Revision app, so its backups import directly — including the older single-`range` annotation shape.
+- **Bundled Sample**: Shelley's *Ozymandias* ships as a marked "Sample" poem demonstrating an overlap, two readings of the same words, and one annotation spanning a rhyme pair. It is deletable in one click and never regrows.
+- **Keyboard**: `Cmd`/`Ctrl + E` attaches analysis to the current selection, `Alt + T` switches mode, `Esc` closes popovers and dialogs.
+
+### 📦 11. Multi-Format Export, Import & Backup Engine
 - **Workspace & Space Backups (.socratic)** ([`ExportImportModal.jsx`](../components/ExportImportModal.jsx)): Export entire spaces, folders, bookmarks, and individual notes into portable JSON `.socratic` packages.
 - **Netscape HTML Bookmarks (`.html`)**: Export space-filtered or complete bookmarks into browser-compliant HTML bookmark collections with tags and notes.
 - **Multi-Format Note Export with Pre-Download Preview** ([`ExportPreview.jsx`](../components/ExportPreview.jsx)): Preview files before downloading for **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), and **Markdown** (`.md`). Features authentic Microsoft Word sheet layouts with heading colors, browser mockup frames with dynamic auto-height sandbox iframes & embedded KaTeX math formulas, monospace text editors, dedicated full-document scroll container with wheel forwarding, and rendered/source code view toggles. **PDF** directly launches the native browser print preview dialog (`window.print()`).
 - **Drag-and-Drop Import**: Drag and drop `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, or `.md` files directly into target spaces.
 
-### 🎓 11. Interactive Onboarding Tutorial & Feature Walkthrough
+### 🎓 12. Interactive Onboarding Tutorial & Feature Walkthrough
 - **9 Interactive Chapters Covering 100+ Capabilities** ([`InteractiveTutorial.jsx`](../components/InteractiveTutorial.jsx)):
-  - **Philosophy & 100% Local-First Architecture**: Active retrieval vs rereading, 12-table Dexie.js v8 storage, and spaces workflow with interactive concept cards.
+  - **Philosophy & 100% Local-First Architecture**: Active retrieval vs rereading, 13-table Dexie.js v9 storage, and spaces workflow with interactive concept cards.
   - **19-Block Editor & KaTeX Studio**: Interactive category filter across all 19 block types and live typography font switcher (`Default Sans`, `Classic Serif`, `Developer Mono`).
   - **AI Study Suite**: Interactive 3-way drawer preview (AI Tutor Socratic chat, Explain Panel structured breakdown, and an **interactive live mini-quiz** with real-time feedback).
   - **Quizzes Studio & 7 Question Types**: Interactive question type explorer and live step-ordering puzzle.

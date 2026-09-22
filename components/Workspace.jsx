@@ -10,6 +10,7 @@ import HomeView from "@/components/redesign/HomeView";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
 import WebSaverView from "@/components/WebSaverView";
+import LiteratureView from "@/components/LiteratureView";
 import dynamic from "next/dynamic";
 const ThreeDView = dynamic(() => import("@/components/ThreeDView"), { ssr: false });
 import QuizStudioView from "@/components/QuizStudioView";
@@ -1963,7 +1964,7 @@ export default function Workspace() {
           className={`flex-1 transition-all duration-300 ease-in-out ${
             !isZenMode && studyKind ? "lg:mr-[480px] xl:mr-[520px]" : ""
           } ${
-            activeTab === "3d" || activeTab === "websaver" || activeTab === "quizzes"
+            activeTab === "3d" || activeTab === "websaver" || activeTab === "quizzes" || activeTab === "literature"
               ? "flex h-full min-h-0 flex-col overflow-hidden"
               : "overflow-y-auto"
           }`}
@@ -2033,6 +2034,10 @@ export default function Workspace() {
 
           {activeTab === "websaver" && (
             <WebSaverView activeSpace={activeSpace} spaces={spaces} />
+          )}
+
+          {activeTab === "literature" && (
+            <LiteratureView activeSpace={activeSpace} />
           )}
 
           {activeTab === "3d" && (

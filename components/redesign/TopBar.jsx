@@ -8,6 +8,7 @@ const SECTION_TITLES = {
   mastery: "Mastery",
   calendar: "Calendar",
   "3d": "3D Lab",
+  literature: "Literature",
   websaver: "Saved links",
 };
 

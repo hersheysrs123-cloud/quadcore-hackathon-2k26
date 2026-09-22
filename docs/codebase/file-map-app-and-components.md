@@ -38,6 +38,7 @@ quadcore-hackathon-2k26/
 │   ├── GlobalTimerHUD.jsx                # Unified header multi-timer dropdown with Pomodoro, breaks & custom timers
 │   ├── InstantNoteModal.jsx              # Ctrl+I 75% screen quick note capture window with space selection
 │   ├── InteractiveTutorial.jsx           # 9-chapter interactive onboarding walkthrough modal with live sandboxes & shortcuts
+│   ├── LiteratureView.jsx                # Literature section: poem list, Normal/Test modes, annotation lifecycle, import/export & responsive panel drawers
 │   ├── MarkdownRenderer.jsx              # Universal rich Markdown renderer (headings, syntax-highlighted code, KaTeX math, tables, lists)
 │   ├── MasteryDashboard.jsx              # Space-scoped topic mastery analytics dashboard, interactive space switcher & study recommendations
 │   ├── MathText.jsx                      # Universal KaTeX LaTeX & chemical formula renderer for quiz prompts, options & rubrics
@@ -50,4 +51,12 @@ quadcore-hackathon-2k26/
 │   ├── ThreeDView.jsx                    # 3D studio container with 51 interactive scientific simulations across 5 STEM domains, TopicSelectorDropdown & resizable HUD
 │   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
+│   │
+│   ├── literature/                       # Literature section internals — see docs/codebase/literature.md
+│   │   ├── PoemCanvas.jsx                # The poem itself + browser-selection → poem-range mapping (the .lit-line/.lit-seg/.lit-marker DOM contract)
+│   │   ├── AnalysisPanel.jsx             # Analysis side panel: an index in Normal mode, the blurred recall surface in Test mode
+│   │   ├── AnnotationPopover.jsx         # One anchored shell, three modes: view, choose (overlapping annotations) and edit (multi-phrase chips)
+│   │   ├── PoemLinesModal.jsx            # Line-by-line poem editor + the lineMap that keeps annotations attached; also exports ConfirmDialog
+│   │   ├── EssayPanel.jsx                # Per-poem Intro/Conclusion drafting, debounced autosave with flush on blur/unmount
+│   │   └── ImportPoemsModal.jsx          # Import preview with merge vs replace
 ```
