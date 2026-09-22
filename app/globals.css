@@ -1,8 +1,9 @@
-@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Caveat:wght@500;700&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
 :root {
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-note-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-note-serif: "Lora", "Charter", Georgia, "Times New Roman", serif;
   --font-note-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -38,89 +39,76 @@
 }
 
 @theme {
-  /* Default Neutral Ramp (Dark Mode) — lighter & warmer slate tones */
-  --color-ink-950: #12151e;
-  --color-ink-900: #181c27;
-  --color-ink-850: #1f2332;
-  --color-ink-800: #282d3f;
-  --color-ink-700: #363d54;
-  --color-ink-600: #4e5672;
-  --color-ink-500: #737c9a;
-  --color-ink-400: #9aa2bc;
-  --color-ink-200: #d6dbed;
-  --color-ink-100: #f1f3fa;
+  /* ── Redesign neutral ramp (dark) ──────────────────────────────────
+   * Cooler, quieter slate. Surfaces step by ~4-5 L* so panels, cards and
+   * hover states read as one calm system instead of competing boxes. */
+  --color-ink-950: #0b0d12;
+  --color-ink-900: #11141b;
+  --color-ink-850: #171b24;
+  --color-ink-800: #21262f;
+  --color-ink-750: #262c37;
+  --color-ink-700: #2e3540;
+  --color-ink-600: #464e5c;
+  --color-ink-500: #6b7484;
+  --color-ink-400: #9aa3b4;
+  --color-ink-200: #d9dde5;
+  --color-ink-100: #f5f6f8;
 
-  /* The Duck Accent */
-  --color-duck-300: #f7d67c;
-  --color-duck-400: #f0c04a;
+  /* The Duck accent — kept, slightly warmer and less saturated. */
+  --color-duck-300: #f9d98a;
+  --color-duck-400: #f2c14e;
   --color-duck-500: #d9a227;
 
   /* ── Mastery status scale (Solid / Shaky / Gap) ────────────────────
    * Reserved meanings. Never reuse these as decoration or as a series
    * colour. Every place that paints one MUST also render the matching
-   * glyph (● ◐ ○) and word — a good/bad scale is red-vs-green by
-   * definition, which collapses under deuteranopia, so colour is never
-   * allowed to be the only channel here.
-   *
-   * Dark steps clear 3:1 on ink-900 (5.07 / 6.45 / 3.54). The scale's
-   * yellow step is deliberately unused: it is indistinguishable from
-   * --color-duck-400, so a "shaky" chip would read as a primary button.
-   */
+   * glyph (● ◐ ○) and word. */
   --color-solid-300: #4ade80;
   --color-solid-400: #22c55e;
-  --color-solid-500: #0ca30c;
+  --color-solid-500: #22b14c;
   --color-shaky-500: #ec835a;
-  --color-gap-500: #d03b3b;
+  --color-gap-500: #e04848;
+
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* Light Mode Overrides — High contrast crisp white */
+/* ── Light theme: a true neutral light ramp (not an inverted dark one) ── */
 [data-theme="light"],
 .light {
   color-scheme: light;
-  --color-ink-950: #ffffff;
-  --color-ink-900: #f3f4f6;
-  --color-ink-850: #ffffff;
-  --color-ink-800: #9ca3af;
-  --color-ink-700: #6b7280;
-  --color-ink-600: #4b5563;
-  --color-ink-500: #374151;
-  --color-ink-400: #1f2937;
-  --color-ink-200: #111827;
-  --color-ink-100: #000000;
+  --color-ink-950: #f6f7f9;
+  --color-ink-900: #ffffff;
+  --color-ink-850: #f1f2f5;
+  --color-ink-800: #e6e8ed;
+  --color-ink-750: #dfe2e8;
+  --color-ink-700: #cfd3db;
+  --color-ink-600: #9aa1ae;
+  --color-ink-500: #6f7683;
+  --color-ink-400: #4b5261;
+  --color-ink-200: #262b36;
+  --color-ink-100: #0f1219;
 
-  --color-duck-300: #d97706;
-  --color-duck-400: #b45309;
-  --color-duck-500: #92400e;
+  --color-duck-300: #c47a06;
+  --color-duck-400: #b36a05;
+  --color-duck-500: #8f5304;
 
-  /* Re-stepped for the light surface, not an automatic flip. */
   --color-solid-300: #16a34a;
   --color-solid-400: #15803d;
-  --color-solid-500: #0a7d0a;
-  --color-shaky-500: #ea580c;
-  --color-gap-500: #b02a2a;
+  --color-solid-500: #158a3a;
+  --color-shaky-500: #d9601f;
+  --color-gap-500: #c03030;
 }
 
-/* Light Mode Card, Code Block & Element Contrast Overrides */
 [data-theme="light"] .code-block,
 .light .code-block {
   color: #065f46 !important;
   background-color: #f8fafc !important;
-  border-color: #64748b !important;
+  border-color: #cbd5e1 !important;
 }
 
 [data-theme="light"] code,
 .light code {
   color: #065f46;
-}
-
-[data-theme="light"] .border-ink-800,
-.light .border-ink-800 {
-  border-color: #9ca3af;
-}
-
-[data-theme="light"] .border-ink-700,
-.light .border-ink-700 {
-  border-color: #6b7280;
 }
 
 /* Workspace.jsx already used `animate-fade-in` for its save toast, but nothing
@@ -192,7 +180,9 @@ html {
 body {
   background-color: var(--color-ink-950);
   color: var(--color-ink-100);
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 

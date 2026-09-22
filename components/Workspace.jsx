@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import Sidebar from "@/components/Sidebar";
+import { SettingsModal } from "@/components/Sidebar";
+import NavRail from "@/components/redesign/NavRail";
+import NotesPanel from "@/components/redesign/NotesPanel";
+import TopBar from "@/components/redesign/TopBar";
+import HomeView from "@/components/redesign/HomeView";
 import BlockNoteEditor from "@/components/BlockNoteEditor";
 import CalendarView from "@/components/CalendarView";
 import WebSaverView from "@/components/WebSaverView";
@@ -59,7 +63,7 @@ import {
   resolveRestoredParentId,
   sortNotes,
 } from "@/lib/noteHierarchy";
-import { PanelLeftClose, Maximize2, Minimize2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Minimize2 } from "lucide-react";
 
 const DEFAULT_NOTES_BY_SPACE = {
   School: [],
@@ -116,6 +120,7 @@ export default function Workspace() {
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);
   const [exportImportOpen, setExportImportOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [isZenMode, setIsZenMode] = useState(false);
   const [isReformattingNote, setIsReformattingNote] = useState(false);
@@ -436,7 +441,7 @@ export default function Workspace() {
           try { fallback = JSON.parse(localStorage.getItem("socratic_last_workspace_state")); } catch(e){}
 
           const targetNoteId = urlNoteId || fallback?.activeNoteId;
-          const targetTab = urlTab || fallback?.activeTab || "notes";
+          const targetTab = urlTab || fallback?.activeTab || "home";
 
           let foundSpace = safeFinalSpaces[0]?.name || "General";
           let foundNoteId = null;
@@ -714,28 +719,6 @@ export default function Workspace() {
     const path = buildBreadcrumbPath(notesBySpace[activeSpace] || [], activeNoteObj.id);
     return path.length > 0 ? path : [activeNoteObj];
   }, [notesBySpace, activeSpace, activeNoteObj]);
-  const [breadcrumbOverflowOpen, setBreadcrumbOverflowOpen] = useState(false);
-  const breadcrumbOverflowRef = useRef(null);
-  useEffect(() => {
-    if (!breadcrumbOverflowOpen) return;
-    const onDown = (e) => {
-      if (breadcrumbOverflowRef.current && !breadcrumbOverflowRef.current.contains(e.target)) {
-        setBreadcrumbOverflowOpen(false);
-      }
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") setBreadcrumbOverflowOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [breadcrumbOverflowOpen]);
-  useEffect(() => {
-    setBreadcrumbOverflowOpen(false);
-  }, [activeNoteId]);
 
   /**
    * Moves a note to the Trash together with every nested sub-page below it
@@ -1769,20 +1752,94 @@ export default function Workspace() {
     await saveNotesOrder(spaceId, indexedNotes);
   }, []);
 
+  /** Open a 3D topic from Home / Mastery without also opening a drawer. */
+  const openVisualisation = useCallback((visId) => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("vis", visId);
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+      try { localStorage.setItem("socratic_last_vis_state", JSON.stringify({ topicId: visId })); } catch (e) {}
+    }
+    setActiveTab("3d");
+  }, []);
+
+  /** Explain / quiz a note that is not necessarily the open one (Home cards). */
+  const studyNote = useCallback(
+    (kind, note) => {
+      if (!note) return;
+      handleSelectNote(note);
+      openStudy(kind, null, note, editorBlocksToText(note.blocks || []));
+    },
+    [handleSelectNote, openStudy]
+  );
+
+  const openCommandPalette = useCallback(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+  }, []);
+
+  const noteMenuNode =
+    activeTab === "notes" && activeNoteObj ? (
+      <NoteMenu
+        mode="document"
+        note={{
+          id: activeNoteObj.id,
+          spaceId: activeNoteObj.spaceId || activeSpace,
+          space: activeNoteObj.space || activeSpace,
+          title: activeNoteObj.title,
+          blocks: editorBlocks.length > 0 ? editorBlocks : activeNoteObj.blocks,
+          banner: activeNoteObj.banner,
+          isFavorite: activeNoteObj.isFavorite,
+          emoji: activeNoteObj.emoji,
+          fontStyle: activeNoteObj.fontStyle || "sans",
+          fullWidth: Boolean(activeNoteObj.fullWidth),
+          isLocked: Boolean(activeNoteObj.isLocked),
+          updatedAt: activeNoteObj.updatedAt,
+          createdAt: activeNoteObj.createdAt,
+        }}
+        spaces={spaces}
+        onChangeFontStyle={(fontStyle) => handleSaveNote({ ...activeNoteObj, fontStyle })}
+        onToggleFullWidth={(fullWidth) => handleSaveNote({ ...activeNoteObj, fullWidth })}
+        onToggleLockPage={(isLocked) => handleSaveNote({ ...activeNoteObj, isLocked })}
+        onSaveNote={handleSaveNote}
+        onToggleFavorite={handleToggleFavoriteNote}
+        onDuplicateNote={handleDuplicateNote}
+        onMoveNote={handleMoveNoteToSpace}
+        onRenameNote={handleRenameNote}
+        onReformatNote={() => reformatNoteRef.current?.()}
+        isReformatting={isReformattingNote}
+        onExportImport={() => setExportImportOpen(true)}
+        onDeleteNote={handleDeleteNote}
+        onCreateSubPage={(parentNote) => {
+          const pid = parentNote?.id || activeNoteObj?.id;
+          if (!pid) return;
+          handleCreateSubPage(pid, undefined, { insertCard: true, open: true });
+        }}
+        variant="icon"
+        align="right"
+      />
+    ) : null;
+
   return (
     <div className="flex h-screen overflow-hidden bg-ink-950 text-ink-100 transition-colors duration-200">
-      {/* Left Sidebar */}
-      <div
-        className={`no-print transition-all duration-300 ease-in-out shrink-0 h-full ${
-          sidebarOpen && !isZenMode ? "w-64 opacity-100" : "w-0 opacity-0 overflow-hidden pointer-events-none"
-        }`}
-      >
-        <Sidebar
+      {/* ── Primary navigation rail ─────────────────────────────── */}
+      {!isZenMode && (
+        <NavRail
+          activeTab={activeTab}
+          onNavigate={setActiveTab}
+          gapCount={gapCount}
+          theme={theme}
+          onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenInstantNote={() => setInstantNoteOpen(true)}
+          onOpenSearch={openCommandPalette}
+        />
+      )}
+
+      {/* ── Contextual notes panel (Notes section only) ───────────── */}
+      {!isZenMode && activeTab === "notes" && sidebarOpen && (
+        <NotesPanel
           spaces={spaces}
           setSpaces={setSpaces}
-          onEditSpace={handleEditSpace}
-          onRenameSpace={handleRenameSpace}
-          handleDeleteSpace={handleDeleteSpace}
           activeSpace={activeSpace}
           onSelectSpace={(spaceName) => {
             setActiveSpace(spaceName);
@@ -1796,393 +1853,107 @@ export default function Workspace() {
               setEditorBlocks([]);
             }
           }}
-          activeNoteId={activeNoteObj?.id || null}
+          onEditSpace={handleEditSpace}
+          onDeleteSpace={handleDeleteSpace}
+          onOpenSpaceHub={() => setActiveTab("spacehub")}
           notesBySpace={notesBySpace}
+          activeNoteId={activeNoteObj?.id || null}
           onSelectNote={handleSelectNote}
           onCreateNote={handleCreateNote}
-          onDeleteNote={handleDeleteNote}
           onSaveNote={handleSaveNote}
-          onReorderNotes={handleReorderNotes}
           onToggleFavorite={handleToggleFavoriteNote}
           onDuplicateNote={handleDuplicateNote}
           onMoveNote={handleMoveNoteToSpace}
           onRenameNote={handleRenameNote}
-          onDeleteMultipleNotes={handleDeleteMultipleNotes}
-          onMoveMultipleNotes={handleMoveMultipleNotes}
-          onToggleFavoriteMultipleNotes={handleToggleFavoriteMultipleNotes}
-          onDuplicateMultipleNotes={handleDuplicateMultipleNotes}
+          onDeleteNote={handleDeleteNote}
           onCreateSubPage={(parentNote) => {
             const pid = typeof parentNote === "string" ? parentNote : parentNote?.id;
             if (!pid) return;
             handleCreateSubPage(pid, undefined, { insertCard: true, open: true });
-          }}
-          onOpenExportImport={(n) => {
-            if (n) handleSelectNote(n);
-            setExportImportOpen(true);
           }}
           trashNotes={trashNotes}
           onRecoverNote={handleRecoverNote}
           onPermanentlyDeleteNote={handlePermanentlyDeleteNote}
           onRecoverAllNotes={handleRecoverAllNotes}
           onPermanentlyDeleteAllNotes={handlePermanentlyDeleteAllNotes}
-          theme={theme}
-          setTheme={setTheme}
-          onResetData={handleResetData}
-          activeTab={activeTab}
-          onNavigateTab={setActiveTab}
-          onOpenInstantNote={() => setInstantNoteOpen(true)}
-          onOpenTutor={() => openStudy("tutor", null)}
-          onReformatNote={() => reformatNoteRef.current?.()}
-          onNavigateCalendar={() => setActiveTab("calendar")}
-          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-          onStartTutorial={() => setTutorialOpen(true)}
         />
-      </div>
+      )}
 
-      {/* Main Container with Single Top HUD Header */}
-      <div className="relative flex flex-1 flex-col overflow-hidden">
-        {/* Zen Focus Mode Floating Exit Pill */}
+      {/* ── Content column ───────────────────────────────────────── */}
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {isZenMode && (
-          <div className="no-print fixed top-3 right-4 z-[100] animate-fade-in">
+          <div className="no-print fixed right-4 top-3 z-[100] animate-fade-in">
             <button
               type="button"
               onClick={toggleZenMode}
-              title="Exit Zen Focus Mode (Esc or Ctrl+Shift+F)"
-              className="flex items-center gap-2 rounded-full border border-duck-500/40 bg-ink-900/90 backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold text-duck-300 shadow-xl transition-all hover:bg-ink-850 hover:border-duck-400 hover:text-duck-200 hover:scale-105 active:scale-95"
+              title="Exit focus mode (Esc or Ctrl+Shift+F)"
+              className="flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/90 px-3.5 py-1.5 text-xs font-semibold text-ink-200 shadow-xl backdrop-blur-md transition-colors hover:border-duck-500/50 hover:text-duck-300"
             >
-              <Minimize2 className="h-3.5 w-3.5 text-duck-400" />
-              <span>Exit Focus Mode</span>
-              <kbd className="hidden sm:inline rounded bg-ink-800 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 border border-ink-700">Esc</kbd>
+              <Minimize2 className="h-3.5 w-3.5" />
+              <span>Exit focus</span>
+              <kbd className="hidden rounded border border-ink-700 bg-ink-800 px-1.5 py-0.5 font-mono text-[10px] text-ink-400 sm:inline">Esc</kbd>
             </button>
           </div>
         )}
 
-        {/* Single Unified Sleek Top Navigation Header */}
         {!isZenMode && (
-          <header className="no-print relative z-[60] flex h-13 shrink-0 items-center justify-between gap-3 border-b border-ink-800 bg-ink-900 px-4 sm:px-5 transition-colors duration-200 shadow-sm">
-            {/* Left Breadcrumb & Sidebar Toggle & History Controls */}
-            <div className="flex items-center gap-2 text-sm text-ink-400 min-w-0 max-w-[calc(50%-135px)] sm:max-w-[calc(50%-145px)]">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen((prev) => !prev)}
-                title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-                className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors shrink-0"
-              >
-                {sidebarOpen ? (
-                  <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
-                ) : (
-                  <PanelLeftClose className="h-4 w-4 rotate-180" strokeWidth={2} />
-                )}
-              </button>
-
-              {/* Note Navigation History Back / Forward Controls */}
-              <div className="flex items-center gap-0.5 shrink-0 border-r border-ink-800 pr-1 mr-0.5">
-                <button
-                  type="button"
-                  onClick={navigateBack}
-                  disabled={!historyState.canGoBack}
-                  title="Back (Alt+←)"
-                  className="rounded-md p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={navigateForward}
-                  disabled={!historyState.canGoForward}
-                  title="Forward (Alt+→)"
-                  className="rounded-md p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1.5 font-medium min-w-0 whitespace-nowrap text-xs sm:text-sm">
-                {activeTab === "3d" ? (
-                  <>
-                    <span className="shrink-0 text-duck-400">🌌</span>
-                    <span className="truncate text-ink-100 font-semibold">3D Simulations Studio</span>
-                  </>
-                ) : activeTab === "calendar" ? (
-                  <>
-                    <span className="shrink-0 text-duck-400">📅</span>
-                    <span className="truncate text-ink-100 font-semibold">Study Calendar & Timers</span>
-                  </>
-                ) : activeTab === "websaver" ? (
-                  <>
-                    <span className="shrink-0 text-duck-400">🔖</span>
-                    <span className="truncate text-ink-100 font-semibold">Web Saver & Bookmarks</span>
-                  </>
-                ) : activeTab === "spacehub" ? (
-                  <>
-                    <span className="shrink-0 text-duck-400">⚙️</span>
-                    <span className="truncate text-ink-100 font-semibold">Space Hub · {activeSpace}</span>
-                  </>
-                ) : (
-                  <nav aria-label="Breadcrumb" data-testid="note-breadcrumb" className="flex items-center gap-1 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("spacehub")}
-                      title={`Open ${activeSpace} Space Hub`}
-                      className="flex items-center gap-1 rounded-md px-1 py-0.5 text-ink-300 font-semibold shrink-0 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
-                    >
-                      <span className="text-ink-500">📁</span>
-                      <span>{activeSpace}</span>
-                    </button>
-                    {activeTab === "notes" && activeNoteObj && (() => {
-                      const path = breadcrumbPath;
-                      const MAX_VISIBLE = 4;
-                      // Long chains: keep the first ancestor and the last two crumbs,
-                      // tuck the middle into an "…" menu (Notion-style).
-                      const collapsed = path.length > MAX_VISIBLE;
-                      const hidden = collapsed ? path.slice(1, path.length - 2) : [];
-                      const visible = collapsed ? [path[0], null, ...path.slice(-2)] : path;
-                      const renderCrumb = (n, isLast) => (
-                        <span key={n.id} className="flex items-center gap-1 min-w-0">
-                          <span className="text-ink-600 shrink-0">/</span>
-                          {isLast ? (
-                            <span
-                              aria-current="page"
-                              className="truncate font-semibold text-ink-100 flex items-center gap-1 min-w-0"
-                              title={n.title || "Untitled Note"}
-                            >
-                              <span className="shrink-0">{n.emoji || "📝"}</span>
-                              <span className="truncate">{n.title || "Untitled Note"}</span>
-                              {n.isFavorite && (
-                                <span className="text-amber-400 text-xs shrink-0" title="Starred">⭐</span>
-                              )}
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleSelectNote(n)}
-                              title={`Go up to ${n.title || "Untitled Note"}`}
-                              className="flex items-center gap-1 rounded-md px-1 py-0.5 min-w-0 max-w-[10rem] text-ink-300 font-medium hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
-                            >
-                              <span className="shrink-0">{n.emoji || "📝"}</span>
-                              <span className="truncate">{n.title || "Untitled Note"}</span>
-                            </button>
-                          )}
-                        </span>
-                      );
-                      return visible.map((n, i) =>
-                        n === null ? (
-                          <span key="breadcrumb-overflow" ref={breadcrumbOverflowRef} className="relative flex items-center gap-1 shrink-0">
-                            <span className="text-ink-600">/</span>
-                            <button
-                              type="button"
-                              onClick={() => setBreadcrumbOverflowOpen((v) => !v)}
-                              title={`${hidden.length} more level${hidden.length === 1 ? "" : "s"}`}
-                              aria-haspopup="menu"
-                              aria-expanded={breadcrumbOverflowOpen}
-                              className="rounded-md px-1.5 py-0.5 text-ink-400 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer font-bold tracking-widest"
-                            >
-                              …
-                            </button>
-                            {breadcrumbOverflowOpen && (
-                              <div role="menu" className="absolute left-0 top-full mt-1 z-[80] w-56 rounded-xl border border-ink-700 bg-ink-900 p-1.5 shadow-2xl animate-fade-in">
-                                {hidden.map((h, idx) => (
-                                  <button
-                                    key={h.id}
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => {
-                                      setBreadcrumbOverflowOpen(false);
-                                      handleSelectNote(h);
-                                    }}
-                                    style={{ paddingLeft: `${8 + idx * 10}px` }}
-                                    className="flex w-full items-center gap-2 rounded-lg py-1.5 pr-2 text-left text-xs text-ink-200 hover:bg-ink-800 hover:text-ink-100 transition-colors cursor-pointer"
-                                  >
-                                    <span className="shrink-0">{h.emoji || "📝"}</span>
-                                    <span className="truncate">{h.title || "Untitled Note"}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </span>
-                        ) : (
-                          renderCrumb(n, i === visible.length - 1)
-                        )
-                      );
-                    })()}
-                  </nav>
-                )}
-              </div>
-            </div>
-
-            {/* Center Space-Specific Study Tabs (Notes, Quizzes, Mastery) - Mathematically Centered */}
-            <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-1 rounded-xl bg-ink-950 p-1 border border-ink-800 shadow-inner shrink-0 pointer-events-auto">
-              <button
-                type="button"
-                onClick={() => setActiveTab("notes")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-                  activeTab === "notes"
-                    ? "bg-ink-800 text-ink-100 shadow-sm"
-                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-                }`}
-              >
-                <span>📝</span>
-                <span className="hidden sm:inline">Notes</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("quizzes")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-                  activeTab === "quizzes"
-                    ? "bg-ink-800 text-ink-100 shadow-sm"
-                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-                }`}
-              >
-                <span>🎯</span>
-                <span className="hidden sm:inline">Quizzes</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("mastery")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-                  activeTab === "mastery"
-                    ? "bg-ink-800 text-ink-100 shadow-sm"
-                    : "text-ink-400 hover:bg-ink-900 hover:text-ink-200"
-                }`}
-              >
-                <span>📊</span>
-                <span className="hidden sm:inline">Mastery</span>
-                {gapCount > 0 && (
-                  <span className="rounded-full border border-gap-500/40 bg-gap-500/10 px-1.5 text-[10px] font-semibold tabular-nums text-gap-500">
-                    {gapCount}
-                  </span>
-                )}
-              </button>
-            </nav>
-
-            {/* Right Action Bar: Save Status, Socratic Duck Triggers, 3-dots Note Menu & Zen Mode */}
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 ml-auto">
-              {saveStatus && (
-                <span className="hidden md:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 animate-fade-in mr-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{saveStatus}</span>
-                </span>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (studyKind === "tutor") {
-                    setStudyKind(null);
-                  } else {
-                    openStudy("tutor", null);
-                  }
-                }}
-                title="AI Tutor: Ask doubts and get step-by-step guidance"
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg border p-1.5 xl:px-2.5 xl:py-1.5 text-xs font-semibold transition-all ${
-                  studyKind === "tutor"
-                    ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 shadow-xs"
-                    : "border-ink-700 bg-ink-850/60 text-ink-200 hover:border-emerald-500/50 hover:text-emerald-300 hover:bg-ink-800"
-                }`}
-              >
-                <span>🧑‍🏫</span>
-                <span className="hidden xl:inline">AI Tutor</span>
-              </button>
-
-              <button
-                type="button"
-                disabled={!activeNoteObj}
-                onClick={() => {
-                  if (activeTab !== "notes") setActiveTab("notes");
-                  openStudy("explain", null);
-                }}
-                title={activeNoteObj ? "Explain this note with AI" : "Create or select a note to explain"}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850/50 p-1.5 xl:px-2.5 xl:py-1.5 text-xs font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:text-duck-300 disabled:opacity-30 disabled:pointer-events-none"
-              >
-                <span>✨</span>
-                <span className="hidden xl:inline">Explain</span>
-              </button>
-
-              <button
-                type="button"
-                disabled={!activeNoteObj}
-                onClick={() => {
-                  if (activeTab !== "notes") setActiveTab("notes");
-                  openStudy("quiz", null);
-                }}
-                title={activeNoteObj ? "Quiz me on this note" : "Create or select a note to quiz"}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 p-1.5 xl:px-2.5 xl:py-1.5 text-xs font-medium text-duck-300 transition-all hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-duck-400"
-              >
-                <span>🦆</span>
-                <span className="hidden xl:inline">Quiz me</span>
-              </button>
-
-              {/* 3-Dots Note Menu (Only 3 dots, no text) */}
-              {activeTab === "notes" && activeNoteObj && (
-                <NoteMenu
-                  mode="document"
-                  note={{
-                    id: activeNoteObj.id,
-                    spaceId: activeNoteObj.spaceId || activeSpace,
-                    space: activeNoteObj.space || activeSpace,
-                    title: activeNoteObj.title,
-                    blocks: editorBlocks.length > 0 ? editorBlocks : activeNoteObj.blocks,
-                    banner: activeNoteObj.banner,
-                    isFavorite: activeNoteObj.isFavorite,
-                    emoji: activeNoteObj.emoji,
-                    fontStyle: activeNoteObj.fontStyle || "sans",
-                    fullWidth: Boolean(activeNoteObj.fullWidth),
-                    isLocked: Boolean(activeNoteObj.isLocked),
-                    updatedAt: activeNoteObj.updatedAt,
-                    createdAt: activeNoteObj.createdAt,
-                  }}
-                  spaces={spaces}
-                  onChangeFontStyle={(fontStyle) => {
-                    handleSaveNote({ ...activeNoteObj, fontStyle });
-                  }}
-                  onToggleFullWidth={(fullWidth) => {
-                    handleSaveNote({ ...activeNoteObj, fullWidth });
-                  }}
-                  onToggleLockPage={(isLocked) => {
-                    handleSaveNote({ ...activeNoteObj, isLocked });
-                  }}
-                  onSaveNote={handleSaveNote}
-                  onToggleFavorite={handleToggleFavoriteNote}
-                  onDuplicateNote={handleDuplicateNote}
-                  onMoveNote={handleMoveNoteToSpace}
-                  onRenameNote={handleRenameNote}
-                  onReformatNote={() => reformatNoteRef.current?.()}
-                  isReformatting={isReformattingNote}
-                  onExportImport={() => setExportImportOpen(true)}
-                  onDeleteNote={handleDeleteNote}
-                  onCreateSubPage={(parentNote) => {
-                    const pid = parentNote?.id || activeNoteObj?.id;
-                    if (!pid) return;
-                    handleCreateSubPage(pid, undefined, { insertCard: true, open: true });
-                  }}
-                  variant="icon"
-                  align="right"
-                />
-              )}
-
-              {/* Zen Focus Mode Toggle */}
-              <button
-                type="button"
-                onClick={toggleZenMode}
-                title="Zen Focus Mode (Ctrl+Shift+F)"
-                className="inline-flex items-center justify-center rounded-lg border border-ink-700/80 bg-ink-850 p-1.5 text-ink-300 transition-all hover:border-duck-500/50 hover:bg-ink-800 hover:text-duck-300"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </button>
-            </div>
-          </header>
+          <TopBar
+            activeTab={activeTab}
+            activeSpace={activeSpace}
+            breadcrumbPath={breadcrumbPath}
+            activeNote={activeNoteObj}
+            onSelectNote={handleSelectNote}
+            onOpenSpaceHub={() => setActiveTab("spacehub")}
+            showPanelToggle={activeTab === "notes"}
+            panelOpen={sidebarOpen}
+            onTogglePanel={() => setSidebarOpen((v) => !v)}
+            historyState={historyState}
+            onBack={navigateBack}
+            onForward={navigateForward}
+            saveStatus={saveStatus}
+            studyKind={studyKind}
+            onExplain={() => {
+              if (studyKind === "explain") return setStudyKind(null);
+              if (activeTab !== "notes") setActiveTab("notes");
+              openStudy("explain", null);
+            }}
+            onQuiz={() => {
+              if (studyKind === "quiz") return setStudyKind(null);
+              if (activeTab !== "notes") setActiveTab("notes");
+              openStudy("quiz", null);
+            }}
+            onTutor={() => (studyKind === "tutor" ? setStudyKind(null) : openStudy("tutor", null))}
+            noteMenu={noteMenuNode}
+            onToggleZen={toggleZenMode}
+          />
         )}
 
-        {/* Tab Viewport Content */}
         <main
           className={`flex-1 transition-all duration-300 ease-in-out ${
             !isZenMode && studyKind ? "lg:mr-[480px] xl:mr-[520px]" : ""
           } ${
             activeTab === "3d" || activeTab === "websaver" || activeTab === "quizzes"
-              ? "overflow-hidden flex flex-col h-full min-h-0"
+              ? "flex h-full min-h-0 flex-col overflow-hidden"
               : "overflow-y-auto"
           }`}
         >
+          {activeTab === "home" && (
+            <HomeView
+              activeSpace={activeSpace}
+              notes={allNotes}
+              sessions={sessions}
+              mounted={mounted}
+              onOpenNote={handleSelectNote}
+              onCreateNote={handleCreateNote}
+              onOpenInstantNote={() => setInstantNoteOpen(true)}
+              onExplainNote={(n) => studyNote("explain", n)}
+              onQuizNote={(n) => studyNote("quiz", n)}
+              onNavigate={setActiveTab}
+              onOpen3D={openVisualisation}
+              onStartTutorial={() => setTutorialOpen(true)}
+            />
+          )}
+
           {activeTab === "notes" && (
             <BlockNoteEditor
               key={activeNoteObj?.id || `empty_${activeSpace}`}
@@ -2300,8 +2071,7 @@ export default function Workspace() {
         </main>
       </div>
 
-      {/* Explain — the teaching half. Stays mounted so it can animate out,
-          which is also why `studyTarget` survives closing. */}
+      {/* Explain — the teaching half. Stays mounted so it can animate out. */}
       <ExplainPanel
         open={!isZenMode && studyKind === "explain"}
         concept={studyTarget?.concept ?? ""}
@@ -2322,7 +2092,7 @@ export default function Workspace() {
         onComplete={handleRecordSession}
       />
 
-      {/* AI Tutor — Interactive doubt clearing with space curriculum documents & pedagogy */}
+      {/* AI Tutor — doubt clearing with the space's syllabus documents. */}
       <AITutorPanel
         open={!isZenMode && studyKind === "tutor"}
         concept={studyTarget?.concept ?? ""}
@@ -2332,7 +2102,6 @@ export default function Workspace() {
         onClose={closeStudy}
       />
 
-      {/* 75% Screen Instant Note Popup Modal */}
       {instantNoteOpen && (
         <InstantNoteModal
           open={instantNoteOpen}
@@ -2342,10 +2111,8 @@ export default function Workspace() {
         />
       )}
 
-      {/* Global Visual & Audio Alarm Alert Overlay */}
       <AlarmOverlay />
 
-      {/* Multi-Format Note Export & Import Modal (PDF, DOCX, HTML, TXT, MD) */}
       <ExportImportModal
         open={exportImportOpen}
         onClose={() => setExportImportOpen(false)}
@@ -2355,12 +2122,26 @@ export default function Workspace() {
         onImportSuccess={handleImportSuccess}
       />
 
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        setTheme={setTheme}
+        onResetData={handleResetData}
+        spaces={spaces}
+        onStartTutorial={() => {
+          setSettingsOpen(false);
+          setTutorialOpen(true);
+        }}
+      />
+
       <CommandPalette
         notesBySpace={notesBySpace}
         activeSpace={activeSpace}
         setActiveSpace={setActiveSpace}
         setActiveTab={setActiveTab}
         setActiveNoteId={setActiveNoteId}
+        onOpenSettings={() => setSettingsOpen(true)}
         onStartTutorial={() => setTutorialOpen(true)}
       />
 
@@ -2376,7 +2157,7 @@ export default function Workspace() {
           setTutorialOpen(false);
         }}
         onOpenCommandPalette={() => {
-          window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+          openCommandPalette();
           setTutorialOpen(false);
         }}
       />

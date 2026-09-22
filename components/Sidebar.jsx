@@ -172,7 +172,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
   );
 }
 
-function SettingsModal({
+export function SettingsModal({
   open,
   onClose,
   theme,
@@ -1152,7 +1152,7 @@ function SettingsModal({
 }
 
 // ─── Create New Space Modal ─────────────────────────────────────────
-function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
+export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
   const inputRef = useRef(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📂");
@@ -1316,7 +1316,7 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
 }
 
 // ─── Edit Space Modal ───────────────────────────────────────────────
-function EditSpaceModal({
+export function EditSpaceModal({
   open,
   onClose,
   space,
@@ -1506,7 +1506,7 @@ function EditSpaceModal({
 }
 
 // ─── Trash / Temporarily Deleted Notes Modal ────────────────────────
-function TrashModal({
+export function TrashModal({
   open,
   onClose,
   trashNotes = [],
