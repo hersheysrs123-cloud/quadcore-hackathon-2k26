@@ -15,20 +15,26 @@ SocraticOS uses a dynamic CSS variable system defined in `app/globals.css` with 
 
 ### 1. Color Palette Tokens (`--color-ink-*`)
 
-| Token | Dark Mode (Sleek Slate) | Light Mode (crisp white) | Usage / Intent |
+The ramp is a **cool neutral slate**. Surfaces step by roughly 4–5 L\*, so
+panels, cards and hover states read as one calm system rather than as
+competing boxes. Light mode is a true light ramp, not an inverted dark one:
+`ink-950` is the page, `ink-900` is the raised surface (white), and the
+numbers climb in lightness the way they do in dark mode's mirror.
+
+| Token | Dark Mode (Cool Slate) | Light Mode (True Neutral) | Usage / Intent |
 | :--- | :--- | :--- | :--- |
-| `--color-ink-950` | `#12151e` | `#ffffff` | Main viewport background |
-| `--color-ink-900` | `#181c27` | `#f3f4f6` | Sidebar, Top HUD Header, Card surfaces |
-| `--color-ink-850` | `#1f2332` | `#ffffff` | Inputs, hover states, block backgrounds |
-| `--color-ink-800` | `#282d3f` | `#9ca3af` | Borders, active tab indicators, dividers |
-| `--color-ink-750` | `#2f364b` | `#848b99` | Half-step between 800 and 700: input and chip borders (`border-ink-750`) |
-| `--color-ink-700` | `#363d54` | `#6b7280` | Secondary borders, muted badges |
-| `--color-ink-600` | `#4e5672` | `#4b5563` | Placeholders, muted hints, scrollbars |
-| `--color-ink-500` | `#737c9a` | `#374151` | Subtitles, breadcrumbs, uppercase section titles |
-| `--color-ink-400` | `#9aa2bc` | `#1f2937` | Secondary text, nav item icons |
-| `--color-ink-300` | `#b8bfd6` | `#182130` | Half-step between 400 and 200: readable secondary text (`text-ink-300`) |
-| `--color-ink-200` | `#d6dbed` | `#111827` | Primary body text |
-| `--color-ink-100` | `#f1f3fa` | `#000000` | High-contrast headings & active titles |
+| `--color-ink-950` | `#0b0d12` | `#f6f7f9` | Main viewport background |
+| `--color-ink-900` | `#11141b` | `#ffffff` | Nav rail, notes panel, top bar, card surfaces |
+| `--color-ink-850` | `#171b24` | `#f1f2f5` | Inputs, hover states, block backgrounds |
+| `--color-ink-800` | `#21262f` | `#e6e8ed` | Borders, active tab indicators, dividers |
+| `--color-ink-750` | `#262c37` | `#dfe2e8` | Half-step between 800 and 700: input and chip borders (`border-ink-750`) |
+| `--color-ink-700` | `#2e3540` | `#cfd3db` | Secondary borders, muted badges |
+| `--color-ink-600` | `#464e5c` | `#9aa1ae` | Placeholders, muted hints, scrollbars |
+| `--color-ink-500` | `#6b7484` | `#6f7683` | Subtitles, breadcrumbs, uppercase section titles |
+| `--color-ink-400` | `#9aa3b4` | `#4b5261` | Secondary text, nav item icons |
+| `--color-ink-300` | `#bac0cd` | `#393e4c` | Half-step between 400 and 200: readable secondary text (`text-ink-300`) |
+| `--color-ink-200` | `#d9dde5` | `#262b36` | Primary body text |
+| `--color-ink-100` | `#f5f6f8` | `#0f1219` | High-contrast headings & active titles |
 
 > **Only the steps listed here exist.** Tailwind v4 generates no CSS at all for a colour that is not defined in `@theme`, so a class such as `text-ink-350` compiles to nothing and the element silently inherits its parent's colour. Before adding a new step, define it in both the dark `@theme` block and the `[data-theme="light"]` override in `app/globals.css`.
 
@@ -36,12 +42,15 @@ SocraticOS uses a dynamic CSS variable system defined in `app/globals.css` with 
 
 | Token | Hex / Value | Usage |
 | :--- | :--- | :--- |
-| `--color-duck-100` | `#fdf1d0` (Dark) / `#6b2f0b` (Light) | Emphasis text on a selected row (e.g. the highlighted Command Palette result) |
-| `--color-duck-200` | `#fae3a3` (Dark) / `#7c3a0d` (Light) | Emphasis text on accent-tinted surfaces |
-| `--color-duck-300` | `#f7d67c` (Dark) / `#d97706` (Light) | Duck action bar text, active 3D badge text |
-| `--color-duck-400` | `#f0c04a` (Dark) / `#b45309` (Light) | Primary accent buttons, active space dot |
-| `--color-duck-500` | `#d9a227` (Dark) / `#92400e` (Light) | Focused borders, button hover ring |
-| `--color-duck-700` | `#8a6410` (Dark) / `#78350f` (Light) | Solid ribbon fills (Word export preview) |
+| `--color-duck-100` | `#fdf3d5` (Dark) / `#663903` (Light) | Emphasis text on a selected row (e.g. the highlighted Command Palette result) |
+| `--color-duck-200` | `#fbe7b0` (Dark) / `#7a4503` (Light) | Emphasis text on accent-tinted surfaces |
+| `--color-duck-300` | `#f9d98a` (Dark) / `#c47a06` (Light) | Duck action bar text, active 3D badge text |
+| `--color-duck-400` | `#f2c14e` (Dark) / `#b36a05` (Light) | Primary accent buttons, active space dot, selected note row |
+| `--color-duck-500` | `#d9a227` (Dark) / `#8f5304` (Light) | Focused borders, button hover ring, multi-select row tint |
+| `--color-duck-700` | `#8a6410` (Dark) / `#6b3e03` (Light) | Solid ribbon fills (Word export preview) |
+
+In light mode `duck-100` and `duck-200` are the **emphasis-text** steps, so on
+a white surface they are the darkest browns rather than brighter oranges.
 
 ### 3. Mastery Status Scale (`--color-solid-500` / `--color-shaky-500` / `--color-gap-500`)
 
@@ -49,11 +58,11 @@ Reserved for the mastery heatmap, quiz results, and topic confidence indicators.
 
 | Token | Dark | Light | Meaning | Glyph |
 | :--- | :--- | :--- | :--- | :--- |
-| `--color-solid-500` | `#0ca30c` | `#0a7d0a` | Solid — explained the mechanism unprompted | `●` |
-| `--color-shaky-500` | `#ec835a` | `#ea580c` | Shaky — correct but recited, or needed leading | `◐` |
-| `--color-gap-500` | `#d03b3b` | `#b02a2a` | Gap — wrong, absent, or collapsed on a follow-up | `○` |
+| `--color-solid-500` | `#22b14c` | `#158a3a` | Solid — explained the mechanism unprompted | `●` |
+| `--color-shaky-500` | `#ec835a` | `#d9601f` | Shaky — correct but recited, or needed leading | `◐` |
+| `--color-gap-500` | `#e04848` | `#c03030` | Gap — wrong, absent, or collapsed on a follow-up | `○` |
 
-Each status also has lighter emphasis steps for text and hover states: `--color-solid-300` / `--color-solid-400` (`#4ade80` / `#22c55e` dark, `#16a34a` / `#15803d` light) and `--color-gap-300` / `--color-gap-400` (`#f08080` / `#e35d5d` dark, `#b91c1c` / `#991b1b` light). The light steps are darker, not lighter, so they stay legible on white.
+Each status also has lighter emphasis steps for text and hover states: `--color-solid-300` / `--color-solid-400` (`#4ade80` / `#22c55e` dark, `#16a34a` / `#15803d` light) and `--color-gap-300` / `--color-gap-400` (`#f08585` / `#e86464` dark, `#c02c2c` / `#a02525` light). The light steps are darker, not lighter, so they stay legible on white.
 
 **Colour is never the only channel.** Every place that paints a status must also render the glyph and the word — a good/bad scale is red-vs-green by definition, which collapses under deuteranopia ($\Delta E \approx 0.7$). The glyphs form an ordinal ramp (filled → half → hollow) that survives greyscale and a 12px cell.
 
@@ -74,6 +83,13 @@ Three.js / WebGL scenes cannot read Tailwind CSS variables dynamically in the sh
 ---
 
 ## 📐 Typography & Layout Guidelines
+
+### UI Font
+
+The application chrome — nav rail, notes panel, top bar, modals, HUDs — is set
+in **Inter** via `--font-ui`, applied on `body`. It is a separate token from the
+three *note* fonts below: changing a note's typography must never change the
+chrome around it.
 
 ### Note Typography Palette (3 Academic Font Options)
 

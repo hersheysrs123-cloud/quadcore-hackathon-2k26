@@ -83,6 +83,7 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 76. [Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up](#76-socratic-duck-conversational-bot-removal-from-quiz-panel--system-clean-up)
 77. [Bullet & Numbered List Enter-at-Start Prepending & Downward Flow (Specifically First Bullet)](#77-bullet--numbered-list-enter-at-start-prepending--downward-flow-specifically-first-bullet)
 78. [Bullet & List Block Undo / Redo State Machine & Focus Target Overhaul](#78-bullet--list-block-undo--redo-state-machine--focus-target-overhaul)
+79. [Redesigned Shell: Colour Tokens Lost in the Merge, Stranded Bulk Actions & a Dead Settings Control](#redesigned-shell-colour-tokens-lost-in-the-merge-stranded-bulk-actions--a-dead-settings-control)
 
 ---
 
@@ -7543,3 +7544,92 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 
 
 
+
+---
+
+## Redesigned Shell: Colour Tokens Lost in the Merge, Stranded Bulk Actions & a Dead Settings Control
+
+Three defects surfaced when the `components/redesign/` shell (nav rail + notes
+panel + top bar + home view) was merged onto `origin/main`. All three share one
+shape: the shell replaced `Sidebar.jsx` as the rendered chrome, but `Sidebar.jsx`
+stayed in the tree, so nothing — not the build, not the test suite — noticed
+that behaviour had stopped being reachable.
+
+### 1. Problem Statement
+
+1. **Eight colour tokens silently stopped existing.** `main` had defined
+   `--color-ink-300`, `--color-ink-750`, `--color-duck-100/200/700` and
+   `--color-gap-300/400` after finding that roughly 270 classes referenced
+   them while Tailwind v4 emitted no CSS at all. The redesign rewrote the
+   `@theme` block around a cooler ramp and carried only `ink-750` across. Every
+   `text-ink-300`, `border-ink-750`, `text-duck-200` and `text-gap-400` in the
+   app would have fallen back to its parent's colour — invisible in a build log
+   and invisible in a diff, because a missing Tailwind colour is not an error.
+2. **Drag-to-reorder and multi-select were unreachable.** `NotesPanel.jsx` said
+   so in its own header comment ("intentionally left out of this prototype").
+   Five handlers in `Workspace.jsx` were left defined but never passed to
+   anything: `handleReorderNotes`, `handleMoveMultipleNotes`,
+   `handleToggleFavoriteMultipleNotes`, `handleDuplicateMultipleNotes`, and the
+   only UI path to `handleDeleteMultipleNotes`.
+3. **The Space Switcher Display setting did nothing.** Settings still rendered
+   its "Dropdown Menu / Grid View" pair, but the old `Sidebar` had owned both
+   the state and the grid. `Workspace` passed no handler, so the control never
+   moved its selection off "Dropdown" and clicking "Grid View" was inert.
+
+### 2. Root Cause
+
+- **A replaced module that still compiles.** `Sidebar.jsx` is still imported —
+  the shell pulls six modals out of it — so every source-scanning guardrail that
+  reads `Sidebar.jsx` kept passing while the component itself was no longer
+  mounted. `tests/unit/multi-note-selection.test.mjs` is the clearest case: it
+  asserts against a file that ships but is not rendered.
+- **Tokens are data, not code.** A `@theme` block is a flat list of custom
+  properties. Rewriting it is a whole-block replacement, so a token that exists
+  on one side and not the other disappears without a conflict marker — the
+  three-way merge saw one hunk, not eight deletions.
+- **A setting split across two components.** `spaceSwitcherLayout` lived
+  entirely inside `Sidebar`: the state, the persistence and the grid render. The
+  redesign took the render surface (`NotesPanel`) and the control surface
+  (`SettingsModal`) into two different places and left the state behind.
+
+### 3. Resolution
+
+1. **Re-stepped, not re-copied (`app/globals.css`).** All eight tokens are
+   defined again in both themes, with values derived from the redesign's ramp
+   rather than lifted from `main`'s — `ink-300` interpolated between the new
+   `ink-200` and `ink-400` (`#bac0cd` dark / `#393e4c` light), `duck-100/200`
+   kept as the *darkest* browns in light mode because they are emphasis-text
+   steps on white, and `gap-300/400` re-stepped so the light variants stay
+   darker than `gap-500`. A sweep over `app/`, `components/` and `lib/` now
+   reports every referenced token as defined.
+2. **Rebuilt against the new panel (`NotesPanel.jsx`).** Drag-to-reorder and
+   multi-select were re-implemented in the redesign's idiom rather than pasted
+   back. Reordering is constrained to one sibling group — a row refuses a drop
+   from a non-sibling with `dropEffect = "none"` — so a sub-page can never be
+   re-parented by a stray drag; dropping below the list sends a top-level note
+   to the end. Multi-select swaps the grip for a checkbox and the row menu for
+   a four-cell bulk bar, and clears itself whenever the space changes or
+   empties, so the bar can never act on a stale selection. Search results are
+   flat and explicitly not reorderable. `BatchDeleteConfirmModal` and
+   `BatchMoveModal` are now exported from `Sidebar.jsx` and reused, matching the
+   four modals the panel already shared.
+3. **Lifted the setting to the component that owns both ends (`Workspace.jsx`).**
+   `spaceSwitcherLayout` is read with `useLiveQuery` from `db.settings` the same
+   way the editor's click-to-append setting is, and passed down to both
+   `SettingsModal` (which sets it) and `NotesPanel` (which renders it).
+   Persistence keys are unchanged — `db.settings.space_switcher_layout` plus the
+   `socraticos_space_switcher_layout` localStorage mirror — so a preference set
+   before the redesign still applies.
+
+### 4. Verification
+
+- `npm run build` — clean, 0 errors.
+- `npm test` — 1,992 unit/integration/e2e tests across 425 suites, plus 34
+  empirical stress tests. 0 failures.
+- Driven in headless Chrome over CDP against the production server: all seven
+  rail sections render; drag-to-reorder changes the order **and survives a
+  reload**; the bulk bar reports `4 of 4 selected` and enables all four actions;
+  the Move modal opens on the selection; switching Settings to Grid View swaps
+  the panel to tiles and persists; Explain, Quiz me and Tutor each open their
+  own drawer; the 3D studio renders all 51 topics under software WebGL. No
+  console errors outside headless-GPU noise.

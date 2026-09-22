@@ -34,6 +34,25 @@ The annotated file tree is split by area so each file stays readable:
 | [file-map-lib.md](docs/codebase/file-map-lib.md) | `lib/` — one pure engine per 3D topic, plus storage, AI, export and editor services |
 | [file-map-tests-scripts-docs.md](docs/codebase/file-map-tests-scripts-docs.md) | `tests/` (78 unit files, integration, e2e, the four guardrails), `scripts/`, `docs/` and root files |
 
+### The application shell (`components/redesign/`)
+
+`Workspace.jsx` no longer renders one 2.8k-line `Sidebar`. The chrome is four
+components, each with one job:
+
+| Component | Owns |
+| :--- | :--- |
+| `NavRail.jsx` | The always-visible left rail: the seven sections (Home, Notes, Quizzes, Mastery, Calendar, 3D Lab, Saved), the running-timer readout, quick capture, search, theme toggle and Settings |
+| `NotesPanel.jsx` | The contextual panel shown **only** in Notes: space switcher (dropdown or grid), search, the nested note tree, drag-to-reorder, multi-select bulk actions, Trash |
+| `TopBar.jsx` | Breadcrumb with overflow menu, back/forward, panel toggle, save status, the Explain / Quiz me / Tutor switcher, the note `⋯` menu and focus mode |
+| `HomeView.jsx` | The Home overview: greeting, counts, recent notes, the timer HUD and the tutorial entry point |
+
+`Sidebar.jsx` is **no longer rendered**. It is kept because it still owns six
+modals the shell imports by name: `SettingsModal`, `CreateSpaceModal`,
+`EditSpaceModal`, `TrashModal`, `BatchDeleteConfirmModal` and `BatchMoveModal`.
+Source-scanning tests that read `Sidebar.jsx` are therefore testing a module
+that ships but is not mounted — check `components/redesign/` instead when a
+shell behaviour is in question.
+
 ## 🧩 3. Key Features & Implementation Mechanics
 
 | File | Covers (original section) |
@@ -58,15 +77,16 @@ Dexie schema v8, all 12 object stores and where the network is used: [database.m
 Refer to **[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)** for exhaustive design token specifications:
 
 ### Color Palette:
-- **Backgrounds**: Main Viewport `bg-ink-950` (`#12151e` Dark / `#ffffff` Light), Card/Sidebar/HUD `bg-ink-900` (`#181c27` / `#f3f4f6`), Inputs/Blocks `bg-ink-850` (`#1f2332` / `#ffffff`).
-- **Borders & Dividers**: Primary `border-ink-800` (`#282d3f` / `#9ca3af`), Secondary `border-ink-700` (`#363d54` / `#6b7280`).
-- **Text Ramps**: High-contrast `text-ink-100` (`#f1f3fa` / `#000000`), Body `text-ink-200` (`#d6dbed` / `#111827`), Secondary `text-ink-300` (`#b8bfd6` / `#182130`), Muted `text-ink-400` / `text-ink-500`.
-- **Accents**: Duck Gold Primary `text-duck-300` (`#f7d67c`), `bg-duck-500/20`, `border-duck-500/40`.
+- **Backgrounds**: Main Viewport `bg-ink-950` (`#0b0d12` Dark / `#f6f7f9` Light), Rail/Panel/Card `bg-ink-900` (`#11141b` / `#ffffff`), Inputs/Blocks `bg-ink-850` (`#171b24` / `#f1f2f5`).
+- **Borders & Dividers**: Primary `border-ink-800` (`#21262f` / `#e6e8ed`), Half-step `border-ink-750` (`#262c37` / `#dfe2e8`), Secondary `border-ink-700` (`#2e3540` / `#cfd3db`).
+- **Text Ramps**: High-contrast `text-ink-100` (`#f5f6f8` / `#0f1219`), Body `text-ink-200` (`#d9dde5` / `#262b36`), Secondary `text-ink-300` (`#bac0cd` / `#393e4c`), Muted `text-ink-400` / `text-ink-500`.
+- **Accents**: Duck Gold Primary `text-duck-300` (`#f9d98a`), `bg-duck-400` (`#f2c14e`), `bg-duck-500/15`, `ring-duck-400/40`.
 - **Mastery Status Scale**:
-  - Solid: `●` `text-solid-500` (`#0ca30c` Dark / `#0a7d0a` Light)
-  - Shaky: `◐` `text-shaky-500` (`#ec835a` Dark / `#ea580c` Light)
-  - Gap: `○` `text-gap-500` (`#d03b3b` Dark / `#b02a2a` Light)
-- **Destructive Controls**: Light Red `text-rose-400`, `bg-rose-500/15`, `border-rose-500/30`.
+  - Solid: `●` `text-solid-500` (`#22b14c` Dark / `#158a3a` Light)
+  - Shaky: `◐` `text-shaky-500` (`#ec835a` Dark / `#d9601f` Light)
+  - Gap: `○` `text-gap-500` (`#e04848` Dark / `#c03030` Light)
+- **Destructive Controls**: `text-gap-400`, `bg-rose-500/15`, `border-rose-500/30`.
+- **UI font**: `--font-ui` (Inter) on `body`. The three *note* fonts are separate and must not leak into the chrome.
 
 ---
 

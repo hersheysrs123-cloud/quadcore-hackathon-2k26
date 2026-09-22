@@ -81,7 +81,8 @@ Every topic has a **Controls** tab and a live **Details** tab with calculated re
 
 ```
 app/            Pages (landing, /workspace, /visualizations) and the five AI routes under api/
-components/     App UI: Workspace, Sidebar, BlockNoteEditor, quiz and space views, timers, export
+components/     App UI: Workspace, BlockNoteEditor, quiz and space views, timers, export
+  redesign/         The application shell: NavRail, NotesPanel, TopBar, HomeView
   visualizations/   Every 3D scene, the shared kits, the topic registry (topics.js) and the HUD
 lib/            Pure engines (one per 3D topic) plus storage, AI, export and editor services
 tests/          Unit, integration, e2e, the caret-navigation suite and four guardrail tests
