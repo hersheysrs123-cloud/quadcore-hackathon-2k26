@@ -100,10 +100,10 @@ describe("Interactive Onboarding Tutorial Architecture & Feature Registry", () =
     assert.ok(step5.title.includes("Syllabus"), "Step 5 title must mention Syllabus");
   });
 
-  it("ensures step 6 covers 27 3D simulations across all 5 STEM domains", () => {
+  it("ensures step 6 covers 50+ 3D simulations across all 5 STEM domains", () => {
     const step6 = TUTORIAL_STEPS_META.find((s) => s.id === "visualizations");
     assert.ok(step6, "Step 6 must exist");
-    assert.ok(step6.title.includes("27"), "Step 6 title must mention 27 simulations");
+    assert.ok(step6.title.includes("50+"), "Step 6 title must mention 50+ simulations");
     assert.ok(step6.title.includes("5 STEM Domains"), "Step 6 title must mention 5 STEM Domains");
   });
 

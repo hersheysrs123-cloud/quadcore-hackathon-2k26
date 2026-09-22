@@ -51,13 +51,22 @@
   --color-ink-600: #464e5c;
   --color-ink-500: #6b7484;
   --color-ink-400: #9aa3b4;
+  /* Half-step the components already ask for (`text-ink-300`). Tailwind v4
+   * generates nothing for an undefined colour, so while this was missing
+   * those classes were silently inert. Re-stepped onto the new ramp. */
+  --color-ink-300: #bac0cd;
   --color-ink-200: #d9dde5;
   --color-ink-100: #f5f6f8;
 
-  /* The Duck accent — kept, slightly warmer and less saturated. */
+  /* The Duck accent — kept, slightly warmer and less saturated.
+   * 100 and 200 are the emphasis-text steps (selected command-palette row);
+   * 700 is the pressed/border step. */
+  --color-duck-100: #fdf3d5;
+  --color-duck-200: #fbe7b0;
   --color-duck-300: #f9d98a;
   --color-duck-400: #f2c14e;
   --color-duck-500: #d9a227;
+  --color-duck-700: #8a6410;
 
   /* ── Mastery status scale (Solid / Shaky / Gap) ────────────────────
    * Reserved meanings. Never reuse these as decoration or as a series
@@ -67,6 +76,8 @@
   --color-solid-400: #22c55e;
   --color-solid-500: #22b14c;
   --color-shaky-500: #ec835a;
+  --color-gap-300: #f08585;
+  --color-gap-400: #e86464;
   --color-gap-500: #e04848;
 
   --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -85,17 +96,25 @@
   --color-ink-600: #9aa1ae;
   --color-ink-500: #6f7683;
   --color-ink-400: #4b5261;
+  --color-ink-300: #393e4c;
   --color-ink-200: #262b36;
   --color-ink-100: #0f1219;
 
+  /* 100 and 200 are the emphasis-text steps, so on a white surface they are
+   * the darkest browns, not brighter oranges. */
+  --color-duck-100: #663903;
+  --color-duck-200: #7a4503;
   --color-duck-300: #c47a06;
   --color-duck-400: #b36a05;
   --color-duck-500: #8f5304;
+  --color-duck-700: #6b3e03;
 
   --color-solid-300: #16a34a;
   --color-solid-400: #15803d;
   --color-solid-500: #158a3a;
   --color-shaky-500: #d9601f;
+  --color-gap-300: #c02c2c;
+  --color-gap-400: #a02525;
   --color-gap-500: #c03030;
 }
 

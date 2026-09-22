@@ -9,7 +9,6 @@ import {
   VisualizationHUD,
 } from "@/components/visualizations/VisualizationHUD";
 import {
-  CATEGORY_EMOJI,
   TOPICS,
   TOPICS_BY_ID,
   formatTopicStudyContext,
@@ -241,7 +240,7 @@ export default function ThreeDView({
       )}
 
       {/* ─── Body ────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col relative overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-row relative overflow-hidden">
         {/* Floating Reopen Button (ONLY displayed when top bars are hidden) */}
         {effectiveHideTopBars && (
           <div className="absolute top-3 right-3 z-30 pointer-events-auto">
@@ -256,23 +255,25 @@ export default function ThreeDView({
             </button>
           </div>
         )}
-        {/* Viewport + overlaid HUD */}
-        <main className="relative flex-1 h-full w-full min-h-0" style={{ backgroundColor: CANVAS_BG }}>
+
+        {/* Sidebar: Separate from the 3D canvas rendering space */}
+        {!topic.ownHud && (
+          <VisualizationHUD
+            topic={topic}
+            params={params}
+            setParam={setParam}
+            setParams={setParams}
+            onReset={resetParams}
+            onOpenQuiz={handleOpenStudy}
+          />
+        )}
+
+        {/* Viewport (rendering space) */}
+        <main className="relative flex-1 h-full w-full min-h-0 min-w-0 overflow-hidden" style={{ backgroundColor: CANVAS_BG }}>
           {CanvasComponent && (
             <WebGLErrorBoundary key={topic.id}>
               <CanvasComponent topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={handleOpenStudy} />
             </WebGLErrorBoundary>
-          )}
-
-          {!topic.ownHud && (
-            <VisualizationHUD
-              topic={topic}
-              params={params}
-              setParam={setParam}
-              setParams={setParams}
-              onReset={resetParams}
-              onOpenQuiz={handleOpenStudy}
-            />
           )}
 
           <ViewportHint>drag to orbit · scroll to zoom · right-drag to pan</ViewportHint>

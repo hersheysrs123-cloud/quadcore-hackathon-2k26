@@ -19,7 +19,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
   clamp,
   hashRandom,
   lerp,
@@ -1340,22 +1339,104 @@ const LIGHT_PRESETS = [
 
 const DEFAULT_LAYERS = { sclera: true, choroid: true, retina: true, vitreous: true };
 
-export default function EyeCanvas({ onOpenQuiz }) {
-  const [mode, setMode] = useState("accommodation");
-  const [objectDistance, setObjectDistance] = useState(6);
-  const [autoAccommodate, setAutoAccommodate] = useState(true);
-  const [manualAccommodation, setManualAccommodation] = useState(0);
-  const [showBlur, setShowBlur] = useState(true);
-  const [logLux, setLogLux] = useState(2.6);
-  const [rayMode, setRayMode] = useState("bundle");
-  const [showZonules, setShowZonules] = useState(true);
-  const [layers, setLayers] = useState(DEFAULT_LAYERS);
-  const [cutaway, setCutaway] = useState(true);
-  const [showVessels, setShowVessels] = useState(true);
-  const [showMuscles, setShowMuscles] = useState(false);
-  const [showLabels, setShowLabels] = useState(true);
-  const [selectedPart, setSelectedPart] = useState(null);
-  const [showRays, setShowRays] = useState(true);
+/**
+ * The eye's controls and what they start at.
+ *
+ * C26: these were fifteen `useState` hooks, so every setting was thrown away
+ * the moment you switched topic and came back. Every other scene in the suite
+ * keeps its settings, because `ThreeDView` owns them per topic in
+ * `paramsByTopic` and hands them back on return. `ownHud: true` means the eye
+ * draws its own panel -- it never meant the eye had to own its own state.
+ */
+const EYE_DEFAULTS = {
+  mode: "accommodation",
+  objectDistance: 6,
+  autoAccommodate: true,
+  manualAccommodation: 0,
+  showBlur: true,
+  logLux: 2.6,
+  rayMode: "bundle",
+  showZonules: true,
+  layers: DEFAULT_LAYERS,
+  cutaway: true,
+  showVessels: true,
+  showMuscles: false,
+  showLabels: true,
+  selectedPart: null,
+  showRays: true,
+  /** Spectacle prescription, dioptres: −ve short sight, +ve long sight. */
+  refractiveErrorD: 0,
+  /** Whether the correcting lens is being worn. */
+  corrected: false,
+};
+
+export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
+  // Refs, so the setters below keep a stable identity for ever. Several of
+  // them are captured in `useCallback(..., [])` -- correct for a useState
+  // setter, and it would silently freeze a stale closure for anything that
+  // changed identity per render.
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+  const setParamRef = useRef(setParam);
+  setParamRef.current = setParam;
+
+  const pick = (key) => {
+    const value = params?.[key];
+    return value === undefined ? EYE_DEFAULTS[key] : value;
+  };
+
+  const setters = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.keys(EYE_DEFAULTS).map((key) => [
+          key,
+          (next) => {
+            const current = paramsRef.current?.[key];
+            const resolved =
+              typeof next === "function"
+                ? next(current === undefined ? EYE_DEFAULTS[key] : current)
+                : next;
+            setParamRef.current?.(key, resolved);
+          },
+        ]),
+      ),
+    [],
+  );
+
+  const mode = pick("mode");
+  const setMode = setters.mode;
+  const objectDistance = pick("objectDistance");
+  const setObjectDistance = setters.objectDistance;
+  const autoAccommodate = pick("autoAccommodate");
+  const setAutoAccommodate = setters.autoAccommodate;
+  const manualAccommodation = pick("manualAccommodation");
+  const setManualAccommodation = setters.manualAccommodation;
+  const showBlur = pick("showBlur");
+  const setShowBlur = setters.showBlur;
+  const logLux = pick("logLux");
+  const setLogLux = setters.logLux;
+  const rayMode = pick("rayMode");
+  const setRayMode = setters.rayMode;
+  const showZonules = pick("showZonules");
+  const setShowZonules = setters.showZonules;
+  const layers = pick("layers");
+  const setLayers = setters.layers;
+  const cutaway = pick("cutaway");
+  const setCutaway = setters.cutaway;
+  const showVessels = pick("showVessels");
+  const setShowVessels = setters.showVessels;
+  const showMuscles = pick("showMuscles");
+  const setShowMuscles = setters.showMuscles;
+  const showLabels = pick("showLabels");
+  const setShowLabels = setters.showLabels;
+  const selectedPart = pick("selectedPart");
+  const setSelectedPart = setters.selectedPart;
+  const showRays = pick("showRays");
+  const setShowRays = setters.showRays;
+  const refractiveErrorD = pick("refractiveErrorD");
+  const setRefractiveErrorD = setters.refractiveErrorD;
+  const corrected = pick("corrected");
+  const setCorrected = setters.corrected;
   const [panelOpen, setPanelOpen] = useState(true);
 
   // Resizable panel width state (10% to 80% screen width)
@@ -1427,8 +1508,10 @@ export default function EyeCanvas({ onOpenQuiz }) {
         lux,
         auto: autoAccommodate,
         manualAccommodation,
+        refractiveErrorD,
+        corrected,
       }),
-    [objectDistance, lux, autoAccommodate, manualAccommodation],
+    [objectDistance, lux, autoAccommodate, manualAccommodation, refractiveErrorD, corrected],
   );
 
   const toggleLayer = useCallback(
@@ -1451,6 +1534,8 @@ export default function EyeCanvas({ onOpenQuiz }) {
     setShowLabels(true);
     setSelectedPart(null);
     setShowRays(true);
+    setRefractiveErrorD(0);
+    setCorrected(false);
   }, []);
 
   const demand = accommodationDemand(objectDistance);
@@ -1519,28 +1604,6 @@ export default function EyeCanvas({ onOpenQuiz }) {
             ))}
         </group>
 
-        <SceneLegend
-          corner="top-right"
-          title={mode === "accommodation" ? "Accommodation" : mode === "pupil" ? "Pupil reflex" : "Anatomy"}
-          items={
-            mode === "accommodation"
-              ? [
-                  { color: solved.inFocus ? PALETTE.gold : PALETTE.rose, shape: "line", label: "Light rays", note: solved.inFocus ? "converging on the fovea" : "missing the retina" },
-                  { color: TISSUE.lens, label: "Crystalline lens", note: solved.ciliary.lens },
-                  { color: TISSUE.ciliary, label: "Ciliary muscle", note: solved.ciliary.muscle },
-                  { color: TISSUE.zonule, shape: "line", label: "Zonules", note: solved.ciliary.zonules },
-                  { color: PALETTE.slate, shape: "dash", label: "Object axis", note: "compressed — not to scale" },
-                ]
-              : mode === "pupil"
-                ? [
-                    { color: PALETTE.rose, shape: "line", label: "Sphincter", note: `circular · ${solved.iris.sphincter}` },
-                    { color: PALETTE.gold, shape: "line", label: "Dilator", note: `radial · ${solved.iris.dilator}` },
-                    { color: "#04070c", label: "Pupil", note: `${solved.iris.diameterMm.toFixed(2)} mm aperture` },
-                    { color: TISSUE.retina, label: "Retina", note: "what the aperture is protecting" },
-                  ]
-                : PARTS.slice(0, 5).map((p) => ({ color: TISSUE.retina, label: p.name, note: p.blurb }))
-          }
-        />
       </SceneCanvas>
 
       <IrisViewport solved={solved} animate expanded={mode === "pupil"} />
@@ -1605,6 +1668,31 @@ export default function EyeCanvas({ onOpenQuiz }) {
                   )}
                   <Toggle label="Out-of-focus preview" checked={showBlur} onChange={setShowBlur} />
                   <Toggle label="Show light rays" checked={showRays} onChange={setShowRays} />
+
+                  {/* Refractive error. The prescription convention: negative
+                      for short sight, positive for long sight. */}
+                  <div className="pt-1 border-t border-ink-800/60">
+                    <Slider
+                      label="Refractive error"
+                      value={refractiveErrorD}
+                      onChange={setRefractiveErrorD}
+                      min={-6}
+                      max={6}
+                      step={0.25}
+                      format={(v) =>
+                        Math.abs(v) < 0.16
+                          ? "0.00 D — emmetropic"
+                          : `${v > 0 ? "+" : ""}${v.toFixed(2)} D — ${v < 0 ? "short sight" : "long sight"}`
+                      }
+                    />
+                    {solved.defect.key !== "none" && (
+                      <Toggle
+                        label={`Wear the ${solved.defect.lens.split(" ")[0]} lens`}
+                        checked={corrected}
+                        onChange={setCorrected}
+                      />
+                    )}
+                  </div>
                   <div>
                     <p className="mb-1.5 text-[10px] uppercase tracking-wider text-ink-500">Ray visualiser</p>
                     <Choice
@@ -1755,6 +1843,22 @@ export default function EyeCanvas({ onOpenQuiz }) {
                 value={`±${solved.depthOfFocus.toFixed(2)} D`}
                 tone="neutral"
               />
+              {solved.defect.key !== "none" && (
+                <>
+                  <Pill label="Refractive error" value={`${solved.refractiveErrorD > 0 ? "+" : ""}${solved.refractiveErrorD.toFixed(2)} D`} tone="active" />
+                  <Pill
+                    label="Correcting lens"
+                    value={solved.corrected ? `worn · ${solved.correctionD > 0 ? "+" : ""}${solved.correctionD.toFixed(2)} D` : `off · needs ${solved.defect.lens}`}
+                    tone={solved.corrected ? "good" : "active"}
+                  />
+                  <Pill
+                    label="Far point"
+                    value={Number.isFinite(solved.farPoint) ? `${solved.farPoint.toFixed(2)} m` : "infinity"}
+                    tone={Number.isFinite(solved.farPoint) ? "active" : "good"}
+                  />
+                  <Pill label="Near point" value={`${(solved.nearPoint * 100).toFixed(1)} cm`} tone="neutral" />
+                </>
+              )}
             </div>
 
             {mode === "pupil" && (
@@ -1766,11 +1870,15 @@ export default function EyeCanvas({ onOpenQuiz }) {
 
             <p className="mt-3 rounded border border-ink-700 bg-ink-850 px-2 py-1.5 text-[10px] leading-relaxed text-ink-400">
               {mode === "accommodation"
-                ? solved.beyondNearPoint
-                  ? `Closer than the near point (${(1 / EYE.accommodationAmplitude) * 100} cm). The lens is already at maximum curvature and still cannot bend the light enough — this is why small print has to be held at arm's length as the lens stiffens with age.`
-                  : solved.inFocus
-                    ? "Sharp: the ciliary muscle is supplying exactly the accommodation this distance demands, so the rays cross precisely at the fovea."
-                    : `Blurred by ${solved.blurArcmin.toFixed(1)} arcmin. The focus lands ${Math.abs(solved.focusError * 1000).toFixed(2)} mm ${solved.focusError > 0 ? "behind" : "in front of"} the retina, so each object point paints a disc instead of a point.`
+                ? solved.beyondFarPoint
+                  ? `Further away than this eye's far point of ${solved.farPoint.toFixed(2)} m — ${solved.defect.cause}. Accommodation cannot help: the ciliary muscle only ever ADDS power, and this eye already has too much. It needs a ${solved.defect.lens} lens, which is what short sight is corrected with.`
+                  : solved.beyondNearPoint
+                    ? `Closer than this eye's near point of ${(solved.nearPoint * 100).toFixed(1)} cm. The lens is already at maximum curvature and still cannot bend the light enough${solved.defect.key === "hypermetropia" ? " — and a long-sighted eye spends part of its amplitude just reaching infinity, so its near point is pushed further out than the usual 10 cm" : " — this is why small print has to be held at arm's length as the lens stiffens with age"}.`
+                    : solved.inFocus
+                      ? solved.defect.key === "none" || solved.corrected
+                        ? "Sharp: the ciliary muscle is supplying exactly the accommodation this distance demands, so the rays cross precisely at the fovea."
+                        : `Sharp — but this eye is ${solved.refractiveErrorD > 0 ? "+" : ""}${solved.refractiveErrorD.toFixed(2)} D out, and it is holding ${solved.accommodation.toFixed(1)} D of accommodation to do it. ${solved.defect.key === "hypermetropia" ? "A long-sighted eye has to accommodate even for distant objects, which is why the strain is felt long before the blur is." : "Short sight is comfortable here because near work needs less power, not more."}`
+                      : `Blurred by ${solved.blurArcmin.toFixed(1)} arcmin. The focus lands ${Math.abs(solved.focusError * 1000).toFixed(2)} mm ${solved.focusError > 0 ? "behind" : "in front of"} the retina, so each object point paints a disc instead of a point.`
                 : mode === "pupil"
                   ? "The pupil is a coarse control: from starlight to direct sun the light changes by a factor of about 10⁸, and the reflex answers with barely a 14× change in area. Most adaptation is photochemical, in the receptors themselves."
                   : "Three coats, two fluid compartments and one adjustable lens, packed into 24 mm. Every number in this panel is measured off the same model the picture is drawn from."}

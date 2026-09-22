@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 
@@ -425,55 +423,6 @@ export function GradientDescentScene({ params = {} }) {
         {info.formula}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Descent state"
-        subtitle="xₙ₊₁ = xₙ − α ∇f(xₙ)"
-        rows={[
-          ["Loss f(x, z)", sample.loss.toFixed(3), "gold"],
-          ["Position x", sample.x.toFixed(2)],
-          ["Position z", sample.z.toFixed(2)],
-          ["Slope |∇f|", sample.slope.toFixed(3), sample.slope < 0.01 ? "good" : undefined],
-          ["Learning rate α", rate.toFixed(3)],
-          ["Momentum β", momentum.toFixed(2)],
-          ["Steps taken", sample.steps],
-          [
-            "Status",
-            STATUS_LABEL[sample.status] ?? (running ? "descending" : "paused"),
-            sample.status === "diverged" || sample.status === "unbounded"
-              ? "bad"
-              : sample.status === "converged"
-                ? "good"
-                : undefined,
-          ],
-        ]}
-        note={
-          sample.status === "diverged"
-            ? "Diverged: each step overshot by more than it started from, so the loss climbed away without bound. Lower α and reset."
-            : sample.status === "unbounded"
-              ? "It left the domain while still going downhill — the loss was falling the whole way. This surface has no minimum in that direction, so there is nothing to converge to."
-              : sample.status === "converged"
-                ? `Settled: the gradient here is flat, so every further step moves almost nothing. This is ${info.stationary}`
-                : info.note
-        }
-        noteTone={
-          sample.status === "diverged" || sample.status === "unbounded"
-            ? "bad"
-            : sample.status === "converged"
-              ? "good"
-              : "neutral"
-        }
-      />
-
-      <SceneLegend
-        title="Gradient descent"
-        items={[
-          { color: PALETTE.gold, label: "Current point", note: "the parameters being optimised" },
-          { color: PALETTE.emerald, shape: "line", label: "−∇f", note: "steepest downhill — the step direction" },
-          { color: PALETTE.violet, shape: "square", label: "Low loss", note: "the valleys you are trying to reach" },
-          { color: PALETTE.rose, shape: "square", label: "High loss", note: "steep walls; a large α launches off them" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -532,6 +481,103 @@ function exactVolume(r, height, panels = 400) {
     sum += (i % 2 ? 4 : 2) * r(i * h) ** 2;
   }
   return (Math.PI * height * h * sum) / 3;
+}
+
+const DISC_SEGMENTS = 48;
+
+/**
+ * One Riemann disc, drawn without any coplanar faces.
+ *
+ * The discs are flush, so a disc's top face and the next disc's bottom face
+ * share a plane. Drawing both full caps made the depth buffer flip between
+ * them frame to frame (the radial streaks). Each cap is instead drawn only
+ * where it is exposed, as the ring between the neighbour's radius and its own,
+ * and skipped when the neighbour is at least as wide and covers it entirely.
+ *
+ * `below` / `above` are the neighbouring radii, or undefined at the ends of
+ * the stack, where the full cap shows.
+ */
+function RiemannDisc({ disc, below, above, phiLength, even }) {
+  const { y, radius, thickness } = disc;
+  const half = thickness / 2;
+  const cut = phiLength < Math.PI * 2 - 1e-3;
+
+  const geo = useMemo(() => {
+    const ring = (inner) =>
+      new THREE.LatheGeometry(
+        [new THREE.Vector2(inner, 0), new THREE.Vector2(radius, 0)],
+        DISC_SEGMENTS,
+        0,
+        phiLength
+      );
+    const wall = new THREE.CylinderGeometry(radius, radius, thickness, DISC_SEGMENTS, 1, true, 0, phiLength);
+    const bottomInner = below === undefined ? 0 : below;
+    const topInner = above === undefined ? 0 : above;
+    return {
+      wall,
+      bottom: bottomInner < radius ? ring(bottomInner) : null,
+      top: topInner < radius ? ring(topInner) : null,
+      // The flat faces the sweep angle exposes, where the wedge is missing.
+      cutFace: cut ? new THREE.PlaneGeometry(radius, thickness) : null,
+    };
+  }, [radius, thickness, phiLength, below, above, cut]);
+
+  useEffect(
+    () => () => {
+      Object.values(geo).forEach((g) => g && g.dispose());
+    },
+    [geo]
+  );
+
+  // Both cut faces share this material. polygonOffset nudges them behind the
+  // emerald profile curve, which lies in the φ = 0 face and would fight it.
+  const material = (
+    <meshStandardMaterial
+      color={even ? "#fcd34d" : "#b45309"}
+      emissive={even ? "#d97706" : "#78350f"}
+      emissiveIntensity={0.16}
+      roughness={0.38}
+      metalness={0.18}
+      transparent
+      opacity={0.92}
+      side={THREE.DoubleSide}
+      polygonOffset
+      polygonOffsetFactor={1}
+      polygonOffsetUnits={1}
+    />
+  );
+
+  return (
+    <group position={[0, y, 0]}>
+      <mesh geometry={geo.wall}>{material}</mesh>
+      {geo.bottom && (
+        <mesh geometry={geo.bottom} position={[0, -half, 0]}>
+          {material}
+        </mesh>
+      )}
+      {geo.top && (
+        <mesh geometry={geo.top} position={[0, half, 0]}>
+          {material}
+        </mesh>
+      )}
+      {geo.cutFace && (
+        <>
+          {/* φ = 0: the plane x = 0, running out along +z. */}
+          <mesh geometry={geo.cutFace} position={[0, 0, radius / 2]} rotation={[0, -Math.PI / 2, 0]}>
+            {material}
+          </mesh>
+          {/* φ = phiLength: the same face turned to the far end of the sweep. */}
+          <mesh
+            geometry={geo.cutFace}
+            position={[(Math.sin(phiLength) * radius) / 2, 0, (Math.cos(phiLength) * radius) / 2]}
+            rotation={[0, phiLength - Math.PI / 2, 0]}
+          >
+            {material}
+          </mesh>
+        </>
+      )}
+    </group>
+  );
 }
 
 export function SolidOfRevolutionScene({ params = {} }) {
@@ -637,22 +683,14 @@ export function SolidOfRevolutionScene({ params = {} }) {
 
       {showDiscs &&
         discs.map((d, i) => (
-          <mesh key={i} position={[0, d.y, 0]}>
-            {/* Flush contiguous Riemann discs with high-contrast alternating gold & bronze layers */}
-            <cylinderGeometry
-              args={[d.radius, d.radius, d.thickness, 48, 1, false, 0, phiLength]}
-            />
-            <meshStandardMaterial
-              color={i % 2 === 0 ? "#fcd34d" : "#b45309"}
-              emissive={i % 2 === 0 ? "#d97706" : "#78350f"}
-              emissiveIntensity={0.16}
-              roughness={0.38}
-              metalness={0.18}
-              transparent
-              opacity={0.92}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+          <RiemannDisc
+            key={i}
+            disc={d}
+            below={discs[i - 1]?.radius}
+            above={discs[i + 1]?.radius}
+            phiLength={phiLength}
+            even={i % 2 === 0}
+          />
         ))}
 
       <Line points={profile} color={PALETTE.emerald} lineWidth={3.2} />
@@ -660,36 +698,6 @@ export function SolidOfRevolutionScene({ params = {} }) {
         r(y)
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Volume of revolution"
-        subtitle="V = π ∫ r(y)² dy"
-        rows={[
-          ["Curve", info.formula],
-          ["Height H", height.toFixed(1)],
-          ["Cutaway", sweep >= 360 ? "closed" : `${Math.round(sweep)}° shown`],
-          ["Exact V", exact.toFixed(3), "gold"],
-          ["Disc sum", estimate.toFixed(3)],
-          ["Discs n", Math.round(slices)],
-          ["Error", `${(error * 100).toFixed(2)}%`, error < 0.01 ? "good" : error < 0.05 ? "warn" : "bad"],
-        ]}
-        note={
-          error < 0.01
-            ? "With this many discs the staircase is within 1% of the true solid — this is what taking the limit n → ∞ means in practice."
-            : `Each disc is a cylinder of volume π r² Δy. Their sum approximates ${info.solid}; raise n and watch the error fall.`
-        }
-        noteTone={error < 0.01 ? "good" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Disc method"
-        items={[
-          { color: PALETTE.emerald, shape: "line", label: "r(y)", note: "the curve being revolved" },
-          { color: PALETTE.gold, shape: "square", label: "Disc", note: "one cylinder, volume π r² Δy" },
-          { color: PALETTE.sky, shape: "square", label: "True solid", note: "the limit as Δy → 0" },
-          { color: PALETTE.slate, shape: "dash", label: "Axis", note: "revolve about y; r is measured from it" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
@@ -1231,54 +1239,6 @@ export function UnitCircleWaveScene({ params = {} }) {
         the same motion, plotted against time →
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Circular motion"
-        subtitle={count === 1 ? "y = A sin θ · x = A cos θ" : `Fourier ${wf.label} synthesis`}
-        rows={[
-          ["Angle θ", `${((sample.theta * 180) / Math.PI).toFixed(0)}°`],
-          ["…in radians", sample.theta.toFixed(2)],
-          ["Height y", sample.height.toFixed(2), "gold"],
-          ["sin θ", Math.sin(sample.theta).toFixed(3)],
-          ["cos θ", Math.cos(sample.theta).toFixed(3)],
-          ...(showTangent && sample.tanVal !== undefined
-            ? [["tan θ", sample.tanVal.toFixed(3), "rose"]]
-            : []),
-          ["Amplitude A", amplitude.toFixed(2)],
-          ["Harmonics", count],
-          ...(count > 1
-            ? [
-                [`Target ${wf.label}`, targetAmp.toFixed(2)],
-                ...(wf.hasGibbs
-                  ? [["Overshoot of jump", `${(sample.overshoot * 100).toFixed(1)}%`, "warn"]]
-                  : [["Gibbs overshoot", "0% (continuous)", "good"]]),
-              ]
-            : []),
-        ]}
-        note={
-          count === 1
-            ? "The sine wave is not a separate object from the circle — it is the height of a point going round, drawn against time. One full turn is one wavelength."
-            : `Adding Fourier harmonics of amplitude scaled for a ${waveform} wave shapes the curve toward the target function. ${
-                wf.hasGibbs
-                  ? "The Gibbs phenomenon overshoot settles at about 9% of the jump however many terms you add."
-                  : "The series converges uniformly with quadratic damping (1/k²) and zero overshoot."
-              }`
-        }
-        noteTone={count > 1 && wf.hasGibbs ? "warn" : "neutral"}
-      />
-
-      <SceneLegend
-        title="Circle → wave"
-        items={[
-          { color: PALETTE.sky, shape: "line", label: "Base circle", note: "radius A, turns at θ" },
-          { color: PALETTE.gold, label: "Tip", note: "its height is the wave value" },
-          { color: PALETTE.gold, shape: "line", label: "sin trace", note: "the tip's height against time" },
-          ...(showTangent ? [{ color: PALETTE.rose, shape: "line", label: "Tangent line (tan θ)", note: "height on vertical line touching x = A" }] : []),
-          ...(showCos ? [{ color: PALETTE.violet, shape: "line", label: "Horizontal trace", note: "cos θ — a quarter turn ahead of the sine" }] : []),
-          ...(showHelix ? [{ color: PALETTE.sky, shape: "line", label: "3D Phase Helix", note: "unrolled 3D spatial trajectory (x, cos θ, sin θ)" }] : []),
-          ...(showTarget ? [{ color: PALETTE.emerald, shape: "line", label: `Target ${wf.label}`, note: "what the Fourier series converges to" }] : []),
-        ]}
-      />
     </SceneCanvas>
   );
 }

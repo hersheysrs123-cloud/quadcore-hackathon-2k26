@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Grid, Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -8,8 +8,6 @@ import {
   Halo,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   VectorArrow,
   clamp,
   hashRandom,
@@ -24,7 +22,9 @@ import {
 } from "@/components/visualizations/charge-carriers";
 import {
   DOME_MAX_MARKERS,
+  DOME_RADIUS,
   MAX_MARKERS,
+  formatForce,
   leak,
   rub,
   solveStatic,
@@ -57,14 +57,17 @@ const BALLOON_Y = 0.55;
 const SWEATER_X = -4.1;
 const DOME_X = 4.0;
 const DOME_Y = 1.5;
-const DOME_R = 0.62;
+/** The dome as drawn, from the radius the voltage is worked out for. */
+const DOME_R = DOME_RADIUS * S;
 
 /** How many seconds a single rub takes on screen. */
 const RUB_SECONDS = 1.5;
 /** React re-samples the charge counts this often. The clock runs every frame. */
 const SAMPLE_HZ = 12;
 
-const LATEX = "#d9455a";
+/** Latex, and the second balloon: bright enough to read against a light room. */
+const LATEX = "#f0566f";
+const LATEX_BLUE = "#4f96ee";
 
 // ─── Room ───────────────────────────────────────────────────────────
 
@@ -74,27 +77,216 @@ function Room({ humidity = 40 }) {
     <group>
       <Grid
         position={[0, FLOOR_Y, 0]}
-        args={[30, 20]}
+        args={[40, 26]}
         cellSize={0.6}
-        cellColor="#3f4d66"
+        cellColor="#b4c0d4"
         sectionSize={3}
-        sectionColor="#46536e"
+        sectionColor="#9aa9c2"
         fadeDistance={40}
         infiniteGrid={false}
       />
       {/* Back wall — the neutral surface the balloon is tested against. */}
-      <mesh position={[0, 1.4, WALL_Z]} receiveShadow>
-        <planeGeometry args={[16, 8.2]} />
-        <meshStandardMaterial color="#42506a" roughness={0.94} metalness={0.02} />
+      <mesh position={[0, 2.4, WALL_Z]} receiveShadow>
+        <planeGeometry args={[34, 10]} />
+        <meshStandardMaterial color="#e8eef7" roughness={0.94} metalness={0.02} />
+      </mesh>
+      {/* Skirting board, so the wall meets the floor at something. */}
+      <mesh position={[0, FLOOR_Y + 0.17, WALL_Z + 0.05]} receiveShadow>
+        <boxGeometry args={[34, 0.34, 0.1]} />
+        <meshStandardMaterial color="#eef2f8" roughness={0.7} />
       </mesh>
       <mesh position={[0, FLOOR_Y + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[22, 12]} />
-        <meshStandardMaterial color="#141a24" roughness={0.95} />
+        <planeGeometry args={[40, 26]} />
+        <meshStandardMaterial color="#b9c4d7" roughness={0.9} />
       </mesh>
-      <SceneLabel position={[-5.4, 3.3, WALL_Z + 0.05]} tone="text-ink-400">
+      {/* A rug under the whole demonstration, so the objects stand on something. */}
+      <RoundedBox args={[14.4, 0.04, 7.2]} radius={0.02} smoothness={2} position={[0, FLOOR_Y + 0.03, 0.4]} receiveShadow>
+        <meshStandardMaterial color="#d9cbb8" roughness={1} />
+      </RoundedBox>
+      <RoundedBox args={[13.6, 0.05, 6.4]} radius={0.02} smoothness={2} position={[0, FLOOR_Y + 0.035, 0.4]} receiveShadow>
+        <meshStandardMaterial color="#eee5d8" roughness={1} />
+      </RoundedBox>
+
+      <Hygrometer humidity={safeHumidity} />
+
+      {/* A mains socket and a light switch: the wall is a plastered wall in a room. */}
+      <group position={[-2.6, FLOOR_Y + 0.95, WALL_Z + 0.03]}>
+        <RoundedBox args={[0.52, 0.52, 0.05]} radius={0.03} smoothness={2}>
+          <meshStandardMaterial color="#f7f9fc" roughness={0.5} />
+        </RoundedBox>
+        {[-0.11, 0.11].map((x) => (
+          <mesh key={x} position={[x, 0.03, 0.03]}>
+            <boxGeometry args={[0.035, 0.11, 0.02]} />
+            <meshStandardMaterial color="#3b4252" roughness={0.6} />
+          </mesh>
+        ))}
+        <mesh position={[0, -0.12, 0.03]}>
+          <boxGeometry args={[0.05, 0.08, 0.02]} />
+          <meshStandardMaterial color="#3b4252" roughness={0.6} />
+        </mesh>
+      </group>
+      <group position={[-6.0, 1.1, WALL_Z + 0.03]}>
+        <RoundedBox args={[0.38, 0.58, 0.05]} radius={0.03} smoothness={2}>
+          <meshStandardMaterial color="#f7f9fc" roughness={0.5} />
+        </RoundedBox>
+        <RoundedBox args={[0.2, 0.32, 0.04]} radius={0.02} smoothness={2} position={[0, 0, 0.035]} rotation={[0.18, 0, 0]}>
+          <meshStandardMaterial color="#e6ebf3" roughness={0.4} />
+        </RoundedBox>
+      </group>
+
+      <SceneLabel position={[-2.5, 3.35, WALL_Z + 0.05]} tone="text-ink-400">
         {`neutral wall · ${safeHumidity.toFixed(0)}% humidity`}
       </SceneLabel>
     </group>
+  );
+}
+
+/**
+ * A wall hygrometer, whose needle is the humidity slider.
+ *
+ * The bands are the ones the readout uses for the charge's time constant —
+ * green below 45 %, amber to 70 %, red above — so the dial and the Details
+ * panel agree about when the demonstration stops working.
+ */
+function Hygrometer({ humidity = 40 }) {
+  const h = clamp(humidity, 0, 100);
+  // 0 % is 120° left of straight up, 100 % is 120° right of it.
+  const needle = ((120 - h * 2.4) * Math.PI) / 180;
+  const arc = (from, to) => ({
+    start: ((90 + 120 - to * 2.4) * Math.PI) / 180,
+    length: ((to - from) * 2.4 * Math.PI) / 180,
+  });
+  const bands = [
+    { from: 0, to: 45, colour: "#34d399" },
+    { from: 45, to: 70, colour: "#fbbf24" },
+    { from: 70, to: 100, colour: "#fb7185" },
+  ];
+  return (
+    <group position={[-2.5, 2.6, WALL_Z + 0.05]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.03]}>
+        <torusGeometry args={[0.47, 0.045, 10, 36]} />
+        <meshStandardMaterial color="#8a97ab" roughness={0.3} metalness={0.7} />
+      </mesh>
+      <mesh position={[0, 0, 0.02]}>
+        <circleGeometry args={[0.45, 36]} />
+        <meshStandardMaterial color="#fafbfd" roughness={0.5} />
+      </mesh>
+      {bands.map((b) => {
+        const a = arc(b.from, b.to);
+        return (
+          <mesh key={b.colour} position={[0, 0, 0.025]}>
+            <ringGeometry args={[0.31, 0.39, 24, 1, a.start, a.length]} />
+            <meshBasicMaterial color={b.colour} />
+          </mesh>
+        );
+      })}
+      {Array.from({ length: 11 }, (_, i) => {
+        const phi = ((120 - i * 24) * Math.PI) / 180;
+        return (
+          <mesh key={i} position={[-Math.sin(phi) * 0.27, Math.cos(phi) * 0.27, 0.03]} rotation={[0, 0, phi]}>
+            <boxGeometry args={[0.014, i % 5 === 0 ? 0.06 : 0.035, 0.005]} />
+            <meshBasicMaterial color="#475569" />
+          </mesh>
+        );
+      })}
+      <group rotation={[0, 0, needle]} position={[0, 0, 0.045]}>
+        <mesh position={[0, 0.13, 0]}>
+          <boxGeometry args={[0.024, 0.3, 0.008]} />
+          <meshBasicMaterial color="#1e293b" />
+        </mesh>
+      </group>
+      <mesh position={[0, 0, 0.05]}>
+        <sphereGeometry args={[0.03, 12, 12]} />
+        <meshStandardMaterial color="#64748b" roughness={0.3} metalness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+/** A scatter of tiny water beads condensed on a surface: the film the charge creeps away along. */
+function WaterBeads({ humidity = 40, radius, squash = 1, size = 0.03, seed = 0 }) {
+  const ref = useRef(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const count = Math.round(clamp((humidity - 45) / 50, 0, 1) * 34);
+  const beads = useMemo(
+    () =>
+      sphereMarkers(count, radius * 1.015).map((m) => ({
+        // Rotated a quarter turn from the charge markers' lattice, so beads and
+        // signs do not land on the same points.
+        p: [m.position[2], m.position[1] * squash, -m.position[0]],
+        k: 0.7 + hashRandom(seed + count * 0.3 + m.position[0] * 9) * 0.7,
+      })),
+    [count, radius, squash, seed],
+  );
+
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    beads.forEach((b, i) => {
+      dummy.position.set(b.p[0], b.p[1], b.p[2]);
+      dummy.scale.setScalar(b.k);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [beads, dummy]);
+
+  if (count === 0) return null;
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, count]} frustumCulled={false}>
+      <sphereGeometry args={[size, 10, 8]} />
+      <meshStandardMaterial color="#14b8a6" transparent opacity={0.85} roughness={0.05} metalness={0.1} />
+    </instancedMesh>
+  );
+}
+
+/** Short crackling arcs off the dome once it is charged hard: corona discharge into the air. */
+function Corona({ centre, radius, level }) {
+  const ARCS = 7;
+  const SEGS = 4;
+  const last = useRef(-1);
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(ARCS * SEGS * 2 * 3), 3));
+    return g;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useFrame((state) => {
+    if (level < 0.45) return;
+    const bucket = Math.floor(state.clock.elapsedTime * 11);
+    if (bucket === last.current) return;
+    last.current = bucket;
+    const arr = geometry.attributes.position.array;
+    let k = 0;
+    for (let a = 0; a < ARCS; a += 1) {
+      const u = hashRandom(bucket * 7.13 + a * 13.3) * 2 - 1;
+      const th = hashRandom(bucket * 3.71 + a * 5.9) * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      const dx = r * Math.cos(th);
+      const dy = u;
+      const dz = r * Math.sin(th);
+      const len = 0.28 + hashRandom(bucket * 1.9 + a * 2.7) * 0.5 * level;
+      let x = centre[0] + dx * radius;
+      let y = centre[1] + dy * radius;
+      let z = centre[2] + dz * radius;
+      for (let sgm = 0; sgm < SEGS; sgm += 1) {
+        const nx = x + dx * (len / SEGS) + (hashRandom(bucket * 5.3 + a * 11 + sgm) - 0.5) * 0.14;
+        const ny = y + dy * (len / SEGS) + (hashRandom(bucket * 8.1 + a * 17 + sgm) - 0.5) * 0.14;
+        const nz = z + dz * (len / SEGS) + (hashRandom(bucket * 2.9 + a * 23 + sgm) - 0.5) * 0.14;
+        arr[k++] = x; arr[k++] = y; arr[k++] = z;
+        arr[k++] = nx; arr[k++] = ny; arr[k++] = nz;
+        x = nx; y = ny; z = nz;
+      }
+    }
+    geometry.attributes.position.needsUpdate = true;
+  });
+
+  if (level < 0.45) return null;
+  return (
+    <lineSegments geometry={geometry} frustumCulled={false}>
+      <lineBasicMaterial color="#0ea5e9" transparent opacity={0.45 + level * 0.5} />
+    </lineSegments>
   );
 }
 
@@ -108,40 +300,56 @@ function Room({ humidity = 40 }) {
  */
 function HumidityHaze({ humidity = 40, animSpeed = 1 }) {
   const safeHumidity = Number.isFinite(humidity) ? humidity : 40;
-  const ref = useRef(null);
+  const core = useRef(null);
+  const halo = useRef(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const count = Math.round(clamp((safeHumidity - 10) / 85, 0, 1) * 70);
+  // Up to 150 motes at saturation: the old 70 tiny ones were easy to miss.
+  const count = Math.round(clamp((safeHumidity - 10) / 85, 0, 1) * 150);
 
   const seeds = useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
-        x: (hashRandom(i * 1.7 + 3) - 0.5) * 15,
-        y: hashRandom(i * 3.1 + 11) * 5.2 - 2.2,
-        z: (hashRandom(i * 5.3 + 7) - 0.5) * 5.5,
+        x: (hashRandom(i * 1.7 + 3) - 0.5) * 16,
+        y: hashRandom(i * 3.1 + 11) * 7 - 2.3,
+        z: hashRandom(i * 5.3 + 7) * 6.2 - 3.0,
         phase: hashRandom(i * 7.9 + 19) * Math.PI * 2,
+        size: 0.75 + hashRandom(i * 2.3 + 41) * 0.75,
       })),
     [count],
   );
 
   useFrame((state) => {
-    const mesh = ref.current;
-    if (!mesh || count === 0) return;
+    if (count === 0) return;
     const t = state.clock.elapsedTime * animSpeed;
     for (let i = 0; i < count; i += 1) {
       const s = seeds[i];
-      dummy.position.set(s.x, s.y + Math.sin(t * 0.35 + s.phase) * 0.22, s.z);
+      // A slow wander in all three axes, and a pulse in size so the motes shimmer.
+      dummy.position.set(
+        s.x + Math.sin(t * 0.21 + s.phase) * 0.5,
+        s.y + Math.sin(t * 0.35 + s.phase * 1.3) * 0.32,
+        s.z + Math.cos(t * 0.18 + s.phase) * 0.4,
+      );
+      dummy.scale.setScalar(s.size * (0.88 + 0.22 * Math.sin(t * 1.3 + s.phase * 2)));
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      core.current?.setMatrixAt(i, dummy.matrix);
+      halo.current?.setMatrixAt(i, dummy.matrix);
     }
-    mesh.instanceMatrix.needsUpdate = true;
+    if (core.current) core.current.instanceMatrix.needsUpdate = true;
+    if (halo.current) halo.current.instanceMatrix.needsUpdate = true;
   });
 
   if (count === 0) return null;
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, count]} frustumCulled={false}>
-      <sphereGeometry args={[0.035, 6, 6]} />
-      <meshBasicMaterial color="#5eead4" transparent opacity={0.3} depthWrite={false} />
-    </instancedMesh>
+    <group>
+      <instancedMesh ref={halo} args={[undefined, undefined, count]} frustumCulled={false}>
+        <sphereGeometry args={[0.15, 10, 10]} />
+        <meshBasicMaterial color="#5eead4" transparent opacity={0.24} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={core} args={[undefined, undefined, count]} frustumCulled={false}>
+        <sphereGeometry args={[0.062, 12, 12]} />
+        <meshBasicMaterial color="#14b8a6" transparent opacity={0.9} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+    </group>
   );
 }
 
@@ -164,36 +372,54 @@ function Sweater({ markers }) {
 
   return (
     <group>
-      {/* Stand. */}
+      {/* Stand: a weighted base, a pole and a shaped support plate under the hem. */}
       <mesh position={[SWEATER_X, FLOOR_Y + 0.05, 0]}>
         <cylinderGeometry args={[0.55, 0.62, 0.1, 20]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.7} metalness={0.3} />
+        <meshStandardMaterial color="#b3bdcb" roughness={0.6} metalness={0.2} />
       </mesh>
       <mesh position={[SWEATER_X, FLOOR_Y + 1.1, 0]}>
         <cylinderGeometry args={[0.07, 0.07, 2.1, 12]} />
-        <meshStandardMaterial color="#4f5d71" roughness={0.5} metalness={0.6} />
+        <meshStandardMaterial color="#95a3b8" roughness={0.45} metalness={0.4} />
       </mesh>
 
       {/* Torso and sleeves. */}
       <RoundedBox args={[1.25, 1.7, 0.62]} radius={0.16} smoothness={4} position={[SWEATER_X, 0.35, 0]}>
-        <meshStandardMaterial color="#8d7358" roughness={0.98} metalness={0.0} />
+        <meshStandardMaterial color="#dcbb85" roughness={0.98} metalness={0.0} />
       </RoundedBox>
-      {[-0.85, 0.85].map((x) => (
-        <RoundedBox
-          key={x}
-          args={[0.52, 1.15, 0.5]}
-          radius={0.14}
-          smoothness={4}
-          position={[SWEATER_X + x, 0.25, 0]}
-          rotation={[0, 0, x > 0 ? -0.22 : 0.22]}
-        >
-          <meshStandardMaterial color="#7f6750" roughness={0.98} />
-        </RoundedBox>
+      {/* Ribbed hem, and the pole's support plate beneath it. */}
+      <RoundedBox args={[1.29, 0.2, 0.66]} radius={0.07} smoothness={3} position={[SWEATER_X, -0.42, 0]}>
+        <meshStandardMaterial color="#c9a468" roughness={0.99} />
+      </RoundedBox>
+      <mesh position={[SWEATER_X, -0.56, 0]}>
+        <cylinderGeometry args={[0.32, 0.32, 0.04, 20]} />
+        <meshStandardMaterial color="#95a3b8" roughness={0.45} metalness={0.4} />
+      </mesh>
+      {/* Cable-knit ridges down the front. */}
+      {[-0.42, -0.21, 0, 0.21, 0.42].map((x) => (
+        <mesh key={x} position={[SWEATER_X + x, 0.42, 0.315]}>
+          <boxGeometry args={[0.055, 1.28, 0.02]} />
+          <meshStandardMaterial color="#ceac72" roughness={0.99} />
+        </mesh>
       ))}
-      {/* Collar. */}
+      {[-0.85, 0.85].map((x) => (
+        <group key={x} position={[SWEATER_X + x, 0.25, 0]} rotation={[0, 0, x > 0 ? -0.22 : 0.22]}>
+          <RoundedBox args={[0.52, 1.15, 0.5]} radius={0.14} smoothness={4}>
+            <meshStandardMaterial color="#d1ae76" roughness={0.98} />
+          </RoundedBox>
+          {/* Ribbed cuff. */}
+          <RoundedBox args={[0.56, 0.18, 0.54]} radius={0.06} smoothness={3} position={[0, -0.56, 0]}>
+            <meshStandardMaterial color="#c9a468" roughness={0.99} />
+          </RoundedBox>
+        </group>
+      ))}
+      {/* Collar, and the dark neck opening inside it. */}
       <mesh position={[SWEATER_X, 1.24, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.33, 0.1, 8, 22]} />
-        <meshStandardMaterial color="#6f5942" roughness={0.98} />
+        <meshStandardMaterial color="#c29d63" roughness={0.98} />
+      </mesh>
+      <mesh position={[SWEATER_X, 1.235, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.25, 22]} />
+        <meshStandardMaterial color="#6b5335" roughness={1} />
       </mesh>
 
       <ChargeSigns signs={signs} size={0.2} />
@@ -208,7 +434,7 @@ function Sweater({ markers }) {
 }
 
 /** A latex balloon with its charge drawn on the skin. */
-function Balloon({ markers, tint = LATEX, showLabel = true, label, tone = "text-ink-300" }) {
+function Balloon({ markers, tint = LATEX, showLabel = true, label, tone = "text-ink-300", labelDx = 0, labelDy = 0, humidity = 40 }) {
   const signs = useMemo(
     () =>
       sphereMarkers(Math.round(markers), BALLOON_R * 1.06, { centre: [0, 0, 0] }).map((m) => ({
@@ -226,11 +452,29 @@ function Balloon({ markers, tint = LATEX, showLabel = true, label, tone = "text-
         <sphereGeometry args={[BALLOON_R, 30, 24]} />
         <meshStandardMaterial color={tint} roughness={0.32} metalness={0.05} />
       </mesh>
-      {/* Knot. */}
+      {/* Neck, the tied knot, and the string tail. */}
       <mesh position={[0, -BALLOON_R * 1.24, 0]}>
-        <coneGeometry args={[0.1, 0.2, 10]} />
+        <coneGeometry args={[0.1, 0.2, 12]} />
         <meshStandardMaterial color={tint} roughness={0.4} />
       </mesh>
+      <mesh position={[0, -BALLOON_R * 1.24 - 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.045, 0.028, 8, 14]} />
+        <meshStandardMaterial color={tint} roughness={0.4} />
+      </mesh>
+      <Line
+        points={[
+          [0, -BALLOON_R * 1.24 - 0.15, 0],
+          [0.05, -BALLOON_R * 1.24 - 0.5, 0.03],
+          [-0.04, -BALLOON_R * 1.24 - 0.85, -0.02],
+          [0.03, -BALLOON_R * 1.24 - 1.2, 0.02],
+        ]}
+        color="#94a3b8"
+        lineWidth={1.2}
+      />
+      {/* Condensation: the wetter the air, the more of a film there is to leak along. */}
+      <group scale={[1, 1.22, 1]}>
+        <WaterBeads humidity={humidity} radius={BALLOON_R} seed={3} />
+      </group>
       {/* Highlight, so the latex reads as rubber rather than plastic. */}
       <mesh position={[-0.18, 0.28, BALLOON_R * 0.72]}>
         <sphereGeometry args={[0.11, 10, 10]} />
@@ -243,7 +487,7 @@ function Balloon({ markers, tint = LATEX, showLabel = true, label, tone = "text-
       )}
 
       {showLabel && (
-        <SceneLabel position={[0, BALLOON_R * 1.55, 0]} tone={tone}>
+        <SceneLabel position={[labelDx, BALLOON_R * 1.55 + labelDy, 0]} tone={tone}>
           {label ?? (markers > 0.5 ? `${Math.round(markers)} extra electrons` : "neutral balloon")}
         </SceneLabel>
       )}
@@ -259,15 +503,15 @@ function Balloon({ markers, tint = LATEX, showLabel = true, label, tone = "text-
  * Van de Graaff is a mechanical current: a rubber belt physically carrying
  * charge up to the dome, at a few microamps, instead of a wire conducting it.
  */
-function VanDeGraaff({ on, markers, pans, animSpeed = 1 }) {
+function VanDeGraaff({ on, markers, pans, animSpeed = 1, humidity = 40 }) {
   const beltPath = useMemo(
     () =>
       makeFlowPath(
         [
-          [DOME_X - 0.16, FLOOR_Y + 0.35, 0.1],
-          [DOME_X - 0.16, DOME_Y - 0.1, 0.1],
-          [DOME_X + 0.16, DOME_Y - 0.1, -0.1],
-          [DOME_X + 0.16, FLOOR_Y + 0.35, -0.1],
+          [DOME_X - 0.16, FLOOR_Y + 0.5, 0],
+          [DOME_X - 0.16, DOME_Y - 0.1, 0],
+          [DOME_X + 0.16, DOME_Y - 0.1, 0],
+          [DOME_X + 0.16, FLOOR_Y + 0.5, 0],
         ],
         { closed: true },
       ),
@@ -284,14 +528,53 @@ function VanDeGraaff({ on, markers, pans, animSpeed = 1 }) {
 
   return (
     <group>
-      {/* Base and column. */}
-      <RoundedBox args={[1.3, 0.42, 1.0]} radius={0.06} smoothness={3} position={[DOME_X, FLOOR_Y + 0.21, 0]}>
-        <meshStandardMaterial color="#5b6472" roughness={0.6} metalness={0.4} />
+      {/* Base: motor housing with vents, a rocker switch and a status lamp. */}
+      <RoundedBox args={[1.3, 0.42, 1.0]} radius={0.06} smoothness={3} position={[DOME_X, FLOOR_Y + 0.21, 0]} castShadow>
+        <meshStandardMaterial color="#b9c4d3" roughness={0.55} metalness={0.25} />
       </RoundedBox>
-      <mesh position={[DOME_X, (FLOOR_Y + 0.42 + DOME_Y) / 2, 0]}>
-        <cylinderGeometry args={[0.26, 0.3, DOME_Y - FLOOR_Y - 0.42, 18]} />
-        <meshStandardMaterial color="#526076" roughness={0.55} metalness={0.35} />
+      {[-0.3, -0.18, -0.06].map((x) => (
+        <mesh key={x} position={[DOME_X + x - 0.1, FLOOR_Y + 0.22, 0.503]}>
+          <boxGeometry args={[0.08, 0.2, 0.01]} />
+          <meshStandardMaterial color="#5b6577" roughness={0.7} />
+        </mesh>
+      ))}
+      <mesh position={[DOME_X + 0.36, FLOOR_Y + 0.17, 0.51]} rotation={[on ? -0.35 : 0.35, 0, 0]}>
+        <boxGeometry args={[0.16, 0.12, 0.05]} />
+        <meshStandardMaterial color={on ? "#f4f6fa" : "#dfe4ec"} roughness={0.4} />
       </mesh>
+      <mesh position={[DOME_X + 0.36, FLOOR_Y + 0.31, 0.505]}>
+        <sphereGeometry args={[0.035, 12, 12]} />
+        <meshStandardMaterial color={on ? "#22c55e" : "#9ca3af"} emissive={on ? "#22c55e" : "#000000"} emissiveIntensity={on ? 1.8 : 0} toneMapped={false} />
+      </mesh>
+
+      {/* Column: clear acrylic, so the belt and its carriers can actually be seen inside it. */}
+      <mesh position={[DOME_X, (FLOOR_Y + 0.42 + DOME_Y) / 2, 0]}>
+        <cylinderGeometry args={[0.26, 0.3, DOME_Y - FLOOR_Y - 0.42, 24, 1, true]} />
+        <meshStandardMaterial color="#c9dcf2" transparent opacity={0.3} roughness={0.1} metalness={0.05} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      {/* The rubber belt's two runs, and the rollers it turns on. */}
+      {[-0.16, 0.16].map((x) => (
+        <mesh key={x} position={[DOME_X + x, (FLOOR_Y + 0.5 + DOME_Y - 0.1) / 2, 0]}>
+          <boxGeometry args={[0.02, DOME_Y - 0.1 - FLOOR_Y - 0.5, 0.2]} />
+          <meshStandardMaterial color="#4a5263" roughness={0.8} transparent opacity={0.8} />
+        </mesh>
+      ))}
+      {[
+        [DOME_Y - 0.1, "#cbd5e1", 0.2],
+        [FLOOR_Y + 0.5, "#6b7385", 0.18],
+      ].map(([y, colour, r]) => (
+        <mesh key={y} position={[DOME_X, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[r * 0.8, r * 0.8, 0.26, 16]} />
+          <meshStandardMaterial color={colour} roughness={0.35} metalness={0.7} />
+        </mesh>
+      ))}
+      {/* Metal collars where the column meets the base and the dome. */}
+      {[FLOOR_Y + 0.46, DOME_Y - DOME_R + 0.02].map((y) => (
+        <mesh key={y} position={[DOME_X, y, 0]}>
+          <cylinderGeometry args={[0.33, 0.33, 0.09, 24]} />
+          <meshStandardMaterial color="#aeb9c9" roughness={0.3} metalness={0.7} />
+        </mesh>
+      ))}
 
       {/* Belt carriers — the mechanical current. */}
       <ChargeFlow
@@ -307,11 +590,13 @@ function VanDeGraaff({ on, markers, pans, animSpeed = 1 }) {
       {/* Dome. */}
       <mesh position={[DOME_X, DOME_Y, 0]} castShadow>
         <sphereGeometry args={[DOME_R, 30, 24]} />
-        <meshStandardMaterial color="#aab4c2" roughness={0.22} metalness={0.95} />
+        <meshStandardMaterial color="#eef2f8" roughness={0.28} metalness={0.45} />
       </mesh>
       <group position={[DOME_X, DOME_Y, 0]}>
         <ChargeSigns signs={domeSigns} size={0.2} />
+        <WaterBeads humidity={humidity} radius={DOME_R} seed={9} size={0.034} />
       </group>
+      <Corona centre={[DOME_X, DOME_Y, 0]} radius={DOME_R} level={markers / DOME_MAX_MARKERS} />
       {markers > 1 && (
         <Halo
           position={[DOME_X, DOME_Y, 0]}
@@ -323,8 +608,9 @@ function VanDeGraaff({ on, markers, pans, animSpeed = 1 }) {
 
       <PieStack launched={pans} animSpeed={animSpeed} />
 
-      <SceneLabel position={[DOME_X, DOME_Y + 1.9, 0]} tone={on ? "text-sky-300" : "text-ink-500"}>
-        {on ? `Van de Graaff running · ${Math.round(markers)} charges on the dome` : "Van de Graaff · off"}
+      {/* Pulled in from the right edge: centred on the dome, the running text ran off the canvas. */}
+      <SceneLabel position={[DOME_X - 0.55, DOME_Y + 1.9, 0]} tone={on ? "text-sky-300" : "text-ink-400"}>
+        {on ? `Van de Graaff · ${Math.round(markers)} charges on the dome` : "Van de Graaff · off"}
       </SceneLabel>
     </group>
   );
@@ -359,7 +645,7 @@ function PieStack({ launched, animSpeed = 1 }) {
         <group key={i} ref={(el) => (refs.current[i] = el)} position={[DOME_X, DOME_Y + DOME_R + 0.06 + i * 0.09, 0]}>
           <mesh>
             <cylinderGeometry args={[0.34, 0.28, 0.05, 22]} />
-            <meshStandardMaterial color="#c8d0da" roughness={0.28} metalness={0.92} />
+            <meshStandardMaterial color="#f4f6fa" roughness={0.3} metalness={0.45} />
           </mesh>
         </group>
       ))}
@@ -558,6 +844,9 @@ function DraggableBalloon({
   balloonRef,
   balloonMarkers,
   balloonCharge,
+  labelDx = 0,
+  labelDy = 0,
+  humidity = 40,
 }) {
   const drag = useBalloonDrag({
     axis: geometry.axis,
@@ -578,6 +867,9 @@ function DraggableBalloon({
             : "neutral — rub it on the wool"
         }
         tone={balloonMarkers > 0.5 ? "text-sky-300" : "text-ink-400"}
+        labelDx={labelDx}
+        labelDy={labelDy}
+        humidity={humidity}
       />
     </group>
   );
@@ -717,15 +1009,25 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
     const dir = to.clone().sub(from).normalize();
     if (!solved.attracts) dir.negate();
     const len = clamp(0.55 + Math.log10(1 + solved.force * 400) * 0.85, 0.5, 3.2);
+    if (target === "wall") {
+      // The wall is only a gap away, and an arrow that starts at the balloon and
+      // runs its full length is buried in the plaster. Draw it beside the
+      // balloon, and stop it at the wall.
+      const start = from.clone().add(new THREE.Vector3(BALLOON_R * 1.35, 0, 0));
+      const room = Math.max(from.z - WALL_Z - 0.08, 0.2);
+      return { from: start.toArray(), to: start.clone().addScaledVector(dir, Math.min(len, room)).toArray() };
+    }
     const start = from.clone().addScaledVector(dir, BALLOON_R + 0.12);
     return { from: start.toArray(), to: start.clone().addScaledVector(dir, len).toArray() };
-  }, [solved.force, solved.attracts, solved.balloonMarkers, geometry]);
+  }, [solved.force, solved.attracts, solved.balloonMarkers, geometry, target]);
 
   return (
     <SceneCanvas
-      camera={{ position: [0.5, 2.2, 11.5], fov: 46 }}
+      // Off the middle: from dead centre the force on a balloon held to the wall
+      // points straight down the line of sight and its arrow is a dot.
+      camera={{ position: [3.6, 2.5, 10.8], fov: 46 }}
       controls={{ minDistance: 4, maxDistance: 26, target: [0, 0.3, -0.6], maxPolarAngle: Math.PI / 2.02 }}
-      lights={{ ambient: 0.5, keyLight: 0.9 }}
+      lights={{ ambient: 0.75, keyLight: 0.9 }}
       fog={[18, 44]}
     >
       <Room humidity={humidity} />
@@ -760,17 +1062,30 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
       )}
 
       {/* Thread and the balloon itself. */}
-      <Line
-        points={[geometry.anchor, [geometry.rest[0], geometry.rest[1] + BALLOON_R * 1.2, geometry.rest[2]]]}
-        color="#4b5563"
-        lineWidth={1.2}
-      />
+      {/* Hidden mid-rub: the balloon is carried to the wool, and a thread left
+          hanging at its resting place would be tied to nothing. */}
+      {rubPhase < 0.02 && (
+        <>
+          <Line
+            points={[geometry.anchor, [geometry.rest[0], geometry.rest[1] + BALLOON_R * 1.2, geometry.rest[2]]]}
+            color="#64748b"
+            lineWidth={1.3}
+          />
+          {/* Where the thread is tied off. */}
+          <mesh position={geometry.anchor}>
+            <torusGeometry args={[0.07, 0.018, 8, 16]} />
+            <meshStandardMaterial color="#8a97ab" roughness={0.3} metalness={0.7} />
+          </mesh>
+        </>
+      )}
       <DraggableBalloon
         geometry={geometry}
         onSeparation={onSeparation}
         balloonRef={balloonRef}
         balloonMarkers={solved.balloonMarkers}
         balloonCharge={solved.balloonCharge}
+        labelDx={target === "balloon" ? -0.6 : 0}
+        humidity={humidity}
       />
 
       {/* The second balloon, charged the same way and therefore repelled. */}
@@ -781,11 +1096,11 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
               [geometry.partner[0], 4.4, geometry.partner[2]],
               [geometry.partner[0], geometry.partner[1] + BALLOON_R * 1.2, geometry.partner[2]],
             ]}
-            color="#4b5563"
-            lineWidth={1.2}
+            color="#64748b"
+            lineWidth={1.3}
           />
           <group position={geometry.partner}>
-            <Balloon markers={solved.otherMarkers} tint="#3f7fd0" label="also rubbed — same charge" />
+            <Balloon markers={solved.otherMarkers} tint={LATEX_BLUE} label="also rubbed — same charge" labelDx={0.6} labelDy={0.62} humidity={humidity} />
           </group>
         </>
       )}
@@ -797,12 +1112,12 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         </>
       )}
       {target === "wall" && solved.otherMarkers > 0.5 && (
-        <SceneLabel position={[1.9, BALLOON_Y + 1.15, WALL_Z + 0.1]} tone="text-rose-300">
+        <SceneLabel position={[2.4, BALLOON_Y + 1.75, WALL_Z + 0.1]} tone="text-rose-300">
           {`wall polarised · ${Math.round(solved.otherMarkers)} + drawn to the surface, ${Math.round(solved.otherMarkers)} − pushed back`}
         </SceneLabel>
       )}
 
-      <VanDeGraaff on={Boolean(vdg)} markers={solved.domeMarkers} pans={solved.pans} animSpeed={speed} />
+      <VanDeGraaff on={Boolean(vdg)} markers={solved.domeMarkers} pans={solved.pans} animSpeed={speed} humidity={humidity} />
 
       {/* The Coulomb force. */}
       {arrow && rubPhase < 0.02 && (
@@ -828,36 +1143,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Static electricity"
-        subtitle={`balloon near the ${solved.spec.label.toLowerCase()}`}
-        rows={[
-          ["On the balloon", `${Math.round(solved.balloonMarkers)} −`],
-          ["On the wool", `${Math.round(solved.sweaterMarkers)} +`],
-          [target === "wall" ? "Induced on the wall" : "On the other object", `${Math.round(solved.otherMarkers)}`],
-          ["Gap", `${(solved.separation * 100).toFixed(1)} cm`],
-          ["Coulomb force", formatForce(solved.force), solved.attracts ? "good" : "bad"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Charge key"
-        items={[
-          { color: CHARGE_COLOURS.electron, label: "− electron", note: "the only thing that moves" },
-          { color: CHARGE_COLOURS.positive, label: "+ unpaired", note: "left behind where an electron used to be" },
-          { color: "#34d399", label: "Attraction", note: "charged to neutral, by induction" },
-          { color: "#5eead4", label: "Water in the air", note: "leaks the charge away" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
 
-/** Newtons, in whichever unit keeps the number readable. */
-function formatForce(newtons = 0) {
-  const n = Number.isFinite(newtons) ? Math.abs(newtons) : 0;
-  if (n >= 1) return `${n.toFixed(2)} N`;
-  if (n >= 1e-3) return `${(n * 1e3).toFixed(1)} mN`;
-  return `${(n * 1e6).toFixed(0)} µN`;
-}

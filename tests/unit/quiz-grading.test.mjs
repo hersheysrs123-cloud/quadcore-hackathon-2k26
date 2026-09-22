@@ -1,90 +1,21 @@
+// ─── Quiz grading, against the engine that actually grades ───────────
+// This file used to open with three private copies of gradeObjectively,
+// fallbackHeatmap and normalizeQuizResult, and assert against those. It
+// passed whatever lib/aiService.js did — and lib/aiService.js had moved on:
+// it grades three more question types (multi_select, step_ordering,
+// value_input) that the copy here had never heard of.
+//
+// Now it imports the shipped engine, so those types are covered too.
+// ─────────────────────────────────────────────────────────────────────
+
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-export function gradeObjectively(questions, responses) {
-  return questions.map((question, i) => {
-    const response = responses[i];
-    const answer = response?.answer;
-
-    if (question.type === "multiple_choice") {
-      const isProvided = answer !== null && answer !== undefined && answer !== "";
-      const picked = isProvided ? Number(answer) : NaN;
-      const answered = Number.isInteger(picked) && picked >= 0;
-      return {
-        answered,
-        objective: answered ? picked === question.correctIndex : false,
-        display: answered ? (question.options?.[picked] ?? "") : "",
-      };
-    }
-
-    const text = String(answer ?? "").trim();
-    return { answered: text.length > 0, objective: null, display: text };
-  });
-}
-
-export function fallbackHeatmap(gradedAnswers) {
-  const bySubtopic = new Map();
-
-  for (const answer of gradedAnswers) {
-    const bucket = bySubtopic.get(answer.subtopic) ?? { right: 0, total: 0 };
-    bucket.total += 1;
-    if (answer.correct) bucket.right += 1;
-    bySubtopic.set(answer.subtopic, bucket);
-  }
-
-  return [...bySubtopic.entries()].map(([subtopic, { right, total }]) => {
-    const ratio = right / total;
-    return {
-      subtopic,
-      status: ratio === 1 ? "green" : ratio > 0 ? "yellow" : "red",
-      feedback: `${right} of ${total} correct on this subtopic.`,
-    };
-  });
-}
-
-export function normalizeQuizResult(raw, questions, graded) {
-  const clampScore = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
-  const byIndex = new Map(
-    (Array.isArray(raw?.gradedAnswers) ? raw.gradedAnswers : []).map((entry) => [
-      Number(entry?.questionIndex),
-      entry,
-    ])
-  );
-
-  const gradedAnswers = questions.map((question, i) => {
-    const fromModel = byIndex.get(i) ?? (Array.isArray(raw?.gradedAnswers) ? raw.gradedAnswers[i] : null);
-    const { answered, objective, display } = graded[i];
-
-    const correct =
-      question.type === "multiple_choice"
-        ? objective
-        : answered && Boolean(fromModel?.correct);
-
-    return {
-      questionIndex: i,
-      subtopic: question.subtopic,
-      type: question.type,
-      prompt: question.prompt,
-      options: question.options,
-      correctIndex: question.correctIndex,
-      yourAnswer: display,
-      answered,
-      correct,
-      feedback: String(fromModel?.feedback ?? "").trim(),
-    };
-  });
-
-  const correctCount = gradedAnswers.filter((a) => a.correct).length;
-  const score = clampScore((correctCount / Math.max(1, gradedAnswers.length)) * 100);
-
-  return {
-    score,
-    correctCount,
-    totalCount: gradedAnswers.length,
-    gradedAnswers,
-    heatmap: Array.isArray(raw?.heatmap) && raw.heatmap.length ? raw.heatmap : fallbackHeatmap(gradedAnswers),
-  };
-}
+import {
+  gradeObjectively,
+  fallbackHeatmap,
+  normalizeQuizResult,
+  clampScore,
+} from "../../lib/aiService.js";
 
 describe("Deterministic Quiz Grading Engine", () => {
   const mockQuestions = [
@@ -192,6 +123,12 @@ describe("Deterministic Quiz Grading Engine", () => {
     assert.strictEqual(opticsHeatmap.status, "red");
   });
 
+  it("marks a subtopic yellow when it is part right", () => {
+    const graded = gradeObjectively(mockQuestions, [{ answer: 1 }, { answer: 0 }, { answer: "" }]);
+    const result = normalizeQuizResult({ heatmap: [] }, mockQuestions, graded);
+    assert.strictEqual(result.heatmap.find((h) => h.subtopic === "Optics").status, "yellow");
+  });
+
   it("never marks skipped/empty MCQ questions as Option A (0) correct", () => {
     // Question with correctIndex 0
     const mcqWithCorrectZero = [
@@ -242,5 +179,124 @@ describe("Deterministic Quiz Grading Engine", () => {
     assert.strictEqual(result.score, 100);
     assert.strictEqual(result.gradedAnswers[2].correct, true);
     assert.strictEqual(result.gradedAnswers[2].feedback, "Excellent answer");
+  });
+
+  it("keeps a model heatmap when it has one, and repairs an unknown status", () => {
+    const graded = gradeObjectively(mockQuestions, [{ answer: 1 }, { answer: 2 }, { answer: "yes" }]);
+    const result = normalizeQuizResult(
+      { heatmap: [{ subtopic: " Optics ", status: "chartreuse", feedback: " solid " }] },
+      mockQuestions,
+      graded,
+    );
+    assert.strictEqual(result.heatmap.length, 1);
+    assert.strictEqual(result.heatmap[0].subtopic, "Optics", "subtopic is trimmed");
+    assert.strictEqual(result.heatmap[0].status, "yellow", "an off-schema status falls back to yellow");
+    assert.strictEqual(result.heatmap[0].feedback, "solid");
+  });
+
+  it("clamps a score to 0-100 and rounds it", () => {
+    assert.strictEqual(clampScore(66.67), 67);
+    assert.strictEqual(clampScore(-20), 0);
+    assert.strictEqual(clampScore(140), 100);
+    assert.strictEqual(clampScore("nonsense"), 0);
+  });
+});
+
+// ─── The types the private copy could not see ────────────────────────
+// gradeObjectively grades these itself; the model is not consulted. The
+// old private copy fell through to its short-answer branch for all three,
+// so it would have handed every one of them to the model as objective:null.
+
+describe("Objective grading of the non-MCQ question types", () => {
+  it("grades multi_select only on an exact set match", () => {
+    const q = [{
+      subtopic: "Bonding", type: "multi_select",
+      prompt: "Which are giant covalent?",
+      options: ["Diamond", "Graphite", "Iodine", "Silicon dioxide"],
+      correctIndices: [0, 1, 3],
+    }];
+
+    assert.strictEqual(gradeObjectively(q, [{ answer: [0, 1, 3] }])[0].objective, true);
+    assert.strictEqual(gradeObjectively(q, [{ answer: [3, 1, 0] }])[0].objective, true, "order does not matter");
+    assert.strictEqual(gradeObjectively(q, [{ answer: [0, 1] }])[0].objective, false, "a partial set is not credit");
+    assert.strictEqual(gradeObjectively(q, [{ answer: [0, 1, 2, 3] }])[0].objective, false, "an extra pick is not credit");
+
+    const blank = gradeObjectively(q, [{ answer: [] }])[0];
+    assert.strictEqual(blank.answered, false);
+    assert.strictEqual(blank.objective, false);
+    assert.strictEqual(blank.display, "");
+
+    assert.strictEqual(gradeObjectively(q, [{ answer: [0, 1, 3] }])[0].display, "Diamond, Graphite, Silicon dioxide");
+  });
+
+  it("grades step_ordering on the exact sequence", () => {
+    const steps = ["Dissolve", "Filter", "Evaporate", "Crystallise"];
+    const q = [{ subtopic: "Separation", type: "step_ordering", prompt: "Order the steps", steps }];
+
+    assert.strictEqual(gradeObjectively(q, [{ answer: steps }])[0].objective, true);
+    assert.strictEqual(
+      gradeObjectively(q, [{ answer: ["Filter", "Dissolve", "Evaporate", "Crystallise"] }])[0].objective,
+      false,
+      "a swapped pair is wrong",
+    );
+    assert.strictEqual(gradeObjectively(q, [{ answer: ["Dissolve"] }])[0].answered, false, "one step is not an ordering");
+    assert.strictEqual(
+      gradeObjectively(q, [{ answer: steps }])[0].display,
+      "1. Dissolve ➔ 2. Filter ➔ 3. Evaporate ➔ 4. Crystallise",
+    );
+  });
+
+  it("grades value_input numerically, inside the question's tolerance", () => {
+    const q = [{ subtopic: "Moles", type: "value_input", prompt: "Mass of 0.5 mol of water?", expectedAnswer: "9.0", tolerance: 0.1 }];
+
+    assert.strictEqual(gradeObjectively(q, [{ answer: "9.0" }])[0].objective, true);
+    assert.strictEqual(gradeObjectively(q, [{ answer: "9.05" }])[0].objective, true, "inside tolerance");
+    assert.strictEqual(
+      gradeObjectively(q, [{ answer: "9.5" }])[0].objective,
+      null,
+      "outside tolerance goes to the model, not straight to wrong",
+    );
+    assert.strictEqual(gradeObjectively(q, [{ answer: "" }])[0].answered, false);
+
+    // A default tolerance of 0.01 applies when the question does not set one.
+    const loose = [{ subtopic: "Moles", type: "value_input", prompt: "?", expectedAnswer: "2.50" }];
+    assert.strictEqual(gradeObjectively(loose, [{ answer: "2.505" }])[0].objective, true);
+    assert.strictEqual(gradeObjectively(loose, [{ answer: "2.6" }])[0].objective, null);
+  });
+
+  it("does not let the model overturn an objectively-graded question", () => {
+    const q = [{
+      subtopic: "Bonding", type: "multi_select", prompt: "Which are giant covalent?",
+      options: ["Diamond", "Iodine"], correctIndices: [0],
+    }];
+    const graded = gradeObjectively(q, [{ answer: [1] }]); // objectively wrong
+    const result = normalizeQuizResult({ gradedAnswers: [{ questionIndex: 0, correct: true }] }, q, graded);
+    assert.strictEqual(result.gradedAnswers[0].correct, false, "the objective verdict wins");
+    assert.strictEqual(result.score, 0);
+  });
+
+  it("lets an objectively-correct value_input stand without the model agreeing", () => {
+    const q = [{ subtopic: "Moles", type: "value_input", prompt: "?", expectedAnswer: "9.0", tolerance: 0.1 }];
+    const graded = gradeObjectively(q, [{ answer: "9.0" }]);
+    const result = normalizeQuizResult({ gradedAnswers: [{ questionIndex: 0, correct: false }] }, q, graded);
+    assert.strictEqual(result.gradedAnswers[0].correct, true);
+  });
+});
+
+describe("fallbackHeatmap", () => {
+  it("buckets by subtopic and reports the count in the feedback", () => {
+    const heat = fallbackHeatmap([
+      { subtopic: "Optics", correct: true },
+      { subtopic: "Optics", correct: false },
+      { subtopic: "Waves", correct: true },
+    ]);
+    assert.deepStrictEqual(heat.map((h) => h.subtopic), ["Optics", "Waves"], "in first-seen order");
+    assert.strictEqual(heat[0].status, "yellow");
+    assert.strictEqual(heat[0].feedback, "1 of 2 correct on this subtopic.");
+    assert.strictEqual(heat[1].status, "green");
+  });
+
+  it("returns nothing for an empty session rather than throwing", () => {
+    assert.deepStrictEqual(fallbackHeatmap([]), []);
   });
 });

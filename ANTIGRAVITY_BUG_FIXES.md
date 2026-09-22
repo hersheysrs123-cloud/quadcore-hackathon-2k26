@@ -1135,7 +1135,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
 5. **HUD & Navigation Integration (`components/Workspace.jsx`, `components/CommandPalette.jsx`)**:
    * Added `🎯 Quizzes` tab button in HUD, view switcher in main body, and `Ctrl+K` command palette item.
 6. **Automated Verification**:
-   * Created [`tests/unit/quiz-studio-flow.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/quiz-studio-flow.test.mjs).
+   * Created [`tests/unit/quiz-studio-flow.test.mjs`](tests/unit/quiz-studio-flow.test.mjs).
    * All **124 unit & integration tests across 44 test suites** pass. Production Next.js build (`npm run build`) succeeded with exit code 0.
 
 ---
@@ -1750,7 +1750,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * `handleCellChange` guarantees dense array allocations (`while (newRow.length <= colIndex) newRow.push("")`).
    * `getNormalizedTableData` supports `columns`/`data` aliases and enforces non-empty fallback structures.
 7. **Comprehensive Unit Testing Suite**:
-   * Created [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying all 14 table scenarios and edge cases.
+   * Created [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying all 14 table scenarios and edge cases.
    * Total test suite expanded to **204 passing tests** across 59 suites (`npm test`).
 
 ---
@@ -1776,7 +1776,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * **Cell Hover `ƒ(x)` Quick Action**: A hover button on each table cell (`ƒ(x)`) allows one-click equation creation.
    * **Keyboard Shortcut (`Ctrl+M` / `Cmd+M`)**: Pressing `Ctrl+M` or `Cmd+M` while focused in any table cell opens the equation popover immediately.
 4. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying lossless round-tripping of LaTeX equations inside markdown table cells.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying lossless round-tripping of LaTeX equations inside markdown table cells.
    * All 205 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1798,7 +1798,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Guaranteed deep cloning via `JSON.parse(JSON.stringify(blocksRef.current))` whenever snapshots are pushed to `pastBlocks` or `futureBlocks`.
    * Guaranteed deep cloning when restoring previous states on `Ctrl+Z` (Undo) and next states on `Ctrl+Y` / `Ctrl+Shift+Z` (Redo).
 3. **Automated Unit Testing**:
-   * Added state machine unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying that column and row deletions are 100% losslessly undoable and redoable with all cell values preserved.
+   * Added state machine unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying that column and row deletions are 100% losslessly undoable and redoable with all cell values preserved.
    * All 207 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1822,7 +1822,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Directly updated `targetEl` with `setBlockDOMFromText(targetEl, newCellText)`.
    * Updated `tableData` and passed `recordHistory = true` to allow immediate Undo/Redo (`Ctrl+Z` / `Ctrl+Y`).
 3. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) validating `removeFormulaFromCellText` and `updateFormulaInCellText` across isolated formulas and formulas embedded in sentences.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) validating `removeFormulaFromCellText` and `updateFormulaInCellText` across isolated formulas and formulas embedded in sentences.
    * All 209 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1852,7 +1852,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Uses `onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}` on all toolbar buttons to ensure clicking buttons does not collapse the active text selection.
    * Dispatches input events to the active `contentEditable` element to trigger synchronous markdown and table cell state serialization.
 2. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) validating markdown selection wrapping and viewport edge clamping.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) validating markdown selection wrapping and viewport edge clamping.
    * All 211 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1872,7 +1872,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Implemented `removeFormulaAtIndex(text, targetIndex)` and `updateFormulaAtIndex(text, targetIndex, newFormula)` to scan formula tokens sequentially and delete or update strictly the target occurrence at `targetIndex`.
    * Provided fallback non-global single replacement (`new RegExp(...)` without `/g`) when index resolution is unavailable.
 3. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying that deleting a specific copy of a duplicate formula in cells with 2 or 3 identical equations leaves the remaining instances completely untouched.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying that deleting a specific copy of a duplicate formula in cells with 2 or 3 identical equations leaves the remaining instances completely untouched.
    * All 212 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1895,7 +1895,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Created `recordHistorySnapshot` in `BlockNoteEditor` and passed it as `onRecordHistory` to `TextSelectionToolbar`.
    * Snapshots `blocksRef.current` (deep cloned) into `pastBlocks` before any formatting command executes, enabling instant, lossless `Ctrl+Z` / `Ctrl+Y` undo/redo across both regular blocks and table cells.
 3. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) testing instant formula compilation and table history restoration.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) testing instant formula compilation and table history restoration.
    * All 213 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -1917,7 +1917,7 @@ In `ExportImportModal.jsx`, the modal container lacked explicit viewport height 
    * Synced across note creation, note duplication, workspace export/import, and automatic unmount saves.
    * Enables each note to have its own independent font style (e.g. Physics in *Mono*, History in *Serif*, Reflection in *Handwriting*).
 4. **Automated Unit Testing**:
-   * Added unit tests in [`tests/unit/table-block.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/table-block.test.mjs) verifying font mapping, CSS class application, and multi-note style isolation.
+   * Added unit tests in [`tests/unit/table-block.test.mjs`](tests/unit/table-block.test.mjs) verifying font mapping, CSS class application, and multi-note style isolation.
    * All 215 unit, integration, and flow tests pass (`npm test`).
 
 ---
@@ -5207,12 +5207,12 @@ Users identified two visual inconsistencies during print and PDF export:
 ## 88. Universal 3D Visualization Sidebar Controls Resizability Standard (`ShadowLabCanvas.jsx` & `EyeCanvas.jsx`)
 
 ### Problem Statement
-- In the "Light, Shadows & Straight Lines" optical bench 3D visualization ([`ShadowLabCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/ShadowLabCanvas.jsx)), the sidebar controls panel was hardcoded to a static width of `w-[288px]` and lacked any drag-to-resize handle or width responsiveness.
-- A comprehensive audit of all 36 3D interactive visualizations in SocraticOS revealed that while 32 topics driven by [`VisualizationHUD.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/VisualizationHUD.jsx), [`BinaryTree3D.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/BinaryTree3D.jsx) (`binary_tree`), and [`RespiratoryCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/RespiratoryCanvas.jsx) (`respiratory`) possessed drag-to-resize sidebar capabilities, both `ShadowLabCanvas.jsx` (`shadows`) and [`EyeCanvas.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/EyeCanvas.jsx) (`eye`) were constrained to static non-resizable containers (`w-[288px]` and `w-[286px]`).
+- In the "Light, Shadows & Straight Lines" optical bench 3D visualization ([`ShadowLabCanvas.jsx`](components/visualizations/ShadowLabCanvas.jsx)), the sidebar controls panel was hardcoded to a static width of `w-[288px]` and lacked any drag-to-resize handle or width responsiveness.
+- A comprehensive audit of all 36 3D interactive visualizations in SocraticOS revealed that while 32 topics driven by [`VisualizationHUD.jsx`](components/visualizations/VisualizationHUD.jsx), [`BinaryTree3D.jsx`](components/visualizations/BinaryTree3D.jsx) (`binary_tree`), and [`RespiratoryCanvas.jsx`](components/visualizations/RespiratoryCanvas.jsx) (`respiratory`) possessed drag-to-resize sidebar capabilities, both `ShadowLabCanvas.jsx` (`shadows`) and [`EyeCanvas.jsx`](components/visualizations/EyeCanvas.jsx) (`eye`) were constrained to static non-resizable containers (`w-[288px]` and `w-[286px]`).
 
 ### Root Cause Analysis
 1. **Dedicated HUD Routing (`ownHud: true`)**:
-   - In [`components/visualizations/topics.js`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/visualizations/topics.js), 4 specialized topics specify `ownHud: true`: `shadows`, `eye`, `respiratory`, and `binary_tree`.
+   - In [`components/visualizations/topics.js`](components/visualizations/topics.js), 4 specialized topics specify `ownHud: true`: `shadows`, `eye`, `respiratory`, and `binary_tree`.
    - Because `app/visualizations/page.jsx` and `components/ThreeDView.jsx` bypass the shared `VisualizationHUD` when `topic.ownHud === true`, each of these dedicated scenes is responsible for rendering its own control overlay.
 2. **Missing Resize State & Handle Elements**:
    - `BinaryTree3D.jsx` and `RespiratoryCanvas.jsx` had been updated with dynamic width states and drag-to-resize handles.
@@ -5231,7 +5231,7 @@ Users identified two visual inconsistencies during print and PDF export:
    - Added right-edge drag bar with `cursor-ew-resize`, hover highlighting (`group-hover:bg-duck-400/80`), and active styling.
    - Added bottom-right corner grip SVG indicator (`cursor-nwse-resize`) matching `VisualizationHUD.jsx` and `BinaryTree3D.jsx`.
 4. **Automated Verification & Unit Tests**:
-   - Created [`tests/unit/topic-sidebar-resize.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/topic-sidebar-resize.test.mjs) verifying:
+   - Created [`tests/unit/topic-sidebar-resize.test.mjs`](tests/unit/topic-sidebar-resize.test.mjs) verifying:
      - All 36 topics have valid HUD routing (32 via `VisualizationHUD` and 4 via dedicated scenes).
      - `VisualizationHUD.jsx`, `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx` all implement resizable width states and resize handles.
      - Mathematical width clamping correctly respects the 10% to 80% viewport limits.
@@ -5247,7 +5247,7 @@ Users identified two visual inconsistencies during print and PDF export:
 
 ### Root Cause Analysis
 1. **Redundant Horizontal Navigation Strip (`Category & Topic Quick Switch Strip`)**:
-   - Both [`components/ThreeDView.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/components/ThreeDView.jsx) and [`app/visualizations/page.jsx`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/app/visualizations/page.jsx) rendered a secondary horizontal bar with category filter chips and horizontally scrolling topic buttons.
+   - Both [`components/ThreeDView.jsx`](components/ThreeDView.jsx) and [`app/visualizations/page.jsx`](app/visualizations/page.jsx) rendered a secondary horizontal bar with category filter chips and horizontally scrolling topic buttons.
    - This secondary strip consumed 40px+ of vertical space and introduced redundant topic selection state (`category`, `visibleTopics`).
 2. **Unstyled Native `<select>` Selector**:
    - The topic selector was rendered as a plain `<select>` dropdown with `appearance-none` and basic borders.
@@ -5264,7 +5264,7 @@ Users identified two visual inconsistencies during print and PDF export:
    - **`components/ThreeDView.jsx`**: Removed the second horizontal scroll bar completely. Replaced unstyled `<select>` with `<TopicSelectorDropdown currentTopicId={topicId} onSelectTopic={selectTopic} />`. Cleaned up unused `category` and `visibleTopics` state. Moved the floating "Show top bars" button into the main body for fullscreen focus mode.
    - **`app/visualizations/page.jsx`**: Removed the second horizontal scroll bar completely. Replaced `<select>` and redundant header search input with `<TopicSelectorDropdown currentTopicId={topicId} onSelectTopic={selectTopic} />`. Repositioned floating "Show top bars" button in the canvas viewport.
 3. **Automated Verification & Unit Tests**:
-   - Created [`tests/unit/topic-selector-dropdown.test.mjs`](file:///c:/Users/Sivabalan/Documents/GitHub/quadcore-hackathon-2k26/tests/unit/topic-selector-dropdown.test.mjs) verifying:
+   - Created [`tests/unit/topic-selector-dropdown.test.mjs`](tests/unit/topic-selector-dropdown.test.mjs) verifying:
      - `TopicSelectorDropdown.jsx` implements subject grouping, quick filter pills, search input, click-outside dismissal, and Escape key handling.
      - All 35 topics across the 5 scientific disciplines (`physics`: 17, `chemistry`: 7, `biology`: 6, `cs`: 2, `math`: 3) are mapped and cataloged.
      - Both `ThreeDView.jsx` and `app/visualizations/page.jsx` integrate `TopicSelectorDropdown` and have the legacy second horizontal scrolling strip completely removed.
@@ -7291,3 +7291,255 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 4. **Deep-clone duplicate**: `cloneNoteTree` re-mints every note id, block id, `parentId` and `page.pageId` inside the subtree, so copies never share children.
 5. **Card ⇄ page sync invariant**: removing a `page` card (gutter delete, selection Backspace/Delete, Cut, forward Delete) trashes the page; Undo restores the card in an "in Trash" state with a one-click **Restore**; restoring a page whose live parent lost its card re-inserts the card (`ensurePageBlockInParent`).
 6. **Verification**: `tests/unit/note-hierarchy.test.mjs` (26 pure helper tests incl. cycles, orphans, MAX depth) and `tests/unit/nested-sub-pages.test.mjs` (27 wiring / exporter / ranking tests); full suite **1299 tests** green across 324 suites; production `next build` clean; headless-Chrome CDP scenarios (create via `/page` and gutter `+`, rename/icon live-card update, breadcrumb navigation incl. `…` overflow, collapse/expand, reload persistence, cascade delete → trash → restore, move-with-children, deep-clone duplicate, delete-open-child jumps to parent, `/page` inside an unsaved draft) all pass with zero console errors.
+
+---
+
+## 143. Simple Machines High-FPS Optimization, Authentic Lever Hinges & Reeving, Right-Hand Sidebar; Roller Coaster Solid Bottom Bar HUD, Lightened Colors & Bogie Detailing
+
+### 🐛 Problem Statement
+1. **Simple Machines Severe Performance Degradation (`SimpleMachinesCanvas.jsx`)**:
+   - The simulation suffered from noticeable frame drops and lag across lever classes, block and tackle, sliders, and animation.
+   - Profiling identified that `StrokeClock` called `setPhase(p)` into React component state at 30 Hz. Every 33 ms, the entire React component tree re-rendered, recreating Drei `<Line>` geometries, 10+ mesh children of `LoadStack`, and projecting Drei `<Html>` labels, causing severe garbage collection pauses and frame hitching.
+2. **Lever Mechanics & Suspension Realism**:
+   - `LoadStack` disks sat directly on the beam centerline clipping through the wooden beam rather than hanging stably under gravity below the beam from an eyelet.
+   - For Class 2 and Class 3 levers, the pivot at $x = 0$ incorrectly displayed a triangular balance knife-edge with a balance pointer needle, instead of an authentic anchored stanchion hinge clevis bracket.
+3. **Block-and-Tackle Rope Routing**:
+   - The 4-rope configuration suffered from self-intersecting rope lines because the threading logic lacked authentic multi-sheave alternating Z-planes and tangencies.
+4. **Simple Machines Graph Position & Contrast**:
+   - The work per stroke graph floated in the 3D scene at `[5.1, BENCH_Y + 0.45, 0]` with a dark backing that was hard to read against the `#273043` scene background.
+5. **Roller Coaster Missing Monitor Backing & Position (`RollerCoasterCanvas.jsx`)**:
+   - Gauges (speed dial, g-force meter, energy budget bars) floated in 3D space at `PANEL_Y = -5.4` without a solid background fill, making them hard to read and easily clipped during camera zoom or orbit.
+6. **Roller Coaster Visual Detail & Lightening**:
+   - The track was a basic dual tube lacking a structural backbone pipe and cross-ties.
+   - Support columns ended abruptly in the ground without concrete footing piers.
+   - Ground and rails were dark (`#222a36`, `#c3ccd8`).
+   - The car was a basic yellow box with riders and simple wheel discs, lacking aerodynamic styling, headlights, and safety bogies.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Zero-State `useFrame` Animation & In-Place Geometry Updates (`SimpleMachinesCanvas.jsx`)**:
+   - Eliminated `useState(phase)` and `StrokeClock` React state thrashing.
+   - In `Lever`: animated beam rotation, hanging load translation, and effort actuator grip directly in Three.js via `useFrame` mutating object transform refs (`beamGroupRef.current.rotation.z`, `loadGroupRef.current.position.set`, `effortGroupRef.current.position.set`).
+   - In `Pulley`: moved lower block and pull handle directly in `useFrame`. Upgraded rope line to a native Three.js `<line>` with persistent `<bufferGeometry ref={ropeGeomRef}>`, updating vertex coordinates in-place via `ropeGeomRef.current.setFromPoints(...)` without allocations.
+   - Eliminated all continuous React re-renders during animation, restoring smooth 60–120 FPS performance.
+2. **Authentic Lever Pivots & Under-Beam Hanging Weight Stack**:
+   - Class 1: Retained triangular knife-edge fulcrum, apex saddle collar, graduation scale plate, and red balance indicator needle.
+   - Class 2 & Class 3: Installed a heavy-duty stanchion hinge bracket with dual mounting ears, 4 foundation bolts, and a horizontal cylindrical clevis axle pin at $x = 0$.
+   - Redesigned `LoadStack` with an eyelet attachment hook, central hanger spindle rod, carrier platform tray, and slotted calibration disks hanging stably under gravity below the beam with $\ge 0.35\text{ m}$ clearance above the workbench.
+3. **Verified Non-Crossing 4-Rope Reeving**:
+   - Implemented authentic multi-sheave path routing with alternating Z-offsets ($Z = \pm 0.04$) across sheaves:
+     Upper becket $\to$ Lower sheave 0 $\to$ Upper sheave 0 $\to$ Lower sheave 1 $\to$ Upper sheave 1 $\to$ Hauling lead.
+   - Verified non-crossing geometry for $n = 1, 2, 3, 4$ supporting ropes.
+4. **Right-Hand Sidebar HUD Layout (`SimpleMachinesSidebar`)**:
+   - Moved work bookkeeping out of the 3D scene into a dedicated right-hand sidebar overlay (`absolute right-4 top-4 z-20 w-80`).
+   - Styled with lightened studio slate background `#1e2638`, border `#38455c`, high-contrast bars (Work In in amber, Work Out in emerald, Friction in rose), live mechanical metrics ($MA$, $VR$, efficiency $\eta$), and conservation law takeaways.
+5. **Solid Bottom Bar HUD for Roller Coaster Monitors (`RollerCoasterCanvas.jsx`)**:
+   - Removed floating 3D monitors from `PANEL_Y = -5.4`.
+   - Built a solid bottom bar HUD card (`absolute bottom-3 left-1/2 -translate-x-1/2 z-20`) with solid `#1e2638` background, `#38455c` border, holding:
+     - Energy Budget Stack & Bars (GPE, KE, Heat, and Total kJ reference).
+     - Analog Speedometer SVG dial gauge ($0\text{--}45\text{ m/s}$).
+     - Passenger G-Force SVG dial gauge (with redline indicator $>5\text{ g}$).
+     - Clearance verdict badge (cleared loop, derailment warning, or high g-force alert).
+6. **Roller Coaster Track & Car Detailing**:
+   - **Track**: Added central tubular spine pipe (`color="#94a3b8"`, metalness 0.85) and triangular web cross-ties welding rails to spine.
+   - **Rails**: Lightened to polished chrome stainless steel (`#f8fafc`, metalness 0.96, roughness 0.16).
+   - **Footing Piers**: Added concrete pedestal blocks (`#94a3b8`, roughness 0.85) with steel baseplates and anchor bolts to every support column at ground level.
+   - **Ground**: Lightened to industrial slate base (`#475569`) with polished aluminum top plate (`#cbd5e1`) and safety yellow/black hazard perimeter stripes (`#eab308`).
+   - **Car**: Added aerodynamic sculpted nose cone, tinted windshield canopy (`#38bdf8`), twin LED headlights (`#f8fafc`, emissive `#38bdf8`), passenger figurines with padded restraint lap bars, and authentic 3-wheel safety bogies (running wheels, side friction wheels, and up-stop wheels).
+7. **Verification**:
+   - All **886 unit and integration tests** and **34 empirical challenge tests** passed with 0 failures.
+   - Production build compiled successfully (`npm run build`).
+   - Next.js production server running on port 3000 verified with HTTP 200 on `/visualizations`.
+
+---
+
+## 144. Simple Machines Precision Dynamometer Test Stand, Expanded Workbench & Coaster Car Aerodynamic Detailing
+
+### 🐛 Problem Statements & Root Causes
+1. **Floating Force Vectors & Workspace Crowding (`SimpleMachinesCanvas.jsx`)**:
+   - Calibrated effort and load force vectors floated suspended in open 3D space at `[3.6, BENCH_Y + 3.6, 0]` and `[4.45, BENCH_Y + 3.6, 0]`, causing them to stick out awkwardly, interfere with the right sidebar HUD, and crowd the lever/pulley mechanisms.
+   - The workbench base previously spanned only $7.6\text{ m}$ (centered at $x = 0.7$, spanning $-3.1$ to $+4.5$), leaving insufficient space on the left side to cleanly mount testing instruments without crowding the machine.
+2. **Work & Force Graph Transitions**:
+   - The work bookkeeping bar gauge previously snapped abruptly when changing parameters due to stepped ceiling quantizations (`Math.ceil(...)`).
+3. **Block-and-Tackle Rope Reeving Tangency**:
+   - In 4-sheave configurations, rope falls needed verified circular rim tangencies $(cx \pm R, y)$ and vertical non-crossing falls down through the sheaves.
+4. **Roller Coaster Floating Headlights & Car Detail Request (`RollerCoasterCanvas.jsx`)**:
+   - Headlight cylinders on the front nose protruded outwards and appeared to float during dynamic motion.
+   - The user requested complete removal of all headlights/lights and extensive authentic mechanical and aerodynamic detailing concentrated specifically on the coaster car, while keeping the track geometry clean.
+
+### 🛠️ Resolution & Architectural Enhancements
+1. **Expanded Workbench Base & Left Laboratory Wing (`SimpleMachinesCanvas.jsx`)**:
+   - Widened workbench base to $10.2\text{ m}$ centered at $x = -0.4$ (spanning $-5.5\text{ m}$ to $+4.7\text{ m}$), with a matching $10.0\text{ m}$ brushed aluminum workplate and six support pedestals at $x = -5.0, -0.4, +4.2$.
+   - Adjusted camera position to `[0.2, 1.3, 14.6]` with target `[0.2, 0.3, 0]`, providing a spacious widescreen laboratory view.
+2. **Precision Laboratory Dynamometer Test Stand (`DynamometerTestStand`)**:
+   - Mounted a standalone industrial test fixture on the expanded left workbench wing at $x = -3.75$ ($>1.5\text{ m}$ clear of the lever/pulley, completely isolated from the right sidebar).
+   - Features a cast-iron mounting baseplate with hex foundation bolts, twin polished chrome tubular columns ($H = 2.4\text{ m}$), horizontal crossbars, dark slate backplate (`#0f172a` / `#1e293b`), laser-etched graduation scales, and top placard header.
+   - Houses two dedicated force transducer channels spaced $0.84\text{ m}$ apart (Effort Load Cell at $x = -4.13$ and Load Force Transducer at $x = -3.37$) with calibrated `<ForceVector>` arrows and clear non-overlapping `<SceneLabel>` badges.
+3. **Smooth Graph Transitions & Comparative Force Gauges (`SimpleMachinesSidebar`)**:
+   - Implemented continuous dynamic scale factor `Math.max(160, Math.max(workIn, workOut) * 1.12)` eliminating snapping.
+   - Added smooth CSS transitions (`transition-[width] duration-300 ease-out`) across all work and force comparison bars.
+   - Integrated comparative dual-bar live force gauge with dynamic max force normalization.
+4. **Rim-Tangent Block-and-Tackle Reeving**:
+   - Updated `generateRopePoints` with exact tangent coordinate calculations $(cx \pm \text{sheaveR}, y)$ and verified vertical 4-rope non-crossing falls with $Z = \pm 0.04$ alternating offsets.
+5. **Complete Coaster Car Detailing & Headlight Elimination (`RollerCoasterCanvas.jsx`)**:
+   - Completely eliminated all headlights, emissive discs, and floating light meshes.
+   - **Aerodynamics & Exterior**: Front carbon-composite sculpted chin splitter, twin recessed radiator air intakes with center divider, aerodynamic sloped nose fairing, flank side skirts in slate with cyan metallic racing pinstripes (`#0284c7`), and tinted canopy windshield with cowl frame.
+   - **High-Downforce Rear Wing**: Twin vertical endplate pylons, inverted airfoil wing element with endplate winglets, and triple rear underbody venturi diffuser fins.
+   - **Cockpit Interior**: Deep cockpit well, dashboard console with passenger safety grab rail, contoured high-back racing bucket seats with integrated headrests, polished chrome tubular roll-bar safety hoops behind each rider, 4-point safety harness straps with red central quick-release buckles, and aerodynamic racing helmets with dark tinted visors.
+   - **Chassis & Underbody**: Longitudinal structural steel chassis keel, underside copper magnetic eddy-current brake fin blade, and precision 3-wheel safety bogies with hydraulic suspension shock dampers.
+6. **Automated Verification**:
+   - All **1299 unit and integration tests** and **34 empirical challenge tests** passed with 0 failures.
+
+---
+
+## 3D Visualization Studio Redesign: Docked Sidebar Decoupling & Controls Toggle Cleanup
+
+### 1. Problem Statement
+- In previous versions of the 3D Visualization Studio (`ThreeDView.jsx` and `VisualizationHUD.jsx`), the controls HUD was rendered with `absolute left-4 top-4 z-20` directly on top of the WebGL canvas, behaving as a floating overlay ("layover") that obstructed the left portion of the 3D scene (such as ray refraction paths, optical blocks, and normal vectors).
+- When collapsed, the HUD rendered three separate floating buttons (`Controls`, `Details`, and `Key Concepts (toggle)`), cluttering the canvas overlay space and confusing students regarding navigation paths.
+
+### 2. Root Cause
+- `ThreeDView.jsx` mounted `<VisualizationHUD />` inside the `<main>` canvas container rather than alongside it as an independent flex sibling.
+- `VisualizationHUD.jsx` returned a floating overlay `<div>` with `absolute` positioning, and when `!open` rendered separate buttons for controls, details, and concepts rather than letting the sidebar handle tab switching internally.
+
+### 3. Resolution
+1. **Docked Flex-Row Studio Layout (`ThreeDView.jsx`)**:
+   - Swapped the body layout to `flex flex-row overflow-hidden`.
+   - Mounted `VisualizationHUD` as an independent `<aside>` sibling alongside `<main className="relative flex-1 h-full w-full min-h-0 min-w-0">`.
+   - The 3D canvas and WebGL viewport now occupies the clean remaining space without being occluded by controls.
+2. **Toggleable Full-Space Viewport (`VisualizationHUD.jsx`)**:
+   - Sidebar renders as a dedicated `<aside>` with resizable width (`panelWidth`).
+   - Toggling the close button (`X`) unmounts the `<aside>` from layout space, allowing `<main>` to automatically expand to 100% full screen width ("full space the rendering space").
+3. **Single Controls Button Cleanup**:
+   - Removed the separate floating `Details` and `Key Concepts (toggle)` buttons when collapsed.
+   - Preserved a single, clean `[Controls]` button on the canvas when closed (`absolute left-4 top-4 z-20`).
+   - Clicking `[Controls]` reopens the docked sidebar, where students can switch between the "Controls" and "Details" tabs via the header tab switcher.
+4. **Nested Card Border Elimination**:
+   - Removed the legacy inner `HudPanel` card border (`rounded-xl border border-ink-800 bg-ink-900 shadow-2xl`) and surrounding margins inside the sidebar.
+   - Integrated the title header (`border-b border-ink-800`) and controls directly within the full-height rectangular sidebar container (`aside`), eliminating nested boxes.
+5. **Verification**:
+   - Verified that all 1,299 automated unit tests and 34 empirical challenge tests pass without regression.
+
+---
+
+## Incline Plane 3D Visualisation Redesign: Dedicated Right Telemetry Sidebar & Render Area Decluttering
+
+### 1. Problem Statement
+- In previous versions of the Incline Plane & Friction 3D simulation (`InclineFrictionCanvas.jsx`), the velocity vs. time graph (`GraphPanel`), the static friction grip capacity gauge (`GripGauge`), and the Newton's Second Law statistics overlay (`SceneReadout`) were mounted directly inside the 3D WebGL render viewport as 3D Drei Billboards and text overlays.
+- As students rotated or orbited the 3D scene, these 3D billboards rotated in world space, visually collided with the incline ramp apparatus, and severely cluttered the visual observation space around the sliding cargo crate, normal/friction vectors, and pull strings.
+
+### 2. Root Cause
+- `InclineFrictionCanvas.jsx` had `GraphPanel` placed at `[3.4, -1.25, 0]` and `GripGauge` at `[-2.6, gaugeY, 0]` inside `<SceneCanvas>`, forcing 2D data visualizations and telemetry to compete for 3D world space and WebGL draw calls.
+
+### 3. Resolution
+1. **Dedicated Collapsible Right Telemetry Sidebar (`InclineFrictionCanvas.jsx`)**:
+   - Wrapped the apparatus in a `flex flex-row overflow-hidden` container with the 3D viewport occupying the flexible space on the left, and a dedicated `<aside className="w-[320px]">` telemetry sidebar on the right.
+   - Removed all 3D Drei Billboards (`GraphPanel`, `GripGauge`) and overlay readouts (`SceneReadout`) from `<SceneCanvas>`, leaving the 3D canvas clean, spacious, and dedicated entirely to the physical apparatus.
+2. **2D SVG Velocity Trace Graph (`InclineVelocityGraph`)**:
+   - Placed a high-performance 2D SVG plot (`viewBox="0 0 280 120"`) in the right sidebar.
+   - Preserved direction-aware dynamic range scaling (anchoring the zero-baseline flush with the bottom border for pure uphill motion or top border for pure downhill motion, expanding resolution).
+   - Rendered live coordinate marker with pulsing halo and terminal impact velocity badge.
+3. **2D Static Friction Grip Capacity Bar (`InclineGripBar`)**:
+   - Visualizes the $f_s \le \mu_s N$ inequality with an intuitive percentage capacity fill bar, breakaway ceiling indicator line (`100%`), and dynamic status badges (`Equilibrium` in teal, `On The Verge` in amber with pulse animation, and `Sliding` in rose).
+   - Includes numerical breakdown card displaying instantaneous friction force, max static breakaway limit, and angle of repose $\theta_r$.
+4. **Forces & Dynamics Statistics Grid (`InclineStatsGrid`)**:
+   - Clean 2-column tabular grid displaying acceleration ($a$), net force ($\Sigma F$), velocity ($v$), ramp angle ($\theta$), weight ($W$), slope force ($W_\parallel$), normal force ($N$), applied pull ($F$), and friction coefficients ($\mu_s, \mu_k$) with semantic color coding.
+5. **Centered Camera Framing & Reopen Trigger**:
+   - Re-centered apparatus camera to `position: [0.6, 1.4, 12.8]` and `target: [0.6, 0.2, 0]` for a centered, panoramic view.
+   - Added a floating glassmorphic top-right `[Telemetry]` trigger button with an `Activity` icon that appears when the right sidebar is collapsed, allowing students to toggle the sidebar open or closed with one click.
+6. **Automated Verification**:
+   - All 1,299 automated unit tests and 34 empirical challenge tests pass with 0 failures.
+
+---
+
+## Hooke's Law 3D Visualisation Redesign: Left Sidebar Force–Extension Graph & Compact Controls Optimization
+
+### 1. Problem Statement
+- In the Hooke's Law 3D spring simulation (`HookesLawCanvas.jsx`), the Force–Extension graph (`GraphPanel`) was previously rendered as a 3D Drei `<Billboard>` positioned inside the 3D WebGL render viewport at `[3.2, -2.15, 0]`.
+- Because it existed inside 3D world space, orbiting the camera caused the graph panel to rotate and clip through the retort stand, helical spring, and meter rule apparatus.
+- Furthermore, the camera target had to be offset rightwards at `x = 0.9` to accommodate the 3D graph, causing the physical spring and hanging weights to appear decentered and cramped on the left half of the screen.
+- Embedding the graph into the left sidebar HUD required fitting a full 2D force-extension curve alongside all existing parameter sliders and action buttons without introducing excessive vertical scrolling.
+
+### 2. Root Cause
+- `HookesLawCanvas.jsx` relied on a 3D Drei Billboard `GraphPanel` inside `<SceneCanvas>`, forcing 2D data plotting into 3D world space.
+- `VisualizationHUD.jsx` applied uniform vertical spacing (`space-y-3.5`) and stacked action buttons vertically, which consumed excessive sidebar height when combined with an embedded SVG graph.
+
+### 3. Resolution
+1. **Decoupled 3D In-Canvas Billboard & Centered Camera (`HookesLawCanvas.jsx`)**:
+   - Removed the in-canvas 3D Drei `<Billboard>` `GraphPanel` and its associated calculations from inside `<SceneCanvas>`.
+   - Re-centered the 3D camera target from `[0.9, -0.2, 0]` to `[0.15, -0.2, 0]` and adjusted the camera position to `[0.15, 0.3, 12.5]`, placing the retort stand, helical coil, hanging slotted masses, and meter rule directly in the center of the viewport.
+   - Retained synchronized peak force state (`params.peakForce`) between the canvas and HUD so plastic deformation memory remains shared in real time.
+2. **High-Contrast 2D Force–Extension Sidebar Graph (`VisualizationHUD.jsx`)**:
+   - Implemented `HookesLawSidebarGraph`: an interactive 2D SVG plot (`viewBox="0 0 280 125"`) embedded directly at the top of the Controls tab in the left sidebar HUD.
+   - Renders the linear elastic region ($F = kx$, Hooke's law in sky blue `#38bdf8`), plastic deformation yield curve (amber `#fbbf24`), elastic limit dashed guideline ($x = 14\text{ cm}$ in rose `#f43f5e`), and plastic permanent set unload path (dashed violet `#c084fc`).
+   - Includes an active coordinate indicator dot with pulsing halo, a measured slope badge ($k$), and a 3-column live telemetry pill strip displaying Load ($F$), Extension ($x$), and Current State (`Elastic` / `Yielding` / `Deformed`).
+3. **Compact Controls Layout & Spacing Reduction (`VisualizationHUD.jsx`)**:
+   - Tailored a compact layout specifically for Hooke's Law: container spacing reduced to `p-2.5 space-y-2` (from `p-4 space-y-3.5`).
+   - Reduced speed slider bottom margin from `mb-3` to `mb-2` with `p-2` compact padding.
+   - Paired the "Exceed limit" and "Fresh spring" action buttons into a 2-column grid (`grid grid-cols-2 gap-1.5`) rather than stacking them, saving ~45px of vertical height.
+   - Compacted parameter sliders with tight label typography (`text-[10px]`) and padding, allowing the graph, all sliders, animation controls, and action buttons to fit comfortably within the sidebar height without visual crowding.
+4. **Automated Verification**:
+   - All 1,299 automated unit tests and 34 challenge tests pass with 0 regressions.
+
+---
+
+## Hooke's Law Force–Extension Graph Refinement: Smooth Yield Curvature, Overload Mechanics & Typography Upgrade
+
+### 1. Problem Statement
+- When hung weights exceeded the physical failure capacity of the spring (for example, hanging $500\text{ g} = 4.91\text{ N}$ on a $15\text{ N/m}$ spring whose failure threshold is $3.36\text{ N}$), the active coordinate marker dot and tangent line detached from the force-extension curve and floated isolated in empty space near the top of the plot.
+- The elastic-to-plastic transition at the $14\text{ cm}$ elastic limit was rendered using two separate, disjoint `<line>` elements meeting at a sharp, jagged elbow corner rather than a realistic, smooth yielding curve.
+- SVG text elements relied on generic un-aliased monospace fonts that rendered pixelated on Windows displays without clear axis units or typographic hierarchy.
+
+### 2. Root Cause
+1. **Marker Force Clamping Discrepancy**: While the plastic curve was capped at `failureForce(k)` ($3.36\text{ N}$), the working point marker and tangent line coordinates were evaluated using raw `solved.force` ($4.91\text{ N}$), causing the marker to plot $1.55\text{ N}$ above the terminating end of the spring's characteristic curve.
+2. **Piecewise Sharp Geometry**: The elastic and plastic curves were modeled as two separate SVG `<line>` primitives without continuous tangent bridging, resulting in an abrupt angular kink at $x = 14\text{ cm}$ and disjoint stroke caps.
+3. **Typography & Rendering Inheritance**: Monospace font classes on SVG `<text>` elements inherited browser fallback fonts (`Courier New` on Windows) lacking tabular alignment and anti-aliasing.
+
+### 3. Resolution
+1. **Anchored Failure & Overload Indicator Mechanics (`VisualizationHUD.jsx`)**:
+   - The active coordinate marker on the spring curve is now strictly anchored to the spring's physical capacity point $(x_F, F_{\text{fail}}) = (30\text{ cm}, F_{\text{fail}})$ with a high-visibility pulsing rose alert halo when the spring is in the `Broken (Scrap)` state.
+   - When the hung weight exceeds the breaking limit ($F_{\text{hung}} > F_{\text{fail}} + 0.05\text{ N}$), a vertical dashed rose overload guide line extends from the failure point up to the hung load point with a clear label (`Hung: 4.9N`), explaining to students why the spring failed without disconnecting the marker from the curve.
+   - Tangent line stiffness at failure is fixed at $0\text{ N/m}$ and aligned flush with the failure plateau.
+2. **$C^1$-Continuous Quadratic Yield Knee & Area Gradients**:
+   - Integrated a $C^1$-smooth quadratic fillet knee at the $14\text{ cm}$ elastic limit ($\delta = 1.4\text{ cm}$ radius), smoothly blending the linear Hooke's line ($F = kx$) into the plastic hardening curve with zero angular kinks.
+   - Added subtle SVG linear area gradients under the curve (`#hookeElasticGrad` in sky blue `#38bdf8` and `#hookePlasticGrad` in warm amber `#f59e0b`), visually depicting the physical work done ($W = \int F \, dx$) and energy stored vs. dissipated.
+   - Added a faint background reference envelope (`stroke="#334155"`, dashed) demonstrating the complete potential loading trajectory of the spring.
+3. **Scientific Typography Upgrade**:
+   - Standardized all titles, axis headers ($F\text{ (N)}$, $\Delta x\text{ (cm)}$), and status pills with `Plus Jakarta Sans` (`system-ui`).
+   - Standardized all calibrated numerical tick labels, slope values, and permanent set tags with `JetBrains Mono` (`fontVariantNumeric: "tabular-nums"`).
+   - Added `textRendering: "geometricPrecision"` to the SVG element for razor-sharp rendering across all display DPIs.
+4. **Automated Verification**:
+   - All 1,299 unit tests across 324 suites and 34 empirical challenge tests pass with zero regressions.
+
+---
+
+## Hooke's Law Unload Line Marker Detachment & Text Overlap Resolution
+
+### 1. Problem Statement
+- After overloading a spring past failure and subsequently reducing the mass slider (e.g. reducing mass down to $100\text{ g} = 0.98\text{ N}$ on a $10\text{ N/m}$ spring with permanent set $7.6\text{ cm}$), the active coordinate marker remained pinned to the maximum failure force ($y = 2.24\text{ N}$) while its X coordinate moved to $17.4\text{ cm}$. This caused the marker and a horizontal green tangent line to float detached in mid-air $1.26\text{ N}$ above the yellow dashed unload line.
+- The elastic limit badge text `"14cm Limit"` overflowed its 32px bounding pill, causing the outer borders to slice through the letters (`"14cm Llmlt"`).
+- The vertical axis title `$F\text{ (N)}$` collided vertically with the top numerical tick label (`"3N"`), and at small permanent sets, the x-axis `"0cm"` label collided with the `"Set: X.X"` text.
+
+### 2. Root Cause
+1. **Conflating Past Yield History with Instantaneous Force State**:
+   - `solved.failed` remains `true` throughout the spring's memory once it has ever reached failure load.
+   - The graph code previously evaluated `const isFailed = solved.failed; const activeF = isFailed ? F_F : Math.min(solved.force, F_F);`, which permanently locked `activeF` to $F_{\text{fail}}$ even when the load was removed.
+   - Because `m = isFailed ? 0 : solved.stiffness`, the tangent slope was also forced to $0\text{ N/m}$ (horizontal) instead of the spring's elastic recovery stiffness $k$.
+2. **Fixed-Dimension SVG Bounding Boxes**:
+   - The elastic limit pill `<rect>` had a fixed width of `32px`, which was narrower than the 42px rendered width of `"14cm Limit"` in `Plus Jakarta Sans`.
+   - `padT` was set to `16px`, causing the `F (N)` axis title at `padT - 4` (`12px`) and the top tick at `padT + 3` (`19px`) to overlap.
+
+### 3. Resolution
+1. **Dynamic Unload Line Tracking (`VisualizationHUD.jsx`)**:
+   - Defined `const isOverloaded = solved.force >= F_F - 1e-6;`, separating instantaneous overload from historical plastic memory.
+   - Set `activeF = isOverloaded ? F_F : solved.force`, `activeX = isOverloaded ? x_F : solved.extension`, and `activeStiffness = isOverloaded ? 0 : solved.stiffness`.
+   - When masses are unloaded, the marker sits **directly on the dashed yellow unload line** ($y = 0.98\text{ N}$, $x = 17.4\text{ cm}$), and the green tangent line aligns with the unload line with slope $k = 10\text{ N/m}$.
+   - The marker color dynamically transitions to gold (`#fbbf24`) during unload and the status badge displays the live permanent set (`Set: 7.6cm`).
+2. **Typography & Clearance Polish**:
+   - Widened the elastic limit pill to `width="48" height="13" rx="3"` (`x="-24"`), cleanly enclosing `"14cm Limit"` with comfortable breathing room.
+   - Adjusted top padding to `padT = 18` and positioned `F (N)` at `padT - 7`, completely eliminating vertical collision with the top numerical tick.
+   - Conditionally suppressed the static `"0cm"` axis tick whenever $unloadData.setSvgX \le padL + 36$, preventing text smearing when permanent set indicators sit near the origin.
+3. **Automated Verification**:
+   - All 1,299 automated unit tests and 34 empirical challenge tests pass with 0 regressions.
+
+
+

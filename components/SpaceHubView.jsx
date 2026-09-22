@@ -15,10 +15,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
-  Info,
   Shield,
   Palette,
-  ExternalLink,
   ChevronDown,
   Pencil,
 } from "lucide-react";
@@ -26,12 +24,10 @@ import { SPACE_ICON_OPTIONS } from "@/lib/constants";
 import {
   getSpaceDocuments,
   addSpaceDocument,
-  updateSpaceDocument,
   deleteSpaceDocument,
   toggleSpaceDocumentActive,
   getSpaceSettings,
   saveSpaceSettings,
-  getActiveSyllabusForSpace,
   extractSyllabusTextFromFile,
 } from "@/lib/storageService";
 
@@ -483,7 +479,7 @@ export default function SpaceHubView({
             </div>
 
             {loadingDocs ? (
-              <div className="rounded-2xl border border-ink-800 bg-ink-855/40 p-8 text-center text-xs text-ink-500">
+              <div className="rounded-2xl border border-ink-800 bg-ink-850/40 p-8 text-center text-xs text-ink-500">
                 Loading space documents...
               </div>
             ) : documents.length === 0 ? (

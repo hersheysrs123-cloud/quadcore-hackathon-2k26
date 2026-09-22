@@ -2,10 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   G,
+  LOOP_OFFSET_M,
   RELEASE_SPEED,
   buildTrack,
   describeRun,
   gForce,
+  lateralAt,
+  loopVerdict,
   minimumReleaseHeight,
   minimumTopSpeed,
   positionAt,
@@ -280,6 +283,55 @@ describe("running the cart", () => {
   });
 });
 
+describe("a cart that cannot clear the loop", () => {
+  const mass = 500;
+  // Well under the 2.5R the loop needs, so it is certain to stall on the way up.
+  const track = buildTrack({ releaseHeight: 6, loopRadius: 8 });
+
+  /** Run the cart for `seconds` of scene time and report where it got to. */
+  const run = (seconds) => {
+    let state = startRun({ track, mass });
+    const dt = 1 / 120;
+    let furthest = 0;
+    for (let i = 0; i < seconds * 120; i += 1) {
+      state = stepRun(state, track, { mass, friction: true }, dt);
+      furthest = Math.max(furthest, state.s);
+    }
+    return { state, furthest };
+  };
+
+  it("rolls back down instead of freezing on the rail", () => {
+    const { state, furthest } = run(40);
+    // It must have turned round: the energy budget makes a cart with exactly
+    // zero kinetic energy a fixed point, so it used to stick where it stalled
+    // and never move again.
+    assert.ok(
+      state.s < furthest - 1,
+      `expected the cart to come back down from ${furthest.toFixed(1)}, ended at ${state.s.toFixed(1)}`,
+    );
+  });
+
+  it("never climbs higher than its energy budget allows", () => {
+    let state = startRun({ track, mass });
+    const budget = state.mechanical;
+    for (let i = 0; i < 40 * 120; i += 1) {
+      state = stepRun(state, track, { mass, friction: true }, 1 / 120);
+      const height = sampleAt(track, track.height, state.s);
+      assert.ok(
+        mass * G * height <= budget + 1e-6,
+        `reached ${height.toFixed(2)} m on a budget of ${(budget / (mass * G)).toFixed(2)} m`,
+      );
+    }
+  });
+
+  it("settles somewhere real rather than drifting off the track", () => {
+    const { state } = run(60);
+    assert.ok(Number.isFinite(state.s));
+    assert.ok(state.s >= 0 && state.s <= track.length);
+    assert.ok(Number.isFinite(state.mechanical) && Number.isFinite(state.thermal));
+  });
+});
+
 describe("speed from the energy budget", () => {
   it("returns zero rather than a NaN when there is nothing left", () => {
     assert.equal(speedFrom(0, 500, 10), 0);
@@ -289,5 +341,67 @@ describe("speed from the energy budget", () => {
     const mass = 500;
     const mechanical = mass * G * 20;
     assert.ok(close(speedFrom(mechanical, mass, 0), Math.sqrt(2 * G * 20), 1e-9));
+  });
+});
+
+describe("the loop is helical, so its rails do not lie on each other", () => {
+  it("steps the track sideways across the loop and nowhere else", () => {
+    const track = buildTrack({ releaseHeight: 30, loopRadius: 8 });
+    assert.equal(lateralAt(track, 0), 0);
+    assert.equal(lateralAt(track, track.loopEntryS - 1), 0);
+    assert.ok(close(lateralAt(track, track.loopExitS), LOOP_OFFSET_M, 1e-12));
+    assert.ok(close(lateralAt(track, track.length), LOOP_OFFSET_M, 1e-12));
+    // Smooth and monotonic across it: no rail ever doubles back.
+    let previous = 0;
+    for (let i = 0; i <= 200; i += 1) {
+      const at = track.loopEntryS + ((track.loopExitS - track.loopEntryS) * i) / 200;
+      const z = lateralAt(track, at);
+      assert.ok(z >= previous - 1e-12, "never moves back");
+      previous = z;
+    }
+  });
+
+  it("clears the track width, so the exit rails are not the entry rails", () => {
+    // Rails are 1.4 m apart; the exit has to be displaced by more than that.
+    assert.ok(LOOP_OFFSET_M > 1.4 + 0.3);
+  });
+});
+
+describe("what the badge says about the loop", () => {
+  const ride2 = (opts) => {
+    const mass = 500;
+    const track = buildTrack({ releaseHeight: opts.releaseHeight, loopRadius: opts.loopRadius ?? 8 });
+    const clears = opts.releaseHeight >= minimumReleaseHeight(track.loopRadius);
+    let state = startRun({ track, mass });
+    const seen = new Set();
+    for (let i = 0; i < 200000 && state.s < track.length - 0.2; i += 1) {
+      state = stepRun(state, track, { mass, friction: Boolean(opts.friction) }, 0.002);
+      const live = describeRun({ track, state, mass });
+      seen.add(loopVerdict(live, { friction: Boolean(opts.friction), clears }));
+      if (state.stopped) break;
+    }
+    return seen;
+  };
+
+  it("says it clears, then that it is round, on the frictionless track", () => {
+    const seen = ride2({ releaseHeight: 25 });
+    assert.ok(seen.has("clears") && seen.has("cleared"));
+    assert.ok(!seen.has("derailed") && !seen.has("friction") && !seen.has("too-low"));
+  });
+
+  it("never claims a cart clears a loop that friction has left it too slow for", () => {
+    // Exactly the frictionless minimum: friction takes what it needs from a
+    // budget with nothing to spare, so the cart must not be told it clears.
+    const seen = ride2({ releaseHeight: 20, friction: true });
+    assert.ok(!seen.has("cleared"), "it never got round");
+    assert.ok(seen.has("friction") || seen.has("derailed"), [...seen].join(", "));
+  });
+
+  it("reports a release below 2.5R as too low, and a derailed cart as derailed", () => {
+    const low = ride2({ releaseHeight: 15 });
+    assert.ok(low.has("too-low") || low.has("derailed"), [...low].join(", "));
+    assert.equal(loopVerdict({ leftTrack: true, pastLoop: false, clearsLoop: true }, { clears: true }), "derailed");
+    assert.equal(loopVerdict({ leftTrack: false, pastLoop: true, clearsLoop: false }, { clears: true, friction: true }), "cleared");
+    assert.equal(loopVerdict({ leftTrack: false, pastLoop: false, clearsLoop: false }, { clears: false }), "too-low");
   });
 });

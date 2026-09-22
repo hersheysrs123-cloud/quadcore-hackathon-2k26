@@ -12,6 +12,7 @@ import {
   parallelAll,
   parallelPair,
   solveCircuit,
+  strandedBulbs,
 } from "../../lib/circuits.js";
 
 const close = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
@@ -104,6 +105,28 @@ describe("removing a bulb", () => {
     const c = solveCircuit({ topology: "combination", voltage: 12, bulbR: 10, unscrewed: true });
     assert.equal(c.bulbs.find((b) => b.id === "C").lit, true);
     assert.equal(c.bulbs.find((b) => b.id === "B").lit, false);
+  });
+
+  it("darkens a bulb that shares the unscrewed bulb's series branch", () => {
+    // In the combination circuit A and B are in series, so opening A's socket
+    // opens B's only path: B is screwed in, and dead, and the readout has to say so.
+    const combo = solveCircuit({ topology: "combination", voltage: 12, bulbR: 10, unscrewed: true });
+    assert.deepEqual(strandedBulbs(combo), ["B"]);
+    const b = combo.bulbs.find((x) => x.id === "B");
+    assert.equal(b.removed, false);
+    assert.equal(b.current, 0);
+    assert.equal(b.lit, false);
+  });
+
+  it("strands nothing in a parallel circuit, where each branch is its own loop", () => {
+    const par = solveCircuit({ topology: "parallel", voltage: 12, bulbR: 10, unscrewed: true });
+    assert.deepEqual(strandedBulbs(par), []);
+  });
+
+  it("strands nothing when nothing is unscrewed", () => {
+    for (const topology of TOPOS) {
+      assert.deepEqual(strandedBulbs(solveCircuit({ topology, voltage: 12, bulbR: 10 })), [], topology);
+    }
   });
 
   it("puts an unscrewed bulb's socket at infinite resistance", () => {

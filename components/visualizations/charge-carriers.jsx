@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { hashRandom } from "@/components/visualizations/scene-kit";
+import { carrierFraction } from "@/lib/carriers";
 
 // ─── Charge carriers ────────────────────────────────────────────────
 // The animated charge shared by the two electrical scenes: glowing carriers
@@ -101,6 +102,11 @@ export function makeFlowPath(points, { closed = false } = {}) {
  * `spread` under 1 bunches the carriers into the leading fraction of the path,
  * which is how the static scene draws a burst of electrons crossing during a
  * rub rather than a continuous loop.
+ *
+ * `wrap` makes an OPEN path behave like one link of a loop: carriers leaving
+ * the end re-enter at the start. It is what a wire in a circuit needs. It is
+ * off by default because the burst above depends on carriers stopping at the
+ * end of their path.
  */
 export function ChargeFlow({
   path,
@@ -116,6 +122,7 @@ export function ChargeFlow({
   emissiveIntensity = 2.2,
   seed = 1,
   jitter = 0,
+  wrap = false,
 }) {
   const meshRef = useRef(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -148,8 +155,7 @@ export function ChargeFlow({
     }
 
     for (let i = 0; i < n; i += 1) {
-      const t = phase.current + offset + (i / n) * spread;
-      path.at(t, SCRATCH);
+      path.at(carrierFraction(phase.current, offset, i, n, spread, wrap), SCRATCH);
       const w = wobble[i];
       dummy.position.set(
         SCRATCH.x + w[0] * jitter,

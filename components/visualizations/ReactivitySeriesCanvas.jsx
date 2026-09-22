@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -381,8 +379,11 @@ function IonExchange({ index, modelRef, animSpeed = 1 }) {
 
   const electronPath = useMemo(
     () => [
-      [x + STRIP.width * 0.3, LIQUID_TOP - SUBMERGED + 0.15, STRIP.thickness / 2 + 0.05],
-      [x - STRIP.width * 0.3, LIQUID_TOP - 0.2, STRIP.thickness / 2 + 0.05],
+      // Just inside the face, not floating clear of it. The key says the
+      // electron "travels inside the metal only -- ions carry the charge in
+      // solution", and at +0.05 it was drawn out in the solution instead.
+      [x + STRIP.width * 0.3, LIQUID_TOP - SUBMERGED + 0.15, STRIP.thickness / 2 - 0.02],
+      [x - STRIP.width * 0.3, LIQUID_TOP - 0.2, STRIP.thickness / 2 - 0.02],
     ],
     [x],
   );
@@ -652,21 +653,6 @@ export default function ReactivitySeriesCanvas({ params = {}, setParam }) {
         {describeOutcome(focusResult)}
       </SceneLabel>
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Reactivity series"
-        subtitle={`${M.label} in four solutions`}
-        rows={rack.map((r) => [SOLUTIONS[r.solution].short, r.reacts ? r.ionic : "no reaction", r.reacts ? "good" : undefined])}
-      />
-      <SceneLegend
-        title="Key"
-        items={[
-          { color: M.colour, label: `${M.label} strip`, note: "the same metal in every beaker" },
-          { color: ION_APPEARANCE.Cu.colour, label: "Cu²⁺(aq)", note: "the blue that fades when copper plates out" },
-          { color: ION_APPEARANCE.Fe.colour, label: "Fe²⁺(aq)", note: "pale green" },
-          { color: PALETTE.bone, label: "Electron", note: "moves inside the metal, never through the solution" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

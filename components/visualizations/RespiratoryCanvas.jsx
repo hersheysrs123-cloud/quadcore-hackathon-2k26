@@ -1,28 +1,18 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  Activity,
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
   ChevronRight,
   ExternalLink,
-  Eye,
   Gauge,
   Info,
-  Layers,
-  Lightbulb,
   Maximize2,
   Minimize2,
   Pause,
   Play,
-  RotateCcw,
-  SlidersHorizontal,
   Sparkles,
-  Wind,
   X,
 } from "lucide-react";
 import {
@@ -31,16 +21,21 @@ import {
   SceneLabel,
   VectorArrow,
   WebGLCleanup,
+  hashRandom,
 } from "@/components/visualizations/scene-kit";
 import {
-  HudButton,
-  HudPanel,
   Slider,
-  Stat,
   Toggle,
   ViewportHint,
 } from "@/components/visualizations/VisualizationHUD";
 import { OrbitControls, useGLTF } from "@react-three/drei";
+import { RESPIRATORY_MODEL_CREDITS } from "@/lib/respiratoryCredits";
+import {
+  PUSH_EVERY_S,
+  RESPIRATORY_PHASES,
+  breathAt,
+  restingState,
+} from "@/lib/respiratory";
 
 // Preload the photorealistic medical 3D GLB assets
 if (typeof window !== "undefined") {
@@ -48,92 +43,26 @@ if (typeof window !== "undefined") {
   useGLTF.preload("/models/skeleton_ct.glb");
 }
 
+/**
+ * Runs one callback per frame. Module scope, deliberately: declared inside the
+ * component this is a new type on every render, and React unmounts and
+ * remounts the subtree — re-subscribing useFrame each time.
+ */
+function FrameController({ onFrame }) {
+  useFrame(onFrame);
+  return null;
+}
+
 // ─── 3D Model Attribution & Open Source Licensing Metadata ──────────────
-export const RESPIRATORY_MODEL_CREDITS = [
-  {
-    id: "lungs",
-    name: "Photorealistic Human Lungs Model",
-    icon: "🫁",
-    file: "lung.glb",
-    size: "17.1 MB",
-    type: "Clinical 3D Organ Scan",
-    license: "CC-BY-4.0 & MIT",
-    licenseTag: "Permissive / Commercial Allowed",
-    licenseColor: "sky",
-    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
-    originalCreator: "neshallads",
-    sourceUrl: "https://sketchfab.com/3d-models/realistic-human-lungs-ce09f4099a68467880f46e61eb9a3531",
-    author: "yihalem123",
-    project: "Human-Organ3D",
-    repoUrl: "https://github.com/yihalem123/Human-Organ3D",
-    description:
-      "High-resolution clinical 3D organ scan created by neshallads under CC-BY-4.0, featuring bilateral pulmonary lobes, primary bronchi, pulmonary vascular branchings, and tracheobronchial airway tree with dynamic breathing volume expansion.",
-  },
-  {
-    id: "skeleton",
-    name: "Clinical CT-Derived Thoracic Skeleton",
-    icon: "🦴",
-    file: "skeleton_ct.glb",
-    size: "16.3 MB",
-    type: "CT Scan Reconstruction",
-    license: "CC-BY-4.0",
-    licenseTag: "Permissive / Commercial Allowed",
-    licenseColor: "emerald",
-    commercialUse: "Permitted (CC-BY-4.0 with attribution)",
-    originalCreator: "Terrie Simmons-Ehrhardt",
-    sourceUrl: "https://sketchfab.com/3d-models/ct-derived-human-skeleton-7235c83248574ce986dd9e8b35159afa",
-    author: "Meteorkid",
-    project: "Skeleton-Anatomy",
-    repoUrl: "https://github.com/Meteorkid/skeleton-anatomy",
-    description:
-      "Clinical CT scan reconstruction created by Terrie Simmons-Ehrhardt and published under CC-BY-4.0. We isolate 43 anatomical bone nodes (all 24 ribs, T1–T12 thoracic vertebrae, L1–L3 lumbar crura anchors, sternum, and clavicles) with active bucket-handle & pump-handle kinematics.",
-  },
-  {
-    id: "diaphragm",
-    name: "Sculpted Muscular Diaphragm Dome",
-    icon: "🪂",
-    file: "Procedural Mesh",
-    size: "Procedural Vector Shader",
-    type: "Parametric Anatomical Mesh",
-    license: "Original Code (SocraticOS)",
-    licenseTag: "Commercial Allowed",
-    licenseColor: "purple",
-    commercialUse: "Permitted (100% Original Code)",
-    originalCreator: "SocraticOS Core Team",
-    sourceUrl: null,
-    author: "SocraticOS Core Team",
-    project: "SocraticOS Simulator",
-    repoUrl: null,
-    description:
-      "Custom 32-segment parametric radial dome with procedural trifoliate central tendon (centrum tendineum), 3 physiological hiatuses (Caval T8, Esophageal T10, Aortic T12), bilateral vertebral crura, and real-time vertex flattening on inspiration (Y = 1.05 → 0.63).",
-  },
-  {
-    id: "intercostals",
-    name: "Dual-Layer Antagonistic Intercostal Muscles",
-    icon: "💪",
-    file: "Procedural Mesh",
-    size: "Procedural Vector Shader",
-    type: "Striated Myofibril Simulation",
-    license: "Original Code (SocraticOS)",
-    licenseTag: "Commercial Allowed",
-    licenseColor: "rose",
-    commercialUse: "Permitted (100% Original Code)",
-    originalCreator: "SocraticOS Core Team",
-    sourceUrl: null,
-    author: "SocraticOS Core Team",
-    project: "SocraticOS Simulator",
-    repoUrl: null,
-    description:
-      "132 active procedural muscle fascicles across all 11 intercostal spaces with dual-layer antagonistic kinematics (superficial external +35° inspiratory vs deep internal -45° forced expiratory), Canvas-generated striated myofibril textures, and dynamic tension shaders.",
-  },
-];
+// RESPIRATORY_MODEL_CREDITS now lives in lib/respiratoryCredits.js, so the
+// attribution test can assert against the table that actually ships.
+export { RESPIRATORY_MODEL_CREDITS };
 
 // ─── Physiological Constants & Formulations ──────────────────────────
-export const RESPIRATORY_PHASES = {
-  INSPIRATION: "inspiration",
-  QUIET_EXPIRATION: "quiet_expiration",
-  FORCED_EXPIRATION: "forced_expiration",
-};
+// RESPIRATORY_PHASES and the breath arithmetic now live in lib/respiratory.js,
+// so the auto-loop, the manual tableaux and the readout cannot disagree about
+// what a tidal volume is. Re-exported because other modules import it here.
+export { RESPIRATORY_PHASES };
 
 const ANATOMICAL_PALETTE = {
   activeMuscle: "#ef4444",
@@ -227,7 +156,7 @@ function KinematicVector({ from, to, color, label, visible = true }) {
 }
 
 // ─── Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine T1-T12, Sternum, Clavicles) ─
-function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
+const RealisticCTSkeleton = memo(function RealisticCTSkeleton({ breathRef, cutaway = 0, visible = true }) {
   if (!visible) return null;
   const { scene } = useGLTF("/models/skeleton_ct.glb");
   const groupRef = useRef(null);
@@ -291,6 +220,14 @@ function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
 
   useFrame(() => {
     if (!groupRef.current) return;
+    // The live breath, read off the ref the frame loop mutates. Threading it
+    // in as a prop is what made this component — two multi-megabyte GLBs —
+    // re-render ten times a second.
+    const expansion = breathRef.current.expansion;
+
+    // The group's own transform, mutated rather than re-rendered.
+    groupRef.current.position.y = -2.66 + expansion * 0.08;
+    groupRef.current.scale.set(11.2 * (1 + expansion * 0.035), 11.2, 11.2 * (1 + expansion * 0.04));
 
     // Cutaway opacity
     const opacity = cutaway > 0.8 ? Math.max(0.12, 1 - (cutaway - 0.8) * 4.5) : 1;
@@ -327,457 +264,69 @@ function RealisticCTSkeleton({ expansion = 0, cutaway = 0, visible = true }) {
   });
 
   return (
-    <group
-      ref={groupRef}
-      position={[-0.01, -2.66 + expansion * 0.08, 0.26]}
-      rotation={[0, 0, 0]}
-      scale={[
-        11.2 * (1 + expansion * 0.035),
-        11.2,
-        11.2 * (1 + expansion * 0.04),
-      ]}
-    >
+    <group ref={groupRef} position={[-0.01, -2.66, 0.26]} rotation={[0, 0, 0]} scale={11.2}>
       <primitive object={clonedScene} />
     </group>
   );
-}
+});
 
-// ─── Photorealistic Striated Intercostal Muscles (External & Internal) ──
-function PhotorealisticIntercostalMuscles({
-  expansion = 0,
-  extTension = 0,
-  intTension = 0,
-  muscleMode = "both",
-  showVectors = false,
-  cutaway = 0,
-  muscleTexture,
-}) {
-  // 11 Intercostal Spaces aligned with genuine CT skeleton ribcage coordinates
-  const ctSpaces = useMemo(() => [
-    { id: 1,  yTop: 2.99, yBot: 2.76, xSpan: 0.95, z: 0.38 },
-    { id: 2,  yTop: 2.76, yBot: 2.45, xSpan: 1.10, z: 0.35 },
-    { id: 3,  yTop: 2.45, yBot: 2.13, xSpan: 1.19, z: 0.30 },
-    { id: 4,  yTop: 2.13, yBot: 1.80, xSpan: 1.24, z: 0.23 },
-    { id: 5,  yTop: 1.80, yBot: 1.49, xSpan: 1.26, z: 0.15 },
-    { id: 6,  yTop: 1.49, yBot: 1.14, xSpan: 1.30, z: 0.11 },
-    { id: 7,  yTop: 1.14, yBot: 0.87, xSpan: 1.35, z: 0.05 },
-    { id: 8,  yTop: 0.87, yBot: 0.66, xSpan: 1.38, z: -0.02 },
-    { id: 9,  yTop: 0.66, yBot: 0.44, xSpan: 1.30, z: -0.07 },
-    { id: 10, yTop: 0.44, yBot: 0.16, xSpan: 1.14, z: -0.22 },
-    { id: 11, yTop: 0.16, yBot: 0.03, xSpan: 0.82, z: -0.42 },
-  ], []);
-
-  const lateralScale = 1 + expansion * 0.045;
-  const apElevation = expansion * 0.04;
-
-  const extColor = useMemo(() => {
-    return new THREE.Color(ANATOMICAL_PALETTE.relaxedMuscle).lerp(
-      new THREE.Color(ANATOMICAL_PALETTE.activeMuscle),
-      extTension
-    );
-  }, [extTension]);
-
-  const intColor = useMemo(() => {
-    return new THREE.Color(ANATOMICAL_PALETTE.relaxedMuscle).lerp(
-      new THREE.Color(ANATOMICAL_PALETTE.activeMuscle),
-      intTension
-    );
-  }, [intTension]);
-
-  const opacity = cutaway > 0.75 ? Math.max(0.2, 1 - (cutaway - 0.75) * 3.5) : 0.95;
-  const extRadius = 0.058 * (1 + extTension * 0.36);
-  const intRadius = 0.052 * (1 + intTension * 0.36);
-
-  const renderExternal = muscleMode === "both" || muscleMode === "external";
-  const renderInternal = muscleMode === "both" || muscleMode === "internal";
-
+// ─── Ribcage Kinematic Motion Arrows ──────────────────────────────────
+/**
+ * The three arrows describing how the ribcage itself moves.
+ *
+ * These used to live at the tail of PhotorealisticIntercostalMuscles, which
+ * drew 11 rib spaces x two oblique muscle layers -- every mesh carrying an
+ * inline material that read `expansion`, `extTension` and `intTension` as
+ * props. That geometry is gone; the arrows are not muscle, so they stayed.
+ *
+ * Bucket-handle and pump-handle motion are the two rib movements the topic
+ * teaches, and they are a property of the ribs, not of what pulls them.
+ */
+function RibcageKinematicVectors({ expansion = 0 }) {
   return (
     <group>
-      {ctSpaces.map((space) => {
-        const midY = (space.yTop + space.yBot) / 2 + apElevation;
-        const height = (space.yTop - space.yBot) * 1.08;
-        const rx = space.xSpan * lateralScale;
-        const z = space.z;
-
-        return (
-          <group key={space.id}>
-            {/* ── 1. External Intercostal Layer (+35° Oblique Downward & Forward) ── */}
-            {renderExternal && (
-              <group>
-                {/* Left Side (Anatomical Right / Negative X) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[-rx * 0.58, midY, z - 0.26]} rotation={[0.44, -0.36, 0.38]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[-rx * 0.82, midY, z - 0.1]} rotation={[0.42, -0.32, 0.36]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary (Lateral) */}
-                <mesh position={[-rx * 0.98, midY, z + 0.08]} rotation={[0.40, -0.28, 0.34]} castShadow>
-                  <cylinderGeometry args={[extRadius * 1.08, extRadius * 1.15, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[-rx * 0.90, midY, z + 0.28]} rotation={[0.38, -0.22, 0.30]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[-rx * 0.72, midY, z + 0.48]} rotation={[0.34, -0.16, 0.26]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[-rx * 0.48, midY, z + 0.65]} rotation={[0.30, -0.12, 0.22]} castShadow>
-                  <cylinderGeometry args={[extRadius * 0.95, extRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-
-                {/* Right Side (Anatomical Left / Positive X) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[rx * 0.58, midY, z - 0.26]} rotation={[0.44, 0.36, -0.38]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[rx * 0.82, midY, z - 0.1]} rotation={[0.42, 0.32, -0.36]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary (Lateral) */}
-                <mesh position={[rx * 0.98, midY, z + 0.08]} rotation={[0.40, 0.28, -0.34]} castShadow>
-                  <cylinderGeometry args={[extRadius * 1.08, extRadius * 1.15, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[rx * 0.90, midY, z + 0.28]} rotation={[0.38, 0.22, -0.30]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[rx * 0.72, midY, z + 0.48]} rotation={[0.34, 0.16, -0.26]} castShadow>
-                  <cylinderGeometry args={[extRadius, extRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[rx * 0.48, midY, z + 0.65]} rotation={[0.30, 0.12, -0.22]} castShadow>
-                  <cylinderGeometry args={[extRadius * 0.95, extRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={extColor}
-                    emissive={extColor}
-                    emissiveIntensity={extTension > 0.35 ? 1.7 : 0.1}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity}
-                  />
-                </mesh>
-              </group>
-            )}
-
-            {/* ── 2. Internal Intercostal Layer (-45° Oblique Downward & Backward) ── */}
-            {renderInternal && (
-              <group>
-                {/* Left Side (Anatomical Right / Negative X, Deep Layer) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[-rx * 0.54, midY, z - 0.24]} rotation={[-0.48, -0.32, -0.38]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[-rx * 0.78, midY, z - 0.08]} rotation={[-0.46, -0.28, -0.34]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary */}
-                <mesh position={[-rx * 0.92, midY, z + 0.08]} rotation={[-0.44, -0.24, -0.30]} castShadow>
-                  <cylinderGeometry args={[intRadius * 1.06, intRadius * 1.12, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[-rx * 0.84, midY, z + 0.28]} rotation={[-0.42, -0.20, -0.26]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[-rx * 0.66, midY, z + 0.48]} rotation={[-0.38, -0.16, -0.22]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[-rx * 0.44, midY, z + 0.65]} rotation={[-0.34, -0.12, -0.18]} castShadow>
-                  <cylinderGeometry args={[intRadius * 0.95, intRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-
-                {/* Right Side (Anatomical Left / Positive X, Deep Layer) */}
-                {/* 1. Posterior angle */}
-                <mesh position={[rx * 0.54, midY, z - 0.24]} rotation={[-0.48, 0.32, 0.38]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.15, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 2. Postero-lateral */}
-                <mesh position={[rx * 0.78, midY, z - 0.08]} rotation={[-0.46, 0.28, 0.34]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.14, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 3. Mid-axillary */}
-                <mesh position={[rx * 0.92, midY, z + 0.08]} rotation={[-0.44, 0.24, 0.30]} castShadow>
-                  <cylinderGeometry args={[intRadius * 1.06, intRadius * 1.12, height * 1.12, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 4. Antero-lateral */}
-                <mesh position={[rx * 0.84, midY, z + 0.28]} rotation={[-0.42, 0.20, 0.26]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.1, height * 1.1, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 5. Anterior costochondral */}
-                <mesh position={[rx * 0.66, midY, z + 0.48]} rotation={[-0.38, 0.16, 0.22]} castShadow>
-                  <cylinderGeometry args={[intRadius, intRadius * 1.08, height * 1.08, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-                {/* 6. Parasternal */}
-                <mesh position={[rx * 0.44, midY, z + 0.65]} rotation={[-0.34, 0.12, 0.18]} castShadow>
-                  <cylinderGeometry args={[intRadius * 0.95, intRadius * 1.05, height * 1.05, 10]} />
-                  <meshStandardMaterial
-                    color={intColor}
-                    emissive={intColor}
-                    emissiveIntensity={intTension > 0.35 ? 1.8 : 0.08}
-                    map={muscleTexture}
-                    roughness={0.44}
-                    transparent
-                    opacity={opacity * 0.94}
-                  />
-                </mesh>
-              </group>
-            )}
-          </group>
-        );
-      })}
-
-      {/* 3D Kinematic Motion Arrows */}
-      {showVectors && (
-        <group>
-          <KinematicVector
-            from={[-1.4, 1.4, 0.1]}
-            to={[-1.4 - expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
-            color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-            label={expansion >= 0 ? "Ribcage Up & Out (Bucket-Handle)" : "Ribcage Recoil (Down & In)"}
-          />
-          <KinematicVector
-            from={[1.4, 1.4, 0.1]}
-            to={[1.4 + expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
-            color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-            label={expansion >= 0 ? "Transverse Thorax Expansion" : "Passive Elastic Recoil"}
-          />
-          <KinematicVector
-            from={[0, 1.8, 1.2]}
-            to={[0, 1.8 + expansion * 0.36, 1.2 + expansion * 0.34]}
-            color={PALETTE.gold}
-            label="Pump-Handle AP Elevation"
-          />
-        </group>
-      )}
+      <KinematicVector
+        from={[-1.4, 1.4, 0.1]}
+        to={[-1.4 - expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
+        color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
+        label={expansion >= 0 ? "Ribcage Up & Out (Bucket-Handle)" : "Ribcage Recoil (Down & In)"}
+      />
+      <KinematicVector
+        from={[1.4, 1.4, 0.1]}
+        to={[1.4 + expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
+        color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
+        label={expansion >= 0 ? "Transverse Thorax Expansion" : "Passive Elastic Recoil"}
+      />
+      <KinematicVector
+        from={[0, 1.8, 1.2]}
+        to={[0, 1.8 + expansion * 0.36, 1.2 + expansion * 0.34]}
+        color={PALETTE.gold}
+        label="Pump-Handle AP Elevation"
+      />
     </group>
   );
 }
 
 // ─── Sculpted Muscular Diaphragm Dome with Central Tendon, Hiatuses & Crura ───
-function SculptedDiaphragmDome({
-  expansion = 0,
+const SculptedDiaphragmDome = memo(function SculptedDiaphragmDome({
+  breathRef,
   isContracted = false,
-  showVectors = false,
   cutaway = 0,
   muscleTexture,
   tendonTexture,
 }) {
   const meshRef = useRef(null);
+  // Everything the apex height moves, held by ref so the frame loop can
+  // drive it without React re-rendering the dome, its 16 fibre slips, the
+  // trifoliate tendon and the two crura.
+  const fibresRef = useRef([]);
+  const tendonRef = useRef(null);
+  const cruraRef = useRef([]);
 
   // Dynamic central tendon apex height (Y):
   // Resting / Expiration: arches high into the thoracic cavity at Y = 1.05
   // Inspiration (Active Contraction): flattens downward to Y = 0.63
-  const domeApexY = useMemo(() => {
-    return 1.05 - expansion * 0.42;
-  }, [expansion]);
+  const apexYFor = (expansion) => 1.05 - expansion * 0.42;
 
   // Initial parametric dome geometry
   const domeGeometry = useMemo(() => {
@@ -850,6 +399,7 @@ function SculptedDiaphragmDome({
 
   useFrame(() => {
     if (!meshRef.current) return;
+    const domeApexY = apexYFor(breathRef.current.expansion);
     const pos = meshRef.current.geometry.attributes.position;
     const radialSegments = 32;
     const rings = 16;
@@ -878,6 +428,18 @@ function SculptedDiaphragmDome({
 
     pos.needsUpdate = true;
     meshRef.current.geometry.computeVertexNormals();
+
+    // The fibre slips hang a fixed distance below the apex...
+    for (const fibre of fibresRef.current) {
+      if (fibre) fibre.position.y = domeApexY - 0.12;
+    }
+    // ...the tendon sits just above it...
+    if (tendonRef.current) tendonRef.current.position.y = domeApexY + 0.02;
+    // ...and the crura stretch between the apex and their vertebral anchor.
+    const cruraScale = Math.max(0.2, Math.abs(domeApexY - (-0.65)));
+    const [right, left] = cruraRef.current;
+    if (right) { right.position.y = (domeApexY - 0.70) / 2; right.scale.y = cruraScale; }
+    if (left) { left.position.y = (domeApexY - 0.38) / 2; left.scale.y = cruraScale; }
   });
 
   const muscleColor = isContracted ? ANATOMICAL_PALETTE.activeMuscle : "#881337";
@@ -891,8 +453,6 @@ function SculptedDiaphragmDome({
       return { angle, id: i };
     });
   }, []);
-
-  const cruraScale = Math.max(0.2, Math.abs(domeApexY - (-0.65)));
 
   return (
     <group>
@@ -915,11 +475,11 @@ function SculptedDiaphragmDome({
       {radialRays.map((ray) => {
         const x = -Math.sin(ray.angle) * 0.72;
         const z = 0.25 + Math.cos(ray.angle) * 0.52;
-        const y = domeApexY - 0.12;
         return (
           <mesh
             key={ray.id}
-            position={[x, y, z]}
+            ref={(node) => { fibresRef.current[ray.id] = node; }}
+            position={[x, 0, z]}
             rotation={[-0.3 * Math.cos(ray.angle), ray.angle, -0.3 * Math.sin(ray.angle)]}
           >
             <cylinderGeometry args={[0.032, 0.046, 0.65, 8]} />
@@ -936,7 +496,7 @@ function SculptedDiaphragmDome({
       })}
 
       {/* Trifoliate Central Tendon with Anatomical Hiatuses */}
-      <group position={[0, domeApexY + 0.02, 0.25]} rotation={[-Math.PI / 2, 0, 0]}>
+      <group ref={tendonRef} position={[0, 0, 0.25]} rotation={[-Math.PI / 2, 0, 0]}>
         {/* Anterior Leaflet */}
         <mesh position={[0, 0.16, 0]}>
           <circleGeometry args={[0.38, 24]} />
@@ -998,36 +558,47 @@ function SculptedDiaphragmDome({
 
       {/* Lumbar Crura Anchoring into L1-L3 Vertebrae */}
       <mesh
-        position={[0.07, (domeApexY - 0.70) / 2, -0.18]}
+        ref={(node) => { cruraRef.current[0] = node; }}
+        position={[0.07, 0, -0.18]}
         rotation={[0.22, 0, 0]}
-        scale={[1, cruraScale, 1]}
       >
         <cylinderGeometry args={[0.085, 0.075, 1.0, 12]} />
         <meshStandardMaterial color="#881337" roughness={0.48} transparent opacity={opacity} />
       </mesh>
       <mesh
-        position={[-0.07, (domeApexY - 0.38) / 2, -0.18]}
+        ref={(node) => { cruraRef.current[1] = node; }}
+        position={[-0.07, 0, -0.18]}
         rotation={[0.22, 0, 0]}
-        scale={[1, cruraScale, 1]}
       >
         <cylinderGeometry args={[0.08, 0.07, 1.0, 12]} />
         <meshStandardMaterial color="#881337" roughness={0.48} transparent opacity={opacity} />
       </mesh>
 
-      {showVectors && (
-        <KinematicVector
-          from={[0, 1.05, 0.25]}
-          to={[0, domeApexY, 0.25]}
-          color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-          label={expansion >= 0 ? "Diaphragm Descent & Flattening (Vertical Lift)" : "Elastic Dome Recoil"}
-        />
-      )}
     </group>
+  );
+});
+
+/**
+ * The arrow describing where the dome is heading.
+ *
+ * It lives outside SculptedDiaphragmDome so the dome can be memoised. An
+ * arrow is a line and a label — VectorArrow rebuilds its geometry from
+ * `from`/`to`, so this one is still prop-driven and still re-renders with
+ * the readout. That is three meshes, not a deforming 512-vertex dome.
+ */
+function DiaphragmVector({ expansion = 0 }) {
+  return (
+    <KinematicVector
+      from={[0, 1.05, 0.25]}
+      to={[0, 1.05 - expansion * 0.42, 0.25]}
+      color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
+      label={expansion >= 0 ? "Diaphragm Descent & Flattening (Vertical Lift)" : "Elastic Dome Recoil"}
+    />
   );
 }
 
 // ─── Photorealistic Medical Scanned Lungs (GLB Model Asset) ───────────
-function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
+const PhotorealisticMedicalLungs = memo(function PhotorealisticMedicalLungs({ breathRef, cutaway = 0 }) {
   const { scene } = useGLTF("/models/lung.glb");
   const modelRef = useRef(null);
 
@@ -1048,6 +619,8 @@ function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
 
   useFrame(() => {
     if (!modelRef.current) return;
+    const expansion = breathRef.current.expansion;
+    modelRef.current.position.y = 0.42 + expansion * 0.04;
     // Anatomical 3D volume expansion driving synchronous lateral, vertical, and AP swelling
     const baseScale = 11.2;
     const sX = baseScale * (1 + expansion * 0.12);
@@ -1067,15 +640,11 @@ function PhotorealisticMedicalLungs({ expansion = 0, cutaway = 0 }) {
   });
 
   return (
-    <group
-      ref={modelRef}
-      position={[0, 0.42 + expansion * 0.04, 0.82]}
-      rotation={[0, 0, 0]}
-    >
+    <group ref={modelRef} position={[0, 0.42, 0.82]} rotation={[0, 0, 0]}>
       <primitive object={clonedScene} />
     </group>
   );
-}
+});
 
 // ─── Dynamic Airway Particle Streams (Trachea & Bronchi) ───────────────
 function AirwayParticleStream({ flowRate = 0, active = true }) {
@@ -1108,8 +677,11 @@ function AirwayParticleStream({ flowRate = 0, active = true }) {
     return Array.from({ length: particleCount }, (_, i) => ({
       u: i / particleCount,
       branch: i % 2 === 0 ? "left" : "right",
-      jitterX: (Math.random() - 0.5) * 0.07,
-      jitterZ: (Math.random() - 0.5) * 0.07,
+      // C35: deterministic, like the rest of the suite. Math.random() here
+      // was memoised, so it was stable within a mount -- but it made the
+      // scene irreproducible across mounts, and across screenshots.
+      jitterX: (hashRandom(i * 2.7 + 11) - 0.5) * 0.07,
+      jitterZ: (hashRandom(i * 3.9 + 29) - 0.5) * 0.07,
     }));
   }, [particleCount]);
 
@@ -1172,12 +744,6 @@ function AnatomicalLabels({ visible = true }) {
       </SceneLabel>
       <SceneLabel position={[0, 1.04, 1.25]}>
         Xiphoid Process
-      </SceneLabel>
-      <SceneLabel position={[1.65, 1.62, 0.35]} accent>
-        External Intercostals (+35° Insp.)
-      </SceneLabel>
-      <SceneLabel position={[-1.65, 1.62, 0.35]} accent>
-        Internal Intercostals (-45° Exp.)
       </SceneLabel>
       <SceneLabel position={[1.45, 0.85, 0.85]}>
         Right Lung (3 Lobes)
@@ -1341,13 +907,13 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
 // ─── Main 3D Respiratory Scene Container ──────────────────────────────
 export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [phase, setPhase] = useState(RESPIRATORY_PHASES.INSPIRATION);
+  /** Whether the looping breath is a forced one, so the third phase is reachable while playing. */
+  const [forcedLoop, setForcedLoop] = useState(false);
   const [autoLoop, setAutoLoop] = useState(true);
   const [bpm, setBpm] = useState(14);
   const [cutaway, setCutaway] = useState(0.25);
   const [showBones, setShowBones] = useState(true);
   const [showLungs, setShowLungs] = useState(true);
-  const [showMuscles, setShowMuscles] = useState(true);
-  const [muscleMode, setMuscleMode] = useState("both"); // "both" | "external" | "internal"
   const [showDiaphragm, setShowDiaphragm] = useState(true);
   const [showAirflow, setShowAirflow] = useState(true);
   const [showVectors, setShowVectors] = useState(true);
@@ -1376,6 +942,10 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [flowRate, setFlowRate] = useState(-0.55);
   const [extTension, setExtTension] = useState(0.9);
   const [intTension, setIntTension] = useState(0.0);
+  /** The live breath, mutated every frame; React hears a throttled copy. */
+  const shown = useRef(restingState(RESPIRATORY_PHASES.INSPIRATION));
+  const pushed = useRef({ phase: null, expansion: null, volumeL: null, pressureKPa: null, flowLps: null, external: null, internal: null });
+  const pushClock = useRef(0);
 
   const cycleTime = useRef(0);
 
@@ -1412,84 +982,82 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
     };
   }, [isResizing]);
 
+  /**
+   * Drives the breath.
+   *
+   * Two things were wrong with the old loop, and they compounded.
+   *
+   * It called seven React setters EVERY FRAME — setExpansion, setPhase,
+   * setVolume, setPressure, setFlowRate, setExtTension, setIntTension — so a
+   * 2,000-line component holding two multi-megabyte GLB scenes re-rendered at
+   * 60 Hz. Every other scene in the suite mutates refs in useFrame and pushes
+   * to React on a throttle: TimelineDriver uses 10 Hz, ArmDriver 5 Hz.
+   *
+   * And `FrameController` was declared inside the component body, so React saw
+   * a brand-new component TYPE on every render and tore the subtree down and
+   * rebuilt it — which meant unsubscribing and resubscribing useFrame sixty
+   * times a second, on top of the re-renders causing it.
+   *
+   * The arithmetic now comes from lib/respiratory.js (one copy, tested), and
+   * the push is quantised and throttled: React only hears about a value when
+   * it has actually changed by something visible, and at most ten times a
+   * second. The full conversion to ref-mutated meshes is a larger job — the
+   * animated values are threaded as props through hundreds of inline material
+   * properties — and is tracked separately.
+   */
   const handleFrameUpdate = useCallback(
-    (state, rawDelta) => {
+    (_state, rawDelta) => {
       const delta = Math.min(rawDelta, 1 / 30);
+      let next;
+
       if (autoLoop) {
-        const bps = bpm / 60;
-        cycleTime.current = (cycleTime.current + delta * bps) % 1.0;
-        const t = cycleTime.current;
-
-        let curExp = 0;
-        let curPhase = RESPIRATORY_PHASES.QUIET_EXPIRATION;
-
-        if (t < 0.4) {
-          // Continuous S-curve whose derivative starts at 0 and matches the mid-inspiration flow sine
-          const inspProgress = 0.5 * (1 - Math.cos((t / 0.4) * Math.PI));
-          curExp = inspProgress;
-          curPhase = RESPIRATORY_PHASES.INSPIRATION;
-        } else {
-          // Smooth recoil whose derivative matches the expiration flow sine
-          const expProgress = 0.5 * (1 + Math.cos(((t - 0.4) / 0.6) * Math.PI));
-          curExp = expProgress;
-          curPhase = RESPIRATORY_PHASES.QUIET_EXPIRATION;
-        }
-
-        setExpansion(curExp);
-        setPhase(curPhase);
-
-        const curVol = 2.8 + curExp * 0.7;
-        setVolume(curVol);
-
-        let curPres = 0;
-        let curFlow = 0;
-        if (curPhase === RESPIRATORY_PHASES.INSPIRATION) {
-          const midInsp = Math.sin((t / 0.4) * Math.PI);
-          curPres = -0.28 * midInsp;
-          curFlow = -0.65 * midInsp;
-          setExtTension(0.85 * curExp);
-          setIntTension(0.0);
-        } else {
-          const midExp = Math.sin(((t - 0.4) / 0.6) * Math.PI);
-          curPres = 0.22 * midExp;
-          curFlow = 0.52 * midExp;
-          setExtTension(0.0);
-          setIntTension(0.0);
-        }
-        setPressure(curPres);
-        setFlowRate(curFlow);
+        cycleTime.current = (cycleTime.current + delta * (bpm / 60)) % 1.0;
+        next = breathAt(cycleTime.current, { forced: forcedLoop });
       } else {
-        if (phase === RESPIRATORY_PHASES.INSPIRATION) {
-          setExpansion((prev) => THREE.MathUtils.lerp(prev, 1.0, 0.08));
-          setVolume((prev) => THREE.MathUtils.lerp(prev, 3.65, 0.08));
-          setPressure((prev) => THREE.MathUtils.lerp(prev, -0.32, 0.08));
-          setFlowRate((prev) => THREE.MathUtils.lerp(prev, -0.75, 0.08));
-          setExtTension((prev) => THREE.MathUtils.lerp(prev, 1.0, 0.08));
-          setIntTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-        } else if (phase === RESPIRATORY_PHASES.QUIET_EXPIRATION) {
-          setExpansion((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-          setVolume((prev) => THREE.MathUtils.lerp(prev, 2.8, 0.08));
-          setPressure((prev) => THREE.MathUtils.lerp(prev, 0.18, 0.08));
-          setFlowRate((prev) => THREE.MathUtils.lerp(prev, 0.42, 0.08));
-          setExtTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-          setIntTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-        } else if (phase === RESPIRATORY_PHASES.FORCED_EXPIRATION) {
-          setExpansion((prev) => THREE.MathUtils.lerp(prev, -0.92, 0.08));
-          setVolume((prev) => THREE.MathUtils.lerp(prev, 1.95, 0.08));
-          setPressure((prev) => THREE.MathUtils.lerp(prev, 1.15, 0.08));
-          setFlowRate((prev) => THREE.MathUtils.lerp(prev, 3.85, 0.08));
-          setExtTension((prev) => THREE.MathUtils.lerp(prev, 0.0, 0.08));
-          setIntTension((prev) => THREE.MathUtils.lerp(prev, 1.0, 0.08));
-        }
+        // Manual: ease towards the resting tableau for the chosen phase.
+        const goal = restingState(phase);
+        const k = 0.08;
+        const cur = shown.current;
+        next = {
+          phase: goal.phase,
+          expansion: THREE.MathUtils.lerp(cur.expansion, goal.expansion, k),
+          volumeL: THREE.MathUtils.lerp(cur.volumeL, goal.volumeL, k),
+          pressureKPa: THREE.MathUtils.lerp(cur.pressureKPa, goal.pressureKPa, k),
+          flowLps: THREE.MathUtils.lerp(cur.flowLps, goal.flowLps, k),
+          external: THREE.MathUtils.lerp(cur.external, goal.external, k),
+          internal: THREE.MathUtils.lerp(cur.internal, goal.internal, k),
+        };
       }
-    },
-    [autoLoop, bpm, phase]
-  );
 
-  function FrameController() {
-    useFrame(handleFrameUpdate);
-    return null;
-  }
+      shown.current = next;
+
+      // Throttle, then only push what changed.
+      pushClock.current += delta;
+      if (pushClock.current < PUSH_EVERY_S) return;
+      pushClock.current = 0;
+
+      const q = (v, places = 2) => Number(v.toFixed(places));
+      const last = pushed.current;
+      if (next.phase !== last.phase) setPhase(next.phase);
+      if (q(next.expansion) !== last.expansion) setExpansion(q(next.expansion));
+      if (q(next.volumeL) !== last.volumeL) setVolume(q(next.volumeL));
+      if (q(next.pressureKPa) !== last.pressureKPa) setPressure(q(next.pressureKPa));
+      if (q(next.flowLps) !== last.flowLps) setFlowRate(q(next.flowLps));
+      if (q(next.external, 1) !== last.external) setExtTension(q(next.external, 1));
+      if (q(next.internal, 1) !== last.internal) setIntTension(q(next.internal, 1));
+
+      pushed.current = {
+        phase: next.phase,
+        expansion: q(next.expansion),
+        volumeL: q(next.volumeL),
+        pressureKPa: q(next.pressureKPa),
+        flowLps: q(next.flowLps),
+        external: q(next.external, 1),
+        internal: q(next.internal, 1),
+      };
+    },
+    [autoLoop, bpm, forcedLoop, phase]
+  );
 
   return (
     <div className="relative h-full w-full bg-ink-950 overflow-hidden select-none">
@@ -1506,49 +1074,41 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         <directionalLight position={[-6, -3, -5]} intensity={0.65} color="#38bdf8" />
         <pointLight position={[0, 1.5, 3.5]} intensity={0.9} color="#ffffff" />
 
-        <FrameController />
+        <FrameController onFrame={handleFrameUpdate} />
 
         {/* 1. Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine, Sternum, Clavicles) */}
         {showBones && (
           <Suspense fallback={null}>
             <RealisticCTSkeleton
-              expansion={expansion}
+              breathRef={shown}
               cutaway={cutaway}
               visible={showBones}
             />
           </Suspense>
         )}
 
-        {/* 2. Photorealistic Striated Intercostal Muscles (External & Internal Layers) */}
-        {showMuscles && (
-          <PhotorealisticIntercostalMuscles
-            expansion={expansion}
-            extTension={extTension}
-            intTension={intTension}
-            muscleMode={muscleMode}
-            showVectors={showVectors}
-            cutaway={cutaway}
-            muscleTexture={muscleTexture}
-          />
-        )}
+        {/* 2. Ribcage kinematics (the intercostal geometry has been removed) */}
+        {showVectors && <RibcageKinematicVectors expansion={expansion} />}
 
         {/* 3. Sculpted Muscular Diaphragm Dome with Central Tendon & Hiatuses */}
         {showDiaphragm && (
-          <SculptedDiaphragmDome
-            expansion={expansion}
-            isContracted={phase === RESPIRATORY_PHASES.INSPIRATION}
-            showVectors={showVectors}
-            cutaway={cutaway}
-            muscleTexture={muscleTexture}
-            tendonTexture={tendonTexture}
-          />
+          <>
+            <SculptedDiaphragmDome
+              breathRef={shown}
+              isContracted={phase === RESPIRATORY_PHASES.INSPIRATION}
+              cutaway={cutaway}
+              muscleTexture={muscleTexture}
+              tendonTexture={tendonTexture}
+            />
+            {showVectors && <DiaphragmVector expansion={expansion} />}
+          </>
         )}
 
         {/* 4. Photorealistic Medical Scanned Lungs */}
         {showLungs && (
           <Suspense fallback={null}>
             <PhotorealisticMedicalLungs
-              expansion={expansion}
+              breathRef={shown}
               cutaway={cutaway}
             />
           </Suspense>
@@ -1670,6 +1230,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   type="button"
                   onClick={() => {
                     setAutoLoop(false);
+                    setForcedLoop(false);
                     setPhase(RESPIRATORY_PHASES.INSPIRATION);
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
@@ -1684,6 +1245,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   type="button"
                   onClick={() => {
                     setAutoLoop(false);
+                    setForcedLoop(false);
                     setPhase(RESPIRATORY_PHASES.QUIET_EXPIRATION);
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
@@ -1698,6 +1260,9 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   type="button"
                   onClick={() => {
                     setAutoLoop(false);
+                    // Pressing Loop after this breathes forcefully, which is the only
+                    // way the third phase was ever reachable while playing.
+                    setForcedLoop(true);
                     setPhase(RESPIRATORY_PHASES.FORCED_EXPIRATION);
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
@@ -1773,56 +1338,6 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                 checked={showDiaphragm}
                 onChange={setShowDiaphragm}
               />
-              <Toggle
-                label="Striated Intercostal Muscles"
-                checked={showMuscles}
-                onChange={setShowMuscles}
-              />
-
-              {/* Muscle Layer Selector */}
-              {showMuscles && (
-                <div className="pt-1 pb-0.5 px-0.5">
-                  <div className="text-[9px] font-semibold text-ink-400 mb-1">
-                    Intercostal Muscle Layer:
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => setMuscleMode("both")}
-                      className={`py-1 px-1 rounded text-center font-medium transition-all ${
-                        muscleMode === "both"
-                          ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
-                          : "bg-ink-900/60 text-ink-400 border border-ink-800 hover:bg-ink-850"
-                      }`}
-                    >
-                      Both Layers
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMuscleMode("external")}
-                      className={`py-1 px-1 rounded text-center font-medium transition-all ${
-                        muscleMode === "external"
-                          ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                          : "bg-ink-900/60 text-ink-400 border border-ink-800 hover:bg-ink-850"
-                      }`}
-                    >
-                      External (Insp)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMuscleMode("internal")}
-                      className={`py-1 px-1 rounded text-center font-medium transition-all ${
-                        muscleMode === "internal"
-                          ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
-                          : "bg-ink-900/60 text-ink-400 border border-ink-800 hover:bg-ink-850"
-                      }`}
-                    >
-                      Internal (Exp)
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="pt-1 border-t border-ink-800/60 space-y-1">
                 <Toggle
                   label="Airway Particle Vectors"
@@ -1969,7 +1484,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   </span>
                 </div>
                 <p className="text-ink-300 text-[11px] leading-relaxed">
-                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-duck-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm and intercostal muscles are 100% original SocraticOS code.
+                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-duck-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm is 100% original SocraticOS code.
                 </p>
               </div>
 

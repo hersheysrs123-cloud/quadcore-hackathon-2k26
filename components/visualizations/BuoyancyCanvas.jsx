@@ -5,20 +5,21 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
-  hashRandom,
 } from "@/components/visualizations/scene-kit";
 import { FORCE_COLOURS, ForceVector, useForceScale } from "@/components/visualizations/force-diagram";
 import {
+  APPARATUS,
   FLUIDS,
-  MAX_VOLUME,
   SOLIDS,
+  catchRange,
+  formatNewtons,
+  hullStation,
+  isOverflowing,
   solveBuoyancy,
+  springScaleRange,
 } from "@/lib/buoyancy";
 
 // ─── Archimedes' principle ──────────────────────────────────────────
@@ -46,19 +47,28 @@ const cm = (v) => v * S;
 /** The bench top. */
 const FLOOR_Y = -3.2;
 
-/** Inside dimensions of the overflow can, centimetres. */
-const TANK = { width: 34, depth: 20, height: 24, wall: 0.55 };
-/** Height of the spout lip — the water can never stand higher than this. */
-const WATER_CM = 18;
-const TANK_X = -1.9;
+/** The overflow can, centimetres. Shared with the solver, which has to fit a hull in it. */
+const TANK = {
+  width: APPARATUS.tankWidth,
+  depth: APPARATUS.tankDepth,
+  height: APPARATUS.tankHeight,
+  wall: APPARATUS.wall,
+};
+const WATER_CM = APPARATUS.waterDepth;
+const TANK_X = -2.4;
 
-/** The measuring cylinder that catches the overflow. */
-const CYL = { x: 3.8, radius: 3.2, height: 18, capacity: MAX_VOLUME };
+/**
+ * The measuring cylinder that catches the overflow. Its bore is fixed; the
+ * graduations are those of whichever size the overflow calls for (`catchRange`),
+ * because a floating hull pushes aside far more than 500 mL.
+ */
+const CYL = { x: 4.0, radius: 3.2, height: 18 };
+const CYL_FILL = 0.86;
 
 const SURFACE_Y = FLOOR_Y + cm(WATER_CM);
-const GANTRY_Y = 6.5;
-/** How far below the surface a fully immersed object is held. */
-const IMMERSION_DEPTH_CM = 4;
+const GANTRY_Y = 7.6;
+/** Where the spring scale's hook hangs when nothing tall is under it. */
+const HOOK_Y = 4.35;
 
 const ACRYLIC = "#b8c9dc";
 
@@ -178,21 +188,20 @@ function Fluid({ spec }) {
 // ─── The measuring cylinder ─────────────────────────────────────────
 
 /**
- * Graduations every 25 mL, numbered every 100.
+ * Twenty graduations up the glass, numbered every fifth.
  *
- * The cylinder's bore is chosen so its full 500 mL matches the largest object
- * the volume slider can make — so a fully immersed maximum object fills it to
- * the brim, and no reading ever runs off the top of the glass.
+ * The range is the smallest cylinder that holds the overflow, so a reading
+ * never runs off the top of the glass — and a bigger cylinder is swapped in,
+ * graduations and all, when the overflow calls for one.
  */
-function CylinderGraduations() {
-  const fillHeight = cm(CYL.height) * 0.86;
+function CylinderGraduations({ range }) {
+  const fillHeight = cm(CYL.height) * CYL_FILL;
 
   const ticks = useMemo(() => {
     const positions = [];
-    for (let ml = 0; ml <= CYL.capacity; ml += 25) {
-      const y = (ml / CYL.capacity) * fillHeight;
-      const long = ml % 100 === 0;
-      const len = long ? cm(2.4) : cm(1.2);
+    for (let i = 0; i <= 20; i += 1) {
+      const y = (i / 20) * fillHeight;
+      const len = i % 5 === 0 ? cm(2.4) : cm(1.2);
       positions.push(0, y, cm(CYL.radius), 0, y, cm(CYL.radius) - len);
     }
     const g = new THREE.BufferGeometry();
@@ -209,13 +218,13 @@ function CylinderGraduations() {
       <lineSegments geometry={ticks} rotation={[0, 0.35, 0]}>
         <lineBasicMaterial color="#f1f5f9" transparent opacity={0.85} />
       </lineSegments>
-      {[100, 200, 300, 400, 500].map((ml) => (
+      {[1, 2, 3, 4, 5].map((i) => (
         <SceneLabel
-          key={ml}
-          position={[cm(CYL.radius) + 0.45, (ml / CYL.capacity) * fillHeight, 0.3]}
-          tone="text-ink-500"
+          key={i}
+          position={[cm(CYL.radius) + 0.5, (i / 5) * fillHeight, 0.3]}
+          tone="text-ink-400"
         >
-          {ml}
+          {(range * i) / 5}
         </SceneLabel>
       ))}
     </group>
@@ -230,22 +239,22 @@ function CylinderGraduations() {
  * second or two before the reading settles. Animating it in a ref keeps that
  * at sixty frames a second without re-rendering the scene for each one.
  */
-function MeasuringCylinder({ targetML, spec, onLevel, animSpeed = 1 }) {
+function MeasuringCylinder({ targetML, range, spec, onLevel, animSpeed = 1 }) {
   const columnRef = useRef(null);
   const shown = useRef(0);
-  const fillHeight = cm(CYL.height) * 0.86;
+  const fillHeight = cm(CYL.height) * CYL_FILL;
   const empty = spec.density < 0.01;
 
   useFrame((_, rawDelta) => {
     const mesh = columnRef.current;
     if (!mesh) return;
     const dt = Math.min(rawDelta, 1 / 30) * animSpeed;
-    const target = empty ? 0 : clamp(targetML, 0, CYL.capacity);
+    const target = empty ? 0 : clamp(targetML, 0, range);
     // Exponential settle: fast while the gap is large, gentle as it arrives.
     shown.current += (target - shown.current) * Math.min(dt * 3.2, 1);
-    if (Math.abs(target - shown.current) < 0.05) shown.current = target;
+    if (Math.abs(target - shown.current) < 0.05 * (range / 500)) shown.current = target;
 
-    const h = (shown.current / CYL.capacity) * fillHeight;
+    const h = (shown.current / range) * fillHeight;
     mesh.scale.y = Math.max(h, 1e-4);
     mesh.position.y = h / 2;
     mesh.visible = h > 1e-3;
@@ -285,7 +294,10 @@ function MeasuringCylinder({ targetML, spec, onLevel, animSpeed = 1 }) {
         />
       </mesh>
 
-      <CylinderGraduations />
+      <CylinderGraduations range={range} />
+      <SceneLabel position={[0, cm(CYL.height) + 0.2, 0]} tone="text-ink-400">
+        {`0–${range} mL cylinder`}
+      </SceneLabel>
     </group>
   );
 }
@@ -302,11 +314,16 @@ function OverflowStream({ spec, activeRef, animSpeed = 1 }) {
   const group = useRef(null);
   const count = 14;
 
+  // From the tip of the spout (its far end sits 5.6 cm out from the wall and a
+  // little under the lip) to a point inside the glass just past the rim.
   const from = useMemo(
-    () => new THREE.Vector3(TANK_X + cm(TANK.width / 2) + cm(5.2), SURFACE_Y - cm(1.6), 0),
+    () => new THREE.Vector3(TANK_X + cm(TANK.width / 2 + 5.6), SURFACE_Y - cm(1.15), 0),
     [],
   );
-  const to = useMemo(() => new THREE.Vector3(CYL.x, FLOOR_Y + cm(CYL.height) * 0.55, 0), []);
+  const to = useMemo(
+    () => new THREE.Vector3(CYL.x - cm(CYL.radius) * 0.35, FLOOR_Y + cm(CYL.height) * 0.45, 0),
+    [],
+  );
 
   useFrame((state) => {
     const g = group.current;
@@ -348,21 +365,57 @@ function OverflowStream({ spec, activeRef, animSpeed = 1 }) {
 
 // ─── The specimens ──────────────────────────────────────────────────
 
-/** An irregular lump: an icosahedron with its vertices pushed about. */
+/**
+ * An irregular lump: an icosahedron whose radius varies smoothly with direction.
+ *
+ * The radius is a function of the vertex's POSITION, not of its index. The
+ * icosahedron is not indexed — each corner is stored once per triangle — so
+ * jittering by index gave the copies of one corner different radii and tore
+ * the lump into loose faces. Alongside the mesh it reports its bounding size
+ * and true volume, so the scene can scale it to be exactly the volume the
+ * slider says rather than whatever the jitter happened to leave.
+ */
 function useRockGeometry() {
-  const geometry = useMemo(() => {
-    const g = new THREE.IcosahedronGeometry(0.5, 1);
+  const rock = useMemo(() => {
+    const g = new THREE.IcosahedronGeometry(0.5, 2);
     const pos = g.attributes.position;
     for (let i = 0; i < pos.count; i += 1) {
-      const jitter = 0.78 + hashRandom(i * 3.7 + 1.3) * 0.46;
-      pos.setXYZ(i, pos.getX(i) * jitter, pos.getY(i) * jitter * 0.92, pos.getZ(i) * jitter);
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const len = Math.hypot(x, y, z) || 1;
+      const dx = x / len;
+      const dy = y / len;
+      const dz = z / len;
+      const r =
+        0.5 *
+        (1 +
+          0.13 * Math.sin(3.1 * dx + 1.1) * Math.cos(2.3 * dy + 0.4) +
+          0.1 * Math.sin(3.7 * dz + 2.0) +
+          0.07 * Math.sin(6.1 * (dx + dy) + 0.7) * Math.cos(4.3 * dz));
+      pos.setXYZ(i, dx * r, dy * r, dz * r);
     }
     g.computeVertexNormals();
-    return g;
+    g.computeBoundingBox();
+    const size = new THREE.Vector3();
+    g.boundingBox.getSize(size);
+
+    // Signed volume: the sum of the tetrahedra from the origin to each face.
+    let volume = 0;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i);
+      b.fromBufferAttribute(pos, i + 1);
+      c.fromBufferAttribute(pos, i + 2);
+      volume += a.dot(b.cross(c)) / 6;
+    }
+    return { geometry: g, size, volume: Math.abs(volume) };
   }, []);
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return geometry;
+  useEffect(() => () => rock.geometry.dispose(), [rock]);
+  return rock;
 }
 
 /**
@@ -384,25 +437,12 @@ function RealisticBoat({ l, w, h, colour, swamped, fluidSpec }) {
   const t = Math.max(h * 0.055, 0.025);
 
   const { outerGeom, innerGeom, deckGeom, swampedGeom } = useMemo(() => {
-    const getBTop = (u) => {
-      let b;
-      if (u <= 0.45) {
-        b = (w / 2) * (0.86 + 0.14 * Math.sin((u / 0.45) * (Math.PI / 2)));
-      } else {
-        b = (w / 2) * Math.cos(((u - 0.45) / 0.55) * (Math.PI / 2));
-      }
-      return Math.max(b, 0.02 * w);
-    };
-    const getBBot = (u) => getBTop(u) * 0.64;
-    const getYKeel = (u) => {
-      let y = -h / 2;
-      if (u > 0.8) {
-        const frac = (u - 0.8) / 0.2;
-        y += h * 0.35 * frac * frac;
-      }
-      return y;
-    };
-    const getYSheer = (u) => h / 2 + (h * 0.07) * Math.pow((u - 0.45) / 0.55, 2);
+    // The outline comes from the solver, so the boat that is drawn is the boat
+    // whose immersed volume set the waterline.
+    const getBTop = (u) => hullStation(u).beamTop * h;
+    const getBBot = (u) => hullStation(u).beamBot * h;
+    const getYKeel = (u) => hullStation(u).yKeel * h;
+    const getYSheer = (u) => hullStation(u).ySheer * h;
 
     // 1. Outer Hull
     const outerGeom = new THREE.BufferGeometry();
@@ -640,25 +680,29 @@ function RealisticBoat({ l, w, h, colour, swamped, fluidSpec }) {
     };
   }, [outerGeom, innerGeom, deckGeom, swampedGeom]);
 
-  const hullMat = <meshStandardMaterial color={colour} roughness={0.35} metalness={0.6} side={THREE.DoubleSide} />;
-  const trimMat = <meshStandardMaterial color="#5b6b80" roughness={0.35} metalness={0.5} />;
-  const hwMat = <meshStandardMaterial color="#f1f5f9" roughness={0.15} metalness={0.92} />;
+  // Low metalness: there is no environment map here for a mirror finish to
+  // reflect, and a metallic hull rendered against nothing goes charcoal.
+  const hullMat = <meshStandardMaterial color={colour} roughness={0.42} metalness={0.22} side={THREE.DoubleSide} />;
+  const trimMat = <meshStandardMaterial color="#7c8ba1" roughness={0.4} metalness={0.3} />;
+  const hwMat = <meshStandardMaterial color="#f1f5f9" roughness={0.25} metalness={0.6} />;
   const woodMat = <meshStandardMaterial color="#d4a373" roughness={0.5} metalness={0.1} />;
 
   const thwartY = h / 2 - h * 0.05;
   const thwartW = w * 0.94;
   const thwartL = l * 0.09;
   const thwartT = h * 0.055;
+  // The foredeck rises toward the bow, so the cleat sits on the deck where it is.
+  const cleatU = 0.88;
 
   return (
     <group>
       {/* Outer sculpted hull shell */}
-      <mesh geometry={outerGeom} castShadow receiveShadow>
+      <mesh geometry={outerGeom} castShadow>
         {hullMat}
       </mesh>
 
       {/* Inner cockpit liner */}
-      <mesh geometry={innerGeom} castShadow receiveShadow>
+      <mesh geometry={innerGeom}>
         {hullMat}
       </mesh>
 
@@ -686,7 +730,7 @@ function RealisticBoat({ l, w, h, colour, swamped, fluidSpec }) {
       </group>
 
       {/* Bow mooring cleat on foredeck */}
-      <group position={[l * 0.42, h / 2 + 0.025, 0]}>
+      <group position={[l * (cleatU - 0.5), hullStation(cleatU).ySheer * h + 0.005, 0]}>
         <mesh position={[0, 0.035, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.02, 0.02, 0.16, 12]} />
           {hwMat}
@@ -762,9 +806,15 @@ function Specimen({ metrics, colour, swamped, fluidSpec }) {
   }
 
   if (metrics.key === "rock") {
+    // Stretch the lump to the metrics' proportions, then trim it uniformly so
+    // its true volume is the one the slider asked for.
+    const sx = l / rock.size.x;
+    const sy = h / rock.size.y;
+    const sz = w / rock.size.z;
+    const trim = Math.cbrt((metrics.envelopeCC * S ** 3) / (rock.volume * sx * sy * sz));
     return (
-      <mesh geometry={rock} scale={[l * 1.6, h * 1.15, w * 1.6]} castShadow>
-        {material}
+      <mesh geometry={rock.geometry} scale={[sx * trim, sy * trim, sz * trim]} castShadow>
+        <meshStandardMaterial color={colour} roughness={0.55} metalness={0.25} flatShading />
       </mesh>
     );
   }
@@ -782,30 +832,79 @@ function Specimen({ metrics, colour, swamped, fluidSpec }) {
 /**
  * The scale, with a pointer that moves against a printed face.
  *
- * `reading` is the apparent weight and `full` is the true weight, so the
- * pointer's travel is literally the weight the fluid has taken off — the
- * measurement the whole experiment turns on.
+ * The face is fixed — 0 to `range` newtons, the smallest balance that reads the
+ * specimen's true weight — so the pointer's travel is literally the weight the
+ * fluid has taken off, on a scale that does not stretch to flatter it. The
+ * dashed line marks where the pointer sat before the specimen went in.
  */
-function SpringScale({ reading, full, hookY }) {
-  const bodyTop = GANTRY_Y - 0.35;
-  const bodyHeight = 1.7;
-  const bodyBottom = bodyTop - bodyHeight;
-  const fraction = full > 1e-9 ? clamp(reading / full, 0, 1) : 0;
-  const pointerY = bodyTop - 0.22 - fraction * (bodyHeight - 0.44);
+function SpringScale({ reading, full, range, hookY }) {
+  const bodyBottom = hookY + 0.28;
+  const bodyHeight = 1.9;
+  const bodyTop = bodyBottom + bodyHeight;
+  const travel = bodyHeight - 0.5;
+  const yAt = (newtons) => bodyTop - 0.25 - clamp(newtons / range, 0, 1) * travel;
+
+  const ticks = Array.from({ length: 11 }, (_, i) => i);
 
   return (
     <group position={[TANK_X, 0, 0]}>
-      <mesh position={[0, bodyTop - bodyHeight / 2, 0]}>
-        <boxGeometry args={[0.62, bodyHeight, 0.3]} />
-        <meshStandardMaterial color="#64748b" roughness={0.35} metalness={0.65} />
+      {/* Rod up to the gantry, and the clamp that holds it. */}
+      <mesh position={[0, (bodyTop + GANTRY_Y) / 2, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, GANTRY_Y - bodyTop, 10]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.3} metalness={0.6} />
       </mesh>
-      {/* Face and the graduation the pointer runs against. */}
+      <mesh position={[0, GANTRY_Y - 0.16, 0]}>
+        <boxGeometry args={[0.34, 0.26, 0.34]} />
+        <meshStandardMaterial color="#64748b" roughness={0.4} metalness={0.5} />
+      </mesh>
+
+      <mesh position={[0, bodyTop - bodyHeight / 2, 0]}>
+        <boxGeometry args={[0.72, bodyHeight, 0.3]} />
+        <meshStandardMaterial color="#8394ab" roughness={0.4} metalness={0.4} />
+      </mesh>
+      {/* Face, graduated. */}
       <mesh position={[0, bodyTop - bodyHeight / 2, 0.16]}>
-        <planeGeometry args={[0.4, bodyHeight - 0.3]} />
+        <planeGeometry args={[0.5, bodyHeight - 0.2]} />
         <meshStandardMaterial color="#f8fafc" roughness={0.7} />
       </mesh>
-      <mesh position={[0, pointerY, 0.19]}>
-        <boxGeometry args={[0.44, 0.055, 0.02]} />
+      {ticks.map((i) => {
+        const y = yAt((i / 10) * range);
+        const long = i % 5 === 0;
+        return (
+          <Line
+            key={i}
+            points={[
+              [-0.2, y, 0.17],
+              [long ? 0.02 : -0.06, y, 0.17],
+            ]}
+            color="#475569"
+            lineWidth={long ? 1.4 : 0.9}
+          />
+        );
+      })}
+      <SceneLabel position={[-0.68, yAt(0), 0.2]} tone="text-ink-400">
+        0
+      </SceneLabel>
+      <SceneLabel position={[-0.85, yAt(range), 0.2]} tone="text-ink-400">
+        {`${range} N`}
+      </SceneLabel>
+
+      {/* Where the pointer sat before the specimen went in. */}
+      <Line
+        points={[
+          [-0.3, yAt(full), 0.2],
+          [0.62, yAt(full), 0.2],
+        ]}
+        color={FORCE_COLOURS.weight}
+        lineWidth={1.6}
+        transparent
+        opacity={0.85}
+        dashed
+        dashSize={0.07}
+        gapSize={0.06}
+      />
+      <mesh position={[0, yAt(reading), 0.2]}>
+        <boxGeometry args={[0.46, 0.06, 0.03]} />
         <meshStandardMaterial
           color={FORCE_COLOURS.applied}
           emissive={FORCE_COLOURS.applied}
@@ -813,37 +912,25 @@ function SpringScale({ reading, full, hookY }) {
           toneMapped={false}
         />
       </mesh>
-      {/* Where the pointer sat before the specimen went in. */}
-      <Line
-        points={[
-          [-0.34, bodyTop - 0.22 - (bodyHeight - 0.44), 0.2],
-          [0.34, bodyTop - 0.22 - (bodyHeight - 0.44), 0.2],
-        ]}
-        color={FORCE_COLOURS.weight}
-        lineWidth={1.6}
-        transparent
-        opacity={0.8}
-        dashed
-        dashSize={0.07}
-        gapSize={0.06}
-      />
 
       {/* Stem down to the hook. */}
       <mesh position={[0, (bodyBottom + hookY) / 2, 0]}>
         <cylinderGeometry args={[0.035, 0.035, Math.max(bodyBottom - hookY, 0.01), 10]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.85} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.7} />
       </mesh>
       <mesh position={[0, hookY, 0]}>
         <torusGeometry args={[0.09, 0.025, 8, 18, Math.PI * 1.4]} />
-        <meshStandardMaterial color="#f1f5f9" roughness={0.2} metalness={0.9} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.25} metalness={0.7} />
       </mesh>
 
-      <SceneLabel position={[0.95, bodyTop - 0.55, 0]} accent>
-        {`scale reads ${reading.toFixed(2)} N`}
+      <SceneLabel position={[1.55, yAt(reading), 0]} accent>
+        {`scale reads ${formatNewtons(reading)}`}
       </SceneLabel>
-      <SceneLabel position={[1.02, bodyTop - bodyHeight + 0.2, 0]} tone="text-rose-300">
-        {`in vacuo ${full.toFixed(2)} N`}
-      </SceneLabel>
+      {Math.abs(yAt(full) - yAt(reading)) > 0.25 && (
+        <SceneLabel position={[1.55, Math.min(yAt(full), yAt(reading) - 0.5), 0]} tone="text-rose-300">
+          {`true weight ${formatNewtons(full)}`}
+        </SceneLabel>
+      )}
     </group>
   );
 }
@@ -857,23 +944,23 @@ function Gantry() {
     <group>
       <mesh position={[cx, GANTRY_Y, 0]}>
         <boxGeometry args={[span, 0.18, 0.22]} />
-        <meshStandardMaterial color="#94a3b8" roughness={0.25} metalness={0.8} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.5} />
       </mesh>
       {[left, right].map((x) => (
         <mesh key={x} position={[x, (GANTRY_Y + FLOOR_Y) / 2, 0]}>
           <cylinderGeometry args={[0.09, 0.09, GANTRY_Y - FLOOR_Y, 16]} />
-          <meshStandardMaterial color="#94a3b8" roughness={0.25} metalness={0.8} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.5} />
         </mesh>
       ))}
       {/* Light modern laboratory workbench base */}
       <mesh position={[cx, FLOOR_Y - 0.14, 0]} receiveShadow>
-        <boxGeometry args={[span + 2.4, 0.28, 5]} />
+        <boxGeometry args={[span + 2.4, 0.28, 6.6]} />
         <meshStandardMaterial color="#64748b" roughness={0.6} metalness={0.2} />
       </mesh>
       {/* Luminous brushed aluminum table top inlay */}
       <mesh position={[cx, FLOOR_Y + 0.005, 0]} receiveShadow>
-        <boxGeometry args={[span + 2.2, 0.015, 4.8]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.7} />
+        <boxGeometry args={[span + 2.2, 0.015, 6.4]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.5} />
       </mesh>
     </group>
   );
@@ -889,10 +976,13 @@ function Gantry() {
  * — showing at a glance that the hull's mean density is a completely different
  * number from the steel's, and that the gap between the two markers is where
  * the ship comes from.
+ *
+ * It hangs below the bench on its own dark card, with the verdict as its title,
+ * so its labels have a stage of their own instead of competing with the tank's.
  */
 function DensityScale({ solved }) {
-  const width = 8.8;
-  const y = FLOOR_Y - 1.6;
+  const width = 9.4;
+  const y = FLOOR_Y - 2.05;
   const x0 = TANK_X - cm(TANK.width / 2) - 0.2;
   const max = 20;
 
@@ -914,6 +1004,19 @@ function DensityScale({ solved }) {
 
   return (
     <group>
+      <mesh position={[x0 + width / 2, y + 0.2, -0.3]}>
+        <planeGeometry args={[width + 4.6, 3.8]} />
+        <meshBasicMaterial color="#0f172a" transparent opacity={0.6} depthWrite={false} />
+      </mesh>
+
+      <SceneLabel position={[x0 + width / 2, y + 1.68, 0]} tone={solved.floats ? "text-emerald-300" : "text-amber-300"}>
+        {solved.swamped
+          ? "hull flooded — it now displaces only its own steel"
+          : solved.floats
+            ? `floating · ρ_mean ${solved.meanDensity.toFixed(2)} < ρ_fluid ${solved.fluidDensity}`
+            : `sinking · ρ_mean ${solved.meanDensity.toFixed(2)} > ρ_fluid ${solved.fluidDensity}`}
+      </SceneLabel>
+
       <Line
         points={[
           [x0, y, 0],
@@ -932,18 +1035,18 @@ function DensityScale({ solved }) {
             color="#94a3b8"
             lineWidth={1.2}
           />
-          <SceneLabel position={[at(d), y - 0.38, 0]} tone="text-ink-500">
+          <SceneLabel position={[at(d), y - 0.36, 0]} tone="text-ink-400">
             {d}
           </SceneLabel>
         </group>
       ))}
 
-      {/* Fluids below the axis. The selected one is lit. */}
+      {/* Fluids below the axis. The selected one is lit and named. */}
       {fluidKeys.map((key) => {
         const f = FLUIDS[key];
         const selected = f.label === solved.fluid.label;
         return (
-          <mesh key={key} position={[at(f.density), y - 0.16, 0]}>
+          <mesh key={key} position={[at(f.density), y - 0.14, 0]}>
             <sphereGeometry args={[selected ? 0.13 : 0.075, 14, 14]} />
             <meshStandardMaterial
               color={f.colour}
@@ -954,7 +1057,7 @@ function DensityScale({ solved }) {
           </mesh>
         );
       })}
-      <SceneLabel position={[at(solved.fluidDensity), y - 0.78, 0]} tone="text-sky-300">
+      <SceneLabel position={[at(solved.fluidDensity), y - 0.9, 0]} tone="text-sky-300">
         {`${solved.fluid.label} ${solved.fluidDensity} g/cm³`}
       </SceneLabel>
 
@@ -963,7 +1066,7 @@ function DensityScale({ solved }) {
         <boxGeometry args={[0.09, 0.3, 0.09]} />
         <meshStandardMaterial color="#f8fafc" emissive="#f8fafc" emissiveIntensity={1.2} toneMapped={false} />
       </mesh>
-      <SceneLabel position={[at(solved.objectDensity), y + 0.62, 0]} tone="text-ink-300">
+      <SceneLabel position={[at(solved.objectDensity), y + 0.52, 0]} tone="text-ink-200">
         {`material ${solved.objectDensity.toFixed(2)}`}
       </SceneLabel>
 
@@ -991,14 +1094,14 @@ function DensityScale({ solved }) {
               toneMapped={false}
             />
           </mesh>
-          <SceneLabel position={[at(solved.meanDensity), y + 1.0, 0]} accent>
-            {`hull mean ${solved.meanDensity.toFixed(2)} — this is what floats`}
+          <SceneLabel position={[at(solved.meanDensity), y + 1.1, 0]} accent>
+            {`hull as a whole ${solved.meanDensity.toFixed(2)}`}
           </SceneLabel>
         </>
       )}
 
-      <SceneLabel position={[x0 + width + 0.95, y, 0]} tone="text-ink-400">
-        density g/cm³ · √ scale
+      <SceneLabel position={[x0 + width + 1.55, y - 0.36, 0]} tone="text-ink-400">
+        g/cm³ · √ scale
       </SceneLabel>
     </group>
   );
@@ -1043,37 +1146,45 @@ export default function BuoyancyCanvas({ params = {} }) {
         volume: objectVolume,
         fluid,
         shape: solidShape,
-        topDepthCm: IMMERSION_DEPTH_CM,
       }),
     [objectDensity, objectVolume, fluid, solidShape],
   );
 
   const { metrics } = solved;
-  const colour =
-    Object.values(SOLIDS).find((s) => Math.abs(s.density - objectDensity) < 0.35)?.colour ?? "#cbd5e1";
+  // The NEAREST named solid, not the first within reach: oak (0.60) is only
+  // 0.32 from ice (0.92), and "first within 0.35" painted ice brown.
+  const nearest = Object.values(SOLIDS).reduce((best, s) =>
+    Math.abs(s.density - objectDensity) < Math.abs(best.density - objectDensity) ? s : best,
+  );
+  const colour = Math.abs(nearest.density - objectDensity) < 0.35 ? nearest.colour : "#cbd5e1";
+  const air = solved.fluid.density < 0.01;
 
   // Where the specimen sits. Floating: its waterline is the fluid surface.
   // Sinking: held clear of the bottom at a fixed depth, which is also the
   // depth the pressure readings are quoted at.
   const centreY = solved.floats
     ? SURFACE_Y + cm(metrics.height / 2 - solved.draftCm)
-    : SURFACE_Y - cm(IMMERSION_DEPTH_CM + metrics.height / 2);
+    : SURFACE_Y - cm(solved.topDepth + metrics.height / 2);
 
   const topY = centreY + cm(metrics.height / 2);
-  const hookY = 4.35;
+  // The hook rides up out of the way of a tall hull riding high.
+  const hookY = Math.max(HOOK_Y, topY + 0.7);
 
   /** Centroid of the DISPLACED fluid — where the upthrust actually acts. */
   const buoyancyY = solved.floats ? SURFACE_Y - cm(solved.draftCm / 2) : centreY;
 
   const scale = useForceScale([solved.weight, solved.upthrust], 1.9);
+  const scaleRange = springScaleRange(solved.weight);
+  // In air nothing overflows, so the cylinder stands there empty at its smallest.
+  const catchML = air ? catchRange(0) : catchRange(solved.overflowML);
 
   // Written by the cylinder every frame, read by the stream on the same frame.
-  // The stream only animates when fluid is overflowing into the cylinder
-  // (targetML > shownML). When the block volume is lowered or lifted out,
-  // the cylinder level recedes without phantom water pouring from the spout.
+  // The stream only animates when fluid is actually overflowing into the
+  // cylinder (target above shown). When the block volume is lowered or lifted
+  // out, the cylinder level recedes without phantom water pouring from the spout.
   const pouring = useRef(false);
   const handleLevel = (shownML, targetML) => {
-    pouring.current = targetML - shownML > 0.6;
+    pouring.current = isOverflowing(shownML, targetML);
   };
 
   /** The suspension line — taut while the scale is carrying something. */
@@ -1089,21 +1200,27 @@ export default function BuoyancyCanvas({ params = {} }) {
       [TANK_X - 0.2, mid - 0.32, -0.08],
       bottom,
     ];
-  }, [topY, solved.apparentWeight]);
+  }, [hookY, topY, solved.apparentWeight]);
 
   return (
     <SceneCanvas
-      camera={{ position: [0.3, 1.8, 17.2], fov: 45 }}
-      controls={{ minDistance: 6, maxDistance: 36, target: [0.3, 0.8, 0] }}
+      camera={{ position: [-0.9, 2.8, 19.4], fov: 45 }}
+      controls={{ minDistance: 6, maxDistance: 38, target: [-0.9, 0.7, 0] }}
       lights={{ ambient: 0.88, keyLight: 1.45 }}
     >
       <Gantry />
       <OverflowCan />
       <Fluid spec={solved.fluid} />
-      <MeasuringCylinder targetML={solved.overflowML} spec={solved.fluid} onLevel={handleLevel} animSpeed={speed} />
+      <MeasuringCylinder
+        targetML={solved.overflowML}
+        range={catchML}
+        spec={solved.fluid}
+        onLevel={handleLevel}
+        animSpeed={speed}
+      />
       <OverflowStream spec={solved.fluid} activeRef={pouring} animSpeed={speed} />
 
-      <SpringScale reading={solved.apparentWeight} full={solved.weight} hookY={hookY} />
+      <SpringScale reading={solved.apparentWeight} full={solved.weight} range={scaleRange} hookY={hookY} />
       <Line points={linePoints} color="#f1f5f9" lineWidth={1.6} transparent opacity={0.95} />
 
       <FloatingSpecimenRig position={[TANK_X, centreY, 0]} floats={solved.floats} speed={speed}>
@@ -1116,7 +1233,7 @@ export default function BuoyancyCanvas({ params = {} }) {
       </FloatingSpecimenRig>
 
       {/* The waterline, called out on the specimen itself. */}
-      {solved.fluid.density > 0.01 && (
+      {!air && (
         <>
           <Line
             points={[
@@ -1131,7 +1248,7 @@ export default function BuoyancyCanvas({ params = {} }) {
             dashSize={0.12}
             gapSize={0.1}
           />
-          <SceneLabel position={[TANK_X - cm(TANK.width / 2) - 1.35, SURFACE_Y, 0]} tone="text-sky-300">
+          <SceneLabel position={[TANK_X - cm(TANK.width / 2) - 1.45, SURFACE_Y, 0]} tone="text-sky-300">
             {solved.floats
               ? `${(solved.submergedFraction * 100).toFixed(0)}% under`
               : "fully immersed"}
@@ -1174,43 +1291,14 @@ export default function BuoyancyCanvas({ params = {} }) {
       <DensityScale solved={solved} />
 
       {/* The measurement, stated as the equality it is. */}
-      <SceneLabel position={[CYL.x, FLOOR_Y + cm(CYL.height) + 0.75, 0]} accent>
-        {`${solved.overflowML.toFixed(0)} mL displaced`}
+      <SceneLabel position={[CYL.x, FLOOR_Y + cm(CYL.height) + 1.25, 0]} accent>
+        {air
+          ? `${solved.displacedCC.toFixed(0)} cm³ of air displaced`
+          : `${solved.overflowML.toFixed(0)} mL displaced`}
       </SceneLabel>
-      <SceneLabel position={[CYL.x, FLOOR_Y + cm(CYL.height) + 0.3, 0]} tone="text-sky-300">
-        {`weighs ${solved.upthrust.toFixed(2)} N — and that is F_b`}
+      <SceneLabel position={[CYL.x, FLOOR_Y + cm(CYL.height) + 0.8, 0]} tone="text-sky-300">
+        {`weighs ${formatNewtons(solved.upthrust)} = F_b`}
       </SceneLabel>
-      <SceneLabel position={[TANK_X, FLOOR_Y - 0.62, 0]} tone="text-ink-400">
-        {solved.swamped
-          ? "hull flooded — it now displaces only its own steel"
-          : solved.floats
-            ? `floating · ρ_mean ${solved.meanDensity.toFixed(2)} < ρ_fluid ${solved.fluidDensity}`
-            : `sinking · ρ_mean ${solved.meanDensity.toFixed(2)} > ρ_fluid ${solved.fluidDensity}`}
-      </SceneLabel>
-
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Archimedes' principle"
-        subtitle="F_b = ρ_fluid · V_displaced · g"
-        rows={[
-          ["Mass", `${solved.massG.toFixed(0)} g`],
-          ["True weight", `${solved.weight.toFixed(2)} N`, "gold"],
-          ["Displaced", `${solved.overflowML.toFixed(0)} mL`],
-          ["Buoyant force", `${solved.upthrust.toFixed(2)} N`, "good"],
-          ["Scale reads", `${solved.apparentWeight.toFixed(2)} N`],
-          ["Verdict", solved.floats ? "floats" : "sinks", solved.floats ? "good" : "bad"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Buoyancy"
-        items={[
-          { color: FORCE_COLOURS.weight, label: "F_g = mg", note: "the material's own weight, always down" },
-          { color: FORCE_COLOURS.normal, label: "F_b = ρVg", note: "the weight of the fluid pushed aside" },
-          { color: FORCE_COLOURS.applied, label: "Tension T", note: "whatever is left for the scale to carry" },
-          { color: FORCE_COLOURS.net, label: "Mean density", note: "mass ÷ envelope — the number that decides" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

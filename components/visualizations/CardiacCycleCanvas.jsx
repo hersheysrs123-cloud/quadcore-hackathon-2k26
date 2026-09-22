@@ -7,11 +7,8 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
-  lerp,
 } from "@/components/visualizations/scene-kit";
 import { StageCaption, StageCycleDriver } from "@/components/visualizations/stage-stepper";
 import {
@@ -953,16 +950,6 @@ export default function CardiacCycleCanvas({ params = {}, setParam }) {
 
       <Labels h={h} pathology={pathology} snapshot={snapshot} />
 
-      <SceneReadout title="Cardiac cycle" subtitle={pathologyFor(pathology).label} rows={[]} />
-      <SceneLegend
-        title="Traces"
-        items={[
-          { color: COLOURS.traceLV, label: "LV pressure", note: "mmHg" },
-          { color: COLOURS.traceAo, label: "Aortic pressure", note: "mmHg" },
-          { color: COLOURS.traceVol, label: "LV volume", note: "mL" },
-          { color: COLOURS.traceEcg, label: "ECG", note: "mV" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

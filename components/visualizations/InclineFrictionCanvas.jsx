@@ -2,19 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { Billboard, Grid, Line, RoundedBox } from "@react-three/drei";
+import { Grid, Line, RoundedBox } from "@react-three/drei";
+import { Activity, X } from "lucide-react";
 import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import {
   FORCE_COLOURS,
   ForceVector,
-  GraphPanel,
   ResolutionGuides,
   arcPoints,
   onSlope,
@@ -24,7 +22,15 @@ import {
   useRollingTrace,
   useWedgeGeometry,
 } from "@/components/visualizations/force-diagram";
-import { RAMP_LENGTH_M, advanceBlock, solveIncline, surfaceFor } from "@/lib/inclineForces";
+import {
+  RAMP_LENGTH_M,
+  TRAVEL_LIMIT_M,
+  advanceBlock,
+  slideForecast,
+  solveMotion,
+  surfaceFor,
+  traceAxes,
+} from "@/lib/inclineForces";
 
 // ─── Incline plane · Newton's laws & friction ───────────────────────
 // A cargo block on an adjustable ramp, with every force that acts on it drawn
@@ -46,10 +52,13 @@ const RAMP_DEPTH = 1.5;
 const PLANK = 0.14;
 const BLOCK = 0.52;
 const HALF_BLOCK = (BLOCK * 1.35) / 2;
-
-/** Longest velocity the trace plots before it clips, m/s. */
-const TRACE_SPEED = 6;
-const TRACE_SECONDS = 8;
+/**
+ * How thick the stop at each end of the plank is. It is what is left of the
+ * plank once the crate has travelled the physics' limit (lib/inclineForces.js),
+ * so the crate is drawn touching the stop at exactly the moment the physics
+ * stops it.
+ */
+const STOP_WORLD = RAMP_WORLD / 2 - HALF_BLOCK - TRAVEL_LIMIT_M * SCALE;
 
 // ─── The block ──────────────────────────────────────────────────────
 
@@ -178,6 +187,10 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         colour={FORCE_COLOURS.weight}
         symbol="W = mg"
         showLabel={showLabels}
+        // W and its perpendicular component end close together on a gentle
+        // slope, so the two labels would sit on top of each other: W's drops
+        // clear of it while the components are showing.
+        labelOffset={showComponents ? 0.95 : 0.4}
       />
 
       {showComponents && (
@@ -246,6 +259,21 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
         />
       )}
 
+      {/* The end stop's push, when the crate is pressed against it — without it
+          a crate at rest against the stop has a resultant of zero and arrows
+          that visibly do not add up. */}
+      {solved.atBarrier && Math.abs(solved.stopForce) > 0.05 && (
+        <ForceVector
+          at={nudge(0, -0.46)}
+          direction={up}
+          newtons={solved.stopForce}
+          scale={scale}
+          colour={FORCE_COLOURS.stop}
+          symbol="R (stop)"
+          showLabel={showLabels}
+        />
+      )}
+
       {showNet && Math.abs(solved.netForce) > 0.05 && (
         <ForceVector
           at={nudge(0, -0.3)}
@@ -274,130 +302,331 @@ function BlockAndForces({ frame, along, solved, scale, showComponents, showNet, 
  * sees throttled samples, which is what keeps a sixty-hertz simulation from
  * re-rendering a HUD sixty times a second.
  */
-function BlockMotion({ options, running, speed = 1, resetKey, onSample, onTrace, maxTime = TRACE_SECONDS }) {
+function BlockMotion({ options, running, speed = 1, resetKey, onSample, onTrace, onReset, traceWindow }) {
   const elapsed = useRef(0);
   const finished = useRef(false);
 
   const step = useCallback(
     (motion, dt) => {
-      // If trace has reached the end of the graph time window or block hit barrier, stop
-      if (elapsed.current >= maxTime || finished.current) {
-        return motion;
-      }
-      const nextElapsed = Math.min(elapsed.current + dt, maxTime);
-      const actualDt = nextElapsed - elapsed.current;
-      elapsed.current = nextElapsed;
-      const next = advanceBlock(motion, options, actualDt);
-      if (next.hitBarrier) {
-        onTrace(elapsed.current, next.arrivalVelocity ?? next.velocity, actualDt);
-        finished.current = true;
-      } else {
-        onTrace(elapsed.current, next.velocity, actualDt);
+      // Once it has met a stop the run is over; the block stays put.
+      if (finished.current) return motion;
+
+      const next = advanceBlock(motion, options, dt);
+      // Landing on the stop mid-step: the clock stops when it got there, not
+      // at the end of the frame, so the time on the graph is the physics' own.
+      elapsed.current += next.hitBarrier ? next.hitTime : dt;
+
+      if (next.hitBarrier) finished.current = true;
+      // The graph has a fixed window (lib/inclineForces.js works it out from
+      // the physics). A block that stays put is not recorded past it.
+      if (elapsed.current <= traceWindow + 1e-9) {
+        onTrace(elapsed.current, next.hitBarrier ? next.arrivalVelocity : next.velocity, dt);
       }
       return next;
     },
-    [options, onTrace, maxTime],
+    [options, onTrace, traceWindow],
   );
 
   const motion = useBodyMotion({ step, onSample, running, speed });
 
   // A reset puts the crate back in the middle of the ramp with the clock and
-  // the trace both wiped, rather than leaving a stale curve on the graph.
+  // the trace both wiped, rather than leaving a stale curve on the graph. The
+  // trace is wiped HERE, in the same effect that restarts the clock, and not
+  // in a separate one up in the parent: two effects left it to their order
+  // whether a point from the old run could land after the wipe, and a graph
+  // that holds two runs end to end is what that looks like.
   useEffect(() => {
     motion.current = { position: 0, velocity: 0 };
     elapsed.current = 0;
     finished.current = false;
+    onReset();
     onSample(motion.current, 0);
-  }, [resetKey, motion, onSample]);
+  }, [resetKey, motion, onSample, onReset]);
 
   return null;
 }
 
-// ─── Static-friction gauge ──────────────────────────────────────────
+// ─── Right Telemetry Sidebar Components ──────────────────────────────
 
 /**
- * How much of the available grip is being used, as a bar.
- *
- * This is the inequality f_s ≤ μ_s·N drawn rather than asserted: the bar fills
- * as the slope steepens and the block does not budge until it is full, which is
- * hard to argue with and hard to get from a number alone.
+ * Static friction grip capacity gauge bar.
+ * Demonstrates the inequality f_s ≤ μ_s·N visually: fills as the slope
+ * steepens and transitions to sliding state when the breakaway threshold is exceeded.
  */
-function GripGauge({ position, solved, showLabels = true }) {
-  const width = 3.2;
-  const filled = width * clamp(solved.gripUsed, 0, 1);
-  const colour = solved.isStatic
-    ? solved.onTheVerge
-      ? PALETTE.gold
-      : FORCE_COLOURS.friction
-    : PALETTE.rose;
+function InclineGripBar({ solved, surface, rampAngle }) {
+  const surf = surfaceFor(surface);
+  const gripPct = Math.min(100, Math.max(0, (solved.gripUsed || 0) * 100));
+  const isVerge = solved.onTheVerge;
+  const isHeld = Boolean(solved.atBarrier);
+  const isSliding = !solved.isStatic && !isHeld;
 
-  const centerX = position[0] + width / 2;
-  const centerY = position[1];
-  const centerZ = position[2] ?? 0;
+  const barColor = isSliding
+    ? "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"
+    : isHeld
+    ? "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+    : isVerge
+    ? "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+    : "bg-teal-400";
 
   return (
-    <Billboard position={[centerX, centerY, centerZ]} follow={true}>
-      <group position={[-width / 2, 0, 0]}>
-        {/* Background panel with 3D chassis */}
-        <mesh position={[width / 2, 0, -0.016]}>
-          <boxGeometry args={[width + 0.26, 0.44, 0.03]} />
-          <meshBasicMaterial color="#222f46" transparent opacity={0.95} side={THREE.DoubleSide} />
-        </mesh>
-        {/* Outer border */}
-        <Line
-          points={[
-            [-0.13, -0.22, 0.005],
-            [width + 0.13, -0.22, 0.005],
-            [width + 0.13, 0.22, 0.005],
-            [-0.13, 0.22, 0.005],
-            [-0.13, -0.22, 0.005],
-          ]}
-          color="#475569"
-          lineWidth={1.6}
-          transparent
-          opacity={0.9}
-        />
-        {/* Subtle interior division tick marks: 25%, 50%, 75% */}
-        {[0.25, 0.5, 0.75].map((frac) => (
-          <Line
-            key={`tick-${frac}`}
-            points={[
-              [width * frac, -0.12, 0.006],
-              [width * frac, 0.12, 0.006],
-            ]}
-            color="#64748b"
-            lineWidth={1.4}
-            transparent
-            opacity={0.8}
+    <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
+          Static Grip Capacity
+        </span>
+        <span
+          className={`rounded px-1.5 py-0.5 text-[9.5px] font-mono font-bold uppercase ${
+            isSliding
+              ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+              : isHeld
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+              : isVerge
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse"
+              : "bg-teal-500/20 text-teal-300 border border-teal-500/40"
+          }`}
+        >
+          {isSliding ? "Sliding" : isHeld ? "Held by stop" : isVerge ? "On The Verge" : "Equilibrium"}
+        </span>
+      </div>
+
+      {/* The Grip Bar */}
+      <div className="space-y-1">
+        <div className="relative h-3.5 w-full overflow-hidden rounded-full border border-ink-700/80 bg-ink-900 p-0.5 shadow-inner">
+          <div
+            className={`h-full rounded-full transition-all duration-100 ${barColor}`}
+            style={{ width: `${gripPct}%` }}
           />
+          {/* 100% Break-away Ceiling marker */}
+          <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/80" title="Ceiling: Break-away limit μs·N" />
+        </div>
+        <div className="flex items-center justify-between text-[10px] font-mono text-ink-400">
+          <span>0%</span>
+          <span className="font-bold text-ink-200">{gripPct.toFixed(0)}% used</span>
+          <span>100% (μs·N)</span>
+        </div>
+      </div>
+
+      {/* Numerical friction breakdown */}
+      <div className="rounded-lg border border-ink-800/80 bg-ink-900/60 p-2 text-[10.5px] leading-snug space-y-1">
+        <div className="flex justify-between font-mono">
+          <span className="text-ink-400">Friction Force:</span>
+          <span className="text-ink-200 font-semibold">
+            {`${solved.frictionMagnitude.toFixed(1)} N`}
+          </span>
+        </div>
+        {solved.atBarrier && (
+          <div className="flex justify-between font-mono">
+            <span className="text-ink-400">Push of the {solved.atBarrier} stop:</span>
+            <span className="text-ink-200 font-semibold">{Math.abs(solved.stopForce).toFixed(1)} N</span>
+          </div>
+        )}
+        <div className="flex justify-between font-mono">
+          <span className="text-ink-400">Max Static Limit (fs,max):</span>
+          <span className="text-ink-200">{(solved.normal * surf.muS).toFixed(1)} N</span>
+        </div>
+        <div className="flex justify-between font-mono">
+          <span className="text-ink-400">Repose Angle (θr):</span>
+          <span className={`${rampAngle >= solved.reposeAngle ? "text-rose-400" : "text-emerald-400"} font-semibold`}>
+            {solved.reposeAngle.toFixed(1)}° {rampAngle >= solved.reposeAngle ? "(exceeded)" : "(stable)"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A tick value as it should read on an axis: no trailing zeros, no float dust. */
+const tick = (v) => String(Math.round(v * 100) / 100);
+
+/**
+ * Velocity against time for the run.
+ *
+ * The axes are fixed before the run starts (`traceAxes`, from the physics), so
+ * the curve grows across a still frame instead of the whole plot rescaling
+ * under it every time the window or the range is outgrown. Sign is the one the
+ * whole scene uses: positive is up the ramp.
+ */
+function InclineVelocityGraph({ tracePoints, tMax, vMin, vMax, latest, markerLabel, solved, latestTime, slides }) {
+  const width = 280;
+  const height = 158;
+  const padL = 36;
+  const padR = 12;
+  const padT = 14;
+  const padB = 30;
+
+  const graphW = width - padL - padR;
+  const graphH = height - padT - padB;
+
+  const toSvgX = (t) => padL + (clamp(t, 0, tMax) / (tMax || 1)) * graphW;
+  const toSvgY = (v) => padT + ((vMax - clamp(v, vMin, vMax)) / ((vMax - vMin) || 1)) * graphH;
+
+  const zeroY = toSvgY(0);
+  const yTicks = [vMax, (vMax + vMin) / 2, vMin];
+  const xTicks = [0, tMax / 2, tMax];
+
+  const pathD = useMemo(() => {
+    if (!tracePoints || tracePoints.length < 2) return "";
+    return tracePoints.reduce((acc, pt, i) => {
+      const x = toSvgX(pt[0]);
+      const y = toSvgY(pt[1]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return acc;
+      return `${acc} ${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracePoints, tracePoints.length, tMax, vMin, vMax]);
+
+  const latestSvg =
+    latest && Number.isFinite(latest[0]) && Number.isFinite(latest[1])
+      ? { x: toSvgX(latest[0]), y: toSvgY(latest[1]) }
+      : null;
+
+  return (
+    <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
+          Velocity Trace v(t)
+        </span>
+        <span className="font-mono text-[10px] text-ink-400">t = {latestTime.toFixed(2)} s</span>
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none overflow-visible">
+        {/* Gridlines and their values, top / middle / bottom */}
+        {yTicks.map((v, i) => {
+          const y = toSvgY(v);
+          return (
+            <g key={`y-${i}`}>
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" />
+              <text x={padL - 5} y={y + 3} textAnchor="end" className="text-[8.5px] fill-ink-400 font-mono">
+                {tick(v)}
+              </text>
+            </g>
+          );
+        })}
+        {xTicks.map((t, i) => {
+          const x = toSvgX(t);
+          return (
+            <g key={`x-${i}`}>
+              <line x1={x} y1={padT} x2={x} y2={padT + graphH} stroke="#2e3b52" strokeWidth="1" strokeDasharray="3 3" opacity="0.55" />
+              <text x={x} y={padT + graphH + 11} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="text-[8.5px] fill-ink-400 font-mono">
+                {tick(t)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* v = 0 — where the block is at rest */}
+        <line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke="#64748b" strokeWidth="1.2" />
+
+        {/* Axis titles */}
+        <text x={padL} y={padT - 4} textAnchor="start" className="text-[8.5px] fill-ink-500 font-mono">
+          v (m/s)
+        </text>
+        <text x={width - padR} y={height - 3} textAnchor="end" className="text-[8.5px] fill-ink-500 font-mono">
+          t (s)
+        </text>
+
+        {/* Nothing to plot for a block that is being held */}
+        {!slides && (
+          <text x={padL + graphW / 2} y={padT + graphH / 2 - 8} textAnchor="middle" className="text-[9px] fill-ink-500 font-mono">
+            held by friction: v = 0
+          </text>
+        )}
+
+        {pathD && (
+          <path
+            d={pathD}
+            fill="none"
+            stroke={FORCE_COLOURS.velocity}
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {latestSvg && (
+          <g transform={`translate(${latestSvg.x}, ${latestSvg.y})`}>
+            <circle r="3.5" fill="#34d399" />
+            <circle r="6" fill="#34d399" opacity="0.3" />
+          </g>
+        )}
+      </svg>
+
+      <div className="flex items-center justify-between text-[10px] font-mono text-ink-500">
+        <span>+ up the ramp</span>
+        {solved.atBarrier && <span className="text-amber-300">hit the end stop</span>}
+      </div>
+
+      {markerLabel && (
+        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-ink-800/60 font-mono">
+          <span className="text-ink-400">{solved.atBarrier ? "Speed on hitting the stop:" : "Current Velocity:"}</span>
+          <span className={`font-bold ${solved.atBarrier ? "text-amber-300" : latest?.[1] >= 0 ? "text-emerald-300" : "text-sky-300"}`}>
+            {markerLabel}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Statistics & Newton's Second Law force resolution readout grid.
+ */
+function InclineStatsGrid({ solved, live, mass, surface, appliedForce, rampAngle }) {
+  const surf = surfaceFor(surface);
+
+  const stats = [
+    { label: "Acceleration (a)", value: `${solved.acceleration.toFixed(2)} m/s²`, tone: solved.isStatic ? "neutral" : "bad" },
+    { label: "Net Force (ΣF)", value: `${solved.netForce.toFixed(1)} N`, tone: solved.isStatic ? "good" : "warn" },
+    { label: "Velocity (v)", value: `${live.velocity.toFixed(2)} m/s`, tone: "accent" },
+    { label: "Ramp Angle (θ)", value: `${rampAngle}°`, tone: "gold" },
+    { label: "Weight (W = mg)", value: `${solved.weight.toFixed(1)} N`, tone: "neutral" },
+    { label: "Slope Force (W∥)", value: `${solved.weightParallel.toFixed(1)} N`, tone: "gold" },
+    { label: "Normal Force (N)", value: `${solved.normal.toFixed(1)} N`, tone: "sky" },
+    { label: "Applied Pull (F)", value: `${appliedForce.toFixed(1)} N`, tone: "neutral" },
+    { label: "Static Coeff (μs)", value: `${surf.muS.toFixed(2)}`, tone: "neutral" },
+    { label: "Kinetic Coeff (μk)", value: `${surf.muK.toFixed(2)}`, tone: "neutral" },
+  ];
+
+  return (
+    <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
+      <div className="flex items-center justify-between border-b border-ink-800/80 pb-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
+          Forces & Dynamics
+        </span>
+        <span className="font-mono text-[9.5px] text-ink-500">
+          m = {mass} kg · {surface}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 pt-1">
+        {stats.map((s, i) => (
+          <div key={i} className="flex flex-col">
+            <span className="text-[9.5px] uppercase tracking-wider text-ink-500 truncate">
+              {s.label}
+            </span>
+            <span
+              className={`font-mono text-xs font-bold ${
+                s.tone === "accent"
+                  ? "text-duck-300"
+                  : s.tone === "gold"
+                  ? "text-amber-300"
+                  : s.tone === "sky"
+                  ? "text-sky-300"
+                  : s.tone === "good"
+                  ? "text-emerald-400"
+                  : s.tone === "warn"
+                  ? "text-amber-400"
+                  : s.tone === "bad"
+                  ? "text-rose-400"
+                  : "text-ink-200"
+              }`}
+            >
+              {s.value}
+            </span>
+          </div>
         ))}
-        {filled > 0.001 && (
-          <mesh position={[filled / 2, 0, 0.005]}>
-            <planeGeometry args={[filled, 0.26]} />
-            <meshBasicMaterial color={colour} toneMapped={false} side={THREE.DoubleSide} />
-          </mesh>
-        )}
-        {/* The ceiling: μs·N. Reaching it is the break-away. */}
-        <Line
-          points={[
-            [width, -0.21, 0.008],
-            [width, 0.21, 0.008],
-          ]}
-          color={PALETTE.bone}
-          lineWidth={2.6}
-        />
-        {showLabels && (
-          <SceneLabel
-            position={[width / 2, 0.46, 0.01]}
-            tone={solved.isStatic ? (solved.onTheVerge ? "text-amber-400" : "text-emerald-400") : "text-rose-400"}
-          >
-            {solved.isStatic
-              ? `${(solved.gripUsed * 100).toFixed(0)}% static grip used ${solved.onTheVerge ? "· ON THE VERGE!" : "(equilibrium)"}`
-              : `sliding — kinetic friction fixed at μk·N = ${solved.slidingFriction.toFixed(1)} N`}
-          </SceneLabel>
-        )}
-      </group>
-    </Billboard>
+      </div>
+    </div>
   );
 }
 
@@ -421,6 +650,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
   const showLabels = removeLabels ? false : (paramShowLabels !== false);
 
   const [live, setLive] = useState({ position: 0, velocity: 0 });
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const trace = useRollingTrace(4000, 30, [[0, 0]]);
 
   const frame = useMemo(() => slopeFrame(rampAngle), [rampAngle]);
@@ -432,34 +662,12 @@ export default function InclineFrictionCanvas({ params = {} }) {
 
   // The solve the arrows are drawn from uses the CURRENT velocity, so friction
   // switches from static to kinetic in the diagram at the same instant the
-  // block starts to move rather than a frame later.
-  // Also account for barrier contact: when resting against the top or bottom stop,
-  // the mechanical barrier supplies an equal reaction force, keeping the block at rest.
-  const solved = useMemo(() => {
-    const raw = solveIncline({ ...options, velocity: live.velocity });
-    const limit = RAMP_LENGTH_M / 2;
-    const atTop = live.position >= limit - 1e-4;
-    const atBottom = live.position <= -limit + 1e-4;
-    if (atTop && (live.velocity > 0 || raw.netForce > 0)) {
-      return {
-        ...raw,
-        netForce: 0,
-        acceleration: 0,
-        isStatic: true,
-        atBarrier: "top",
-      };
-    }
-    if (atBottom && (live.velocity < 0 || raw.netForce < 0)) {
-      return {
-        ...raw,
-        netForce: 0,
-        acceleration: 0,
-        isStatic: true,
-        atBarrier: "bottom",
-      };
-    }
-    return raw;
-  }, [options, live.velocity, live.position]);
+  // block starts to move rather than a frame later. Pressed against an end
+  // stop, the stop's push is part of it (lib/inclineForces.js).
+  const solved = useMemo(
+    () => solveMotion(options, live),
+    [options, live.velocity, live.position],
+  );
 
   const scale = useForceScale(
     [solved.weight, solved.normal, Math.abs(solved.appliedForce), solved.grip],
@@ -468,86 +676,45 @@ export default function InclineFrictionCanvas({ params = {} }) {
 
   const onTrace = useCallback(
     (t, v, dt) => trace.push(t, v, dt),
-    [trace],
+    [trace.push],
   );
   const onSample = useCallback((motion) => setLive({ ...motion }), []);
 
-  // Wiping the trace has to happen outside the frame loop, and the reset
-  // counter is the only thing that should do it.
-  useEffect(() => {
-    trace.reset([[0, 0]]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reset, rampAngle, surface, blockMass, appliedForce]);
+  // Wiping the trace happens from BlockMotion's reset (below), alongside the
+  // clock. `trace.reset` and `trace.push` are stable, so this stays stable.
+  const onReset = useCallback(() => trace.reset([[0, 0]]), [trace.reset]);
 
   const b = RAMP_WORLD * Math.cos(frame.radians);
   const h = RAMP_WORLD * Math.sin(frame.radians);
   const wedge = useWedgeGeometry(b, h, RAMP_DEPTH);
 
-  // Keep the crate on the plank rather than half off the end of it.
-  const along = clamp(RAMP_WORLD / 2 + live.position * SCALE, HALF_BLOCK, RAMP_WORLD - HALF_BLOCK);
+  // The physics stops the crate's centre TRAVEL_LIMIT_M from the middle, which
+  // is exactly where its end meets the stop — so no clamping is needed here.
+  const along = RAMP_WORLD / 2 + live.position * SCALE;
 
   const tracePoints = trace.points;
   const latest = tracePoints.length ? tracePoints[tracePoints.length - 1] : null;
 
-  // Dynamic Y range that adapts to motion direction:
-  // - Purely positive motion (uphill pull): yMin = 0, yMax = peak (zero axis at bottom, no middle line!)
-  // - Purely negative motion (downhill slide): yMin = -peak, yMax = 0 (zero axis at top)
-  // - Bipolar motion (reverses): symmetric -peak to +peak
-  const { yMin, yMax } = useMemo(() => {
-    let minV = 0;
-    let maxV = 0;
-    for (let i = 0; i < tracePoints.length; i += 1) {
-      const v = tracePoints[i][1];
-      if (v < minV) minV = v;
-      if (v > maxV) maxV = v;
-    }
-    const hasNeg = minV < -0.15;
-    const hasPos = maxV > 0.15;
-
-    if (!hasNeg && !hasPos) {
-      return { yMin: 0, yMax: 4 };
-    }
-    if (!hasNeg) {
-      const top = Math.max(2, Math.ceil(maxV * 1.15));
-      return { yMin: 0, yMax: top };
-    }
-    if (!hasPos) {
-      const bottom = Math.min(-2, Math.floor(minV * 1.15));
-      return { yMin: bottom, yMax: 0 };
-    }
-    const peak = Math.max(2, Math.ceil(Math.max(Math.abs(minV), Math.abs(maxV)) * 1.15));
-    return { yMin: -peak, yMax: peak };
-  }, [tracePoints]);
+  // What the run will be, worked out before it starts, so the graph's axes
+  // stay put while the curve is drawn across them.
+  const forecast = useMemo(() => slideForecast(options), [options]);
+  const axes = useMemo(() => traceAxes(forecast), [forecast]);
 
   const latestTime = latest ? latest[0] : 0;
-  const xMax = useMemo(() => {
-    if (solved.atBarrier && latestTime > 0.1) {
-      return Math.max(1.0, Math.ceil(latestTime * 1.25 * 2) / 2);
-    }
-    return Math.max(2.0, Math.min(TRACE_SECONDS, Math.ceil(Math.max(latestTime, 1) * 1.25)));
-  }, [solved.atBarrier, latestTime]);
-
-  const xLabel = solved.atBarrier && latestTime > 0.1
-    ? `time · ${latestTime.toFixed(2)}s to stop`
-    : `time · ${xMax}s window`;
 
   const markerLabel = latest
-    ? solved.atBarrier
-      ? `impact: ${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
-      : `${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
+    ? `${latest[1] >= 0 ? "+" : ""}${latest[1].toFixed(2)} m/s`
     : undefined;
 
-  const gaugeY = Math.max(2.15, HINGE[1] + h + 0.85);
-
   return (
-    <SceneCanvas
-      // Framed right of centre: the controls panel covers the left quarter of
-      // the viewport, so a scene centred on the origin loses its left-hand
-      // instruments behind it.
-      camera={{ position: [1.85, 1.4, 13.4], fov: 46 }}
-      controls={{ minDistance: 4, maxDistance: 26, target: [1.85, 0.2, 0] }}
-      lights={{ ambient: 0.85, keyLight: 1.7 }}
-    >
+    <div className="relative flex h-full w-full flex-row overflow-hidden">
+      {/* 3D WebGL Canvas Viewport */}
+      <div className="relative h-full flex-1 min-w-0">
+        <SceneCanvas
+          camera={{ position: [0.6, 1.4, 12.8], fov: 46 }}
+          controls={{ minDistance: 4, maxDistance: 26, target: [0.6, 0.2, 0] }}
+          lights={{ ambient: 0.85, keyLight: 1.7 }}
+        >
       <Grid
         position={[0, HINGE[1] - 0.001, 0]}
         args={[26, 16]}
@@ -676,11 +843,13 @@ export default function InclineFrictionCanvas({ params = {} }) {
             </group>
           );
         })}
-        {/* Bottom stopper bumper on the plank catching the crate */}
-        <mesh position={[-RAMP_WORLD / 2 + 0.04, PLANK / 2 + 0.06, 0]}>
-          <boxGeometry args={[0.08, 0.12, RAMP_DEPTH + 0.08]} />
-          <meshStandardMaterial color="#94a3b8" roughness={0.35} metalness={0.65} />
-        </mesh>
+        {/* A stop at each end of the plank, where the crate is brought to rest */}
+        {[-1, 1].map((end) => (
+          <mesh key={`stop-${end}`} position={[end * (RAMP_WORLD / 2 - STOP_WORLD / 2), PLANK / 2 + 0.06, 0]}>
+            <boxGeometry args={[STOP_WORLD, 0.12, RAMP_DEPTH + 0.08]} />
+            <meshStandardMaterial color="#94a3b8" roughness={0.35} metalness={0.65} />
+          </mesh>
+        ))}
       </group>
 
       {/* ── Top Pulley Wheel and Applied Pull Taut Tow String ── */}
@@ -778,65 +947,72 @@ export default function InclineFrictionCanvas({ params = {} }) {
         options={options}
         running={running}
         speed={speed}
-        maxTime={TRACE_SECONDS}
+        traceWindow={axes.tMax}
         resetKey={`${reset}-${rampAngle}-${surface}-${blockMass}-${appliedForce}`}
         onSample={onSample}
         onTrace={onTrace}
+        onReset={onReset}
       />
 
-      {/* Static friction grip gauge positioned above the ramp */}
-      <GripGauge position={[-2.6, gaugeY, 0]} solved={solved} showLabels={showLabels} />
-
-      {/* ── Velocity trace (adaptive range, clear axis ticks, clean baseline) ── */}
-      <GraphPanel
-        position={[3.4, -1.25, 0]}
-        width={3.4}
-        height={3.4}
-        xMin={0}
-        xMax={xMax}
-        yMin={yMin}
-        yMax={yMax}
-        title="velocity along the slope"
-        xLabel={xLabel}
-        yLabel="v (m/s)"
-        xTicks={4}
-        yTicks={4}
-        bgColour="#1e2638"
-        borderColour="#38455c"
-        gridColour="#2e3b52"
-        axisColour="#94a3b8"
-        series={[{ points: tracePoints, colour: FORCE_COLOURS.velocity, lineWidth: 2.6 }]}
-        marker={latest ? { at: latest, colour: FORCE_COLOURS.net, label: markerLabel } : undefined}
-        showLabels={showLabels}
-        xFormat={(val) => (Number.isInteger(val) ? `${val}s` : `${val.toFixed(1)}s`)}
-      />
-
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Block on a slope"
-        subtitle="ΣF = ma along the surface"
-        rows={[
-          ["Weight W", `${solved.weight.toFixed(1)} N`],
-          ["W∥ = mg sinθ", `${solved.weightParallel.toFixed(1)} N`, "gold"],
-          ["W⊥ = mg cosθ", `${solved.weightPerpendicular.toFixed(1)} N`],
-          ["Normal N", `${solved.normal.toFixed(1)} N`],
-          ["Friction", solved.atBarrier ? `held by ${solved.atBarrier} stop` : `${solved.frictionMagnitude.toFixed(1)} N`, solved.isStatic ? "good" : "warn"],
-          ["Acceleration", `${solved.acceleration.toFixed(2)} m/s²`, solved.isStatic ? "good" : "bad"],
-        ]}
-      />
-
-      <SceneLegend
-        title="Free-body diagram"
-        items={[
-          { color: FORCE_COLOURS.weight, shape: "line", label: "Weight W", note: "always vertically down" },
-          { color: FORCE_COLOURS.weightParallel, shape: "line", label: "W∥", note: "mg sinθ, down the slope" },
-          { color: FORCE_COLOURS.weightPerpendicular, shape: "line", label: "W⊥", note: "mg cosθ, into the surface" },
-          { color: FORCE_COLOURS.normal, shape: "line", label: "Normal N", note: "balances W⊥ exactly" },
-          { color: FORCE_COLOURS.friction, shape: "line", label: "Friction", note: "opposes motion, never causes it" },
-          { color: FORCE_COLOURS.applied, shape: "line", label: "Applied F", note: "your pull, along the ramp" },
-          { color: FORCE_COLOURS.net, shape: "line", label: "Resultant", note: "what is left over — this is ma" },
-        ]}
-      />
+      {/* Free-body diagram legend */}
     </SceneCanvas>
+
+        {/* Toggle button to reopen telemetry sidebar if closed */}
+        {!rightSidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setRightSidebarOpen(true)}
+            className="absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-3 py-1.5 text-xs font-semibold text-ink-200 backdrop-blur shadow-lg transition-all hover:bg-ink-800 hover:text-white"
+            title="Open Telemetry Sidebar"
+          >
+            <Activity className="h-3.5 w-3.5 text-duck-300" />
+            <span>Telemetry</span>
+          </button>
+        )}
+      </div>
+
+      {/* Right Telemetry Sidebar: Graph, Grip Bar, Live Stats */}
+      {rightSidebarOpen && (
+        <aside className="relative flex h-full w-[320px] shrink-0 flex-col border-l border-ink-800 bg-ink-900/95 backdrop-blur-md z-10 overflow-y-auto p-3.5 space-y-3 shadow-2xl">
+          <div className="flex items-center justify-between pb-1 border-b border-ink-800/70">
+            <div className="flex items-center gap-1.5">
+              <Activity className="h-4 w-4 text-duck-300" />
+              <span className="text-xs font-bold uppercase tracking-wider text-ink-100">
+                Telemetry & Analytics
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRightSidebarOpen(false)}
+              className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+              title="Close Telemetry Sidebar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <InclineGripBar solved={solved} surface={surface} rampAngle={rampAngle} />
+          <InclineVelocityGraph
+            tracePoints={tracePoints}
+            tMax={axes.tMax}
+            vMin={axes.vMin}
+            vMax={axes.vMax}
+            slides={forecast.slides}
+            latest={latest}
+            markerLabel={markerLabel}
+            solved={solved}
+            latestTime={latestTime}
+          />
+          <InclineStatsGrid
+            solved={solved}
+            live={live}
+            mass={blockMass}
+            surface={surface}
+            appliedForce={appliedForce}
+            rampAngle={rampAngle}
+          />
+        </aside>
+      )}
+    </div>
   );
 }

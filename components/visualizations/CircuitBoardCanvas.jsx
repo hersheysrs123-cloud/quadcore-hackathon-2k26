@@ -8,8 +8,6 @@ import {
   Halo,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import {
@@ -47,6 +45,12 @@ const BATTERY_Z = 2.5;
 const TERMINAL_X = 0.9;
 /** The row the shorting jumper drops onto — between the pack and the bulbs. */
 const SHORT_Z = 1.35;
+/**
+ * Where the knife switch stands on the left rail. Its base runs ±0.35 along z,
+ * so it has to keep clear of the jumper's junction at SHORT_Z as well as of the
+ * battery row — the first version sat across both.
+ */
+const SWITCH_Z = BATTERY_Z - 0.6;
 
 /** One carrier per this many world units of trace. Fixed, like copper's is. */
 const CARRIER_SPACING = 0.46;
@@ -54,8 +58,14 @@ const CARRIER_SPACING = 0.46;
 // ─── Colours ────────────────────────────────────────────────────────
 
 const COPPER = CHARGE_COLOURS.copper;
-const BOARD_TONE = "#4a5568";
-const BRASS = "#b08d57";
+/** A light, cool board — like a real solderless breadboard, and light enough for the copper to read. */
+const BOARD_TONE = "#cfd6e1";
+const BOARD_SKIRT = "#7f8b9e";
+const HOLE_TONE = "#8e99aa";
+const PORCELAIN = "#e8ebf1";
+const HOUSING = "#dde2ea";
+const BRASS = "#c9a25f";
+const STEEL = "#cbd5e1";
 
 /**
  * Filament colour against a 0–1 heat.
@@ -101,17 +111,29 @@ function resistorBands(ohms) {
 
 // ─── Board ──────────────────────────────────────────────────────────
 
-/** The hole grid, as one instanced mesh rather than four hundred meshes. */
+/**
+ * The hole grid, as one instanced mesh rather than four hundred meshes.
+ *
+ * Grouped in fives with a small gap between groups, the way a real board is
+ * laid out, and kept inside the border so the corner screws and the edge rails
+ * stay clear.
+ */
 function BoardHoles() {
   const ref = useRef(null);
   const holes = useMemo(() => {
-    const out = [];
-    for (let x = -BOARD.x + 0.35; x <= BOARD.x - 0.35; x += 0.34) {
-      for (let z = -BOARD.z + 0.3; z <= BOARD.z - 0.3; z += 0.34) {
-        out.push([x, z]);
+    const axis = (limit) => {
+      const out = [];
+      for (let i = 0, p = -limit; p <= limit + 1e-6; i += 1) {
+        out.push(p);
+        p += 0.34 + ((i + 1) % 5 === 0 ? 0.15 : 0);
       }
-    }
-    return out;
+      // Centre the run on the board, whatever it came to.
+      const mid = (out[0] + out[out.length - 1]) / 2;
+      return out.map((v) => v - mid);
+    };
+    const xs = axis(BOARD.x - 0.7);
+    const zs = axis(BOARD.z - 0.6);
+    return xs.flatMap((x) => zs.map((z) => [x, z]));
   }, []);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -119,7 +141,7 @@ function BoardHoles() {
     const mesh = ref.current;
     if (!mesh) return;
     holes.forEach(([x, z], i) => {
-      dummy.position.set(x, 0.005, z);
+      dummy.position.set(x, 0.004, z);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -129,25 +151,72 @@ function BoardHoles() {
 
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, holes.length]} frustumCulled={false}>
-      <cylinderGeometry args={[0.045, 0.045, 0.02, 6]} />
-      <meshStandardMaterial color="#0d1119" roughness={0.9} metalness={0.1} />
+      <cylinderGeometry args={[0.05, 0.05, 0.016, 8]} />
+      <meshStandardMaterial color={HOLE_TONE} roughness={0.85} metalness={0.05} />
     </instancedMesh>
+  );
+}
+
+/** A plus or minus, as flat bars lying on the board. */
+function PolarityMark({ position, plus, colour }) {
+  return (
+    <group position={position}>
+      <mesh>
+        <boxGeometry args={[0.26, 0.012, 0.05]} />
+        <meshStandardMaterial color={colour} roughness={0.6} />
+      </mesh>
+      {plus && (
+        <mesh>
+          <boxGeometry args={[0.05, 0.012, 0.26]} />
+          <meshStandardMaterial color={colour} roughness={0.6} />
+        </mesh>
+      )}
+    </group>
   );
 }
 
 function Breadboard() {
   return (
     <group>
-      <mesh position={[0, -BOARD.thickness / 2, 0]} receiveShadow>
-        <boxGeometry args={[BOARD.x * 2, BOARD.thickness, BOARD.z * 2]} />
-        <meshStandardMaterial color={BOARD_TONE} roughness={0.82} metalness={0.08} />
+      {/* Body, with a darker base plate under it so the slab reads as a thing with thickness. */}
+      <RoundedBox
+        args={[BOARD.x * 2, BOARD.thickness, BOARD.z * 2]}
+        radius={0.09}
+        smoothness={3}
+        position={[0, -BOARD.thickness / 2, 0]}
+        receiveShadow
+        castShadow
+      >
+        <meshStandardMaterial color={BOARD_TONE} roughness={0.68} metalness={0.04} />
+      </RoundedBox>
+      <mesh position={[0, -BOARD.thickness - 0.03, 0]} receiveShadow>
+        <boxGeometry args={[BOARD.x * 2 - 0.3, 0.06, BOARD.z * 2 - 0.3]} />
+        <meshStandardMaterial color={BOARD_SKIRT} roughness={0.8} />
       </mesh>
       <BoardHoles />
-      {/* Rail stripes down each edge, the way a real board is marked. */}
+
+      {/* Corner screws. */}
+      {[-1, 1].flatMap((sx) =>
+        [-1, 1].map((sz) => (
+          <group key={`${sx}${sz}`} position={[sx * (BOARD.x - 0.34), 0.01, sz * (BOARD.z - 0.34)]}>
+            <mesh>
+              <cylinderGeometry args={[0.1, 0.1, 0.03, 16]} />
+              <meshStandardMaterial color="#9aa5b6" roughness={0.4} metalness={0.7} />
+            </mesh>
+            <mesh position={[0, 0.018, 0]} rotation={[0, (sx * sz * Math.PI) / 4, 0]}>
+              <boxGeometry args={[0.14, 0.012, 0.025]} />
+              <meshStandardMaterial color="#5b6577" roughness={0.6} />
+            </mesh>
+          </group>
+        ))
+      )}
+
+      {/* Rail stripes down each edge, the way a real board is marked: red for
+          the + side, blue for the −. */}
       {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * (BOARD.x - 0.12), 0.006, 0]}>
-          <boxGeometry args={[0.05, 0.012, BOARD.z * 1.9]} />
-          <meshStandardMaterial color={s > 0 ? "#7f1d2d" : "#1e3a5f"} roughness={0.7} />
+        <mesh key={s} position={[s * (BOARD.x - 0.13), 0.006, 0]}>
+          <boxGeometry args={[0.07, 0.012, BOARD.z * 1.72]} />
+          <meshStandardMaterial color={s > 0 ? "#d9485f" : "#3b74d9"} roughness={0.6} />
         </mesh>
       ))}
     </group>
@@ -165,15 +234,31 @@ function Trace({ points, colour = COPPER, radius = 0.038, dim = false }) {
           to={points[i + 1]}
           radius={radius}
           color={colour}
-          opacity={dim ? 0.35 : 1}
+          opacity={dim ? 0.4 : 1}
         />
       ))}
       {points.map((p, i) => (
         <mesh key={`j${i}`} position={p}>
           <sphereGeometry args={[radius * 1.15, 8, 8]} />
-          <meshStandardMaterial color={colour} roughness={0.4} metalness={0.65} transparent={dim} opacity={dim ? 0.35 : 1} />
+          <meshStandardMaterial color={colour} roughness={0.4} metalness={0.65} transparent={dim} opacity={dim ? 0.4 : 1} />
         </mesh>
       ))}
+    </group>
+  );
+}
+
+/** A brass pad where a conductor meets a rail, so the junctions read as junctions. */
+function Pad({ position }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.02, 0]} castShadow>
+        <cylinderGeometry args={[0.11, 0.12, 0.04, 20]} />
+        <meshStandardMaterial color={BRASS} roughness={0.32} metalness={0.85} />
+      </mesh>
+      <mesh position={[0, 0.043, 0]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.008, 12]} />
+        <meshStandardMaterial color="#7a5f30" roughness={0.5} metalness={0.7} />
+      </mesh>
     </group>
   );
 }
@@ -212,32 +297,54 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
 
   return (
     <group position={position}>
-      {/* Socket, always on the board. */}
-      <mesh position={[0, 0.13, 0]}>
-        <cylinderGeometry args={[0.17, 0.2, 0.26, 18]} />
-        <meshStandardMaterial color="#2c3442" roughness={0.6} metalness={0.35} />
+      {/* Porcelain base plate, with its two mounting screws. */}
+      <mesh position={[0, 0.016, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.31, 0.34, 0.032, 30]} />
+        <meshStandardMaterial color={PORCELAIN} roughness={0.5} metalness={0.05} />
+      </mesh>
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * 0.25, 0.036, 0]}>
+          <cylinderGeometry args={[0.028, 0.028, 0.012, 10]} />
+          <meshStandardMaterial color="#7d8797" roughness={0.4} metalness={0.8} />
+        </mesh>
+      ))}
+
+      {/* Socket, always on the board: a ceramic barrel the colour bands read against. */}
+      <mesh position={[0, 0.15, 0]} castShadow>
+        <cylinderGeometry args={[0.17, 0.2, 0.26, 24]} />
+        <meshStandardMaterial color={PORCELAIN} roughness={0.42} metalness={0.05} />
       </mesh>
       {showBands &&
         bands.map((c, i) => (
-          <mesh key={i} position={[0, 0.055 + i * 0.062, 0]}>
-            <cylinderGeometry args={[0.185, 0.195, 0.038, 18]} />
-            <meshStandardMaterial color={c} roughness={0.55} metalness={0.2} />
+          <mesh key={i} position={[0, 0.075 + i * 0.062, 0]}>
+            <cylinderGeometry args={[0.185, 0.195, 0.038, 24]} />
+            <meshStandardMaterial color={c} roughness={0.5} metalness={0.15} />
           </mesh>
         ))}
+      {/* The contact ring the bulb's screw thread sits in. */}
+      <mesh position={[0, 0.285, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.16, 0.022, 8, 24]} />
+        <meshStandardMaterial color="#9aa3b2" roughness={0.35} metalness={0.9} />
+      </mesh>
 
       {/* The bulb itself. */}
-      <group position={[removed ? 0.5 : 0, 0.26 + lift, 0]} rotation={[0, 0, tilt]}>
+      <group position={[removed ? 0.5 : 0, 0.28 + lift, 0]} rotation={[0, 0, tilt]}>
         {/* Brass screw base. */}
-        <mesh position={[0, 0.09, 0]}>
-          <cylinderGeometry args={[0.14, 0.15, 0.18, 18]} />
-          <meshStandardMaterial color={BRASS} roughness={0.42} metalness={0.85} />
+        <mesh position={[0, 0.09, 0]} castShadow>
+          <cylinderGeometry args={[0.14, 0.15, 0.18, 20]} />
+          <meshStandardMaterial color={BRASS} roughness={0.36} metalness={0.9} />
         </mesh>
         {[0, 1, 2].map((i) => (
-          <mesh key={i} position={[0, 0.04 + i * 0.05, 0]}>
-            <torusGeometry args={[0.147, 0.012, 6, 18]} />
-            <meshStandardMaterial color="#8a6c3f" roughness={0.5} metalness={0.9} />
+          <mesh key={i} position={[0, 0.04 + i * 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.147, 0.013, 6, 20]} />
+            <meshStandardMaterial color="#8a6c3f" roughness={0.45} metalness={0.9} />
           </mesh>
         ))}
+        {/* The dark tip of the base, where the bottom contact is. */}
+        <mesh position={[0, -0.005, 0]}>
+          <cylinderGeometry args={[0.05, 0.06, 0.02, 12]} />
+          <meshStandardMaterial color="#3a3f4a" roughness={0.5} metalness={0.6} />
+        </mesh>
 
         {/* Filament — visible through the glass, and the whole point. */}
         <mesh position={[0, 0.36, 0]}>
@@ -250,7 +357,11 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
             roughness={0.4}
           />
         </mesh>
-        {/* Support wires from the base up to the filament. */}
+        {/* Glass stem and the support wires from the base up to the filament. */}
+        <mesh position={[0, 0.24, 0]}>
+          <cylinderGeometry args={[0.022, 0.03, 0.14, 8]} />
+          <meshStandardMaterial color="#dfeaf5" transparent opacity={0.55} roughness={0.15} />
+        </mesh>
         {[-0.05, 0.05].map((x) => (
           <mesh key={x} position={[x, 0.26, 0]}>
             <cylinderGeometry args={[0.008, 0.008, 0.16, 6]} />
@@ -258,17 +369,21 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
           </mesh>
         ))}
 
-        {/* Glass envelope. */}
+        {/* Glass envelope, with a small glint so it reads as glass on a light board. */}
         <mesh position={[0, 0.38, 0]}>
-          <sphereGeometry args={[0.235, 22, 18]} />
+          <sphereGeometry args={[0.235, 26, 20]} />
           <meshStandardMaterial
-            color="#cfe2f5"
+            color="#d5e6f7"
             transparent
-            opacity={0.16}
-            roughness={0.06}
-            metalness={0.02}
+            opacity={0.2}
+            roughness={0.05}
+            metalness={0.05}
             depthWrite={false}
           />
+        </mesh>
+        <mesh position={[-0.1, 0.5, 0.13]}>
+          <sphereGeometry args={[0.04, 10, 10]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.55} depthWrite={false} />
         </mesh>
 
         {!removed && bulb?.lit && (
@@ -285,7 +400,9 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
         )}
       </group>
 
-      <SceneLabel position={[0, removed ? 2.05 : 1.0, 0]} tone={bulb?.lit ? "text-duck-300" : "text-ink-400"}>
+      {/* The unscrewed label sits on the side away from the floating bulb, and
+          low, so it neither hides the bulb nor stacks up under the title. */}
+      <SceneLabel position={[removed ? -0.62 : 0, 1.0, 0]} tone={bulb?.lit ? "text-duck-300" : "text-ink-400"}>
         {removed
           ? `bulb ${bulb?.id ?? "?"} — unscrewed`
           : `${bulb?.id ?? "?"} · ${((bulb?.brightness ?? 0) * 100).toFixed(0)}% brightness`}
@@ -294,70 +411,144 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
   );
 }
 
+/** A binding post: brass foot, coloured cap, knurled ring — where a wire clamps on. */
+function BindingPost({ position, colour, glow = 0 }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.03, 0]} castShadow>
+        <cylinderGeometry args={[0.15, 0.16, 0.06, 20]} />
+        <meshStandardMaterial color={BRASS} roughness={0.32} metalness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.19, 0]} castShadow>
+        <cylinderGeometry args={[0.085, 0.095, 0.26, 18]} />
+        <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={glow} roughness={0.35} metalness={0.1} />
+      </mesh>
+      {[0.11, 0.15, 0.19].map((y) => (
+        <mesh key={y} position={[0, y + 0.1, 0]}>
+          <cylinderGeometry args={[0.1, 0.1, 0.018, 18]} />
+          <meshStandardMaterial color="#1f2733" roughness={0.6} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.34, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.04, 14]} />
+        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
+/** One AA cell lying along x: a foil wrapper with a dark band, a raised + nub and a flat − end. */
+function Cell({ position }) {
+  return (
+    <group position={position}>
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.16, 0.16, 0.76, 28]} />
+        <meshStandardMaterial color="#e7b84a" roughness={0.32} metalness={0.55} />
+      </mesh>
+      {/* Label band. */}
+      <mesh position={[-0.04, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.1615, 0.1615, 0.3, 28]} />
+        <meshStandardMaterial color="#2a303c" roughness={0.5} metalness={0.3} />
+      </mesh>
+      {/* Steel end caps; the + one is raised. */}
+      <mesh position={[-0.385, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.15, 0.16, 0.03, 24]} />
+        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
+      </mesh>
+      <mesh position={[0.385, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.16, 0.15, 0.03, 24]} />
+        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
+      </mesh>
+      <mesh position={[0.42, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.065, 0.065, 0.05, 14]} />
+        <meshStandardMaterial color={STEEL} roughness={0.2} metalness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
 /** The DC pack: two cells in a holder, terminals meeting the two rails. */
 function BatteryPack({ volts, current, overCurrent }) {
   return (
     <group position={[0, 0, BATTERY_Z]}>
-      {/* Holder. */}
-      <RoundedBox args={[2.05, 0.34, 0.72]} radius={0.05} smoothness={3} position={[0, 0.17, 0]}>
-        <meshStandardMaterial color="#232b38" roughness={0.7} metalness={0.2} />
+      {/* Holder: a light body with a recessed tray the cells lie in. */}
+      <RoundedBox args={[2.3, 0.3, 0.9]} radius={0.06} smoothness={3} position={[0, 0.15, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={HOUSING} roughness={0.55} metalness={0.05} />
       </RoundedBox>
+      <mesh position={[0, 0.305, 0]}>
+        <boxGeometry args={[1.9, 0.014, 0.62]} />
+        <meshStandardMaterial color="#c3cad6" roughness={0.7} />
+      </mesh>
+      {/* Retaining lip along the front of the tray. */}
+      <mesh position={[0, 0.34, 0.36]}>
+        <boxGeometry args={[1.9, 0.07, 0.04]} />
+        <meshStandardMaterial color={HOUSING} roughness={0.55} />
+      </mesh>
 
-      {/* Cells. */}
+      {/* Cells, wired end to end: one cell's + nub meets the next one's − end. */}
       {[-0.42, 0.42].map((x) => (
-        <group key={x} position={[x, 0.34, 0]}>
-          <mesh rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.16, 0.16, 0.78, 20]} />
-            <meshStandardMaterial color="#2f3a4c" roughness={0.35} metalness={0.7} />
-          </mesh>
-          <mesh position={[0.4, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.07, 0.07, 0.06, 14]} />
-            <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.9} />
-          </mesh>
-        </group>
+        <Cell key={x} position={[x, 0.42, 0]} />
       ))}
+      {/* The strip that carries the current from the first cell across to the second. */}
+      <mesh position={[0, 0.42, 0]}>
+        <boxGeometry args={[0.1, 0.05, 0.05]} />
+        <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.9} />
+      </mesh>
+
+      {/* Polarity moulded into the holder beside each terminal. */}
+      <PolarityMark position={[TERMINAL_X, 0.32, -0.34]} plus colour="#c0392b" />
+      <PolarityMark position={[-TERMINAL_X, 0.32, -0.34]} plus={false} colour="#2b5fb4" />
 
       {/* Terminals — red for +, dark for −, and the traces meet them here. */}
-      <mesh position={[TERMINAL_X, 0.2, 0]}>
-        <cylinderGeometry args={[0.1, 0.1, 0.4, 14]} />
-        <meshStandardMaterial color="#c0392b" emissive="#c0392b" emissiveIntensity={0.35} roughness={0.4} />
-      </mesh>
-      <mesh position={[-TERMINAL_X, 0.2, 0]}>
-        <cylinderGeometry args={[0.1, 0.1, 0.4, 14]} />
-        <meshStandardMaterial color="#1b2230" roughness={0.5} metalness={0.5} />
-      </mesh>
-      <SceneLabel position={[TERMINAL_X, 0.62, 0]} tone="text-rose-300">+</SceneLabel>
-      <SceneLabel position={[-TERMINAL_X, 0.62, 0]} tone="text-sky-300">−</SceneLabel>
+      <BindingPost position={[TERMINAL_X, 0.3, 0.02]} colour="#d9483a" glow={0.3} />
+      <BindingPost position={[-TERMINAL_X, 0.3, 0.02]} colour="#1f2733" />
+      <SceneLabel position={[TERMINAL_X, 0.86, 0]} tone="text-rose-300">+</SceneLabel>
+      <SceneLabel position={[-TERMINAL_X, 0.86, 0]} tone="text-sky-300">−</SceneLabel>
 
-      <SceneLabel position={[0, 0.78, 0]} accent>
+      <SceneLabel position={[0, 1.06, 0]} accent>
         {`${volts.toFixed(1)} V pack${overCurrent ? " · overloaded" : ""}`}
       </SceneLabel>
-      <SceneLabel position={[0, 0.5, 0.62]} tone="text-ink-400">
+      <SceneLabel position={[0, 0.5, 0.7]} tone="text-ink-400">
         {`electrons leave the − terminal · ${current.toFixed(2)} A`}
       </SceneLabel>
     </group>
   );
 }
 
-/** A closed knife switch sitting in the left rail. */
+/** A closed knife switch sitting in the left rail: a porcelain base, two brass jaws and a blade with an insulated handle. */
 function KnifeSwitch({ position }) {
   return (
     <group position={position}>
-      <mesh position={[0, 0.04, 0]}>
-        <boxGeometry args={[0.34, 0.08, 0.7]} />
-        <meshStandardMaterial color="#2a3240" roughness={0.7} />
-      </mesh>
-      {[-0.26, 0.26].map((z) => (
-        <mesh key={z} position={[0, 0.13, z]}>
-          <cylinderGeometry args={[0.06, 0.06, 0.16, 12]} />
-          <meshStandardMaterial color={BRASS} roughness={0.35} metalness={0.9} />
-        </mesh>
+      <RoundedBox args={[0.44, 0.09, 0.86]} radius={0.03} smoothness={2} position={[0, 0.045, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#efe6d2" roughness={0.5} />
+      </RoundedBox>
+      {/* Hinge jaw and contact jaw, and the copper each is fed by. */}
+      {[-0.3, 0.3].map((z) => (
+        <group key={z} position={[0, 0, z]}>
+          <mesh position={[0, 0.13, 0]} castShadow>
+            <boxGeometry args={[0.13, 0.15, 0.1]} />
+            <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.9} />
+          </mesh>
+          <mesh position={[0, 0.2, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.15, 10]} />
+            <meshStandardMaterial color="#8a6c3f" roughness={0.4} metalness={0.9} />
+          </mesh>
+        </group>
       ))}
-      <mesh position={[0, 0.2, 0]} rotation={[0, 0, 0]}>
-        <boxGeometry args={[0.07, 0.045, 0.56]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.3} metalness={0.9} />
+      {/* The blade, closed across both jaws, and its handle. */}
+      <mesh position={[0, 0.2, 0]} castShadow>
+        <boxGeometry args={[0.06, 0.04, 0.62]} />
+        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
       </mesh>
-      <SceneLabel position={[0, 0.46, 0]} tone="text-ink-400">switch · closed</SceneLabel>
+      <mesh position={[0, 0.3, -0.24]}>
+        <cylinderGeometry args={[0.04, 0.05, 0.16, 12]} />
+        <meshStandardMaterial color="#1b2230" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.39, -0.24]}>
+        <sphereGeometry args={[0.065, 14, 12]} />
+        <meshStandardMaterial color="#1b2230" roughness={0.45} />
+      </mesh>
+      <SceneLabel position={[0, 0.62, 0]} tone="text-ink-400">switch · closed</SceneLabel>
     </group>
   );
 }
@@ -367,13 +558,25 @@ function Meter({ position, value, unit, label, tone = "amber", warn = false }) {
   const face = warn ? "#fb7185" : tone === "sky" ? "#7dd3fc" : "#fcd34d";
   return (
     <group position={position}>
-      <RoundedBox args={[0.78, 0.2, 0.5]} radius={0.035} smoothness={3} position={[0, 0.1, 0]}>
-        <meshStandardMaterial color="#161c27" roughness={0.6} metalness={0.35} />
+      <RoundedBox args={[0.8, 0.2, 0.52]} radius={0.035} smoothness={3} position={[0, 0.1, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={HOUSING} roughness={0.5} metalness={0.1} />
       </RoundedBox>
+      {/* Bezel, then the dark LCD sunk into it. */}
+      <mesh position={[0, 0.203, 0]}>
+        <boxGeometry args={[0.68, 0.012, 0.4]} />
+        <meshStandardMaterial color="#2b3444" roughness={0.5} metalness={0.3} />
+      </mesh>
       <mesh position={[0, 0.21, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.62, 0.34]} />
+        <planeGeometry args={[0.6, 0.32]} />
         <meshStandardMaterial color="#07100c" roughness={0.9} />
       </mesh>
+      {/* Two input sockets along the back edge. */}
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * 0.22, 0.2, -0.235]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.035, 0.035, 0.03, 12]} />
+          <meshStandardMaterial color={s > 0 ? "#d9483a" : "#1f2733"} roughness={0.4} />
+        </mesh>
+      ))}
       <Html position={[0, 0.24, 0]} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
         <div className="flex flex-col items-center">
           <span
@@ -404,9 +607,12 @@ function FlowSegment({ segment, running, animSpeed = 1 }) {
       count={count}
       speed={speed}
       running={running}
+      wrap
       colour={segment.kind === "short" ? "#fb7185" : CHARGE_COLOURS.electron}
       radius={0.058}
-      emissiveIntensity={2.6}
+      // Toned down from the dark-board value: at 2.6 the bloom-free emissive
+      // saturated to near-white and the carriers vanished against a light board.
+      emissiveIntensity={1.5}
       seed={segment.key.length + segment.points.length}
     />
   );
@@ -439,7 +645,7 @@ export default function CircuitBoardCanvas({ params = {} }) {
   // Geometry the board is drawn on is handed to the solver's conductor
   // splitter, so the copper, the meters and the electron streams are all
   // derived from one description of where the circuit runs.
-  const { segments, rows } = useMemo(
+  const { segments, rows, taps } = useMemo(
     () =>
       buildConductors(solved, {
         railX: RAIL_X,
@@ -465,8 +671,8 @@ export default function CircuitBoardCanvas({ params = {} }) {
   return (
     <SceneCanvas
       camera={{ position: [0.4, 8.6, 8.4], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 30, target: [0, 0, -0.2], maxPolarAngle: Math.PI / 2.05 }}
-      lights={{ ambient: 0.4, keyLight: 0.85 }}
+      controls={{ minDistance: 2.4, maxDistance: 30, target: [0, 0, -0.2], maxPolarAngle: Math.PI / 2.05 }}
+      lights={{ ambient: 0.42, keyLight: 0.95 }}
       fog={[16, 40]}
     >
       <Breadboard />
@@ -489,13 +695,21 @@ export default function CircuitBoardCanvas({ params = {} }) {
         </SceneLabel>
       )}
 
+      {/* Pads where each conductor meets a rail, and where the rails turn at the pack. */}
+      {taps.flatMap((tap) =>
+        [-RAIL_X, RAIL_X].map((x) => <Pad key={`${tap.key}${x}`} position={[x, 0, tap.z]} />),
+      )}
+      {[-RAIL_X, RAIL_X].map((x) => (
+        <Pad key={`pack${x}`} position={[x, 0, BATTERY_Z]} />
+      ))}
+
       {/* Drift electrons, one stream per conductor. */}
       {segments.map((seg) => (
         <FlowSegment key={seg.key} segment={seg} running={running} animSpeed={speed} />
       ))}
 
       <BatteryPack volts={solved.emf} current={solved.totalCurrent} overCurrent={solved.overCurrent} />
-      <KnifeSwitch position={[-RAIL_X, 0, BATTERY_Z - 0.85]} />
+      <KnifeSwitch position={[-RAIL_X, 0, SWITCH_Z]} />
 
       {/* Bulbs. */}
       {rows.map((row) =>
@@ -548,37 +762,14 @@ export default function CircuitBoardCanvas({ params = {} }) {
         {`${solved.spec.label} · ${solved.formula} → ${solved.worked}`}
       </SceneLabel>
 
+      {/* Above the title, not below it: underneath, it ran into the far row's
+          bulb labels as soon as the camera came in. */}
       {solved.overCurrent && (
-        <SceneLabel position={[0, 1.05, -BOARD.z - 0.5]} tone="text-rose-300">
+        <SceneLabel position={[0, 2.05, -BOARD.z - 0.5]} tone="text-rose-300">
           {`${solved.totalCurrent.toFixed(1)} A — the pack is dumping ${solved.internalLoss.toFixed(1)} W into its own internal resistance`}
         </SceneLabel>
       )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title={`${solved.spec.label} circuit`}
-        subtitle={solved.spec.summary}
-        rows={[
-          ["R_eq", solved.worked],
-          ["Total current", `${solved.totalCurrent.toFixed(3)} A`, solved.overCurrent ? "bad" : "good"],
-          ...solved.branches.map((b, i) => [
-            `I${i + 1}`,
-            b.open ? "0 A — open" : `${b.current.toFixed(3)} A`,
-            b.open ? "bad" : "good",
-          ]),
-          ["Terminal voltage", `${solved.terminalVoltage.toFixed(2)} V`],
-        ]}
-      />
-
-      <SceneLegend
-        title="Circuit key"
-        items={[
-          { color: CHARGE_COLOURS.electron, label: "Drift electrons", note: "same spacing everywhere — only the speed tracks the current" },
-          { color: COPPER, label: "Copper trace", note: "cut at every junction, each piece with its own current" },
-          { color: "#fbbf24", label: "Filament", note: "brightness follows P = I²R" },
-          { color: "#fb7185", label: "Short circuit", note: "a near-zero path in parallel with the bulbs" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

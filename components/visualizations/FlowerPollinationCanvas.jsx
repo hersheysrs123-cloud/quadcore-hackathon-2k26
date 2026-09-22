@@ -8,8 +8,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
   hashRandom,
   lerp,
@@ -818,23 +816,6 @@ export default function FlowerPollinationCanvas({ params = {}, setParam }) {
       <Verdict describe={describe} />
       <TimelineCaption position={[0, -1.75, 0.5]} timeline={POLLINATION_TIMELINE} snapshot={snapshot} idle="press Trigger pollination — or drag the time slider" />
 
-      <SceneReadout
-        title="Pollination & fertilisation"
-        subtitle={`${vector.label} · ${describe.status}`}
-        rows={[
-          ["Stage", describe.label],
-          ["Pollen tube", `${describe.tubeMm.toFixed(1)} mm of ${STYLE_LENGTH_MM} mm`],
-          ["Fertilised", describe.fertilised ? "yes · zygote 2n + endosperm 3n" : "not yet"],
-        ]}
-      />
-      <SceneLegend
-        title="Nuclei"
-        items={[
-          { color: COLOURS.tubeNucleus, label: "Tube nucleus", note: "leads the tip" },
-          { color: COLOURS.generative, label: "Generative nucleus", note: "divides into 2 sperm" },
-          { color: COLOURS.sperm, label: "Sperm nuclei (n)", note: "one to the egg, one to the polar nuclei" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

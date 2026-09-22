@@ -8,18 +8,14 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
-import { FORCE_COLOURS, ForceVector, GraphPanel, useForceScale } from "@/components/visualizations/force-diagram";
+import { FORCE_COLOURS, ForceVector, useForceScale } from "@/components/visualizations/force-diagram";
 import {
   ELASTIC_LIMIT_EXTENSION,
   FAILURE_EXTENSION,
   NATURAL_LENGTH,
   elasticLimitForce,
-  failureForce,
-  loadCurve,
   loadForce,
   solveSpring,
 } from "@/lib/hookesLaw";
@@ -418,53 +414,65 @@ function OscillatingSpringRig({ solved, hangingMass, springConstant, speed = 1, 
 
 // ─── The scene ──────────────────────────────────────────────────────
 
-export default function HookesLawCanvas({ params = {} }) {
+export default function HookesLawCanvas({ params = {}, setParam }) {
   const {
     hangingMass = 0.5,
     springConstant = 80,
     overload = 0,
     newSpring = 0,
-    showGraph = true,
     speed = 1,
+    peakForce: paramPeakForce,
   } = params || {};
 
-  /**
-   * The spring's memory: the heaviest load it has ever carried.
-   *
-   * This is the only history the model needs, and keeping it here rather than
-   * in the HUD is deliberate — it is a property of the spring, not a setting,
-   * so it must survive the mass slider moving back down and only reset when a
-   * genuinely new spring is fitted.
-   */
-  const [peakForce, setPeakForce] = useState(0);
-
+  const [localPeakForce, setLocalPeakForce] = useState(paramPeakForce ?? 0);
+  const peakForce = typeof paramPeakForce === "number" ? paramPeakForce : localPeakForce;
   const force = loadForce(hangingMass);
 
   useEffect(() => {
-    setPeakForce((p) => Math.max(p, force));
-  }, [force]);
+    const nextPeak = Math.max(peakForce, force);
+    if (nextPeak !== peakForce) {
+      setLocalPeakForce(nextPeak);
+      if (setParam) setParam("peakForce", nextPeak);
+    }
+  }, [force, peakForce, setParam]);
 
   // A different spring constant IS a different spring, so its history goes
   // with it — as does explicitly fitting a fresh one.
+  //
+  // This must fire on those two things ONLY. It listed the recorded peak among
+  // its dependencies, so every time the load rose past the peak — the effect
+  // above writing the new one — it fired, wiped the peak, and set the effect
+  // above off again: an endless ping-pong that React cut off after fifty
+  // rounds ("Maximum update depth exceeded"), leaving whichever value happened
+  // to be written last. A spring that had been overloaded then quite often
+  // forgot it, and the graph showed no permanent set.
+  const seenSpring = useRef(null);
   useEffect(() => {
-    setPeakForce(0);
-  }, [springConstant, newSpring]);
+    const seen = seenSpring.current;
+    if (seen && seen.springConstant === springConstant && seen.newSpring === newSpring) return;
+    seenSpring.current = { springConstant, newSpring };
+    setLocalPeakForce(0);
+    if (setParam) setParam("peakForce", 0);
+  }, [springConstant, newSpring, setParam]);
 
   // The overload button takes the coil well past yield in one go, which is the
   // demonstration a student should not have to hunt for on the mass slider.
+  // Like the reset, it belongs to its own button: the recorded peak is not a
+  // reason to run it again.
+  const seenOverload = useRef(overload);
   useEffect(() => {
-    if (overload > 0) setPeakForce(elasticLimitForce(springConstant) * 1.4);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overload]);
+    if (overload === seenOverload.current) return;
+    seenOverload.current = overload;
+    if (overload > 0) {
+      const nextPeak = elasticLimitForce(springConstant) * 1.4;
+      setLocalPeakForce(nextPeak);
+      if (setParam) setParam("peakForce", nextPeak);
+    }
+  }, [overload, springConstant, setParam]);
 
   const solved = useMemo(
     () => solveSpring({ massKg: hangingMass, k: springConstant, peakForce }),
     [hangingMass, springConstant, peakForce],
-  );
-
-  const curve = useMemo(
-    () => loadCurve(springConstant, solved.peakForce),
-    [springConstant, solved.peakForce],
   );
 
   const scale = useForceScale([solved.force, solved.limitForce], 1.4);
@@ -473,26 +481,10 @@ export default function HookesLawCanvas({ params = {} }) {
   const pointerY = TOP_Y - solved.length * S;
   const restY = TOP_Y - solved.restLength * S;
 
-  // The graph's axes are sized to the spring under test, so swapping a 10 N/m
-  // spring for a 150 N/m one rescales rather than flattening the trace.
-  const yMax = Math.max(failureForce(springConstant), force) * 1.08;
-  const xMax = FAILURE_EXTENSION * 1.05;
-
-  /** The measured gradient, drawn through the working point. */
-  const tangent = useMemo(() => {
-    const half = 0.045;
-    const x0 = Math.max(solved.extension - half, 0);
-    const x1 = Math.min(solved.extension + half, xMax);
-    return [
-      [x0, solved.force - (solved.extension - x0) * solved.stiffness],
-      [x1, solved.force + (x1 - solved.extension) * solved.stiffness],
-    ];
-  }, [solved, xMax]);
-
   return (
     <SceneCanvas
-      camera={{ position: [1.2, 0.3, 12.5], fov: 44 }}
-      controls={{ minDistance: 5, maxDistance: 26, target: [0.9, -0.2, 0] }}
+      camera={{ position: [0.15, 0.3, 12.5], fov: 44 }}
+      controls={{ minDistance: 5, maxDistance: 26, target: [0.15, -0.2, 0] }}
       lights={{ ambient: 0.58, keyLight: 1.0 }}
     >
       <RetortStand />
@@ -571,68 +563,8 @@ export default function HookesLawCanvas({ params = {} }) {
         scale={scale}
       />
 
-      {showGraph && (
-        <GraphPanel
-          position={[3.2, -2.15, 0]}
-          width={4.1}
-          height={4.3}
-          xMax={xMax}
-          yMax={yMax}
-          title="force against extension"
-          xLabel={`extension · 0 – ${cmOf(xMax).toFixed(0)} cm`}
-          yLabel="F / N"
-          xTicks={5}
-          yTicks={4}
-          xFormat={(v) => `${(v * 100).toFixed(0)}cm`}
-          guides={[
-            // Where Hooke's law stops describing this spring.
-            {
-              points: [
-                [ELASTIC_LIMIT_EXTENSION, 0],
-                [ELASTIC_LIMIT_EXTENSION, yMax],
-              ],
-              colour: FORCE_COLOURS.limit,
-              lineWidth: 1.5,
-              opacity: 0.75,
-            },
-            // The gradient being reported, drawn where it is measured.
-            { points: tangent, colour: FORCE_COLOURS.net, lineWidth: 2, opacity: 0.95 },
-          ]}
-          series={[
-            { points: curve.elastic, colour: FORCE_COLOURS.spring, lineWidth: 2.8 },
-            ...(curve.plastic.length
-              ? [{ points: curve.plastic, colour: FORCE_COLOURS.applied, lineWidth: 2.8 }]
-              : []),
-            ...(curve.unload.length
-              ? [{ points: curve.unload, colour: FORCE_COLOURS.limit, lineWidth: 2.2, dashed: true }]
-              : []),
-          ]}
-          marker={{ at: [solved.extension, solved.force], colour: PALETTE.bone }}
-        />
-      )}
 
-      <SceneReadout
-        hidden={params?.hideOverlayReadout}
-        title="Spring under load"
-        subtitle="F = kx, below the elastic limit"
-        rows={[
-          ["Force F", `${solved.force.toFixed(2)} N`, "gold"],
-          ["Extension x", `${cmOf(solved.extension).toFixed(2)} cm`],
-          ["Gradient ΔF/Δx", `${solved.stiffness.toFixed(0)} N/m`, solved.elastic ? "good" : "warn"],
-          ["Energy ½kx²", `${solved.elasticEnergy.toFixed(2)} J`],
-          ["Permanent set", solved.yielded ? `${cmOf(solved.permanentSet).toFixed(2)} cm` : "none", solved.yielded ? "bad" : "good"],
-        ]}
-      />
 
-      <SceneLegend
-        title="Force–extension"
-        items={[
-          { color: FORCE_COLOURS.spring, shape: "line", label: "Hooke's law region", note: "straight — gradient is k" },
-          { color: FORCE_COLOURS.applied, shape: "line", label: "Plastic region", note: "bent over — the spring is yielding" },
-          { color: FORCE_COLOURS.limit, shape: "dash", label: "Elastic limit", note: "beyond here it will not spring back" },
-          { color: FORCE_COLOURS.net, shape: "line", label: "Measured gradient", note: "ΔF/Δx where the load sits now" },
-        ]}
-      />
     </SceneCanvas>
   );
 }

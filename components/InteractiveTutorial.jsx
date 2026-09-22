@@ -3,15 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Sparkles,
-  BookOpen,
-  HelpCircle,
   Folder,
   Bookmark,
-  Box,
   Calendar,
-  Activity,
-  Shield,
-  Clock,
   Code,
   FileText,
   CheckCircle2,
@@ -21,20 +15,8 @@ import {
   Keyboard,
   Layers,
   Search,
-  ExternalLink,
-  Flame,
-  Volume2,
-  Compass,
   ArrowRight,
-  RotateCcw,
   Check,
-  Globe,
-  Tag,
-  Download,
-  Trash2,
-  Lock,
-  Edit3,
-  Cpu,
   ListOrdered,
   List,
   CheckSquare,
@@ -45,19 +27,9 @@ import {
   Palette,
   Image as ImageIcon,
   Link as LinkIcon,
-  Play,
-  Pause,
-  Award,
-  Star,
-  Copy,
   Sliders,
   Eye,
-  CheckCheck,
   Atom,
-  Dna,
-  Zap,
-  Sigma,
-  PlusSquare,
   Columns,
   Table as TableIcon,
 } from "lucide-react";
@@ -328,7 +300,7 @@ export const TUTORIAL_STEPS = [
                 id: "local",
                 title: "100% Local-First",
                 icon: "🔒",
-                short: "Private IndexedDB engine (Dexie.js v7 with 11 stores).",
+                short: "Private IndexedDB engine (Dexie.js v8 with 12 stores).",
                 details: "Your notes, 3D simulations, calendar events, folders, bookmarks, and Gemini API keys never leave your browser. Zero cloud lock-in, 100% offline capable.",
               },
               {
@@ -382,7 +354,7 @@ export const TUTORIAL_STEPS = [
     badgeEmoji: "✍️",
     title: "19-Block Notion-Grade Studio, KaTeX & Fonts",
     description:
-      "Type '/' on any line to open the 22-item slash menu. Format notes with 19 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
+      "Type '/' on any line to open the 23-item slash menu. Format notes with 19 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
     render: ({ onNavigateTab }) => {
       const [activeCategory, setActiveCategory] = useState("All");
       const [previewFont, setPreviewFont] = useState("sans");
@@ -878,13 +850,13 @@ export const TUTORIAL_STEPS = [
     },
   },
 
-  // ── Step 6: 27-Topic 3D Simulation Studio
+  // ── Step 6: 50+ Topic 3D Simulation Studio
   {
     id: "visualizations",
     category: "3D Scientific Studio",
     shortTitle: "3D Studio",
     badgeEmoji: "🌌",
-    title: "27 Interactive 3D Simulations Across 5 STEM Domains",
+    title: "50+ Interactive 3D Simulations Across 5 STEM Domains",
     description:
       "Interact with real-time WebGL models featuring OrbitControls, parameter sliders, clinical CT respiratory kinematics, optical benches, and dynamic physics equations.",
     render: ({ onNavigateTab }) => {
@@ -895,14 +867,14 @@ export const TUTORIAL_STEPS = [
         { id: "motor", domain: "physics", emoji: "🧲", name: "The Motor Effect & Lorentz Force", desc: "Fleming's Left Hand Rule & B-field." },
         { id: "lenses", domain: "physics", emoji: "🔍", name: "Thin Lens Optics & Ray Diagrams", desc: "Convex/concave focal lengths & images." },
         { id: "shadows", domain: "physics", emoji: "💡", name: "Shadow Lab Optical Bench", desc: "Draggable bench, umbra, penumbra & 3D solids." },
-        { id: "bohr", domain: "chemistry", emoji: "⚛️", name: "Bohr Atom & Emission Spectra", desc: "Quantized shells & photon wave packets." },
+        { id: "bohr", domain: "chemistry", emoji: "⚛️", name: "Bohr Atom & Emission Spectra", desc: "Quantized shells, core & valence electrons." },
         { id: "vsepr", domain: "chemistry", emoji: "🔷", name: "VSEPR Molecular Geometry", desc: "Steric numbers 2-6 with lone pair clouds." },
         { id: "distillation", domain: "chemistry", emoji: "🧪", name: "Fractional Distillation Column", desc: "Petroleum fractions & boiling points." },
         { id: "cell", domain: "biology", emoji: "🔬", name: "Plant & Animal Cell Explorer", desc: "Organelle cutaways & osmotic tonicity." },
         { id: "eye", domain: "biology", emoji: "👁️", name: "Human Eye & Pupil Accommodation", desc: "Gullstrand optical power & ciliary focus." },
         { id: "respiratory", domain: "biology", emoji: "🫁", name: "CT Thoracic Skeleton & Lungs", desc: "Clinical CT breathing kinematics & Boyle's Law." },
         { id: "tree", domain: "cs", emoji: "🌳", name: "Binary Search & AVL Tree", desc: "Animated auto-balancing rotations & traversals." },
-        { id: "sorting", domain: "cs", emoji: "📊", name: "3D Sorting Visualizer", desc: "Bubble, Quick, Merge & Radix algorithms." },
+        { id: "sorting", domain: "cs", emoji: "📊", name: "3D Sorting Visualizer", desc: "Bubble, Insertion, Selection, Quick & Merge sort." },
         { id: "loss", domain: "math", emoji: "📐", name: "Gradient Descent on Loss Surfaces", desc: "Optimization paths on 3D surfaces." },
       ];
 
@@ -913,7 +885,7 @@ export const TUTORIAL_STEPS = [
           {/* Domain Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             {[
-              { id: "all", label: "All (27)" },
+              { id: "all", label: "All" },
               { id: "physics", label: "Physics ⚛️" },
               { id: "chemistry", label: "Chemistry 🧪" },
               { id: "biology", label: "Biology 🧬" },

@@ -73,6 +73,7 @@ import {
   Zap,
 } from "lucide-react";
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
+import { speedRegime } from "@/lib/orbit";
 import {
   ALGORITHM_OPTIONS,
   AQUEOUS_SOLUTION_OPTIONS,
@@ -91,6 +92,7 @@ import {
   HEAT_VIEW_OPTIONS,
   METAL_STRIP_OPTIONS,
   NERVE_PATHWAY_OPTIONS,
+  ORBIT_TIME_SCALE_OPTIONS,
   POLLINATION_VECTOR_OPTIONS,
   ROD_MATERIAL_OPTIONS,
   SACRIFICIAL_METAL_OPTIONS,
@@ -328,7 +330,7 @@ export const TOPICS = [
     ],
     concepts: [
       "Convex lenses and concave mirrors converge rays toward a real focus; concave lenses and convex mirrors diverge rays so they appear to originate from a virtual focus.",
-      "The thin-lens formula (1/v − 1/u = 1/f) and spherical mirror formula (1/v + 1/u = 1/f) calculate precise image formation distances and magnifications.",
+      "Lenses and mirrors share one equation, not two: 1/v + 1/u = 1/f, with u and f measured as positive distances and the magnification m = v/u. A converging element focuses real light, so it takes f > 0; a diverging one only appears to, so it takes f < 0.",
       "Real images form where light rays physically intersect and can be caught on a screen; virtual images form where only backward ray projections meet.",
       "Spherical mirrors reverse ray direction via reflection, whereas lenses refract rays through the optical material.",
     ],
@@ -464,8 +466,8 @@ export const TOPICS = [
     concepts: [
       "Faraday's Law: An e.m.f. is induced in a conductor whenever there is a change in the magnetic flux linking it (ε = −N ΔΦ/Δt).",
       "Relative motion is required: A stationary magnet inside a coil produces constant flux (ΔΦ/Δt = 0), yielding zero induced e.m.f.",
-      "Lenz's Law: The direction of the induced e.m.f. and current always opposes the change in flux that caused it.",
-      "In an AC generator, rotating a coil continuously alters the flux linkage angle, generating a smooth alternating voltage waveform.",
+      "Lenz's Law: The induced current always flows so as to oppose the change in flux that caused it — an approaching north pole meets an induced north pole at the near end of the coil, and a receding one is held back by an induced south pole.",
+      "In an AC generator the flux linking the coil is Φ = BA cos ωt, so ε = NBAω sin ωt: zero when the coil is face-on to the field, greatest when it is edge-on, and reversing every half turn (f = ω/2π).",
     ],
     quiz: [
       {
@@ -576,7 +578,7 @@ export const TOPICS = [
       { type: "slider", key: "angle", label: "Launch angle θ", min: 5, max: 85, step: 1, format: (v) => `${v}°` },
       { type: "slider", key: "launchSpeed", label: "Launch speed u", min: 5, max: 40, step: 1, format: (v) => `${v} m/s` },
       { type: "choice", key: "gravity", label: "Gravitational field g", columns: 4, options: GRAVITY_OPTIONS },
-      { type: "slider", key: "drag", label: "Drag coefficient k", min: 0, max: 0.25, step: 0.005, format: (v) => (v === 0 ? "vacuum" : v.toFixed(3)) },
+      { type: "slider", key: "drag", label: "Drag constant k", min: 0, max: 0.25, step: 0.005, format: (v) => (v === 0 ? "vacuum" : `${v.toFixed(3)} kg/m`) },
       { type: "slider", key: "mass", label: "Mass m", min: 0.2, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)} kg` },
       { type: "toggle", key: "showIdeal", label: "Compare with no drag" },
       { type: "toggle", key: "showVectors", label: "Show force vectors" },
@@ -587,7 +589,7 @@ export const TOPICS = [
     concepts: [
       "Without drag the horizontal and vertical motions are completely independent: horizontal velocity never changes, vertical velocity changes at g. That independence is what makes the path a parabola and puts the maximum range at 45°.",
       "Air resistance acts along the path and against it, with a size that grows as v². Because it is always opposing the motion, it bleeds horizontal speed the whole flight — so the descent is steeper than the climb and the path stops being symmetric.",
-      "With drag, the optimum launch angle drops below 45°, and a heavier object of the same shape travels further: the drag deceleration is k|v|v ÷ m, so more mass means the same force decelerates it less.",
+      "With drag, the optimum launch angle drops below 45°, and a heavier object of the same shape travels further: the drag force is k|v|v (k in kg/m, lumping together air density, shape and area), so the deceleration is k|v|v ÷ m and more mass means the same force decelerates it less.",
     ],
     quiz: [
       {
@@ -696,14 +698,19 @@ export const TOPICS = [
     syllabus: "Physics 1.7 · Gravitation",
     keywords:
       "gravity orbital motion satellite ellipse kepler escape velocity circular orbit eccentricity gravitational potential well centripetal force period newton universal gravitation",
+    // The universal 0.1–3× slider is no use to a lap that takes minutes: orbits
+    // carry their own time-scale control, up to 100×, in the list below.
+    hideSpeedSlider: true,
     defaults: {
       mass: 1,
       launchRadius: 3.4,
-      launchSpeed: 1.35,
+      launchRatio: 1,
+      timeScale: 1,
       running: true,
       reset: 0,
       showTrail: true,
       showWell: true,
+      loopEscape: true,
       spin: false,
     },
     controls: [
@@ -711,10 +718,28 @@ export const TOPICS = [
       // solar-mass label would invite reading real years off the panel.
       { type: "slider", key: "mass", label: "Central mass M", min: 0.3, max: 3, step: 0.05, format: (v) => `${v.toFixed(2)} M₀` },
       { type: "slider", key: "launchRadius", label: "Launch radius r", min: 1.6, max: 6, step: 0.1, format: (v) => v.toFixed(1) },
-      { type: "slider", key: "launchSpeed", label: "Launch speed v", min: 0.2, max: 3.5, step: 0.05, format: (v) => v.toFixed(2) },
+      // A multiple of the circular speed at that radius, not a bare speed: 1 is a
+      // circle and √2 (1.41) is escape at ANY radius and mass, so the slider
+      // means the same thing wherever the others are set — and says what it does.
+      {
+        type: "slider",
+        key: "launchRatio",
+        label: "Launch speed v (× circular)",
+        min: 0.3,
+        max: 1.7,
+        step: 0.01,
+        format: (v, params = {}) => {
+          const regime = speedRegime({ mass: params.mass, launchRadius: params.launchRadius, launchRatio: v });
+          return `${v.toFixed(2)}× · ${regime === "circular" ? "circle" : regime}`;
+        },
+      },
+      // Not `speed`: the HUD drops any control on that key, because the universal
+      // Animation Speed slider owns it — and that one is hidden for this topic.
+      { type: "choice", key: "timeScale", label: "Time scale", columns: 4, options: ORBIT_TIME_SCALE_OPTIONS },
       { type: "toggle", key: "running", label: "Run orbit" },
       { type: "toggle", key: "showTrail", label: "Show path" },
       { type: "toggle", key: "showWell", label: "Show potential well" },
+      { type: "toggle", key: "loopEscape", label: "Relaunch when it leaves the view" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
       { type: "action", key: "reset", label: "Relaunch satellite", icon: RotateCcw },
     ],
@@ -942,6 +967,10 @@ export const TOPICS = [
           { value: "pulley", label: "Block & tackle", title: "n sheaves sharing the load between n ropes" },
         ],
       },
+      // One slider, read differently by each class (lib/simpleMachines.js): it
+      // moves the fulcrum on a class 1, but the fulcrum is pinned at the end of
+      // a class 2 or 3, where it moves the load or the effort instead. Labelled
+      // "Fulcrum position" for all three it told a student the wrong thing.
       {
         type: "slider",
         key: "armPosition",
@@ -950,7 +979,27 @@ export const TOPICS = [
         max: 0.9,
         step: 0.01,
         format: (v) => `${(v * 100).toFixed(0)}% along the bar`,
-        when: (params) => (params?.machineType ?? "lever1") !== "pulley",
+        when: (params) => (params?.machineType ?? "lever1") === "lever1",
+      },
+      {
+        type: "slider",
+        key: "armPosition",
+        label: "Load position",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        format: (v) => `${(v * 100).toFixed(0)}% of the way from the fulcrum to the effort`,
+        when: (params) => params?.machineType === "lever2",
+      },
+      {
+        type: "slider",
+        key: "armPosition",
+        label: "Effort position",
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        format: (v) => `${(v * 100).toFixed(0)}% of the way from the fulcrum to the load`,
+        when: (params) => params?.machineType === "lever3",
       },
       {
         type: "slider",
@@ -1560,7 +1609,9 @@ export const TOPICS = [
           { value: "Cl", label: "Cl · 17" },
         ],
       },
-      { type: "slider", key: "speed", label: "Orbit speed", min: 0, max: 3, step: 0.1, format: (v) => (v === 0 ? "paused" : `${v.toFixed(1)}×`) },
+      // No "speed" slider here: the HUD renders a universal Animation Speed
+      // slider bound to the same key, and two sliders on one parameter is one
+      // too many. The universal one reaches 0 ("paused") too.
       { type: "toggle", key: "highlightValence", label: "Highlight valence shell" },
       { type: "toggle", key: "showShells", label: "Show shell paths" },
       { type: "toggle", key: "showLabels", label: "Show shell labels" },
@@ -1756,9 +1807,18 @@ export const TOPICS = [
     title: "Electrolysis Cell",
     blurb: "Cu²⁺ and SO₄²⁻ migrating to the electrodes",
     syllabus: "Chemistry 5 · Electrochemistry",
-    keywords: "electrolysis anode cathode cation anion electroplating copper sulfate oxidation reduction electrode",
-    defaults: { current: 1, showLabels: true, run: true, reset: 0 },
+    keywords: "electrolysis anode cathode cation anion electroplating copper sulfate oxidation reduction electrode inert graphite carbon oxygen half equation purification",
+    defaults: { current: 1, electrode: "copper", showLabels: true, run: true, reset: 0 },
     controls: [
+      {
+        type: "choice",
+        key: "electrode",
+        label: "Electrodes",
+        options: [
+          { value: "copper", label: "Copper" },
+          { value: "graphite", label: "Graphite (inert)" },
+        ],
+      },
       { type: "slider", key: "current", label: "Current", min: 0.2, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)} A` },
       { type: "toggle", key: "run", label: "Supply on" },
       { type: "toggle", key: "showLabels", label: "Show half-equations" },
@@ -1767,7 +1827,8 @@ export const TOPICS = [
     concepts: [
       "Electrolysis splits an ionic compound using electricity, and only works when the ions are free to move — molten or in solution.",
       "Positive ions (cations, e.g. Cu²⁺) move to the negative cathode and gain electrons — reduction. Negative ions move to the positive anode and lose electrons — oxidation.",
-      "With copper(II) sulfate and copper electrodes, copper dissolves from the anode and plates onto the cathode — the basis of electroplating and copper purification.",
+      "With copper(II) sulfate and COPPER electrodes, copper dissolves from the anode and plates onto the cathode. The copper is only moved from one electrode to the other, so the solution never fades — this is how copper is purified.",
+      "Swap in INERT graphite and the anode cannot dissolve, so water is oxidised instead: 2H₂O → O₂ + 4H⁺ + 4e⁻. Oxygen bubbles off, nothing replaces the copper leaving the solution, and the blue fades as it turns into sulfuric acid. The electrode material decides the anode reaction.",
     ],
     quiz: [
       {
@@ -1895,7 +1956,11 @@ export const TOPICS = [
       catalyst: false,
       catalystDrop: 35,
       temperature: 350,
-      showReverse: true,
+      // B33: `showReverse: true` lived here with no control, no reader and no
+      // effect -- it was meant to toggle a reverse-activation arrow that was
+      // never built, and it read as a working feature. The reverse Ea itself
+      // is real and is shown: solveEnergetics() derives it and the Details
+      // panel prints it.
       spin: false,
     },
     controls: [
@@ -2062,7 +2127,7 @@ export const TOPICS = [
         step: 1,
         format: (v) => dayLabel(v),
       },
-      { type: "toggle", key: "playing", label: "Play the 30 days" },
+      { type: "toggle", key: "playing", label: "Play the 90 days" },
       {
         type: "choice",
         key: "electrolyte",
@@ -2549,7 +2614,8 @@ export const TOPICS = [
     controls: [
       { type: "slider", key: "temperature", label: "Temperature", min: 0, max: 80, step: 1, format: (v) => `${v}°C` },
       { type: "slider", key: "ph", label: "pH", min: 1, max: 14, step: 0.5, format: (v) => v.toFixed(1) },
-      { type: "slider", key: "speed", label: "Animation speed", min: 0.2, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)}×` },
+      // No "speed" slider here — the HUD's universal Animation Speed slider
+      // already writes this key. See the note on `bohr`.
     ],
     concepts: [
       "Enzymes are protein catalysts: the substrate fits a specific active site like a key in a lock, so each enzyme catalyses one reaction.",
@@ -2755,10 +2821,35 @@ export const TOPICS = [
     title: "The Human Eye — Accommodation & Pupil Reflex",
     blurb: "Cutaway eyeball with live ray tracing, a deforming lens, and the iris reflex",
     syllabus: "Biology 2.4 · Coordination & Response",
+    // C28 was resolved by trimming these, because the scene had no defect
+    // mode and the keywords promised one. It has one now, so they are back --
+    // and this time they are earned.
     keywords:
-      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight long sight aqueous vitreous humour",
+      "eye accommodation ciliary muscle suspensory ligaments zonules crystalline lens cornea iris pupil reflex sphincter dilator retina fovea optic nerve refraction dioptres near point far point blurred vision short sight myopia long sight hypermetropia concave convex corrective lens spectacles aqueous vitreous humour",
     ownHud: true,
-    defaults: {},
+    // C26: the eye draws its own HUD (`ownHud`), but its controls belong in
+    // the shared parameter state like every other topic's, so that switching
+    // away and back keeps them. EyeCanvas reads these through `params`; they
+    // have no `controls` entries because the eye renders its own panel.
+    defaults: {
+      mode: "accommodation",
+      objectDistance: 6,
+      autoAccommodate: true,
+      manualAccommodation: 0,
+      showBlur: true,
+      logLux: 2.6,
+      rayMode: "bundle",
+      showZonules: true,
+      layers: { sclera: true, choroid: true, retina: true, vitreous: true },
+      cutaway: true,
+      showVessels: true,
+      showMuscles: false,
+      showLabels: true,
+      selectedPart: null,
+      showRays: true,
+      refractiveErrorD: 0,
+      corrected: false,
+    },
     controls: [],
     concepts: [
       "Focusing on something NEAR is the active state, and it runs backwards from most people's intuition: the ciliary muscle CONTRACTS, which slackens the suspensory ligaments it was pulling on, and the freed lens springs back to its naturally fat, highly curved shape.",
@@ -2809,7 +2900,6 @@ export const TOPICS = [
       autoLoop: true,
       bpm: 14,
       cutaway: 0.25,
-      showMuscles: true,
       showAirflow: true,
       showVectors: true,
       showLabels: true,
@@ -2829,7 +2919,6 @@ export const TOPICS = [
       { type: "toggle", key: "autoLoop", label: "Auto breathing cycle" },
       { type: "slider", key: "bpm", label: "Breathing rate", min: 6, max: 30, step: 1, format: (v) => `${v} BPM` },
       { type: "slider", key: "cutaway", label: "Cutaway view", min: 0, max: 1, step: 0.05, format: (v) => `${Math.round(v * 100)}%` },
-      { type: "toggle", key: "showMuscles", label: "Intercostal muscles" },
       { type: "toggle", key: "showAirflow", label: "Airway particle flow" },
       { type: "toggle", key: "showVectors", label: "3D motion vectors" },
       { type: "toggle", key: "showLabels", label: "Anatomical labels" },
@@ -3505,7 +3594,8 @@ export const TOPICS = [
     concepts: [
       "A Binary Search Tree (BST) maintains nodes such that every left descendant is smaller and right descendant is larger.",
       "Tree traversals visit nodes systematically: In-order (left, root, right) yields sorted order; Pre-order is used for cloning; Post-order is used for deletion.",
-      "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced.",
+      "Search and insertion run in O(log n) time on balanced trees, but degrade to O(n) if the tree becomes unbalanced — insert values in ascending order with balancing off and the tree becomes a linked list.",
+      "An AVL tree keeps every node's two subtree heights within 1 of each other, rotating whenever an insert breaks that rule. A rotation rearranges three subtrees without disturbing the ordering, so the search property survives it untouched.",
     ],
     quiz: [
       {

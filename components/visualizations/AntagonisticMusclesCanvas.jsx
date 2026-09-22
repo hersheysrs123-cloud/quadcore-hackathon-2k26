@@ -9,8 +9,6 @@ import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
-  SceneLegend,
-  SceneReadout,
   clamp,
 } from "@/components/visualizations/scene-kit";
 import { FORCE_COLOURS, ForceVector, arcPoints, useForceScale } from "@/components/visualizations/force-diagram";
@@ -356,23 +354,6 @@ export default function AntagonisticMusclesCanvas({ params = {}, setParam }) {
         </SceneLabel>
       )}
 
-      <SceneReadout
-        title="Antagonistic pair"
-        subtitle={`${shownAngle.toFixed(0)}° · ${loadKg} kg`}
-        rows={[
-          ["Torque", `${solved.torque.toFixed(1)} N·m`],
-          ["Biceps", solved.biceps.state],
-          ["Triceps", solved.triceps.state],
-        ]}
-      />
-      <SceneLegend
-        title="Muscles"
-        items={[
-          { color: RIG_COLOURS.muscleContracted, label: "Contracted" },
-          { color: RIG_COLOURS.muscleRelaxed, label: "Relaxed" },
-          { color: RIG_COLOURS.tendon, label: "Tendon" },
-        ]}
-      />
     </SceneCanvas>
   );
 }
