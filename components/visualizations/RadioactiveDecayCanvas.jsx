@@ -467,15 +467,16 @@ function DecayCurvePanel({ modelRef, traceRef, marks }) {
 
   return (
     <group position={CHART_POS}>
-      <mesh position={[CHART_W / 2, CHART_H / 2, -0.06]}>
-        <planeGeometry args={[CHART_W + 1.1, CHART_H + 1.6]} />
+      <mesh position={[CHART_W / 2, CHART_H / 2 - 0.15, -0.06]}>
+        <planeGeometry args={[CHART_W + 1.1, CHART_H + 1.9]} />
         <meshBasicMaterial color="#0d121c" transparent opacity={0.9} depthWrite={false} />
       </mesh>
       <Line points={axes} color={PALETTE.slate} lineWidth={1.8} />
       {guides.map((g) => (
         <group key={g.k}>
           <Line points={g.points} color={PALETTE.line} lineWidth={0.8} transparent opacity={0.5} dashed dashSize={0.1} gapSize={0.08} />
-          <SceneLabel position={[-0.5, g.y, 0]} tone="text-ink-500">{`N₀/${Math.pow(2, g.k)}`}</SceneLabel>
+          {/* N₀/8 sits only CHART_H/8 under N₀/4 — too close for two tags; its dashed line speaks for itself. */}
+          {g.k < 3 && <SceneLabel position={[-0.5, g.y, 0]} tone="text-ink-500">{`N₀/${Math.pow(2, g.k)}`}</SceneLabel>}
         </group>
       ))}
       {[0, 1, 2, 3, 4, 5, 6].map((k) => (
@@ -497,7 +498,7 @@ function DecayCurvePanel({ modelRef, traceRef, marks }) {
       <SceneLabel position={[CHART_W / 2, CHART_H + 0.85, 0]} accent>
         {`N(t) = N₀ e^(−λt) · dashed = prediction · gold = this sample`}
       </SceneLabel>
-      <SceneLabel position={[CHART_W / 2, -0.62, 0]} tone="text-ink-400">{`time · one half-life = ${SIM_HALF_LIFE_S} s on screen`}</SceneLabel>
+      <SceneLabel position={[CHART_W / 2, -0.82, 0]} tone="text-ink-400">{`time · one half-life = ${SIM_HALF_LIFE_S} s on screen`}</SceneLabel>
       <SceneLabel position={[-0.55, CHART_H + 0.25, 0]} tone="text-ink-400">N/N₀</SceneLabel>
     </group>
   );
@@ -575,10 +576,10 @@ export default function RadioactiveDecayCanvas({ params = {}, setParam }) {
         <DecayCurvePanel modelRef={modelRef} traceRef={traceRef} marks={marks} />
 
         {/* The equation, hung over the source. */}
-        <SceneLabel position={[SOURCE_X, TRACK_Y + 2.75, 0.4]} accent>
+        <SceneLabel position={[SOURCE_X, TRACK_Y + 3.2, 0.4]} accent>
           {eq.text}
         </SceneLabel>
-        <SceneLabel position={[SOURCE_X, TRACK_Y + 2.4, 0.4]} tone={eq.conservedA && eq.conservedZ ? "text-emerald-300" : "text-rose-300"}>
+        <SceneLabel position={[SOURCE_X, TRACK_Y + 2.75, 0.4]} tone={eq.conservedA && eq.conservedZ ? "text-emerald-300" : "text-rose-300"}>
           {`A: ${eq.left.A} = ${eq.right.A} ${eq.conservedA ? "✓" : "✗"} · Z: ${eq.left.Z} = ${eq.right.Z} ${eq.conservedZ ? "✓" : "✗"}`}
         </SceneLabel>
         <SceneLabel position={[SOURCE_X, TRACK_Y - 2.3, 1.2]} tone={liveFinished ? "text-ink-500" : "text-amber-300"}>
@@ -586,7 +587,7 @@ export default function RadioactiveDecayCanvas({ params = {}, setParam }) {
             ? `all ${n0.toLocaleString("en-GB")} decayed · ${halves.toFixed(1)} half-lives`
             : `${alive.toLocaleString("en-GB")} of ${n0.toLocaleString("en-GB")} ${md.parent.name} left · ${halves.toFixed(2)} t½ · predicted ${Math.round(expected).toLocaleString("en-GB")}`}
         </SceneLabel>
-        <SceneLabel position={[SOURCE_X + 1.6, TRACK_Y - 2.65, 1.2]} tone="text-ink-400">
+        <SceneLabel position={[SOURCE_X + 1.6, TRACK_Y - 2.75, 1.2]} tone="text-ink-400">
           {`activity λN = ${activity.toFixed(1)} Bq · counted ${liveRate.toFixed(1)} /s`}
         </SceneLabel>
         <SceneLabel position={[GM_X, TRACK_Y + 1.05, 0]} tone={detectorRate > 0.05 ? "text-emerald-300" : "text-ink-500"}>
@@ -601,7 +602,7 @@ export default function RadioactiveDecayCanvas({ params = {}, setParam }) {
                 ? `${primary.display} mostly stopped by ${b.label.toLowerCase()}`
                 : `${primary.display} stopped by ${b.label.toLowerCase()}`}
         </SceneLabel>
-        <SceneLabel position={[(PLATE_X0 + PLATE_X1) / 2, TRACK_Y - PLATE_GAP - 0.75, 0]} tone={fieldOn ? (defl.direction === 0 ? "text-violet-300" : "text-ink-200") : "text-ink-500"}>
+        <SceneLabel position={[(PLATE_X0 + PLATE_X1) / 2, TRACK_Y - PLATE_GAP - 0.85, 0]} tone={fieldOn ? (defl.direction === 0 ? "text-violet-300" : "text-ink-200") : "text-ink-500"}>
           {fieldOn ? `${primary.display}: ${defl.reason}` : "plates off — every path is straight"}
         </SceneLabel>
       </group>

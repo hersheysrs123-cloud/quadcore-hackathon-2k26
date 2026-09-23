@@ -7543,3 +7543,35 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 
 
 
+
+---
+
+## Chemistry 3D Scenes: Label Collisions, Framing & Rendering Pass
+
+### 1. Problem Statement
+A sweep of all 13 chemistry scenes (screenshots plus a DOM check that measures every drei `<Html>` label's box against every other label, the viewport hint and the canvas edge, run at 1920×1080 and 1280×800) found:
+- **Distillation**: the column read as half open, half shut; the base was a saturated `#2563eb` block.
+- **Bohr**: the `Na · 2,8,1` summary sat on the "drag to orbit" hint.
+- **Electrolysis**: the DC supply box and its readout were cut off at the top; both half-equation labels sat on the wires rising from the electrodes.
+- **Organic**: carbon (`#475569`) nearly vanished against the navy canvas.
+- **Separation**: the chromatography board and its `Rf = …` formula ran off the right edge; "solvent front 0 mm" sat on the "0 mm" tick.
+- **Combustion**: the fire triangle's "Oxygen" vertex collided with the flame readouts.
+- **Particle model**: the KE readout sat on "0 K" and "−100 °C"; "sample thermometer" touched "mean KE".
+- **Radioactive decay**: equation/conservation lines, the two stats rows, the "− plate" tag and the plate note, N₀/4 and N₀/8, and the t½ ticks and the time-axis title all overlapped.
+- **Reactivity / Rusting**: the focused rack pad glowed so bright that the label on it was hard to read.
+- **All subjects, below the `lg` breakpoint**: the canvas collapsed to its 150 px default height.
+
+### 2. Root Cause
+- The distillation cutaway's missing wedge is centred on local +Z, but the camera sits at azimuth `atan2(7, 9)` ≈ 38°, right on the wedge's edge.
+- Most label clashes are fixed world offsets (0.3–0.35 units) that are too small once the canvas is laptop-sized; the framing issues are cameras or targets that didn't include the scene's outermost objects.
+- `<main className="h-full">` in `ThreeDView.jsx`: below `lg` the parent's height is not definite, so `100%` resolves to `auto` and overrides the flex stretch.
+
+### 3. Resolution
+- Distillation: the cutaway is rotated by `Math.atan2(8, 10.3)` to face the camera (moved to `[8, 1.5, 10.3]`), and the base is slate `#334155`.
+- Bohr camera z 10.5 → 12. Electrolysis camera `[0, 3.6, 12.5]` with target `[0, 1, 0]`; half-equations hung under the tank's front edge.
+- Carbon `#7b8799`. Focused `VesselRack` pad emissive 0.5 → 0.18.
+- Separation camera centred on the three stations (`x = −0.1`, z 20.5); the Rf formula is pulled 1.2 units left; the solvent-front label is shown only once the front moves; the station readout stack is spaced wider.
+- Combustion `TRIANGLE_POS` → `[−5.0, BENCH_Y + 6.1, −1.2]`. Particle model: the KE readout moves under its gauge, and the thermometer and title labels move up.
+- Radioactive decay: the label stacks are spaced out, the N₀/8 tag is dropped (its dashed guide stays), and the time-axis title moves down with the chart backing extended to cover it.
+- `ThreeDView.jsx`: dropped `h-full` from `<main>`, so the flex row's stretch sets its height (canvas at 766 px wide: 150 → 493 px).
+- Verified: the overlap check reports 0 collisions and 0 clipped labels on every chemistry scene at 1280×800, with no console errors.

@@ -73,7 +73,8 @@ const BASIN_REST = [4.9, 0.02, 0.1];
 const BASIN_HELD = [0, MOUTH_Y + 1.25, 0];
 const BASIN_SHOW = [-4.7, 0.62, 1.35];
 const DETECTOR_POS = [-3.4, 0, -1.4];
-const TRIANGLE_POS = [-3.6, BENCH_Y + 5.9, -1.2];
+// Far enough left that the "Oxygen" vertex clears the flame readouts centred over the burner.
+const TRIANGLE_POS = [-5.0, BENCH_Y + 6.1, -1.2];
 
 const SCRATCH_OBJECT = new THREE.Object3D();
 

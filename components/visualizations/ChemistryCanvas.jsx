@@ -204,7 +204,7 @@ export function BohrAtomScene({ params = {} }) {
 
   return (
     <SceneCanvas
-      camera={{ position: [0, 3.2, 10.5], fov: 45 }}
+      camera={{ position: [0, 3.2, 12], fov: 45 }}
       controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed, minDistance: 3.5 }}
       onPointerMissed={() => setFocused(null)}
     >
@@ -237,7 +237,10 @@ export function BohrAtomScene({ params = {} }) {
 // ═══ 7 · Organic chemistry & isomer builder ══════════════════════════
 
 const ATOM_STYLE = {
-  C: { radius: 0.34, color: "#475569" },
+  // Carbon is conventionally dark grey, but slate-600 all but vanished into
+  // the navy canvas; this is the lightest grey that still reads as carbon
+  // beside the bone-white hydrogens.
+  C: { radius: 0.34, color: "#7b8799" },
   H: { radius: 0.2, color: PALETTE.bone },
   O: { radius: 0.32, color: PALETTE.rose },
 };
@@ -817,9 +820,12 @@ export function DistillationScene({ params = {} }) {
   const rising = risingCount(heat);
 
   return (
-    <SceneCanvas camera={{ position: [7, 1.5, 9], fov: 45 }}>
-      {/* Cutaway tower — a partial cylinder, so the trays stay visible. */}
-      <mesh>
+    <SceneCanvas camera={{ position: [8, 1.5, 10.3], fov: 45 }}>
+      {/* Cutaway tower — a partial cylinder, so the trays stay visible. The
+          open wedge is centred on local +Z, so it is turned to face the
+          camera's azimuth; left at 0 the camera sat on the wedge's edge and
+          the column read as half open, half shut. */}
+      <mesh rotation={[0, Math.atan2(8, 10.3), 0]}>
         <cylinderGeometry
           args={[1.75, 1.75, COLUMN_HEIGHT, 48, 1, true, Math.PI * 0.22, Math.PI * 1.56]}
         />
@@ -917,7 +923,7 @@ export function DistillationScene({ params = {} }) {
         <mesh>
           <boxGeometry args={[3.8, 0.85, 3.8]} />
           <meshStandardMaterial
-            color="#2563eb"
+            color="#334155"
             roughness={0.7}
             metalness={0.2}
           />
@@ -1732,7 +1738,7 @@ export function ElectrolysisScene({ params = {}, setParam }) {
   );
 
   return (
-    <SceneCanvas camera={{ position: [0, 3, 10], fov: 45 }}>
+    <SceneCanvas camera={{ position: [0, 3.6, 12.5], fov: 45 }} controls={{ target: [0, 1, 0] }}>
       {/* Wooden Lab Bench Surface Base */}
       <mesh position={[0, -TANK.h / 2 - 0.205, 0]}>
         <boxGeometry args={[TANK.w + 4, 0.4, TANK.d + 3]} />
@@ -1874,10 +1880,12 @@ export function ElectrolysisScene({ params = {}, setParam }) {
 
       {showLabels && (
         <>
-          <SceneLabel position={[-TANK.w / 2 + 1, TANK.h / 2 + 1.5, 0]} tone="text-sky-300">
+          {/* Hung under the tank's front edge: above it, each label sat
+              squarely on the wire rising out of its own electrode. */}
+          <SceneLabel position={[-TANK.w / 2 + 1, -TANK.h / 2 - 0.45, TANK.d / 2]} tone="text-sky-300">
             {`cathode (−) · gains Cu · ${material.cathode}`}
           </SceneLabel>
-          <SceneLabel position={[TANK.w / 2 - 1, TANK.h / 2 + 1.5, 0]} accent>
+          <SceneLabel position={[TANK.w / 2 - 1, -TANK.h / 2 - 0.45, TANK.d / 2]} accent>
             {`anode (+) · ${material.anodeDissolves ? "wastes away" : "unchanged · gives O₂"} · ${material.anode}`}
           </SceneLabel>
         </>

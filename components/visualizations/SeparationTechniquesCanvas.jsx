@@ -675,13 +675,17 @@ function Chromatogram({ modelRef, mixture, solvent, result, animSpeed = 1 }) {
         ))}
       </group>
       {/* The arithmetic. */}
-      <SceneLabel position={[CHART.width / 2 - 0.1, CHART_H + 0.55, 0]} accent>
+      {/* Pulled left of the board's centre: the board is the rightmost thing in the scene and the formula overran the frame. */}
+      <SceneLabel position={[CHART.width / 2 - 1.3, CHART_H + 0.55, 0]} accent>
         {"Rf = d(pigment) ÷ d(solvent front)"}
       </SceneLabel>
       {/* The front's own label rides on the front line; the Rf list stacks beside the top of the board. */}
-      <SceneLabel position={[CHART.width / 2 - 0.1, frontY + 0.16, 0.02]} tone="text-sky-300">
-        {active ? `solvent front ${result.frontMm.toFixed(1)} mm${result.finished ? " · done" : ""}` : "solvent front 0 mm"}
-      </SceneLabel>
+      {/* Only once the front is moving: parked on the baseline it sat on the "0 mm" tick. */}
+      {active && (
+        <SceneLabel position={[CHART.width / 2 - 0.1, frontY + 0.16, 0.02]} tone="text-sky-300">
+          {`solvent front ${result.frontMm.toFixed(1)} mm${result.finished ? " · done" : ""}`}
+        </SceneLabel>
+      )}
       {active &&
         result.spots.map((spot, i) => (
           <SceneLabel key={spot.key} position={[CHART.width + 0.35, CHART_H + 0.1 - i * 0.3, 0]} tone={spot.moves && spot.visible ? "text-ink-200" : "text-ink-500"}>
@@ -723,7 +727,7 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
   })();
 
   return (
-    <SceneCanvas camera={{ position: [-0.8, 3.4, 19.5], fov: 44 }} controls={{ minDistance: 5, maxDistance: 34, target: [-0.8, 0.5, 0] }}>
+    <SceneCanvas camera={{ position: [-0.1, 3.4, 20.5], fov: 44 }} controls={{ minDistance: 5, maxDistance: 34, target: [-0.1, 0.5, 0] }}>
       <StationClock modelRef={modelRef} station={stationKey} mixture={mixKey} solvent={solKey} restartToken={restart} animSpeed={speed} setParam={setParam} />
 
       <LabBench y={BENCH_Y} width={20} depth={7} />
@@ -754,10 +758,10 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
       <SceneLabel position={[STATION_X[stationKey], BENCH_Y + 7.5, 0]} accent>
         {`${STATIONS[stationKey].label} · ${M.label} · ${S.label} · ${STATIONS[stationKey].timeLapse}× time-lapse`}
       </SceneLabel>
-      <SceneLabel position={[STATION_X[stationKey], BENCH_Y + 7.1, 0]} tone="text-ink-300">
+      <SceneLabel position={[STATION_X[stationKey], BENCH_Y + 7.08, 0]} tone="text-ink-300">
         {`${formatSeconds(liveSeconds)} · ${headline}`}
       </SceneLabel>
-      <SceneLabel position={[STATION_X[stationKey], BENCH_Y + 6.75, 0]} tone={result.separates || result.nucleated || result.distinct >= 2 ? "text-emerald-300" : "text-ink-400"}>
+      <SceneLabel position={[STATION_X[stationKey], BENCH_Y + 6.66, 0]} tone={result.separates || result.nucleated || result.distinct >= 2 ? "text-emerald-300" : "text-ink-400"}>
         {result.verdict}
       </SceneLabel>
       {result.station === "crystallization" && result.flammableWarning && (

@@ -104,7 +104,7 @@ export function VesselRack({
                 <meshStandardMaterial
                   color={active ? PALETTE.gold : "#4a4038"}
                   emissive={active ? PALETTE.gold : "#000000"}
-                  emissiveIntensity={active ? 0.5 : 0}
+                  emissiveIntensity={active ? 0.18 : 0}
                   roughness={0.8}
                 />
               </mesh>

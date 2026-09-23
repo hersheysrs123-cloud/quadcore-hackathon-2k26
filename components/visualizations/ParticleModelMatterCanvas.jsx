@@ -413,7 +413,7 @@ function Thermometer({ modelRef, setpointC }) {
         <coneGeometry args={[0.08, 0.16, 3]} />
         <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={1.4} toneMapped={false} />
       </mesh>
-      <SceneLabel position={[0, bottom + height + 0.55, 0]} tone="text-ink-300">sample thermometer</SceneLabel>
+      <SceneLabel position={[0, bottom + height + 0.85, 0]} tone="text-ink-300">sample thermometer</SceneLabel>
     </group>
   );
 }
@@ -607,7 +607,7 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
         <HeatingCurvePanel modelRef={modelRef} substance={substance} pressureAtm={pressureAtm} />
 
         {/* Labels. */}
-        <SceneLabel position={[0, FLOOR_Y + GLASS_HEIGHT + 1.45, 0]} accent>
+        <SceneLabel position={[0, FLOOR_Y + GLASS_HEIGHT + 1.52, 0]} accent>
           {`${sub.label} (${sub.formula}) · ${phaseInfo.label}`}
         </SceneLabel>
         <SceneLabel position={[0, FLOOR_Y + GLASS_HEIGHT + 1.1, 0]} tone={phaseInfo.key === "melting" || phaseInfo.key === "boiling" || phaseInfo.key === "subliming" || phaseInfo.key === "freezing" || phaseInfo.key === "condensing" || phaseInfo.key === "depositing" ? "text-rose-300" : "text-ink-300"}>
@@ -619,7 +619,8 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
         <SceneLabel position={[2.4, FLOOR_Y + GLASS_HEIGHT + 0.55, 1.2]} tone="text-ink-300">
           {`piston · ${pressureAtm.toFixed(1)} atm · ${pistonPct}% of travel`}
         </SceneLabel>
-        <SceneLabel position={[GAUGE_X + 0.55, FLOOR_Y + 0.05, 0.6]} tone="text-ink-400">
+        {/* Under the gauge, not beside it: beside it sat on "0 K" and the thermometer's −100 °C tick. */}
+        <SceneLabel position={[GAUGE_X + 0.3, FLOOR_Y - 0.45, 0.6]} tone="text-ink-400">
           {`${ke.meanKEzJ.toFixed(2)} ×10⁻²¹ J · v_rms ${ke.vRms.toFixed(0)} m/s`}
         </SceneLabel>
       </group>
