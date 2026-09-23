@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -53,8 +53,9 @@ function Nucleus({ protons, neutrons, spin, speed = 1.0 }) {
   const group = useRef(null);
   const total = protons + neutrons;
 
+  const size = total === 1 ? 0.32 : 0.24;
+
   const nucleons = useMemo(() => {
-    const radius = 0.3 * Math.cbrt(total);
     const golden = Math.PI * (3 - Math.sqrt(5));
 
     // Alternate the two colours, then let whichever is left fill the tail.
@@ -70,22 +71,57 @@ function Nucleus({ protons, neutrons, spin, speed = 1.0 }) {
       return false;
     });
 
-    return kinds.map((proton, i) => {
-      if (total === 1) return { position: [0, 0, 0], proton };
+    if (total === 1) return [{ position: [0, 0, 0], proton: kinds[0] }];
+
+    // Seed on a golden-angle spiral through a ball, then pack it. The seed
+    // alone left visible holes — neighbours in index are neighbours in y
+    // only, so spacing ran from overlapping to half a sphere apart. Packing
+    // squeezes everything towards the centre, then pushes overlapping pairs
+    // apart; a few dozen rounds settles into a touching, gap-free cluster.
+    // Deterministic, so the nucleus looks the same every time.
+    const seedRadius = 0.3 * Math.cbrt(total);
+    const pts = kinds.map((_, i) => {
       const y = 1 - (i / (total - 1)) * 2;
       const ring = Math.sqrt(Math.max(0, 1 - y * y));
       const theta = golden * i;
-      const shrink = Math.cbrt((i + 0.5) / total); // solid packing, not a shell
-      return {
-        position: [
-          Math.cos(theta) * ring * radius * shrink,
-          y * radius * shrink,
-          Math.sin(theta) * ring * radius * shrink,
-        ],
-        proton,
-      };
+      const r = seedRadius * Math.cbrt((i + 0.5) / total);
+      return [Math.cos(theta) * ring * r, y * r, Math.sin(theta) * ring * r];
     });
-  }, [protons, neutrons, total]);
+    const contact = size * 2 * 0.94; // a hair of overlap reads as "packed"
+    for (let round = 0; round < 80; round += 1) {
+      for (const p of pts) {
+        p[0] *= 0.96;
+        p[1] *= 0.96;
+        p[2] *= 0.96;
+      }
+      for (let pass = 0; pass < 4; pass += 1) {
+        for (let a = 0; a < total; a += 1) {
+          for (let b = a + 1; b < total; b += 1) {
+            const pa = pts[a];
+            const pb = pts[b];
+            const dx = pb[0] - pa[0];
+            const dy = pb[1] - pa[1];
+            const dz = pb[2] - pa[2];
+            const d = Math.hypot(dx, dy, dz) || 1e-6;
+            if (d >= contact) continue;
+            const push = (contact - d) / (2 * d);
+            pa[0] -= dx * push;
+            pa[1] -= dy * push;
+            pa[2] -= dz * push;
+            pb[0] += dx * push;
+            pb[1] += dy * push;
+            pb[2] += dz * push;
+          }
+        }
+      }
+    }
+    return kinds.map((proton, i) => ({ position: pts[i], proton }));
+  }, [protons, neutrons, total, size]);
+
+  const extent = useMemo(
+    () => nucleons.reduce((m, n) => Math.max(m, Math.hypot(...n.position)), 0) + size,
+    [nucleons, size],
+  );
 
   useFrame((_, delta) => {
     if (spin && group.current) {
@@ -93,8 +129,6 @@ function Nucleus({ protons, neutrons, spin, speed = 1.0 }) {
       group.current.rotation.x += delta * 0.11 * speed;
     }
   });
-
-  const size = total === 1 ? 0.32 : 0.24;
 
   return (
     <group ref={group}>
@@ -107,7 +141,7 @@ function Nucleus({ protons, neutrons, spin, speed = 1.0 }) {
           emissiveIntensity={n.proton ? 0.5 : 0.25}
         />
       ))}
-      <Halo radius={0.3 * Math.cbrt(total) + 0.5} color={ATOM_COLOURS.proton} />
+      <Halo radius={extent + 0.35} color={ATOM_COLOURS.proton} />
     </group>
   );
 }
@@ -191,6 +225,26 @@ function Shell({
   );
 }
 
+/**
+ * Backs the camera off (or in) along its current view line whenever the
+ * outermost shell changes, so a four-shell atom (K, Ca) is not cropped and
+ * the summary label under it stays clear of the viewport hint. Only runs on
+ * a change of shell count, so a user's own zoom survives picking another
+ * element of the same period.
+ */
+function BohrCameraFit({ outerRadius }) {
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    // 12 frames the three-shell atoms (outer radius 4.0) with room for labels.
+    // Each extra unit of radius needs ~4 of distance: the summary label hangs
+    // below the ring and the camera looks down on it, so it runs out first.
+    const distance = Math.max(12, 12 + (outerRadius - 4) * 4);
+    camera.position.setLength(distance);
+    camera.updateProjectionMatrix();
+  }, [camera, outerRadius]);
+  return null;
+}
+
 export function BohrAtomScene({ params = {} }) {
   const { element: symbol = "C", speed = 1.0, showShells = true, showLabels = true, highlightValence = false, spinNucleus = true } =
     params || {};
@@ -208,6 +262,7 @@ export function BohrAtomScene({ params = {} }) {
       controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed, minDistance: 3.5 }}
       onPointerMissed={() => setFocused(null)}
     >
+      <BohrCameraFit outerRadius={shellRadius(outer)} />
       <pointLight position={[0, 0, 0]} color={PALETTE.rose} intensity={12} distance={4} />
       <Nucleus protons={element.protons} neutrons={element.neutrons} spin={spinNucleus} speed={speed} />
 

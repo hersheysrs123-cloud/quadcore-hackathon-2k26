@@ -7575,3 +7575,16 @@ A sweep of all 13 chemistry scenes (screenshots plus a DOM check that measures e
 - Radioactive decay: the label stacks are spaced out, the N₀/8 tag is dropped (its dashed guide stays), and the time-axis title moves down with the chart backing extended to cover it.
 - `ThreeDView.jsx`: dropped `h-full` from `<main>`, so the flex row's stretch sets its height (canvas at 766 px wide: 150 → 493 px).
 - Verified: the overlap check reports 0 collisions and 0 clipped labels on every chemistry scene at 1280×800, with no console errors.
+
+---
+
+## Bohr Atom: Gaps Between Nucleons
+
+### 1. Problem Statement
+The nucleus showed visible holes between protons and neutrons, most obviously for Na and Cl.
+
+### 2. Root Cause
+Nucleons were placed on a golden-angle spiral through a ball (`y` stepping evenly with index, radius scaled by `cbrt((i + 0.5) / total)`). That spreads points evenly in *index*, not in space: neighbours in index are neighbours in height only, so spacing ran from overlapping to about half a sphere's diameter apart.
+
+### 3. Resolution
+The spiral is kept only as a seed. The nucleus is then packed for 80 rounds: each round scales every point 4% towards the centre, then runs four passes pushing apart any pair closer than `2r × 0.94`. The result is a touching, gap-free cluster that is deterministic, so it looks the same every time. The halo now sizes from the packed extent. This came alongside expanding the picker from 4 elements to the first 20 (H–Ca).

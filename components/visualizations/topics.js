@@ -74,6 +74,7 @@ import {
 } from "lucide-react";
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
 import { speedRegime } from "@/lib/orbit";
+import { ELEMENTS } from "@/lib/atomicStructure";
 import {
   ALGORITHM_OPTIONS,
   AQUEOUS_SOLUTION_OPTIONS,
@@ -1586,7 +1587,7 @@ export const TOPICS = [
     category: "chemistry",
     icon: Atom,
     title: "3D Bohr Atom & Orbital Shells",
-    blurb: "Electron shells of hydrogen, carbon, sodium and chlorine",
+    blurb: "Electron shells of the first twenty elements, hydrogen to calcium",
     syllabus: "Chemistry 2.1 · Atomic structure",
     keywords: "bohr atom electron shell configuration valence proton neutron isotope ion nucleus",
     defaults: {
@@ -1602,12 +1603,9 @@ export const TOPICS = [
         type: "choice",
         key: "element",
         label: "Element",
-        options: [
-          { value: "H", label: "H · 1" },
-          { value: "C", label: "C · 6" },
-          { value: "Na", label: "Na · 11" },
-          { value: "Cl", label: "Cl · 17" },
-        ],
+        // H to Ca in atomic-number order, four to a row.
+        options: Object.values(ELEMENTS).map((e) => ({ value: e.symbol, label: `${e.symbol} · ${e.protons}` })),
+        columns: 4,
       },
       // No "speed" slider here: the HUD renders a universal Animation Speed
       // slider bound to the same key, and two sliders on one parameter is one
