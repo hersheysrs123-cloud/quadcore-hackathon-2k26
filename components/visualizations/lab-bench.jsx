@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { PALETTE, clamp, lerp } from "@/components/visualizations/scene-kit";
+import { PALETTE, clamp, hashRandom, lerp } from "@/components/visualizations/scene-kit";
 
 // ─── Lab bench base ─────────────────────────────────────────────────
 // The furniture and materials shared by the apparatus scenes — the
@@ -93,6 +93,81 @@ export function LabBench({ y = 0, width = 18, depth = 7, colour = "#8c9cb3" }) {
         <boxGeometry args={[width + 0.02, 0.16, 0.1]} />
         <meshStandardMaterial color="#6f7d93" roughness={0.7} metalness={0.15} />
       </mesh>
+    </group>
+  );
+}
+
+/** A tile texture for a splashback: white-grey ceramic squares with grout lines. */
+export function useTileTexture(repeat = [4, 2.4]) {
+  const [rx, ry] = repeat;
+  const texture = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const g = canvas.getContext("2d");
+    g.fillStyle = "#8b96a6";
+    g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 4; i += 1) {
+      for (let j = 0; j < 4; j += 1) {
+        const shade = 196 + Math.round(hashRandom(i * 4 + j + 1) * 14);
+        g.fillStyle = `rgb(${shade - 8}, ${shade - 2}, ${shade + 6})`;
+        g.fillRect(i * 64 + 2, j * 64 + 2, 60, 60);
+      }
+    }
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [rx, ry]);
+  useEffect(() => () => texture?.dispose(), [texture]);
+  return texture;
+}
+
+/** Where `LabWall` stands, behind a 7-deep bench. */
+export const LAB_WALL_Z = -3.45;
+
+/**
+ * The tiled wall behind the bench, with two short stainless shelves out to
+ * the sides (so nothing runs behind the apparatus) carrying a few reagent
+ * bottles. `benchY` is the working surface; `shelfX` how far out each shelf
+ * is centred.
+ */
+export function LabWall({ benchY = 0, width = 22, height = 9, shelfX = 5.4, shelfHeight = 5.6, children }) {
+  const tiles = useTileTexture([(4 * width) / 22, (2.4 * height) / 9]);
+  const shelfY = benchY + shelfHeight;
+  const bottles = [-shelfX - 0.9, -shelfX - 0.1, -shelfX + 0.7, shelfX - 0.5, shelfX + 0.4];
+  return (
+    <group>
+      <mesh position={[0, benchY + height / 2, LAB_WALL_Z]}>
+        <planeGeometry args={[width, height]} />
+        <meshStandardMaterial map={tiles ?? undefined} color="#ffffff" roughness={0.6} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * shelfX, shelfY, LAB_WALL_Z + 0.35]}>
+          <boxGeometry args={[3.2, 0.08, 0.7]} />
+          <meshStandardMaterial color="#c8d0da" metalness={0.3} roughness={0.35} />
+        </mesh>
+      ))}
+      {bottles.map((x, i) => (
+        <group key={x} position={[x, shelfY + 0.04, LAB_WALL_Z + 0.35]}>
+          <mesh position={[0, 0.36, 0]}>
+            <cylinderGeometry args={[0.2, 0.2, 0.72, 16]} />
+            <meshStandardMaterial color={["#7a4a1f", "#dfe7ee", "#7a4a1f", "#dfe7ee", "#5b7fa6"][i]} transparent opacity={0.85} roughness={0.2} />
+          </mesh>
+          <mesh position={[0, 0.8, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.16, 12]} />
+            <meshStandardMaterial color="#334155" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 0.38, 0.201]}>
+            <planeGeometry args={[0.26, 0.26]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+          </mesh>
+        </group>
+      ))}
+      {children}
     </group>
   );
 }
@@ -259,6 +334,134 @@ export const BURNER_MOUTH_Y = BURNER.baseHeight + BURNER.barrelHeight;
 /** Full height of the flame envelope at height scale 1. */
 export const FLAME_FULL_HEIGHT = cm(9);
 
+// ─── The flame ──────────────────────────────────────────────────────
+
+const FLAME_ROWS = 26;
+const FLAME_SIDES = 28;
+const FLAME_BLUE_BASE = new THREE.Color("#3f6df2");
+const FLAME_HEART = new THREE.Color("#fff3c4");
+const FLAME_INNER_CONE = new THREE.Color("#3fb4ff");
+const FLAME_LUMINOUS = [
+  // A luminous (collar closed) flame: blue only at the very base, then
+  // glowing soot — white-yellow in the middle, orange and dim at the tip.
+  [0, new THREE.Color("#3f6df2")],
+  [0.1, new THREE.Color("#6d7cf0")],
+  [0.22, new THREE.Color("#ffd46b")],
+  [0.55, new THREE.Color("#ffc247")],
+  [0.82, new THREE.Color("#f58a2e")],
+  [1, new THREE.Color("#c2410c")],
+];
+const FLAME_BLUE = [
+  // A roaring (collar open) flame: a pale violet-blue envelope, no soot.
+  [0, new THREE.Color("#5b8cff")],
+  [0.5, new THREE.Color("#4f7df5")],
+  [1, new THREE.Color("#7c6cf2")],
+];
+const rampAt = (ramp, u, out) => {
+  for (let i = 1; i < ramp.length; i += 1) {
+    if (u <= ramp[i][0]) {
+      const [u0, c0] = ramp[i - 1];
+      const [u1, c1] = ramp[i];
+      return out.copy(c0).lerp(c1, (u - u0) / Math.max(u1 - u0, 1e-6));
+    }
+  }
+  return out.copy(ramp[ramp.length - 1][1]);
+};
+
+/** A unit-height lathe shell with a colour attribute carrying alpha, rewritten per frame. */
+function flameShellGeometry() {
+  const cols = FLAME_SIDES + 1;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(FLAME_ROWS * cols * 3), 3));
+  g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(FLAME_ROWS * cols * 4), 4));
+  const index = [];
+  for (let i = 0; i < FLAME_ROWS - 1; i += 1) {
+    for (let j = 0; j < FLAME_SIDES; j += 1) {
+      const a = i * cols + j;
+      const b = a + cols;
+      index.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  }
+  g.setIndex(index);
+  return g;
+}
+
+/**
+ * The flame's radius at fraction `u` of its height, as a fraction of the
+ * mouth radius. A lazy luminous flame is a teardrop that bellies out above
+ * the mouth; a stiff roaring one is a narrow cone.
+ */
+const flameRadius = (u, roar) => {
+  const lazy = (1 + 0.55 * Math.sin(Math.PI * u * 0.9)) * Math.pow(1 - u, 0.6);
+  const stiff = (1 + 0.22 * Math.sin(Math.PI * u)) * Math.pow(1 - u, 0.85);
+  return lerp(lazy, stiff, roar);
+};
+
+/**
+ * Writes one flame shell: `height` and `radius` in scene units, a sway that
+ * travels up the flame (a lazy flame licks about; a roaring one only
+ * shivers), and colours graded up the height with alpha fading at the base
+ * and tip. `colourAt(u, out)` returns the colour at fraction u.
+ */
+function shapeFlameShell(geometry, { height, radius, roar, t, alpha, colourAt, seed = 0, cone = 0 }) {
+  const pos = geometry.attributes.position.array;
+  const col = geometry.attributes.color.array;
+  const cols = FLAME_SIDES + 1;
+  const colour = SCRATCH_COLOUR;
+  const sway = (1 - roar) * 0.16 + 0.02;
+  for (let i = 0; i < FLAME_ROWS; i += 1) {
+    const u = i / (FLAME_ROWS - 1);
+    // The travelling wave: nothing at the mouth, most at the tip.
+    const wave = u * u;
+    const dx = sway * height * wave * (Math.sin(t * 3.3 - u * 5 + seed) * 0.7 + Math.sin(t * 7.9 - u * 9 + seed * 2) * 0.3);
+    const dz = sway * height * wave * 0.6 * Math.sin(t * 2.7 - u * 4.4 + seed * 3);
+    const breathe = 1 + (1 - roar) * 0.08 * Math.sin(t * 6.1 - u * 7 + seed) + roar * 0.03 * Math.sin(t * 31 + u * 13);
+    // `cone` straightens the profile into a sharp cone (the inner cone of premix).
+    const r = radius * lerp(flameRadius(u, roar), 1 - u, cone) * breathe;
+    colourAt(u, colour);
+    // Fade in over the first few rows (the mouth) and out over the tip.
+    const a = alpha * clamp(u / 0.06, 0.35, 1) * clamp((1 - u) / 0.25, 0, 1);
+    for (let j = 0; j < cols; j += 1) {
+      const phi = (j / FLAME_SIDES) * Math.PI * 2;
+      const k = i * cols + j;
+      pos[k * 3] = Math.sin(phi) * r + dx;
+      pos[k * 3 + 1] = u * height;
+      pos[k * 3 + 2] = Math.cos(phi) * r + dz;
+      col[k * 4] = colour.r;
+      col[k * 4 + 1] = colour.g;
+      col[k * 4 + 2] = colour.b;
+      col[k * 4 + 3] = a;
+    }
+  }
+  geometry.attributes.position.needsUpdate = true;
+  geometry.attributes.color.needsUpdate = true;
+  geometry.computeBoundingSphere();
+}
+const SCRATCH_COLOUR = new THREE.Color();
+
+/** A soft white radial dot: the flame's glow, and a puff of smoke or steam when tinted. */
+export function useGlowTexture() {
+  const texture = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const g = canvas.getContext("2d");
+    const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, "rgba(255,255,255,0.9)");
+    grad.addColorStop(0.25, "rgba(255,255,255,0.35)");
+    grad.addColorStop(0.6, "rgba(255,255,255,0.08)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  useEffect(() => () => texture?.dispose(), [texture]);
+  return texture;
+}
+
 /**
  * A Bunsen burner. `collar` is 0..1 open; the sleeve turns so that at 1
  * its holes line up with the barrel's and at 0 they sit between them —
@@ -277,8 +480,18 @@ export function BunsenBurner({ position = [0, 0, 0], collar = 0.2, flameRef, ani
   const inner = useRef(null);
   const glow = useRef(null);
   const light = useRef(null);
-  const shown = useRef({ height: 0, inner: 0, colour: new THREE.Color("#f5b731") });
-  const scratch = useMemo(() => new THREE.Color(), []);
+  const shown = useRef({ height: 0, inner: 0, luminous: 1, roar: 0, colour: new THREE.Color("#f5b731") });
+  const scratch = useMemo(() => ({ colour: new THREE.Color(), a: new THREE.Color(), b: new THREE.Color() }), []);
+  const outerGeo = useMemo(() => flameShellGeometry(), []);
+  const innerGeo = useMemo(() => flameShellGeometry(), []);
+  useEffect(
+    () => () => {
+      outerGeo.dispose();
+      innerGeo.dispose();
+    },
+    [outerGeo, innerGeo],
+  );
+  const glowTexture = useGlowTexture();
   const open = clamp(collar, 0, 1);
 
   useFrame((state, delta) => {
@@ -289,47 +502,64 @@ export function BunsenBurner({ position = [0, 0, 0], collar = 0.2, flameRef, ani
     const wantHeight = f?.height ?? 0;
     s.height += (wantHeight - s.height) * k;
     s.inner += ((f?.inner ?? 0) * (wantHeight > 0.02 ? 1 : 0) - s.inner) * k;
+    s.luminous += ((f?.luminous ?? 1) - s.luminous) * k;
+    s.roar += ((f?.roar ?? 0) - s.roar) * k;
     if (f?.colour) {
-      scratch.set(f.colour);
-      s.colour.lerp(scratch, k);
+      scratch.colour.set(f.colour);
+      s.colour.lerp(scratch.colour, k);
     }
-    const roar = f?.roar ?? 0;
-    const luminous = f?.luminous ?? 1;
+    const { roar, luminous } = s;
     const t = state.clock.elapsedTime * animSpeed;
     // A lazy yellow flame wanders; a roaring blue one shivers.
     const lazy = 1 + 0.09 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 8.3 + 1.1);
     const stiff = 1 + 0.025 * Math.sin(t * 27.3) + 0.015 * Math.sin(t * 41.7 + 0.7);
-    const flicker = lerp(lazy, stiff, roar);
-    const h = s.height * FLAME_FULL_HEIGHT * flicker;
-    const lean = (1 - roar) * 0.06 * Math.sin(t * 3.7);
+    const h = s.height * FLAME_FULL_HEIGHT * lerp(lazy, stiff, roar);
+    const lit = h > 0.01;
+    // A luminous flame is wider than the mouth; a pre-mixed one hugs it.
+    const radius = BURNER.barrelRadius * lerp(1.45, 1.15, roar);
 
     if (outer.current) {
-      outer.current.visible = h > 0.01;
-      outer.current.scale.set(1 + (1 - roar) * 0.25, h, 1 + (1 - roar) * 0.25);
-      outer.current.position.set(lean * h, BURNER_MOUTH_Y + h / 2, 0);
-      outer.current.rotation.z = lean;
-      const mat = outer.current.material;
-      mat.color.copy(s.colour);
-      mat.emissive.copy(s.colour);
-      mat.emissiveIntensity = 1.6 + 1.2 * luminous;
-      mat.opacity = 0.42 + 0.4 * luminous;
+      outer.current.visible = lit;
+      if (lit) {
+        shapeFlameShell(outerGeo, {
+          height: h,
+          radius,
+          roar,
+          t,
+          // Glowing soot makes a luminous flame bright and nearly opaque; a
+          // roaring one is a faint blue you can see the bench through.
+          alpha: lerp(0.3, 0.92, luminous),
+          colourAt: (u, out) => rampAt(FLAME_BLUE, u, out).lerp(rampAt(FLAME_LUMINOUS, u, scratch.b), luminous),
+        });
+      }
     }
     if (inner.current) {
-      const ih = h * 0.42 * s.inner;
-      inner.current.visible = ih > 0.01;
-      inner.current.scale.set(1, ih, 1);
-      inner.current.position.set(0, BURNER_MOUTH_Y + ih / 2, 0);
-      inner.current.material.opacity = 0.85 * s.inner;
+      // The core: a white-hot heart inside a luminous flame, and the sharp
+      // pale-blue inner cone of unburnt premix once the collar is open.
+      const coneH = h * lerp(0.62, 0.4, s.inner);
+      inner.current.visible = lit && (s.inner > 0.02 || luminous > 0.15);
+      if (inner.current.visible) {
+        shapeFlameShell(innerGeo, {
+          height: coneH,
+          radius: radius * lerp(0.55, 0.62, s.inner),
+          roar: Math.max(roar, s.inner),
+          t,
+          seed: 1.7,
+          cone: s.inner,
+          alpha: Math.max(0.55 * luminous, 0.5 * s.inner),
+          colourAt: (u, out) => out.copy(u < 0.08 ? FLAME_BLUE_BASE : FLAME_HEART).lerp(FLAME_INNER_CONE, s.inner),
+        });
+      }
     }
     if (glow.current) {
-      glow.current.visible = h > 0.01;
+      glow.current.visible = lit;
       glow.current.position.y = BURNER_MOUTH_Y + h * 0.45;
-      glow.current.scale.setScalar(0.4 + h * 0.35);
+      glow.current.scale.set(0.5 + h * 1.1, 0.6 + h * 1.5, 1);
       glow.current.material.color.copy(s.colour);
-      glow.current.material.opacity = 0.05 + 0.07 * luminous * s.height;
+      glow.current.material.opacity = (0.12 + 0.4 * luminous) * Math.min(1, s.height * 1.5);
     }
     if (light.current) {
-      light.current.intensity = s.height * (4 + 3 * luminous);
+      light.current.intensity = s.height * (4 + 3 * luminous) * lerp(0.92, 1.08, Math.sin(t * 9.3) * 0.5 + 0.5);
       light.current.color.copy(s.colour);
       light.current.position.y = BURNER_MOUTH_Y + h * 0.5;
     }
@@ -418,19 +648,18 @@ export function BunsenBurner({ position = [0, 0, 0], collar = 0.2, flameRef, ani
         <meshStandardMaterial {...DARK_STEEL} />
       </mesh>
 
-      {/* Flame envelope, inner cone and glow: unit-height cones scaled each frame. */}
-      <mesh ref={outer} position={[0, BURNER_MOUTH_Y, 0]} visible={false}>
-        <coneGeometry args={[BURNER.barrelRadius * 1.5, 1, 18, 1]} />
-        <meshStandardMaterial color="#f5b731" emissive="#f5b731" emissiveIntensity={2.4} toneMapped={false} transparent opacity={0.75} depthWrite={false} />
+      {/* The flame: an envelope and a core, each one shell rebuilt every
+          frame, self-lit and graded in colour and alpha up its height; and
+          a soft additive glow around it. */}
+      <mesh ref={outer} geometry={outerGeo} position={[0, BURNER_MOUTH_Y + 0.005, 0]} visible={false} renderOrder={2}>
+        <meshBasicMaterial vertexColors transparent depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
       </mesh>
-      <mesh ref={inner} position={[0, BURNER_MOUTH_Y, 0]} visible={false}>
-        <coneGeometry args={[BURNER.barrelRadius * 0.85, 1, 14, 1]} />
-        <meshStandardMaterial color="#7dd3fc" emissive="#7dd3fc" emissiveIntensity={3} toneMapped={false} transparent opacity={0.85} depthWrite={false} />
+      <mesh ref={inner} geometry={innerGeo} position={[0, BURNER_MOUTH_Y + 0.005, 0]} visible={false} renderOrder={3}>
+        <meshBasicMaterial vertexColors transparent depthWrite={false} side={THREE.DoubleSide} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      <mesh ref={glow} position={[0, BURNER_MOUTH_Y, 0]} visible={false}>
-        <sphereGeometry args={[1, 18, 18]} />
-        <meshBasicMaterial color="#f5b731" transparent opacity={0.08} depthWrite={false} />
-      </mesh>
+      <sprite ref={glow} position={[0, BURNER_MOUTH_Y, 0]} visible={false} renderOrder={1}>
+        <spriteMaterial map={glowTexture ?? undefined} color="#f5b731" transparent opacity={0.2} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </sprite>
       <pointLight ref={light} position={[0, BURNER_MOUTH_Y + 0.6, 0]} intensity={0} distance={10} decay={2} />
     </group>
   );

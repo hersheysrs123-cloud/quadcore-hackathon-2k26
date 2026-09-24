@@ -25,6 +25,7 @@ import {
   GlassJar,
   HeatMat,
   LabBench,
+  LabWall,
   PAPER,
   RetortStand,
   STEEL,
@@ -969,72 +970,6 @@ function FitCamera({ station }) {
   return null;
 }
 
-/** A tile texture for the splashback: white-grey ceramic squares with grout lines. */
-function useTileTexture() {
-  const texture = useMemo(() => {
-    if (typeof document === "undefined") return null;
-    const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 256;
-    const g = canvas.getContext("2d");
-    g.fillStyle = "#8b96a6";
-    g.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 4; i += 1) {
-      for (let j = 0; j < 4; j += 1) {
-        const shade = 196 + Math.round(hashRandom(i * 4 + j + 1) * 14);
-        g.fillStyle = `rgb(${shade - 8}, ${shade - 2}, ${shade + 6})`;
-        g.fillRect(i * 64 + 2, j * 64 + 2, 60, 60);
-      }
-    }
-    const t = new THREE.CanvasTexture(canvas);
-    t.wrapS = THREE.RepeatWrapping;
-    t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(4, 2.4);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  }, []);
-  useEffect(() => () => texture?.dispose(), [texture]);
-  return texture;
-}
-
-/** The tiled wall behind the bench, with a stainless shelf carrying a few bottles. */
-function LabWall() {
-  const tiles = useTileTexture();
-  const WALL_Z = -3.45;
-  const shelfY = BENCH_Y + 5.6;
-  return (
-    <group>
-      <mesh position={[0, BENCH_Y + 4.5, WALL_Z]}>
-        <planeGeometry args={[22, 9]} />
-        <meshStandardMaterial map={tiles ?? undefined} color="#ffffff" roughness={0.6} />
-      </mesh>
-      {/* Two short shelves out to the sides, so nothing runs behind the apparatus. */}
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * 5.4, shelfY, WALL_Z + 0.35]}>
-          <boxGeometry args={[3.2, 0.08, 0.7]} />
-          <meshStandardMaterial color="#c8d0da" metalness={0.3} roughness={0.35} />
-        </mesh>
-      ))}
-      {[-6.3, -5.5, -4.7, 4.9, 5.8].map((x, i) => (
-        <group key={x} position={[x, shelfY + 0.04, WALL_Z + 0.35]}>
-          <mesh position={[0, 0.36, 0]}>
-            <cylinderGeometry args={[0.2, 0.2, 0.72, 16]} />
-            <meshStandardMaterial color={["#7a4a1f", "#dfe7ee", "#7a4a1f", "#dfe7ee", "#5b7fa6"][i]} transparent opacity={0.85} roughness={0.2} />
-          </mesh>
-          <mesh position={[0, 0.8, 0]}>
-            <cylinderGeometry args={[0.1, 0.1, 0.16, 12]} />
-            <meshStandardMaterial color="#334155" roughness={0.6} />
-          </mesh>
-          <mesh position={[0, 0.38, 0.201]}>
-            <planeGeometry args={[0.26, 0.26]} />
-            <meshStandardMaterial color="#f8fafc" roughness={0.8} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-}
-
 /** A label texture with the sample's name, for the reagent bottle. */
 function useLabelTexture(text) {
   const texture = useMemo(() => {
@@ -1177,7 +1112,7 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
       <FitCamera station={stationKey} />
       <StationClock modelRef={modelRef} station={stationKey} mixture={mixKey} solvent={solKey} restartToken={restart} animSpeed={speed} setParam={setParam} />
 
-      <LabWall />
+      <LabWall benchY={BENCH_Y} />
       <LabBench y={BENCH_Y} width={14} depth={7} colour="#a9b6c8" />
       <SampleBottle position={BOTTLE_AT[stationKey]} mixture={mixKey} solvent={solKey} />
 

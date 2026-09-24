@@ -7827,3 +7827,30 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - `POUR_S` is now 60 model seconds.
   - A sample of insoluble solids now reads "separates — chalk on the paper, clear water in the flask".
   - Added `stationFit` (right, partly or wrong, and where to go instead), shown as a badge above the station and as the first row of the Details panel.
+
+## Combustion studio: flat flame, off-frame camera, colliding labels, "heat ✗" while relighting, a basin through the stand
+
+- **Problem:**
+  - The flame was a single flat cone with a grey sphere around it, which read as a disc.
+  - The fixed camera cut off the bench and the basin in a narrow window, and the scene floated in a dark void.
+  - The live equation label sat on top of the fire triangle's "Oxygen" label, and the thermocouple and basin labels overlapped.
+  - While a relight waited for the bell jar to clear, the triangle showed **Heat ✗**.
+  - The cold basin slid in a straight line from the bench to the flame, through the thermocouple stand's rod and into the probe's clamp.
+  - Shown "underside-out", the basin leant forward and displayed its clean inside instead of the soot.
+- **Root cause:**
+  - The heat side was computed from the heat reserve, which cools while the flame is out. During a relight the flame is out but the striker is right there.
+  - The basin's position relaxed along one straight line.
+  - Its tilt had the wrong sign.
+- **Fix:**
+  - The flame is now two lathe shells rebuilt every frame (envelope and core), with a sway that travels up the flame and colour and alpha graded up the height, plus an additive glow sprite. This lives in `lab-bench.jsx`, so the separation studio's burner has it too.
+  - `FitCamera` frames `VIEW` at any aspect.
+  - `LabWall` moved to `lab-bench.jsx` and is shared.
+  - The triangle is now a wall poster, and the readouts stand beside the jar.
+  - `triangleStatus` treats heat as missing only when the mist removed it (`lit || extinguishedBy !== "heat"`), with a test.
+  - The basin rises first and travels in front of the stand, and the probe swings back toward the wall while the basin is held.
+  - The basin leans back on an easel, so its underside faces the camera.
+  - Soot specks are smaller.
+  - The bell jar's O₂ reads to two decimals, so 15.99% no longer rounds to "16.0%".
+- **Basin clashing with the meter; soot like a plate (follow-up):**
+  - The parked basin (rim radius 1.55) overlapped the thermocouple meter and the spray bottle. The meter now sits behind the stand's base, the basin rests further right, the bottle stands in front, and the framing is widened to match.
+  - The soot was a flat black disc stuck under the bowl. It is now a lathe shell a hair outside the basin's curved outer surface, covering the foot ring and the centre. It carries a seamless canvas texture: dense at the bottom, with a soft, wandering, blotchy edge made from low harmonics (per-column noise had drawn a spiky starburst).

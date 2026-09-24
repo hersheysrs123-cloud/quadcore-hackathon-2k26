@@ -2351,6 +2351,7 @@ export const TOPICS = [
       holdBasin: 0,
       relight: 0,
       speed: 1,
+      showLabels: true,
     },
     controls: [
       {
@@ -2367,6 +2368,7 @@ export const TOPICS = [
       { type: "action", key: "waterMist", label: "Fire triangle · spray water mist (remove heat)", icon: SprayCan, variant: "danger" },
       { type: "action", key: "holdBasin", label: "Hold a cold evaporating basin over the flame", icon: Flame, variant: "primary" },
       { type: "action", key: "relight", label: "Relight the burner & reset the apparatus", icon: RotateCcw, variant: "ghost" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "A flame needs three things at once — a fuel, oxygen, and enough heat to keep the reaction going — and the fire triangle is the reminder that removing any one of them puts it out. Close the gas tap and there is nothing left to burn; lower a bell jar and the flame uses up the oxygen inside until the air is too lean (below about 16% O₂ a methane flame cannot survive); spray a fine water mist and the water's evaporation carries heat away faster than the flame can supply it, dropping the fuel–air mixture below its ignition temperature. Each interrupter targets one side, which is the basis of every method of firefighting: turning off the supply, smothering with a blanket or foam, and cooling with water.",
