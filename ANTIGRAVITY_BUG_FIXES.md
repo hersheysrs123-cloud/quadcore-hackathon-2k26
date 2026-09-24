@@ -7854,3 +7854,21 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
 - **Basin clashing with the meter; soot like a plate (follow-up):**
   - The parked basin (rim radius 1.55) overlapped the thermocouple meter and the spray bottle. The meter now sits behind the stand's base, the basin rests further right, the bottle stands in front, and the framing is widened to match.
   - The soot was a flat black disc stuck under the bowl. It is now a lathe shell a hair outside the basin's curved outer surface, covering the foot ring and the centre. It carries a seamless canvas texture: dense at the bottom, with a soft, wandering, blotchy edge made from low harmonics (per-column noise had drawn a spiky starburst).
+
+## Particle model: z-fighting at the base, a camera left mid-orbit, labels over everything
+
+- **Problem:**
+  - The base flickered.
+  - The camera opened at an odd angle and cut the scene off.
+  - About 20 labels overlapped: the thermometer's ticks sat over the glass column, and the piston readout sat on the title.
+- **Root cause:**
+  - The hotplate box ran from −0.48 to 0, sunk into the bench, so its top face was coplanar with the bench top.
+  - The glowing plate face was a plane 0.005 inside the box, so it was hidden.
+  - The glass walls were a closed box whose floor and ceiling faces were coplanar with the base slab's top and the cap's underside.
+- **Fix:**
+  - The hotplate stands on the bench (`PLATE_TOP` = 0.5). Its top slab, face and heating rings are stacked 0.02–0.046 apart, and the rings are flat annuli with a polygon offset.
+  - The column's base sits on the face (`COLUMN_BASE_Y`).
+  - The walls are an open-ended square tube.
+  - `FitCamera` frames `VIEW`.
+  - The thermometer's ticks moved to its left, the KE gauge moved further out, the piston readout now sits beside the column top, and the chart was lifted clear of the bench.
+  - Added a `showLabels` toggle.

@@ -2444,6 +2444,7 @@ export const TOPICS = [
       pressure: 1,
       substance: "water",
       speed: 1,
+      showLabels: true,
     },
     controls: [
       {
@@ -2465,6 +2466,7 @@ export const TOPICS = [
         format: (v) => `${Number(v).toFixed(1)} atm`,
       },
       { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3 },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Everything is made of particles that are always moving, and temperature is a measure of how fast — the average kinetic energy of a particle is proportional to the absolute temperature (³⁄₂ kT). In a solid the particles have only enough energy to vibrate about fixed positions in a regular lattice; in a liquid they have enough to slide past one another but not to escape each other's attraction, so they stay touching; in a gas they have broken free entirely and fly in straight lines between collisions, filling whatever space the piston leaves them. Heating a gas makes its particles hit the walls harder and more often, which is pressure; pushing the piston down squeezes the same particles into less room, which is also pressure.",
