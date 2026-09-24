@@ -36,8 +36,9 @@ export function Bench({ y = 0, width = 16, depth = 6, colour = "#8c9cb3" }) {
         <boxGeometry args={[width, 0.32, depth]} />
         <meshStandardMaterial color={colour} roughness={0.75} metalness={0.2} />
       </mesh>
-      <mesh position={[0, -0.34, -depth / 2 + 0.1]}>
-        <boxGeometry args={[width, 0.1, 0.2]} />
+      {/* Proud of the slab's back and ends, so no face is shared with it. */}
+      <mesh position={[0, -0.34, -depth / 2 + 0.09]}>
+        <boxGeometry args={[width + 0.02, 0.1, 0.2]} />
         <meshStandardMaterial color="#5b6472" roughness={0.7} />
       </mesh>
     </group>
@@ -62,6 +63,7 @@ export function VesselRack({
   labels = [],
   focus = -1,
   colour = "#6b5a46",
+  showLabels = true,
   children,
 }) {
   const width = spacing * count + 1.2;
@@ -104,7 +106,7 @@ export function VesselRack({
                 <meshStandardMaterial
                   color={active ? PALETTE.gold : "#4a4038"}
                   emissive={active ? PALETTE.gold : "#000000"}
-                  emissiveIntensity={active ? 0.5 : 0}
+                  emissiveIntensity={active ? 0.18 : 0}
                   roughness={0.8}
                 />
               </mesh>
@@ -113,9 +115,11 @@ export function VesselRack({
               <boxGeometry args={[0.6, 0.02, 0.36]} />
               <meshStandardMaterial color={active ? PALETTE.gold : "#e8ebf0"} roughness={0.6} />
             </mesh>
+            {showLabels && (
             <SceneLabel position={[0, 0.3, holderRadius + 0.5]} tone={active ? "text-duck-300" : "text-ink-300"} accent={active}>
               {labels[i] ?? `${i + 1}`}
             </SceneLabel>
+            )}
           </group>
         );
       })}

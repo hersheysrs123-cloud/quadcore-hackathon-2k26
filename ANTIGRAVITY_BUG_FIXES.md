@@ -7543,3 +7543,358 @@ A systematic line-by-line audit across all 22+ interactive 3D visualization canv
 
 
 
+
+---
+
+## Chemistry 3D Scenes: Label Collisions, Framing & Rendering Pass
+
+### 1. Problem Statement
+A sweep of all 13 chemistry scenes (screenshots plus a DOM check that measures every drei `<Html>` label's box against every other label, the viewport hint and the canvas edge, run at 1920×1080 and 1280×800) found:
+- **Distillation**: the column read as half open, half shut; the base was a saturated `#2563eb` block.
+- **Bohr**: the `Na · 2,8,1` summary sat on the "drag to orbit" hint.
+- **Electrolysis**: the DC supply box and its readout were cut off at the top; both half-equation labels sat on the wires rising from the electrodes.
+- **Organic**: carbon (`#475569`) nearly vanished against the navy canvas.
+- **Separation**: the chromatography board and its `Rf = …` formula ran off the right edge; "solvent front 0 mm" sat on the "0 mm" tick.
+- **Combustion**: the fire triangle's "Oxygen" vertex collided with the flame readouts.
+- **Particle model**: the KE readout sat on "0 K" and "−100 °C"; "sample thermometer" touched "mean KE".
+- **Radioactive decay**: equation/conservation lines, the two stats rows, the "− plate" tag and the plate note, N₀/4 and N₀/8, and the t½ ticks and the time-axis title all overlapped.
+- **Reactivity / Rusting**: the focused rack pad glowed so bright that the label on it was hard to read.
+- **All subjects, below the `lg` breakpoint**: the canvas collapsed to its 150 px default height.
+
+### 2. Root Cause
+- The distillation cutaway's missing wedge is centred on local +Z, but the camera sits at azimuth `atan2(7, 9)` ≈ 38°, right on the wedge's edge.
+- Most label clashes are fixed world offsets (0.3–0.35 units) that are too small once the canvas is laptop-sized; the framing issues are cameras or targets that didn't include the scene's outermost objects.
+- `<main className="h-full">` in `ThreeDView.jsx`: below `lg` the parent's height is not definite, so `100%` resolves to `auto` and overrides the flex stretch.
+
+### 3. Resolution
+- Distillation: the cutaway is rotated by `Math.atan2(8, 10.3)` to face the camera (moved to `[8, 1.5, 10.3]`), and the base is slate `#334155`.
+- Bohr camera z 10.5 → 12. Electrolysis camera `[0, 3.6, 12.5]` with target `[0, 1, 0]`; half-equations hung under the tank's front edge.
+- Carbon `#7b8799`. Focused `VesselRack` pad emissive 0.5 → 0.18.
+- Separation camera centred on the three stations (`x = −0.1`, z 20.5); the Rf formula is pulled 1.2 units left; the solvent-front label is shown only once the front moves; the station readout stack is spaced wider.
+- Combustion `TRIANGLE_POS` → `[−5.0, BENCH_Y + 6.1, −1.2]`. Particle model: the KE readout moves under its gauge, and the thermometer and title labels move up.
+- Radioactive decay: the label stacks are spaced out, the N₀/8 tag is dropped (its dashed guide stays), and the time-axis title moves down with the chart backing extended to cover it.
+- `ThreeDView.jsx`: dropped `h-full` from `<main>`, so the flex row's stretch sets its height (canvas at 766 px wide: 150 → 493 px).
+- Verified: the overlap check reports 0 collisions and 0 clipped labels on every chemistry scene at 1280×800, with no console errors.
+
+---
+
+## Bohr Atom: Gaps Between Nucleons
+
+### 1. Problem Statement
+The nucleus showed visible holes between protons and neutrons, most obviously for Na and Cl.
+
+### 2. Root Cause
+Nucleons were placed on a golden-angle spiral through a ball (`y` stepping evenly with index, radius scaled by `cbrt((i + 0.5) / total)`). That spreads points evenly in *index*, not in space: neighbours in index are neighbours in height only, so spacing ran from overlapping to about half a sphere's diameter apart.
+
+### 3. Resolution
+The spiral is kept only as a seed. The nucleus is then packed for 80 rounds: each round scales every point 4% towards the centre, then runs four passes pushing apart any pair closer than `2r × 0.94`. The result is a touching, gap-free cluster that is deterministic, so it looks the same every time. The halo now sizes from the packed extent. This came alongside expanding the picker from 4 elements to the first 20 (H–Ca).
+
+---
+
+## Organic Builder: Cracked Products Drawn Inside Each Other
+
+### 1. Problem Statement
+After "Trigger cracking", the two products (for example methane and ethene from propane) often sat inside one another, and a long alkane's product overlapped its ethene at every angle. The product labels were fixed in space rather than attached to their molecules, and the ethene label ran off the canvas.
+
+### 2. Root Cause
+- The products were children of the spinning parent group and slid apart along its local x-axis. As the group turned, that axis swung towards the camera, so the products separated in depth rather than across the screen.
+- The separation was a fixed ±2.4 units whatever the product sizes. Octane, from cracking decane, is about 5 units in spin radius on its own.
+
+### 3. Resolution
+- The products now live outside the spinning group. Each spins about its own centre, and `crackLayout` spaces their centres by their swept radii plus a gap, so they cannot touch at any angle.
+- Each product carries its own label, and the bromine-water note has its own line.
+- `CameraDolly` eases the camera to fit the cracked pair, adding the swept depth.
+- The crack button shows only for alkanes.
+
+---
+
+## Fractional Distillation: Visual Rebuild and Dome Cutaway Misalignment
+
+### 1. Problem Statement
+The distillation scene was dark and flat. It had a teal translucent cylinder, a pink box for a furnace, stub pipes that led nowhere, and a single floating line standing in for the temperature gradient. Once the column was redrawn with a cutaway dome, the dome's open wedge also pointed the wrong way.
+
+### 2. Root Cause
+- The look came from a dark palette (slate at high metalness, which renders near-black with nothing bright to reflect) and from no geometry that showed the mechanism.
+- The dome bug: `SphereGeometry` measures `phi` from −x (x = −r·cos φ·sin θ), while `CylinderGeometry` measures `theta` from +z (x = r·sin θ). The same start angle therefore opens the two shapes 90° apart.
+
+### 3. Resolution
+The scene is rebuilt in light steel (low metalness) with the science unchanged in `lib/distillation.js`:
+- a vertex-coloured gradient liner;
+- bubble-cap trays that pool their fraction;
+- receivers that fill;
+- a per-tray temperature scale;
+- a pipe-still furnace.
+
+The dome uses `thetaStart + π/2`, and the cutaway widens to 0.72π.
+
+---
+
+## Distillation Furnace: Coil Through the Casing, Z-Fighting and Gaps
+
+### 1. Problem Statement
+Orange discs showed on the outside of the furnace's side walls. The roof, ribs and front frame flickered (z-fighting). The crude tank's roof floated above its shell, and the feed pipe's bends were open.
+
+### 2. Root Cause
+- **Coil through the casing:** each U-bend reaches one bend radius plus the tube radius (about 0.19) past its straight run. The runs ended 0.22 inside the outer skin, but the 0.08 wall put the inner face 0.08 further in, so the bends passed through the wall.
+- **Z-fighting:** several boxes shared exact faces. The roof top met the rib tops and the convection section's bottom; the side walls met the roof.
+- **Tank gap:** the tank's dome sat 0.08 above the shell rim.
+- **Open bends:** the pipe runs met at their cut ends with no elbow.
+
+### 3. Resolution
+- The coil runs now end at `w/2 − wall − bendReach − 0.04`.
+- The slabs overhang the walls, while the walls, posts and ribs stop between the slabs. The convection section sits 0.004 up.
+- The dome sits on the rim.
+- Elbows and an entry flange close the feed line.
+- The sight ports now have a bolted bezel and sit clear of the transfer line.
+
+---
+
+## Crystal Lattices: Quartz, Ice, Diamond and Graphite Geometry
+
+### 1. Problem Statement
+The lattices were measured numerically, not eyeballed, and four of them were wrong.
+- **Quartz:** Si–O–Si came out at 89° against a real 144°. O–Si–O ranged from 49° to 169° where it should be about 109.5°, which wrecked the tetrahedra. Some silicons carried only one or two oxygens.
+- **Ice:** the six-rings were flat at 120° instead of puckered. The middle-layer oxygens had six neighbours instead of four, the O···O distances were unequal, and every O···O link carried two hydrogens.
+- **Diamond:** 10 of 64 carbons hung off a single bond, and only 27 showed all four bonds.
+- **Graphite:** the sheets were stacked AA instead of ABAB.
+
+### 2. Root Cause
+- **Quartz:** the model was a diamond net with an oxygen pushed off each bond's midpoint by 0.22 of the cell, in a direction that alternated with the bond index. That is not quartz, and the push was about four times too large.
+- **Ice:** three flat hexagons were stacked with alternate 30° twists. Each oxygen donated to its two nearest neighbours, so the two ends of every ring edge both donated to each other.
+- **Diamond:** the fragment was a 2 × 2 × 2 cube with no pruning.
+- **Graphite:** every sheet used the same grid.
+
+### 3. Resolution
+The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geometry.test.mjs`.
+- **Quartz:** built from the real α-quartz Wyckoff sites (P3₂21).
+- **Ice:** built as Ih on the wurtzite net, with hydrogens placed by the ice rules using Euler-circuit orientation.
+- **Diamond:** cut as a ball and pruned, so no atom hangs off one bond.
+- **Graphite:** the middle sheet is shifted one bond length along, giving ABAB stacking. The interlayer lines used to be re-picked on every slide as "the horizontally nearest carbon". Under AB stacking that drew diagonals and piled several lines onto one atom. They are now fixed pairs of eclipsed carbons, chosen unslid, and they lean over as the sheets shear.
+
+---
+
+## Electrolysis: Unconnected Supply, Copper Cathode in the Graphite Cell, Ions
+
+### 1. Problem Statement
+- The DC supply was a dark box floating behind the tank, and the circuit wire ran past it rather than into its terminals.
+- The inert (graphite) cell drew a copper cathode.
+- Cu²⁺ reappeared at random positions instead of leaving the copper anode.
+- In the graphite cell the blue faded while the number of Cu²⁺ ions drawn stayed the same.
+- The electrolyte filled the tank to the brim.
+
+### 2. Root Cause
+- The supply and the wire were placed independently, and the wire's corners were fixed points unrelated to the box.
+- The cathode's material was hard-coded to copper.
+- The ion respawn logic ignored the electrode choice and `blueFraction`.
+
+### 3. Resolution
+- The bench supply now sits on the bench with binding posts, and the leads are curves from those posts to crocodile clips on the plates. The electron path follows the leads.
+- The graphite cell uses graphite for both electrodes, and copper coats the cathode's submerged part.
+- In the copper cell, Cu²⁺ respawns at the anode's face.
+- In the graphite cell, only `blueFraction` of the Cu²⁺ ions are drawn.
+- The electrolyte is filled to below the rim.
+- The tank floor was a plane lying on the bench top, in the same plane as the liquid's bottom face, so they z-fought. The floor is now a 0.05-thick glass slab (`TANK_BASE`) resting on the bench, and the liquid starts on top of it.
+
+## VSEPR: measured bond angles, wrong diatomic examples, lone-pair lobes
+
+- **Problem:** the VSEPR solver closed every angle by a flat 2.5° per lone pair.
+  - That lands on NH₃ (107°) and H₂O (104.5°) but misses most other molecules.
+  - Seesaw SF₄ has three different angles, not one. The model gave its equatorial angle as 120°, against a real 101.6°.
+  - The rule left ClF₃ at 85° (real 87.5°) and BrF₅ at 87.5° (real 84.8°).
+  - Its diatomic examples were wrong: HF and HCl both have three lone pairs, and CO does not.
+  - The panel only reported the smallest angle, and its single label was pinned to one bond tip rather than drawn between the two bonds that make the angle.
+  - The lone pairs were a flat violet ellipsoid.
+- **Root cause:** one rule stood in for per-molecule data, and the shapes with more than one angle could not be described by a single tilt.
+- **Fix:**
+  - `lib/vseprMolecules.js` lists 20 molecules with their measured angles.
+  - `vseprGeometry` bisects the tilt onto a bent or pyramidal molecule's angle. It builds seesaw, T-shaped and square pyramidal geometries directly.
+  - `distinctAngles` returns every distinct angle, and the scene draws a coloured arc for each.
+  - The diatomic examples are now N₂ (1 lone pair), O₂ (2) and HCl (3).
+  - Lone pairs are drawn as teardrop orbital lobes with two electrons inside.
+  - The 2.5° rule is kept only for AX₃E₃, which has no real molecule.
+
+## Energy profile: no axes, labels pinned to x = 0, clipped products
+
+- **Problem:**
+  - The diagram had no axes.
+  - The transition-state label and the Ea arrow were fixed near x = 0, but the summit moves with ΔH: later for endothermic reactions, earlier for exothermic ones.
+  - The reverse activation energy was computed but never drawn.
+  - The top of the Ea arrow had no guide line to the peak.
+  - The right end of the curve, including its products label, was cut off on narrow canvases.
+  - The Ea labels sat on the transition-state label, and ΔH sat on the products label.
+- **Fix:**
+  - Added energy and progress-of-reaction axes.
+  - The labels and arrows now follow `peakX`, the summit actually drawn.
+  - Added a reverse Ea arrow and a dashed guide at the summit's level.
+  - `CameraDolly` fits the diagram to the canvas width.
+  - Arrow values sit beside the middle of each arrow, and drop under the reactant line when the arrow is short.
+  - Checked for label overlaps across exothermic, endothermic, catalysed and extreme slider settings.
+
+## Reactivity series: dark arm, whole strip thinning, overlapping labels, flush faces
+
+- **Problem:**
+  - The dipping arm was near-black and rendered as plain boxes.
+  - The whole strip thinned as it reacted, including the dry part above the liquid.
+  - The four verdict labels and the focus beaker's half-equations overlapped on narrow canvases.
+  - The rig was cut off at the sides.
+  - The rail's ends sat flush with the posts' outer faces, so they z-fought.
+  - The posts and their feet stood inside the rack board.
+- **Root cause:**
+  - The strip was one box scaled as a whole.
+  - The frame was sized without the rack's width in mind.
+  - Labels were placed for a wide canvas.
+- **Fix:**
+  - Rebuilt the arm in light aluminium, with an overhanging beam, end caps and posts moved outside the rack board.
+  - Split each strip into a fixed dry top and a reacting wet end, which carries a film of the deposited metal.
+  - Made the verdict labels short and two-line, set low on each beaker, using `inline-block`: a block inside the label's inline box split its background into stray dark fragments.
+  - Moved the half-equations into the caption rows.
+  - `FitCamera` now frames the rig at any aspect.
+
+## Rusting: a used-up anode still "protecting", nail in the desiccant, label clashes
+
+- **Problem:**
+  - After a sacrificial magnesium or zinc wrap was used up, the scene still drew electrons flowing from it to the nail.
+  - The half-equation caption still named it as the anode.
+  - The Details panel still gave the old electron-flow direction.
+  - The dry tube's nail stood buried in the desiccant granules; the real setup rests it on cotton wool above them.
+  - The two labels per tube ran into their neighbours, and the salt-water tag sat on the rack's name tags.
+  - The captions were cut off on narrow canvases.
+- **Root cause:**
+  - `solveCouple` set anode, cathode, direction and oxidation from the potentials alone, ignoring whether the wrap was still there.
+- **Fix:**
+  - When `partnerRemaining` reaches 0, the couple reports `direction: "none"`, anode and cathode `Fe`, and iron's oxidation. The scene hides the electron stream, and the HUD says "none — used up". Covered by new tests in `redox.test.mjs`.
+  - Added a cotton-wool plug to the dry tube.
+  - Each tube now has one label wrapped to its width.
+  - Shortened the salt tag and raised it into the water.
+  - `FitCamera` now waits for a real canvas size. The first version fitted a 0-wide canvas and sent the camera to NaN, leaving a top-down close-up; the reactivity scene had the same guard added.
+
+## Separation studio: z-fighting, a funnel cut by its ring, three rigs at once
+
+- **Problem:**
+  - Z-fighting on the tripod: the gauze and its ceramic centre were two planes 0.01 apart, and the basin sat in their plane.
+  - The flask stood in the plane of the retort stand's plate.
+  - Fine stripes banded the evaporating basin's rim.
+  - The steel ring was centred on the funnel's cone, so it passed through the glass and the filter paper.
+  - All three rigs were drawn at once across a wide bench, so each was small.
+  - The chromatogram's Rf list ran off the frame for long pigment names.
+  - The orbit target was re-applied on every render, pulling any fitted framing off-centre.
+- **Root cause:**
+  - The basin stripes came from the liquid stack, drawn as translucent stacked discs just inside the opaque porcelain.
+  - The basin's liquid profile added the wall offset twice, which pushed those discs through the porcelain near the steep rim.
+- **Fix:**
+  - The gauze and its ceramic centre are now slabs, and the basin rests at `TRIPOD_TOP_CLEARANCE`.
+  - The flask stands a hair above the plate (`PLATE_Y` = 0.123).
+  - The ring sits where the cone's radius meets its inner edge.
+  - Liquid-stack discs are open-ended, and the basin draws its liquid surface only.
+  - Corrected the basin's liquid profile.
+  - Added a shadow bias to the key light.
+  - Only the selected station is drawn, framed per station, with the orbit target passed in.
+  - The Rf list is stacked above the board.
+- **Bench front edge:** the `LabBench` front lip, and the back rails of `LabBench` and `vessel-rack`'s `Bench`, were flush with the slab's faces and z-fought. They now stand 0.01 proud of the slab's faces and ends.
+- **Unrealistic pour (filtration):**
+  - The problem:
+    - The sample in the tipped beaker was a cylinder that tilted with the glass and poked through the wall.
+    - The stream was a straight rod from the lip to the funnel.
+    - Filtrate drops fell through the liquid to the bottom of the flask.
+  - The fix:
+    - The beaker's liquid is now its full inner cylinder, clipped by a horizontal world plane at the liquid level (`gl.localClippingEnabled`). A surface disc in that plane is trimmed by the beaker's base and rim planes, so the surface stays flat as the beaker tips.
+    - The stream is now 14 segments along a parabola from the lip, narrowing as it falls.
+    - The drips end at the filtrate's surface (`flaskSurfaceY`) and become a continuous trickle while the flow is fast.
+    - Samples, filtrate and glass are drawn at higher opacity so they read clearly.
+- **Liquids still looked like layered cylinders:**
+  - The problem:
+    - `LiquidStack` filled the conical flask with a stack of short cylinders, one per step of the profile, and they showed through the glass as bands.
+    - The pour stream was 14 separate rods with visible joints.
+    - The beaker's clipped liquid was double-sided, so its far wall showed through the near one as a darker second layer.
+  - The fix:
+    - `LiquidStack` now draws one solid of revolution (floor and walls following `profile`, with analytic normals), rebuilt only when the level changes, under the existing surface disc.
+    - The stream is a single tapered tube (`shapeStream`) rewritten in place along the parabola, and only while the lip is still moving.
+    - `TippedLiquid` renders front faces only.
+  - A gotcha from verifying it: `lastLip` must start at `Infinity`, not `NaN`, because `Math.abs(NaN) > ε` is false and the stream was never built. Fast Refresh keeps ref values, so check a ref's initial value with a full reload.
+
+## Separation studio: the pour started late; chalk in water was called "never dissolved"
+
+- **Problem:**
+  - The stream appeared only near the end of the pour. The pour was 30 model seconds, only 2 real seconds at the 15× time-lapse, and the stream waited for the beaker to pass a fixed 0.9 rad tilt, which it reached with most of that time gone.
+  - The liquid level was an interpolation, not the volume actually left in the beaker.
+  - Filtering chalk in water, a suspension that filtration is made for, gave the verdict "nothing runs through but solvent — the solute never dissolved". The Details note said the same, and the verdict row was red.
+- **Root cause:**
+  - The tilt and the stream ignored how much liquid the tilted beaker can hold.
+  - The verdict's last branch assumed that anything retained was a solute that had failed to dissolve.
+- **Fix:**
+  - The beaker tips just past the angle at which its remaining volume reaches the lip. That angle is found by bisection on the volume under a level surface in a tilted cylinder. Whatever the tilt cannot hold spills as the stream, so the pour starts the moment liquid reaches the lip and steepens as the beaker empties.
+  - The stream's front and tail fall over `STREAM_FALL_S`, and its last trickle thins.
+  - `POUR_S` is now 60 model seconds.
+  - A sample of insoluble solids now reads "separates — chalk on the paper, clear water in the flask".
+  - Added `stationFit` (right, partly or wrong, and where to go instead), shown as a badge above the station and as the first row of the Details panel.
+
+## Combustion studio: flat flame, off-frame camera, colliding labels, "heat ✗" while relighting, a basin through the stand
+
+- **Problem:**
+  - The flame was a single flat cone with a grey sphere around it, which read as a disc.
+  - The fixed camera cut off the bench and the basin in a narrow window, and the scene floated in a dark void.
+  - The live equation label sat on top of the fire triangle's "Oxygen" label, and the thermocouple and basin labels overlapped.
+  - While a relight waited for the bell jar to clear, the triangle showed **Heat ✗**.
+  - The cold basin slid in a straight line from the bench to the flame, through the thermocouple stand's rod and into the probe's clamp.
+  - Shown "underside-out", the basin leant forward and displayed its clean inside instead of the soot.
+- **Root cause:**
+  - The heat side was computed from the heat reserve, which cools while the flame is out. During a relight the flame is out but the striker is right there.
+  - The basin's position relaxed along one straight line.
+  - Its tilt had the wrong sign.
+- **Fix:**
+  - The flame is now two lathe shells rebuilt every frame (envelope and core), with a sway that travels up the flame and colour and alpha graded up the height, plus an additive glow sprite. This lives in `lab-bench.jsx`, so the separation studio's burner has it too.
+  - `FitCamera` frames `VIEW` at any aspect.
+  - `LabWall` moved to `lab-bench.jsx` and is shared.
+  - The triangle is now a wall poster, and the readouts stand beside the jar.
+  - `triangleStatus` treats heat as missing only when the mist removed it (`lit || extinguishedBy !== "heat"`), with a test.
+  - The basin rises first and travels in front of the stand, and the probe swings back toward the wall while the basin is held.
+  - The basin leans back on an easel, so its underside faces the camera.
+  - Soot specks are smaller.
+  - The bell jar's O₂ reads to two decimals, so 15.99% no longer rounds to "16.0%".
+- **Basin clashing with the meter; soot like a plate (follow-up):**
+  - The parked basin (rim radius 1.55) overlapped the thermocouple meter and the spray bottle. The meter now sits behind the stand's base, the basin rests further right, the bottle stands in front, and the framing is widened to match.
+  - The soot was a flat black disc stuck under the bowl. It is now a lathe shell a hair outside the basin's curved outer surface, covering the foot ring and the centre. It carries a seamless canvas texture: dense at the bottom, with a soft, wandering, blotchy edge made from low harmonics (per-column noise had drawn a spiky starburst).
+
+## Particle model: z-fighting at the base, a camera left mid-orbit, labels over everything
+
+- **Problem:**
+  - The base flickered.
+  - The camera opened at an odd angle and cut the scene off.
+  - About 20 labels overlapped: the thermometer's ticks sat over the glass column, and the piston readout sat on the title.
+- **Root cause:**
+  - The hotplate box ran from −0.48 to 0, sunk into the bench, so its top face was coplanar with the bench top.
+  - The glowing plate face was a plane 0.005 inside the box, so it was hidden.
+  - The glass walls were a closed box whose floor and ceiling faces were coplanar with the base slab's top and the cap's underside.
+- **Fix:**
+  - The hotplate stands on the bench (`PLATE_TOP` = 0.5). Its top slab, face and heating rings are stacked 0.02–0.046 apart, and the rings are flat annuli with a polygon offset.
+  - The column's base sits on the face (`COLUMN_BASE_Y`).
+  - The walls are an open-ended square tube.
+  - `FitCamera` frames `VIEW`.
+  - The thermometer's ticks moved to its left, the KE gauge moved further out, the piston readout now sits beside the column top, and the chart was lifted clear of the bench.
+  - Added a `showLabels` toggle.
+
+## Radioactive decay: a plate lying on the bench, shadows, physics numbers off
+
+- **Problem:**
+  - The lower field plate flickered against the bench.
+  - The barrier and the holder were sunk into the bench.
+  - The plates, the barrier and the holder cast shadows.
+  - Half-life stamps past 6 t½ piled up at the chart's right edge.
+  - Carbon-14's betas were listed at 0.9 c with a metre of air range.
+  - 10 cm of lead let one in a thousand of Tc-99m's gammas through.
+  - The legend's daughter swatch (`#3f4652`) was not the drawn colour (`#3b4658`).
+- **Root cause:**
+  - With `TRACK_Y` = 1.6 and a plate gap of 1.55, the lower plate's underside sat 5 mm above the bench top.
+  - The holder and barrier were sized around the track, not stood on the bench.
+  - The legend test only passed because the old holder happened to use `#3f4652`.
+  - The beta figures were generic textbook figures, not carbon-14's (156 keV at most, 49 keV mean, about 0.41 c, about 20 cm of air). Fluorine-18's positrons average 250 keV, about 0.74 c.
+  - At 140 keV lead's μ is about 23 /cm, so 10 cm transmits nothing. 3 mm (ten half-value layers) gives the 0.1%.
+- **Fix:**
+  - `TRACK_Y` is now 2.2. Every foot starts 0.01 below the bench top, and stacked parts overlap instead of touching.
+  - Decals sit 0.01–0.03 off their faces.
+  - All `castShadow` / `receiveShadow` flags were removed.
+  - Stamps past the chart are filtered out.
+  - `speedOfLight` and the range strings were corrected, and lead is now 3 mm.
+  - The positron colour moved off the parent gold, and stopped positrons annihilate into two gammas.
+  - The nucleus colours moved into `lib/radioactiveDecay.js`, and the legend uses `#3b4658`.
+  - Added `FitCamera` and a `showLabels` toggle.

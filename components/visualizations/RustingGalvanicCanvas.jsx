@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   PALETTE,
@@ -169,7 +169,7 @@ function RustDriver({ modelRef, days, electrolyte, partner, playing, animSpeed =
  * because that is where water and oxygen are both plentiful — the reason a
  * real nail rusts worst at the surface of the water.
  */
-function Nail({ tubeIndex, modelRef, waterline, animSpeed = 1, children }) {
+function Nail({ tubeIndex, modelRef, waterline, baseY = NAIL_BASE_Y, animSpeed = 1, children }) {
   const crust = useRef(null);
   const flakes = useRef(null);
   const shown = useRef({ coverage: 0, thickness: 0 });
@@ -230,7 +230,7 @@ function Nail({ tubeIndex, modelRef, waterline, animSpeed = 1, children }) {
   });
 
   return (
-    <group position={[NAIL_LEAN * 0.4, NAIL_BASE_Y, 0]} rotation={[0, 0, -NAIL_LEAN]}>
+    <group position={[NAIL_LEAN * 0.4, baseY, 0]} rotation={[0, 0, -NAIL_LEAN]}>
       {/* Tip, shank, head. */}
       <mesh position={[0, NAIL.tip / 2, 0]} rotation={[Math.PI, 0, 0]}>
         <coneGeometry args={[NAIL.radius, NAIL.tip, 16]} />
@@ -245,6 +245,17 @@ function Nail({ tubeIndex, modelRef, waterline, animSpeed = 1, children }) {
           <cylinderGeometry args={[NAIL.head, NAIL.head * 0.9, 0.08, 20]} />
           <meshStandardMaterial color="#8e97a6" emissive="#8e97a6" emissiveIntensity={0.3} metalness={0.6} roughness={0.38} />
         </mesh>
+        {/* A slight dome on the head, and the grip rings rolled into the shank under it. */}
+        <mesh position={[0, NAIL.shank + 0.079, 0]} scale={[1, 0.18, 1]}>
+          <sphereGeometry args={[NAIL.head * 0.92, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#9aa3b1" emissive="#8e97a6" emissiveIntensity={0.3} metalness={0.6} roughness={0.35} />
+        </mesh>
+        {[0.12, 0.2, 0.28].map((d) => (
+          <mesh key={d} position={[0, NAIL.shank - d, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[NAIL.radius + 0.004, 0.012, 6, 20]} />
+            <meshStandardMaterial color="#7d8695" emissive="#8e97a6" emissiveIntensity={0.2} metalness={0.6} roughness={0.4} />
+          </mesh>
+        ))}
         {/* The rust crust — scaled out from the shank as it thickens. */}
         <mesh ref={crust} position={[0, NAIL.shank / 2, 0]}>
           <cylinderGeometry args={[NAIL.radius, NAIL.radius, NAIL.shank + 0.02, 20]} />
@@ -318,14 +329,73 @@ function Wrap({ modelRef, partner, animSpeed = 1 }) {
 function SaltCrystals({ visible }) {
   if (!visible) return null;
   return (
-    <SceneLabel position={[0, TUBE.radius * 0.5, TUBE.radius + 0.08]} tone="text-sky-300">
-      3% NaCl (aq) — dissolved
+    // Short, and up in the water: down by the rack's name tags it sat on them.
+    <SceneLabel position={[0, TUBE.radius + 0.75, TUBE.radius + 0.08]} tone="text-sky-300">
+      NaCl(aq)
     </SceneLabel>
   );
 }
 
+/**
+ * The cotton-wool plug in the dry tube. The desiccant sits at the bottom under
+ * it and the nail rests on top, so nail and drying agent never touch, which is
+ * how the experiment is actually set up.
+ */
+const COTTON_Y = TUBE.radius + 0.42;
+const COTTON_TOP = COTTON_Y + 0.17;
+function CottonWool() {
+  const tufts = useMemo(
+    () =>
+      Array.from({ length: 14 }, (_, i) => {
+        const a = hashRandom(i * 2.9 + 3) * Math.PI * 2;
+        const r = hashRandom(i * 4.3 + 7) * (TUBE.radius - 0.2);
+        return { position: [Math.cos(a) * r, COTTON_Y + 0.1 + hashRandom(i * 6.1 + 1) * 0.08, Math.sin(a) * r], size: 0.1 + hashRandom(i * 8.7 + 5) * 0.06 };
+      }),
+    [],
+  );
+  return (
+    <group>
+      <mesh position={[0, COTTON_Y, 0]}>
+        <cylinderGeometry args={[TUBE.radius - 0.05, TUBE.radius - 0.06, 0.26, 24]} />
+        <meshStandardMaterial color="#f8fafc" roughness={1} />
+      </mesh>
+      {tufts.map((t, i) => (
+        <mesh key={i} position={t.position} scale={t.size}>
+          <icosahedronGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#f1f5f9" roughness={1} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/**
+ * Loose rust that has flaked off and settled: a low orange-brown mound in the
+ * bottom of the tube, growing with the rust the nail has shed.
+ */
+function RustSediment({ tubeIndex, modelRef, animSpeed = 1 }) {
+  const mound = useRef(null);
+  const shown = useRef(0);
+  useFrame((_, delta) => {
+    const tube = modelRef.current.result?.tubes[tubeIndex];
+    if (!tube || !mound.current) return;
+    const dt = Math.min(delta, 0.05) * animSpeed;
+    shown.current = relaxTo(shown.current, clamp(tube.rustFormedMg / 60, 0, 1), 0.4, dt);
+    const k = shown.current;
+    mound.current.visible = k > 0.02;
+    // Kept narrower than the curved bottom of the tube at this height.
+    mound.current.scale.set(0.25 + 0.55 * k, 0.05 + 0.2 * k, 0.25 + 0.55 * k);
+  });
+  return (
+    <mesh ref={mound} position={[0, TUBE.radius * 0.45, 0]} visible={false}>
+      <sphereGeometry args={[TUBE.radius - 0.08, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
+      <meshStandardMaterial color="#9a3f12" roughness={1} />
+    </mesh>
+  );
+}
+
 /** One tube, its contents, and its label. */
-function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
+function Tube({ index, modelRef, electrolyte, partner, showLabels = true, animSpeed = 1 }) {
   const spec = TUBES[index];
   const x = slotX(index, COUNT, SPACING);
   const liquid = useRef(null);
@@ -349,6 +419,7 @@ function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
   });
 
   const coupled = spec.key === "coupled";
+  const exhausted = Boolean(modelRef.current?.result?.couple.partnerExhausted);
   const P = PARTNERS[partner] ?? PARTNERS.zinc;
   // `rate={0.5}` here ignored the anode's lifetime, so the hydrogen kept
   // coming off a magnesium wrap that had been completely consumed.
@@ -375,8 +446,10 @@ function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
         stopper={spec.key === "dry"}
         desiccant={spec.key === "dry"}
       >
-        <SaltCrystals visible={spec.h2o && electrolyte === "saltwater"} />
-        <Nail tubeIndex={index} modelRef={modelRef} waterline={waterline} animSpeed={animSpeed}>
+        <SaltCrystals visible={showLabels && spec.h2o && electrolyte === "saltwater"} />
+        {spec.key === "dry" && <CottonWool />}
+        {spec.h2o && <RustSediment tubeIndex={index} modelRef={modelRef} animSpeed={animSpeed} />}
+        <Nail tubeIndex={index} modelRef={modelRef} waterline={waterline} baseY={spec.key === "dry" ? COTTON_TOP : NAIL_BASE_Y} animSpeed={animSpeed}>
           {coupled && <Wrap modelRef={modelRef} partner={partner} animSpeed={animSpeed} />}
         </Nail>
         {coupled && bubbleRate > 0 && (
@@ -384,13 +457,14 @@ function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
         )}
       </TestTube>
 
-      {coupled && (
+      {/* No electrons cross once the sacrificial wrap is used up. */}
+      {coupled && !exhausted && (
         <group position={[-x, -TUBE_Y, 0]}>
           <ElectronStream path={electronPath} count={7} rate={0.5} running intensity={1} colour={PALETTE.bone} size={0.045} animSpeed={animSpeed} />
           <ElectronArrow
             from={[x + TUBE.radius + 0.35, toIron ? wrapY : headY, 0]}
             to={[x + TUBE.radius + 0.35, toIron ? headY : wrapY, 0]}
-            label={toIron ? `e⁻ ${P.symbol} → Fe` : `e⁻ Fe → ${P.symbol}`}
+            label={showLabels ? (toIron ? `e⁻ ${P.symbol} → Fe` : `e⁻ Fe → ${P.symbol}`) : null}
             colour={toIron ? PALETTE.emerald : PALETTE.rose}
           />
         </group>
@@ -401,8 +475,38 @@ function Tube({ index, modelRef, electrolyte, partner, animSpeed = 1 }) {
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** Stands in for SceneLabel when labels are switched off. */
+const NoLabel = () => null;
+
+const INITIAL_CAMERA = [0, 1.8, 12.4];
+const CAMERA_TARGET = [0, 0.5, 0];
+const TAN_HALF_FOV = Math.tan((46 / 2) * (Math.PI / 180));
+/** The rack plus the equation captions either side, which were cut off on a narrow canvas. */
+const FRAME = { width: 15.5, height: 10.2 };
+
+/** Backs the camera off to frame the whole rack at the canvas aspect; runs on resize only. */
+function FitCamera() {
+  const camera = useThree((st) => st.camera);
+  const aspect = useThree((st) => st.size.width / Math.max(st.size.height, 1));
+  useEffect(() => {
+    // Before layout the canvas can measure 0 wide; fitting then gives an
+    // infinite distance, the camera goes NaN and the orbit controls recover
+    // into a top-down close-up. Wait for a real size.
+    if (!(aspect > 0.05)) return;
+    const fit = Math.max(FRAME.height / 2 / TAN_HALF_FOV, FRAME.width / 2 / (TAN_HALF_FOV * aspect));
+    const target = new THREE.Vector3(...CAMERA_TARGET);
+    // Keep the initial viewing direction, not whatever the camera holds now.
+    const offset = new THREE.Vector3(...INITIAL_CAMERA).sub(target).setLength(fit);
+    camera.position.copy(target).add(offset);
+    camera.lookAt(target);
+  }, [camera, aspect]);
+  return null;
+}
+
 export default function RustingGalvanicCanvas({ params = {}, setParam }) {
-  const { days = 7, electrolyte = "distilled", partner = "zinc", playing = false, speed = 1 } = params || {};
+  const { days = 7, electrolyte = "distilled", partner = "zinc", playing = false, speed = 1, showLabels = true } = params || {};
+  // Every label in the scene goes through this, so one toggle clears them all.
+  const Label = showLabels ? SceneLabel : NoLabel;
   const modelRef = useRef(null);
   if (modelRef.current === null) {
     modelRef.current = { shownDays: days, pushedDay: days, stopRequested: false, result: solveRusting({ days, electrolyte, partner }) };
@@ -424,10 +528,11 @@ export default function RustingGalvanicCanvas({ params = {}, setParam }) {
   };
 
   return (
-    <SceneCanvas camera={{ position: [0, 1.8, 12.4], fov: 46 }} controls={{ minDistance: 4, maxDistance: 28, target: [0, 0.5, 0] }}>
+    <SceneCanvas camera={{ position: INITIAL_CAMERA, fov: 46 }} controls={{ minDistance: 4, maxDistance: 32, target: CAMERA_TARGET }}>
+      <FitCamera />
       <RustDriver modelRef={modelRef} days={days} electrolyte={electrolyte} partner={partner} playing={playing} animSpeed={speed} setParam={setParam} />
 
-      <Bench y={BENCH_Y} width={16} depth={6} />
+      <Bench y={BENCH_Y} width={16} depth={6} colour="#a9b6c8" />
       <VesselRack
         count={COUNT}
         spacing={SPACING}
@@ -437,39 +542,44 @@ export default function RustingGalvanicCanvas({ params = {}, setParam }) {
         holderHeight={RACK_HEIGHT}
         labels={TUBES.map((t, i) => `${i + 1} · ${t.short}`)}
         focus={3}
+        colour="#a88b68"
+        showLabels={showLabels}
       />
 
       {TUBES.map((tube, i) => (
         <group key={tube.key}>
-          <Tube index={i} modelRef={modelRef} electrolyte={electrolyte} partner={partner} animSpeed={speed} />
-          <SceneLabel position={[slotX(i, COUNT, SPACING), TUBE_Y + TUBE.height + 0.55, 0]} tone={tube.rusts ? (tube.key === "coupled" && couple.protects && !couple.partnerExhausted ? "text-emerald-300" : "text-orange-300") : "text-sky-300"}>
-            {tubeLabel(result.tubes[i])}
-          </SceneLabel>
-          <SceneLabel position={[slotX(i, COUNT, SPACING), TUBE_Y + TUBE.height + 0.9, 0]} tone="text-ink-400">
-            {tube.label}
-          </SceneLabel>
+          <Tube index={i} modelRef={modelRef} electrolyte={electrolyte} partner={partner} showLabels={showLabels} animSpeed={speed} />
+          {/* One label per tube, wrapped to the tube's width: the setup, then the
+              verdict. Two single-line labels ran into their neighbours. */}
+          <Label position={[slotX(i, COUNT, SPACING), TUBE_Y + TUBE.height + 0.75, 0]} tone={tube.rusts ? (tube.key === "coupled" && couple.protects && !couple.partnerExhausted ? "text-emerald-300" : "text-orange-300") : "text-sky-300"}>
+            <span className="inline-block text-center align-middle" style={{ whiteSpace: "normal", width: 92 }}>
+              <span className="text-ink-400">{tube.label}</span>
+              <br />
+              {tubeLabel(result.tubes[i])}
+            </span>
+          </Label>
         </group>
       ))}
 
       {/* The coupled tube's half-equations. */}
-      <SceneLabel position={[slotX(3, COUNT, SPACING) + 0.2, BENCH_Y - 0.6, 2.2]} tone="text-rose-300">
+      <Label position={[slotX(3, COUNT, SPACING) - 0.9, BENCH_Y - 0.6, 2.2]} tone="text-rose-300">
         {`anode (${couple.anode}) · ${couple.oxidation}`}
-      </SceneLabel>
-      <SceneLabel position={[slotX(3, COUNT, SPACING) + 0.2, BENCH_Y - 0.95, 2.2]} tone="text-sky-300">
+      </Label>
+      <Label position={[slotX(3, COUNT, SPACING) - 0.9, BENCH_Y - 1.1, 2.2]} tone="text-sky-300">
         {`cathode (${couple.cathode}) · ${couple.reduction}`}
-      </SceneLabel>
+      </Label>
 
       {/* Tube 1's overall equation. */}
-      <SceneLabel position={[slotX(0, COUNT, SPACING) + 0.6, BENCH_Y - 0.6, 2.2]} tone="text-orange-300">
+      <Label position={[slotX(0, COUNT, SPACING) + 0.9, BENCH_Y - 0.6, 2.2]} tone="text-orange-300">
         {RUST_EQUATIONS.overall}
-      </SceneLabel>
-      <SceneLabel position={[slotX(0, COUNT, SPACING) + 0.6, BENCH_Y - 0.95, 2.2]} tone="text-ink-400">
+      </Label>
+      <Label position={[slotX(0, COUNT, SPACING) + 0.9, BENCH_Y - 1.1, 2.2]} tone="text-ink-400">
         {`${result.tubes[0].ironLostMg.toFixed(1)} mg of iron lost · ${result.tubes[0].rustFormedMg.toFixed(1)} mg of rust`}
-      </SceneLabel>
+      </Label>
 
-      <SceneLabel position={[0, TUBE_Y + TUBE.height + 1.5, 0]} accent>
+      <Label position={[0, TUBE_Y + TUBE.height + 2.15, 0]} accent>
         {`${dayLabel(days)} of ${MAX_DAYS} · ${E.label} · nail 4 wrapped in ${P.label.toLowerCase()}${playing ? " · playing" : ""}`}
-      </SceneLabel>
+      </Label>
 
     </SceneCanvas>
   );

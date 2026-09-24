@@ -30,13 +30,14 @@ import {
   solveCrystallization,
   solveFiltration,
   solveSeparation,
+  stationFit,
 } from "../../lib/separation.js";
 
 const close = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
 
 describe("Separation — the tables", () => {
-  it("has three samples, two solvents and three stations, each in order", () => {
-    assert.deepEqual(MIXTURE_ORDER, ["sand_salt", "cuso4", "dye"]);
+  it("has nine samples, two solvents and three stations, each in order", () => {
+    assert.deepEqual(MIXTURE_ORDER, ["sand_salt", "impure_cuso4", "cuso4", "chalk", "muddy", "sugar", "dye", "green", "leaf"]);
     assert.deepEqual(SOLVENT_ORDER, ["water", "ethanol"]);
     assert.deepEqual(STATION_ORDER, ["filtration", "crystallization", "chromatography"]);
     for (const key of MIXTURE_ORDER) assert.ok(MIXTURES[key].components.every((c) => COMPONENTS[c]), key);
@@ -325,5 +326,109 @@ describe("Separation — dispatch and formatting", () => {
     assert.equal(formatSeconds(60), "1 min");
     assert.equal(formatSeconds(125), "2 min 05 s");
     assert.equal(formatSeconds(NaN), "0 s");
+  });
+});
+
+describe("Separation — the added samples", () => {
+  it("filters the sand out of impure copper sulfate and passes the blue solution", () => {
+    const r = solveFiltration({ mixture: "impure_cuso4", solvent: "water", seconds: 600 });
+    assert.equal(r.separates, true);
+    assert.equal(r.fines, false);
+    assert.ok(r.components.find((c) => c.key === "sand").retained);
+    assert.equal(r.filtrateColour, COMPONENTS.cuso4.tint);
+  });
+
+  it("holds chalk back and runs clear water through", () => {
+    const r = solveFiltration({ mixture: "chalk", solvent: "water", seconds: 600 });
+    assert.ok(COMPONENTS.chalk.particleUm > FILTER_PORE_UM);
+    assert.equal(r.nothingPassed, true);
+    assert.equal(r.filtrateColour, SOLVENTS.water.colour);
+  });
+
+  it("lets clay finer than the pores through, so muddy water stays cloudy", () => {
+    const r = solveFiltration({ mixture: "muddy", solvent: "water", seconds: 600 });
+    assert.ok(COMPONENTS.clay.particleUm < FILTER_PORE_UM);
+    assert.equal(r.fines, true);
+    assert.ok(r.components.find((c) => c.key === "sand").retainedG === 4);
+    const clay = r.components.find((c) => c.key === "clay");
+    assert.ok(clay.passedG > 0 && clay.retainedG > 0, "some clay passes, some is trapped");
+    assert.notEqual(r.filtrateColour, SOLVENTS.water.colour);
+    assert.match(r.verdict, /cloudy/);
+  });
+
+  it("crystallises sugar by cooling rather than boiling it dry", () => {
+    const r = solveCrystallization({ mixture: "sugar", solvent: "water", seconds: 0 });
+    assert.equal(r.coolMethod, true);
+  });
+
+  it("separates green food colouring into its yellow and blue", () => {
+    const r = solveChromatography({ mixture: "green", solvent: "water", seconds: 900 });
+    assert.equal(r.distinct, 2);
+  });
+
+  it("moves no leaf pigment in water and separates all four in ethanol, carotene highest", () => {
+    const water = solveChromatography({ mixture: "leaf", solvent: "water", seconds: 900 });
+    assert.equal(water.distinct, 0);
+    const ethanol = solveChromatography({ mixture: "leaf", solvent: "ethanol", seconds: 900 });
+    assert.equal(ethanol.distinct, 4);
+    const byRf = [...ethanol.spots].sort((a, b) => b.rf - a.rf).map((s) => s.key);
+    assert.deepEqual(byRf, ["carotene", "xanthophyll", "chla", "chlb"]);
+  });
+});
+
+describe("Separation — is this the right station for the sample?", () => {
+  const fit = (station, mixture, solvent = "water") => stationFit({ station, mixture, solvent });
+
+  it("sends each textbook sample to its textbook technique", () => {
+    assert.equal(fit("filtration", "sand_salt").fit, "right");
+    assert.equal(fit("filtration", "chalk").fit, "right");
+    assert.equal(fit("crystallization", "cuso4").fit, "right");
+    assert.equal(fit("crystallization", "sugar").fit, "right");
+    assert.equal(fit("chromatography", "dye").fit, "right");
+    assert.equal(fit("chromatography", "green").fit, "right");
+    assert.equal(fit("chromatography", "leaf", "ethanol").fit, "right");
+  });
+
+  it("calls a solution through filter paper the wrong tool, and points at crystallisation", () => {
+    const f = fit("filtration", "cuso4");
+    assert.equal(f.fit, "wrong");
+    assert.deepEqual(f.better, ["crystallization"]);
+    assert.equal(f.betterSolvent, null, "a solvent that fails to dissolve it is no fix");
+  });
+
+  it("says filtration only partly works on muddy water, whose clay passes the pores", () => {
+    assert.equal(fit("filtration", "muddy").fit, "partly");
+  });
+
+  it("says crystallising sand + salt water only partly works: the sand ends up in the crystals", () => {
+    const f = fit("crystallization", "sand_salt");
+    assert.equal(f.fit, "partly");
+    assert.match(f.reason, /sand/);
+    assert.deepEqual(f.better, ["filtration"]);
+  });
+
+  it("calls crystallising a dye the wrong tool", () => {
+    assert.equal(fit("crystallization", "dye").fit, "wrong");
+  });
+
+  it("suggests ethanol when leaf pigments stay put in water", () => {
+    const f = fit("chromatography", "leaf", "water");
+    assert.equal(f.fit, "wrong");
+    assert.equal(f.betterSolvent, "ethanol");
+  });
+
+  it("does not judge by the clock: the answer is the same at 0 s as at the end", () => {
+    for (const station of STATION_ORDER) {
+      for (const mixture of MIXTURE_ORDER) {
+        const f = fit(station, mixture);
+        assert.ok(["right", "partly", "wrong"].includes(f.fit));
+        assert.ok(f.reason.length > 10);
+        assert.ok(!f.better.includes(station));
+      }
+    }
+  });
+
+  it("describes chalk in water as separated, not as a solute that never dissolved", () => {
+    assert.match(solveFiltration({ mixture: "chalk", solvent: "water", seconds: 400 }).verdict, /^separates — chalk on the paper, clear water/);
   });
 });

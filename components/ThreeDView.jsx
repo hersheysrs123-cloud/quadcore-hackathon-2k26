@@ -269,7 +269,7 @@ export default function ThreeDView({
         )}
 
         {/* Viewport (rendering space) */}
-        <main className="relative flex-1 h-full w-full min-h-0 min-w-0 overflow-hidden" style={{ backgroundColor: CANVAS_BG }}>
+        <main className="relative flex-1 w-full min-h-0 min-w-0 overflow-hidden" style={{ backgroundColor: CANVAS_BG }}>
           {CanvasComponent && (
             <WebGLErrorBoundary key={topic.id}>
               <CanvasComponent topicId={topic.id} params={params} setParam={setParam} onOpenQuiz={handleOpenStudy} />

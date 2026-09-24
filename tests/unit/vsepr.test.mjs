@@ -6,6 +6,7 @@ import {
   IDEAL_ANGLE,
   IDEAL_ANGLE_LABEL,
   LONE_PAIR_COMPRESSION,
+  MOLECULES,
   SHAPES,
   smallestAngleOf,
   solveVsepr,
@@ -224,5 +225,49 @@ describe("solveVsepr — what the readout prints", () => {
       assert.ok(Number.isFinite(s.angle));
       assert.ok(Number.isFinite(s.compression));
     }
+  });
+});
+
+describe("real molecules draw their measured angles", () => {
+  const measured = (id) => {
+    const m = MOLECULES.find((x) => x.id === id);
+    return solveVsepr(m.bonding, m.lone, id);
+  };
+
+  it("hits each bent or pyramidal molecule's single angle", () => {
+    for (const m of MOLECULES.filter((x) => x.angle)) close(measured(m.id).angle, m.angle, 0.01);
+  });
+
+  it("knows H₂S and PH₃ close far more than 2.5° a lone pair would", () => {
+    close(measured("H2S").angle, 92.1, 0.01);
+    close(measured("PH3").angle, 93.5, 0.01);
+  });
+
+  it("gives the seesaw all three of SF₄'s angles", () => {
+    const [axEq, eqEq, axAx] = measured("SF4").angles;
+    close(axEq, 87.8, 0.1);
+    close(eqEq, 101.6, 0.01);
+    close(axAx, 173.1, 0.01);
+  });
+
+  it("bends ClF₃'s and BrF₅'s bonds away from their lone pairs", () => {
+    assert.deepEqual(measured("ClF3").angles.map((a) => +a.toFixed(1)), [87.5, 175]);
+    assert.deepEqual(measured("BrF5").angles.slice(0, 2).map((a) => +a.toFixed(1)), [84.8, 89.5]);
+  });
+
+  it("keeps lone-pair-free and cancelling shapes exactly ideal", () => {
+    close(measured("CCl4").angle, 109.47, 0.01);
+    assert.deepEqual(measured("PCl5").angles.map((a) => +a.toFixed(1)), [90, 120]);
+    close(measured("SF6").angle, 90, 1e-6);
+    close(measured("XeF4").angle, 90, 1e-6);
+    close(measured("CO2").angle, 180, 1e-6);
+  });
+
+  it("keeps the example for every AXₙEₘ the first molecule listed", () => {
+    for (const m of MOLECULES) assert.equal(solveVsepr(m.bonding, m.lone).example, SHAPES[`${m.bonding}-${m.lone}`].example);
+  });
+
+  it("ignores a preset that does not fit the counts", () => {
+    assert.equal(solveVsepr(2, 2, "NH3").example, "H₂O");
   });
 });

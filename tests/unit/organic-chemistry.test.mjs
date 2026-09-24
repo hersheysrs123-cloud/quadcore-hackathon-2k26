@@ -9,6 +9,7 @@ import {
   atomCounts,
   crackProducts,
   describeMolecule,
+  esterification,
   familyFor,
   formulaFor,
   isCrackable,
@@ -253,5 +254,29 @@ describe("the colour key", () => {
     const bonds = [ORGANIC_COLOURS.single, ORGANIC_COLOURS.double, ORGANIC_COLOURS.triple];
     assert.equal(new Set(bonds).size, 3);
     for (const c of Object.values(ORGANIC_COLOURS)) assert.match(c, /^#[0-9a-f]{6}$/i);
+  });
+});
+
+describe("esterification — acid + methanol ⇌ methyl ester + water", () => {
+  it("balances carbon, hydrogen and oxygen for every chain length", () => {
+    for (let n = 1; n <= MAX_CARBONS; n += 1) {
+      const acid = atomCounts("acid", n);
+      const alcohol = atomCounts("alcohol", 1);
+      const ester = atomCounts("ester", n);
+      assert.equal(acid.c + alcohol.c, ester.c, `C at n=${n}`);
+      assert.equal(acid.h + alcohol.h, ester.h + 2, `H at n=${n}`);
+      assert.equal(acid.o + alcohol.o, ester.o + 1, `O at n=${n}`);
+    }
+  });
+
+  it("names the ester the Ester series draws, and marks the reaction reversible", () => {
+    const e = esterification(3);
+    assert.equal(e.acid.name, "propanoic acid");
+    assert.equal(e.alcohol.name, "methanol");
+    assert.equal(e.ester.name, nameFor("ester", 3));
+    assert.equal(e.ester.formula, formulaFor("ester", 3));
+    assert.match(e.equation, /⇌/);
+    assert.equal(e.equation, `${formulaFor("acid", 3)} + CH₃OH ⇌ ${formulaFor("ester", 3)} + H₂O`);
+    assert.match(e.catalyst, /H₂SO₄/);
   });
 });

@@ -72,7 +72,7 @@ quadcore-hackathon-2k26/
 │   │   ├── particle-model.test.mjs       # Phase boundaries, latent heats, r.m.s. speed
 │   │   ├── protein-folding.test.mjs      # Folding window and denaturation
 │   │   ├── radioactive-decay.test.mjs    # Nuclear equations and half-life statistics
-│   │   ├── separation.test.mjs           # Filtration, crystallisation, chromatography Rf
+│   │   ├── separation.test.mjs           # Filtration, crystallisation, chromatography Rf, right-tool verdicts
 │   │   ├── simple-machines.test.mjs      # Lever classes and block-and-tackle
 │   │   ├── vsepr.test.mjs                # Every reachable shape is named; AX₄E₂ is square planar
 │   │   ├── deleted-notes-spaces-persistence.test.mjs # Deleted demo notes and spaces stay deleted

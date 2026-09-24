@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -12,7 +12,7 @@ import {
   hashRandom,
 } from "@/components/visualizations/scene-kit";
 import { relaxTo } from "@/components/visualizations/vessel-rack";
-import { DARK_STEEL, GLASS, LabBench, STEEL, THICK_GLASS } from "@/components/visualizations/lab-bench";
+import { DARK_STEEL, GLASS, LabBench, RUBBER, STEEL, THICK_GLASS } from "@/components/visualizations/lab-bench";
 import { InstancedPopulation, createPopulation, mixParticleColour, spawnParticle } from "@/components/visualizations/particle-population";
 import {
   CONTAINER,
@@ -58,18 +58,28 @@ import {
 // ─────────────────────────────────────────────────────────────────────
 
 const BENCH_Y = -3.1;
-const PLATE_TOP = 0;
-const FLOOR_Y = PLATE_TOP + 0.12;
+/**
+ * The hotplate stands ON the bench (its body runs 0.02 → PLATE_TOP). It
+ * used to be sunk into the bench with its top flush with the bench top —
+ * two coplanar faces that z-fought across the whole base.
+ */
+const PLATE_TOP = 0.5;
+const PLATE_BODY_H = PLATE_TOP - 0.02;
+/** The column's glass base (0.12 thick) sits on the plate's face, which stands 0.046 above PLATE_TOP. */
+const COLUMN_BASE_Y = PLATE_TOP + 0.05;
+const FLOOR_Y = COLUMN_BASE_Y + 0.12;
 const WALL = 0.06;
 const GLASS_HEIGHT = CONTAINER.maxHeight + 0.7;
 const HALF_W = CONTAINER.width / 2;
 const PISTON_THICK = 0.2;
 const PUSH_EVERY_S = 0.2;
-const CHART_POS = [3.4, 0.5, -0.4];
+// Lifted so the panel's backing (which runs 0.75 below the axis) clears the bench top.
+const CHART_POS = [3.4, 1.3, -0.4];
 const CHART_W = 5.2;
 const CHART_H = 4.4;
 const THERMO_X = -3.0;
-const GAUGE_X = -4.1;
+// Far enough left that the thermometer's tick labels (on its left) sit between the two.
+const GAUGE_X = -5.2;
 
 const LATTICE_COLS = 8;
 const PER_LAYER = LATTICE_COLS * LATTICE_COLS;
@@ -248,8 +258,8 @@ function ParticleDriver({ modelRef, substance, pressureAtm, setpointC, animSpeed
 
   return (
     <InstancedPopulation population={population} onFrame={onFrame} animSpeed={animSpeed}>
-      <sphereGeometry args={[1, 12, 10]} />
-      <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.18} roughness={0.35} metalness={0.15} />
+      <sphereGeometry args={[1, 18, 14]} />
+      <meshPhysicalMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.14} roughness={0.28} metalness={0.05} clearcoat={0.6} clearcoatRoughness={0.25} />
     </InstancedPopulation>
   );
 }
@@ -278,25 +288,57 @@ function HotPlate({ modelRef }) {
   });
   return (
     <group>
-      <mesh position={[0, PLATE_TOP - 0.24, 0]} receiveShadow>
-        <boxGeometry args={[4.6, 0.48, 4.6]} />
-        <meshStandardMaterial {...DARK_STEEL} />
+      {/* Body on four rubber feet, clear of the bench top. */}
+      <mesh position={[0, 0.02 + PLATE_BODY_H / 2, 0]}>
+        <boxGeometry args={[4.6, PLATE_BODY_H, 4.6]} />
+        <meshStandardMaterial color="#d9dee5" roughness={0.45} metalness={0.2} />
       </mesh>
-      <mesh ref={face} position={[0, PLATE_TOP - 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[4.2, 4.2]} />
-        <meshStandardMaterial color="#1f2937" emissive="#f97316" emissiveIntensity={0.05} roughness={0.7} toneMapped={false} />
+      {[-1, 1].map((sx) =>
+        [-1, 1].map((sz) => (
+          <mesh key={`${sx}${sz}`} position={[sx * 2.0, 0.012, sz * 2.0]}>
+            <cylinderGeometry args={[0.16, 0.18, 0.024, 12]} />
+            <meshStandardMaterial {...RUBBER} />
+          </mesh>
+        )),
+      )}
+      {/* The ceramic top plate: a slab proud of the body, then the glowing face a hair above it. */}
+      <mesh position={[0, PLATE_TOP + 0.02, 0]}>
+        <boxGeometry args={[4.3, 0.04, 4.3]} />
+        <meshStandardMaterial color="#2a303a" roughness={0.5} metalness={0.1} />
+      </mesh>
+      <mesh ref={face} position={[0, PLATE_TOP + 0.042, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[4.1, 4.1]} />
+        <meshStandardMaterial color="#1f2937" emissive="#f97316" emissiveIntensity={0.05} roughness={0.55} toneMapped={false} />
       </mesh>
       {[0.6, 1.1, 1.6].map((r, i) => (
-        <mesh key={r} ref={(el) => (rings.current[i] = el)} position={[0, PLATE_TOP + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[r, 0.045, 8, 48]} />
-          <meshStandardMaterial color="#374151" emissive="#f97316" emissiveIntensity={0.1} roughness={0.6} toneMapped={false} />
+        <mesh key={r} ref={(el) => (rings.current[i] = el)} position={[0, PLATE_TOP + 0.046, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[r - 0.05, r + 0.05, 64]} />
+          <meshStandardMaterial color="#374151" emissive="#f97316" emissiveIntensity={0.1} roughness={0.6} toneMapped={false} polygonOffset polygonOffsetFactor={-1} />
         </mesh>
       ))}
-      {/* The controller box at the front. */}
-      <mesh position={[0, PLATE_TOP - 0.24, 2.55]}>
-        <boxGeometry args={[1.6, 0.36, 0.5]} />
-        <meshStandardMaterial color="#111827" roughness={0.6} />
-      </mesh>
+      {/* The front control panel: sloped fascia, a display and two knobs. */}
+      <group position={[0, 0.02 + PLATE_BODY_H / 2, 2.3]}>
+        <mesh position={[0, 0, 0.012]}>
+          <boxGeometry args={[4.4, PLATE_BODY_H - 0.06, 0.02]} />
+          <meshStandardMaterial color="#1f2530" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 0.02, 0.03]}>
+          <boxGeometry args={[0.9, 0.22, 0.02]} />
+          <meshStandardMaterial color="#0f1a14" emissive="#1f6f4a" emissiveIntensity={0.6} roughness={0.3} />
+        </mesh>
+        {[-1.4, 1.4].map((x, i) => (
+          <group key={x} position={[x, 0, 0.06]}>
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.16, 0.18, 0.1, 20]} />
+              <meshStandardMaterial color={i === 0 ? "#b91c1c" : "#1d4ed8"} roughness={0.4} />
+            </mesh>
+            <mesh position={[0, 0.08, 0.052]}>
+              <boxGeometry args={[0.03, 0.12, 0.01]} />
+              <meshStandardMaterial color="#f8fafc" />
+            </mesh>
+          </group>
+        ))}
+      </group>
     </group>
   );
 }
@@ -318,13 +360,15 @@ function Column({ heightsRef }) {
   return (
     <group>
       {/* Base slab. */}
-      <mesh position={[0, PLATE_TOP + 0.06, 0]}>
-        <boxGeometry args={[w, 0.12, w]} />
+      <mesh position={[0, COLUMN_BASE_Y + 0.06, 0]}>
+        <boxGeometry args={[w + 0.12, 0.12, w + 0.12]} />
         <meshPhysicalMaterial {...THICK_GLASS} />
       </mesh>
-      {/* Four walls as one open box: drawn as a thin-walled box with the inside faces via DoubleSide. */}
-      <mesh position={[0, FLOOR_Y + GLASS_HEIGHT / 2, 0]}>
-        <boxGeometry args={[w, GLASS_HEIGHT, w]} />
+      {/* The four walls: an open-ended square tube (a 4-sided cylinder turned
+          45°), so it has no floor or ceiling face — a closed box put one in
+          the base slab's top and one in the cap's underside, and both fought. */}
+      <mesh position={[0, FLOOR_Y + GLASS_HEIGHT / 2, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <cylinderGeometry args={[w / Math.SQRT2, w / Math.SQRT2, GLASS_HEIGHT, 4, 1, true]} />
         <meshPhysicalMaterial {...GLASS} />
       </mesh>
       {/* Edge frame so the glass reads as a box. */}
@@ -343,7 +387,7 @@ function Column({ heightsRef }) {
       </mesh>
       {/* The piston: a steel plate that seals the column. */}
       <group ref={piston} position={[0, FLOOR_Y + CONTAINER.maxHeight, 0]}>
-        <mesh castShadow>
+        <mesh>
           <boxGeometry args={[CONTAINER.width - 0.02, PISTON_THICK, CONTAINER.depth - 0.02]} />
           <meshStandardMaterial {...STEEL} />
         </mesh>
@@ -366,7 +410,7 @@ function Column({ heightsRef }) {
 }
 
 /** A thermometer beside the column — the sample's temperature, with a tick for the hotplate's setpoint. */
-function Thermometer({ modelRef, setpointC }) {
+function Thermometer({ modelRef, setpointC, Label = SceneLabel }) {
   const column = useRef(null);
   const tick = useRef(null);
   const bottom = FLOOR_Y + 0.4;
@@ -387,6 +431,15 @@ function Thermometer({ modelRef, setpointC }) {
   const ticks = useMemo(() => [-100, 0, 100, 200, 250].map((c) => ({ c, y: yOf(c) })), []);
   return (
     <group position={[THERMO_X, 0, 0.6]}>
+      {/* A weighted foot and a stem, so the thermometer stands rather than floats. */}
+      <mesh position={[0, 0.035, 0]}>
+        <cylinderGeometry args={[0.38, 0.42, 0.07, 24]} />
+        <meshStandardMaterial {...DARK_STEEL} />
+      </mesh>
+      <mesh position={[0, (0.07 + bottom - 0.26) / 2, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, bottom - 0.26 - 0.07, 10]} />
+        <meshStandardMaterial {...STEEL} />
+      </mesh>
       <mesh position={[0, bottom + height / 2, 0]}>
         <cylinderGeometry args={[0.13, 0.13, height + 0.3, 16]} />
         <meshPhysicalMaterial {...GLASS} opacity={0.3} />
@@ -401,25 +454,26 @@ function Thermometer({ modelRef, setpointC }) {
       </mesh>
       {ticks.map((t) => (
         <group key={t.c}>
-          <mesh position={[0.2, t.y, 0]}>
+          <mesh position={[-0.2, t.y, 0]}>
             <boxGeometry args={[0.14, 0.02, 0.02]} />
             <meshBasicMaterial color={PALETTE.bone} />
           </mesh>
-          <SceneLabel position={[0.74, t.y, 0]} tone="text-ink-500">{`${t.c} °C`}</SceneLabel>
+          {/* On the thermometer's left: on its right they sat over the glass column. */}
+          <Label position={[-0.62, t.y, 0]} tone="text-ink-500">{`${t.c}°`}</Label>
         </group>
       ))}
       {/* The setpoint tick: where the hotplate is trying to take the sample. */}
-      <mesh ref={tick} position={[-0.22, bottom, 0]}>
+      <mesh ref={tick} position={[0.22, bottom, 0]} rotation={[0, 0, Math.PI / 2]}>
         <coneGeometry args={[0.08, 0.16, 3]} />
         <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={1.4} toneMapped={false} />
       </mesh>
-      <SceneLabel position={[0, bottom + height + 0.55, 0]} tone="text-ink-300">sample thermometer</SceneLabel>
+      <Label position={[0, bottom + height + 0.85, 0]} tone="text-ink-300">sample thermometer</Label>
     </group>
   );
 }
 
 /** The kinetic-energy gauge: mean KE per particle, ∝ absolute temperature. */
-function EnergyGauge({ modelRef }) {
+function EnergyGauge({ modelRef, Label = SceneLabel }) {
   const bar = useRef(null);
   const bottom = FLOOR_Y + 0.4;
   const height = 5.6;
@@ -443,8 +497,8 @@ function EnergyGauge({ modelRef }) {
         <planeGeometry args={[0.28, 1]} />
         <meshBasicMaterial color="#fbbf24" toneMapped={false} />
       </mesh>
-      <SceneLabel position={[0, bottom - 0.32, 0]} tone="text-ink-500">0 K</SceneLabel>
-      <SceneLabel position={[0, bottom + height + 0.25, 0]} tone="text-ink-300">mean KE · ³⁄₂ kT</SceneLabel>
+      <Label position={[0, bottom - 0.32, 0]} tone="text-ink-500">0 K</Label>
+      <Label position={[0, bottom + height + 0.25, 0]} tone="text-ink-300">mean KE · ³⁄₂ kT</Label>
     </group>
   );
 }
@@ -458,7 +512,7 @@ const PHASE_COLOUR = { solid: "#93c5fd", liquid: "#34d399", gas: "#fbbf24", melt
  * pressure. The curve is rebuilt only when a control changes; the marker
  * that rides it is moved from the frame loop.
  */
-function HeatingCurvePanel({ modelRef, substance, pressureAtm }) {
+function HeatingCurvePanel({ modelRef, substance, pressureAtm, Label = SceneLabel }) {
   const marker = useRef(null);
   const curve = useMemo(() => heatingCurve(substance, pressureAtm), [substance, pressureAtm]);
   const eMax = Math.max(curve.totalE, 1);
@@ -503,7 +557,7 @@ function HeatingCurvePanel({ modelRef, substance, pressureAtm }) {
       {drawn.grid.map((g) => (
         <group key={g.T}>
           <Line points={g.points} color={PALETTE.line} lineWidth={0.8} transparent opacity={0.45} dashed dashSize={0.1} gapSize={0.08} />
-          <SceneLabel position={[-0.5, g.points[0][1], 0]} tone="text-ink-500">{`${g.T} °C`}</SceneLabel>
+          <Label position={[-0.5, g.points[0][1], 0]} tone="text-ink-500">{`${g.T} °C`}</Label>
         </group>
       ))}
       <Line points={drawn.axes} color={PALETTE.slate} lineWidth={1.8} />
@@ -511,9 +565,9 @@ function HeatingCurvePanel({ modelRef, substance, pressureAtm }) {
         <group key={i}>
           <Line points={seg.points} color={PHASE_COLOUR[seg.phase] ?? PALETTE.bone} lineWidth={seg.flat ? 4 : 2.4} />
           {seg.label && (
-            <SceneLabel position={[seg.mid[0] + (seg.phase === "melting" ? 1.1 : 0), seg.mid[1] + (seg.phase === "melting" ? -0.34 : 0.3), 0]} tone="text-rose-300">
+            <Label position={[seg.mid[0] + (seg.phase === "melting" ? 1.1 : 0), seg.mid[1] + (seg.phase === "melting" ? -0.34 : 0.3), 0]} tone="text-rose-300">
               {seg.label}
-            </SceneLabel>
+            </Label>
           )}
         </group>
       ))}
@@ -521,16 +575,46 @@ function HeatingCurvePanel({ modelRef, substance, pressureAtm }) {
         <sphereGeometry args={[0.12, 16, 16]} />
         <meshStandardMaterial color={PALETTE.bone} emissive={PALETTE.bone} emissiveIntensity={2.2} toneMapped={false} />
       </mesh>
-      <SceneLabel position={[CHART_W / 2, CHART_H + 0.55, 0]} accent>
+      <Label position={[CHART_W / 2, CHART_H + 0.55, 0]} accent>
         {`heating curve · ${curve.substance.label} at ${pressureAtm.toFixed(1)} atm`}
-      </SceneLabel>
-      <SceneLabel position={[CHART_W / 2, -0.42, 0]} tone="text-ink-400">
+      </Label>
+      <Label position={[CHART_W / 2, -0.42, 0]} tone="text-ink-400">
         {`energy supplied → (0 to ${(eMax / 1000).toFixed(0)} kJ/mol)`}
-      </SceneLabel>
-      <SceneLabel position={[-0.55, CHART_H + 0.2, 0]} tone="text-ink-400">T</SceneLabel>
+      </Label>
+      <Label position={[-0.55, CHART_H + 0.2, 0]} tone="text-ink-400">T</Label>
     </group>
   );
 }
+
+// ─── Framing ────────────────────────────────────────────────────────
+
+/** What must stay in view: the KE gauge on the left to the chart on the right, bench front to the column's labels. */
+const VIEW = { cx: 1.4, width: 17.2, top: BENCH_Y + FLOOR_Y + GLASS_HEIGHT + 2.0, bottom: BENCH_Y - 1.4 };
+const FOV = 44;
+const TAN_HALF_FOV = Math.tan((FOV / 2) * (Math.PI / 180));
+const VIEW_DIRECTION = new THREE.Vector3(0, 0.22, 1).normalize();
+
+/** Frames VIEW at the canvas's aspect and hands the target to the orbit controls. */
+function FitCamera() {
+  const camera = useThree((st) => st.camera);
+  const controls = useThree((st) => st.controls);
+  const aspect = useThree((st) => st.size.width / Math.max(st.size.height, 1));
+  useEffect(() => {
+    // A canvas measured before layout is 0 wide; fitting to it sends the camera to NaN.
+    if (!(aspect > 0.05)) return;
+    const target = new THREE.Vector3(VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0);
+    const fit = Math.max((VIEW.top - VIEW.bottom) / 2 / TAN_HALF_FOV, VIEW.width / 2 / (TAN_HALF_FOV * aspect)) * 1.04;
+    camera.position.copy(target).addScaledVector(VIEW_DIRECTION, fit);
+    camera.lookAt(target);
+    if (controls) {
+      controls.target.copy(target);
+      controls.update();
+    }
+  }, [camera, controls, aspect]);
+  return null;
+}
+
+const NoLabel = () => null;
 
 // ─── The scene ──────────────────────────────────────────────────────
 
@@ -540,6 +624,7 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
     pressure = 1,
     substance = "water",
     speed = 1,
+    showLabels = true,
     liveTempC = null,
     livePhase = "liquid",
     liveFraction = 0,
@@ -583,10 +668,12 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
   const phaseInfo = describePhase({ substance, pressureAtm, tempC, phase: livePhase, fraction: liveFraction, heating: liveHeating });
   const ke = kineticReadout(substance, tempC);
   const heating = liveHeating > 50 ? "heating" : liveHeating < -50 ? "cooling" : "holding";
+  const Label = showLabels ? SceneLabel : NoLabel;
   const pistonPct = livePistonPct === null || livePistonPct === undefined ? Math.round((heightsRef.current.piston / CONTAINER.maxHeight) * 100) : livePistonPct;
 
   return (
-    <SceneCanvas camera={{ position: [0.4, 5.6, 19.5], fov: 44 }} controls={{ minDistance: 5, maxDistance: 36, target: [0.6, 1.3, 0] }}>
+    <SceneCanvas camera={{ position: [2.2, 5.6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
+      <FitCamera />
       <LabBench y={BENCH_Y} width={18} depth={8} />
       <group position={[0, BENCH_Y, 0]}>
         <HotPlate modelRef={modelRef} />
@@ -602,26 +689,27 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
           seeds={seeds}
           heightsRef={heightsRef}
         />
-        <Thermometer modelRef={modelRef} setpointC={setpointC} />
-        <EnergyGauge modelRef={modelRef} />
-        <HeatingCurvePanel modelRef={modelRef} substance={substance} pressureAtm={pressureAtm} />
+        <Thermometer modelRef={modelRef} setpointC={setpointC} Label={Label} />
+        <EnergyGauge modelRef={modelRef} Label={Label} />
+        <HeatingCurvePanel modelRef={modelRef} substance={substance} pressureAtm={pressureAtm} Label={Label} />
 
         {/* Labels. */}
-        <SceneLabel position={[0, FLOOR_Y + GLASS_HEIGHT + 1.45, 0]} accent>
+        <Label position={[0, FLOOR_Y + GLASS_HEIGHT + 1.52, 0]} accent>
           {`${sub.label} (${sub.formula}) · ${phaseInfo.label}`}
-        </SceneLabel>
-        <SceneLabel position={[0, FLOOR_Y + GLASS_HEIGHT + 1.1, 0]} tone={phaseInfo.key === "melting" || phaseInfo.key === "boiling" || phaseInfo.key === "subliming" || phaseInfo.key === "freezing" || phaseInfo.key === "condensing" || phaseInfo.key === "depositing" ? "text-rose-300" : "text-ink-300"}>
+        </Label>
+        <Label position={[0, FLOOR_Y + GLASS_HEIGHT + 1.1, 0]} tone={phaseInfo.key === "melting" || phaseInfo.key === "boiling" || phaseInfo.key === "subliming" || phaseInfo.key === "freezing" || phaseInfo.key === "condensing" || phaseInfo.key === "depositing" ? "text-rose-300" : "text-ink-300"}>
           {`${tempC.toFixed(1)} °C · ${phaseInfo.detail}`}
-        </SceneLabel>
-        <SceneLabel position={[0, PLATE_TOP - 0.55, 2.6]} tone={heating === "heating" ? "text-amber-300" : heating === "cooling" ? "text-sky-300" : "text-ink-400"}>
+        </Label>
+        <Label position={[0, PLATE_TOP - 0.55, 2.6]} tone={heating === "heating" ? "text-amber-300" : heating === "cooling" ? "text-sky-300" : "text-ink-400"}>
           {`${setpointC < tempC - 0.5 ? "cryocooler" : "hotplate"} set to ${setpointC.toFixed(0)} °C · ${heating}${heating !== "holding" ? ` at ${Math.abs(liveHeating).toLocaleString("en-GB")} J/mol·s` : ""}`}
-        </SceneLabel>
-        <SceneLabel position={[2.4, FLOOR_Y + GLASS_HEIGHT + 0.55, 1.2]} tone="text-ink-300">
+        </Label>
+        <Label position={[3.9, FLOOR_Y + GLASS_HEIGHT - 0.4, 0]} tone="text-ink-300">
           {`piston · ${pressureAtm.toFixed(1)} atm · ${pistonPct}% of travel`}
-        </SceneLabel>
-        <SceneLabel position={[GAUGE_X + 0.55, FLOOR_Y + 0.05, 0.6]} tone="text-ink-400">
+        </Label>
+        {/* Under the gauge, not beside it: beside it sat on "0 K" and the thermometer's −100 °C tick. */}
+        <Label position={[GAUGE_X + 0.3, FLOOR_Y - 0.45, 0.6]} tone="text-ink-400">
           {`${ke.meanKEzJ.toFixed(2)} ×10⁻²¹ J · v_rms ${ke.vRms.toFixed(0)} m/s`}
-        </SceneLabel>
+        </Label>
       </group>
 
     </SceneCanvas>

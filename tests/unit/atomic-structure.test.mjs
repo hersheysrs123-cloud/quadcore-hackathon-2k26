@@ -12,8 +12,17 @@ import {
 const SYMBOLS = Object.keys(ELEMENTS);
 
 describe("atomic structure — the element table", () => {
-  it("offers exactly the four elements the picker draws", () => {
-    assert.deepEqual(SYMBOLS, ["H", "C", "Na", "Cl"]);
+  it("offers the first twenty elements, H to Ca, in atomic-number order", () => {
+    assert.deepEqual(SYMBOLS, [
+      "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+      "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca",
+    ]);
+    SYMBOLS.forEach((s, i) => assert.equal(ELEMENTS[s].protons, i + 1, `${s} is out of order`));
+  });
+
+  it("uses the most abundant isotope's neutron count", () => {
+    const A = { H: 1, He: 4, Li: 7, Be: 9, B: 11, C: 12, N: 14, O: 16, F: 19, Ne: 20, Na: 23, Mg: 24, Al: 27, Si: 28, P: 31, S: 32, Cl: 35, Ar: 40, K: 39, Ca: 40 };
+    for (const s of SYMBOLS) assert.equal(describeAtom(s).massNumber, A[s], `${s} mass number`);
   });
 
   it("gives every element a shell count within the 2,8,8 rule", () => {
@@ -70,8 +79,12 @@ describe("describeAtom", () => {
     assert.equal(describeAtom("Cl").period, 3);
   });
 
-  it("says no outer shell here is full — all four elements react", () => {
-    for (const s of SYMBOLS) assert.equal(describeAtom(s).full, false, `${s} came out full`);
+  it("calls only the noble gases full — calcium's 2 in N is not a full shell", () => {
+    const full = SYMBOLS.filter((s) => describeAtom(s).full);
+    assert.deepEqual(full, ["He", "Ne", "Ar"]);
+    for (const s of full) assert.equal(ELEMENTS[s].group, "0");
+    assert.equal(describeAtom("Ca").capacity, 8);
+    assert.equal(describeAtom("He").capacity, 2);
   });
 
   it("prints the configuration in the comma form the panel shows", () => {

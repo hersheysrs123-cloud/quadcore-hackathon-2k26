@@ -74,6 +74,7 @@ import {
 } from "lucide-react";
 import { MEDIA, MEDIA_OPTIONS, mediumFor } from "@/components/visualizations/media";
 import { speedRegime } from "@/lib/orbit";
+import { ELEMENTS } from "@/lib/atomicStructure";
 import {
   ALGORITHM_OPTIONS,
   AQUEOUS_SOLUTION_OPTIONS,
@@ -109,6 +110,8 @@ import {
   SURFACE_OPTIONS,
   VSEPR_PRESETS,
   vseprPresetFor,
+  REACTION_TYPES,
+  reactionTypeFor,
 } from "@/components/visualizations/topic-options";
 import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
 import { leakTimeConstant } from "@/lib/electrostatics";
@@ -1586,7 +1589,7 @@ export const TOPICS = [
     category: "chemistry",
     icon: Atom,
     title: "3D Bohr Atom & Orbital Shells",
-    blurb: "Electron shells of hydrogen, carbon, sodium and chlorine",
+    blurb: "Electron shells of the first twenty elements, hydrogen to calcium",
     syllabus: "Chemistry 2.1 · Atomic structure",
     keywords: "bohr atom electron shell configuration valence proton neutron isotope ion nucleus",
     defaults: {
@@ -1602,12 +1605,9 @@ export const TOPICS = [
         type: "choice",
         key: "element",
         label: "Element",
-        options: [
-          { value: "H", label: "H · 1" },
-          { value: "C", label: "C · 6" },
-          { value: "Na", label: "Na · 11" },
-          { value: "Cl", label: "Cl · 17" },
-        ],
+        // H to Ca in atomic-number order, four to a row.
+        options: Object.values(ELEMENTS).map((e) => ({ value: e.symbol, label: `${e.symbol} · ${e.protons}` })),
+        columns: 4,
       },
       // No "speed" slider here: the HUD renders a universal Animation Speed
       // slider bound to the same key, and two sliders on one parameter is one
@@ -1653,7 +1653,7 @@ export const TOPICS = [
     blurb: "Ball-and-stick alkanes, alkenes, alkynes, alcohols, carboxylic acids & esters",
     syllabus: "Chemistry 14 · Organic chemistry",
     keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester",
-    defaults: { family: "alkane", carbons: 3, crack: 0, spin: true },
+    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1671,12 +1671,17 @@ export const TOPICS = [
       },
       { type: "slider", key: "carbons", label: "Carbon chain length", min: 1, max: 12, step: 1, format: (v) => `C${v}` },
       { type: "toggle", key: "spin", label: "Rotate molecule" },
-      { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors },
+      // Each reaction button only where it applies: cracking needs an alkane,
+      // and the ester is what the esterification makes.
+      { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors, when: (p) => (p.family ?? "alkane") === "alkane" },
+      { type: "action", key: "esterify", label: "Form the ester (acid + methanol)", icon: FlaskConical, when: (p) => p.family === "ester" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Alkanes (CₙH₂ₙ₊₂) are saturated — only single C–C bonds. Alkenes (CₙH₂ₙ) are unsaturated and contain a C=C double bond.",
       "Members of a homologous series share a general formula and differ by CH₂, so their properties change gradually down the series.",
       "Cracking breaks long alkanes into a shorter alkane plus a useful alkene, matching supply to demand for petrol and polymer feedstock.",
+      "A carboxylic acid and an alcohol, warmed with a few drops of concentrated sulfuric acid, make an ester and water — a reversible condensation reaction. The acid loses –OH and the alcohol loses H.",
     ],
     quiz: [
       {
@@ -1749,7 +1754,7 @@ export const TOPICS = [
     blurb: "NaCl ionic cube, diamond network, graphite sheets, quartz and ice",
     syllabus: "Chemistry 3 · Structure & bonding",
     keywords: "lattice giant ionic covalent nacl sodium chloride diamond graphite allotrope delocalised conductivity quartz silica ice hydrogen bond",
-    defaults: { structure: "nacl", slide: 0, showBonds: true, spin: true },
+    defaults: { structure: "nacl", slide: 0, showBonds: true, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1767,6 +1772,7 @@ export const TOPICS = [
       { type: "slider", key: "slide", label: "Layer slide (graphite)", min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
       { type: "toggle", key: "showBonds", label: "Show bonds" },
       { type: "toggle", key: "spin", label: "Rotate lattice" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "In sodium chloride, Na⁺ and Cl⁻ alternate in a giant ionic lattice held by strong attraction in every direction — high melting point, conducts only when molten or aqueous.",
@@ -1875,13 +1881,14 @@ export const TOPICS = [
       showLonePairs: true,
       showAngles: true,
       spin: true,
+      showLabels: true,
     },
     controls: [
       {
         type: "choice",
         key: "preset",
         label: "Common molecules",
-        columns: 3,
+        columns: 4,
         options: VSEPR_PRESETS,
         // Picking a molecule writes both pair counts at once; nudging either
         // slider afterwards simply leaves no preset selected.
@@ -1912,6 +1919,7 @@ export const TOPICS = [
       { type: "toggle", key: "showLonePairs", label: "Show lone pairs" },
       { type: "toggle", key: "showAngles", label: "Show bond angle" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Electron pairs all repel each other, so they arrange themselves as far apart as possible around the central atom. Count the pairs and the electron geometry follows: 2 linear, 3 trigonal planar, 4 tetrahedral, 5 trigonal bipyramidal, 6 octahedral.",
@@ -1951,6 +1959,7 @@ export const TOPICS = [
     keywords:
       "energy profile activation energy enthalpy exothermic endothermic catalyst transition state reaction coordinate collision theory boltzmann arrhenius rate delta h bond breaking making",
     defaults: {
+      reaction: "exo",
       activation: 90,
       deltaH: -60,
       catalyst: false,
@@ -1962,14 +1971,38 @@ export const TOPICS = [
       // is real and is shown: solveEnergetics() derives it and the Details
       // panel prints it.
       spin: false,
+      showLabels: true,
     },
     controls: [
+      {
+        type: "choice",
+        key: "reaction",
+        label: "Reaction type",
+        columns: 2,
+        options: REACTION_TYPES,
+        // Each button loads a typical profile of that kind; the sliders then
+        // fine-tune it, and the highlighted button follows ΔH's sign.
+        patch: (v) => {
+          const preset = REACTION_TYPES.find((r) => r.value === v);
+          return preset ? { reaction: v, deltaH: preset.deltaH, activation: preset.activation } : { reaction: v };
+        },
+      },
       { type: "slider", key: "activation", label: "Activation energy Ea", min: 20, max: 160, step: 5, format: (v) => `${v} kJ/mol` },
-      { type: "slider", key: "deltaH", label: "Enthalpy change ΔH", min: -120, max: 120, step: 5, format: (v) => `${v > 0 ? "+" : ""}${v} kJ/mol` },
+      {
+        type: "slider",
+        key: "deltaH",
+        label: "Enthalpy change ΔH",
+        min: -120,
+        max: 120,
+        step: 5,
+        format: (v) => `${v > 0 ? "+" : ""}${v} kJ/mol`,
+        patch: (v) => ({ deltaH: v, reaction: reactionTypeFor(v) }),
+      },
       { type: "slider", key: "temperature", label: "Temperature", min: 250, max: 800, step: 10, format: (v) => `${v} K` },
       { type: "toggle", key: "catalyst", label: "Add a catalyst" },
       { type: "slider", key: "catalystDrop", label: "Catalyst lowers Ea by", min: 10, max: 70, step: 5, format: (v) => `${v} kJ/mol` },
       { type: "toggle", key: "spin", label: "Orbit camera" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Activation energy is the barrier every colliding pair must clear to reach the transition state. Only the small fraction of collisions carrying at least Ea can react, which is why most collisions achieve nothing at all.",
@@ -2013,6 +2046,7 @@ export const TOPICS = [
       solution: "cuso4",
       timeLapse: 10,
       dip: 0,
+      showLabels: true,
       speed: 1,
     },
     controls: [
@@ -2039,6 +2073,7 @@ export const TOPICS = [
         step: 1,
         format: (v) => `${Number(v).toFixed(0)}×`,
       },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       { type: "action", key: "dip", label: "Dip fresh strips", icon: RotateCcw, variant: "ghost" },
     ],
     concepts: [
@@ -2115,6 +2150,7 @@ export const TOPICS = [
       electrolyte: "distilled",
       partner: "zinc",
       playing: false,
+      showLabels: true,
       speed: 1,
     },
     controls: [
@@ -2128,6 +2164,7 @@ export const TOPICS = [
         format: (v) => dayLabel(v),
       },
       { type: "toggle", key: "playing", label: "Play the 90 days" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       {
         type: "choice",
         key: "electrolyte",
@@ -2218,6 +2255,7 @@ export const TOPICS = [
       solvent: "water",
       restart: 0,
       speed: 1,
+      showLabels: true,
     },
     controls: [
       {
@@ -2231,7 +2269,7 @@ export const TOPICS = [
         type: "choice",
         key: "mixture",
         label: "Sample mixture",
-        columns: 1,
+        columns: 2,
         options: SAMPLE_MIXTURE_OPTIONS,
       },
       {
@@ -2242,6 +2280,7 @@ export const TOPICS = [
         options: SOLVENT_TYPE_OPTIONS,
       },
       { type: "action", key: "restart", label: "Restart this station", icon: RotateCcw, variant: "ghost" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Every separation technique works because the parts of a mixture differ in some physical property, and the technique is chosen to match the difference. Filtration exploits particle size: an insoluble solid such as sand has grains hundreds of micrometres across, far larger than the 11 µm pores of filter paper, so it is held back as the residue, while a dissolved solute is present as ions or molecules under a nanometre wide and runs straight through in the filtrate. Filtration therefore separates a solid from a liquid — it cannot separate a solute from its solvent, which is why filtering copper sulfate solution gives a blue filtrate and an empty paper.",
@@ -2320,6 +2359,7 @@ export const TOPICS = [
       holdBasin: 0,
       relight: 0,
       speed: 1,
+      showLabels: true,
     },
     controls: [
       {
@@ -2336,6 +2376,7 @@ export const TOPICS = [
       { type: "action", key: "waterMist", label: "Fire triangle · spray water mist (remove heat)", icon: SprayCan, variant: "danger" },
       { type: "action", key: "holdBasin", label: "Hold a cold evaporating basin over the flame", icon: Flame, variant: "primary" },
       { type: "action", key: "relight", label: "Relight the burner & reset the apparatus", icon: RotateCcw, variant: "ghost" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "A flame needs three things at once — a fuel, oxygen, and enough heat to keep the reaction going — and the fire triangle is the reminder that removing any one of them puts it out. Close the gas tap and there is nothing left to burn; lower a bell jar and the flame uses up the oxygen inside until the air is too lean (below about 16% O₂ a methane flame cannot survive); spray a fine water mist and the water's evaporation carries heat away faster than the flame can supply it, dropping the fuel–air mixture below its ignition temperature. Each interrupter targets one side, which is the basis of every method of firefighting: turning off the supply, smothering with a blanket or foam, and cooling with water.",
@@ -2411,6 +2452,7 @@ export const TOPICS = [
       pressure: 1,
       substance: "water",
       speed: 1,
+      showLabels: true,
     },
     controls: [
       {
@@ -2432,6 +2474,7 @@ export const TOPICS = [
         format: (v) => `${Number(v).toFixed(1)} atm`,
       },
       { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3 },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Everything is made of particles that are always moving, and temperature is a measure of how fast — the average kinetic energy of a particle is proportional to the absolute temperature (³⁄₂ kT). In a solid the particles have only enough energy to vibrate about fixed positions in a regular lattice; in a liquid they have enough to slide past one another but not to escape each other's attraction, so they stay touching; in a gas they have broken free entirely and fly in straight lines between collisions, filling whatever space the piston leaves them. Heating a gas makes its particles hit the walls harder and more often, which is pressure; pushing the piston down squeezes the same particles into less room, which is also pressure.",
@@ -2517,6 +2560,7 @@ export const TOPICS = [
       fieldOn: false,
       restart: 0,
       speed: 1,
+      showLabels: true,
     },
     controls: [
       { type: "choice", key: "mode", label: "Decay mode", options: DECAY_MODE_OPTIONS, columns: 2 },
@@ -2531,6 +2575,7 @@ export const TOPICS = [
       },
       { type: "choice", key: "barrier", label: "Barrier material", options: BARRIER_OPTIONS, columns: 3 },
       { type: "toggle", key: "fieldOn", label: "Electric field plates (+ above, − below)" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       { type: "action", key: "restart", label: `Fresh sample (restart · 1 t½ = ${SIM_HALF_LIFE_S} s on screen)`, icon: RotateCcw, variant: "ghost" },
     ],
     concepts: [

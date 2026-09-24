@@ -177,7 +177,7 @@ describe("radioactive decay · barriers and plates", () => {
     assert.deepEqual(table.aluminium, [false, false, false, true]);
     assert.deepEqual(table.lead, [false, false, false, false]);
     assert.equal(BARRIERS.aluminium.thicknessMm, 5);
-    assert.equal(BARRIERS.lead.thicknessMm, 100);
+    assert.equal(BARRIERS.lead.thicknessMm, 3);
   });
 
   it("gamma is attenuated, never quite stopped: some through aluminium, a thousandth through lead; neutrinos pass everything", () => {

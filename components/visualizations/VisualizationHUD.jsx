@@ -28,7 +28,7 @@ import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_
 import { WATER_COLOUR, solveOsmosis } from "@/lib/cellBiology";
 import { STRUCTURE_COLOURS, solveFolding } from "@/lib/proteinFolding";
 import { latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
-import { solveVsepr } from "@/lib/vsepr";
+import { ELEMENT_STYLE, VSEPR_BOND_COLOUR, solveVsepr } from "@/lib/vsepr";
 import { solveEnergetics } from "@/lib/energetics";
 import { slideForecast, solveIncline, surfaceFor } from "@/lib/inclineForces";
 import {
@@ -174,6 +174,7 @@ import {
   solveChromatography,
   solveCrystallization,
   solveFiltration,
+  stationFit,
 } from "@/lib/separation";
 import {
   BASIN_HOLD_S,
@@ -2247,7 +2248,7 @@ function renderTopicDetailsReadout(topic, params) {
       // in a table that stopped at 6-0 and report a flat `lone × 2.5°` squeeze,
       // so AX₄E₂ read "Octahedral · 5.0° squeeze" against a scene correctly
       // drawing a square planar molecule at 90°.
-      const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0));
+      const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0), params.preset);
 
       readout = {
         title: "VSEPR molecular geometry",
@@ -2258,9 +2259,13 @@ function renderTopicDetailsReadout(topic, params) {
           ["Steric number", v.steric],
           ["Electron geometry", v.electronGeometry],
           ["Molecular shape", v.shape, "gold"],
-          ["Example", v.example],
+          [v.molecule ? "Molecule" : "Example", v.molecule ? `${v.molecule.label} · ${v.molecule.name}` : v.example],
           ["Ideal angle", v.hasAngle ? v.idealLabel : "— (diatomic)"],
-          ["Actual angle", v.hasAngle ? `${v.angle.toFixed(1)}°` : "—", v.lone > 0 ? "warn" : "good"],
+          [
+            v.angles.length > 1 ? "Measured angles" : "Measured angle",
+            v.hasAngle ? v.angles.map((a) => `${a.toFixed(1)}°`).join(" · ") : "—",
+            v.lone > 0 ? "warn" : "good",
+          ],
           [
             "Angle compression",
             !v.hasAngle
@@ -2287,10 +2292,15 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Electron domains key",
         items: [
-          { color: PALETTE.gold, shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
-          { color: PALETTE.sky, shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
+          // A real molecule is drawn in its elements' colours, a bare AXₙEₘ in gold and sky.
+          v.molecule
+            ? { color: ELEMENT_STYLE[v.molecule.centre].colour, shape: "dot", label: `${v.molecule.centre} · central atom`, note: "counts its own valence electrons" }
+            : { color: PALETTE.gold, shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
+          v.molecule
+            ? { color: ELEMENT_STYLE[v.molecule.ligand].colour, shape: "dot", label: `${v.molecule.ligand} · bonded atom`, note: "one bonding domain each" }
+            : { color: PALETTE.sky, shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
           { color: PALETTE.violet, shape: "dot", label: "Lone pair", note: "repels harder — closes the angles" },
-          { color: PALETTE.slate, shape: "line", label: "Bond", note: "a shared pair of electrons" },
+          { color: VSEPR_BOND_COLOUR, shape: "line", label: "Bond", note: "a shared pair of electrons" },
         ],
       };
       break;
@@ -2438,7 +2448,7 @@ function renderTopicDetailsReadout(topic, params) {
           ["Anode (oxidised)", couple.anode, couple.protects ? "good" : "bad"],
           ["Cathode (protected)", couple.cathode, couple.protects ? "good" : "bad"],
           ["Driving voltage ΔE°", `${couple.deltaE.toFixed(2)} V`],
-          ["Electron flow", couple.direction === "partner_to_iron" ? `${P.symbol} → Fe` : `Fe → ${P.symbol}`, couple.protects ? "good" : "bad"],
+          ["Electron flow", couple.direction === "none" ? `none — ${P.label.toLowerCase()} used up` : couple.direction === "partner_to_iron" ? `${P.symbol} → Fe` : `Fe → ${P.symbol}`, couple.protects && couple.direction !== "none" ? "good" : "bad"],
           ["Nail rust thickness", `${coupled.rustThicknessUm.toFixed(2)} µm`, couple.protects ? "good" : "bad"],
           ["Nail iron lost", `${coupled.ironLostMg.toFixed(2)} mg`, couple.protects ? "good" : "bad"],
           ["Against the bare nail", `${saved >= 0 ? "saved" : "cost"} ${Math.abs(saved).toFixed(1)} mg`, saved >= 0 ? "good" : "bad"],
@@ -2496,13 +2506,15 @@ function renderTopicDetailsReadout(topic, params) {
             ["— EACH COMPONENT —", r.separates ? "separated" : "not separated", r.separates ? "good" : "bad"],
             ...r.components.map((c) => [`${c.label} (${c.formula})`, `${c.retained ? "RESIDUE" : "filtrate"} · ${c.reason}`, c.retained ? "warn" : "good"]),
             ["Filtrate looks", r.nothingPassed ? `clear ${S.label.toLowerCase()}` : r.components.some((c) => c.passedG > 0 && COMPONENTS[c.key].tint) ? "coloured — the solute went through" : "colourless — dissolved salt is invisible"],
-            ["Verdict", r.verdict, r.separates ? "good" : "bad"],
+            ["Verdict", r.verdict, r.fines ? "warn" : r.verdict.startsWith("separates") ? "good" : "bad"],
           ],
           note: r.separates
             ? `The paper is a sieve with ${FILTER_PORE_UM} µm holes. ${r.components.filter((c) => c.retained).map((c) => c.label).join(" and ")} is held back because it never dissolved and its grains are far larger than a pore; ${r.components.filter((c) => !c.retained).map((c) => c.label.toLowerCase()).join(" and ")} is present as ions or molecules under a nanometre across and passes with the solvent. Filtration separates a solid from a liquid — nothing more.`
             : r.nothingRetained
               ? `Everything in this sample is dissolved in ${S.label.toLowerCase()}, so there is no particle for the paper to catch: the whole sample runs through and the filtrate is the same ${M.label.toLowerCase()} you poured in. To take the solute out of a solution you need crystallisation, not filtration.`
-              : `${S.label} does not dissolve this solute, so it stays a solid and the paper keeps it. The filtrate is just ${S.label.toLowerCase()} — which is a separation, but of the solvent from everything else. Swap to water and watch the same salt run straight through.`,
+              : r.components.filter((c) => c.retained).every((c) => COMPONENTS[c.key].kind === "solid")
+                ? `${r.components.map((c) => c.label).join(" and ")} never dissolves — it is suspended in the ${S.label.toLowerCase()}, not dissolved in it. The paper holds it back and clear ${S.label.toLowerCase()} runs through: a suspension is exactly what filtration is for.`
+                : `${S.label} does not dissolve this solute, so it stays a solid and the paper keeps it. The filtrate is just ${S.label.toLowerCase()} — which is a separation, but of the solvent from everything else. Swap to water and watch the same salt run straight through.`,
           noteTone: r.separates ? "good" : "warn",
         };
         legend = {
@@ -2595,6 +2607,12 @@ function renderTopicDetailsReadout(topic, params) {
           ],
         };
       }
+      // Is this the right station for this sample at all? Leads the panel.
+      const fit = stationFit({ station: stationKey, mixture: mixKey, solvent: solKey });
+      const fitLabel = { right: "✓ right tool", partly: "≈ only partly", wrong: "✗ wrong tool" }[fit.fit];
+      const fitTone = { right: "good", partly: "warn", wrong: "bad" }[fit.fit];
+      const tryNext = fit.betterSolvent ? ` — try ${SOLVENTS[fit.betterSolvent].label.toLowerCase()}` : fit.better.length ? ` — try ${fit.better.map((s) => STATIONS[s].label.toLowerCase()).join(" or ")}` : "";
+      readout.rows.unshift(["Right tool for this sample?", `${fitLabel} · ${fit.reason}${tryNext}`, fitTone]);
       break;
     }
 
@@ -2783,7 +2801,7 @@ function renderTopicDetailsReadout(topic, params) {
         title: "Decay Key",
         items: [
           { color: "#fbbf24", shape: "dot", label: `${M.parent.name} (parent)`, note: "undecayed — the same chance every second" },
-          { color: "#3f4652", shape: "dot", label: `${M.daughter.name} (daughter)`, note: "decayed — its nucleus has changed" },
+          { color: "#3b4658", shape: "dot", label: `${M.daughter.name} (daughter)`, note: "decayed — its nucleus has changed" },
           { color: PK.colour, shape: "dot", label: `${primary.display} ${primary.name}`, note: M.range },
           ...(M.emissions.length > 1 ? [{ color: PARTICLE_KINDS.neutrino.colour, shape: "dot", label: `${M.emissions[1].display} ${M.emissions[1].name}`, note: "no charge — through the plates, the barrier and the tube" }] : []),
           { color: "#a78bfa", shape: "dash", label: "N₀e^(−λt)", note: "the prediction the sample is judged against" },

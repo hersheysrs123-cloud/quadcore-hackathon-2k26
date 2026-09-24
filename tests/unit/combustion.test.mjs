@@ -243,6 +243,7 @@ describe("Relighting", () => {
     assert.ok(first.striker > 0, "but the striker is waiting");
     s = run(first, 0.3, { collar: 100 });
     assert.equal(s.lit, false, "still lifting, no fresh air yet");
+    assert.equal(triangleStatus(s).heat, true, "the striker is the heat while it waits — not a missing side");
     s = run(s, 2, { collar: 100 });
     assert.equal(s.lit, true, "clear of the burner, air back, it catches");
     assert.equal(s.striker, 0);
