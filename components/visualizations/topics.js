@@ -2040,6 +2040,7 @@ export const TOPICS = [
       solution: "cuso4",
       timeLapse: 10,
       dip: 0,
+      showLabels: true,
       speed: 1,
     },
     controls: [
@@ -2066,6 +2067,7 @@ export const TOPICS = [
         step: 1,
         format: (v) => `${Number(v).toFixed(0)}×`,
       },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       { type: "action", key: "dip", label: "Dip fresh strips", icon: RotateCcw, variant: "ghost" },
     ],
     concepts: [

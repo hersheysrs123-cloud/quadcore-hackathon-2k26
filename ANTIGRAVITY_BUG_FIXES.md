@@ -7729,3 +7729,23 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - `CameraDolly` fits the diagram to the canvas width.
   - Arrow values sit beside the middle of each arrow, and drop under the reactant line when the arrow is short.
   - Checked for label overlaps across exothermic, endothermic, catalysed and extreme slider settings.
+
+## Reactivity series: dark arm, whole strip thinning, overlapping labels, flush faces
+
+- **Problem:**
+  - The dipping arm was near-black and rendered as plain boxes.
+  - The whole strip thinned as it reacted, including the dry part above the liquid.
+  - The four verdict labels and the focus beaker's half-equations overlapped on narrow canvases.
+  - The rig was cut off at the sides.
+  - The rail's ends sat flush with the posts' outer faces, so they z-fought.
+  - The posts and their feet stood inside the rack board.
+- **Root cause:**
+  - The strip was one box scaled as a whole.
+  - The frame was sized without the rack's width in mind.
+  - Labels were placed for a wide canvas.
+- **Fix:**
+  - Rebuilt the arm in light aluminium, with an overhanging beam, end caps and posts moved outside the rack board.
+  - Split each strip into a fixed dry top and a reacting wet end, which carries a film of the deposited metal.
+  - Made the verdict labels short and two-line, set low on each beaker, using `inline-block`: a block inside the label's inline box split its background into stray dark fragments.
+  - Moved the half-equations into the caption rows.
+  - `FitCamera` now frames the rig at any aspect.

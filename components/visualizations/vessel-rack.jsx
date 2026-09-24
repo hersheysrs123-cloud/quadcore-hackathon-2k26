@@ -62,6 +62,7 @@ export function VesselRack({
   labels = [],
   focus = -1,
   colour = "#6b5a46",
+  showLabels = true,
   children,
 }) {
   const width = spacing * count + 1.2;
@@ -113,9 +114,11 @@ export function VesselRack({
               <boxGeometry args={[0.6, 0.02, 0.36]} />
               <meshStandardMaterial color={active ? PALETTE.gold : "#e8ebf0"} roughness={0.6} />
             </mesh>
+            {showLabels && (
             <SceneLabel position={[0, 0.3, holderRadius + 0.5]} tone={active ? "text-duck-300" : "text-ink-300"} accent={active}>
               {labels[i] ?? `${i + 1}`}
             </SceneLabel>
+            )}
           </group>
         );
       })}
