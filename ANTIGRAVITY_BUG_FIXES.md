@@ -7872,3 +7872,29 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - `FitCamera` frames `VIEW`.
   - The thermometer's ticks moved to its left, the KE gauge moved further out, the piston readout now sits beside the column top, and the chart was lifted clear of the bench.
   - Added a `showLabels` toggle.
+
+## Radioactive decay: a plate lying on the bench, shadows, physics numbers off
+
+- **Problem:**
+  - The lower field plate flickered against the bench.
+  - The barrier and the holder were sunk into the bench.
+  - The plates, the barrier and the holder cast shadows.
+  - Half-life stamps past 6 t½ piled up at the chart's right edge.
+  - Carbon-14's betas were listed at 0.9 c with a metre of air range.
+  - 10 cm of lead let one in a thousand of Tc-99m's gammas through.
+  - The legend's daughter swatch (`#3f4652`) was not the drawn colour (`#3b4658`).
+- **Root cause:**
+  - With `TRACK_Y` = 1.6 and a plate gap of 1.55, the lower plate's underside sat 5 mm above the bench top.
+  - The holder and barrier were sized around the track, not stood on the bench.
+  - The legend test only passed because the old holder happened to use `#3f4652`.
+  - The beta figures were generic textbook figures, not carbon-14's (156 keV at most, 49 keV mean, about 0.41 c, about 20 cm of air). Fluorine-18's positrons average 250 keV, about 0.74 c.
+  - At 140 keV lead's μ is about 23 /cm, so 10 cm transmits nothing. 3 mm (ten half-value layers) gives the 0.1%.
+- **Fix:**
+  - `TRACK_Y` is now 2.2. Every foot starts 0.01 below the bench top, and stacked parts overlap instead of touching.
+  - Decals sit 0.01–0.03 off their faces.
+  - All `castShadow` / `receiveShadow` flags were removed.
+  - Stamps past the chart are filtered out.
+  - `speedOfLight` and the range strings were corrected, and lead is now 3 mm.
+  - The positron colour moved off the parent gold, and stopped positrons annihilate into two gammas.
+  - The nucleus colours moved into `lib/radioactiveDecay.js`, and the legend uses `#3b4658`.
+  - Added `FitCamera` and a `showLabels` toggle.

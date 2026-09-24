@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html, Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -881,9 +881,9 @@ function Chromatogram({ modelRef, mixture, solvent, result, animSpeed = 1 }) {
         <Line key={i} points={pts} color={PALETTE.line} lineWidth={0.8} transparent opacity={0.45} />
       ))}
       {ticks.map((t) => (
-        <SceneLabel key={t.mm} position={[-0.32, t.y, 0]} tone="text-ink-500">
+        <SepLabel key={t.mm} position={[-0.32, t.y, 0]} tone="text-ink-500">
           {`${t.mm} mm`}
-        </SceneLabel>
+        </SepLabel>
       ))}
       {/* Baseline and front. */}
       <mesh position={[CHART.width / 2 - 0.1, 0, 0.002]}>
@@ -903,24 +903,24 @@ function Chromatogram({ modelRef, mixture, solvent, result, animSpeed = 1 }) {
       </group>
       {/* The arithmetic. */}
       {/* The formula heads the stack of Rf lines above the board. */}
-      <SceneLabel position={[CHART.width / 2 - 0.1, CHART_H + 0.55 + n * 0.34, 0]} accent>
+      <SepLabel position={[CHART.width / 2 - 0.1, CHART_H + 0.55 + n * 0.34, 0]} accent>
         {"Rf = d(pigment) ÷ d(solvent front)"}
-      </SceneLabel>
+      </SepLabel>
       {/* The front's own label rides on the front line; the Rf list stacks beside the top of the board. */}
       {/* Only once the front is moving: parked on the baseline it sat on the "0 mm" tick. */}
       {/* Once clear of the "0 mm" tick — near the baseline the two sat on each other. */}
       {active && result.frontMm > 9 && (
-        <SceneLabel position={[CHART.width / 2 - 0.1, frontY + 0.16, 0.02]} tone="text-sky-300">
+        <SepLabel position={[CHART.width / 2 - 0.1, frontY + 0.16, 0.02]} tone="text-sky-300">
           {`solvent front ${result.frontMm.toFixed(1)} mm${result.finished ? " · done" : ""}`}
-        </SceneLabel>
+        </SepLabel>
       )}
       {active &&
         result.spots.map((spot, i) => (
           // Stacked above the board, centred on it: beside it, a leaf's four
           // long pigment names ran off the right of the frame.
-          <SceneLabel key={spot.key} position={[CHART.width / 2 - 0.1, CHART_H + 0.45 + (n - 1 - i) * 0.34, 0]} tone={spot.moves && spot.visible ? "text-ink-200" : "text-ink-500"}>
+          <SepLabel key={spot.key} position={[CHART.width / 2 - 0.1, CHART_H + 0.45 + (n - 1 - i) * 0.34, 0]} tone={spot.moves && spot.visible ? "text-ink-200" : "text-ink-500"}>
             {`${COMPONENTS[spot.key].label}: ${spot.moves ? `Rf ${rfText(spot, result.frontMm)}` : spot.visible ? "stays on the baseline" : "colourless"}`}
-          </SceneLabel>
+          </SepLabel>
         ))}
     </group>
   );
@@ -1075,8 +1075,15 @@ function FitBadge({ position, fit }) {
   );
 }
 
+// "Show labels": provided inside the canvas (context does not cross the R3F
+// boundary). The right/wrong-tool FitBadge is not a label and always shows.
+const LabelsOn = createContext(true);
+function SepLabel(props) {
+  return useContext(LabelsOn) ? <SceneLabel {...props} /> : null;
+}
+
 export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
-  const { mixture = "sand_salt", solvent = "water", station = "filtration", restart = 0, speed = 1, liveSeconds = 0 } = params || {};
+  const { mixture = "sand_salt", solvent = "water", station = "filtration", restart = 0, speed = 1, liveSeconds = 0, showLabels = true } = params || {};
   const mixKey = MIXTURES[mixture] ? mixture : "sand_salt";
   const solKey = SOLVENTS[solvent] ? solvent : "water";
   const stationKey = STATIONS[station] ? station : "filtration";
@@ -1109,6 +1116,7 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
 
   return (
     <SceneCanvas camera={{ position: [0, 3.4, 16], fov: FOV }} controls={{ minDistance: 4, maxDistance: 30, target: orbitTarget }}>
+      <LabelsOn.Provider value={showLabels !== false}>
       <FitCamera station={stationKey} />
       <StationClock modelRef={modelRef} station={stationKey} mixture={mixKey} solvent={solKey} restartToken={restart} animSpeed={speed} setParam={setParam} />
 
@@ -1128,23 +1136,24 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
 
       {/* What is happening at the station, above it: first whether it is the right station at all. */}
       <FitBadge position={[titleX, view.top - 0.2, 0]} fit={fit} />
-      <SceneLabel position={[titleX, view.top - 0.64, 0]} accent>
+      <SepLabel position={[titleX, view.top - 0.64, 0]} accent>
         {`${STATIONS[stationKey].label} · ${M.label} · ${S.label} · ${STATIONS[stationKey].timeLapse}× time-lapse`}
-      </SceneLabel>
-      <SceneLabel position={[titleX, view.top - 1.04, 0]} tone="text-ink-300">
+      </SepLabel>
+      <SepLabel position={[titleX, view.top - 1.04, 0]} tone="text-ink-300">
         {`${formatSeconds(liveSeconds)} · ${headline}`}
-      </SceneLabel>
-      <SceneLabel position={[titleX, view.top - 1.44, 0]} tone={FIT_STYLE[fit.fit].head}>
+      </SepLabel>
+      <SepLabel position={[titleX, view.top - 1.44, 0]} tone={FIT_STYLE[fit.fit].head}>
         {result.verdict}
-      </SceneLabel>
-      <SceneLabel position={[titleX, BENCH_Y - 0.5, 1.2]} tone="text-ink-400">
+      </SepLabel>
+      <SepLabel position={[titleX, BENCH_Y - 0.5, 1.2]} tone="text-ink-400">
         {`separates by ${STATIONS[stationKey].property}`}
-      </SceneLabel>
+      </SepLabel>
       {result.station === "crystallization" && result.flammableWarning && (
-        <SceneLabel position={[CRYST_X, BENCH_Y - 1.1, 1.2]} tone="text-amber-300">
+        <SepLabel position={[CRYST_X, BENCH_Y - 1.1, 1.2]} tone="text-amber-300">
           {"ethanol is flammable — in a real lab this basin sits in a water bath, never over a naked flame"}
-        </SceneLabel>
+        </SepLabel>
       )}
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }

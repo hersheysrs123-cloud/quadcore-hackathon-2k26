@@ -2801,7 +2801,7 @@ function renderTopicDetailsReadout(topic, params) {
         title: "Decay Key",
         items: [
           { color: "#fbbf24", shape: "dot", label: `${M.parent.name} (parent)`, note: "undecayed — the same chance every second" },
-          { color: "#3f4652", shape: "dot", label: `${M.daughter.name} (daughter)`, note: "decayed — its nucleus has changed" },
+          { color: "#3b4658", shape: "dot", label: `${M.daughter.name} (daughter)`, note: "decayed — its nucleus has changed" },
           { color: PK.colour, shape: "dot", label: `${primary.display} ${primary.name}`, note: M.range },
           ...(M.emissions.length > 1 ? [{ color: PARTICLE_KINDS.neutrino.colour, shape: "dot", label: `${M.emissions[1].display} ${M.emissions[1].name}`, note: "no charge — through the plates, the barrier and the tube" }] : []),
           { color: "#a78bfa", shape: "dash", label: "N₀e^(−λt)", note: "the prediction the sample is judged against" },

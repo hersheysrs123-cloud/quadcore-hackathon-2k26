@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -1169,17 +1169,17 @@ function Esterification({ carbons, token, speed = 1, info, onStage }) {
       <group ref={acylRef} position={[-ESTER_START_GAP, 0, 0]}>
         <AtomsAndBonds atoms={asm.acyl.atoms} bonds={asm.acyl.bonds} />
         {!joined && (
-          <SceneLabel position={geo.acylLabel} tone="text-ink-200">
+          <ChemLabel position={geo.acylLabel} tone="text-ink-200">
             {`${info.acid.formula} · ${info.acid.name}`}
-          </SceneLabel>
+          </ChemLabel>
         )}
       </group>
       <group ref={methRef} position={[ESTER_START_GAP, 0, 0]}>
         <AtomsAndBonds atoms={asm.methoxy.atoms} bonds={asm.methoxy.bonds} />
         {!joined && (
-          <SceneLabel position={geo.methLabel} tone="text-ink-200">
+          <ChemLabel position={geo.methLabel} tone="text-ink-200">
             {`${info.alcohol.formula} · ${info.alcohol.name}`}
-          </SceneLabel>
+          </ChemLabel>
         )}
       </group>
       {atomMesh(leaveO, "O", startAcid(asm.leaving.acidO))}
@@ -1187,21 +1187,29 @@ function Esterification({ carbons, token, speed = 1, info, onStage }) {
       {atomMesh(leaveH2, "H", startMeth(asm.leaving.alcH))}
       {["acylC", "alcOH", "waterOH1", "waterOH2", "ester"].map(bondMesh)}
       {stage >= 2 && (
-        <SceneLabel position={geo.waterLabel} tone="text-sky-300">
+        <ChemLabel position={geo.waterLabel} tone="text-sky-300">
           {`${info.water.formula} · ${info.water.name}`}
-        </SceneLabel>
+        </ChemLabel>
       )}
       {joined && (
-        <SceneLabel position={geo.productLabel} tone="text-emerald-300">
+        <ChemLabel position={geo.productLabel} tone="text-emerald-300">
           {`${info.ester.formula} · ${info.ester.name}`}
-        </SceneLabel>
+        </ChemLabel>
       )}
     </group>
   );
 }
 
+// The "Show labels" toggle for the scenes in this file: each scene provides
+// its switch inside its canvas (context does not cross the R3F boundary),
+// and ChemLabel renders nothing when it is off.
+const LabelsOn = createContext(true);
+function ChemLabel(props) {
+  return useContext(LabelsOn) ? <SceneLabel {...props} /> : null;
+}
+
 export function OrganicBuilderScene({ params = {} }) {
-  const { family = "alkane", carbons = 3, crack = 0, esterify = 0, spin = true, speed = 1.0 } = params || {};
+  const { family = "alkane", carbons = 3, crack = 0, esterify = 0, spin = true, speed = 1.0, showLabels = true } = params || {};
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
   // The same description the Details panel prints.
   const info = useMemo(() => describeMolecule(family, carbons), [family, carbons]);
@@ -1247,6 +1255,7 @@ export function OrganicBuilderScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [0, 2.4, 10], fov: 45 }}>
+      <LabelsOn.Provider value={showLabels !== false}>
       <CameraDolly width={frame.width} height={frame.height} depth={frame.depth} />
       <Molecule
         family={family}
@@ -1262,21 +1271,22 @@ export function OrganicBuilderScene({ params = {} }) {
         <Esterification carbons={carbons} token={esterify} speed={speed} info={ester} onStage={setStage} />
       )}
 
-      <SceneLabel position={[0, bottom, 0]} accent>
+      <ChemLabel position={[0, bottom, 0]} accent>
         {reacting
           ? ester.equation
           : cracked && cracking
             ? cracking.equation
             : `${molecule.formula} · ${molecule.name}`}
-      </SceneLabel>
+      </ChemLabel>
       {reacting && (
-        <SceneLabel
+        <ChemLabel
           position={[0, bottom - 0.45, 0]}
           tone={stage === 1 ? "text-rose-300" : stage >= 3 ? "text-emerald-300" : "text-ink-300"}
         >
           {`${stage + 1}/5 · ${ESTER_STAGES[stage]}`}
-        </SceneLabel>
+        </ChemLabel>
       )}
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }
@@ -2143,7 +2153,7 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
 }
 
 export function CrystalLatticeScene({ params = {} }) {
-  const { structure = "nacl", slide = 0, showBonds = true, spin = true, speed = 1.0 } = params || {};
+  const { structure = "nacl", slide = 0, showBonds = true, spin = true, speed = 1.0, showLabels = true } = params || {};
 
   const lattice = useMemo(() => {
     if (structure === "diamond") return buildDiamond();
@@ -2157,21 +2167,23 @@ export function CrystalLatticeScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [6, 4.5, 8], fov: 45 }}>
+      <LabelsOn.Provider value={showLabels !== false}>
       <SpinningLattice lattice={lattice} showBonds={showBonds} spin={spin} speed={speed} />
 
       {structure === "nacl" && (
         <>
-          <SceneLabel position={[0, 3.4, 0]} accent>
+          <ChemLabel position={[0, 3.4, 0]} accent>
             Na⁺ small · Cl⁻ large
-          </SceneLabel>
+          </ChemLabel>
         </>
       )}
       {structure === "graphite" && slide > 0.05 && (
-        <SceneLabel position={[0, 3.4, 0]} tone="text-emerald-300">
+        <ChemLabel position={[0, 3.4, 0]} tone="text-emerald-300">
           layers sliding — weak forces between sheets
-        </SceneLabel>
+        </ChemLabel>
       )}
 
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }
@@ -2971,9 +2983,9 @@ function AngleArc({ a, b, value, colour, radius, labelRadius }) {
   return (
     <group>
       <Line points={points} color={colour} lineWidth={2.2} transparent opacity={0.95} />
-      <SceneLabel position={labelAt} tone="text-ink-100">
+      <ChemLabel position={labelAt} tone="text-ink-100">
         <span style={{ color: colour }}>{value.toFixed(1)}°</span>
-      </SceneLabel>
+      </ChemLabel>
     </group>
   );
 }
@@ -3006,6 +3018,7 @@ export function VseprScene({ params = {} }) {
     showAngles = true,
     spin = true,
     speed = 1.0,
+    showLabels = true,
   } = params || {};
 
   // One solve, shared with the Details panel.
@@ -3032,11 +3045,12 @@ export function VseprScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
+      <LabelsOn.Provider value={showLabels !== false}>
       <AtomSphere position={[0, 0, 0]} radius={centreStyle.radius} color={centreStyle.colour} emissiveIntensity={0.5} />
       <Halo position={[0, 0, 0]} radius={centreStyle.radius + 0.38} color={centreStyle.colour} opacity={0.08} />
-      <SceneLabel position={nameAt} accent>
+      <ChemLabel position={nameAt} accent>
         {molecule ? `${molecule.centre} · central atom` : "central atom"}
-      </SceneLabel>
+      </ChemLabel>
 
       {geometry.bonds.map((dir, i) => {
         const end = dir.clone().multiplyScalar(bondLength);
@@ -3064,6 +3078,7 @@ export function VseprScene({ params = {} }) {
             labelRadius={arcRadius + 0.45 + k * 0.55}
           />
         ))}
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }
@@ -3183,6 +3198,7 @@ export function EnergyProfileScene({ params = {} }) {
     temperature = 350,
     spin = false,
     speed = 1.0,
+    showLabels = true,
   } = params || {};
 
   // One solve, shared with the Details panel.
@@ -3223,17 +3239,18 @@ export function EnergyProfileScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [0, 1.2, 10.5], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+      <LabelsOn.Provider value={showLabels !== false}>
       <CameraDolly width={axisEnd - axisX + 2.4} height={2 * Math.max(top, -bottom) + 0.6} />
 
       {/* Axes: energy up the side, progress of the reaction along the bottom. */}
       <VectorArrow from={[axisX, bottom, 0]} to={[axisX, top, 0]} color={PALETTE.bone} radius={0.022} headLength={0.24} headRadius={0.09} />
       <VectorArrow from={[axisX, bottom, 0]} to={[axisEnd, bottom, 0]} color={PALETTE.bone} radius={0.022} headLength={0.24} headRadius={0.09} />
-      <SceneLabel position={[axisX, top + 0.4, 0]} tone="text-ink-200">
+      <ChemLabel position={[axisX, top + 0.4, 0]} tone="text-ink-200">
         energy (kJ/mol)
-      </SceneLabel>
-      <SceneLabel position={[0, bottom - 0.4, 0]} tone="text-ink-200">
+      </ChemLabel>
+      <ChemLabel position={[0, bottom - 0.4, 0]} tone="text-ink-200">
         progress of reaction →
-      </SceneLabel>
+      </ChemLabel>
 
       {/* Reactant and product levels, extended as guides for reading ΔH off. */}
       <Line points={[[axisX, 0, 0], [PROFILE_HALF + 0.6, 0, 0]]} color={PALETTE.line} lineWidth={1.2} dashed dashSize={0.14} gapSize={0.12} />
@@ -3282,29 +3299,30 @@ export function EnergyProfileScene({ params = {} }) {
       />
       {/* Arrow values sit beside each arrow's middle, clear of the summit label;
           an arrow too short to hold one gets it just under the reactant line. */}
-      <SceneLabel position={[eaX - 0.62, peakY < 0.8 ? -0.35 : peakY / 2, 0]} tone="text-rose-300">
+      <ChemLabel position={[eaX - 0.62, peakY < 0.8 ? -0.35 : peakY / 2, 0]} tone="text-rose-300">
         Ea {effectiveEa.toFixed(0)}
-      </SceneLabel>
-      <SceneLabel position={[reverseX + 0.85, (peakY + productY) / 2, 0]} tone="text-rose-300">
+      </ChemLabel>
+      <ChemLabel position={[reverseX + 0.85, (peakY + productY) / 2, 0]} tone="text-rose-300">
         Ea rev {reverseEa.toFixed(0)}
-      </SceneLabel>
-      <SceneLabel position={[deltaX + 0.75, Math.abs(productY) < 0.8 ? Math.min(0, productY) - 0.35 : productY / 2, 0]} tone={exothermic ? "text-emerald-300" : "text-violet-300"}>
+      </ChemLabel>
+      <ChemLabel position={[deltaX + 0.75, Math.abs(productY) < 0.8 ? Math.min(0, productY) - 0.35 : productY / 2, 0]} tone={exothermic ? "text-emerald-300" : "text-violet-300"}>
         ΔH {deltaH > 0 ? "+" : ""}{deltaH.toFixed(0)}
-      </SceneLabel>
+      </ChemLabel>
 
-      <SceneLabel position={[-PROFILE_HALF + 0.4, 0.42, 0]} tone="text-ink-300">
+      <ChemLabel position={[-PROFILE_HALF + 0.4, 0.42, 0]} tone="text-ink-300">
         reactants
-      </SceneLabel>
+      </ChemLabel>
       {/* Below the level when it drops, above and further out when it rises, clear of Ea rev. */}
-      <SceneLabel position={deltaH <= 0 ? [PROFILE_HALF - 2.2, productY - 0.36, 0] : [PROFILE_HALF + 0.35, productY + 0.4, 0]} tone="text-ink-300">
+      <ChemLabel position={deltaH <= 0 ? [PROFILE_HALF - 2.2, productY - 0.36, 0] : [PROFILE_HALF + 0.35, productY + 0.4, 0]} tone="text-ink-300">
         products
-      </SceneLabel>
-      <SceneLabel position={[peakX, peakY + 0.5, 0]} accent>
+      </ChemLabel>
+      <ChemLabel position={[peakX, peakY + 0.5, 0]} accent>
         transition state
-      </SceneLabel>
-      <SceneLabel position={[axisEnd - 1.2, top + 0.4, 0]} tone={exothermic ? "text-emerald-300" : "text-violet-300"}>
+      </ChemLabel>
+      <ChemLabel position={[axisEnd - 1.2, top + 0.4, 0]} tone={exothermic ? "text-emerald-300" : "text-violet-300"}>
         {exothermic ? "exothermic · energy released" : deltaH > 0 ? "endothermic · energy absorbed" : "thermoneutral"}
-      </SceneLabel>
+      </ChemLabel>
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }

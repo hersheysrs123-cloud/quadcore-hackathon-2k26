@@ -1653,7 +1653,7 @@ export const TOPICS = [
     blurb: "Ball-and-stick alkanes, alkenes, alkynes, alcohols, carboxylic acids & esters",
     syllabus: "Chemistry 14 · Organic chemistry",
     keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester",
-    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, spin: true },
+    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1675,6 +1675,7 @@ export const TOPICS = [
       // and the ester is what the esterification makes.
       { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors, when: (p) => (p.family ?? "alkane") === "alkane" },
       { type: "action", key: "esterify", label: "Form the ester (acid + methanol)", icon: FlaskConical, when: (p) => p.family === "ester" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Alkanes (CₙH₂ₙ₊₂) are saturated — only single C–C bonds. Alkenes (CₙH₂ₙ) are unsaturated and contain a C=C double bond.",
@@ -1753,7 +1754,7 @@ export const TOPICS = [
     blurb: "NaCl ionic cube, diamond network, graphite sheets, quartz and ice",
     syllabus: "Chemistry 3 · Structure & bonding",
     keywords: "lattice giant ionic covalent nacl sodium chloride diamond graphite allotrope delocalised conductivity quartz silica ice hydrogen bond",
-    defaults: { structure: "nacl", slide: 0, showBonds: true, spin: true },
+    defaults: { structure: "nacl", slide: 0, showBonds: true, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1771,6 +1772,7 @@ export const TOPICS = [
       { type: "slider", key: "slide", label: "Layer slide (graphite)", min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
       { type: "toggle", key: "showBonds", label: "Show bonds" },
       { type: "toggle", key: "spin", label: "Rotate lattice" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "In sodium chloride, Na⁺ and Cl⁻ alternate in a giant ionic lattice held by strong attraction in every direction — high melting point, conducts only when molten or aqueous.",
@@ -1879,6 +1881,7 @@ export const TOPICS = [
       showLonePairs: true,
       showAngles: true,
       spin: true,
+      showLabels: true,
     },
     controls: [
       {
@@ -1916,6 +1919,7 @@ export const TOPICS = [
       { type: "toggle", key: "showLonePairs", label: "Show lone pairs" },
       { type: "toggle", key: "showAngles", label: "Show bond angle" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Electron pairs all repel each other, so they arrange themselves as far apart as possible around the central atom. Count the pairs and the electron geometry follows: 2 linear, 3 trigonal planar, 4 tetrahedral, 5 trigonal bipyramidal, 6 octahedral.",
@@ -1967,6 +1971,7 @@ export const TOPICS = [
       // is real and is shown: solveEnergetics() derives it and the Details
       // panel prints it.
       spin: false,
+      showLabels: true,
     },
     controls: [
       {
@@ -1997,6 +2002,7 @@ export const TOPICS = [
       { type: "toggle", key: "catalyst", label: "Add a catalyst" },
       { type: "slider", key: "catalystDrop", label: "Catalyst lowers Ea by", min: 10, max: 70, step: 5, format: (v) => `${v} kJ/mol` },
       { type: "toggle", key: "spin", label: "Orbit camera" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Activation energy is the barrier every colliding pair must clear to reach the transition state. Only the small fraction of collisions carrying at least Ea can react, which is why most collisions achieve nothing at all.",
@@ -2249,6 +2255,7 @@ export const TOPICS = [
       solvent: "water",
       restart: 0,
       speed: 1,
+      showLabels: true,
     },
     controls: [
       {
@@ -2273,6 +2280,7 @@ export const TOPICS = [
         options: SOLVENT_TYPE_OPTIONS,
       },
       { type: "action", key: "restart", label: "Restart this station", icon: RotateCcw, variant: "ghost" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Every separation technique works because the parts of a mixture differ in some physical property, and the technique is chosen to match the difference. Filtration exploits particle size: an insoluble solid such as sand has grains hundreds of micrometres across, far larger than the 11 µm pores of filter paper, so it is held back as the residue, while a dissolved solute is present as ions or molecules under a nanometre wide and runs straight through in the filtrate. Filtration therefore separates a solid from a liquid — it cannot separate a solute from its solvent, which is why filtering copper sulfate solution gives a blue filtrate and an empty paper.",
@@ -2552,6 +2560,7 @@ export const TOPICS = [
       fieldOn: false,
       restart: 0,
       speed: 1,
+      showLabels: true,
     },
     controls: [
       { type: "choice", key: "mode", label: "Decay mode", options: DECAY_MODE_OPTIONS, columns: 2 },
@@ -2566,6 +2575,7 @@ export const TOPICS = [
       },
       { type: "choice", key: "barrier", label: "Barrier material", options: BARRIER_OPTIONS, columns: 3 },
       { type: "toggle", key: "fieldOn", label: "Electric field plates (+ above, − below)" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       { type: "action", key: "restart", label: `Fresh sample (restart · 1 t½ = ${SIM_HALF_LIFE_S} s on screen)`, icon: RotateCcw, variant: "ghost" },
     ],
     concepts: [
