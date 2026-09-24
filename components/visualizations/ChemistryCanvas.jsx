@@ -1659,8 +1659,10 @@ function Furnace({ heat, furnaceC, speed, flowing }) {
         ))}
         {[-1, 1].flatMap((sx) =>
           [-0.35, 0.1].map((z) => (
-            <mesh key={`rib${sx}${z}`} position={[sx * (HEATER.w / 2 + 0.03), boxMid, z]}>
-              <boxGeometry args={[0.05, HEATER.h, 0.08]} />
+            // Between the slabs and just outside their overhang: full height,
+            // the rib tops sat on the roof's top face and z-fought.
+            <mesh key={`rib${sx}${z}`} position={[sx * (HEATER.w / 2 + 0.05), boxMid, z]}>
+              <boxGeometry args={[0.05, HEATER.h - 2 * HEATER.wall - 0.01, 0.08]} />
               <meshStandardMaterial {...DARK_MAT} />
             </mesh>
           )),
@@ -1747,7 +1749,8 @@ function Furnace({ heat, furnaceC, speed, flowing }) {
           <cylinderGeometry args={[0.8, 0.8, tankH, 36]} />
           <meshStandardMaterial color="#9aa6b6" roughness={0.5} metalness={0.3} emissive="#9aa6b6" emissiveIntensity={0.08} />
         </mesh>
-        <mesh position={[0, tankH + 0.08, 0]} scale={[1, 0.22, 1]}>
+        {/* Roof dome sits right on the shell's rim, lapping it a hair. */}
+        <mesh position={[0, tankH - 0.005, 0]} scale={[1, 0.22, 1]}>
           <sphereGeometry args={[0.8, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial {...CASING_MAT} />
         </mesh>
