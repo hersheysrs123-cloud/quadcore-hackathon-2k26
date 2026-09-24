@@ -20,6 +20,7 @@ import {
 import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
+import { diamondFragment, iceFragment, quartzFragment } from "@/lib/latticeGeometry";
 import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
 import { solveVsepr } from "@/lib/vsepr";
 import { crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
@@ -1930,58 +1931,35 @@ function buildNaCl() {
 }
 
 /**
- * Points of a diamond-cubic lattice, recentred on the origin.
- *
- * Shared, because silica is the same net: silicon sits where carbon does, with
- * an oxygen bridging every bond.
+ * Draw a network from lib/latticeGeometry.js: colour and size by element,
+ * and style covalent and hydrogen bonds apart. The geometry itself — and the
+ * tests that hold it to real crystallography — live in the lib.
  */
-function diamondCubicPoints(a = 2.4, cells = 2) {
-  const basis = [
-    [0, 0, 0],
-    [0, 0.5, 0.5],
-    [0.5, 0, 0.5],
-    [0.5, 0.5, 0],
-  ];
-  const points = [];
-  for (let cx = 0; cx < cells; cx += 1) {
-    for (let cy = 0; cy < cells; cy += 1) {
-      for (let cz = 0; cz < cells; cz += 1) {
-        basis.forEach(([bx, by, bz]) => {
-          points.push([(cx + bx) * a, (cy + by) * a, (cz + bz) * a]);
-          points.push([(cx + bx + 0.25) * a, (cy + by + 0.25) * a, (cz + bz + 0.25) * a]);
-        });
-      }
-    }
-  }
-  const centre = (cells * a) / 2;
-  return points.map((p) => [p[0] - centre, p[1] - centre, p[2] - centre]);
+// Sized against each network's own bond length (C–C 1.04, Si–O 0.68 world
+// units) so the bonds, and so the tetrahedra, stay visible between atoms.
+const LATTICE_ATOM = {
+  C: { radius: 0.19, color: "#94a3b8" },
+  Si: { radius: 0.2, color: PALETTE.gold },
+  O: { radius: 0.13, color: PALETTE.rose },
+  H: { radius: 0.13, color: PALETTE.bone },
+};
+function drawNetwork({ atoms, bonds }, { oxygenRadius } = {}) {
+  return {
+    atoms: atoms.map((a) => ({
+      position: a.position,
+      ...LATTICE_ATOM[a.el],
+      ...(a.el === "O" && oxygenRadius ? { radius: oxygenRadius } : {}),
+    })),
+    bonds: bonds.map((b) =>
+      b.kind === "hydrogen"
+        ? { from: atoms[b.i].position, to: atoms[b.j].position, color: PALETTE.sky, radius: 0.024, opacity: 0.75 }
+        : { from: atoms[b.i].position, to: atoms[b.j].position },
+    ),
+    layers: null,
+  };
 }
 
-/** Nearest-neighbour pairs in a diamond-cubic net — the tetrahedral bonds. */
-function diamondCubicBonds(points, a = 2.4) {
-  const bondLength = (Math.sqrt(3) / 4) * a;
-  const pairs = [];
-  for (let i = 0; i < points.length; i += 1) {
-    for (let j = i + 1; j < points.length; j += 1) {
-      const p = points[i];
-      const q = points[j];
-      const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      if (Math.abs(d - bondLength) < 0.06) pairs.push([i, j]);
-    }
-  }
-  return pairs;
-}
-
-function buildDiamond() {
-  const a = 2.4;
-  const points = diamondCubicPoints(a);
-  const atoms = points.map((position) => ({ position, radius: 0.26, color: "#94a3b8" }));
-  const bonds = diamondCubicBonds(points, a).map(([i, j]) => ({
-    from: points[i],
-    to: points[j],
-  }));
-  return { atoms, bonds, layers: null };
-}
+const buildDiamond = () => drawNetwork(diamondFragment());
 
 function buildGraphite(slide) {
   const acc = 0.82;
@@ -1997,7 +1975,11 @@ function buildGraphite(slide) {
 
   layerY.forEach((y, layerIndex) => {
     // Alternate layers slide in opposite directions so the shear is obvious.
-    const dx = slide * 1.4 * (layerIndex - 1);
+    // The middle sheet also sits one bond length along: graphite stacks
+    // ABAB, with half of each sheet's atoms over the hexagon centres of the
+    // sheets either side. Stacked straight on top of each other (AA), as it
+    // used to be, is not graphite.
+    const dx = slide * 1.4 * (layerIndex - 1) + (layerIndex === 1 ? acc : 0);
     // Graphene lattice: a₁ = (3/2, √3/2)·a, a₂ = (3/2, −√3/2)·a, two atoms
     // per cell — which puts every carbon exactly `acc` from three others.
     const sheet = [];
@@ -2024,30 +2006,30 @@ function buildGraphite(slide) {
     sheets.push(sheet);
   });
 
-  // The weak forces ACROSS the layers — thin, faint, and drawn between
-  // vertically nearest carbons only. Both colour keys used to name these and
-  // nothing drew them, which is the one structural fact the topic turns on:
-  // strong bonds within a sheet, weak forces between, so the sheets slide
-  // without ever breaking.
+  // The weak forces ACROSS the layers, drawn between carbons that sit
+  // directly on top of one another. With ABAB stacking only half of each
+  // sheet's atoms have a partner straight above or below — the other half sit
+  // over a hexagon's centre — so only those pairs get a line.
+  //
+  // The pairs are chosen with the sheets unslid and then KEPT as the slider
+  // shears them, so the lines lean over and stretch as the layers slide. They
+  // used to be re-picked every time as "the horizontally nearest carbon",
+  // which with AB stacking joined atoms diagonally, piled several lines onto
+  // one atom, and made them hop about as the slider moved.
+  const shift = (layerIndex) => slide * 1.4 * (layerIndex - 1);
   for (let l = 0; l + 1 < sheets.length; l += 1) {
     const lower = sheets[l];
     const upper = sheets[l + 1];
-    for (let i = 0; i < lower.length; i += 4) {
-      let best = null;
-      let bestD = Infinity;
-      for (let j = 0; j < upper.length; j += 1) {
-        const d = Math.hypot(lower[i][0] - upper[j][0], lower[i][2] - upper[j][2]);
-        if (d < bestD) {
-          bestD = d;
-          best = upper[j];
-        }
-      }
-      // Only where the two sheets still roughly line up; a big slide should
-      // visibly stretch and thin these, not drag them across the whole cell.
-      if (best && bestD < acc * 1.6) {
-        interlayer.push({ from: lower[i], to: best, weak: true });
-      }
-    }
+    let drawn = 0;
+    lower.forEach((p, i) => {
+      const px = p[0] - shift(l);
+      const j = upper.findIndex(
+        (q) => Math.hypot(q[0] - shift(l + 1) - px, q[2] - p[2]) < 0.01,
+      );
+      // Every other eclipsed pair, so the forces read as a sparse field
+      // rather than a wall of lines.
+      if (j >= 0 && drawn++ % 2 === 0) interlayer.push({ from: p, to: upper[j], weak: true });
+    });
   }
 
   // One delocalised electron per carbon is the reason graphite conducts, and
@@ -2068,142 +2050,11 @@ function buildGraphite(slide) {
   return { atoms, bonds, layers: layerY, interlayer, electrons };
 }
 
-/**
- * Silica as β-cristobalite — the standard teaching model.
- *
- * Silicon takes the diamond-cubic net and an oxygen bridges every Si–Si bond,
- * which gives 4-coordinate silicon, 2-coordinate oxygen and the 1 : 2 ratio,
- * all at once.
- *
- * The old build put silicon on a SIMPLE cubic lattice with an oxygen at each
- * midpoint. The stoichiometry came out right, which is presumably why it
- * survived, but the geometry was wrong in the way that matters: interior
- * silicons carried SIX oxygens at 180° Si–O–Si, while both readouts insisted
- * the structure was tetrahedral and that each silicon bonds to four oxygens.
- *
- * The bridging oxygen is pushed off the Si–Si line so the Si–O–Si angle opens
- * to roughly the real 144° rather than sitting at a straight 180°.
- */
-function buildQuartz() {
-  const a = 2.4;
-  const all = diamondCubicPoints(a);
-  // Drop the corner silicons that a finite block leaves with a single bond:
-  // they read as floating spurs rather than as part of the network.
-  const degree = new Map(all.map((_, i) => [i, 0]));
-  diamondCubicBonds(all, a).forEach(([i, j]) => {
-    degree.set(i, degree.get(i) + 1);
-    degree.set(j, degree.get(j) + 1);
-  });
-  const si = all.filter((_, i) => degree.get(i) >= 2);
-  const atoms = si.map((position) => ({ position, radius: 0.28, color: PALETTE.gold }));
-  const bonds = [];
+/** α-quartz — see quartzFragment for the crystallography. */
+const buildQuartz = () => drawNetwork(quartzFragment());
 
-  // A fixed bend, alternating direction per bridge so the net does not shear
-  // all one way. 0.22 of the bond length lands Si–O–Si near 144°.
-  const BEND = 0.22;
-  diamondCubicBonds(si, a).forEach(([i, j], k) => {
-    const p = si[i];
-    const q = si[j];
-    const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
-    // Any direction perpendicular to the bond will do; cross with a fixed axis
-    // and fall back to another when the bond happens to be parallel to it.
-    const axis = new THREE.Vector3(q[0] - p[0], q[1] - p[1], q[2] - p[2]).normalize();
-    let perp = new THREE.Vector3(0, 1, 0).cross(axis);
-    if (perp.lengthSq() < 1e-6) perp = new THREE.Vector3(1, 0, 0).cross(axis);
-    perp.normalize().multiplyScalar(BEND * a * (k % 2 === 0 ? 1 : -1));
-    const o = [mid[0] + perp.x, mid[1] + perp.y, mid[2] + perp.z];
-    atoms.push({ position: o, radius: 0.18, color: PALETTE.rose });
-    bonds.push({ from: p, to: o });
-    bonds.push({ from: o, to: q });
-  });
-
-  return { atoms, bonds, layers: null };
-}
-
-/**
- * Hexagonal ice.
- *
- * Every length is scaled from the real molecule rather than eyeballed: O–H is
- * 0.96 Å, H–O–H is 104.5°, and O···O across a hydrogen bond is 2.76 Å.
- *
- * The hydrogens used to sit at fixed offsets of (±0.35, ±0.22, ±0.2), which
- * subtend 123° — and the bond angle is not a detail here, it is the reason the
- * cage is open and therefore the reason ice floats, which is the one fact the
- * readout leads with. The hydrogen bonds were also found by scanning for any
- * H···O pair between 0.4 and 1.35 world units, so they had no particular
- * relationship to the molecules they were joining.
- */
-function buildIce() {
-  const OH = 0.5; // 0.96 Å at this scale
-  const HOH = (104.5 * Math.PI) / 180;
-  const OO = OH * (2.76 / 0.96); // 2.76 Å — the hydrogen-bonded O···O distance
-
-  const atoms = [];
-  const bonds = [];
-  const oxygens = [];
-
-  // Stacked, alternately rotated hexagonal rings: the open cage of ice Ih.
-  const levels = [-OO, 0, OO];
-  levels.forEach((y, l) => {
-    for (let i = 0; i < 6; i += 1) {
-      const a = (i * Math.PI) / 3 + (l % 2 ? Math.PI / 6 : 0);
-      oxygens.push(new THREE.Vector3(Math.cos(a) * OO, y, Math.sin(a) * OO));
-    }
-  });
-
-  // Who is hydrogen-bonded to whom: everything within reach of one O···O.
-  const neighbours = oxygens.map((o, i) =>
-    oxygens
-      .map((q, j) => ({ j, d: o.distanceTo(q) }))
-      .filter((n) => n.j !== i && n.d < OO * 1.25)
-      .sort((a, b) => a.d - b.d)
-      .map((n) => n.j),
-  );
-
-  oxygens.forEach((o, i) => {
-    atoms.push({ position: o.toArray(), radius: 0.26, color: PALETTE.rose });
-
-    // Each molecule DONATES two hydrogen bonds and accepts two — the ice
-    // rules. The two hydrogens are placed at a true 104.5°, in the plane of
-    // the two neighbours they point at and symmetric about the bisector, so
-    // the molecule keeps its real shape while still aiming at the cage.
-    const picks = neighbours[i].slice(0, 2);
-    const dirs = picks.map((j) => oxygens[j].clone().sub(o).normalize());
-    let d1 = dirs[0] ?? new THREE.Vector3(1, 0, 0);
-    let d2 = dirs[1] ?? new THREE.Vector3(0, 1, 0);
-    if (d1.clone().cross(d2).lengthSq() < 1e-6) d2 = new THREE.Vector3(0, 1, 0);
-
-    const bisector = d1.clone().add(d2).normalize();
-    const normal = d1.clone().cross(d2).normalize();
-    const inPlane = normal.clone().cross(bisector).normalize();
-    const half = HOH / 2;
-
-    [1, -1].forEach((sign, k) => {
-      const dir = bisector
-        .clone()
-        .multiplyScalar(Math.cos(half))
-        .addScaledVector(inPlane, sign * Math.sin(half))
-        .normalize();
-      const h = o.clone().addScaledVector(dir, OH);
-      atoms.push({ position: h.toArray(), radius: 0.14, color: PALETTE.bone });
-      // Covalent O–H.
-      bonds.push({ from: o.toArray(), to: h.toArray() });
-      // …and the hydrogen bond running on from it to the acceptor oxygen.
-      const acceptor = picks[k];
-      if (acceptor !== undefined) {
-        bonds.push({
-          from: h.toArray(),
-          to: oxygens[acceptor].toArray(),
-          color: PALETTE.sky,
-          radius: 0.024,
-          opacity: 0.75,
-        });
-      }
-    });
-  });
-
-  return { atoms, bonds, layers: null };
-}
+/** Hexagonal ice with the ice rules obeyed — see iceFragment. */
+const buildIce = () => drawNetwork(iceFragment(), { oxygenRadius: 0.26 });
 
 // LATTICE_FACTS and LATTICE_KEYS now live in lib/lattices.js.
 

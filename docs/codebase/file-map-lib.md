@@ -40,7 +40,8 @@ quadcore-hackathon-2k26/
 │   ├── atomicStructure.js                # PURE CHEMISTRY: Bohr shells for H / C / Na / Cl, valence electrons, per-element bonding notes
 │   ├── organic.js                        # PURE CHEMISTRY: six homologous series (alkane → ester), atom counts, derived formulas & names, hybridisation-driven chain geometry, cracking into a shorter alkane + ethene
 │   ├── distillation.js                   # PURE CHEMISTRY: the six crude-oil fractions (boiling points, chain lengths, colours), which rise at a given heat; bitumen is the residue and never rises
-│   ├── lattices.js                       # PURE CHEMISTRY: NaCl, diamond, graphite (with slide), β-cristobalite quartz and ice builders; bond lists and coordination numbers
+│   ├── lattices.js                       # Facts and colour keys for each lattice (the Details panel and the scene share them)
+│   ├── latticeGeometry.js                # PURE GEOMETRY: diamond (ball-cut diamond-cubic), α-quartz (P3₂21 from its Wyckoff sites) and ice Ih (wurtzite O net, H placed by the ice rules via Euler orientation); tested for coordination, lengths and angles
 │   ├── electrolysis.js                   # PURE CHEMISTRY: 25 cm³ CuSO₄ microscale cell, copper vs inert-graphite electrodes, Faraday's law, electrolyte exhaustion
 │   ├── vsepr.js                          # PURE CHEMISTRY: steric-number geometries, named shapes for every reachable bonding/lone-pair pair, lone-pair compression, polarity
 │   ├── energetics.js                     # PURE CHEMISTRY: reaction energy profile, Ea / ΔH clamp, Arrhenius rate constant and catalyst speed-up

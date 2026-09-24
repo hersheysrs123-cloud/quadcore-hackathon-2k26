@@ -7646,3 +7646,27 @@ Orange discs showed on the outside of the furnace's side walls. The roof, ribs a
 - The dome sits on the rim.
 - Elbows and an entry flange close the feed line.
 - The sight ports now have a bolted bezel and sit clear of the transfer line.
+
+---
+
+## Crystal Lattices: Quartz, Ice, Diamond and Graphite Geometry
+
+### 1. Problem Statement
+The lattices were measured numerically, not eyeballed, and four of them were wrong.
+- **Quartz:** Si–O–Si came out at 89° against a real 144°. O–Si–O ranged from 49° to 169° where it should be about 109.5°, which wrecked the tetrahedra. Some silicons carried only one or two oxygens.
+- **Ice:** the six-rings were flat at 120° instead of puckered. The middle-layer oxygens had six neighbours instead of four, the O···O distances were unequal, and every O···O link carried two hydrogens.
+- **Diamond:** 10 of 64 carbons hung off a single bond, and only 27 showed all four bonds.
+- **Graphite:** the sheets were stacked AA instead of ABAB.
+
+### 2. Root Cause
+- **Quartz:** the model was a diamond net with an oxygen pushed off each bond's midpoint by 0.22 of the cell, in a direction that alternated with the bond index. That is not quartz, and the push was about four times too large.
+- **Ice:** three flat hexagons were stacked with alternate 30° twists. Each oxygen donated to its two nearest neighbours, so the two ends of every ring edge both donated to each other.
+- **Diamond:** the fragment was a 2 × 2 × 2 cube with no pruning.
+- **Graphite:** every sheet used the same grid.
+
+### 3. Resolution
+The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geometry.test.mjs`.
+- **Quartz:** built from the real α-quartz Wyckoff sites (P3₂21).
+- **Ice:** built as Ih on the wurtzite net, with hydrogens placed by the ice rules using Euler-circuit orientation.
+- **Diamond:** cut as a ball and pruned, so no atom hangs off one bond.
+- **Graphite:** the middle sheet is shifted one bond length along, giving ABAB stacking. The interlayer lines used to be re-picked on every slide as "the horizontally nearest carbon". Under AB stacking that drew diagonals and piled several lines onto one atom. They are now fixed pairs of eclipsed carbons, chosen unslid, and they lean over as the sheets shear.
