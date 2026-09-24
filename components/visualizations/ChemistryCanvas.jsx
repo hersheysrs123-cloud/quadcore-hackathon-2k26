@@ -18,7 +18,7 @@ import {
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
-import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } from "@/lib/distillation";
+import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
 import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
 import { solveVsepr } from "@/lib/vsepr";
@@ -1282,24 +1282,223 @@ export function OrganicBuilderScene({ params = {} }) {
 
 // ═══ 8 · Fractional distillation ═════════════════════════════════════
 
-// FRACTIONS and the rise predicate now live in lib/distillation.js.
+// FRACTIONS and the rise predicate live in lib/distillation.js; everything
+// below is drawing.
 
 const COLUMN_HEIGHT = 7.6;
+const COLUMN_R = 1.7;
 const levelY = (i) => COLUMN_HEIGHT / 2 - 0.6 - i * 1.25;
+const COLUMN_BOTTOM = -COLUMN_HEIGHT / 2;
 /** The fractions that boil — everything but the residue at the base. */
 const VAPOURISING = FRACTIONS.filter((f) => !f.residue);
 
+/** Camera, and the direction the cutaway opens towards (its azimuth). */
+const DISTIL_CAMERA = [6.2, 2.6, 15.8];
+const CUTAWAY_FACING = Math.atan2(DISTIL_CAMERA[0], DISTIL_CAMERA[2]);
+/**
+ * The shell is a partial cylinder: a 0.72π wedge is left open, centred on
+ * local +Z, and the whole shell is turned to face the camera. Left square on
+ * the camera's edge, the column read as half open and half shut.
+ */
+const CUT_START = Math.PI * 0.36;
+const CUT_LENGTH = Math.PI * 1.28;
+
+/** Where a take-off pipe leaves the shell and where its receiver sits. */
+const PIPE_OUT_X = COLUMN_R + 0.05;
+const RECEIVER_X = 3.55;
+const LABEL_X = 5.75;
+/** The temperature scale, left of the column. */
+const SCALE_X = -2.35;
+const FURNACE_POS = [-5.0, 0, 0];
+
+// Light enough to stand clear of the #273043 canvas; metalness kept low, as
+// high metalness goes dark with nothing bright to reflect.
+const STEEL_MAT = { color: "#c5d0de", roughness: 0.32, metalness: 0.35, emissive: "#c5d0de", emissiveIntensity: 0.12 };
+const DARK_MAT = { color: "#8492a6", roughness: 0.5, metalness: 0.3, emissive: "#8492a6", emissiveIntensity: 0.1 };
+
+const COOL = new THREE.Color("#38bdf8");
+const WARM = new THREE.Color("#fbbf24");
+const HOT = new THREE.Color("#f97316");
+
+/** Colour for a height in the column, hottest at the base. */
+function gradientAt(t, heat) {
+  // t = 0 at the base, 1 at the top. A cooler furnace pulls the warm band down.
+  const hotness = clamp(1 - t / (0.35 + heat * 0.65), 0, 1);
+  const c = COOL.clone();
+  if (hotness < 0.5) c.lerp(WARM, hotness * 2);
+  else c.copy(WARM).lerp(HOT, (hotness - 0.5) * 2);
+  return c;
+}
+
+/**
+ * The shell's inner liner, vertex-coloured from hot orange at the base to
+ * cool blue at the top. The gradient IS the mechanism — each fraction
+ * condenses where the column has cooled to its boiling range — so it is
+ * painted on the column rather than implied by which tray glows.
+ */
+function GradientLiner({ heat }) {
+  const geometry = useMemo(() => {
+    const g = new THREE.CylinderGeometry(COLUMN_R - 0.03, COLUMN_R - 0.03, COLUMN_HEIGHT, 64, 24, true, CUT_START, CUT_LENGTH);
+    const pos = g.attributes.position;
+    const colours = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i += 1) {
+      const t = (pos.getY(i) + COLUMN_HEIGHT / 2) / COLUMN_HEIGHT;
+      const c = gradientAt(t, heat);
+      colours.set([c.r, c.g, c.b], i * 3);
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+    return g;
+  }, [heat]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial vertexColors side={THREE.BackSide} roughness={0.6} metalness={0} transparent opacity={0.8} />
+    </mesh>
+  );
+}
+
+/** Steel shell, dome, skirt and the flanges that mark each tray from outside. */
+function ColumnShell() {
+  return (
+    <group>
+      <mesh>
+        <cylinderGeometry args={[COLUMN_R + 0.08, COLUMN_R + 0.08, COLUMN_HEIGHT, 64, 1, true, CUT_START, CUT_LENGTH]} />
+        <meshStandardMaterial {...STEEL_MAT} side={THREE.FrontSide} />
+      </mesh>
+      {/* The cut edges, so the wall reads as having thickness. */}
+      {[CUT_START, CUT_START + CUT_LENGTH].map((a) => (
+        <mesh key={a} position={[Math.sin(a) * (COLUMN_R + 0.03), 0, Math.cos(a) * (COLUMN_R + 0.03)]} rotation={[0, a, 0]}>
+          <boxGeometry args={[0.14, COLUMN_HEIGHT, 0.02]} />
+          <meshStandardMaterial {...DARK_MAT} />
+        </mesh>
+      ))}
+      {/* Flange rings at each tray. */}
+      {FRACTIONS.map((f, i) => (
+        <mesh key={f.key} position={[0, levelY(i) - 0.04, 0]}>
+          <cylinderGeometry args={[COLUMN_R + 0.14, COLUMN_R + 0.14, 0.09, 64, 1, true, CUT_START, CUT_LENGTH]} />
+          <meshStandardMaterial {...DARK_MAT} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      {/* Dome top, cut the same way, and the gas outlet. */}
+      <mesh position={[0, COLUMN_HEIGHT / 2, 0]} scale={[1, 0.45, 1]}>
+        {/* A sphere measures its angle from −x where a cylinder starts at +z, hence the +π/2. */}
+        <sphereGeometry args={[COLUMN_R + 0.08, 48, 16, CUT_START + Math.PI / 2, CUT_LENGTH, 0, Math.PI / 2]} />
+        <meshStandardMaterial {...STEEL_MAT} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Skirt the column stands on. */}
+      <mesh position={[0, COLUMN_BOTTOM - 0.45, 0]}>
+        <cylinderGeometry args={[COLUMN_R + 0.12, COLUMN_R + 0.3, 0.9, 64]} />
+        <meshStandardMaterial {...DARK_MAT} />
+      </mesh>
+    </group>
+  );
+}
+
+/** A tray: a perforated plate with bubble caps and, once reached, its pool. */
+function Tray({ fraction, y, reached }) {
+  const caps = useMemo(
+    () =>
+      [-0.55, 0, 0.55].flatMap((dx, k) => [
+        [dx, -0.55 + (k % 2) * 0.25],
+        [dx, 0.35 - (k % 2) * 0.25],
+      ]),
+    [],
+  );
+  return (
+    <group position={[0, y, 0]}>
+      <mesh>
+        <cylinderGeometry args={[COLUMN_R - 0.02, COLUMN_R - 0.02, 0.07, 64, 1, false, CUT_START, CUT_LENGTH]} />
+        <meshStandardMaterial {...DARK_MAT} />
+      </mesh>
+      {/* Condensed liquid standing on the tray — this fraction's colour. */}
+      <mesh position={[0, 0.07, 0]} visible={reached}>
+        <cylinderGeometry args={[COLUMN_R - 0.06, COLUMN_R - 0.06, 0.07, 64, 1, false, CUT_START, CUT_LENGTH]} />
+        <meshStandardMaterial
+          color={fraction.colour}
+          emissive={fraction.colour}
+          emissiveIntensity={0.55}
+          transparent
+          opacity={0.85}
+          roughness={0.15}
+        />
+      </mesh>
+      {/* Bubble caps: vapour climbs each riser, is turned down by the cap,
+          and bubbles out through the liquid standing on the tray. */}
+      {caps.map(([x, z], k) => (
+        <group key={k} position={[x, 0, z]}>
+          <mesh position={[0, 0.12, 0]}>
+            <cylinderGeometry args={[0.06, 0.06, 0.2, 12]} />
+            <meshStandardMaterial {...DARK_MAT} />
+          </mesh>
+          <mesh position={[0, 0.2, 0]}>
+            <sphereGeometry args={[0.15, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial {...STEEL_MAT} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Take-off pipe, a drop-leg, and a glass receiver filling with the fraction. */
+function Receiver({ fraction, y, reached, filled }) {
+  const drop = 0.55;
+  const jarH = 0.6;
+  const fill = filled ? 0.78 : reached ? 0.45 : 0.06;
+  return (
+    <group>
+      {/* Horizontal run out of the shell. */}
+      <mesh position={[(PIPE_OUT_X + RECEIVER_X) / 2, y, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.07, 0.07, RECEIVER_X - PIPE_OUT_X, 12]} />
+        <meshStandardMaterial {...STEEL_MAT} />
+      </mesh>
+      {/* Elbow and drop into the receiver. */}
+      <mesh position={[RECEIVER_X, y, 0]}>
+        <sphereGeometry args={[0.1, 12, 12]} />
+        <meshStandardMaterial {...STEEL_MAT} />
+      </mesh>
+      <mesh position={[RECEIVER_X, y - drop / 2, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, drop, 12]} />
+        <meshStandardMaterial {...STEEL_MAT} />
+      </mesh>
+      <group position={[RECEIVER_X, y - drop - jarH / 2 - 0.02, 0]}>
+        <mesh>
+          <cylinderGeometry args={[0.3, 0.3, jarH, 24, 1, true]} />
+          <meshStandardMaterial color="#cfe8f5" transparent opacity={0.22} roughness={0.05} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+        <mesh position={[0, -jarH / 2 + (jarH * fill) / 2, 0]}>
+          <cylinderGeometry args={[0.27, 0.27, jarH * fill, 24]} />
+          <meshStandardMaterial
+            color={fraction.colour}
+            emissive={fraction.colour}
+            emissiveIntensity={reached || filled ? 0.6 : 0.1}
+            roughness={0.2}
+          />
+        </mesh>
+        <mesh position={[0, -jarH / 2 - 0.03, 0]}>
+          <cylinderGeometry args={[0.33, 0.33, 0.05, 24]} />
+          <meshStandardMaterial {...DARK_MAT} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/**
+ * Vapour rising from the feed and condensing at its own tray. Each particle
+ * climbs only as far as the furnace heat carries its fraction, slows as it
+ * nears its tray, and shrinks to nothing there — it has condensed.
+ */
 function Vapours({ heat, flowing, speed = 1.0 }) {
-  const group = useRef(null);
   const particles = useMemo(
     () =>
-      Array.from({ length: 42 }, (_, i) => ({
+      Array.from({ length: 60 }, (_, i) => ({
         // Residues never vaporise, so they get no vapour — index only into
         // the fractions that can actually climb.
         fraction: i % VAPOURISING.length,
         phase: hashRandom(i + 3),
         wobble: hashRandom(i + 51) * Math.PI * 2,
-        radius: 0.25 + hashRandom(i + 17) * 0.75,
+        radius: 0.2 + hashRandom(i + 17) * 1.0,
       })),
     [],
   );
@@ -1307,26 +1506,26 @@ function Vapours({ heat, flowing, speed = 1.0 }) {
   const meshes = useRef([]);
 
   useFrame((_, delta) => {
-    if (flowing) t.current += delta * 0.34 * speed;
+    if (flowing) t.current += delta * 0.28 * speed;
     particles.forEach((p, i) => {
       const mesh = meshes.current[i];
       if (!mesh) return;
-      // Furnace heat decides how far up the column a fraction can climb.
-      const reach = clamp((heat - p.fraction * HEAT_PER_LEVEL) * 1.35, 0, 1);
-      const ceiling = levelY(p.fraction);
-      const bottom = -COLUMN_HEIGHT / 2 + 0.4;
-      const travel = (ceiling - bottom) * reach;
+      const reach = rises(heat, p.fraction) ? 1 : 0;
+      const bottom = levelY(FRACTIONS.length - 1) + 0.25;
+      const ceiling = levelY(p.fraction) - 0.12;
       const local = (t.current + p.phase) % 1;
-      const y = bottom + travel * local;
-      const a = p.wobble + local * 4;
+      // Ease-out: fast off the feed, slowing as it reaches its tray.
+      const rise = 1 - Math.pow(1 - local, 2);
+      const y = bottom + (ceiling - bottom) * rise;
+      const a = p.wobble + local * 5;
       mesh.position.set(Math.cos(a) * p.radius, y, Math.sin(a) * p.radius);
-      const fade = reach < 0.05 ? 0 : 1 - Math.pow(local, 6);
-      mesh.scale.setScalar(0.001 + fade * 0.13);
+      const fade = reach ? Math.min(1, local * 8) * (1 - Math.pow(local, 8)) : 0;
+      mesh.scale.setScalar(0.001 + fade * 0.075);
     });
   });
 
   return (
-    <group ref={group}>
+    <group rotation={[0, CUTAWAY_FACING, 0]}>
       {particles.map((p, i) => (
         <mesh
           key={i}
@@ -1347,174 +1546,336 @@ function Vapours({ heat, flowing, speed = 1.0 }) {
   );
 }
 
+/** Radiant-section box of the pipe still, and the pieces hung off it. */
+const HEATER = { w: 1.9, h: 2.0, d: 1.5, legs: 0.45, wall: 0.08 };
+const CASING_MAT = { color: "#b8c2cf", roughness: 0.45, metalness: 0.35, emissive: "#b8c2cf", emissiveIntensity: 0.1 };
+const REFRACTORY = "#e0a37a";
+
+/**
+ * The pipe still: a refinery furnace, drawn cut open at the front.
+ *
+ * Crude from the tank enters the convection section at the top, runs down a
+ * serpentine coil through the radiant firebox — heated by the burners on the
+ * floor, the refractory lining glowing behind the tubes — and leaves as a hot
+ * vapour-liquid mix along the transfer line into the column's base. Flame
+ * height, lining glow and the coil's own glow all follow the heat slider.
+ */
+function Furnace({ heat, furnaceC, speed, flowing }) {
+  const flames = useRef([]);
+  const lining = useRef(null);
+  const light = useRef(null);
+  const [fx, , fz] = FURNACE_POS;
+  const floor = COLUMN_BOTTOM - 0.95 + 0.1; // top of the concrete pad
+  const boxBottom = floor + HEATER.legs;
+  const boxMid = boxBottom + HEATER.h / 2;
+  const boxTop = boxBottom + HEATER.h;
+  const convH = 0.8;
+  const convTop = boxTop + convH;
+  const stackH = 1.9;
+  const feedY = levelY(FRACTIONS.length - 1) + 0.45;
+  const coilRows = 6;
+  const coilY = (k) => boxBottom + 0.55 + k * ((HEATER.h - 0.85) / (coilRows - 1));
+  const coilZ = HEATER.d / 2 - 0.42;
+  const coilHalf = HEATER.w / 2 - 0.22;
+  const hotColour = useMemo(() => new THREE.Color("#7c5a4a").lerp(HOT, 0.25 + heat * 0.6), [heat]);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime * speed;
+    const base = 0.35 + heat * 0.9;
+    flames.current.forEach((m, i) => {
+      if (!m) return;
+      const flicker = flowing ? 1 + 0.12 * Math.sin(t * 11 + i * 2.1) + 0.07 * Math.sin(t * 23 + i) : 1;
+      m.scale.set(1, base * flicker, 1);
+      m.position.y = boxBottom + 0.1 + (0.55 * base * flicker) / 2;
+    });
+    const glow = (0.35 + heat * 1.1) * (flowing ? 0.94 + 0.06 * Math.sin(t * 7) : 1);
+    if (lining.current) lining.current.emissiveIntensity = glow;
+    if (light.current) light.current.intensity = 6 + heat * 18 * (flowing ? 0.9 + 0.1 * Math.sin(t * 9) : 1);
+  });
+
+  const pipe = (key, from, to, radius = 0.07, mat = STEEL_MAT) => {
+    const a = new THREE.Vector3(...from);
+    const b = new THREE.Vector3(...to);
+    const mid = a.clone().add(b).multiplyScalar(0.5);
+    const dir = b.clone().sub(a);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    return (
+      <mesh key={key} position={mid} quaternion={q}>
+        <cylinderGeometry args={[radius, radius, dir.length(), 14]} />
+        <meshStandardMaterial {...mat} />
+      </mesh>
+    );
+  };
+
+  const tankPos = [fx - 0.1, floor, fz - 2.3];
+  const tankH = 1.5;
+
+  return (
+    <group>
+      <group position={[fx, 0, fz]}>
+        {/* Legs: burners fire upward from underneath, so the box stands clear. */}
+        {[-1, 1].flatMap((sx) =>
+          [-1, 1].map((sz) => (
+            <mesh key={`${sx}${sz}`} position={[sx * (HEATER.w / 2 - 0.1), floor + HEATER.legs / 2, sz * (HEATER.d / 2 - 0.1)]}>
+              <boxGeometry args={[0.12, HEATER.legs, 0.12]} />
+              <meshStandardMaterial {...DARK_MAT} />
+            </mesh>
+          )),
+        )}
+
+        {/* Casing: floor, back, sides and roof — the front is cut away. */}
+        {/* Floor and roof overhang the walls by a hair and the walls stop
+            short of them, so no two faces are coplanar (it z-fought). */}
+        <mesh position={[0, boxBottom + HEATER.wall / 2, 0]}>
+          <boxGeometry args={[HEATER.w + 0.04, HEATER.wall, HEATER.d + 0.04]} />
+          <meshStandardMaterial {...CASING_MAT} />
+        </mesh>
+        <mesh position={[0, boxTop - HEATER.wall / 2, 0]}>
+          <boxGeometry args={[HEATER.w + 0.04, HEATER.wall, HEATER.d + 0.04]} />
+          <meshStandardMaterial {...CASING_MAT} />
+        </mesh>
+        <mesh position={[0, boxMid, -HEATER.d / 2 + HEATER.wall / 2]}>
+          <boxGeometry args={[HEATER.w - 0.01, HEATER.h - 2 * HEATER.wall - 0.01, HEATER.wall]} />
+          <meshStandardMaterial {...CASING_MAT} />
+        </mesh>
+        {[-1, 1].map((sx) => (
+          <mesh key={sx} position={[sx * (HEATER.w / 2 - HEATER.wall / 2), boxMid, 0]}>
+            <boxGeometry args={[HEATER.wall, HEATER.h - 2 * HEATER.wall - 0.01, HEATER.d - 0.01]} />
+            <meshStandardMaterial {...CASING_MAT} />
+          </mesh>
+        ))}
+        {/* Front frame around the cutaway, and vertical stiffeners down the sides. */}
+        {[-1, 1].map((sx) => (
+          <mesh key={`post${sx}`} position={[sx * (HEATER.w / 2 - 0.05), boxMid, HEATER.d / 2 - 0.05]}>
+            <boxGeometry args={[0.12, HEATER.h - 2 * HEATER.wall - 0.01, 0.12]} />
+            <meshStandardMaterial {...DARK_MAT} />
+          </mesh>
+        ))}
+        {[boxBottom + HEATER.wall / 2, boxTop - HEATER.wall / 2].map((y) => (
+          <mesh key={`rail${y}`} position={[0, y, HEATER.d / 2 + 0.03]}>
+            <boxGeometry args={[HEATER.w + 0.08, 0.12, 0.06]} />
+            <meshStandardMaterial {...DARK_MAT} />
+          </mesh>
+        ))}
+        {[-1, 1].flatMap((sx) =>
+          [-0.35, 0.1].map((z) => (
+            <mesh key={`rib${sx}${z}`} position={[sx * (HEATER.w / 2 + 0.03), boxMid, z]}>
+              <boxGeometry args={[0.05, HEATER.h, 0.08]} />
+              <meshStandardMaterial {...DARK_MAT} />
+            </mesh>
+          )),
+        )}
+
+        {/* Refractory lining on the back wall, glowing with the fire. */}
+        <mesh position={[0, boxMid, -HEATER.d / 2 + HEATER.wall + 0.01]}>
+          <planeGeometry args={[HEATER.w - 2 * HEATER.wall, HEATER.h - 2 * HEATER.wall]} />
+          <meshStandardMaterial ref={lining} color={REFRACTORY} emissive="#f97316" emissiveIntensity={1} roughness={0.9} />
+        </mesh>
+        <pointLight ref={light} position={[0, boxBottom + 0.7, 0.1]} color="#ff8a3d" intensity={12} distance={3.2} decay={2} />
+
+        {/* The coil: crude runs back and forth through the fire. */}
+        {Array.from({ length: coilRows }, (_, k) => (
+          <group key={k}>
+            <mesh position={[0, coilY(k), coilZ]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.075, 0.075, coilHalf * 2, 14]} />
+              <meshStandardMaterial color={hotColour} emissive={HOT} emissiveIntensity={0.15 + heat * 0.5} roughness={0.4} metalness={0.5} />
+            </mesh>
+            {k < coilRows - 1 && (
+              // U-bend joining this row to the next, alternating ends.
+              <mesh
+                position={[(k % 2 === 0 ? -1 : 1) * coilHalf, (coilY(k) + coilY(k + 1)) / 2, coilZ]}
+                rotation={[0, 0, k % 2 === 0 ? Math.PI / 2 : -Math.PI / 2]}
+              >
+                <torusGeometry args={[(coilY(k + 1) - coilY(k)) / 2, 0.075, 10, 16, Math.PI]} />
+                <meshStandardMaterial color={hotColour} emissive={HOT} emissiveIntensity={0.15 + heat * 0.5} roughness={0.4} metalness={0.5} />
+              </mesh>
+            )}
+          </group>
+        ))}
+
+        {/* Burners on the floor, each with a flickering flame. */}
+        {[-0.55, 0, 0.55].map((x, i) => (
+          <group key={x}>
+            <mesh position={[x, boxBottom + 0.1, -0.1]}>
+              <cylinderGeometry args={[0.14, 0.17, 0.12, 16]} />
+              <meshStandardMaterial {...DARK_MAT} />
+            </mesh>
+            <mesh
+              ref={(el) => {
+                flames.current[i] = el;
+              }}
+              position={[x, boxBottom + 0.35, -0.1]}
+            >
+              <coneGeometry args={[0.12, 0.55, 16, 1, true]} />
+              <meshBasicMaterial color="#ffb347" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Sight ports on the side wall. */}
+        {[boxBottom + 0.6, boxBottom + 1.35].map((y) => (
+          <mesh key={y} position={[HEATER.w / 2 + 0.06, y, -0.12]} rotation={[0, Math.PI / 2, 0]}>
+            <circleGeometry args={[0.09, 20]} />
+            <meshStandardMaterial color="#1a0c05" emissive="#f97316" emissiveIntensity={0.6 + heat * 1.6} toneMapped={false} />
+          </mesh>
+        ))}
+
+        {/* Convection section and a tapered stack. */}
+        <mesh position={[0, boxTop + 0.004 + convH / 2, -0.1]}>
+          <boxGeometry args={[HEATER.w * 0.62, convH, HEATER.d * 0.7]} />
+          <meshStandardMaterial {...CASING_MAT} />
+        </mesh>
+        <mesh position={[0, convTop + 0.08, -0.1]}>
+          <cylinderGeometry args={[0.34, 0.45, 0.16, 20]} />
+          <meshStandardMaterial {...DARK_MAT} />
+        </mesh>
+        <mesh position={[0, convTop + 0.16 + stackH / 2, -0.1]}>
+          <cylinderGeometry args={[0.2, 0.28, stackH, 20]} />
+          <meshStandardMaterial {...CASING_MAT} />
+        </mesh>
+        {[0.45, 1.25].map((h) => (
+          <mesh key={h} position={[0, convTop + 0.16 + h, -0.1]}>
+            <cylinderGeometry args={[0.27 - h * 0.03, 0.27 - h * 0.03, 0.06, 20]} />
+            <meshStandardMaterial {...DARK_MAT} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* Crude-oil storage tank behind the furnace. */}
+      <group position={tankPos}>
+        <mesh position={[0, tankH / 2, 0]}>
+          <cylinderGeometry args={[0.8, 0.8, tankH, 36]} />
+          <meshStandardMaterial color="#9aa6b6" roughness={0.5} metalness={0.3} emissive="#9aa6b6" emissiveIntensity={0.08} />
+        </mesh>
+        <mesh position={[0, tankH + 0.08, 0]} scale={[1, 0.22, 1]}>
+          <sphereGeometry args={[0.8, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial {...CASING_MAT} />
+        </mesh>
+        {[0.35, 0.8, 1.25].map((y) => (
+          <mesh key={y} position={[0, y, 0]}>
+            <cylinderGeometry args={[0.815, 0.815, 0.04, 36]} />
+            <meshStandardMaterial {...DARK_MAT} />
+          </mesh>
+        ))}
+        {/* Black band: this is crude oil. */}
+        <mesh position={[0, 0.58, 0]}>
+          <cylinderGeometry args={[0.812, 0.812, 0.3, 36]} />
+          <meshStandardMaterial color="#1f2229" roughness={0.6} />
+        </mesh>
+      </group>
+      {/* Feed: tank → up → into the convection section's back. */}
+      {pipe("feedUp", [tankPos[0] + 0.5, floor + tankH - 0.1, tankPos[2] + 0.45], [tankPos[0] + 0.5, boxTop + convH * 0.5, tankPos[2] + 0.45])}
+      {pipe("feedOver", [tankPos[0] + 0.5, boxTop + convH * 0.5, tankPos[2] + 0.45], [tankPos[0] + 0.5, boxTop + convH * 0.5, fz - 0.4])}
+      {/* Elbows, so the bends are closed rather than two cut ends meeting. */}
+      {[
+        [tankPos[0] + 0.5, floor + tankH - 0.1, tankPos[2] + 0.45],
+        [tankPos[0] + 0.5, boxTop + convH * 0.5, tankPos[2] + 0.45],
+      ].map((p) => (
+        <mesh key={p.join()} position={p}>
+          <sphereGeometry args={[0.07, 14, 14]} />
+          <meshStandardMaterial {...STEEL_MAT} />
+        </mesh>
+      ))}
+      <mesh position={[tankPos[0] + 0.5, boxTop + convH * 0.5, fz - 0.1 - HEATER.d * 0.35 - 0.02]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.13, 0.13, 0.05, 18]} />
+        <meshStandardMaterial {...DARK_MAT} />
+      </mesh>
+      {/* Transfer line: coil outlet → column base, glowing with the heat. */}
+      {pipe(
+        "transfer",
+        [fx + HEATER.w / 2, feedY, fz],
+        [-COLUMN_R + 0.05, feedY, 0],
+        0.13,
+        { color: "#b07a5c", roughness: 0.45, metalness: 0.4, emissive: HOT, emissiveIntensity: 0.15 + heat * 0.45 },
+      )}
+      <mesh position={[fx + HEATER.w / 2 + 0.05, feedY, fz]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.2, 0.2, 0.08, 18]} />
+        <meshStandardMaterial {...DARK_MAT} />
+      </mesh>
+
+      <SceneLabel position={[fx, convTop + stackH + 0.55, fz]} tone="text-orange-300">
+        {`furnace · crude oil heated to ${furnaceC}°C`}
+      </SceneLabel>
+    </group>
+  );
+}
+
+/** A thermometer scale beside the column: one tick per tray, coloured to match. */
+function TemperatureScale({ heat, furnaceC, showLabels }) {
+  const top = COLUMN_HEIGHT / 2;
+  const bottom = COLUMN_BOTTOM;
+  const points = useMemo(() => {
+    const n = 24;
+    return Array.from({ length: n + 1 }, (_, i) => [0, bottom + ((top - bottom) * i) / n, 0]);
+  }, [top, bottom]);
+  const colours = useMemo(
+    () => points.map((p) => gradientAt((p[1] - bottom) / (top - bottom), heat).toArray()),
+    [points, heat, top, bottom],
+  );
+  return (
+    <group position={[SCALE_X, 0, 0.3]}>
+      <Line points={points} vertexColors={colours} lineWidth={5} />
+      {FRACTIONS.map((f, i) => (
+        <group key={f.key} position={[0, levelY(i), 0]}>
+          <mesh position={[0.12, 0, 0]}>
+            <boxGeometry args={[0.24, 0.025, 0.025]} />
+            <meshBasicMaterial color={PALETTE.bone} />
+          </mesh>
+          {showLabels && (
+            <SceneLabel position={[-0.55, 0, 0]} tone="text-ink-300">
+              {f.residue ? `>${FRACTIONS[i - 1].top}°C` : `≤${f.top}°C`}
+            </SceneLabel>
+          )}
+        </group>
+      ))}
+      <SceneLabel position={[0, top + 0.45, 0]} tone="text-sky-300">
+        cool · 25°C
+      </SceneLabel>
+      <SceneLabel position={[0, bottom - 0.4, 0]} tone="text-orange-300">
+        {`hot · ${furnaceC}°C`}
+      </SceneLabel>
+    </group>
+  );
+}
+
 export function DistillationScene({ params = {} }) {
   const { heat = 0.7, showLabels = true, flow = true, speed = 1.0 } = params || {};
   const furnace = furnaceTemperature(heat);
-  const rising = risingCount(heat);
 
   return (
-    <SceneCanvas camera={{ position: [8, 1.5, 10.3], fov: 45 }}>
-      {/* Cutaway tower — a partial cylinder, so the trays stay visible. The
-          open wedge is centred on local +Z, so it is turned to face the
-          camera's azimuth; left at 0 the camera sat on the wedge's edge and
-          the column read as half open, half shut. */}
-      <mesh rotation={[0, Math.atan2(8, 10.3), 0]}>
-        <cylinderGeometry
-          args={[1.75, 1.75, COLUMN_HEIGHT, 48, 1, true, Math.PI * 0.22, Math.PI * 1.56]}
-        />
-        <meshStandardMaterial
-          color="#64748b"
-          roughness={0.3}
-          metalness={0.7}
-          side={THREE.DoubleSide}
-        />
+    <SceneCanvas camera={{ position: DISTIL_CAMERA, fov: 45 }} controls={{ target: [0.1, -0.4, 0] }}>
+      {/* Concrete pad. */}
+      <mesh position={[-0.3, COLUMN_BOTTOM - 0.95, -0.4]}>
+        <boxGeometry args={[13.8, 0.2, 6.5]} />
+        <meshStandardMaterial color="#6b778a" roughness={0.9} metalness={0.05} />
       </mesh>
 
-      {/* Translucent Outer Glass Column Sheath */}
-      <mesh position={[0, 0, 0]}>
-        <cylinderGeometry args={[1.78, 1.78, COLUMN_HEIGHT, 48, 1, true]} />
-        <meshStandardMaterial
-          color="#38bdf8"
-          transparent
-          opacity={0.18}
-          roughness={0.1}
-          metalness={0.2}
-          emissive="#38bdf8"
-          emissiveIntensity={0.15}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
+      <group rotation={[0, CUTAWAY_FACING, 0]}>
+        <ColumnShell />
+        <GradientLiner heat={heat} />
+        {FRACTIONS.map((fraction, i) => (
+          <Tray key={fraction.key} fraction={fraction} y={levelY(i)} reached={fraction.residue || rises(heat, i)} />
+        ))}
+      </group>
+
+      <Vapours heat={heat} flowing={flow} speed={speed} />
 
       {FRACTIONS.map((fraction, i) => {
-        const y = levelY(i);
-        // Temperature falls as you climb; the tray glows if vapour reaches it.
-        // `rises` returns false for the residue however hot the furnace gets.
         const reached = rises(heat, i);
         return (
-          <group key={fraction.name} position={[0, y, 0]}>
-            <mesh rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.35, 1.72, 40]} />
-              <meshStandardMaterial
-                color={fraction.colour}
-                emissive={fraction.colour}
-                emissiveIntensity={reached ? 0.75 : 0.12}
-                transparent
-                opacity={reached ? 0.5 : 0.16}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-
-            {/* Take-off pipe. */}
-            <mesh position={[2.15, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.11, 0.11, 1.1, 12]} />
-              <meshStandardMaterial
-                color={fraction.colour}
-                emissive={fraction.colour}
-                emissiveIntensity={reached ? 1.1 : 0.15}
-                metalness={0.5}
-                roughness={0.4}
-              />
-            </mesh>
-
+          <group key={fraction.key}>
+            <Receiver fraction={fraction} y={levelY(i)} reached={reached} filled={Boolean(fraction.residue)} />
             {showLabels && (
-              <SceneLabel position={[4.3, 0, 0]} accent={reached}>
-                {fraction.name}
-                {fraction.residue ? " (residue)" : ""} · ≤{fraction.top}°C · {fraction.chain} ·{" "}
-                {fraction.use}
+              <SceneLabel position={[LABEL_X, levelY(i) - 0.55, 0]} accent={reached || fraction.residue}>
+                {`${fraction.name}${fraction.residue ? " (residue)" : ""} · ${fraction.chain} · ${fraction.use}`}
               </SceneLabel>
             )}
           </group>
         );
       })}
 
-      {/* The temperature gradient is the mechanism, so it gets drawn rather
-          than merely implied by which tray happens to be glowing. */}
-      <group position={[-5.0, 0, 0]}>
-        <Line
-          points={[
-            [0, COLUMN_HEIGHT / 2, 0],
-            [0, -COLUMN_HEIGHT / 2, 0],
-          ]}
-          color={PALETTE.rose}
-          lineWidth={2}
-          transparent
-          opacity={0.4}
-        />
-        <SceneLabel position={[0, COLUMN_HEIGHT / 2 + 0.5, 0]} tone="text-sky-300">
-          coolest at the top · ~25°C
-        </SceneLabel>
-        <SceneLabel position={[0, -COLUMN_HEIGHT / 2 - 0.5, 0]} tone="text-rose-300">
-          hottest at the bottom · {furnace}°C
-        </SceneLabel>
-      </group>
-
-      <Vapours heat={heat} flowing={flow} speed={speed} />
-
-      {/* Base of the column */}
-      <group position={[0, -COLUMN_HEIGHT / 2 - 0.425, 0]}>
-        <mesh>
-          <boxGeometry args={[3.8, 0.85, 3.8]} />
-          <meshStandardMaterial
-            color="#334155"
-            roughness={0.7}
-            metalness={0.2}
-          />
-        </mesh>
-      </group>
-
-      {/* External Furnace to the left */}
-      <group position={[-3.2, -COLUMN_HEIGHT / 2 + 0.25, 0]}>
-        {/* Main Furnace Body */}
-        <mesh>
-          <boxGeometry args={[1.8, 2.2, 1.8]} />
-          <meshStandardMaterial
-            color="#334155"
-            emissive={PALETTE.rose}
-            emissiveIntensity={0.1 + heat * 0.4}
-            roughness={0.6}
-            metalness={0.6}
-          />
-        </mesh>
-        {/* Glowing Fire Grate on front face */}
-        <group position={[0, -0.3, 0.91]}>
-          <mesh>
-            <planeGeometry args={[1.0, 1.0]} />
-            <meshStandardMaterial
-              color="#000000"
-              emissive="#f97316"
-              emissiveIntensity={1.0 + heat * 3.0}
-            />
-          </mesh>
-          {/* Iron Grate Bars */}
-          {[-0.3, -0.1, 0.1, 0.3].map((xOffset) => (
-            <mesh key={xOffset} position={[xOffset, 0, 0.02]}>
-              <boxGeometry args={[0.08, 1.05, 0.05]} />
-              <meshStandardMaterial color="#0f172a" roughness={0.9} metalness={0.1} />
-            </mesh>
-          ))}
-        </group>
-        {/* Exhaust Chimney Stack */}
-        <group position={[0, 1.5, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.25, 0.35, 1.0, 16]} />
-            <meshStandardMaterial color="#1e293b" roughness={0.8} />
-          </mesh>
-          <mesh position={[0, 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.28, 0.06, 8, 16]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
-          </mesh>
-        </group>
-        {/* Pipe connecting furnace to column */}
-        <mesh position={[1.175, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.25, 0.25, 0.55, 16]} />
-          <meshStandardMaterial color="#475569" roughness={0.6} metalness={0.5} />
-        </mesh>
-        <SceneLabel position={[0, -1.6, 0]} tone="text-rose-300">
-          furnace · {furnace}°C · crude oil in
-        </SceneLabel>
-      </group>
-
+      <TemperatureScale heat={heat} furnaceC={furnace} showLabels={showLabels} />
+      <Furnace heat={heat} furnaceC={furnace} speed={speed} flowing={flow} />
     </SceneCanvas>
   );
 }

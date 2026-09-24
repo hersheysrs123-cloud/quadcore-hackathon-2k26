@@ -7605,3 +7605,24 @@ After "Trigger cracking", the two products (for example methane and ethene from 
 - Each product carries its own label, and the bromine-water note has its own line.
 - `CameraDolly` eases the camera to fit the cracked pair, adding the swept depth.
 - The crack button shows only for alkanes.
+
+---
+
+## Fractional Distillation: Visual Rebuild and Dome Cutaway Misalignment
+
+### 1. Problem Statement
+The distillation scene was dark and flat. It had a teal translucent cylinder, a pink box for a furnace, stub pipes that led nowhere, and a single floating line standing in for the temperature gradient. Once the column was redrawn with a cutaway dome, the dome's open wedge also pointed the wrong way.
+
+### 2. Root Cause
+- The look came from a dark palette (slate at high metalness, which renders near-black with nothing bright to reflect) and from no geometry that showed the mechanism.
+- The dome bug: `SphereGeometry` measures `phi` from −x (x = −r·cos φ·sin θ), while `CylinderGeometry` measures `theta` from +z (x = r·sin θ). The same start angle therefore opens the two shapes 90° apart.
+
+### 3. Resolution
+The scene is rebuilt in light steel (low metalness) with the science unchanged in `lib/distillation.js`:
+- a vertex-coloured gradient liner;
+- bubble-cap trays that pool their fraction;
+- receivers that fill;
+- a per-tray temperature scale;
+- a pipe-still furnace.
+
+The dome uses `thetaStart + π/2`, and the cutaway widens to 0.72π.
