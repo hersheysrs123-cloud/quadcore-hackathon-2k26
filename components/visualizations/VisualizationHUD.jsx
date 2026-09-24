@@ -28,7 +28,7 @@ import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_
 import { WATER_COLOUR, solveOsmosis } from "@/lib/cellBiology";
 import { STRUCTURE_COLOURS, solveFolding } from "@/lib/proteinFolding";
 import { latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
-import { solveVsepr } from "@/lib/vsepr";
+import { ELEMENT_STYLE, VSEPR_BOND_COLOUR, solveVsepr } from "@/lib/vsepr";
 import { solveEnergetics } from "@/lib/energetics";
 import { slideForecast, solveIncline, surfaceFor } from "@/lib/inclineForces";
 import {
@@ -2247,7 +2247,7 @@ function renderTopicDetailsReadout(topic, params) {
       // in a table that stopped at 6-0 and report a flat `lone × 2.5°` squeeze,
       // so AX₄E₂ read "Octahedral · 5.0° squeeze" against a scene correctly
       // drawing a square planar molecule at 90°.
-      const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0));
+      const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0), params.preset);
 
       readout = {
         title: "VSEPR molecular geometry",
@@ -2258,9 +2258,13 @@ function renderTopicDetailsReadout(topic, params) {
           ["Steric number", v.steric],
           ["Electron geometry", v.electronGeometry],
           ["Molecular shape", v.shape, "gold"],
-          ["Example", v.example],
+          [v.molecule ? "Molecule" : "Example", v.molecule ? `${v.molecule.label} · ${v.molecule.name}` : v.example],
           ["Ideal angle", v.hasAngle ? v.idealLabel : "— (diatomic)"],
-          ["Actual angle", v.hasAngle ? `${v.angle.toFixed(1)}°` : "—", v.lone > 0 ? "warn" : "good"],
+          [
+            v.angles.length > 1 ? "Measured angles" : "Measured angle",
+            v.hasAngle ? v.angles.map((a) => `${a.toFixed(1)}°`).join(" · ") : "—",
+            v.lone > 0 ? "warn" : "good",
+          ],
           [
             "Angle compression",
             !v.hasAngle
@@ -2287,10 +2291,15 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Electron domains key",
         items: [
-          { color: PALETTE.gold, shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
-          { color: PALETTE.sky, shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
+          // A real molecule is drawn in its elements' colours, a bare AXₙEₘ in gold and sky.
+          v.molecule
+            ? { color: ELEMENT_STYLE[v.molecule.centre].colour, shape: "dot", label: `${v.molecule.centre} · central atom`, note: "counts its own valence electrons" }
+            : { color: PALETTE.gold, shape: "dot", label: "Central atom", note: "counts its own valence electrons" },
+          v.molecule
+            ? { color: ELEMENT_STYLE[v.molecule.ligand].colour, shape: "dot", label: `${v.molecule.ligand} · bonded atom`, note: "one bonding domain each" }
+            : { color: PALETTE.sky, shape: "dot", label: "Bonded atom", note: "one bonding pair each" },
           { color: PALETTE.violet, shape: "dot", label: "Lone pair", note: "repels harder — closes the angles" },
-          { color: PALETTE.slate, shape: "line", label: "Bond", note: "a shared pair of electrons" },
+          { color: VSEPR_BOND_COLOUR, shape: "line", label: "Bond", note: "a shared pair of electrons" },
         ],
       };
       break;

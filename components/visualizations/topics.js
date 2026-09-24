@@ -1883,7 +1883,7 @@ export const TOPICS = [
         type: "choice",
         key: "preset",
         label: "Common molecules",
-        columns: 3,
+        columns: 4,
         options: VSEPR_PRESETS,
         // Picking a molecule writes both pair counts at once; nudging either
         // slider afterwards simply leaves no preset selected.

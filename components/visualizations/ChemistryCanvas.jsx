@@ -22,7 +22,7 @@ import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
 import { diamondFragment, iceFragment, quartzFragment } from "@/lib/latticeGeometry";
 import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
-import { solveVsepr } from "@/lib/vsepr";
+import { ELEMENT_STYLE, VSEPR_BOND_COLOUR, solveVsepr } from "@/lib/vsepr";
 import { crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
@@ -2890,11 +2890,115 @@ export function ElectrolysisScene({ params = {}, setParam }) {
 
 // ═══ 6 · VSEPR molecular geometry ════════════════════════════════════
 
-// The domain directions, the shape table and the angle solver now live in
+// The domain directions, the measured angles and the solver live in
 // lib/vsepr.js, so the Details panel names the same shape this scene draws.
+
+/** One colour per distinct angle, so a seesaw's three read apart. */
+const ANGLE_COLOURS = [PALETTE.gold, PALETTE.sky, PALETTE.rose];
+
+/** Any unit vector at right angles to `dir`. */
+function perpendicularTo(dir) {
+  const helper = Math.abs(dir.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+  return new THREE.Vector3().crossVectors(dir, helper).normalize();
+}
+
+/**
+ * A lone pair as the orbital it is: a teardrop lobe, pinched at the nucleus
+ * and fattest out where the pair spends its time, with its two electrons
+ * circling inside. Its bulk close to the atom is why it squeezes the bonds.
+ */
+function LonePairLobe({ dir, length }) {
+  const lobe = useMemo(() => {
+    const pts = [];
+    for (let i = 0; i <= 32; i += 1) {
+      const t = i / 32;
+      pts.push(new THREE.Vector2(0.44 * Math.sin(Math.PI * t ** 1.6), t * length));
+    }
+    return new THREE.LatheGeometry(pts, 40);
+  }, [length]);
+  useEffect(() => () => lobe.dispose(), [lobe]);
+  const quaternion = useMemo(() => new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dir), [dir]);
+  const pair = useRef();
+  useFrame((_, dt) => {
+    if (pair.current) pair.current.rotation.y += dt * 1.4;
+  });
+
+  return (
+    <group quaternion={quaternion}>
+      <mesh geometry={lobe}>
+        <meshStandardMaterial
+          color={PALETTE.violet}
+          emissive={PALETTE.violet}
+          emissiveIntensity={0.45}
+          transparent
+          opacity={0.3}
+          roughness={0.2}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {/* A brighter core, so the lobe reads as a cloud densest at its middle. */}
+      <mesh geometry={lobe} scale={[0.55, 0.9, 0.55]} position={[0, length * 0.05, 0]}>
+        <meshBasicMaterial color={PALETTE.violet} transparent opacity={0.22} depthWrite={false} />
+      </mesh>
+      <group ref={pair} position={[0, length * 0.64, 0]}>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * 0.15, 0, 0]}>
+            <sphereGeometry args={[0.065, 14, 14]} />
+            <meshStandardMaterial color="#ede9fe" emissive={PALETTE.violet} emissiveIntensity={0.9} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/** An arc between two bonds, at radius r from the centre, labelled with its angle. */
+function AngleArc({ a, b, value, colour, radius, labelRadius }) {
+  const { points, labelAt } = useMemo(() => {
+    let axis = new THREE.Vector3().crossVectors(a, b);
+    // A straight 180° pair has no plane of its own; any perpendicular will do.
+    axis = axis.lengthSq() < 1e-8 ? perpendicularTo(a) : axis.normalize();
+    const total = (value * Math.PI) / 180;
+    const pts = [];
+    for (let i = 0; i <= 40; i += 1) {
+      pts.push(a.clone().applyAxisAngle(axis, (total * i) / 40).multiplyScalar(radius));
+    }
+    const mid = a.clone().applyAxisAngle(axis, total / 2);
+    return { points: pts, labelAt: mid.multiplyScalar(labelRadius).toArray() };
+  }, [a, b, value, radius, labelRadius]);
+
+  return (
+    <group>
+      <Line points={points} color={colour} lineWidth={2.2} transparent opacity={0.95} />
+      <SceneLabel position={labelAt} tone="text-ink-100">
+        <span style={{ color: colour }}>{value.toFixed(1)}°</span>
+      </SceneLabel>
+    </group>
+  );
+}
+
+/** A bond drawn with its order: one rod, two for a double, a solid and a faint one for 1.5. */
+function OrderedBond({ end, order, colour }) {
+  if (order < 1.5) return <Bond from={[0, 0, 0]} to={end.toArray()} radius={0.085} color={colour} />;
+  const side = perpendicularTo(end.clone().normalize()).multiplyScalar(0.1);
+  return (
+    <>
+      <Bond from={side.toArray()} to={end.clone().add(side).toArray()} radius={0.055} color={colour} />
+      <Bond
+        from={side.clone().negate().toArray()}
+        to={end.clone().sub(side).toArray()}
+        radius={0.055}
+        color={colour}
+        opacity={order < 2 ? 0.4 : 1}
+      />
+    </>
+  );
+}
 
 export function VseprScene({ params = {} }) {
   const {
+    preset,
     bonding = 4,
     lone = 0,
     bondLength = 1.9,
@@ -2905,64 +3009,61 @@ export function VseprScene({ params = {} }) {
   } = params || {};
 
   // One solve, shared with the Details panel.
-  const solved = useMemo(() => solveVsepr(bonding, lone), [bonding, lone]);
-  const { bonding: nBonding, lone: nLone, geometry } = solved;
-  const shape = { name: solved.shape, example: solved.example, polar: solved.polar };
-  const ideal = solved.ideal;
+  const solved = useMemo(() => solveVsepr(bonding, lone, preset), [bonding, lone, preset]);
+  const { geometry, molecule } = solved;
+
+  // A real molecule is drawn in its elements' colours; the bare AXₙEₘ shapes
+  // with no molecule behind them keep the generic gold centre and sky atoms.
+  const centreStyle = molecule ? ELEMENT_STYLE[molecule.centre] : { colour: PALETTE.gold, radius: 0.52 };
+  const ligandStyle = molecule ? ELEMENT_STYLE[molecule.ligand] : { colour: PALETTE.sky, radius: 0.34 };
+  const order = molecule?.order ?? 1;
+  const arcRadius = centreStyle.radius + 0.32;
+  // The central atom's name goes in the emptiest direction, clear of every
+  // bond and lone pair (straight down lands inside BrF₅'s lone pair).
+  const nameAt = useMemo(() => {
+    const domains = [...geometry.bonds, ...geometry.lonePairs];
+    const candidates = [[0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, -0.7, 0.7], [0.7, -0.7, 0], [-0.7, -0.7, 0]].map(
+      (c) => new THREE.Vector3(...c).normalize(),
+    );
+    const clearance = (c) => Math.min(...domains.map((d) => c.angleTo(d)), Math.PI);
+    const best = candidates.reduce((pick, c) => (clearance(c) > clearance(pick) + 1e-3 ? c : pick));
+    return best.multiplyScalar(centreStyle.radius + 0.4).toArray();
+  }, [geometry, centreStyle.radius]);
 
   return (
     <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
-      <AtomSphere position={[0, 0, 0]} radius={0.52} color={PALETTE.gold} emissiveIntensity={0.6} />
-      <Halo position={[0, 0, 0]} radius={0.9} color={PALETTE.gold} opacity={0.08} />
-      <SceneLabel position={[0, -0.95, 0]} accent>
-        central atom
+      <AtomSphere position={[0, 0, 0]} radius={centreStyle.radius} color={centreStyle.colour} emissiveIntensity={0.5} />
+      <Halo position={[0, 0, 0]} radius={centreStyle.radius + 0.38} color={centreStyle.colour} opacity={0.08} />
+      <SceneLabel position={nameAt} accent>
+        {molecule ? `${molecule.centre} · central atom` : "central atom"}
       </SceneLabel>
 
       {geometry.bonds.map((dir, i) => {
         const end = dir.clone().multiplyScalar(bondLength);
         return (
           <group key={`b${i}`}>
-            <Bond from={[0, 0, 0]} to={[end.x, end.y, end.z]} radius={0.085} color={PALETTE.slate} />
-            <AtomSphere position={[end.x, end.y, end.z]} radius={0.34} color={PALETTE.sky} />
+            <OrderedBond end={end} order={order} colour={VSEPR_BOND_COLOUR} />
+            <AtomSphere position={end.toArray()} radius={ligandStyle.radius} color={ligandStyle.colour} emissiveIntensity={0.35} />
           </group>
         );
       })}
 
       {showLonePairs &&
-        geometry.lonePairs.map((dir, i) => {
-          // Drawn short and fat: a lone pair is a cloud held close to the
-          // nucleus, and its bulk is exactly why it squeezes the bond angles.
-          const at = dir.clone().multiplyScalar(bondLength * 0.62);
-          return (
-            <group key={`l${i}`} position={[at.x, at.y, at.z]}>
-              <mesh scale={[1, 1, 1.5]} quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir)}>
-                <sphereGeometry args={[0.36, 20, 20]} />
-                <meshStandardMaterial
-                  color={PALETTE.violet}
-                  emissive={PALETTE.violet}
-                  emissiveIntensity={0.7}
-                  transparent
-                  opacity={0.42}
-                  roughness={0.3}
-                />
-              </mesh>
-            </group>
-          );
-        })}
+        geometry.lonePairs.map((dir, i) => <LonePairLobe key={`l${i}`} dir={dir} length={bondLength * 0.95} />)}
 
-      {showAngles && geometry.bonds.length > 1 && (
-        <SceneLabel
-          position={[
-            geometry.bonds[0].x * bondLength * 0.62 + 0.35,
-            geometry.bonds[0].y * bondLength * 0.62 + 0.35,
-            geometry.bonds[0].z * bondLength * 0.62,
-          ]}
-          tone="text-ink-300"
-        >
-          {geometry.smallestAngle.toFixed(1)}°
-        </SceneLabel>
-      )}
-
+      {showAngles &&
+        geometry.angles.map((angle, k) => (
+          <AngleArc
+            key={`a${k}`}
+            a={geometry.bonds[angle.i]}
+            b={geometry.bonds[angle.j]}
+            value={angle.value}
+            colour={ANGLE_COLOURS[k % ANGLE_COLOURS.length]}
+            radius={arcRadius + k * 0.12}
+            // Staggered outwards: a seesaw's 101.6° and 173.1° share a bisector.
+            labelRadius={arcRadius + 0.45 + k * 0.55}
+          />
+        ))}
     </SceneCanvas>
   );
 }

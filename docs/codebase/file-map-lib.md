@@ -43,7 +43,8 @@ quadcore-hackathon-2k26/
 │   ├── lattices.js                       # Facts and colour keys for each lattice (the Details panel and the scene share them)
 │   ├── latticeGeometry.js                # PURE GEOMETRY: diamond (ball-cut diamond-cubic), α-quartz (P3₂21 from its Wyckoff sites) and ice Ih (wurtzite O net, H placed by the ice rules via Euler orientation); tested for coordination, lengths and angles
 │   ├── electrolysis.js                   # PURE CHEMISTRY: 25 cm³ CuSO₄ microscale cell, copper vs inert-graphite electrodes, Faraday's law, electrolyte exhaustion
-│   ├── vsepr.js                          # PURE CHEMISTRY: steric-number geometries, named shapes for every reachable bonding/lone-pair pair, lone-pair compression, polarity
+│   ├── vsepr.js                          # PURE CHEMISTRY: steric-number geometries, named shapes for every reachable bonding/lone-pair pair, measured-angle solver, distinct angles, polarity
+│   ├── vseprMolecules.js                 # PURE DATA (no three.js): the 20 VSEPR molecules with measured bond angles, and element colours/sizes
 │   ├── energetics.js                     # PURE CHEMISTRY: reaction energy profile, Ea / ΔH clamp, Arrhenius rate constant and catalyst speed-up
 │   ├── enzymes.js                        # PURE BIOLOGY: enzyme rate as temperature × pH, single-valued denaturation, reversibility
 │   ├── dna.js                            # PURE BIOLOGY: helix geometry, sequence generator (all four bases at every length), base colours, 2 vs 3 hydrogen bonds

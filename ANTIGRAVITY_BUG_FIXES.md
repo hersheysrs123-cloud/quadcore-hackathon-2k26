@@ -7694,3 +7694,21 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
 - In the graphite cell, only `blueFraction` of the Cu²⁺ ions are drawn.
 - The electrolyte is filled to below the rim.
 - The tank floor was a plane lying on the bench top, in the same plane as the liquid's bottom face, so they z-fought. The floor is now a 0.05-thick glass slab (`TANK_BASE`) resting on the bench, and the liquid starts on top of it.
+
+## VSEPR: measured bond angles, wrong diatomic examples, lone-pair lobes
+
+- **Problem:** the VSEPR solver closed every angle by a flat 2.5° per lone pair.
+  - That lands on NH₃ (107°) and H₂O (104.5°) but misses most other molecules.
+  - Seesaw SF₄ has three different angles, not one. The model gave its equatorial angle as 120°, against a real 101.6°.
+  - The rule left ClF₃ at 85° (real 87.5°) and BrF₅ at 87.5° (real 84.8°).
+  - Its diatomic examples were wrong: HF and HCl both have three lone pairs, and CO does not.
+  - The panel only reported the smallest angle, and its single label was pinned to one bond tip rather than drawn between the two bonds that make the angle.
+  - The lone pairs were a flat violet ellipsoid.
+- **Root cause:** one rule stood in for per-molecule data, and the shapes with more than one angle could not be described by a single tilt.
+- **Fix:**
+  - `lib/vseprMolecules.js` lists 20 molecules with their measured angles.
+  - `vseprGeometry` bisects the tilt onto a bent or pyramidal molecule's angle. It builds seesaw, T-shaped and square pyramidal geometries directly.
+  - `distinctAngles` returns every distinct angle, and the scene draws a coloured arc for each.
+  - The diatomic examples are now N₂ (1 lone pair), O₂ (2) and HCl (3).
+  - Lone pairs are drawn as teardrop orbital lobes with two electrons inside.
+  - The 2.5° rule is kept only for AX₃E₃, which has no real molecule.

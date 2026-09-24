@@ -18,6 +18,7 @@ import { SOILS } from "@/lib/transpiration";
 import { VECTORS } from "@/lib/pollination";
 import { CONSISTENCIES, ORIENTATIONS } from "@/lib/peristalsis";
 import { MODES as DIVISION_MODES } from "@/lib/cellDivision";
+import { MOLECULES } from "@/lib/vseprMolecules";
 import { PATHOLOGIES as CARDIAC_PATHOLOGIES } from "@/lib/cardiacCycle";
 import { ELECTROLYTES, METALS, PARTNERS, SERIES, SOLUTIONS, SOLUTION_ORDER } from "@/lib/redox";
 import { MIXTURES, MIXTURE_ORDER, SOLVENTS, SOLVENT_ORDER, STATIONS, STATION_ORDER } from "@/lib/separation";
@@ -98,17 +99,22 @@ export const GRAVITY_OPTIONS = [
 
 // ─── Chemistry ──────────────────────────────────────────────────────
 
-/** Each preset writes both pair counts at once, via the control's `patch`. */
-export const VSEPR_PRESETS = [
-  { value: "CH4", label: "CH₄", bonding: 4, lone: 0, title: "Methane — tetrahedral" },
-  { value: "NH3", label: "NH₃", bonding: 3, lone: 1, title: "Ammonia — trigonal pyramidal" },
-  { value: "H2O", label: "H₂O", bonding: 2, lone: 2, title: "Water — bent" },
-  { value: "BF3", label: "BF₃", bonding: 3, lone: 0, title: "Boron trifluoride — trigonal planar" },
-  { value: "PCl5", label: "PCl₅", bonding: 5, lone: 0, title: "Phosphorus pentachloride" },
-  { value: "SF6", label: "SF₆", bonding: 6, lone: 0, title: "Sulfur hexafluoride — octahedral" },
-];
+/**
+ * One button per real molecule. Each writes both pair counts at once, via the
+ * control's `patch`, and the scene draws that molecule's measured angles.
+ */
+export const VSEPR_PRESETS = MOLECULES.map((m) => ({
+  value: m.id,
+  label: m.label,
+  bonding: m.bonding,
+  lone: m.lone,
+  title: m.name,
+}));
 
-/** Which preset, if any, the current pair counts correspond to. */
+/**
+ * Which preset the current pair counts correspond to: the shape's example,
+ * which is the first molecule listed with those counts.
+ */
 export const vseprPresetFor = (bonding, lone) =>
   VSEPR_PRESETS.find((p) => p.bonding === bonding && p.lone === lone)?.value ?? "";
 
