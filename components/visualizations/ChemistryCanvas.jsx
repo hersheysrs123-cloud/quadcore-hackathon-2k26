@@ -1576,7 +1576,10 @@ function Furnace({ heat, furnaceC, speed, flowing }) {
   const coilRows = 6;
   const coilY = (k) => boxBottom + 0.55 + k * ((HEATER.h - 0.85) / (coilRows - 1));
   const coilZ = HEATER.d / 2 - 0.42;
-  const coilHalf = HEATER.w / 2 - 0.22;
+  const bendReach = (HEATER.h - 0.85) / (coilRows - 1) / 2 + 0.075; // U-bend radius + tube
+  // The straight runs stop short enough that the bends clear the side walls'
+  // inner faces; at w/2 − 0.22 they poked out through the casing.
+  const coilHalf = HEATER.w / 2 - HEATER.wall - bendReach - 0.04;
   const hotColour = useMemo(() => new THREE.Color("#7c5a4a").lerp(HOT, 0.25 + heat * 0.6), [heat]);
 
   useFrame(({ clock }) => {
@@ -1714,12 +1717,25 @@ function Furnace({ heat, furnaceC, speed, flowing }) {
           </group>
         ))}
 
-        {/* Sight ports on the side wall. */}
+        {/* Sight ports: small glass windows in a bolted bezel, so they read
+            as inspection ports and not as tube ends poking through. */}
         {[boxBottom + 0.6, boxBottom + 1.35].map((y) => (
-          <mesh key={y} position={[HEATER.w / 2 + 0.06, y, -0.12]} rotation={[0, Math.PI / 2, 0]}>
-            <circleGeometry args={[0.09, 20]} />
-            <meshStandardMaterial color="#1a0c05" emissive="#f97316" emissiveIntensity={0.6 + heat * 1.6} toneMapped={false} />
-          </mesh>
+          <group key={y} position={[HEATER.w / 2 + 0.02, y, -0.58]} rotation={[0, Math.PI / 2, 0]}>
+            <mesh position={[0, 0, 0.02]}>
+              <torusGeometry args={[0.085, 0.03, 10, 24]} />
+              <meshStandardMaterial {...DARK_MAT} />
+            </mesh>
+            <mesh position={[0, 0, 0.012]}>
+              <circleGeometry args={[0.07, 20]} />
+              <meshStandardMaterial color="#2a1206" emissive="#f97316" emissiveIntensity={0.35 + heat * 0.9} toneMapped={false} />
+            </mesh>
+            {[0, 1, 2, 3].map((k) => (
+              <mesh key={k} position={[Math.cos((k * Math.PI) / 2 + Math.PI / 4) * 0.13, Math.sin((k * Math.PI) / 2 + Math.PI / 4) * 0.13, 0.02]}>
+                <sphereGeometry args={[0.018, 8, 8]} />
+                <meshStandardMaterial {...DARK_MAT} />
+              </mesh>
+            ))}
+          </group>
         ))}
 
         {/* Convection section and a tapered stack. */}
