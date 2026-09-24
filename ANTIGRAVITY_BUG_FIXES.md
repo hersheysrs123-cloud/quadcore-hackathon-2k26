@@ -7626,3 +7626,23 @@ The scene is rebuilt in light steel (low metalness) with the science unchanged i
 - a pipe-still furnace.
 
 The dome uses `thetaStart + π/2`, and the cutaway widens to 0.72π.
+
+---
+
+## Distillation Furnace: Coil Through the Casing, Z-Fighting and Gaps
+
+### 1. Problem Statement
+Orange discs showed on the outside of the furnace's side walls. The roof, ribs and front frame flickered (z-fighting). The crude tank's roof floated above its shell, and the feed pipe's bends were open.
+
+### 2. Root Cause
+- **Coil through the casing:** each U-bend reaches one bend radius plus the tube radius (about 0.19) past its straight run. The runs ended 0.22 inside the outer skin, but the 0.08 wall put the inner face 0.08 further in, so the bends passed through the wall.
+- **Z-fighting:** several boxes shared exact faces. The roof top met the rib tops and the convection section's bottom; the side walls met the roof.
+- **Tank gap:** the tank's dome sat 0.08 above the shell rim.
+- **Open bends:** the pipe runs met at their cut ends with no elbow.
+
+### 3. Resolution
+- The coil runs now end at `w/2 − wall − bendReach − 0.04`.
+- The slabs overhang the walls, while the walls, posts and ribs stop between the slabs. The convection section sits 0.004 up.
+- The dome sits on the rim.
+- Elbows and an entry flange close the feed line.
+- The sight ports now have a bolted bezel and sit clear of the transfer line.
