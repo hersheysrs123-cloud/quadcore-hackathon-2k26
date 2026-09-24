@@ -3208,19 +3208,45 @@ export function EnergyProfileScene({ params = {} }) {
 
   const peakY = effectiveEa * ENERGY_SCALE;
   const productY = deltaH * ENERGY_SCALE;
+  // The summit slides toward whichever side sits higher (endothermic peaks lie
+  // late, exothermic early), so the labels follow the drawn peak, not x = 0.
+  const peakX = main.reduce((best, p) => (p[1] > best[1] ? p : best), main[0])[0];
+
+  // Axes framing everything the sliders can reach at this ΔH.
+  const top = Math.max(peakY, uncatalysed * ENERGY_SCALE) + 0.9;
+  const bottom = Math.min(0, productY) - 0.7;
+  const axisX = -PROFILE_HALF - 0.9;
+  const axisEnd = PROFILE_HALF + 1.1;
+  const eaX = peakX - 1.35;
+  const reverseX = peakX + 1.35;
+  const deltaX = PROFILE_HALF - 0.6;
 
   return (
-    <SceneCanvas camera={{ position: [0, 1.2, 10.5], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+    <SceneCanvas camera={{ position: [0, 1.2, 10.5], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
+      <CameraDolly width={axisEnd - axisX + 2.4} height={2 * Math.max(top, -bottom) + 0.6} />
+
+      {/* Axes: energy up the side, progress of the reaction along the bottom. */}
+      <VectorArrow from={[axisX, bottom, 0]} to={[axisX, top, 0]} color={PALETTE.bone} radius={0.022} headLength={0.24} headRadius={0.09} />
+      <VectorArrow from={[axisX, bottom, 0]} to={[axisEnd, bottom, 0]} color={PALETTE.bone} radius={0.022} headLength={0.24} headRadius={0.09} />
+      <SceneLabel position={[axisX, top + 0.4, 0]} tone="text-ink-200">
+        energy (kJ/mol)
+      </SceneLabel>
+      <SceneLabel position={[0, bottom - 0.4, 0]} tone="text-ink-200">
+        progress of reaction →
+      </SceneLabel>
+
       {/* Reactant and product levels, extended as guides for reading ΔH off. */}
-      <Line points={[[-PROFILE_HALF - 0.6, 0, 0], [PROFILE_HALF + 0.6, 0, 0]]} color={PALETTE.line} lineWidth={1.2} dashed dashSize={0.14} gapSize={0.12} />
+      <Line points={[[axisX, 0, 0], [PROFILE_HALF + 0.6, 0, 0]]} color={PALETTE.line} lineWidth={1.2} dashed dashSize={0.14} gapSize={0.12} />
       <Line
-        points={[[-PROFILE_HALF - 0.6, productY, 0], [PROFILE_HALF + 0.6, productY, 0]]}
+        points={[[-PROFILE_HALF, productY, 0], [PROFILE_HALF + 0.6, productY, 0]]}
         color={PALETTE.line}
         lineWidth={1.2}
         dashed
         dashSize={0.14}
         gapSize={0.12}
       />
+      {/* The summit's level, carried across to both activation arrows. */}
+      <Line points={[[eaX, peakY, 0], [reverseX, peakY, 0]]} color={PALETTE.line} lineWidth={1} dashed dashSize={0.1} gapSize={0.1} />
 
       {original && <Line points={original} color={PALETTE.slate} lineWidth={2} dashed dashSize={0.18} gapSize={0.14} />}
       <Line points={main} color={catalyst ? PALETTE.emerald : PALETTE.gold} lineWidth={3.4} />
@@ -3229,34 +3255,56 @@ export function EnergyProfileScene({ params = {} }) {
 
       {/* Activation energy, measured from the reactant level to the peak. */}
       <VectorArrow
-        from={[-1.55, 0, 0]}
-        to={[-1.55, peakY, 0]}
+        from={[eaX, 0, 0]}
+        to={[eaX, peakY, 0]}
         color={PALETTE.rose}
         radius={0.035}
         headLength={0.22}
         headRadius={0.1}
-        label={`Ea ${effectiveEa.toFixed(0)}`}
+      />
+      {/* …and the reverse reaction's, from the product level to the same peak. */}
+      <VectorArrow
+        from={[reverseX, productY, 0]}
+        to={[reverseX, peakY, 0]}
+        color={PALETTE.rose}
+        radius={0.025}
+        headLength={0.2}
+        headRadius={0.08}
+        opacity={0.55}
       />
       <VectorArrow
-        from={[2.4, 0, 0]}
-        to={[2.4, productY, 0]}
+        from={[deltaX, 0, 0]}
+        to={[deltaX, productY, 0]}
         color={exothermic ? PALETTE.emerald : PALETTE.violet}
         radius={0.035}
         headLength={0.22}
         headRadius={0.1}
-        label={`ΔH ${deltaH > 0 ? "+" : ""}${deltaH.toFixed(0)}`}
       />
+      {/* Arrow values sit beside each arrow's middle, clear of the summit label;
+          an arrow too short to hold one gets it just under the reactant line. */}
+      <SceneLabel position={[eaX - 0.62, peakY < 0.8 ? -0.35 : peakY / 2, 0]} tone="text-rose-300">
+        Ea {effectiveEa.toFixed(0)}
+      </SceneLabel>
+      <SceneLabel position={[reverseX + 0.85, (peakY + productY) / 2, 0]} tone="text-rose-300">
+        Ea rev {reverseEa.toFixed(0)}
+      </SceneLabel>
+      <SceneLabel position={[deltaX + 0.75, Math.abs(productY) < 0.8 ? Math.min(0, productY) - 0.35 : productY / 2, 0]} tone={exothermic ? "text-emerald-300" : "text-violet-300"}>
+        ΔH {deltaH > 0 ? "+" : ""}{deltaH.toFixed(0)}
+      </SceneLabel>
 
-      <SceneLabel position={[-PROFILE_HALF - 0.2, 0.42, 0]} tone="text-ink-300">
+      <SceneLabel position={[-PROFILE_HALF + 0.4, 0.42, 0]} tone="text-ink-300">
         reactants
       </SceneLabel>
-      <SceneLabel position={[PROFILE_HALF + 0.2, productY + 0.42, 0]} tone="text-ink-300">
+      {/* Below the level when it drops, above and further out when it rises, clear of Ea rev. */}
+      <SceneLabel position={deltaH <= 0 ? [PROFILE_HALF - 2.2, productY - 0.36, 0] : [PROFILE_HALF + 0.35, productY + 0.4, 0]} tone="text-ink-300">
         products
       </SceneLabel>
-      <SceneLabel position={[0, peakY + 0.5, 0]} accent>
+      <SceneLabel position={[peakX, peakY + 0.5, 0]} accent>
         transition state
       </SceneLabel>
-
+      <SceneLabel position={[axisEnd - 1.2, top + 0.4, 0]} tone={exothermic ? "text-emerald-300" : "text-violet-300"}>
+        {exothermic ? "exothermic · energy released" : deltaH > 0 ? "endothermic · energy absorbed" : "thermoneutral"}
+      </SceneLabel>
     </SceneCanvas>
   );
 }

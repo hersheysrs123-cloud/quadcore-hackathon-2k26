@@ -110,6 +110,8 @@ import {
   SURFACE_OPTIONS,
   VSEPR_PRESETS,
   vseprPresetFor,
+  REACTION_TYPES,
+  reactionTypeFor,
 } from "@/components/visualizations/topic-options";
 import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
 import { leakTimeConstant } from "@/lib/electrostatics";
@@ -1953,6 +1955,7 @@ export const TOPICS = [
     keywords:
       "energy profile activation energy enthalpy exothermic endothermic catalyst transition state reaction coordinate collision theory boltzmann arrhenius rate delta h bond breaking making",
     defaults: {
+      reaction: "exo",
       activation: 90,
       deltaH: -60,
       catalyst: false,
@@ -1966,8 +1969,30 @@ export const TOPICS = [
       spin: false,
     },
     controls: [
+      {
+        type: "choice",
+        key: "reaction",
+        label: "Reaction type",
+        columns: 2,
+        options: REACTION_TYPES,
+        // Each button loads a typical profile of that kind; the sliders then
+        // fine-tune it, and the highlighted button follows ΔH's sign.
+        patch: (v) => {
+          const preset = REACTION_TYPES.find((r) => r.value === v);
+          return preset ? { reaction: v, deltaH: preset.deltaH, activation: preset.activation } : { reaction: v };
+        },
+      },
       { type: "slider", key: "activation", label: "Activation energy Ea", min: 20, max: 160, step: 5, format: (v) => `${v} kJ/mol` },
-      { type: "slider", key: "deltaH", label: "Enthalpy change ΔH", min: -120, max: 120, step: 5, format: (v) => `${v > 0 ? "+" : ""}${v} kJ/mol` },
+      {
+        type: "slider",
+        key: "deltaH",
+        label: "Enthalpy change ΔH",
+        min: -120,
+        max: 120,
+        step: 5,
+        format: (v) => `${v > 0 ? "+" : ""}${v} kJ/mol`,
+        patch: (v) => ({ deltaH: v, reaction: reactionTypeFor(v) }),
+      },
       { type: "slider", key: "temperature", label: "Temperature", min: 250, max: 800, step: 10, format: (v) => `${v} K` },
       { type: "toggle", key: "catalyst", label: "Add a catalyst" },
       { type: "slider", key: "catalystDrop", label: "Catalyst lowers Ea by", min: 10, max: 70, step: 5, format: (v) => `${v} kJ/mol` },

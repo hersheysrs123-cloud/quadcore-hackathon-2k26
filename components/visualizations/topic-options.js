@@ -119,6 +119,19 @@ export const vseprPresetFor = (bonding, lone) =>
   VSEPR_PRESETS.find((p) => p.bonding === bonding && p.lone === lone)?.value ?? "";
 
 /**
+ * The energy profile's two buttons. Each loads a typical reaction of that kind:
+ * exothermic with its products 60 kJ/mol below the reactants, endothermic 60
+ * above, over a barrier that clears the product level.
+ */
+export const REACTION_TYPES = [
+  { value: "exo", label: "Exothermic", deltaH: -60, activation: 90, title: "Products lower — energy released (ΔH < 0)" },
+  { value: "endo", label: "Endothermic", deltaH: 60, activation: 110, title: "Products higher — energy absorbed (ΔH > 0)" },
+];
+
+/** Which button ΔH's sign lights up; none at exactly zero. */
+export const reactionTypeFor = (deltaH) => (deltaH < 0 ? "exo" : deltaH > 0 ? "endo" : "");
+
+/**
  * The strips on the dipping arm, in series order so the button row IS the
  * reactivity series — most reactive on the left, gold on the right.
  */

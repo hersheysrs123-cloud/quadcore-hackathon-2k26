@@ -7712,3 +7712,20 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - The diatomic examples are now N₂ (1 lone pair), O₂ (2) and HCl (3).
   - Lone pairs are drawn as teardrop orbital lobes with two electrons inside.
   - The 2.5° rule is kept only for AX₃E₃, which has no real molecule.
+
+## Energy profile: no axes, labels pinned to x = 0, clipped products
+
+- **Problem:**
+  - The diagram had no axes.
+  - The transition-state label and the Ea arrow were fixed near x = 0, but the summit moves with ΔH: later for endothermic reactions, earlier for exothermic ones.
+  - The reverse activation energy was computed but never drawn.
+  - The top of the Ea arrow had no guide line to the peak.
+  - The right end of the curve, including its products label, was cut off on narrow canvases.
+  - The Ea labels sat on the transition-state label, and ΔH sat on the products label.
+- **Fix:**
+  - Added energy and progress-of-reaction axes.
+  - The labels and arrows now follow `peakX`, the summit actually drawn.
+  - Added a reverse Ea arrow and a dashed guide at the summit's level.
+  - `CameraDolly` fits the diagram to the canvas width.
+  - Arrow values sit beside the middle of each arrow, and drop under the reactant line when the arrow is short.
+  - Checked for label overlaps across exothermic, endothermic, catalysed and extreme slider settings.
