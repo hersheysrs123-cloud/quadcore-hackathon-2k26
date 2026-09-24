@@ -158,7 +158,8 @@ export const ELECTROLYTE_OPTIONS = Object.entries(ELECTROLYTES).map(([value, e])
 /** The separation bench: three samples, two solvents, three stations. */
 export const SAMPLE_MIXTURE_OPTIONS = MIXTURE_ORDER.map((value) => ({
   value,
-  label: MIXTURES[value].label,
+  // Nine samples: the short name keeps them to a two-column grid.
+  label: MIXTURES[value].short,
   title: MIXTURES[value].title,
 }));
 

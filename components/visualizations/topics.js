@@ -2262,7 +2262,7 @@ export const TOPICS = [
         type: "choice",
         key: "mixture",
         label: "Sample mixture",
-        columns: 1,
+        columns: 2,
         options: SAMPLE_MIXTURE_OPTIONS,
       },
       {

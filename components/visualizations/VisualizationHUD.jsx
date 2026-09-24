@@ -174,6 +174,7 @@ import {
   solveChromatography,
   solveCrystallization,
   solveFiltration,
+  stationFit,
 } from "@/lib/separation";
 import {
   BASIN_HOLD_S,
@@ -2505,13 +2506,15 @@ function renderTopicDetailsReadout(topic, params) {
             ["— EACH COMPONENT —", r.separates ? "separated" : "not separated", r.separates ? "good" : "bad"],
             ...r.components.map((c) => [`${c.label} (${c.formula})`, `${c.retained ? "RESIDUE" : "filtrate"} · ${c.reason}`, c.retained ? "warn" : "good"]),
             ["Filtrate looks", r.nothingPassed ? `clear ${S.label.toLowerCase()}` : r.components.some((c) => c.passedG > 0 && COMPONENTS[c.key].tint) ? "coloured — the solute went through" : "colourless — dissolved salt is invisible"],
-            ["Verdict", r.verdict, r.separates ? "good" : "bad"],
+            ["Verdict", r.verdict, r.fines ? "warn" : r.verdict.startsWith("separates") ? "good" : "bad"],
           ],
           note: r.separates
             ? `The paper is a sieve with ${FILTER_PORE_UM} µm holes. ${r.components.filter((c) => c.retained).map((c) => c.label).join(" and ")} is held back because it never dissolved and its grains are far larger than a pore; ${r.components.filter((c) => !c.retained).map((c) => c.label.toLowerCase()).join(" and ")} is present as ions or molecules under a nanometre across and passes with the solvent. Filtration separates a solid from a liquid — nothing more.`
             : r.nothingRetained
               ? `Everything in this sample is dissolved in ${S.label.toLowerCase()}, so there is no particle for the paper to catch: the whole sample runs through and the filtrate is the same ${M.label.toLowerCase()} you poured in. To take the solute out of a solution you need crystallisation, not filtration.`
-              : `${S.label} does not dissolve this solute, so it stays a solid and the paper keeps it. The filtrate is just ${S.label.toLowerCase()} — which is a separation, but of the solvent from everything else. Swap to water and watch the same salt run straight through.`,
+              : r.components.filter((c) => c.retained).every((c) => COMPONENTS[c.key].kind === "solid")
+                ? `${r.components.map((c) => c.label).join(" and ")} never dissolves — it is suspended in the ${S.label.toLowerCase()}, not dissolved in it. The paper holds it back and clear ${S.label.toLowerCase()} runs through: a suspension is exactly what filtration is for.`
+                : `${S.label} does not dissolve this solute, so it stays a solid and the paper keeps it. The filtrate is just ${S.label.toLowerCase()} — which is a separation, but of the solvent from everything else. Swap to water and watch the same salt run straight through.`,
           noteTone: r.separates ? "good" : "warn",
         };
         legend = {
@@ -2604,6 +2607,12 @@ function renderTopicDetailsReadout(topic, params) {
           ],
         };
       }
+      // Is this the right station for this sample at all? Leads the panel.
+      const fit = stationFit({ station: stationKey, mixture: mixKey, solvent: solKey });
+      const fitLabel = { right: "✓ right tool", partly: "≈ only partly", wrong: "✗ wrong tool" }[fit.fit];
+      const fitTone = { right: "good", partly: "warn", wrong: "bad" }[fit.fit];
+      const tryNext = fit.betterSolvent ? ` — try ${SOLVENTS[fit.betterSolvent].label.toLowerCase()}` : fit.better.length ? ` — try ${fit.better.map((s) => STATIONS[s].label.toLowerCase()).join(" or ")}` : "";
+      readout.rows.unshift(["Right tool for this sample?", `${fitLabel} · ${fit.reason}${tryNext}`, fitTone]);
       break;
     }
 

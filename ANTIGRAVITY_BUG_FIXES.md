@@ -7767,3 +7767,63 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - Each tube now has one label wrapped to its width.
   - Shortened the salt tag and raised it into the water.
   - `FitCamera` now waits for a real canvas size. The first version fitted a 0-wide canvas and sent the camera to NaN, leaving a top-down close-up; the reactivity scene had the same guard added.
+
+## Separation studio: z-fighting, a funnel cut by its ring, three rigs at once
+
+- **Problem:**
+  - Z-fighting on the tripod: the gauze and its ceramic centre were two planes 0.01 apart, and the basin sat in their plane.
+  - The flask stood in the plane of the retort stand's plate.
+  - Fine stripes banded the evaporating basin's rim.
+  - The steel ring was centred on the funnel's cone, so it passed through the glass and the filter paper.
+  - All three rigs were drawn at once across a wide bench, so each was small.
+  - The chromatogram's Rf list ran off the frame for long pigment names.
+  - The orbit target was re-applied on every render, pulling any fitted framing off-centre.
+- **Root cause:**
+  - The basin stripes came from the liquid stack, drawn as translucent stacked discs just inside the opaque porcelain.
+  - The basin's liquid profile added the wall offset twice, which pushed those discs through the porcelain near the steep rim.
+- **Fix:**
+  - The gauze and its ceramic centre are now slabs, and the basin rests at `TRIPOD_TOP_CLEARANCE`.
+  - The flask stands a hair above the plate (`PLATE_Y` = 0.123).
+  - The ring sits where the cone's radius meets its inner edge.
+  - Liquid-stack discs are open-ended, and the basin draws its liquid surface only.
+  - Corrected the basin's liquid profile.
+  - Added a shadow bias to the key light.
+  - Only the selected station is drawn, framed per station, with the orbit target passed in.
+  - The Rf list is stacked above the board.
+- **Bench front edge:** the `LabBench` front lip, and the back rails of `LabBench` and `vessel-rack`'s `Bench`, were flush with the slab's faces and z-fought. They now stand 0.01 proud of the slab's faces and ends.
+- **Unrealistic pour (filtration):**
+  - The problem:
+    - The sample in the tipped beaker was a cylinder that tilted with the glass and poked through the wall.
+    - The stream was a straight rod from the lip to the funnel.
+    - Filtrate drops fell through the liquid to the bottom of the flask.
+  - The fix:
+    - The beaker's liquid is now its full inner cylinder, clipped by a horizontal world plane at the liquid level (`gl.localClippingEnabled`). A surface disc in that plane is trimmed by the beaker's base and rim planes, so the surface stays flat as the beaker tips.
+    - The stream is now 14 segments along a parabola from the lip, narrowing as it falls.
+    - The drips end at the filtrate's surface (`flaskSurfaceY`) and become a continuous trickle while the flow is fast.
+    - Samples, filtrate and glass are drawn at higher opacity so they read clearly.
+- **Liquids still looked like layered cylinders:**
+  - The problem:
+    - `LiquidStack` filled the conical flask with a stack of short cylinders, one per step of the profile, and they showed through the glass as bands.
+    - The pour stream was 14 separate rods with visible joints.
+    - The beaker's clipped liquid was double-sided, so its far wall showed through the near one as a darker second layer.
+  - The fix:
+    - `LiquidStack` now draws one solid of revolution (floor and walls following `profile`, with analytic normals), rebuilt only when the level changes, under the existing surface disc.
+    - The stream is a single tapered tube (`shapeStream`) rewritten in place along the parabola, and only while the lip is still moving.
+    - `TippedLiquid` renders front faces only.
+  - A gotcha from verifying it: `lastLip` must start at `Infinity`, not `NaN`, because `Math.abs(NaN) > ε` is false and the stream was never built. Fast Refresh keeps ref values, so check a ref's initial value with a full reload.
+
+## Separation studio: the pour started late; chalk in water was called "never dissolved"
+
+- **Problem:**
+  - The stream appeared only near the end of the pour. The pour was 30 model seconds, only 2 real seconds at the 15× time-lapse, and the stream waited for the beaker to pass a fixed 0.9 rad tilt, which it reached with most of that time gone.
+  - The liquid level was an interpolation, not the volume actually left in the beaker.
+  - Filtering chalk in water, a suspension that filtration is made for, gave the verdict "nothing runs through but solvent — the solute never dissolved". The Details note said the same, and the verdict row was red.
+- **Root cause:**
+  - The tilt and the stream ignored how much liquid the tilted beaker can hold.
+  - The verdict's last branch assumed that anything retained was a solute that had failed to dissolve.
+- **Fix:**
+  - The beaker tips just past the angle at which its remaining volume reaches the lip. That angle is found by bisection on the volume under a level surface in a tilted cylinder. Whatever the tilt cannot hold spills as the stream, so the pour starts the moment liquid reaches the lip and steepens as the beaker empties.
+  - The stream's front and tail fall over `STREAM_FALL_S`, and its last trickle thins.
+  - `POUR_S` is now 60 model seconds.
+  - A sample of insoluble solids now reads "separates — chalk on the paper, clear water in the flask".
+  - Added `stationFit` (right, partly or wrong, and where to go instead), shown as a badge above the station and as the first row of the Details panel.

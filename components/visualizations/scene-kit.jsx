@@ -39,7 +39,10 @@ export function StudioLights({ ambient = 0.55, keyLight = 1.5, rim = PALETTE.sky
   return (
     <>
       <ambientLight intensity={ambient} />
-      <directionalLight position={[6, 9, 6]} intensity={keyLight} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} />
+      {/* The bias pair stops shadow acne: without it a mesh that both casts and
+          receives shadows (a porcelain basin, a stand's base) shades itself in
+          fine stripes that read as z-fighting. */}
+      <directionalLight position={[6, 9, 6]} intensity={keyLight} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} shadow-bias={-0.0004} shadow-normalBias={0.04} />
       <directionalLight position={[-7, -4, -6]} intensity={0.42} color={rim} />
     </>
   );

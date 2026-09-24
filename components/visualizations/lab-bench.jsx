@@ -48,7 +48,7 @@ export const cm = (v) => v * 0.2;
 export const GLASS = {
   color: "#9fd6e8",
   transparent: true,
-  opacity: 0.16,
+  opacity: 0.22,
   roughness: 0.04,
   metalness: 0,
   transmission: 0.6,
@@ -57,18 +57,18 @@ export const GLASS = {
   depthWrite: false,
 };
 /** The rim and base of a vessel, where glass is thick enough to be seen. */
-export const THICK_GLASS = { ...GLASS, color: "#c3e6f2", opacity: 0.42, transmission: 0.3 };
+export const THICK_GLASS = { ...GLASS, color: "#c3e6f2", opacity: 0.55, transmission: 0.3 };
 /** A glazed porcelain basin. */
 export const PORCELAIN = { color: "#f3f1ec", roughness: 0.25, metalness: 0.05, emissive: "#f3f1ec", emissiveIntensity: 0.08 };
 /** Brushed steel — rods, bases, barrels. */
 export const STEEL = { color: "#6b7482", roughness: 0.38, metalness: 0.6, emissive: "#6b7482", emissiveIntensity: 0.22 };
-export const DARK_STEEL = { color: "#3a4150", roughness: 0.45, metalness: 0.6, emissive: "#3a4150", emissiveIntensity: 0.18 };
+export const DARK_STEEL = { color: "#4d5666", roughness: 0.45, metalness: 0.5, emissive: "#4d5666", emissiveIntensity: 0.2 };
 /** The brass of a collar, a gas tap, a needle valve. */
 export const BRASS = { color: "#c9a24a", roughness: 0.32, metalness: 0.6, emissive: "#c9a24a", emissiveIntensity: 0.3 };
 export const RUBBER = { color: "#1f2731", roughness: 0.92, metalness: 0.05 };
 /** Filter and chromatography paper. */
 export const PAPER = { color: "#f4f1e6", roughness: 0.95, metalness: 0, side: THREE.DoubleSide };
-export const CERAMIC_MAT = { color: "#2b2f38", roughness: 0.9, metalness: 0.05 };
+export const CERAMIC_MAT = { color: "#4a515e", roughness: 0.9, metalness: 0.05 };
 
 // ─── Bench and mat ──────────────────────────────────────────────────
 
@@ -83,12 +83,14 @@ export function LabBench({ y = 0, width = 18, depth = 7, colour = "#8c9cb3" }) {
         <boxGeometry args={[width, 0.32, depth]} />
         <meshStandardMaterial color={colour} roughness={0.75} metalness={0.2} />
       </mesh>
-      <mesh position={[0, -0.34, -depth / 2 + 0.1]}>
-        <boxGeometry args={[width, 0.1, 0.2]} />
+      {/* Rail and lip both stand proud of the slab's faces: flush, the lip's
+          front and the slab's front were one plane and z-fought. */}
+      <mesh position={[0, -0.34, -depth / 2 + 0.09]}>
+        <boxGeometry args={[width + 0.02, 0.1, 0.2]} />
         <meshStandardMaterial color="#5b6472" roughness={0.7} />
       </mesh>
-      <mesh position={[0, -0.24, depth / 2 - 0.05]}>
-        <boxGeometry args={[width, 0.16, 0.1]} />
+      <mesh position={[0, -0.24, depth / 2 - 0.035]}>
+        <boxGeometry args={[width + 0.02, 0.16, 0.1]} />
         <meshStandardMaterial color="#6f7d93" roughness={0.7} metalness={0.15} />
       </mesh>
     </group>
@@ -194,6 +196,13 @@ export function RetortStand({ position = [0, 0, 0], height = 6, fittings = [], a
   );
 }
 
+/**
+ * How far above the tripod ring the top of the gauze's ceramic centre sits —
+ * where a vessel resting on the tripod actually touches. Callers stand their
+ * basin at `height + TRIPOD_TOP_CLEARANCE`.
+ */
+export const TRIPOD_TOP_CLEARANCE = 0.075;
+
 /** A tripod with a wire gauze and its ceramic centre — where a basin or beaker sits. */
 export function Tripod({ position = [0, 0, 0], height = 2.2, gauze = true }) {
   const legs = [0, 120, 240];
@@ -217,13 +226,16 @@ export function Tripod({ position = [0, 0, 0], height = 2.2, gauze = true }) {
       </mesh>
       {gauze && (
         <>
-          <mesh position={[0, height + 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[cm(11), cm(11)]} />
-            <meshStandardMaterial color="#6b7280" roughness={0.85} metalness={0.3} side={THREE.DoubleSide} />
+          {/* The gauze sits ON the ring (clear of the torus), and its ceramic
+              centre is a disc with thickness above it. Two planes 0.01 apart
+              used to fight each other at any distance. */}
+          <mesh position={[0, height + 0.05, 0]}>
+            <boxGeometry args={[cm(11), 0.012, cm(11)]} />
+            <meshStandardMaterial color="#8a93a0" roughness={0.85} metalness={0.3} />
           </mesh>
-          <mesh position={[0, height + 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[cm(3.2), 24]} />
-            <meshStandardMaterial color="#d6d3ce" roughness={0.95} side={THREE.DoubleSide} />
+          <mesh position={[0, height + 0.065, 0]}>
+            <cylinderGeometry args={[cm(3.2), cm(3.2), 0.02, 28]} />
+            <meshStandardMaterial color="#e2dfd9" roughness={0.95} />
           </mesh>
         </>
       )}
@@ -426,22 +438,51 @@ export function BunsenBurner({ position = [0, 0, 0], collar = 0.2, flameRef, ani
 
 // ─── Glassware ──────────────────────────────────────────────────────
 
+const LIQUID_SEGMENTS = 40;
+/** The liquid body's floor stands this far above `y0`, clear of the vessel's own base face. */
+const LIQUID_FLOOR_LIFT = 0.004;
+
 /**
- * A stack of short discs filling a vessel whose radius varies with height,
- * driven per frame from `liquidRef.current = { fill, colour, opacity }`.
- * `profile(h)` returns the inner radius at height h (0..height). Discs
- * above the fill line are hidden, so the level follows the vessel's own
- * shape — a low fill in a conical flask is wide, a low fill in a basin is
- * a small puddle at the bottom.
+ * The liquid filling a vessel whose radius varies with height, driven per
+ * frame from `liquidRef.current = { fill, colour, opacity }`. `profile(h)`
+ * returns the inner radius at height h (0..height). The body is ONE smooth
+ * solid of revolution rebuilt to the current level whenever it changes —
+ * walls that follow the vessel's own shape and a floor — plus a surface
+ * disc on top. (It used to be a stack of short cylinders, which read as
+ * visible layers through the glass.)
+ *
+ * `walls` false draws only the liquid's surface: right for an opaque vessel
+ * like a porcelain basin, where the sides can never be seen.
  */
-export function LiquidStack({ height, profile, liquidRef, steps = 16, colour = "#c9e3ec", opacity = 0.3, y0 = 0 }) {
-  const meshes = useRef([]);
+export function LiquidStack({ height, profile, liquidRef, steps = 16, colour = "#c9e3ec", opacity = 0.3, y0 = 0, walls = true }) {
+  const body = useRef(null);
+  const lastLevel = useRef(-1);
   const material = useMemo(
     () => new THREE.MeshStandardMaterial({ color: colour, transparent: true, opacity, roughness: 0.12, depthWrite: false }),
     // The starting colour only seeds the material; the ref drives it after.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+  // Rows: the floor's centre, the floor's edge, then steps + 1 rings up the
+  // wall. The floor edge and the first wall ring are separate vertices so the
+  // corner stays crisp instead of being smoothed into a bulge.
+  const geometry = useMemo(() => {
+    const rows = steps + 3;
+    const cols = LIQUID_SEGMENTS + 1;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(rows * cols * 3), 3));
+    g.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(rows * cols * 3), 3));
+    const index = [];
+    for (let i = 0; i < rows - 1; i += 1) {
+      for (let j = 0; j < LIQUID_SEGMENTS; j += 1) {
+        const a = i * cols + j;
+        const b = a + cols;
+        index.push(a, a + 1, b, a + 1, b + 1, b);
+      }
+    }
+    g.setIndex(index);
+    return g;
+  }, [steps]);
   const surface = useMemo(
     () => new THREE.MeshStandardMaterial({ color: colour, transparent: true, opacity: Math.min(0.75, opacity * 1.8), roughness: 0.08, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -451,12 +492,47 @@ export function LiquidStack({ height, profile, liquidRef, steps = 16, colour = "
     () => () => {
       material.dispose();
       surface.dispose();
+      geometry.dispose();
     },
-    [material, surface],
+    [material, surface, geometry],
   );
   const top = useRef(null);
-  const step = height / steps;
-  const discs = useMemo(() => Array.from({ length: steps }, (_, i) => ({ y: y0 + step * (i + 0.5), radius: profile(step * (i + 0.5)) })), [steps, step, profile, y0]);
+
+  /** Rewrites the body's rings for a liquid standing `level` deep. */
+  const shapeBody = (level) => {
+    const pos = geometry.attributes.position.array;
+    const nrm = geometry.attributes.normal.array;
+    const cols = LIQUID_SEGMENTS + 1;
+    const floor = LIQUID_FLOOR_LIFT;
+    const ring = (row, r, h, nr, ny) => {
+      for (let j = 0; j < cols; j += 1) {
+        const phi = (j / LIQUID_SEGMENTS) * Math.PI * 2;
+        const s = Math.sin(phi);
+        const c = Math.cos(phi);
+        const k = (row * cols + j) * 3;
+        pos[k] = r * s;
+        pos[k + 1] = y0 + h;
+        pos[k + 2] = r * c;
+        nrm[k] = nr * s;
+        nrm[k + 1] = ny;
+        nrm[k + 2] = nr * c;
+      }
+    };
+    const r0 = profile(floor);
+    ring(0, 0, floor, 0, -1);
+    ring(1, r0, floor, 0, -1);
+    for (let i = 0; i <= steps; i += 1) {
+      const h = floor + ((level - floor) * i) / steps;
+      // The wall's outward normal, from the profile's slope at h.
+      const e = 0.01;
+      const slope = (profile(Math.min(height, h + e)) - profile(Math.max(0, h - e))) / (2 * e);
+      const a = 1 / Math.sqrt(1 + slope * slope);
+      ring(i + 2, profile(h), h, a, -slope * a);
+    }
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.normal.needsUpdate = true;
+    geometry.computeBoundingSphere();
+  };
 
   useFrame(() => {
     const l = liquidRef?.current;
@@ -470,17 +546,17 @@ export function LiquidStack({ height, profile, liquidRef, steps = 16, colour = "
       material.opacity = l.opacity;
       surface.opacity = Math.min(0.75, l.opacity * 1.8);
     }
-    let topIndex = -1;
-    for (let i = 0; i < steps; i += 1) {
-      const mesh = meshes.current[i];
-      if (!mesh) continue;
-      const visible = step * i < level - 1e-4;
-      mesh.visible = visible;
-      if (visible) topIndex = i;
+    const wet = level > LIQUID_FLOOR_LIFT + 1e-3;
+    if (body.current) {
+      body.current.visible = walls && wet;
+      if (walls && wet && Math.abs(level - lastLevel.current) > 1e-4) {
+        shapeBody(level);
+        lastLevel.current = level;
+      }
     }
     if (top.current) {
-      top.current.visible = topIndex >= 0;
-      if (topIndex >= 0) {
+      top.current.visible = wet;
+      if (wet) {
         top.current.position.y = y0 + level;
         const r = profile(level);
         top.current.scale.set(r, r, 1);
@@ -490,21 +566,9 @@ export function LiquidStack({ height, profile, liquidRef, steps = 16, colour = "
 
   return (
     <group>
-      {discs.map((d, i) => (
-        <mesh
-          key={i}
-          ref={(el) => {
-            meshes.current[i] = el;
-          }}
-          position={[0, d.y, 0]}
-          material={material}
-          visible={false}
-        >
-          <cylinderGeometry args={[d.radius, d.radius, step * 1.02, 32]} />
-        </mesh>
-      ))}
+      <mesh ref={body} geometry={geometry} material={material} visible={false} />
       <mesh ref={top} rotation={[-Math.PI / 2, 0, 0]} material={surface} visible={false}>
-        <circleGeometry args={[1, 32]} />
+        <circleGeometry args={[1, LIQUID_SEGMENTS]} />
       </mesh>
     </group>
   );
@@ -635,8 +699,13 @@ export function EvaporatingBasin({ liquidRef, liquidColour = "#c9e3ec", liquidOp
     }
     return pts;
   }, [sphereRadius, depth, rim]);
+  // The liquid stack starts at y0 = wall·0.6, the height where the inner
+  // surface's curve begins, so at stack height h the inner wall's radius is
+  // the sphere's at h. Adding the wall offset again (as this once did) put the
+  // liquid outside the porcelain near the steep rim, and each disc's edge
+  // striped through it. The margin covers a disc's half-step of taper.
   const inner = useMemo(
-    () => (h) => Math.sqrt(Math.max(0, sphereRadius * sphereRadius - Math.pow(sphereRadius - (h + wall * 0.6), 2))) - 0.04,
+    () => (h) => Math.max(0, Math.sqrt(Math.max(0, sphereRadius * sphereRadius - Math.pow(sphereRadius - h, 2))) - 0.06),
     [sphereRadius],
   );
 
@@ -651,7 +720,7 @@ export function EvaporatingBasin({ liquidRef, liquidColour = "#c9e3ec", liquidOp
         <torusGeometry args={[rim * 0.42, 0.03, 8, 30]} />
         <meshStandardMaterial {...PORCELAIN} />
       </mesh>
-      <LiquidStack height={depth - wall * 0.6 - 0.04} profile={inner} liquidRef={liquidRef} colour={liquidColour} opacity={liquidOpacity} y0={wall * 0.6} steps={12} />
+      <LiquidStack height={depth - wall * 0.6 - 0.04} profile={inner} liquidRef={liquidRef} colour={liquidColour} opacity={liquidOpacity} y0={wall * 0.6} steps={12} walls={false} />
       {children}
     </group>
   );

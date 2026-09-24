@@ -36,8 +36,9 @@ export function Bench({ y = 0, width = 16, depth = 6, colour = "#8c9cb3" }) {
         <boxGeometry args={[width, 0.32, depth]} />
         <meshStandardMaterial color={colour} roughness={0.75} metalness={0.2} />
       </mesh>
-      <mesh position={[0, -0.34, -depth / 2 + 0.1]}>
-        <boxGeometry args={[width, 0.1, 0.2]} />
+      {/* Proud of the slab's back and ends, so no face is shared with it. */}
+      <mesh position={[0, -0.34, -depth / 2 + 0.09]}>
+        <boxGeometry args={[width + 0.02, 0.1, 0.2]} />
         <meshStandardMaterial color="#5b6472" roughness={0.7} />
       </mesh>
     </group>
