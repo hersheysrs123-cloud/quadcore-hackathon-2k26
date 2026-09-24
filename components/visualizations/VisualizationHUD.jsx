@@ -2447,7 +2447,7 @@ function renderTopicDetailsReadout(topic, params) {
           ["Anode (oxidised)", couple.anode, couple.protects ? "good" : "bad"],
           ["Cathode (protected)", couple.cathode, couple.protects ? "good" : "bad"],
           ["Driving voltage ΔE°", `${couple.deltaE.toFixed(2)} V`],
-          ["Electron flow", couple.direction === "partner_to_iron" ? `${P.symbol} → Fe` : `Fe → ${P.symbol}`, couple.protects ? "good" : "bad"],
+          ["Electron flow", couple.direction === "none" ? `none — ${P.label.toLowerCase()} used up` : couple.direction === "partner_to_iron" ? `${P.symbol} → Fe` : `Fe → ${P.symbol}`, couple.protects && couple.direction !== "none" ? "good" : "bad"],
           ["Nail rust thickness", `${coupled.rustThicknessUm.toFixed(2)} µm`, couple.protects ? "good" : "bad"],
           ["Nail iron lost", `${coupled.ironLostMg.toFixed(2)} mg`, couple.protects ? "good" : "bad"],
           ["Against the bare nail", `${saved >= 0 ? "saved" : "cost"} ${Math.abs(saved).toFixed(1)} mg`, saved >= 0 ? "good" : "bad"],

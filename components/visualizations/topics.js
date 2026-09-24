@@ -2144,6 +2144,7 @@ export const TOPICS = [
       electrolyte: "distilled",
       partner: "zinc",
       playing: false,
+      showLabels: true,
       speed: 1,
     },
     controls: [
@@ -2157,6 +2158,7 @@ export const TOPICS = [
         format: (v) => dayLabel(v),
       },
       { type: "toggle", key: "playing", label: "Play the 90 days" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       {
         type: "choice",
         key: "electrolyte",

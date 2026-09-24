@@ -674,3 +674,24 @@ describe("Labels", () => {
     assert.equal(dayLabel(undefined), `day ${MIN_DAYS}`);
   });
 });
+
+describe("a used-up sacrificial anode", () => {
+  const spent = solveCouple({ days: 90, electrolyte: "saltwater", partner: "magnesium" });
+
+  it("is actually used up by day 90 in salt water", () => {
+    assert.equal(spent.partnerExhausted, true);
+  });
+
+  it("stops the electron flow and hands the anode back to the iron", () => {
+    assert.equal(spent.direction, "none");
+    assert.equal(spent.anode, "Fe");
+    assert.equal(spent.oxidation, "Fe → Fe²⁺ + 2e⁻");
+  });
+
+  it("still names the partner as anode while any of it is left", () => {
+    const fresh = solveCouple({ days: 1, electrolyte: "saltwater", partner: "magnesium" });
+    assert.equal(fresh.partnerExhausted, false);
+    assert.equal(fresh.anode, "Mg");
+    assert.equal(fresh.direction, "partner_to_iron");
+  });
+});

@@ -7749,3 +7749,21 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - Made the verdict labels short and two-line, set low on each beaker, using `inline-block`: a block inside the label's inline box split its background into stray dark fragments.
   - Moved the half-equations into the caption rows.
   - `FitCamera` now frames the rig at any aspect.
+
+## Rusting: a used-up anode still "protecting", nail in the desiccant, label clashes
+
+- **Problem:**
+  - After a sacrificial magnesium or zinc wrap was used up, the scene still drew electrons flowing from it to the nail.
+  - The half-equation caption still named it as the anode.
+  - The Details panel still gave the old electron-flow direction.
+  - The dry tube's nail stood buried in the desiccant granules; the real setup rests it on cotton wool above them.
+  - The two labels per tube ran into their neighbours, and the salt-water tag sat on the rack's name tags.
+  - The captions were cut off on narrow canvases.
+- **Root cause:**
+  - `solveCouple` set anode, cathode, direction and oxidation from the potentials alone, ignoring whether the wrap was still there.
+- **Fix:**
+  - When `partnerRemaining` reaches 0, the couple reports `direction: "none"`, anode and cathode `Fe`, and iron's oxidation. The scene hides the electron stream, and the HUD says "none — used up". Covered by new tests in `redox.test.mjs`.
+  - Added a cotton-wool plug to the dry tube.
+  - Each tube now has one label wrapped to its width.
+  - Shortened the salt tag and raised it into the water.
+  - `FitCamera` now waits for a real canvas size. The first version fitted a 0-wide canvas and sent the camera to NaN, leaving a top-down close-up; the reactivity scene had the same guard added.

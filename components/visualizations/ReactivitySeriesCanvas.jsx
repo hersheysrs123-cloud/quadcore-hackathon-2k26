@@ -800,6 +800,7 @@ function WaterFizz({ index, modelRef, animSpeed = 1 }) {
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+const INITIAL_CAMERA = [0, 2.4, 15.5];
 const CAMERA_TARGET = [0, 0.3, 0];
 const TAN_HALF_FOV = Math.tan((46 / 2) * (Math.PI / 180));
 /** Everything that must stay in frame: both posts' foot plates, the motors and the captions. */
@@ -814,10 +815,16 @@ function FitCamera() {
   const camera = useThree((st) => st.camera);
   const aspect = useThree((st) => st.size.width / Math.max(st.size.height, 1));
   useEffect(() => {
+    // Before layout the canvas can measure 0 wide; fitting then gives an
+    // infinite distance, the camera goes NaN and the orbit controls recover
+    // into a top-down close-up. Wait for a real size.
+    if (!(aspect > 0.05)) return;
     const fit = Math.max(FRAME.height / 2 / TAN_HALF_FOV, FRAME.width / 2 / (TAN_HALF_FOV * aspect));
     const target = new THREE.Vector3(...CAMERA_TARGET);
-    const offset = camera.position.clone().sub(target).setLength(fit);
+    // Keep the initial viewing direction, not whatever the camera holds now.
+    const offset = new THREE.Vector3(...INITIAL_CAMERA).sub(target).setLength(fit);
     camera.position.copy(target).add(offset);
+    camera.lookAt(target);
   }, [camera, aspect]);
   return null;
 }
@@ -870,7 +877,7 @@ export default function ReactivitySeriesCanvas({ params = {}, setParam }) {
   };
 
   return (
-    <SceneCanvas camera={{ position: [0, 2.4, 15.5], fov: 46 }} controls={{ minDistance: 5, maxDistance: 34, target: CAMERA_TARGET }}>
+    <SceneCanvas camera={{ position: INITIAL_CAMERA, fov: 46 }} controls={{ minDistance: 5, maxDistance: 34, target: CAMERA_TARGET }}>
       <FitCamera />
       <ArmDriver
         modelRef={modelRef}
