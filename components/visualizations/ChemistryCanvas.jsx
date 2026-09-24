@@ -2269,7 +2269,7 @@ function AnodeGasBubbles({ x, rate = 1, active = true, animSpeed = 1, count = 14
       }
       const u = (clock.current + seed.phase) % 1;
       el.visible = true;
-      el.position.set(x + seed.driftX * u, -TANK.h / 2 + u * (TANK.h - 0.2), seed.driftZ * u);
+      el.position.set(x + seed.driftX * u, -TANK.h / 2 + 0.3 + u * (TANK.h - 1.05), seed.driftZ * u);
       // Bubbles grow as the pressure drops on the way up, and fade at the surface.
       const scale = 0.6 + u * 0.7;
       el.scale.setScalar(scale);
@@ -2306,7 +2306,7 @@ function AnodeGasBubbles({ x, rate = 1, active = true, animSpeed = 1, count = 14
   );
 }
 
-function Ions({ current, running, resetToken, onDeposit, onClock, animSpeed = 1 }) {
+function Ions({ current, running, resetToken, onDeposit, onClock, animSpeed = 1, anodeX = 2, fromAnode = true, cationFraction = 1 }) {
   const ions = useMemo(
     () =>
       Array.from({ length: 26 }, (_, i) => ({
@@ -2352,13 +2352,22 @@ function Ions({ current, running, resetToken, onDeposit, onClock, animSpeed = 1 
 
       if (ion.cation && s.x <= -edge) {
         if (running) arrivals.current += 1;
-        s.x = (hashRandom(i + Math.floor(performance.now() / 97)) - 0.5) * TANK.w * 0.55;
+        // A copper anode makes a fresh Cu²⁺ for every one that plates out —
+        // Cu → Cu²⁺ + 2e⁻ — so the replacement leaves the anode's face. With
+        // graphite nothing replaces it; it re-enters from wherever the ions
+        // still are, and `cationFraction` below thins them out.
+        s.x = fromAnode
+          ? anodeX - 0.3 - hashRandom(i + Math.floor(performance.now() / 97)) * 0.35
+          : (hashRandom(i + Math.floor(performance.now() / 97)) - 0.5) * TANK.w * 0.55;
       }
       if (!ion.cation && s.x >= edge) {
         s.x = (hashRandom(i + 7 + Math.floor(performance.now() / 89)) - 0.5) * TANK.w * 0.55;
       }
-      s.y = clamp(s.y, -TANK.h / 2 + 0.4, TANK.h / 2 - 0.5);
+      s.y = clamp(s.y, -TANK.h / 2 + 0.4, TANK.h / 2 - 0.85);
       el.position.set(s.x, s.y, s.z);
+      // In the inert cell the Cu²⁺ is used up: draw only the share still in
+      // solution, so the ions thin out as the blue fades.
+      el.visible = !ion.cation || (i / 2 + 0.5) / (ions.length / 2) <= cationFraction + 1e-6;
     });
 
     // Run time only advances while the supply is on — that is what makes it
@@ -2392,7 +2401,7 @@ function Ions({ current, running, resetToken, onDeposit, onClock, animSpeed = 1 
   );
 }
 
-function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0 }) {
+function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0, size = 0.09 }) {
   const meshes = useRef([]);
   const phase = useRef(0);
 
@@ -2421,7 +2430,7 @@ function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0 }) {
             meshes.current[i] = el;
           }}
         >
-          <sphereGeometry args={[0.09, 12, 12]} />
+          <sphereGeometry args={[size, 12, 12]} />
           <meshStandardMaterial
             color={PALETTE.bone}
             emissive={PALETTE.bone}
@@ -2434,10 +2443,216 @@ function ElectronFlow({ path, speed, running, count = 8, animSpeed = 1.0 }) {
   );
 }
 
-// ElectrodeBubbles removed with the bubbles themselves. If the inert-electrode
-// variant is added later (graphite anode: O₂; cathode: Cu, then H₂ once the
-// Cu²⁺ is spent), it wants a gas column again — but keyed to the electrode
-// material, not drawn unconditionally.
+// ─── The apparatus ──────────────────────────────────────────────────
+
+const BENCH_TOP = -TANK.h / 2;
+/** Thickness of the tank's glass floor, so it and the liquid sit above the bench top. */
+const TANK_BASE = 0.05;
+/** The electrolyte fills the tank to a little below its rim. */
+const LIQUID_TOP = TANK.h / 2 - 0.45;
+const CATHODE_X = -TANK.w / 2 + 1;
+const ANODE_X = TANK.w / 2 - 1;
+/** Electrode plates: bottom just off the floor, top standing proud of the holder bar. */
+const PLATE = { width: 1.1, bottom: BENCH_TOP + 0.35, top: TANK.h / 2 + 0.75 };
+const PLATE_H = PLATE.top - PLATE.bottom;
+const PLATE_Y = (PLATE.top + PLATE.bottom) / 2;
+const HOLDER_Y = TANK.h / 2 + 0.2;
+/** Where the crocodile clips bite. */
+const CLIP_Y = PLATE.top - 0.12;
+
+/** The bench power supply: a box on the bench beside the tank, turned to face the room. */
+const SUPPLY = { w: 2.5, h: 1.45, d: 1.7, x: TANK.w / 2 + 2.4, z: 0.4, turn: -0.42 };
+const SUPPLY_Y = BENCH_TOP + SUPPLY.h / 2 + 0.06;
+const CURRENT_RANGE = [0.2, 2];
+const CASE_MAT = { color: "#d9dee6", roughness: 0.5, metalness: 0.15, emissive: "#d9dee6", emissiveIntensity: 0.08 };
+const PANEL_MAT = { color: "#2b3240", roughness: 0.6, metalness: 0.2 };
+
+/** A point on the supply's front panel, in world space. */
+function supplyPoint(localX, localY, localZ = SUPPLY.d / 2) {
+  const c = Math.cos(SUPPLY.turn);
+  const s = Math.sin(SUPPLY.turn);
+  return [SUPPLY.x + localX * c + localZ * s, SUPPLY_Y + localY, SUPPLY.z - localX * s + localZ * c];
+}
+/** Binding posts: black (−) left, red (+) right, as on every bench supply. */
+const NEG_POST = [-0.55, -0.42];
+const POS_POST = [-0.1, -0.42];
+
+/** A lead from a binding post to a clip, as a smooth sagging curve. */
+function leadCurve(post, clipX) {
+  const start = supplyPoint(post[0], post[1], SUPPLY.d / 2 + 0.16);
+  const out = supplyPoint(post[0], post[1] - 0.05, SUPPLY.d / 2 + 0.55);
+  const clip = [clipX, CLIP_Y + 0.28, 0.12];
+  const rise = [clipX + (clipX < 0 ? 0.6 : 0.35), CLIP_Y + 1.25, 0.3];
+  const mid = [(out[0] + rise[0]) / 2, CLIP_Y + (clipX < 0 ? 1.55 : 0.9), (out[2] + rise[2]) / 2 + 0.3];
+  return new THREE.CatmullRomCurve3([start, out, mid, rise, clip].map((p) => new THREE.Vector3(...p)));
+}
+
+function Lead({ curve, colour }) {
+  const geometry = useMemo(() => new THREE.TubeGeometry(curve, 64, 0.045, 10, false), [curve]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial color={colour} roughness={0.55} metalness={0.05} emissive={colour} emissiveIntensity={0.12} />
+    </mesh>
+  );
+}
+
+/** A crocodile clip biting the top of an electrode plate, in the lead's colour. */
+function CrocClip({ x, colour }) {
+  return (
+    <group position={[x, CLIP_Y, 0]}>
+      {[0.09, -0.09].map((z) => (
+        <mesh key={z} position={[0, 0.12, z]} rotation={[z > 0 ? -0.18 : 0.18, 0, 0]}>
+          <boxGeometry args={[0.2, 0.34, 0.06]} />
+          <meshStandardMaterial color="#c8ced8" metalness={0.7} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Insulating boot, coloured to match the lead. */}
+      <mesh position={[0, 0.34, 0]}>
+        <boxGeometry args={[0.26, 0.2, 0.3]} />
+        <meshStandardMaterial color={colour} roughness={0.6} emissive={colour} emissiveIntensity={0.12} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * A bench DC power supply, drawn as one: a light case with a carry handle
+ * and vent slots, a dark front panel with a lit current display, a current
+ * knob whose pointer follows the slider, a power switch whose lamp shows
+ * whether the supply is on, and black (−) and red (+) binding posts.
+ */
+function PowerSupply({ current, run }) {
+  const knob = useRef(null);
+  const turn = -2.3 + ((current - CURRENT_RANGE[0]) / (CURRENT_RANGE[1] - CURRENT_RANGE[0])) * 4.6;
+  const front = SUPPLY.d / 2;
+  return (
+    <group position={[SUPPLY.x, SUPPLY_Y, SUPPLY.z]} rotation={[0, SUPPLY.turn, 0]}>
+      {/* Case, with rubber feet. */}
+      <mesh>
+        <boxGeometry args={[SUPPLY.w, SUPPLY.h, SUPPLY.d]} />
+        <meshStandardMaterial {...CASE_MAT} />
+      </mesh>
+      {[-1, 1].flatMap((sx) =>
+        [-1, 1].map((sz) => (
+          <mesh key={`${sx}${sz}`} position={[sx * (SUPPLY.w / 2 - 0.22), -SUPPLY.h / 2 - 0.03, sz * (SUPPLY.d / 2 - 0.22)]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.06, 12]} />
+            <meshStandardMaterial color="#1f2731" roughness={0.9} />
+          </mesh>
+        )),
+      )}
+      {/* Vent slots on the top and the side. */}
+      {Array.from({ length: 7 }, (_, k) => (
+        <mesh key={`v${k}`} position={[-0.6 + k * 0.2, SUPPLY.h / 2 + 0.003, -0.25]}>
+          <boxGeometry args={[0.08, 0.004, 0.8]} />
+          <meshStandardMaterial color="#5b6472" roughness={0.8} />
+        </mesh>
+      ))}
+      {Array.from({ length: 5 }, (_, k) => (
+        <mesh key={`s${k}`} position={[SUPPLY.w / 2 + 0.003, 0.25 - k * 0.14, -0.1]}>
+          <boxGeometry args={[0.004, 0.05, 0.9]} />
+          <meshStandardMaterial color="#5b6472" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* Carry handle. */}
+      {[-1, 1].map((sx) => (
+        <mesh key={`h${sx}`} position={[sx * 0.75, SUPPLY.h / 2 + 0.14, 0.35]}>
+          <boxGeometry args={[0.08, 0.28, 0.08]} />
+          <meshStandardMaterial color="#39414d" roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[0, SUPPLY.h / 2 + 0.28, 0.35]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.055, 0.055, 1.58, 14]} />
+        <meshStandardMaterial color="#39414d" roughness={0.5} />
+      </mesh>
+
+      {/* Front panel. */}
+      <mesh position={[0, 0, front + 0.005]}>
+        <boxGeometry args={[SUPPLY.w - 0.16, SUPPLY.h - 0.16, 0.01]} />
+        <meshStandardMaterial {...PANEL_MAT} />
+      </mesh>
+      {/* Current display. */}
+      <mesh position={[-0.3, 0.3, front + 0.02]}>
+        <boxGeometry args={[1.2, 0.44, 0.02]} />
+        <meshStandardMaterial color="#0b1a12" emissive={run ? "#16a34a" : "#0b1a12"} emissiveIntensity={run ? 0.35 : 0} roughness={0.2} />
+      </mesh>
+      <SceneLabel position={[-0.3, 0.3, front + 0.04]} tone={run ? "text-emerald-300" : "text-ink-500"}>
+        {run ? `${current.toFixed(2)} A` : "OFF"}
+      </SceneLabel>
+      {/* Current knob — its pointer follows the slider. */}
+      <group position={[0.72, 0.28, front + 0.02]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh>
+          <cylinderGeometry args={[0.2, 0.22, 0.14, 24]} />
+          <meshStandardMaterial color="#1f2731" roughness={0.45} metalness={0.3} />
+        </mesh>
+        <group ref={knob} rotation={[0, turn, 0]}>
+          <mesh position={[0, 0.075, 0.12]}>
+            <boxGeometry args={[0.035, 0.01, 0.13]} />
+            <meshBasicMaterial color="#f8fafc" />
+          </mesh>
+        </group>
+      </group>
+      {/* Power switch and its lamp. */}
+      <mesh position={[0.72, -0.38, front + 0.03]}>
+        <boxGeometry args={[0.24, 0.3, 0.05]} />
+        <meshStandardMaterial color="#1f2731" roughness={0.5} />
+      </mesh>
+      <mesh position={[0.72, -0.12, front + 0.03]}>
+        <sphereGeometry args={[0.045, 12, 12]} />
+        <meshStandardMaterial color={run ? "#22c55e" : "#3f1d1d"} emissive={run ? "#22c55e" : "#000000"} emissiveIntensity={run ? 2 : 0} toneMapped={false} />
+      </mesh>
+      {/* Binding posts. */}
+      {[
+        { at: NEG_POST, colour: "#1f2229" },
+        { at: POS_POST, colour: "#dc2626" },
+      ].map(({ at, colour }) => (
+        <group key={at[0]} position={[at[0], at[1], front + 0.02]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0.05, 0]}>
+            <cylinderGeometry args={[0.11, 0.12, 0.1, 18]} />
+            <meshStandardMaterial color="#c9a24a" metalness={0.7} roughness={0.3} />
+          </mesh>
+          <mesh position={[0, 0.14, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.12, 18]} />
+            <meshStandardMaterial color={colour} roughness={0.5} emissive={colour} emissiveIntensity={0.15} />
+          </mesh>
+        </group>
+      ))}
+      <SceneLabel position={[NEG_POST[0], NEG_POST[1] - 0.26, front + 0.05]} tone="text-ink-300">
+        −
+      </SceneLabel>
+      <SceneLabel position={[POS_POST[0], POS_POST[1] - 0.26, front + 0.05]} tone="text-rose-300">
+        +
+      </SceneLabel>
+    </group>
+  );
+}
+
+/** A plate electrode: its core, and whatever copper has plated onto it. */
+function ElectrodePlate({ x, thickness, core, coat, coatOpacity = 1 }) {
+  return (
+    <group position={[x, PLATE_Y, 0]}>
+      <mesh>
+        <boxGeometry args={[thickness, PLATE_H, PLATE.width]} />
+        <meshStandardMaterial {...core} />
+      </mesh>
+      {coat && coatOpacity > 0.01 && (
+        // Plating, on the submerged part only — nothing plates above the surface.
+        <mesh position={[0, (PLATE.bottom + LIQUID_TOP) / 2 - PLATE_Y, 0]}>
+          <boxGeometry args={[thickness + coat, LIQUID_TOP - PLATE.bottom, PLATE.width + coat]} />
+          <meshStandardMaterial
+            color={CELL_COLOURS.cathode}
+            emissive={CELL_COLOURS.cathode}
+            emissiveIntensity={0.35}
+            metalness={0.8}
+            roughness={0.28}
+            transparent={coatOpacity < 1}
+            opacity={coatOpacity}
+          />
+        </mesh>
+      )}
+    </group>
+  );
+}
 
 export function ElectrolysisScene({ params = {}, setParam }) {
   const {
@@ -2472,11 +2687,11 @@ export function ElectrolysisScene({ params = {}, setParam }) {
   useEffect(() => {
     if (reset) setDeposit(0);
   }, [reset]);
+  // A different pair of electrodes starts clean.
+  useEffect(() => setDeposit(0), [electrode]);
 
   // The scene owns the run clock; the Details panel reads it back out of
-  // params and turns it into charge and mass. Without this the panel has
-  // nothing to go on but the current, which is how it ended up printing a
-  // constant dressed up as an atom count.
+  // params and turns it into charge and mass.
   const pushClock = useCallback(
     (seconds) => {
       if (typeof setParam !== "function" || pushedSeconds.current === seconds) return;
@@ -2486,30 +2701,42 @@ export function ElectrolysisScene({ params = {}, setParam }) {
     [setParam],
   );
 
-  const plating = clamp(0.18 + deposit * 0.0016, 0.18, 0.52);
-  const anodeRadius = clamp(0.44 - (plating - 0.18), 0.14, 0.44);
+  // How much copper has moved, drawn as thickness: the cathode gains what a
+  // copper anode loses. A graphite anode loses nothing.
+  const grown = clamp(deposit * 0.0012, 0, 0.26);
   const tank = useMemo(() => new THREE.BoxGeometry(TANK.w, TANK.h, TANK.d), []);
   useEffect(() => () => tank.dispose(), [tank]);
 
+  const negLead = useMemo(() => leadCurve(NEG_POST, CATHODE_X), []);
+  const posLead = useMemo(() => leadCurve(POS_POST, ANODE_X), []);
+  // Electrons leave the anode, run up the red lead into the supply's + post,
+  // are pumped round to its − post, and go down the black lead to the
+  // cathode. ElectronFlow walks its path backwards, so the path is written
+  // cathode-first. None of them ever cross the solution — ions carry the
+  // current there.
   const circuit = useMemo(
     () => [
-      [-TANK.w / 2 + 1, TANK.h / 2 + 1.1, 0],
-      [-TANK.w / 2 + 1, TANK.h / 2 + 2.2, 0],
-      [TANK.w / 2 - 1, TANK.h / 2 + 2.2, 0],
-      [TANK.w / 2 - 1, TANK.h / 2 + 1.1, 0],
+      ...negLead.getSpacedPoints(26).reverse().map((p) => p.toArray()),
+      ...posLead.getSpacedPoints(26).map((p) => p.toArray()),
     ],
-    [],
+    [negLead, posLead],
   );
 
+  const liquidH = LIQUID_TOP - BENCH_TOP - TANK_BASE;
+  const graphiteMat = { color: CELL_COLOURS.graphite, emissive: CELL_COLOURS.graphite, emissiveIntensity: 0.12, metalness: 0.15, roughness: 0.85 };
+  // Both copper electrodes are the same metal, so they are drawn alike; the
+  // anode's darker, duller face is the one being eaten away.
+  const copperMat = (colour) => ({ color: colour, emissive: CELL_COLOURS.cathode, emissiveIntensity: 0.35, metalness: 0.8, roughness: 0.3 });
+
   return (
-    <SceneCanvas camera={{ position: [0, 3.6, 12.5], fov: 45 }} controls={{ target: [0, 1, 0] }}>
-      {/* Wooden Lab Bench Surface Base */}
-      <mesh position={[0, -TANK.h / 2 - 0.205, 0]}>
-        <boxGeometry args={[TANK.w + 4, 0.4, TANK.d + 3]} />
-        <meshStandardMaterial color="#64748b" roughness={0.8} metalness={0.1} />
+    <SceneCanvas camera={{ position: [1.7, 3.4, 13.8], fov: 45 }} controls={{ target: [1.7, 0.5, 0] }}>
+      {/* Bench. */}
+      <mesh position={[1.7, BENCH_TOP - 0.2, 0.2]}>
+        <boxGeometry args={[TANK.w + 8.5, 0.4, TANK.d + 3.2]} />
+        <meshStandardMaterial color="#8c99ad" roughness={0.75} metalness={0.05} />
       </mesh>
 
-      {/* Glass Beaker Walls */}
+      {/* Glass tank: faint walls, a bright edge, and a thicker lip round the top. */}
       {[
         { pos: [0, 0, TANK.d / 2 + 0.02], rot: [0, 0, 0], w: TANK.w + 0.1, h: TANK.h + 0.05 },
         { pos: [0, 0, -TANK.d / 2 - 0.02], rot: [0, Math.PI, 0], w: TANK.w + 0.1, h: TANK.h + 0.05 },
@@ -2521,7 +2748,7 @@ export function ElectrolysisScene({ params = {}, setParam }) {
           <meshStandardMaterial
             color="#e0f2fe"
             transparent
-            opacity={0.15}
+            opacity={0.14}
             roughness={0.05}
             metalness={0.2}
             emissive="#7dd3fc"
@@ -2531,165 +2758,132 @@ export function ElectrolysisScene({ params = {}, setParam }) {
           />
         </mesh>
       ))}
-      {/* Beaker Bottom */}
-      <mesh position={[0, -TANK.h / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[TANK.w + 0.04, TANK.d + 0.04]} />
-        <meshStandardMaterial color="#7dd3fc" transparent opacity={0.22} roughness={0.1} depthWrite={false} side={THREE.DoubleSide} />
+      {/* Glass base: a slab resting on the bench, not a plane in it (that z-fought). */}
+      <mesh position={[0, BENCH_TOP + TANK_BASE / 2, 0]}>
+        <boxGeometry args={[TANK.w + 0.04, TANK_BASE, TANK.d + 0.04]} />
+        <meshStandardMaterial color="#7dd3fc" transparent opacity={0.22} roughness={0.1} depthWrite={false} />
       </mesh>
-
-
-
-      {/* Graduation Volume Marks on Front Glass (100ml to 500ml) */}
-      {[-1.0, -0.5, 0, 0.5, 1.0].map((yMark, idx) => (
-        <group key={idx} position={[-TANK.w / 2 + 0.05, yMark, TANK.d / 2 + 0.03]}>
-          <mesh>
-            <boxGeometry args={[0.4, 0.03, 0.01]} />
-            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} />
-          </mesh>
-        </group>
+      <lineSegments>
+        <edgesGeometry args={[tank]} />
+        <lineBasicMaterial color="#bae6fd" opacity={0.7} transparent />
+      </lineSegments>
+      {[
+        [0, TANK.d / 2 + 0.02, TANK.w + 0.16, 0.06],
+        [0, -TANK.d / 2 - 0.02, TANK.w + 0.16, 0.06],
+      ].map(([x, z, w, d]) => (
+        <mesh key={z} position={[x, TANK.h / 2, z]}>
+          <boxGeometry args={[w, 0.07, d]} />
+          <meshStandardMaterial color="#e0f2fe" transparent opacity={0.5} roughness={0.1} depthWrite={false} />
+        </mesh>
+      ))}
+      {[TANK.w / 2 + 0.02, -TANK.w / 2 - 0.02].map((x) => (
+        <mesh key={x} position={[x, TANK.h / 2, 0]}>
+          <boxGeometry args={[0.06, 0.07, TANK.d + 0.1]} />
+          <meshStandardMaterial color="#e0f2fe" transparent opacity={0.5} roughness={0.1} depthWrite={false} />
+        </mesh>
+      ))}
+      {/* Graduations up the front-left corner. */}
+      {[-1.2, -0.7, -0.2, 0.3, 0.8].map((y, k) => (
+        <mesh key={y} position={[-TANK.w / 2 + 0.25 + (k % 2 ? 0 : 0.08), y, TANK.d / 2 + 0.03]}>
+          <boxGeometry args={[k % 2 ? 0.25 : 0.4, 0.025, 0.01]} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} />
+        </mesh>
       ))}
 
-      {/* Electrolyte solution — blue CuSO₄, fading to acid on an inert anode */}
-      <mesh>
-        <boxGeometry args={[TANK.w, TANK.h, TANK.d]} />
+      {/* Electrolyte, filled to below the rim — blue CuSO₄, fading to acid on an inert anode. */}
+      <mesh position={[0, BENCH_TOP + TANK_BASE + liquidH / 2, 0]}>
+        <boxGeometry args={[TANK.w - 0.02, liquidH, TANK.d - 0.02]} />
         <meshStandardMaterial
           color={solutionColour}
           transparent
-          opacity={0.1 + 0.12 * cell.blueFraction}
+          opacity={0.12 + 0.14 * cell.blueFraction}
           depthWrite={false}
           roughness={0.04}
           emissive="#0ea5e9"
           emissiveIntensity={0.15 * cell.blueFraction}
         />
       </mesh>
-      <lineSegments>
-        <edgesGeometry args={[tank]} />
-        <lineBasicMaterial color="#38bdf8" opacity={0.65} transparent />
-      </lineSegments>
-
-      {/* Heavy Brass Terminal Clamps on Top Rim */}
-      {[-TANK.w / 2 + 1, TANK.w / 2 - 1].map((xPos, idx) => (
-        <group key={idx} position={[xPos, TANK.h / 2 + 0.5, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.25, 0.28, 0.4, 16]} />
-            <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.2} />
-          </mesh>
-          <mesh position={[0, 0.25, 0]}>
-            <sphereGeometry args={[0.16, 16, 16]} />
-            <meshStandardMaterial color={idx === 0 ? PALETTE.sky : PALETTE.gold} emissive={idx === 0 ? PALETTE.sky : PALETTE.gold} emissiveIntensity={0.6} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Cathode (−) on left, thickening with electroplated copper crystal clusters */}
-      <group position={[-TANK.w / 2 + 1, 0.45, 0]}>
-        <mesh>
-          <cylinderGeometry args={[plating, plating, TANK.h + 0.7, 24]} />
-          <meshStandardMaterial color={CELL_COLOURS.cathode} emissive={CELL_COLOURS.cathode} emissiveIntensity={0.45} metalness={0.85} roughness={0.2} />
-        </mesh>
-        {/* Plated copper crystal nodule clusters */}
-        {deposit > 0 &&
-          Array.from({ length: Math.min(12, Math.floor(deposit / 2) + 2) }).map((_, i) => (
-            <mesh
-              key={i}
-              position={[
-                (hashRandom(i + 3) - 0.5) * plating * 1.8,
-                (hashRandom(i + 13) - 0.5) * TANK.h * 0.7,
-                (hashRandom(i + 23) - 0.5) * plating * 1.8,
-              ]}
-              scale={[0.12, 0.12, 0.12]}
-            >
-              <dodecahedronGeometry args={[1, 0]} />
-              <meshStandardMaterial color="#d97706" emissive="#b45309" emissiveIntensity={0.6} metalness={0.9} roughness={0.15} />
-            </mesh>
-          ))}
-      </group>
-
-      {/* Anode (+) on the right. A copper one wastes away; a graphite one
-          cannot, which is the whole point of it. */}
-      <mesh position={[TANK.w / 2 - 1, 0.45, 0]}>
-        <cylinderGeometry
-          args={
-            material.anodeDissolves
-              ? [anodeRadius, anodeRadius, TANK.h + 0.7, 24]
-              : [0.4, 0.4, TANK.h + 0.7, 24]
-          }
-        />
-        <meshStandardMaterial
-          color={material.anodeDissolves ? CELL_COLOURS.anode : CELL_COLOURS.graphite}
-          emissive={material.anodeDissolves ? PALETTE.gold : CELL_COLOURS.graphite}
-          emissiveIntensity={material.anodeDissolves ? 0.35 : 0.12}
-          metalness={material.anodeDissolves ? 0.75 : 0.15}
-          roughness={material.anodeDissolves ? 0.45 : 0.85}
-        />
+      <mesh position={[0, LIQUID_TOP, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[TANK.w - 0.02, TANK.d - 0.02]} />
+        <meshStandardMaterial color={solutionColour} transparent opacity={0.28} roughness={0.02} metalness={0.3} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Oxygen off the inert anode: 2H₂O → O₂ + 4H⁺ + 4e⁻ */}
-      {cell.inert && (
-        <AnodeGasBubbles
-          x={TANK.w / 2 - 1}
-          rate={current}
-          active={run}
-          animSpeed={speed}
-        />
-      )}
+      {/* Electrode holder across the top. */}
+      <mesh position={[0, HOLDER_Y, 0]}>
+        <boxGeometry args={[TANK.w - 0.6, 0.16, 0.34]} />
+        <meshStandardMaterial color="#e7e5e4" roughness={0.6} emissive="#e7e5e4" emissiveIntensity={0.06} />
+      </mesh>
 
-      {/* The copper cell has no gas at either electrode, deliberately.
-          Copper dissolves in preference to oxidising water, and Cu²⁺
-          discharges in preference to H⁺, so nothing bubbles — which is
-          exactly why the anode thins as the cathode thickens. Bubbles used to
-          be drawn here anyway, contradicting the scene's own "anode wastes
-          away · Cu → Cu²⁺ + 2e⁻" label. They belong to the graphite cell
-          above, where water really is the thing being oxidised. */}
-
-      {showLabels && (
-        <>
-          {/* Hung under the tank's front edge: above it, each label sat
-              squarely on the wire rising out of its own electrode. */}
-          <SceneLabel position={[-TANK.w / 2 + 1, -TANK.h / 2 - 0.45, TANK.d / 2]} tone="text-sky-300">
-            {`cathode (−) · gains Cu · ${material.cathode}`}
-          </SceneLabel>
-          <SceneLabel position={[TANK.w / 2 - 1, -TANK.h / 2 - 0.45, TANK.d / 2]} accent>
-            {`anode (+) · ${material.anodeDissolves ? "wastes away" : "unchanged · gives O₂"} · ${material.anode}`}
-          </SceneLabel>
-        </>
-      )}
-
-      {/* DC Power Supply Equipment Box */}
-      <group position={[0, TANK.h / 2 + 3.0, -1.0]}>
-        <mesh>
-          <boxGeometry args={[4.2, 1.2, 1.2]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.8} />
-        </mesh>
-        {/* Digital LED Display */}
-        <mesh position={[0, 0.1, 0.61]}>
-          <planeGeometry args={[1.8, 0.5]} />
-          <meshStandardMaterial color="#0284c7" emissive="#0284c7" emissiveIntensity={1.2} />
-        </mesh>
-        <SceneLabel position={[0, 0.1, 0.62]} tone="text-cyan-200">
-          {run ? `DC SUPPLY: ${current.toFixed(1)} A` : "DC SUPPLY: OFF"}
-        </SceneLabel>
-      </group>
-
-      {/* External circuit wires */}
-      <Line
-        points={circuit}
-        color={PALETTE.gold}
-        lineWidth={2.5}
-        transparent
-        opacity={0.7 + current * 0.2}
+      {/* Cathode (−). Copper plates onto it either way — onto copper, or as a
+          growing coat on graphite. */}
+      <ElectrodePlate
+        x={CATHODE_X}
+        thickness={material.anodeDissolves ? 0.14 + grown : 0.18}
+        core={material.anodeDissolves ? copperMat(CELL_COLOURS.cathode) : graphiteMat}
+        coat={material.anodeDissolves ? null : 0.02 + grown}
+        coatOpacity={material.anodeDissolves ? 0 : clamp(deposit / 12, 0, 1)}
       />
-      <ElectronFlow path={circuit} speed={0.14 + current * 0.18} animSpeed={speed} running={run} />
+      {/* Copper crystals on the cathode face, more as the run goes on. */}
+      {deposit > 0 &&
+        Array.from({ length: Math.min(16, Math.floor(deposit / 2) + 2) }).map((_, i) => (
+          <mesh
+            key={i}
+            position={[
+              CATHODE_X + 0.1 + grown / 2 + hashRandom(i + 3) * 0.05,
+              PLATE.bottom + 0.2 + hashRandom(i + 13) * (LIQUID_TOP - PLATE.bottom - 0.4),
+              (hashRandom(i + 23) - 0.5) * PLATE.width * 0.9,
+            ]}
+            scale={0.06 + hashRandom(i + 31) * 0.05}
+          >
+            <dodecahedronGeometry args={[1, 0]} />
+            <meshStandardMaterial color="#d97706" emissive="#b45309" emissiveIntensity={0.5} metalness={0.9} roughness={0.15} />
+          </mesh>
+        ))}
+
+      {/* Anode (+). A copper one wastes away; a graphite one cannot. */}
+      <ElectrodePlate
+        x={ANODE_X}
+        thickness={material.anodeDissolves ? Math.max(0.04, 0.3 - grown) : 0.18}
+        core={material.anodeDissolves ? copperMat(CELL_COLOURS.anode) : graphiteMat}
+      />
+
+      {/* Oxygen off the inert anode: 2H₂O → O₂ + 4H⁺ + 4e⁻ */}
+      {cell.inert && <AnodeGasBubbles x={ANODE_X - 0.16} rate={current} active={run} animSpeed={speed} />}
+
+      {/* Leads, clips and the supply. */}
+      <Lead curve={negLead} colour="#1f2229" />
+      <Lead curve={posLead} colour="#dc2626" />
+      <CrocClip x={CATHODE_X} colour="#1f2229" />
+      <CrocClip x={ANODE_X} colour="#dc2626" />
+      <PowerSupply current={current} run={run} />
+      <ElectronFlow path={circuit} speed={0.1 + current * 0.12} animSpeed={speed} running={run} count={12} size={0.06} />
 
       <Ions
         current={current}
         running={run}
         resetToken={reset}
         animSpeed={speed}
+        anodeX={ANODE_X}
+        fromAnode={material.anodeDissolves}
+        cationFraction={cell.blueFraction}
         onDeposit={(n) => setDeposit((d) => d + n)}
         onClock={pushClock}
       />
 
+      {showLabels && (
+        <>
+          {/* Hung under the tank's front edge, clear of the leads above. */}
+          <SceneLabel position={[CATHODE_X, BENCH_TOP - 0.45, TANK.d / 2]} tone="text-sky-300">
+            {`cathode (−) · gains Cu · ${material.cathode}`}
+          </SceneLabel>
+          <SceneLabel position={[ANODE_X, BENCH_TOP - 0.45, TANK.d / 2]} accent>
+            {`anode (+) · ${material.anodeDissolves ? "wastes away" : "unchanged · gives O₂"} · ${material.anode}`}
+          </SceneLabel>
+          <SceneLabel position={[SUPPLY.x, SUPPLY_Y + SUPPLY.h / 2 + 0.7, SUPPLY.z]} tone="text-ink-300">
+            DC power supply
+          </SceneLabel>
+        </>
+      )}
     </SceneCanvas>
   );
 }

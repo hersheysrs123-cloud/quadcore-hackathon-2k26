@@ -7670,3 +7670,27 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
 - **Ice:** built as Ih on the wurtzite net, with hydrogens placed by the ice rules using Euler-circuit orientation.
 - **Diamond:** cut as a ball and pruned, so no atom hangs off one bond.
 - **Graphite:** the middle sheet is shifted one bond length along, giving ABAB stacking. The interlayer lines used to be re-picked on every slide as "the horizontally nearest carbon". Under AB stacking that drew diagonals and piled several lines onto one atom. They are now fixed pairs of eclipsed carbons, chosen unslid, and they lean over as the sheets shear.
+
+---
+
+## Electrolysis: Unconnected Supply, Copper Cathode in the Graphite Cell, Ions
+
+### 1. Problem Statement
+- The DC supply was a dark box floating behind the tank, and the circuit wire ran past it rather than into its terminals.
+- The inert (graphite) cell drew a copper cathode.
+- Cu²⁺ reappeared at random positions instead of leaving the copper anode.
+- In the graphite cell the blue faded while the number of Cu²⁺ ions drawn stayed the same.
+- The electrolyte filled the tank to the brim.
+
+### 2. Root Cause
+- The supply and the wire were placed independently, and the wire's corners were fixed points unrelated to the box.
+- The cathode's material was hard-coded to copper.
+- The ion respawn logic ignored the electrode choice and `blueFraction`.
+
+### 3. Resolution
+- The bench supply now sits on the bench with binding posts, and the leads are curves from those posts to crocodile clips on the plates. The electron path follows the leads.
+- The graphite cell uses graphite for both electrodes, and copper coats the cathode's submerged part.
+- In the copper cell, Cu²⁺ respawns at the anode's face.
+- In the graphite cell, only `blueFraction` of the Cu²⁺ ions are drawn.
+- The electrolyte is filled to below the rim.
+- The tank floor was a plane lying on the bench top, in the same plane as the liquid's bottom face, so they z-fought. The floor is now a 0.05-thick glass slab (`TANK_BASE`) resting on the bench, and the liquid starts on top of it.
