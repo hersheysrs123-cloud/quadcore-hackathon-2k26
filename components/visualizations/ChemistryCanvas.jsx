@@ -22,7 +22,7 @@ import { FRACTIONS, HEAT_PER_LEVEL, furnaceTemperature, rises, risingCount } fro
 import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
 import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
 import { solveVsepr } from "@/lib/vsepr";
-import { crackProducts, describeMolecule, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
+import { crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
 import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";
@@ -333,6 +333,9 @@ const SPREAD_TRIGONAL = Math.sqrt(3);
  */
 function buildMolecule(family, carbons) {
   const n = clamp(carbons, 1, 12);
+  // The ester is built FROM its reactants, so the esterification animation's
+  // last frame and the static ester are the same molecule — see buildEsterification.
+  if (family === "ester") return buildEsterification(n).product;
 
   const atoms = [];
   const bonds = [];
@@ -341,7 +344,6 @@ function buildMolecule(family, carbons) {
   const isAlkyne       = family === "alkyne"        && n >= 2;
   const isAlkeneChain  = family === "alkene"        && n >= 2;
   const isAcid         = family === "acid";
-  const isEster        = family === "ester";
 
   /** Length of the bond arriving at carbon `i`. */
   const bondLengthAt = (i) => {
@@ -399,7 +401,7 @@ function buildMolecule(family, carbons) {
   chain.forEach((p, i) => {
     p.x -= midX;
     p.y -= midY;
-    atoms.push({ el: "C", position: p.toArray(), index: i });
+    atoms.push({ el: "C", position: p.toArray(), index: i, role: i === 0 ? "c1" : undefined });
   });
 
   const isAlkene = family === "alkene" && n >= 2;
@@ -421,13 +423,13 @@ function buildMolecule(family, carbons) {
   if (isAlcohol) {
     const dir = new THREE.Vector3(-0.62, chain[0].y > 0 ? 0.78 : -0.78, 0).normalize();
     oxygen = chain[0].clone().addScaledVector(dir, 1.35);
-    atoms.push({ el: "O", position: oxygen.toArray() });
+    atoms.push({ el: "O", position: oxygen.toArray(), role: "alcO" });
     bonds.push({ from: chain[0].toArray(), to: oxygen.toArray() });
 
     const hDir = new THREE.Vector3(-0.9, 0, 0.42).normalize();
     const hPos = oxygen.clone().addScaledVector(hDir, 0.98);
-    atoms.push({ el: "H", position: hPos.toArray() });
-    bonds.push({ from: oxygen.toArray(), to: hPos.toArray() });
+    atoms.push({ el: "H", position: hPos.toArray(), role: "alcH" });
+    bonds.push({ from: oxygen.toArray(), to: hPos.toArray(), role: "alcOH" });
   }
 
   // –COOH group: terminal carbon already in chain; add =O (carbonyl) and –OH.
@@ -443,59 +445,15 @@ function buildMolecule(family, carbons) {
     // Hydroxyl oxygen — single bond, opposite side
     const ohDir = new THREE.Vector3(-0.62, end.y > 0 ? -0.95 : 0.95, 0).normalize();
     const ohOxy = end.clone().addScaledVector(ohDir, CO_BOND);
-    atoms.push({ el: "O", position: ohOxy.toArray() });
-    bonds.push({ from: end.toArray(), to: ohOxy.toArray() });
+    atoms.push({ el: "O", position: ohOxy.toArray(), role: "acidO" });
+    bonds.push({ from: end.toArray(), to: ohOxy.toArray(), role: "acidCO" });
 
     const hDir = new THREE.Vector3(-0.9, 0, 0.42).normalize();
     const hPos = ohOxy.clone().addScaledVector(hDir, 0.96);
-    atoms.push({ el: "H", position: hPos.toArray() });
-    bonds.push({ from: ohOxy.toArray(), to: hPos.toArray() });
+    atoms.push({ el: "H", position: hPos.toArray(), role: "acidH" });
+    bonds.push({ from: ohOxy.toArray(), to: hPos.toArray(), role: "acidOH" });
 
     // Methanoic acid (n=1) has a formyl C-H bond attached to C1
-    if (n === 1) {
-      const formylHPos = end.clone().addScaledVector(new THREE.Vector3(1, 0, 0), CH_BOND);
-      atoms.push({ el: "H", position: formylHPos.toArray() });
-      bonds.push({ from: end.toArray(), to: formylHPos.toArray() });
-    }
-  }
-
-  // Ester: –COO– bridge — place an extra oxygen between C1 and a separate
-  // methyl/ethyl group to the left of the chain.
-  if (isEster) {
-    const end = chain[0];
-    // Carbonyl =O
-    const coDir = new THREE.Vector3(-0.5, end.y > 0 ? 1.1 : -1.1, 0).normalize();
-    const carbonyl = end.clone().addScaledVector(coDir, CD_BOND);
-    atoms.push({ el: "O", position: carbonyl.toArray() });
-    bonds.push({ from: end.toArray(), to: carbonyl.toArray(), double: true });
-    // Ester bridge –O–
-    const bDir = new THREE.Vector3(-1, 0, 0).normalize();
-    const bridgeO = end.clone().addScaledVector(bDir, CO_BOND * 1.05);
-    atoms.push({ el: "O", position: bridgeO.toArray() });
-    bonds.push({ from: end.toArray(), to: bridgeO.toArray() });
-    // Methyl / ethyl R-group hanging off the bridge oxygen
-    const rC1 = bridgeO.clone().addScaledVector(bDir, CC_BOND);
-    atoms.push({ el: "C", position: rC1.toArray() });
-    bonds.push({ from: bridgeO.toArray(), to: rC1.toArray() });
-    // 3 hydrogens on the R-methyl
-    const rAway = bDir.clone();
-    const rSide = new THREE.Vector3(0, 1, 0);
-    const rUp   = new THREE.Vector3(0, 0, 1);
-    [0, 1, 2].forEach((k) => {
-      const phi = (k / 3) * Math.PI * 2;
-      const hd = rAway.clone()
-        .addScaledVector(rSide, Math.cos(phi) * SPREAD_TETRA_3)
-        .addScaledVector(rUp,   Math.sin(phi) * SPREAD_TETRA_3)
-        .normalize();
-      const hp = rC1.clone().addScaledVector(hd, CH_BOND);
-      atoms.push({ el: "H", position: hp.toArray() });
-      bonds.push({ from: rC1.toArray(), to: hp.toArray() });
-    });
-
-    // Methyl methanoate (n=1) has a formyl C–H on the carbonyl carbon, which
-    // is otherwise left with only three bonds. The acid branch above already
-    // handles its own n=1 case; this one was missed, so HCOOCH₃ came out as
-    // C₂H₃O₂ — an impossible formula — instead of C₂H₄O₂.
     if (n === 1) {
       const formylHPos = end.clone().addScaledVector(new THREE.Vector3(1, 0, 0), CH_BOND);
       atoms.push({ el: "H", position: formylHPos.toArray() });
@@ -511,7 +469,6 @@ function buildMolecule(family, carbons) {
     if (i < n - 1) neighbours.push(chain[i + 1]);
     if (isAlcohol && i === 0 && oxygen) neighbours.push(oxygen);
     if (isAcid    && i === 0) continue; // –COOH carbon handled in group above
-    if (isEster   && i === 0) continue; // ester terminal carbon handled above
 
     // A double bond uses two of the carbon's four bonds.
     const doubleHere = isAlkene && (i === 0 || i === 1);
@@ -573,6 +530,115 @@ function buildMolecule(family, carbons) {
   const name = nameFor(family, n);
 
   return { atoms, bonds, formula, name, valid };
+}
+
+/** Reflect a built molecule in x, so its right-hand end becomes its left. */
+function mirrorX({ atoms, bonds, ...rest }) {
+  const flip = (p) => [-p[0], p[1], p[2]];
+  return {
+    ...rest,
+    atoms: atoms.map((a) => ({ ...a, position: flip(a.position) })),
+    bonds: bonds.map((b) => ({ ...b, from: flip(b.from), to: flip(b.to) })),
+  };
+}
+
+/** Radians between the angles of 2D vectors — for a rotation about z. */
+const angleOf = (v) => Math.atan2(v[1], v[0]);
+
+/** C–O–C at an ester oxygen is about 115°. */
+const ESTER_COC = (115 * Math.PI) / 180;
+
+/**
+ * Esterification as geometry: the n-carbon acid and methanol, and the methyl
+ * ester made from exactly their atoms.
+ *
+ * The acid is mirrored so its –COOH faces +x, towards the methanol. The
+ * product keeps the acid's acyl part where it is and turns methanol about z
+ * so its oxygen lands on the spot the acid's –OH oxygen left, with its methyl
+ * swung out to a 115° C–O–C. The acid's –OH and methanol's hydroxyl H are the
+ * three atoms that leave as water — the labelling experiments' answer, so
+ * the ester's bridging oxygen really is the alcohol's.
+ *
+ * Everything is in the product's own frame, centred on its bounding box, so
+ * the reaction's final frame is the static ester to the pixel.
+ */
+function buildEsterification(n) {
+  const acid = mirrorX(buildMolecule("acid", n));
+  const meth = buildMolecule("alcohol", 1);
+  const find = (mol, role) => mol.atoms.find((a) => a.role === role).position;
+
+  const c1 = find(acid, "c1");
+  const acidO = find(acid, "acidO");
+  const mO = find(meth, "alcO");
+  const mC = find(meth, "c1");
+
+  // Where the methyl carbon must point from the bridging oxygen: 115° off the
+  // O→C(acyl) direction, on whichever side heads away from the acyl chain.
+  const back = [c1[0] - acidO[0], c1[1] - acidO[1]];
+  const candidates = [ESTER_COC, -ESTER_COC].map((t) => angleOf(back) + t);
+  const want = candidates.reduce((best, t) => (Math.cos(t) > Math.cos(best) ? t : best));
+  const turn = want - angleOf([mC[0] - mO[0], mC[1] - mO[1]]);
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  const place = (p) => {
+    const x = p[0] - mO[0];
+    const y = p[1] - mO[1];
+    return [acidO[0] + x * cos - y * sin, acidO[1] + x * sin + y * cos, p[2] - mO[2] + acidO[2]];
+  };
+  const methPlaced = {
+    atoms: meth.atoms.map((a) => ({ ...a, position: place(a.position) })),
+    bonds: meth.bonds.map((b) => ({ ...b, from: place(b.from), to: place(b.to) })),
+  };
+
+  const leavingRoles = new Set(["acidO", "acidH", "alcH"]);
+  const acyl = {
+    atoms: acid.atoms.filter((a) => !leavingRoles.has(a.role)),
+    bonds: acid.bonds.filter((b) => b.role !== "acidCO" && b.role !== "acidOH"),
+  };
+  const methoxy = {
+    atoms: methPlaced.atoms.filter((a) => a.role !== "alcH"),
+    bonds: methPlaced.bonds.filter((b) => b.role !== "alcOH"),
+  };
+  const bridgeO = find(methPlaced, "alcO");
+  const productAtoms = [...acyl.atoms, ...methoxy.atoms];
+
+  // Centre on the product's bounding box and shift every piece with it.
+  const xs = productAtoms.map((a) => a.position[0]);
+  const ys = productAtoms.map((a) => a.position[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const shift = (p) => [p[0] - cx, p[1] - cy, p[2]];
+  const shiftMol = (mol) => ({
+    atoms: mol.atoms.map((a) => ({ ...a, position: shift(a.position) })),
+    bonds: mol.bonds.map((b) => ({ ...b, from: shift(b.from), to: shift(b.to) })),
+  });
+
+  const acylC = shiftMol(acyl);
+  const methoxyC = shiftMol(methoxy);
+  const c1C = shift(c1);
+  const bridgeC = shift(bridgeO);
+  const newBond = { from: c1C, to: bridgeC, role: "esterCO" };
+
+  return {
+    acyl: acylC,
+    methoxy: methoxyC,
+    /** The acyl carbon and the alcohol's oxygen: the new bond joins them. */
+    c1: c1C,
+    bridgeO: bridgeC,
+    /** Where the three leaving atoms sat on their parents, in the product frame. */
+    leaving: {
+      acidO: shift(acidO),
+      acidH: shift(find(acid, "acidH")),
+      alcH: shift(find(methPlaced, "alcH")),
+    },
+    product: {
+      atoms: [...acylC.atoms, ...methoxyC.atoms],
+      bonds: [...acylC.bonds, ...methoxyC.bonds, newBond],
+      formula: formulaFor("ester", n),
+      name: nameFor("ester", n),
+      valid: isValid("ester", n),
+    },
+  };
 }
 
 function DoubleBond({ from, to }) {
@@ -651,28 +717,104 @@ function AtomsAndBonds({ atoms, bonds }) {
   );
 }
 
+// ─── Framing ─────────────────────────────────────────────────────────
+
+/** Radius of the circle a molecule sweeps spinning about y, atoms included. */
+function spinRadius(mol) {
+  return mol.atoms.reduce(
+    (m, a) => Math.max(m, Math.hypot(a.position[0], a.position[2]) + (ATOM_STYLE[a.el] ?? ATOM_STYLE.C).radius),
+    0,
+  );
+}
+
+/** Half the molecule's height, atoms included. */
+function halfHeight(mol) {
+  return mol.atoms.reduce(
+    (m, a) => Math.max(m, Math.abs(a.position[1]) + (ATOM_STYLE[a.el] ?? ATOM_STYLE.C).radius),
+    0,
+  );
+}
+
+/** Half the molecule's width in x, atoms included — for the unspun reaction. */
+function halfWidth(mol) {
+  return mol.atoms.reduce(
+    (m, a) => Math.max(m, Math.abs(a.position[0]) + (ATOM_STYLE[a.el] ?? ATOM_STYLE.C).radius),
+    0,
+  );
+}
+
+const TAN_HALF_FOV = Math.tan((45 / 2) * (Math.PI / 180));
+
+/**
+ * Eases the camera along its view line until a `width` × `height` box around
+ * the origin fits the canvas. Runs only when the box changes — a new molecule,
+ * a crack, a reaction — so a user's own zoom is left alone otherwise.
+ *
+ * `depth` is how far the content comes towards the camera. A spinning
+ * molecule swings its ends through that depth, and the near end is drawn
+ * larger, so fitting the flat width alone let long chains clip at the edge.
+ */
+function CameraDolly({ width, height, depth = 0 }) {
+  const camera = useThree((s) => s.camera);
+  const aspect = useThree((s) => s.size.width / Math.max(s.size.height, 1));
+  const goal = useRef(null);
+  useEffect(() => {
+    const fit = Math.max(height / 2 / TAN_HALF_FOV, width / 2 / (TAN_HALF_FOV * aspect));
+    goal.current = Math.max(6.5, fit * 1.05 + depth);
+  }, [width, height, depth, aspect]);
+  useFrame((_, delta) => {
+    if (goal.current === null) return;
+    const next = lerp(camera.position.length(), goal.current, Math.min(1, delta * 3));
+    camera.position.setLength(next);
+    if (Math.abs(next - goal.current) < 0.01) goal.current = null;
+  });
+  return null;
+}
+
+// ─── Cracking ────────────────────────────────────────────────────────
+
+/** Gap between the cracked products' swept circles, at full separation. */
+const CRACK_GAP = 1.2;
+
+/**
+ * Where the two products sit for a separation `s` in [0, 1].
+ *
+ * Each product spins about its OWN centre, so it sweeps a circle of its spin
+ * radius; spacing the centres by those radii plus a gap means the two can
+ * never interpenetrate at any angle. The pair is centred on the origin.
+ */
+function crackLayout(rAlkane, rAlkene, s) {
+  const gap = 0.25 + s * (CRACK_GAP - 0.25);
+  const centre = rAlkane - rAlkene;
+  return {
+    alkaneX: -(rAlkane + gap / 2) + centre,
+    alkeneX: rAlkene + gap / 2 + centre,
+  };
+}
+
 /**
  * The molecule, and what happens to it when you crack it.
  *
  * Cracking used to be a lie told with a transform: the component partitioned
- * the ONE molecule geometrically and slid the two halves apart. No bond ever
- * became a double bond, no hydrogen ever moved, and both "products" were left
- * as radicals with a dangling valence — while the readout beside it promised
- * "a shorter alkane plus a useful alkene", and the topic's concept text made
- * that one of its three headline facts.
+ * the ONE molecule geometrically and slid the two halves apart. Now the
+ * products are built as real molecules — an alkane two carbons shorter and an
+ * ethene, CₙH₂ₙ₊₂ → C₍ₙ₋₂₎H₂₍ₙ₋₂₎₊₂ + C₂H₄ — and `lib/organic.js` owns the
+ * arithmetic and tests that it balances.
  *
- * Now the products are built as real molecules. The parent is replaced by an
- * alkane two carbons shorter and an ethene, which is what CₙH₂ₙ₊₂ →
- * C₍ₙ₋₂₎H₂₍ₙ₋₂₎₊₂ + C₂H₄ actually gives, and the C=C is drawn by the same
- * DoubleBond the alkene series uses. `lib/organic.js` owns the arithmetic and
- * its test asserts the equation balances.
+ * The products also used to slide apart along the SPINNING group's x-axis and
+ * by a fixed ±2.4, so at some angles they slid towards the camera instead and
+ * sat inside each other, and a long alkane overlapped its ethene at any angle.
+ * Now the products live outside the spinning parent, each spins about its own
+ * centre, and their spacing comes from their swept radii (`crackLayout`).
  */
-function Molecule({ family, carbons, crackToken, spin, speed = 1.0, onCrackedChange }) {
+function Molecule({ family, carbons, crackToken, spin, speed = 1.0, hidden = false, cracked, onCrackedChange }) {
   const group = useRef(null);
   const intactRef = useRef(null);
   const productsRef = useRef(null);
   const alkaneRef = useRef(null);
   const alkeneRef = useRef(null);
+  const alkaneSpin = useRef(null);
+  const alkeneSpin = useRef(null);
   const split = useRef(0);
   const target = useRef(0);
   const wasCracked = useRef(false);
@@ -680,16 +822,19 @@ function Molecule({ family, carbons, crackToken, spin, speed = 1.0, onCrackedCha
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
   const crackable = isCrackable(family, carbons);
 
-  // The two products, built as molecules in their own right rather than carved
-  // out of the parent. Only built when cracking is possible at all.
   const products = useMemo(() => {
     if (!crackable) return null;
     const spec = crackProducts(carbons);
     if (!spec) return null;
+    const alkane = buildMolecule("alkane", spec.alkane.carbons);
+    const alkene = buildMolecule("alkene", spec.alkene.carbons);
     return {
       spec,
-      alkane: buildMolecule("alkane", spec.alkane.carbons),
-      alkene: buildMolecule("alkene", spec.alkene.carbons),
+      alkane,
+      alkene,
+      rAlkane: spinRadius(alkane),
+      rAlkene: spinRadius(alkene),
+      top: Math.max(halfHeight(alkane), halfHeight(alkene)) + 0.75,
     };
   }, [crackable, carbons]);
 
@@ -712,51 +857,354 @@ function Molecule({ family, carbons, crackToken, spin, speed = 1.0, onCrackedCha
   }, [family, carbons]);
 
   useFrame((_, delta) => {
-    if (spin && group.current) group.current.rotation.y += delta * 0.35 * speed;
+    if (group.current) {
+      // Held square while a reaction plays over it, so the reaction's last
+      // frame hands back to this molecule without a jump.
+      if (hidden) group.current.rotation.y = 0;
+      else if (spin) group.current.rotation.y += delta * 0.35 * speed;
+      group.current.visible = !hidden;
+    }
     split.current = lerp(split.current, target.current, Math.min(1, delta * 2.0 * speed));
     const s = crackable ? split.current : 0;
 
     // Below the threshold the parent alkane is on screen; above it, the two
     // products are, drifting apart.
-    const cracked = s > 0.02;
-    if (intactRef.current) intactRef.current.visible = !cracked;
-    if (productsRef.current) productsRef.current.visible = cracked;
-    if (alkaneRef.current) alkaneRef.current.position.x = -s * 2.4;
-    if (alkeneRef.current) alkeneRef.current.position.x = s * 2.4;
+    const isCracked = s > 0.02;
+    if (intactRef.current) intactRef.current.visible = !isCracked;
+    if (productsRef.current) productsRef.current.visible = isCracked && !hidden;
+    if (products) {
+      const { alkaneX, alkeneX } = crackLayout(products.rAlkane, products.rAlkene, s);
+      if (alkaneRef.current) alkaneRef.current.position.x = alkaneX;
+      if (alkeneRef.current) alkeneRef.current.position.x = alkeneX;
+      // Both products carry on the parent's spin, each about its own centre.
+      const angle = group.current ? group.current.rotation.y : 0;
+      if (alkaneSpin.current) alkaneSpin.current.rotation.y = angle;
+      if (alkeneSpin.current) alkeneSpin.current.rotation.y = angle;
+    }
 
-    if (cracked !== wasCracked.current) {
-      wasCracked.current = cracked;
+    if (isCracked !== wasCracked.current) {
+      wasCracked.current = isCracked;
       // Fires on the transition only — never per frame.
-      if (typeof onCrackedChange === "function") onCrackedChange(cracked);
+      if (typeof onCrackedChange === "function") onCrackedChange(isCracked);
     }
   });
 
   return (
-    <group ref={group}>
-      <group ref={intactRef}>
-        <AtomsAndBonds atoms={molecule.atoms} bonds={molecule.bonds} />
+    <>
+      <group ref={group}>
+        <group ref={intactRef}>
+          <AtomsAndBonds atoms={molecule.atoms} bonds={molecule.bonds} />
+        </group>
       </group>
       {products && (
         <group ref={productsRef} visible={false}>
           <group ref={alkaneRef}>
-            <AtomsAndBonds atoms={products.alkane.atoms} bonds={products.alkane.bonds} />
+            <group ref={alkaneSpin}>
+              <AtomsAndBonds atoms={products.alkane.atoms} bonds={products.alkane.bonds} />
+            </group>
+            {cracked && (
+              <SceneLabel position={[0, products.top, 0]} tone="text-ink-300">
+                {`${products.spec.alkane.formula} · ${products.spec.alkane.name}`}
+              </SceneLabel>
+            )}
           </group>
           <group ref={alkeneRef}>
-            <AtomsAndBonds atoms={products.alkene.atoms} bonds={products.alkene.bonds} />
+            <group ref={alkeneSpin}>
+              <AtomsAndBonds atoms={products.alkene.atoms} bonds={products.alkene.bonds} />
+            </group>
+            {cracked && (
+              <>
+                <SceneLabel position={[0, products.top + 0.42, 0]} tone="text-emerald-300">
+                  {`${products.spec.alkene.formula} · ${products.spec.alkene.name}`}
+                </SceneLabel>
+                <SceneLabel position={[0, products.top, 0]} tone="text-emerald-300">
+                  decolourises bromine water
+                </SceneLabel>
+              </>
+            )}
           </group>
         </group>
+      )}
+    </>
+  );
+}
+
+// ─── Esterification ──────────────────────────────────────────────────
+
+/** Seconds for one run at 1× speed. */
+const ESTER_SECONDS = 9;
+/** Stage boundaries, as fractions of the run. */
+const ESTER_T = { approach: 0.2, strain: 0.34, leave: 0.56, join: 0.8 };
+/** How far each reactant starts from its place in the product, and pauses at. */
+const ESTER_START_GAP = 3.0;
+const ESTER_HOLD_GAP = 1.35;
+
+/** What is happening, in the order it happens — the scene's caption. */
+const ESTER_STAGES = [
+  "An acid and an alcohol, warmed with a few drops of conc. H₂SO₄ as catalyst",
+  "The acid's C–OH bond and the alcohol's O–H bond are the ones that break",
+  "…and the –OH and H leave together as water: a condensation reaction",
+  "The alcohol's oxygen bonds to the acid's carbon — the –COO– ester link",
+  "Ester formed. It is reversible (⇌): water can hydrolyse it back",
+];
+
+const smooth = (t) => {
+  const c = clamp(t, 0, 1);
+  return c * c * (3 - 2 * c);
+};
+const span = (p, a, b) => smooth((p - a) / (b - a));
+
+/** Water's own geometry: O–H 0.96 Å at 104.5°, opening upwards. */
+const WATER_HALF_ANGLE = (104.5 / 2) * (Math.PI / 180);
+const WATER_H = [
+  [-0.96 * Math.sin(WATER_HALF_ANGLE), 0.96 * Math.cos(WATER_HALF_ANGLE), 0],
+  [0.96 * Math.sin(WATER_HALF_ANGLE), 0.96 * Math.cos(WATER_HALF_ANGLE), 0],
+];
+
+const BOND_GREY = "#3f4854";
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+/** Stretches a unit, y-aligned cylinder between two points. */
+function placeBond(mesh, a, b, scratch) {
+  if (!mesh) return;
+  scratch.subVectors(b, a);
+  const length = scratch.length();
+  mesh.position.copy(a).add(b).multiplyScalar(0.5);
+  mesh.scale.set(1, Math.max(length, 1e-4), 1);
+  if (length > 1e-6) mesh.quaternion.setFromUnitVectors(Y_AXIS, scratch.normalize());
+}
+
+/**
+ * Carboxylic acid + methanol → methyl ester + water, played through once per
+ * press of the button.
+ *
+ * Every atom on screen is one of the reactants' atoms, and every change is a
+ * bond breaking or forming: the acid (its –COOH facing right) and methanol
+ * close in; the acid's C–OH and methanol's O–H bonds glow; the –OH and the H
+ * leave and meet as a bent water molecule; then the acyl part and the
+ * methoxy part close the gap and the new C–O bond appears. The frame it ends
+ * on is the static ester (`buildEsterification` builds both), so handing back
+ * to the spinning molecule shows no jump.
+ *
+ * Only the stage index is React state; positions are written per frame.
+ */
+function Esterification({ carbons, token, speed = 1, info, onStage }) {
+  const asm = useMemo(() => buildEsterification(carbons), [carbons]);
+  const progress = useRef(-1);
+  const seenToken = useRef(token);
+  const [stage, setStage] = useState(-1);
+  const stageRef = useRef(-1);
+
+  const acylRef = useRef(null);
+  const methRef = useRef(null);
+  const leaveO = useRef(null);
+  const leaveH1 = useRef(null);
+  const leaveH2 = useRef(null);
+  const bonds = useRef({});
+
+  const geo = useMemo(() => {
+    const v = (p) => new THREE.Vector3(...p);
+    const top = (mol) => mol.atoms.reduce((m, a) => Math.max(m, a.position[1]), -Infinity);
+    const bottom = asm.product.atoms.reduce((m, a) => Math.min(m, a.position[1]), Infinity);
+    const xMid = (mol) => {
+      const xs = mol.atoms.map((a) => a.position[0]);
+      return (Math.min(...xs) + Math.max(...xs)) / 2;
+    };
+    const water = v([asm.bridgeO[0], bottom - 1.5, 0.6]);
+    return {
+      c1: v(asm.c1),
+      bridgeO: v(asm.bridgeO),
+      acidO: v(asm.leaving.acidO),
+      acidH: v(asm.leaving.acidH),
+      alcH: v(asm.leaving.alcH),
+      water,
+      waterH1: water.clone().add(v(WATER_H[0])),
+      waterH2: water.clone().add(v(WATER_H[1])),
+      acylLabel: [xMid(asm.acyl), top(asm.acyl) + 0.8, 0],
+      methLabel: [xMid(asm.methoxy), top(asm.methoxy) + 0.8, 0],
+      // Beside the water, not under it: under it sat on the scene's caption.
+      waterLabel: [water.x + 1.55, water.y + 0.35, water.z],
+      productLabel: [0, Math.max(top(asm.acyl), top(asm.methoxy)) + 0.8, 0],
+    };
+  }, [asm]);
+
+  const scratch = useMemo(
+    () => ({
+      dir: new THREE.Vector3(),
+      c1: new THREE.Vector3(),
+      bridge: new THREE.Vector3(),
+      o: new THREE.Vector3(),
+      h1: new THREE.Vector3(),
+      h2: new THREE.Vector3(),
+      from: new THREE.Vector3(),
+    }),
+    [],
+  );
+
+  const report = useCallback(
+    (next) => {
+      if (next === stageRef.current) return;
+      stageRef.current = next;
+      setStage(next);
+      if (typeof onStage === "function") onStage(next);
+    },
+    [onStage],
+  );
+
+  // A press starts a run. The token seen at mount is ignored, so coming back
+  // to the Ester series does not replay the last press.
+  useEffect(() => {
+    if (token === seenToken.current) return;
+    seenToken.current = token;
+    progress.current = 0;
+    report(0);
+  }, [token, report]);
+
+  // A new chain length abandons a run in progress.
+  useEffect(() => {
+    progress.current = -1;
+    report(-1);
+  }, [carbons, report]);
+
+  useFrame((_, delta) => {
+    const p0 = progress.current;
+    if (p0 < 0) return;
+    const p = Math.min(1, p0 + (delta * Math.max(speed, 0)) / ESTER_SECONDS);
+    progress.current = p;
+    if (p >= 1) {
+      progress.current = -1;
+      report(-1);
+      return;
+    }
+
+    const gap =
+      p < ESTER_T.approach
+        ? lerp(ESTER_START_GAP, ESTER_HOLD_GAP, span(p, 0, ESTER_T.approach))
+        : p < ESTER_T.leave
+          ? ESTER_HOLD_GAP
+          : lerp(ESTER_HOLD_GAP, 0, span(p, ESTER_T.leave, ESTER_T.join));
+    if (acylRef.current) acylRef.current.position.x = -gap;
+    if (methRef.current) methRef.current.position.x = gap;
+
+    const { c1, bridge, o, h1, h2, from, dir } = scratch;
+    c1.copy(geo.c1).x -= gap;
+    bridge.copy(geo.bridgeO).x += gap;
+
+    // The leaving atoms ride on their parents until the bonds break, then
+    // travel to the water's place.
+    const leave = span(p, ESTER_T.strain, ESTER_T.leave);
+    from.copy(geo.acidO).x -= gap;
+    o.lerpVectors(from, geo.water, leave);
+    from.copy(geo.acidH).x -= gap;
+    h1.lerpVectors(from, geo.waterH1, leave);
+    from.copy(geo.alcH).x += gap;
+    h2.lerpVectors(from, geo.waterH2, leave);
+    leaveO.current?.position.copy(o);
+    leaveH1.current?.position.copy(h1);
+    leaveH2.current?.position.copy(h2);
+
+    const b = bonds.current;
+    const breaking = p < ESTER_T.strain;
+    const strained = p >= ESTER_T.approach && breaking;
+    const pulse = strained ? 0.6 + 0.6 * Math.sin(p * ESTER_SECONDS * 14) : 0.12;
+    for (const key of ["acylC", "alcOH"]) {
+      if (!b[key]) continue;
+      b[key].visible = breaking;
+      b[key].material.color.set(strained ? PALETTE.rose : BOND_GREY);
+      b[key].material.emissive.set(strained ? PALETTE.rose : BOND_GREY);
+      b[key].material.emissiveIntensity = pulse;
+    }
+    placeBond(b.acylC, c1, o, dir);
+    placeBond(b.alcOH, bridge, h2, dir);
+    placeBond(b.waterOH1, o, h1, dir);
+    // Water's second O–H forms as the H arrives.
+    if (b.waterOH2) b.waterOH2.visible = leave > 0.85;
+    placeBond(b.waterOH2, o, h2, dir);
+    // The new ester bond, gold while it is news.
+    if (b.ester) {
+      b.ester.visible = p >= ESTER_T.join - 0.02;
+      const fresh = p < 0.93;
+      b.ester.material.color.set(fresh ? PALETTE.gold : BOND_GREY);
+      b.ester.material.emissive.set(fresh ? PALETTE.gold : BOND_GREY);
+      b.ester.material.emissiveIntensity = fresh ? 0.9 : 0.12;
+    }
+    placeBond(b.ester, c1, bridge, dir);
+
+    report(p < ESTER_T.approach ? 0 : p < ESTER_T.strain ? 1 : p < ESTER_T.leave ? 2 : p < ESTER_T.join ? 3 : 4);
+  });
+
+  if (stage < 0) return null;
+
+  const bondMesh = (key) => (
+    <mesh
+      key={key}
+      visible={key !== "ester" && key !== "waterOH2"}
+      ref={(el) => {
+        bonds.current[key] = el;
+      }}
+    >
+      <cylinderGeometry args={[0.075, 0.075, 1, 14]} />
+      <meshStandardMaterial color={BOND_GREY} emissive={BOND_GREY} emissiveIntensity={0.12} roughness={0.4} metalness={0.2} />
+    </mesh>
+  );
+  const atomMesh = (ref, el, position) => (
+    <mesh ref={ref} position={position}>
+      <sphereGeometry args={[ATOM_STYLE[el].radius, 28, 28]} />
+      <meshStandardMaterial
+        color={ATOM_STYLE[el].color}
+        emissive={ATOM_STYLE[el].color}
+        emissiveIntensity={stage === 1 || stage === 2 ? 0.9 : 0.4}
+        roughness={0.28}
+        metalness={0.2}
+      />
+    </mesh>
+  );
+  const joined = stage >= 4;
+  const startAcid = (p) => [p[0] - ESTER_START_GAP, p[1], p[2]];
+  const startMeth = (p) => [p[0] + ESTER_START_GAP, p[1], p[2]];
+
+  return (
+    <group>
+      <group ref={acylRef} position={[-ESTER_START_GAP, 0, 0]}>
+        <AtomsAndBonds atoms={asm.acyl.atoms} bonds={asm.acyl.bonds} />
+        {!joined && (
+          <SceneLabel position={geo.acylLabel} tone="text-ink-200">
+            {`${info.acid.formula} · ${info.acid.name}`}
+          </SceneLabel>
+        )}
+      </group>
+      <group ref={methRef} position={[ESTER_START_GAP, 0, 0]}>
+        <AtomsAndBonds atoms={asm.methoxy.atoms} bonds={asm.methoxy.bonds} />
+        {!joined && (
+          <SceneLabel position={geo.methLabel} tone="text-ink-200">
+            {`${info.alcohol.formula} · ${info.alcohol.name}`}
+          </SceneLabel>
+        )}
+      </group>
+      {atomMesh(leaveO, "O", startAcid(asm.leaving.acidO))}
+      {atomMesh(leaveH1, "H", startAcid(asm.leaving.acidH))}
+      {atomMesh(leaveH2, "H", startMeth(asm.leaving.alcH))}
+      {["acylC", "alcOH", "waterOH1", "waterOH2", "ester"].map(bondMesh)}
+      {stage >= 2 && (
+        <SceneLabel position={geo.waterLabel} tone="text-sky-300">
+          {`${info.water.formula} · ${info.water.name}`}
+        </SceneLabel>
+      )}
+      {joined && (
+        <SceneLabel position={geo.productLabel} tone="text-emerald-300">
+          {`${info.ester.formula} · ${info.ester.name}`}
+        </SceneLabel>
       )}
     </group>
   );
 }
 
 export function OrganicBuilderScene({ params = {} }) {
-  const { family = "alkane", carbons = 3, crack = 0, spin = true, speed = 1.0 } = params || {};
+  const { family = "alkane", carbons = 3, crack = 0, esterify = 0, spin = true, speed = 1.0 } = params || {};
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
   // The same description the Details panel prints.
   const info = useMemo(() => describeMolecule(family, carbons), [family, carbons]);
-  const { crackable, general: generalFormula, saturated, unsaturation } = info;
-  const hasBondFeature = Boolean(unsaturation);
+  const { crackable } = info;
 
   // Whether the two products are the thing currently on screen. The Molecule
   // reports the transition, so this is a state change per crack, not per frame.
@@ -764,40 +1212,70 @@ export function OrganicBuilderScene({ params = {} }) {
   const cracking = useMemo(() => (crackable ? crackProducts(carbons) : null), [crackable, carbons]);
   useEffect(() => setCracked(false), [family, carbons]);
 
-  const readoutNote = !info.valid
-    ? `${info.label}s need at least ${info.minCarbons} carbons. Increase the chain length.`
-    : cracked && cracking
-      ? `${cracking.equation} — the long chain has broken into a shorter alkane plus an alkene, and the C=C is the useful part.`
-      : crackable
-        ? `Press "Trigger cracking": this alkane breaks into a shorter alkane plus a useful alkene.`
-        : info.note;
+  const isEster = family === "ester" && info.valid;
+  const ester = useMemo(() => (isEster ? esterification(carbons) : null), [isEster, carbons]);
+  const [stage, setStage] = useState(-1);
+  useEffect(() => setStage(-1), [family, carbons]);
+  const reacting = isEster && stage >= 0;
 
+  // The box the camera keeps in view: the reactants spread out, the two
+  // cracked products side by side, or the molecule's swept circle.
+  const frame = useMemo(() => {
+    const labelRoom = 1.8;
+    if (reacting) {
+      return {
+        width: 2 * halfWidth(molecule) + 2 * ESTER_START_GAP + 0.6,
+        height: 2 * (halfHeight(molecule) + 2.9) + labelRoom,
+        depth: 1,
+      };
+    }
+    if (cracked && cracking) {
+      const alkane = buildMolecule("alkane", cracking.alkane.carbons);
+      const alkene = buildMolecule("alkene", cracking.alkene.carbons);
+      return {
+        width: 2 * (spinRadius(alkane) + spinRadius(alkene)) + CRACK_GAP,
+        height: 2 * Math.max(halfHeight(alkane), halfHeight(alkene)) + 2 * labelRoom,
+        depth: spin ? 0.6 * spinRadius(alkane) : 1,
+      };
+    }
+    const r = spin ? spinRadius(molecule) : halfWidth(molecule);
+    return { width: 2 * r, height: 2 * halfHeight(molecule) + 2 * labelRoom, depth: spin ? 0.35 * r : 1 };
+  }, [reacting, cracked, cracking, molecule, spin]);
+
+  const bottom = -(frame.height / 2 - 0.9);
 
   return (
-    <SceneCanvas camera={{ position: [0, 2.4, carbons > 6 ? 12 : 8.5], fov: 45 }}>
+    <SceneCanvas camera={{ position: [0, 2.4, 10], fov: 45 }}>
+      <CameraDolly width={frame.width} height={frame.height} depth={frame.depth} />
       <Molecule
         family={family}
         carbons={carbons}
         crackToken={crack}
         spin={spin}
         speed={speed}
+        hidden={reacting}
+        cracked={cracked}
         onCrackedChange={setCracked}
       />
-
-      <SceneLabel position={[0, -2.6, 0]} accent>
-        {cracked && cracking ? cracking.equation : `${molecule.formula} · ${molecule.name}`}
-      </SceneLabel>
-      {cracked && cracking && (
-        <>
-          <SceneLabel position={[-2.6, 2.4, 0]} tone="text-ink-300">
-            {`${cracking.alkane.formula} · ${cracking.alkane.name}`}
-          </SceneLabel>
-          <SceneLabel position={[2.6, 2.4, 0]} tone="text-emerald-300">
-            {`${cracking.alkene.formula} · ${cracking.alkene.name} — decolourises bromine water`}
-          </SceneLabel>
-        </>
+      {isEster && (
+        <Esterification carbons={carbons} token={esterify} speed={speed} info={ester} onStage={setStage} />
       )}
 
+      <SceneLabel position={[0, bottom, 0]} accent>
+        {reacting
+          ? ester.equation
+          : cracked && cracking
+            ? cracking.equation
+            : `${molecule.formula} · ${molecule.name}`}
+      </SceneLabel>
+      {reacting && (
+        <SceneLabel
+          position={[0, bottom - 0.45, 0]}
+          tone={stage === 1 ? "text-rose-300" : stage >= 3 ? "text-emerald-300" : "text-ink-300"}
+        >
+          {`${stage + 1}/5 · ${ESTER_STAGES[stage]}`}
+        </SceneLabel>
+      )}
     </SceneCanvas>
   );
 }

@@ -1651,7 +1651,7 @@ export const TOPICS = [
     blurb: "Ball-and-stick alkanes, alkenes, alkynes, alcohols, carboxylic acids & esters",
     syllabus: "Chemistry 14 · Organic chemistry",
     keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester",
-    defaults: { family: "alkane", carbons: 3, crack: 0, spin: true },
+    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, spin: true },
     controls: [
       {
         type: "choice",
@@ -1669,12 +1669,16 @@ export const TOPICS = [
       },
       { type: "slider", key: "carbons", label: "Carbon chain length", min: 1, max: 12, step: 1, format: (v) => `C${v}` },
       { type: "toggle", key: "spin", label: "Rotate molecule" },
-      { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors },
+      // Each reaction button only where it applies: cracking needs an alkane,
+      // and the ester is what the esterification makes.
+      { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors, when: (p) => (p.family ?? "alkane") === "alkane" },
+      { type: "action", key: "esterify", label: "Form the ester (acid + methanol)", icon: FlaskConical, when: (p) => p.family === "ester" },
     ],
     concepts: [
       "Alkanes (CₙH₂ₙ₊₂) are saturated — only single C–C bonds. Alkenes (CₙH₂ₙ) are unsaturated and contain a C=C double bond.",
       "Members of a homologous series share a general formula and differ by CH₂, so their properties change gradually down the series.",
       "Cracking breaks long alkanes into a shorter alkane plus a useful alkene, matching supply to demand for petrol and polymer feedstock.",
+      "A carboxylic acid and an alcohol, warmed with a few drops of concentrated sulfuric acid, make an ester and water — a reversible condensation reaction. The acid loses –OH and the alcohol loses H.",
     ],
     quiz: [
       {

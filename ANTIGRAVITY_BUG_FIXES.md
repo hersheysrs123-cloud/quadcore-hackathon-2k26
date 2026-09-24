@@ -7588,3 +7588,20 @@ Nucleons were placed on a golden-angle spiral through a ball (`y` stepping evenl
 
 ### 3. Resolution
 The spiral is kept only as a seed. The nucleus is then packed for 80 rounds: each round scales every point 4% towards the centre, then runs four passes pushing apart any pair closer than `2r × 0.94`. The result is a touching, gap-free cluster that is deterministic, so it looks the same every time. The halo now sizes from the packed extent. This came alongside expanding the picker from 4 elements to the first 20 (H–Ca).
+
+---
+
+## Organic Builder: Cracked Products Drawn Inside Each Other
+
+### 1. Problem Statement
+After "Trigger cracking", the two products (for example methane and ethene from propane) often sat inside one another, and a long alkane's product overlapped its ethene at every angle. The product labels were fixed in space rather than attached to their molecules, and the ethene label ran off the canvas.
+
+### 2. Root Cause
+- The products were children of the spinning parent group and slid apart along its local x-axis. As the group turned, that axis swung towards the camera, so the products separated in depth rather than across the screen.
+- The separation was a fixed ±2.4 units whatever the product sizes. Octane, from cracking decane, is about 5 units in spin radius on its own.
+
+### 3. Resolution
+- The products now live outside the spinning group. Each spins about its own centre, and `crackLayout` spaces their centres by their swept radii plus a gap, so they cannot touch at any angle.
+- Each product carries its own label, and the bromine-water note has its own line.
+- `CameraDolly` eases the camera to fit the cracked pair, adding the swept depth.
+- The crack button shows only for alkanes.
