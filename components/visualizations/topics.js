@@ -101,6 +101,7 @@ import {
   SEPARATION_STATION_OPTIONS,
   SOIL_MOISTURE_OPTIONS,
   SOLVENT_TYPE_OPTIONS,
+  TRANSPIRATION_FOCUS_OPTIONS,
   SOLID_PRESET_OPTIONS,
   SPECIMEN_SHAPE_OPTIONS,
   STATIC_TARGET_OPTIONS,
@@ -3140,12 +3141,13 @@ export const TOPICS = [
     syllabus: "Biology 8 · Transport in Plants",
     keywords:
       "transpiration transpiration stream xylem vessel lignin cohesion tension adhesion capillary root hair osmosis water potential stoma stomata guard cell turgor potassium abscisic acid ABA humidity wind light intensity boundary layer vapour pressure deficit cavitation embolism phloem translocation spongy mesophyll palisade epidermis",
-    defaults: { light: 70, humidity: 50, wind: 2, soil: "hydrated", speed: 1, showLabels: true },
+    defaults: { light: 70, humidity: 50, wind: 2, soil: "hydrated", focus: "all", speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "light", label: "Light intensity", min: 0, max: 100, step: 1, format: (v) => (v === 0 ? "0 % · night" : `${v} %`) },
       { type: "slider", key: "humidity", label: "Relative humidity", min: 10, max: 95, step: 1, format: (v) => `${v} % RH` },
       { type: "slider", key: "wind", label: "Wind speed", min: 0, max: 10, step: 0.5, format: (v) => (v === 0 ? "still air" : `${v} m/s`) },
       { type: "choice", key: "soil", label: "Soil moisture", columns: 2, options: SOIL_MOISTURE_OPTIONS },
+      { type: "choice", key: "focus", label: "Focus", columns: 3, options: TRANSPIRATION_FOCUS_OPTIONS },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [

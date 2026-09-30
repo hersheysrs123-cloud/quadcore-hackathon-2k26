@@ -3211,11 +3211,12 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Pathway Key",
         items: [
-          { color: "#38bdf8", shape: "dot", label: "Liquid water", note: "Soil → root hair → xylem → leaf; turns amber then rose as tension climbs" },
-          { color: "#dbeafe", shape: "dot", label: "Water vapour", note: "Off the mesophyll walls, out through the stoma, away on the wind" },
-          { color: "#e3d3ab", shape: "line", label: "Xylem vessel", note: "Dead, hollow, lignified — the rings are the thickening" },
-          { color: "#8a5a3c", shape: "line", label: "Phloem", note: "Sugars going the other way (not part of the stream)" },
-          { color: "#4fbf60", shape: "square", label: "Guard cells", note: "Kidney-shaped; bow apart when turgid to open the pore" },
+          { color: "#38bdf8", shape: "dot", label: "Liquid water", note: "Soil film → root hair → xylem → leaf vein; turns amber then rose as tension climbs" },
+          { color: "#dbeafe", shape: "dot", label: "Water vapour", note: "Off the mesophyll into the air spaces, out through the stoma, away on the wind" },
+          { color: "#7cc4f0", shape: "square", label: "Soil water film", note: "Wraps each soil particle; thins back in drought" },
+          { color: "#c8a266", shape: "line", label: "Xylem thickening", note: "Rings and spirals of lignin inside the split-open vessels" },
+          { color: "#f59e0b", shape: "dot", label: "Sugar (phloem)", note: "Going the other way, down the sieve tubes (not part of the stream)" },
+          { color: "#6fb455", shape: "square", label: "Guard cells", note: "Kidney-shaped; bow apart when turgid to open the pore" },
           { color: "#fbbf24", shape: "dot", label: "K⁺ ions", note: "Pumped into guard cells by light; water follows by osmosis" },
           { color: "#93c5fd", shape: "square", label: "Boundary layer", note: "Humid still air under the leaf — thinner in wind" },
           { color: "#f8fafc", shape: "dot", label: "Embolism", note: "An air bubble where the column has cavitated" },

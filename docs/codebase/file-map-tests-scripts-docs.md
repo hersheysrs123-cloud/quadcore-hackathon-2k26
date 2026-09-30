@@ -101,6 +101,7 @@ quadcore-hackathon-2k26/
 │   └── tier5_adversarial_stress.test.js  # Tier-5 adversarial hardening
 ├── scripts/
 │   ├── heart-bake/                       # Offline pipeline (numpy/scipy + three) that builds public/models/heart.glb and heart-model-meta.js from BodyParts3D; see its README
+│   ├── plant-model/                      # Blender (Python) build of public/models/transpiration.glb: the bean seedling (parametric stem, leaves, roots), the SDF soil and magnified panels (stem wedge, fractured leaf, stoma surface, root tip in soil), morphs, 16-bit GLB writer, plant-model-meta.js; reuses arm-model's SDF mesher; see its README
 │   ├── arm-model/                        # Blender (Python) build of public/models/arm.glb: bones lofted from traced cross-sections, a posable hand, muscles swept along paths (domed Pillows for the scapular fossae, the forearm packed, the humerus-wrapping muscles carved to the bone), meshed with OpenVDB; bend weights blended across heads, GLB writer, arm-model-meta.js; see its README
 │   ├── cdp_visual_tester.mjs             # Drives the running app over CDP for visual checks
 │   ├── empirical-stress-test-m1.mjs      # Empirical editor stress run (part of npm test)

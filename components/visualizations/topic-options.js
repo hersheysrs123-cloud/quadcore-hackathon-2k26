@@ -289,6 +289,15 @@ export const SOIL_MOISTURE_OPTIONS = Object.entries(SOILS).map(([value, s]) => (
   title: `${s.note} · Ψ ${s.psiMPa} MPa`,
 }));
 
+/** Transpiration: where the camera looks — the whole figure or one of its four magnifications. */
+export const TRANSPIRATION_FOCUS_OPTIONS = [
+  { value: "all", label: "Whole", title: "The seedling and all four magnified panels" },
+  { value: "root", label: "1 · Roots", title: "Root hairs among soil particles, ×100" },
+  { value: "stem", label: "2 · Stem", title: "A wedge cut from the stem: xylem and phloem, ×40" },
+  { value: "leaf", label: "3 · Leaf", title: "A fractured leaf: mesophyll, air spaces and the stoma, ×200" },
+  { value: "stoma", label: "4 · Stoma", title: "The lower epidermis face-on: guard cells and pore, ×800" },
+];
+
 export const BOLUS_CONSISTENCY_OPTIONS = Object.entries(CONSISTENCIES).map(([value, c]) => ({
   value,
   label: c.label,
