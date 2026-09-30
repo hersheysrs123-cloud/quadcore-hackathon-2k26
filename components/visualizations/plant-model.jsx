@@ -60,7 +60,7 @@ function unpack(node) {
     }
     g.setAttribute("color", new THREE.BufferAttribute(lin, 4));
   }
-  for (const name of ["_sway", "_uvl", "_cell"]) {
+  for (const name of ["_sway", "_uvl", "_cell", "_tube"]) {
     if (src.attributes[name]) g.setAttribute(name, src.attributes[name]);
   }
   g.setIndex(src.index);
@@ -82,9 +82,12 @@ function unpack(node) {
   return g;
 }
 
-/** The model's parts as float geometries keyed by node name. */
-export function usePlantModel() {
-  const gltf = useGLTF(PLANT_GLB);
+/**
+ * A model written by one of our Blender builds (scripts/plant-model,
+ * scripts/gut-model): its parts as float geometries keyed by node name.
+ */
+export function usePackedModel(url) {
+  const gltf = useGLTF(url);
   return useMemo(() => {
     if (cache.has(gltf)) return cache.get(gltf);
     const parts = {};
@@ -95,6 +98,9 @@ export function usePlantModel() {
     return parts;
   }, [gltf]);
 }
+
+/** The seedling and the transpiration panels. */
+export const usePlantModel = () => usePackedModel(PLANT_GLB);
 
 // ─── Shaders ────────────────────────────────────────────────────────
 

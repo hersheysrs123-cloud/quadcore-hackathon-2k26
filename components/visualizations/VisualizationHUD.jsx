@@ -3272,11 +3272,12 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Gut Wall Key",
         items: [
-          { color: "#ff5a6e", shape: "dot", label: "Circular muscle — contracting", note: "Rings fatten, flush and close the lumen behind the bolus" },
-          { color: "#8e3a48", shape: "dot", label: "Circular muscle — relaxed", note: "Dark, thin rings elsewhere" },
-          { color: "#fbbf24", shape: "line", label: "Longitudinal muscle — contracting", note: "Fibres brighten ahead of the bolus; the segment shortens and widens" },
-          { color: "#8a5a2a", shape: "line", label: "Longitudinal muscle — relaxed", note: "Dull fibres along the outside of the wall" },
-          { color: "#f4b8c1", shape: "square", label: "Mucosa · lumen", note: "The glassy lining you see the bolus through" },
+          { color: "#ff5a6e", shape: "square", label: "Circular muscle — contracting", note: "The inner layer flushes and thickens, closing the lumen behind the bolus" },
+          { color: "#9e3c48", shape: "square", label: "Circular muscle — relaxed", note: "The inner muscle layer everywhere else" },
+          { color: "#fbbf24", shape: "square", label: "Longitudinal muscle — contracting", note: "The outer layer glows ahead of the bolus; the segment shortens and widens" },
+          { color: "#b25461", shape: "square", label: "Longitudinal muscle — relaxed", note: "The outer layer, its bundles running down the tube" },
+          { color: "#eeb4b9", shape: "square", label: "Mucosa", note: "The wet lining, folded lengthways; the folds flatten as the bolus stretches it" },
+          { color: "#f1dfca", shape: "square", label: "Submucosa", note: "Loose tissue with glands and vessels between mucosa and muscle" },
           { color: "#c9a26b", shape: "dot", label: "Bolus", note: "Chewed food — or water, or a dry lump" },
           { color: "#64748b", shape: "line", label: "g — gravity", note: "Fixed to the world; the tube flips, the arrow does not" },
         ],
