@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 import {
   CANVAS_BG,
+  Callout,
+  FitCamera,
   PALETTE,
-  SceneLabel,
   VectorArrow,
   WebGLCleanup,
   hashRandom,
@@ -204,8 +205,6 @@ const RealisticCTSkeleton = memo(function RealisticCTSkeleton({ breathRef, cutaw
     // Apply realistic ivory calcium bone material
     clone.traverse((child) => {
       if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
         child.material = new THREE.MeshStandardMaterial({
           color: ANATOMICAL_PALETTE.boneIvory,
           roughness: 0.38,
@@ -282,26 +281,26 @@ const RealisticCTSkeleton = memo(function RealisticCTSkeleton({ breathRef, cutaw
  * Bucket-handle and pump-handle motion are the two rib movements the topic
  * teaches, and they are a property of the ribs, not of what pulls them.
  */
-function RibcageKinematicVectors({ expansion = 0 }) {
+function RibcageKinematicVectors({ expansion = 0, showLabels = true }) {
   return (
     <group>
       <KinematicVector
         from={[-1.4, 1.4, 0.1]}
         to={[-1.4 - expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
         color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-        label={expansion >= 0 ? "Ribcage Up & Out (Bucket-Handle)" : "Ribcage Recoil (Down & In)"}
+        label={showLabels ? (expansion >= 0 ? "Ribcage Up & Out (Bucket-Handle)" : "Ribcage Recoil (Down & In)") : undefined}
       />
       <KinematicVector
         from={[1.4, 1.4, 0.1]}
         to={[1.4 + expansion * 0.38, 1.4 + expansion * 0.35, 0.1 + expansion * 0.24]}
         color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-        label={expansion >= 0 ? "Transverse Thorax Expansion" : "Passive Elastic Recoil"}
+        label={showLabels ? (expansion >= 0 ? "Transverse Thorax Expansion" : "Passive Elastic Recoil") : undefined}
       />
       <KinematicVector
         from={[0, 1.8, 1.2]}
         to={[0, 1.8 + expansion * 0.36, 1.2 + expansion * 0.34]}
         color={PALETTE.gold}
-        label="Pump-Handle AP Elevation"
+        label={showLabels ? "Pump-Handle AP Elevation" : undefined}
       />
     </group>
   );
@@ -457,7 +456,7 @@ const SculptedDiaphragmDome = memo(function SculptedDiaphragmDome({
   return (
     <group>
       {/* 3D Curved Muscular Diaphragm Dome Surface */}
-      <mesh ref={meshRef} geometry={domeGeometry} castShadow receiveShadow>
+      <mesh ref={meshRef} geometry={domeGeometry}>
         <meshStandardMaterial
           color={muscleColor}
           emissive={muscleColor}
@@ -586,13 +585,13 @@ const SculptedDiaphragmDome = memo(function SculptedDiaphragmDome({
  * `from`/`to`, so this one is still prop-driven and still re-renders with
  * the readout. That is three meshes, not a deforming 512-vertex dome.
  */
-function DiaphragmVector({ expansion = 0 }) {
+function DiaphragmVector({ expansion = 0, showLabels = true }) {
   return (
     <KinematicVector
       from={[0, 1.05, 0.25]}
       to={[0, 1.05 - expansion * 0.42, 0.25]}
       color={expansion >= 0 ? PALETTE.rose : PALETTE.sky}
-      label={expansion >= 0 ? "Diaphragm Descent & Flattening (Vertical Lift)" : "Elastic Dome Recoil"}
+      label={showLabels ? (expansion >= 0 ? "Diaphragm Descent & Flattening (Vertical Lift)" : "Elastic Dome Recoil") : undefined}
     />
   );
 }
@@ -610,8 +609,6 @@ const PhotorealisticMedicalLungs = memo(function PhotorealisticMedicalLungs({ br
         child.material = Array.isArray(child.material)
           ? child.material.map((m) => m.clone())
           : child.material.clone();
-        child.castShadow = true;
-        child.receiveShadow = true;
       }
     });
     return clone;
@@ -732,31 +729,36 @@ function AirwayParticleStream({ flowRate = 0, active = true }) {
 }
 
 // ─── 3D Anatomical Labels (CT Skeleton & Medical Geometry Aligned) ───
+/**
+ * Callouts in two columns, each joined to its structure by a leader line.
+ *
+ * The view is ANTERIOR — the sternum faces the camera — so the patient's
+ * right lung is on the viewer's LEFT (−x). The labels had the two lungs the
+ * other way round, which also put "cardiac notch" on the lung that has none;
+ * the notch is on the viewer's right, where the heart sits.
+ *
+ * Labels sitting on their structures used to pile up down the midline:
+ * sternum, xiphoid, central tendon and diaphragm all shared x = 0.
+ */
+const ANATOMY_CALLOUTS = [
+  { text: "Trachea & C-shaped rings", anchor: [0, 3.25, 0.4], at: [-2.35, 3.45, 0.4], side: "left" },
+  { text: "Right lung · 3 lobes", anchor: [-1.05, 1.9, 0.75], at: [-2.35, 2.45, 0.4], side: "left" },
+  { text: "Trifoliate central tendon", anchor: [0, 1.12, 0.35], at: [-2.35, 1.3, 0.4], side: "left" },
+  { text: "Sternum & costal cartilage", anchor: [0, 2.3, 1.2], at: [2.35, 3.15, 0.4], side: "right" },
+  { text: "Left lung · cardiac notch", anchor: [0.62, 1.35, 0.85], at: [2.35, 2.2, 0.4], side: "right" },
+  { text: "Xiphoid process", anchor: [0, 1.04, 1.2], at: [2.35, 1.3, 0.4], side: "right" },
+  { text: "Muscular diaphragm dome", anchor: [0.95, 0.62, 0.7], at: [2.35, 0.45, 0.4], side: "right" },
+];
+
 function AnatomicalLabels({ visible = true }) {
   if (!visible) return null;
   return (
     <group>
-      <SceneLabel position={[0, 3.42, 0.42]} accent>
-        Trachea & C-Shaped Rings
-      </SceneLabel>
-      <SceneLabel position={[0, 2.15, 1.22]}>
-        Sternum & Costal Cartilage
-      </SceneLabel>
-      <SceneLabel position={[0, 1.04, 1.25]}>
-        Xiphoid Process
-      </SceneLabel>
-      <SceneLabel position={[1.45, 0.85, 0.85]}>
-        Right Lung (3 Lobes)
-      </SceneLabel>
-      <SceneLabel position={[-1.45, 0.85, 0.85]}>
-        Left Lung (Cardiac Notch)
-      </SceneLabel>
-      <SceneLabel position={[0, 0.78, 1.05]} accent>
-        Muscular Diaphragm Dome
-      </SceneLabel>
-      <SceneLabel position={[0, 1.18, 0.32]}>
-        Trifoliate Central Tendon
-      </SceneLabel>
+      {ANATOMY_CALLOUTS.map((c) => (
+        <Callout key={c.text} anchor={c.anchor} at={c.at} side={c.side}>
+          {c.text}
+        </Callout>
+      ))}
     </group>
   );
 }
@@ -904,6 +906,9 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
   );
 }
 
+/** The thorax from the hyoid to below the diaphragm, plus the two label columns. */
+const THORAX_VIEW = { cx: 0, cy: 1.85, cz: 0.2, width: 7.2, height: 4.3, depth: 2.2 };
+
 // ─── Main 3D Respiratory Scene Container ──────────────────────────────
 export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [phase, setPhase] = useState(RESPIRATORY_PHASES.INSPIRATION);
@@ -917,7 +922,10 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [showDiaphragm, setShowDiaphragm] = useState(true);
   const [showAirflow, setShowAirflow] = useState(true);
   const [showVectors, setShowVectors] = useState(true);
-  const [showLabels, setShowLabels] = useState(true);
+  // In params, like every other topic's labels toggle, so switching topics
+  // and back keeps it.
+  const showLabels = params?.showLabels !== false;
+  const setShowLabels = useCallback((value) => setParam?.("showLabels", value), [setParam]);
   const [showCredits, setShowCredits] = useState(false);
 
   // Close credits modal on Escape key press
@@ -1070,11 +1078,12 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         <WebGLCleanup />
         <color attach="background" args={[CANVAS_BG]} />
         <ambientLight intensity={0.72} />
-        <directionalLight position={[5, 9, 6]} intensity={1.55} castShadow />
+        <directionalLight position={[5, 9, 6]} intensity={1.55} />
         <directionalLight position={[-6, -3, -5]} intensity={0.65} color="#38bdf8" />
         <pointLight position={[0, 1.5, 3.5]} intensity={0.9} color="#ffffff" />
 
         <FrameController onFrame={handleFrameUpdate} />
+        <FitCamera view={THORAX_VIEW} direction={[0, 0.02, 1]} fov={42} />
 
         {/* 1. Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine, Sternum, Clavicles) */}
         {showBones && (
@@ -1088,7 +1097,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         )}
 
         {/* 2. Ribcage kinematics (the intercostal geometry has been removed) */}
-        {showVectors && <RibcageKinematicVectors expansion={expansion} />}
+        {showVectors && <RibcageKinematicVectors expansion={expansion} showLabels={showLabels} />}
 
         {/* 3. Sculpted Muscular Diaphragm Dome with Central Tendon & Hiatuses */}
         {showDiaphragm && (
@@ -1100,7 +1109,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
               muscleTexture={muscleTexture}
               tendonTexture={tendonTexture}
             />
-            {showVectors && <DiaphragmVector expansion={expansion} />}
+            {showVectors && <DiaphragmVector expansion={expansion} showLabels={showLabels} />}
           </>
         )}
 
@@ -1126,7 +1135,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           dampingFactor={0.08}
           minDistance={3.0}
           maxDistance={16}
-          target={[0, 1.45, 0.2]}
+          target={[THORAX_VIEW.cx, THORAX_VIEW.cy, THORAX_VIEW.cz]}
         />
       </Canvas>
 

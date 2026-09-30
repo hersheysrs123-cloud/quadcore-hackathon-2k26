@@ -43,6 +43,7 @@ quadcore-hackathon-2k26/
 │   │   ├── pathogens.test.mjs            # Anatomy parts, living checklist, 100 %/0 % efficacy, wall shredding, lytic stages, burst size, host status
 │   │   ├── tube-transit.test.mjs         # Profile bumps, squeeze-to-fit, recycling stream, tube winding vs analytic normals (via three.js)
 │   │   ├── respiratory-mechanics.test.mjs # CT thoracic skeleton kinematics, diaphragm morphing, and Boyle's Law physics
+│   │   ├── heart-credits.test.mjs         # The heart's BodyParts3D CC BY 4.0 credit (lib/heartCredits.js, the GLB's asset.copyright, the scene); the arm GLB is our own (no BodyParts3D): its seven nodes, the _BEND/_FIBRE/_SEG attributes the shaders read, the contract/stretch/flex morphs, and both arm scenes drawing ModelledArm with no Credits panel
 │   │   ├── shadow-optics.test.mjs        # Shadow geometry: bench bounds, point/broad lamp penumbra, and material transmission
 │   │   ├── space-hub.test.mjs            # Space Hub document uploads, active AI toggles, and pedagogy presets
 │   │   ├── syntax-highlighter.test.mjs   # 10-language tokenizer & syntax highlighting rules
@@ -99,6 +100,8 @@ quadcore-hackathon-2k26/
 │   ├── m1_stress_challenge.test.js       # Editor stress challenge
 │   └── tier5_adversarial_stress.test.js  # Tier-5 adversarial hardening
 ├── scripts/
+│   ├── heart-bake/                       # Offline pipeline (numpy/scipy + three) that builds public/models/heart.glb and heart-model-meta.js from BodyParts3D; see its README
+│   ├── arm-model/                        # Blender (Python) build of public/models/arm.glb: bones lofted from traced cross-sections, a posable hand, muscles swept along paths (domed Pillows for the scapular fossae, the forearm packed, the humerus-wrapping muscles carved to the bone), meshed with OpenVDB; bend weights blended across heads, GLB writer, arm-model-meta.js; see its README
 │   ├── cdp_visual_tester.mjs             # Drives the running app over CDP for visual checks
 │   ├── empirical-stress-test-m1.mjs      # Empirical editor stress run (part of npm test)
 │   ├── test_exports_visual.mjs           # Visual check of the export pipeline

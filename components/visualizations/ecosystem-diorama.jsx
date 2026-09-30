@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Halo, PALETTE, SceneLabel, clamp, hashRandom } from "@/components/visualizations/scene-kit";
+import { Halo, PALETTE, ToggleLabel, clamp, hashRandom } from "@/components/visualizations/scene-kit";
 
 // ─── Ecosystem diorama kit ──────────────────────────────────────────
 // The furniture the two ecosystem-scale scenes stand on. Where the cell and
@@ -48,15 +48,16 @@ export const ECO_COLOURS = {
  * A block of land with a grassy top. `size` is [width, thickness, depth];
  * the top face sits at y = position[1], so scenes can build on y = 0.
  */
-export function DioramaSlab({ position = [0, 0, 0], size = [14, 1.2, 9], top = ECO_COLOURS.grass, side = ECO_COLOURS.earth, receiveShadow = true }) {
+export function DioramaSlab({ position = [0, 0, 0], size = [14, 1.2, 9], top = ECO_COLOURS.grass, side = ECO_COLOURS.earth }) {
   const [w, t, d] = size;
   return (
     <group position={position}>
-      <mesh position={[0, -t / 2, 0]} receiveShadow={receiveShadow}>
+      <mesh position={[0, -t / 2, 0]}>
         <boxGeometry args={[w, t, d]} />
         <meshStandardMaterial color={side} roughness={0.95} metalness={0} />
       </mesh>
-      <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={receiveShadow}>
+      {/* A hundredth above the box's top face: at 0.005 the two fought at any distance. */}
+      <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[w, d]} />
         <meshStandardMaterial color={top} roughness={0.9} metalness={0} />
       </mesh>
@@ -120,9 +121,9 @@ export function SunSource({ position = [-6, 7, -3], intensity = 1, radius = 0.6,
       <Halo radius={radius * (1.6 + 0.8 * k)} color={colour} opacity={0.05 + 0.1 * k} />
       <pointLight intensity={2 + 10 * k} distance={40} decay={2} color="#fff3c4" />
       {label && (
-        <SceneLabel position={[0, -radius - 0.55, 0]} tone={k > 0.2 ? "text-amber-200" : "text-ink-500"}>
+        <ToggleLabel position={[0, -radius - 0.55, 0]} tone={k > 0.2 ? "text-amber-200" : "text-ink-500"}>
           {label}
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
@@ -228,10 +229,10 @@ export function TreeStand({ region = { x: 0, z: 0, w: 6, d: 4 }, count = 40, max
   const n = seats.length;
   return (
     <group>
-      <instancedMesh ref={trunks} args={[parts.trunk, undefined, n]} frustumCulled={false} castShadow>
+      <instancedMesh ref={trunks} args={[parts.trunk, undefined, n]} frustumCulled={false}>
         <meshStandardMaterial color={trunkColour} roughness={0.9} />
       </instancedMesh>
-      <instancedMesh ref={canopies} args={[parts.canopy, undefined, n]} frustumCulled={false} castShadow>
+      <instancedMesh ref={canopies} args={[parts.canopy, undefined, n]} frustumCulled={false}>
         <meshStandardMaterial color={canopyColour} roughness={0.75} />
       </instancedMesh>
       <instancedMesh ref={stumps} args={[parts.stump, undefined, n]} frustumCulled={false}>

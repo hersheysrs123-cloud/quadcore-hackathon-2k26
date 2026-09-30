@@ -7,10 +7,12 @@ import {
   Halo,
   PALETTE,
   SceneCanvas,
-  SceneLabel,
   clamp,
   hashRandom,
   lerp,
+  FitCamera,
+  LabelsOn,
+  ToggleLabel,
 } from "@/components/visualizations/scene-kit";
 import { ProfiledTube } from "@/components/visualizations/tube-transit";
 import { StageCaption, StageCycleDriver } from "@/components/visualizations/stage-stepper";
@@ -66,6 +68,8 @@ const R2 = 1.85;
 const D2 = 2.15;
 /** Half-length of the membrane lathe's station range — the longest the cell ever gets. */
 const LMAX = D2 + R2 + 0.15;
+/** The two daughter cells at their widest, the stage headline above and the caption below. */
+const DIVISION_VIEW = { cx: 0, cy: -0.25, width: 10.4, height: 8, depth: 5.2 };
 const MEMBRANE_RINGS = 84;
 const MEMBRANE_SEGMENTS = 36;
 const CHROMATID_RINGS = 30;
@@ -765,7 +769,7 @@ function Chromatid({ live, ch }) {
   return (
     <group ref={groupRef}>
       <group position={[0, -Lp, 0]}>
-        <ProfiledTube length={total} rings={CHROMATID_RINGS} segments={CHROMATID_SEGMENTS} radiusAt={radiusAt} centreAt={centreAt} colourAt={colourAt} dynamic castShadow>
+        <ProfiledTube length={total} rings={CHROMATID_RINGS} segments={CHROMATID_SEGMENTS} radiusAt={radiusAt} centreAt={centreAt} colourAt={colourAt} dynamic>
           <meshStandardMaterial ref={matRef} vertexColors roughness={0.45} metalness={0.05} emissive="#ffffff" emissiveIntensity={0.12} transparent opacity={1} />
         </ProfiledTube>
       </group>
@@ -939,9 +943,9 @@ function Labels({ pose, modeKey, plan, poison, snapshot }) {
   return (
     <>
       {items.map((it) => (
-        <SceneLabel key={it.key} position={[it.x, it.y, it.z]} tone={it.tone}>
+        <ToggleLabel key={it.key} position={[it.x, it.y, it.z]} tone={it.tone}>
           {it.text}
-        </SceneLabel>
+        </ToggleLabel>
       ))}
       <StageCaption position={[0, -(two ? R2 : R) - 1.25, 0.4]} snapshot={snapshot} arrestedLabel="arrested by colchicine" />
     </>
@@ -951,7 +955,7 @@ function Labels({ pose, modeKey, plan, poison, snapshot }) {
 // ─── The scene ──────────────────────────────────────────────────────
 
 export default function MitosisMeiosisCanvas({ params = {}, setParam }) {
-  const { mode: modeParam = "mitosis", stage = 0, playing = true, chiasmata = 2, colchicine = 0, speed = 1 } = params || {};
+  const { mode: modeParam = "mitosis", stage = 0, playing = true, chiasmata = 2, colchicine = 0, speed = 1, showLabels = true } = params || {};
   const mode = modeFor(modeParam);
   const cycle = cycleFor(mode.key);
   const chromatids = useMemo(() => listChromatids(), []);
@@ -983,9 +987,11 @@ export default function MitosisMeiosisCanvas({ params = {}, setParam }) {
   return (
     <SceneCanvas
       camera={{ position: [0.6, 2.4, 10.5], fov: 44 }}
-      controls={{ minDistance: 4, maxDistance: 26, target: [0, 0, 0] }}
-      lights={{ ambient: 0.55, keyLight: 1.25, rim: PALETTE.violet }}
+      controls={{ minDistance: 4, maxDistance: 26 }}
+      lights={{ ambient: 0.66, keyLight: 1.25, rim: PALETTE.violet }}
     >
+      <FitCamera view={DIVISION_VIEW} direction={[0.05, 0.22, 1]} fov={44} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <StageCycleDriver cycle={cycle} stage={stage} playing={playing} speed={speed} lock={lock} live={stepperLive} setParam={setParam} onFrame={onFrame} onTick={onTick} />
 
       <CellUnit live={live} index={0} chromatids={chromatids} />
@@ -997,7 +1003,7 @@ export default function MitosisMeiosisCanvas({ params = {}, setParam }) {
       <PoisonHaze live={live} />
 
       <Labels pose={pose} modeKey={mode.key} plan={plan} poison={poison} snapshot={snapshot} />
-
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }

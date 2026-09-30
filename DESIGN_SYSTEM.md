@@ -109,7 +109,7 @@ Component and pattern specs, one file per area (section numbers are unchanged fr
 | [print-and-export.md](docs/design/print-and-export.md) | 7 Print stylesheet · 8 Standalone HTML export · 29 Export preview |
 | [quizzes-and-mastery-ui.md](docs/design/quizzes-and-mastery-ui.md) | 11 Note combobox · 13 Deletion modal · 16 Quiz runner · 17 Quiz creator · 18 Sliders · 25 IGCSE question types · 26 Mastery dashboard |
 | [ai-and-spaces-ui.md](docs/design/ai-and-spaces-ui.md) | 14 AI reformatter · 19 Space Hub · 20 AI tutor drawer |
-| [3d-studio-ui.md](docs/design/3d-studio-ui.md) | 21 Physics diagrams · 22 Contextual controls · 23 Sidebar resizing · 24 Respiratory · 27 Model credits · topic selector |
+| [3d-studio-ui.md](docs/design/3d-studio-ui.md) | 21 Physics diagrams · 22 Contextual controls · 23 Sidebar resizing · 24 Respiratory · 27 Model credits · 28 Scene labels, callouts and framing · topic selector |
 
 ## 🛠️ Code Conventions for AI & Developers
 

@@ -115,6 +115,9 @@ describe("Hemodynamics through the beat", () => {
       assert.ok(Math.abs(a.pAo - b.pAo) < 5, `${KEYS[i]} → aortic pressure jumps ${a.pAo} → ${b.pAo}`);
       assert.ok(Math.abs(a.valves.mitral - b.valves.mitral) < 0.2, `${KEYS[i]} → mitral jumps`);
       assert.ok(Math.abs(a.valves.aortic - b.valves.aortic) < 0.2, `${KEYS[i]} → aortic valve jumps`);
+      // The 3D heart's walls follow these; a jump is a visible twitch every beat.
+      assert.ok(Math.abs(a.ventricularSqueeze - b.ventricularSqueeze) < 0.05, `${KEYS[i]} → ventricular squeeze jumps ${a.ventricularSqueeze} → ${b.ventricularSqueeze}`);
+      assert.ok(Math.abs(a.atrialSqueeze - b.atrialSqueeze) < 0.05, `${KEYS[i]} → atrial squeeze jumps`);
     }
   });
 
@@ -172,21 +175,46 @@ describe("Hemodynamics through the beat", () => {
 
 describe("Electrical", () => {
   it("draws P, QRS and T in the right stages", () => {
-    assert.ok(ecgAt("atrialSystole", 0.3) > 0.1, "P wave");
-    assert.ok(ecgAt("isoContraction", 0.36) > 1, "R spike");
-    assert.ok(ecgAt("isoContraction", 0.6) < 0, "S dip");
+    assert.ok(ecgAt("filling", 0.9) > 0.1, "P wave late in filling, before the atria contract");
+    assert.ok(ecgAt("atrialSystole", 0.8) > 1, "R spike at the end of atrial systole");
+    assert.ok(ecgAt("atrialSystole", 0.97) < 0, "S dip");
+    assert.ok(Math.abs(ecgAt("isoContraction", 0.6)) < 0.01, "ST segment isoelectric while the ventricles contract");
     assert.ok(ecgAt("ejection", 0.78) > 0.25, "T wave");
     assert.ok(Math.abs(ecgAt("filling", 0.5)) < 0.01, "isoelectric in diastole");
-    assert.ok(ecgAt("isoContraction", 0.36, "stenosis") > ecgAt("isoContraction", 0.36, "normal"), "LVH: taller R");
+    assert.ok(ecgAt("atrialSystole", 0.8, "stenosis") > ecgAt("atrialSystole", 0.8, "normal"), "LVH: taller R");
+  });
+
+  // The regression: the QRS peaked inside isovolumetric contraction, after
+  // S1. The ventricles cannot contract (and shut the AV valves) before they
+  // have depolarised.
+  it("puts the R wave before S1 and the P wave before atrial contraction", () => {
+    const beat = wiggersSamples(75, "normal", 800).samples;
+    const argmax = (pick) => beat.reduce((best, s) => (pick(s) > pick(best) ? s : best), beat[0]).t;
+    const rAt = argmax((s) => s.ecg);
+    const s1At = argmax((s) => s.s1);
+    assert.ok(rAt < s1At, `R at ${rAt.toFixed(3)} s, S1 at ${s1At.toFixed(3)} s`);
+    assert.ok(s1At - rAt < 0.08, "S1 follows the R wave closely");
+    const pAt = argmax((s) => (s.t > 0.4 ? s.ecg : 0));
+    assert.ok(pAt > 0.6, `P wave at ${pAt.toFixed(3)} s is in late diastole, before the next atrial systole`);
+  });
+
+  it("keeps the ECG continuous across stage boundaries", () => {
+    for (let i = 0; i < KEYS.length; i += 1) {
+      const a = hemodynamicsAt(KEYS[i], 1, 75).ecg;
+      const b = hemodynamicsAt(KEYS[(i + 1) % KEYS.length], 0, 75).ecg;
+      assert.ok(Math.abs(a - b) < 0.03, `${KEYS[i]} → ECG jumps ${a} → ${b}`);
+    }
   });
 
   it("walks the impulse SA → atria → AV → His → Purkinje", () => {
-    assert.ok(conductionAt("atrialSystole", 0.05).sa > 0.9);
-    assert.ok(conductionAt("atrialSystole", 0.5).atria === 1);
-    assert.ok(conductionAt("atrialSystole", 0.75).av > 0.9);
-    assert.ok(conductionAt("isoContraction", 0.12).his > 0.9);
+    assert.ok(conductionAt("filling", 0.83).sa > 0.9, "SA fires late in diastole");
+    assert.ok(conductionAt("atrialSystole", 0.3).atria === 1);
+    assert.ok(conductionAt("atrialSystole", 0.45).av > 0.9, "AV delay");
+    assert.ok(conductionAt("atrialSystole", 0.66).his > 0.9);
+    assert.ok(conductionAt("atrialSystole", 0.97).purkinje === 1, "Purkinje with the QRS");
     assert.ok(conductionAt("isoContraction", 0.6).purkinje === 1);
     assert.equal(conductionAt("filling", 0.5).purkinje, 0);
+    assert.ok(conductionAt("filling", 0.5).sa < 0.01);
   });
 
   it("fibrillation has no pathway, a chaotic trace, flat pressures and a draining aorta", () => {

@@ -932,7 +932,7 @@ function RayBundle({ solved, objectDistanceM, rayMode }) {
  * Drawn only when the eye is out of focus, because that is the one case where
  * the image plane and the retina are different places.
  */
-function FocalMarker({ solved }) {
+function FocalMarker({ solved, showLabel = true }) {
   if (solved.inFocus || !Number.isFinite(solved.imageDistance)) return null;
   const focusMm = PRINCIPAL_PLANE + solved.imageDistance * 1000;
   const behind = solved.focusError > 0;
@@ -945,9 +945,11 @@ function FocalMarker({ solved }) {
         <sphereGeometry args={[mm(0.5), 16, 16]} />
         <meshStandardMaterial color={PALETTE.rose} emissive={PALETTE.rose} emissiveIntensity={1.6} toneMapped={false} />
       </mesh>
-      <SceneLabel position={[mm(3.4), mm(clamp(focusMm, -10, 26)), 0]} tone="text-rose-300">
-        {behind ? "focus behind retina" : "focus in front of retina"}
-      </SceneLabel>
+      {showLabel && (
+        <SceneLabel position={[mm(3.4), mm(clamp(focusMm, -10, 26)), 0]} tone="text-rose-300">
+          {behind ? "focus behind retina" : "focus in front of retina"}
+        </SceneLabel>
+      )}
 
       {/* The blur circle it leaves on the retina instead of a point. */}
       <mesh position={[0, mm(ANATOMY.retina - 0.9), 0]} rotation={[Math.PI / 2, 0, 0]}>
@@ -959,7 +961,7 @@ function FocalMarker({ solved }) {
 }
 
 /** The object being looked at, with its true distance printed on it. */
-function ObjectMarker({ objectDistanceM, inFocus }) {
+function ObjectMarker({ objectDistanceM, inFocus, showLabel = true }) {
   const y = ANATOMY.corneaVertex - objectDrawDistance(objectDistanceM);
   return (
     <group position={[0, mm(y), 0]}>
@@ -971,9 +973,11 @@ function ObjectMarker({ objectDistanceM, inFocus }) {
           emissiveIntensity={0.6}
         />
       </mesh>
-      <SceneLabel position={[mm(5.5), 0, 0]} accent>
-        {objectDistanceM < 1 ? `${(objectDistanceM * 100).toFixed(0)} cm` : `${objectDistanceM.toFixed(1)} m`}
-      </SceneLabel>
+      {showLabel && (
+        <SceneLabel position={[mm(5.5), 0, 0]} accent>
+          {objectDistanceM < 1 ? `${(objectDistanceM * 100).toFixed(0)} cm` : `${objectDistanceM.toFixed(1)} m`}
+        </SceneLabel>
+      )}
     </group>
   );
 }
@@ -1580,11 +1584,11 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
 
           {optics && cutaway && (
             <>
-              <ObjectMarker objectDistanceM={objectDistance} inFocus={solved.inFocus} />
+              <ObjectMarker objectDistanceM={objectDistance} inFocus={solved.inFocus} showLabel={showLabels} />
               {showRays && (
                 <RayBundle solved={solved} objectDistanceM={objectDistance} rayMode={rayMode} />
               )}
-              <FocalMarker solved={solved} />
+              <FocalMarker solved={solved} showLabel={showLabels} />
             </>
           )}
 

@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { SceneLabel } from "@/components/visualizations/scene-kit";
+import { ToggleLabel } from "@/components/visualizations/scene-kit";
 import {
   clampIndex,
   createStepper,
@@ -154,8 +154,8 @@ export function StageCaption({ position = [0, -1, 0], snapshot, tone = "text-ink
   const bar = Array.from({ length: 5 }, (_, i) => (snapshot.progress * 5 > i + 0.5 ? "▰" : "▱")).join("");
   const state = snapshot.arrested ? arrestedLabel : snapshot.transitioning ? "stepping…" : snapshot.playing ? "playing" : "paused";
   return (
-    <SceneLabel position={position} tone={snapshot.arrested ? "text-rose-300" : tone} accent={!snapshot.arrested && !snapshot.playing && !snapshot.transitioning}>
+    <ToggleLabel position={position} tone={snapshot.arrested ? "text-rose-300" : tone} accent={!snapshot.arrested && !snapshot.playing && !snapshot.transitioning}>
       {`${snapshot.index + 1} / ${snapshot.count} · ${snapshot.label} · ${bar} · ${state}`}
-    </SceneLabel>
+    </ToggleLabel>
   );
 }

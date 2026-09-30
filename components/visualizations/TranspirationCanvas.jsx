@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -8,7 +8,9 @@ import {
   Halo,
   PALETTE,
   SceneCanvas,
-  SceneLabel,
+  FitCamera,
+  LabelsOn,
+  ToggleLabel,
   VectorArrow,
   clamp,
   hashRandom,
@@ -80,8 +82,8 @@ const SECTION = { x: 3.9, y: 2.15, width: 4.2, height: 3.0 };
 const STOMA = { x: 3.9, y: -1.95, width: 4.2, height: 3.6, R: 0.78, r: 0.21 };
 
 const COLOURS = {
-  soilWet: "#3b2a1e",
-  soilDry: "#8c6a48",
+  soilWet: "#6b4a33",
+  soilDry: "#b08d66",
   root: "#e9dcc4",
   cortex: "#7a9a5b",
   xylemWall: "#e3d3ab",
@@ -235,25 +237,27 @@ function Soil({ drought }) {
   return (
     <group position={SOIL.centre}>
       {/* Cut away: solid soil behind the root, a see-through slab in front of it. */}
-      <mesh position={[0, 0, -SOIL.size[2] * 0.3]} receiveShadow>
+      <mesh position={[0, 0, -SOIL.size[2] * 0.3]}>
         <boxGeometry args={[SOIL.size[0], SOIL.size[1], SOIL.size[2] * 0.4]} />
         <meshStandardMaterial color={drought ? COLOURS.soilDry : COLOURS.soilWet} roughness={0.95} metalness={0} />
       </mesh>
-      <mesh position={[0, 0, SOIL.size[2] * 0.2]}>
-        <boxGeometry args={[SOIL.size[0], SOIL.size[1], SOIL.size[2] * 0.6]} />
+      {/* Starts a hundredth in front of the solid half: the two used to meet
+          in one plane at z = −0.3 and z-fought across the whole block. */}
+      <mesh position={[0, 0, SOIL.size[2] * 0.2 + 0.005]}>
+        <boxGeometry args={[SOIL.size[0] - 0.01, SOIL.size[1] - 0.01, SOIL.size[2] * 0.6 - 0.01]} />
         <meshStandardMaterial color={drought ? COLOURS.soilDry : COLOURS.soilWet} roughness={0.95} transparent opacity={0.3} depthWrite={false} />
       </mesh>
       {/* Drought cracks on the surface. */}
       {drought &&
         [0, 1, 2, 3].map((i) => (
-          <mesh key={i} position={[-1.6 + i * 1.05, SOIL.size[1] / 2 + 0.005, (hashRandom(i + 3) - 0.5) * 2]} rotation={[-Math.PI / 2, 0, (hashRandom(i) - 0.5) * 1.2]}>
+          <mesh key={i} position={[-1.6 + i * 1.05, SOIL.size[1] / 2 + 0.012, (hashRandom(i + 3) - 0.5) * 2]} rotation={[-Math.PI / 2, 0, (hashRandom(i) - 0.5) * 1.2]}>
             <planeGeometry args={[0.9, 0.05]} />
             <meshBasicMaterial color="#2a1c12" />
           </mesh>
         ))}
-      <SceneLabel position={[-1.55, SOIL.size[1] / 2 + 0.28, 1.5]} tone={drought ? "text-amber-300" : "text-ink-300"}>
+      <ToggleLabel position={[-1.55, SOIL.size[1] / 2 + 0.28, 1.5]} tone={drought ? "text-amber-300" : "text-ink-300"}>
         {drought ? "dry soil · Ψ ≈ −2.0 MPa" : "moist soil · Ψ ≈ −0.05 MPa"}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -288,9 +292,9 @@ function Root({ flowRef, colour }) {
       {ROOT_HAIRS.map((hair, i) => (
         <RootHair key={i} hair={hair} flowRef={flowRef} colour={colour} />
       ))}
-      <SceneLabel position={[STEM.x + 1.5, SOIL_TOP - 0.55, 1.0]} tone="text-sky-300">
+      <ToggleLabel position={[STEM.x + 1.5, SOIL_TOP - 0.55, 1.0]} tone="text-sky-300">
         root hair · water in by osmosis
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -346,7 +350,7 @@ function Stem({ flowRef, colour, cavitated, speed }) {
   return (
     <group>
       {/* Cortex: the back half only, so the bundle is on show. */}
-      <mesh position={[STEM.x, (STEM.top + STEM.bottom) / 2, 0]} castShadow>
+      <mesh position={[STEM.x, (STEM.top + STEM.bottom) / 2, 0]}>
         <cylinderGeometry args={[STEM.radius, STEM.radius * 1.08, STEM_LENGTH, 32, 1, true, Math.PI / 2, Math.PI]} />
         <meshStandardMaterial color={COLOURS.cortex} roughness={0.8} side={THREE.DoubleSide} />
       </mesh>
@@ -356,19 +360,19 @@ function Stem({ flowRef, colour, cavitated, speed }) {
       {PHLOEM.map((p, i) => (
         <PhloemTube key={i} tube={p} speed={speed} />
       ))}
-      <SceneLabel position={[STEM.x - 1.15, STEM.bottom + 1.4, 0.4]} tone="text-sky-300">
+      <ToggleLabel position={[STEM.x - 1.15, STEM.bottom + 1.4, 0.4]} tone="text-sky-300">
         xylem · lignified vessels
-      </SceneLabel>
-      <SceneLabel position={[STEM.x - 1.05, STEM.bottom + 3.2, 0.4]} tone="text-amber-300">
+      </ToggleLabel>
+      <ToggleLabel position={[STEM.x - 1.05, STEM.bottom + 3.2, 0.4]} tone="text-amber-300">
         phloem · sugars down
-      </SceneLabel>
-      <SceneLabel position={[STEM.x + 1.15, STEM.bottom + 2.4, 0.3]} tone="text-ink-300">
+      </ToggleLabel>
+      <ToggleLabel position={[STEM.x + 1.15, STEM.bottom + 2.4, 0.3]} tone="text-ink-300">
         stem · cut-away
-      </SceneLabel>
+      </ToggleLabel>
       {cavitated && (
-        <SceneLabel position={[STEM.x + 1.45, STEM.bottom + STEM_LENGTH * 0.62 + 0.05, 0.5]} tone="text-rose-300">
+        <ToggleLabel position={[STEM.x + 1.45, STEM.bottom + STEM_LENGTH * 0.62 + 0.05, 0.5]} tone="text-rose-300">
           embolism · column broken
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
@@ -398,7 +402,7 @@ function Leaf({ flowRef, colour }) {
         <TubeFlow length={petiole.length} count={10} speedRef={flowRef} radius={0.035} fill={0.8} colour={colour} size={0.03} seed={21} />
       </group>
       <group position={LEAF.centre} rotation={LEAF.rotation}>
-        <mesh geometry={blade} castShadow>
+        <mesh geometry={blade}>
           <meshStandardMaterial color={COLOURS.leaf} roughness={0.55} side={THREE.DoubleSide} />
         </mesh>
         {/* Midrib and veins carry the column into the blade, lying in its plane. */}
@@ -419,9 +423,9 @@ function Leaf({ flowRef, colour }) {
           </group>
         ))}
       </group>
-      <SceneLabel position={[LEAF.centre[0] + 0.2, LEAF.centre[1] + 0.75, 0.3]} tone="text-emerald-300">
+      <ToggleLabel position={[LEAF.centre[0] - 0.7, LEAF.centre[1] + 0.8, 0.3]} tone="text-emerald-300">
         leaf · evaporation from the mesophyll
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -436,9 +440,9 @@ function Sun({ light }) {
       </mesh>
       <Halo radius={0.8 + 0.6 * k} color={COLOURS.sun} opacity={0.04 + 0.12 * k} />
       <pointLight intensity={0.6 + 6 * k} distance={16} decay={2} color="#fff3c4" />
-      <SceneLabel position={[0, -0.95, 0]} tone={k > 0.15 ? "text-amber-200" : "text-ink-500"}>
+      <ToggleLabel position={[0, -0.95, 0]} tone={k > 0.15 ? "text-amber-200" : "text-ink-500"}>
         {k < 0.05 ? "night · no light" : `light ${Math.round(light)} %`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -455,9 +459,9 @@ function InsetFrame({ x, y, width, height, title, tone = "text-ink-300" }) {
         <planeGeometry args={[width, height]} />
         <meshBasicMaterial color="#1c2436" transparent opacity={0.6} depthWrite={false} />
       </mesh>
-      <SceneLabel position={[0, hh + 0.28, 0]} tone={tone}>
+      <ToggleLabel position={[0, hh + 0.28, 0]} tone={tone}>
         {title}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -530,21 +534,21 @@ function LeafSection({ solved, evapRateRef, windRef, speed }) {
           <meshBasicMaterial color="#93c5fd" transparent opacity={0.06 + 0.22 * clamp(solved.humidity / 100, 0, 1)} depthWrite={false} />
         </mesh>
         <WindStreaks count={14} origin={[0, -1.32, 0.1]} size={[4.0, 0.36, 0.5]} windRef={windRef} speed={speed} />
-        <SceneLabel position={[-1.2, 1.5, 0.4]} tone="text-ink-300">
+        <ToggleLabel position={[-0.95, 1.22, 0.4]} tone="text-ink-300">
           upper epidermis · cuticle
-        </SceneLabel>
-        <SceneLabel position={[1.35, 0.62, 0.45]} tone="text-emerald-300">
+        </ToggleLabel>
+        <ToggleLabel position={[1.35, 0.62, 0.45]} tone="text-emerald-300">
           palisade
-        </SceneLabel>
-        <SceneLabel position={[-1.35, -0.6, 0.5]} tone="text-emerald-300">
+        </ToggleLabel>
+        <ToggleLabel position={[-1.2, -0.42, 0.5]} tone="text-emerald-300">
           spongy mesophyll · air spaces
-        </SceneLabel>
-        <SceneLabel position={[0, -0.78, 0.5]} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
+        </ToggleLabel>
+        <ToggleLabel position={[1.05, -0.9, 0.5]} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
           {solved.poreOpen ? "stoma open · vapour out" : "stoma closed"}
-        </SceneLabel>
-        <SceneLabel position={[1.3, -1.42, 0.5]} tone={solved.wind > 1 ? "text-ink-200" : "text-ink-500"}>
+        </ToggleLabel>
+        <ToggleLabel position={[-0.6, -1.32, 0.5]} tone={solved.wind > 1 ? "text-ink-200" : "text-ink-500"}>
           {solved.wind > 0.5 ? `wind ${solved.wind.toFixed(1)} m/s strips the boundary layer` : `still air · boundary layer · RH ${Math.round(solved.humidity)} %`}
-        </SceneLabel>
+        </ToggleLabel>
       </group>
     </group>
   );
@@ -614,7 +618,7 @@ function GuardCell({ side, bow, turgor, held, seed }) {
   return (
     <group>
       <group position={[0, -STOMA.R, 0]}>
-        <ProfiledTube length={L} rings={44} segments={18} radiusAt={radiusAt} centreAt={centreAt} castShadow>
+        <ProfiledTube length={L} rings={44} segments={18} radiusAt={radiusAt} centreAt={centreAt}>
           <meshStandardMaterial color={COLOURS.guard} roughness={0.45} />
         </ProfiledTube>
       </group>
@@ -661,7 +665,9 @@ function Stoma({ solved }) {
   const arrowLen = 0.25 + 0.5 * (efflux ? solved.kFraction : held);
   const outer = STOMA.R * bow + STOMA.r;
   // Arrows point in while K⁺ is being pumped in, out while ABA is dumping it.
-  const arrow = (sign, yOff, colour, label) => {
+  const labelsOn = useContext(LabelsOn);
+  const arrow = (sign, yOff, colour, name) => {
+    const label = labelsOn ? name : undefined;
     const near = sign * (outer + 0.35);
     const far = sign * (outer + 0.35 + arrowLen);
     return efflux ? (
@@ -695,19 +701,19 @@ function Stoma({ solved }) {
             {arrow(1, -0.3, COLOURS.water, "H₂O")}
           </>
         )}
-        <SceneLabel position={[0, -STOMA.R - 0.5, 0.3]} accent={solved.poreOpen} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
+        <ToggleLabel position={[0, -STOMA.R - 0.5, 0.3]} accent={solved.poreOpen} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
           {solved.poreOpen ? `open pore · ${solved.poreWidthUm.toFixed(1)} µm` : `closed pore · ${solved.poreWidthUm.toFixed(1)} µm`}
-        </SceneLabel>
-        <SceneLabel position={[-1.55, STOMA.R + 0.35, 0.3]} tone="text-emerald-300">
+        </ToggleLabel>
+        <ToggleLabel position={[-1.55, STOMA.R + 0.35, 0.3]} tone="text-emerald-300">
           guard cell · {turgor > 0.5 ? "turgid" : "flaccid"}
-        </SceneLabel>
-        <SceneLabel position={[1.5, STOMA.R + 0.35, 0.3]} tone="text-ink-400">
+        </ToggleLabel>
+        <ToggleLabel position={[1.5, STOMA.R + 0.35, 0.3]} tone="text-ink-400">
           pavement cells
-        </SceneLabel>
+        </ToggleLabel>
         {solved.droughtClosed && (
-          <SceneLabel position={[0, STOMA.R + 0.85, 0.3]} tone="text-amber-300">
+          <ToggleLabel position={[0, STOMA.R + 0.85, 0.3]} tone="text-amber-300">
             ABA from the roots · K⁺ dumped, pore shut
-          </SceneLabel>
+          </ToggleLabel>
         )}
       </group>
     </group>
@@ -716,8 +722,11 @@ function Stoma({ solved }) {
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** From the sun at the far left to the two insets at the right, soil to sky. */
+const TRANSPIRATION_VIEW = { cx: 0.35, cy: 0.45, width: 13.6, height: 10.4, depth: 3 };
+
 export default function TranspirationCanvas({ params = {} }) {
-  const { light = 70, humidity = 50, wind = 2, soil = "hydrated", speed = 1 } = params || {};
+  const { light = 70, humidity = 50, wind = 2, soil = "hydrated", speed = 1, showLabels = true } = params || {};
   const solved = useMemo(() => solveTranspiration({ light, humidity, wind, soil }), [light, humidity, wind, soil]);
 
   // Every stream in the scene runs at the one flux.
@@ -737,9 +746,11 @@ export default function TranspirationCanvas({ params = {} }) {
   return (
     <SceneCanvas
       camera={{ position: [1.2, 0.9, 14.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 30, target: [0.7, 0.2, 0] }}
-      lights={{ ambient: 0.5 + 0.25 * clamp(light / 100, 0, 1), keyLight: 0.5 + 0.9 * clamp(light / 100, 0, 1), rim: PALETTE.emerald }}
+      controls={{ minDistance: 5, maxDistance: 30 }}
+      lights={{ ambient: 0.62 + 0.25 * clamp(light / 100, 0, 1), keyLight: 0.6 + 0.9 * clamp(light / 100, 0, 1), rim: PALETTE.emerald }}
     >
+      <FitCamera view={TRANSPIRATION_VIEW} direction={[0.04, 0.06, 1]} fov={46} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <Sun light={light} />
       <Soil drought={drought} />
       <Root flowRef={flowRef} colour={colour} />
@@ -754,12 +765,13 @@ export default function TranspirationCanvas({ params = {} }) {
       <Stoma solved={solved} />
 
       {/* Tension gauge on the column. */}
-      <SceneLabel position={[STEM.x + 1.0, STEM.top + 0.2, 0.4]} tone={cavitated ? "text-rose-300" : solved.columnState === "strained" ? "text-amber-300" : "text-sky-300"}>
+      <ToggleLabel position={[STEM.x + 1.0, STEM.top + 0.2, 0.4]} tone={cavitated ? "text-rose-300" : solved.columnState === "strained" ? "text-amber-300" : "text-sky-300"}>
         {`column tension ${solved.tensionMPa.toFixed(2)} MPa · ${solved.columnState}`}
-      </SceneLabel>
-      <SceneLabel position={[STEM.x + 1.5, SOIL_TOP + 0.5, 0.4]} tone="text-ink-300">
+      </ToggleLabel>
+      <ToggleLabel position={[STEM.x + 1.5, SOIL_TOP + 0.5, 0.4]} tone="text-ink-300">
         {`${solved.rateMlPerHour < 10 ? solved.rateMlPerHour.toFixed(1) : Math.round(solved.rateMlPerHour)} mL/hr up the stem`}
-      </SceneLabel>
+      </ToggleLabel>
+      </LabelsOn.Provider>
 
     </SceneCanvas>
   );

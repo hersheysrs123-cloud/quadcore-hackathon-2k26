@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
+  Callout,
   Halo,
   PALETTE,
   SceneCanvas,
@@ -12,6 +13,9 @@ import {
   clamp,
   hashRandom,
   lerp,
+  FitCamera,
+  LabelsOn,
+  ToggleLabel,
 } from "@/components/visualizations/scene-kit";
 import { TimelineCaption, TimelineDriver } from "@/components/visualizations/timeline-kit";
 import { pulse, smoothstep } from "@/lib/timeline";
@@ -51,6 +55,8 @@ import {
 
 const BACT = { centre: [-2.0, 1.75, 0], radius: 1.0, length: 2.6 };
 const PHAGE_REF = { position: [5.6, 0.55, 0] };
+/** Both specimens with their headline and meter labels; they were cropped at both sides. */
+const MICROBE_VIEW = { cx: 1.1, cy: 1.15, width: 15.6, height: 8.2, depth: 3 };
 const ATTACH = [-2.3, 2.75, 0.3];
 const RIBOSOMES = 110;
 const PROGENY_SEATS = 60;
@@ -338,31 +344,32 @@ function BacteriumModel({ refs, status }) {
         </mesh>
       ))}
 
-      {/* Labels */}
-      <SceneLabel position={[0, 1.55, 0.6]} tone="text-amber-200">
+      {/* Labels: callouts to a column on the left and two short leaders to
+          the right. Placed on the cell itself, seven of them covered it. */}
+      <Callout anchor={[0.35, 1.0, 0.35]} at={[-2.25, 1.35, 0.6]} side="left" tone="text-amber-200">
         peptidoglycan cell wall
-      </SceneLabel>
-      <SceneLabel position={[-1.15, 1.2, 0.6]} tone="text-pink-300">
+      </Callout>
+      <Callout anchor={[-1.25, 0.72, 0.4]} at={[-2.25, 0.75, 0.6]} side="left" tone="text-pink-300">
         cell membrane
-      </SceneLabel>
-      <SceneLabel position={[-0.1, 0.62, 0.9]} tone="text-indigo-300">
+      </Callout>
+      <Callout anchor={[-0.35, 0.3, 0.55]} at={[-2.25, 0.15, 0.6]} side="left" tone="text-indigo-300">
         circular chromosome · no nucleus
-      </SceneLabel>
-      <SceneLabel position={[1.7, -0.75, 0.6]} tone="text-violet-300">
-        plasmid
-      </SceneLabel>
-      <SceneLabel position={[0.95, -0.2, 0.9]} tone="text-amber-100">
-        70S ribosomes
-      </SceneLabel>
-      <SceneLabel position={[3.7, 0.5, 0.4]} tone="text-ink-300">
-        flagellum · rotating motor
-      </SceneLabel>
-      <SceneLabel position={[-1.0, -0.6, 0.9]} tone="text-sky-300">
+      </Callout>
+      <Callout anchor={[-0.9, -0.45, 0.6]} at={[-2.25, -0.45, 0.6]} side="left" tone="text-sky-300">
         cytoplasm · metabolism
-      </SceneLabel>
-      <SceneLabel position={[0, -1.55, 0.5]} tone={alive ? "text-emerald-300" : "text-rose-300"} accent={!alive}>
+      </Callout>
+      <Callout anchor={[0.8, -0.2, 0.62]} at={[1.95, -0.55, 0.6]} side="right" tone="text-amber-100">
+        70S ribosomes
+      </Callout>
+      <Callout anchor={[1.05, -0.55, 0.4]} at={[1.95, -1.05, 0.6]} side="right" tone="text-violet-300">
+        plasmid
+      </Callout>
+      <ToggleLabel position={[3.7, 0.5, 0.4]} tone="text-ink-300">
+        flagellum · rotating motor
+      </ToggleLabel>
+      <ToggleLabel position={[0, -1.55, 0.5]} tone={alive ? "text-emerald-300" : "text-rose-300"} accent={!alive}>
         {`bacterium · 2 µm · ${status.label}`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -457,21 +464,21 @@ function PhageModel({ position, rotation = [0, 0, 0], contractionRef, dnaRef, la
       ))}
       {labels && (
         <>
-          <SceneLabel position={[1.15, 1.85, 0.2]} tone="text-sky-300">
+          <ToggleLabel position={[1.15, 1.85, 0.2]} tone="text-sky-300">
             icosahedral capsid head · protein
-          </SceneLabel>
-          <SceneLabel position={[-1.1, 1.65, 0.2]} tone="text-pink-300">
+          </ToggleLabel>
+          <ToggleLabel position={[-1.1, 1.65, 0.2]} tone="text-pink-300">
             DNA core
-          </SceneLabel>
-          <SceneLabel position={[1.1, 0.7, 0.2]} tone="text-indigo-300">
+          </ToggleLabel>
+          <ToggleLabel position={[1.1, 0.7, 0.2]} tone="text-indigo-300">
             contractile sheath
-          </SceneLabel>
-          <SceneLabel position={[-1.0, 0.1, 0.2]} tone="text-indigo-200">
+          </ToggleLabel>
+          <ToggleLabel position={[-1.0, 0.1, 0.2]} tone="text-indigo-200">
             baseplate
-          </SceneLabel>
-          <SceneLabel position={[1.2, -0.45, 0.2]} tone="text-ink-300">
+          </ToggleLabel>
+          <ToggleLabel position={[1.2, -0.45, 0.2]} tone="text-ink-300">
             tail fibres · bind one host's receptors
-          </SceneLabel>
+          </ToggleLabel>
         </>
       )}
     </group>
@@ -686,7 +693,7 @@ function BlendDriver({ refs, rainRef, lyticLive, antibioticLive }) {
 // ─── The scene ──────────────────────────────────────────────────────
 
 export default function BacteriaVsVirusCanvas({ params = {}, setParam }) {
-  const { antibiotic = 0, lytic = 0, speed = 1 } = params || {};
+  const { antibiotic = 0, lytic = 0, speed = 1, showLabels = true } = params || {};
 
   // Whichever button was pressed last owns the bacterium; the other timeline goes idle.
   const [latest, setLatest] = useState(null);
@@ -731,9 +738,11 @@ export default function BacteriaVsVirusCanvas({ params = {}, setParam }) {
   return (
     <SceneCanvas
       camera={{ position: [1.9, 2.9, 13.6], fov: 42 }}
-      controls={{ minDistance: 4, maxDistance: 30, target: [1.7, 1.5, 0], maxPolarAngle: Math.PI * 0.55 }}
-      lights={{ ambient: 0.55, keyLight: 1.3, rim: PALETTE.violet }}
+      controls={{ minDistance: 4, maxDistance: 30, maxPolarAngle: Math.PI * 0.55 }}
+      lights={{ ambient: 0.68, keyLight: 1.3, rim: PALETTE.violet }}
     >
+      <FitCamera view={MICROBE_VIEW} direction={[0.02, 0.1, 1]} fov={42} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <TimelineDriver timeline={LYTIC_TIMELINE} trigger={lyticTrigger} speed={speed} live={lyticLive} onTick={setLyticSnap} />
       <TimelineDriver timeline={ANTIBIOTIC_TIMELINE} trigger={antibioticTrigger} speed={speed} live={antibioticLive} onTick={setAntibioticSnap} />
       <BlendDriver refs={refs} rainRef={rainRef} lyticLive={lyticLive} antibioticLive={antibioticLive} />
@@ -748,22 +757,22 @@ export default function BacteriaVsVirusCanvas({ params = {}, setParam }) {
       {bursting > 0 && bursting < 1 && <Halo position={BACT.centre} radius={2.4} color={COLOURS.burst} opacity={0.14 * pulse(bursting, 0.4)} />}
 
       {/* Headline labels */}
-      <SceneLabel position={[BACT.centre[0], 4.75, 0]} accent>
+      <ToggleLabel position={[BACT.centre[0], 4.75, 0]} accent>
         {`BACTERIUM · ${bactLiving.verdict} · ${bactLiving.met}/${bactLiving.total} criteria`}
-      </SceneLabel>
-      <SceneLabel position={[PHAGE_REF.position[0], 4.75, 0]} accent>
+      </ToggleLabel>
+      <ToggleLabel position={[PHAGE_REF.position[0], 4.75, 0]} accent>
         {`VIRUS · ${virusLiving.verdict} · ${virusLiving.met}/${virusLiving.total} criteria`}
-      </SceneLabel>
-      <SceneLabel position={[PHAGE_REF.position[0], -0.95, 0]} tone="text-ink-400">
+      </ToggleLabel>
+      <ToggleLabel position={[PHAGE_REF.position[0], -0.95, 0]} tone="text-ink-400">
         {`T4 bacteriophage · 200 nm · ~${SIZE_RATIO}× smaller than the bacterium (not to scale)`}
-      </SceneLabel>
+      </ToggleLabel>
 
       <EfficacyMeter position={[BACT.centre[0], -1.35, 0]} percent={drug.started ? eff.bacterium.percent * smoothstep(Math.min(1, drug.t / 1.5)) : 0} label={drug.started ? `penicillin efficacy ${eff.bacterium.percent} % · wall ${Math.round(drug.wallIntegrity * 100)} % intact` : "penicillin efficacy — press Administer"} />
       <EfficacyMeter position={[PHAGE_REF.position[0], -1.35, 0]} percent={0} label={drug.started ? `penicillin efficacy ${eff.virus.percent} % · no wall, no ribosomes, no metabolism` : "penicillin efficacy — nothing to hit"} />
 
       {/* Event captions */}
       {infection.started && (
-        <SceneLabel position={[BACT.centre[0] + 1.7, 4.05, 0.4]} tone={infection.lysed ? "text-rose-300" : "text-sky-300"} accent={infection.lysed}>
+        <ToggleLabel position={[BACT.centre[0] + 1.7, 4.05, 0.4]} tone={infection.lysed ? "text-rose-300" : "text-sky-300"} accent={infection.lysed}>
           {infection.lysed
             ? `burst size · ${infection.released} new phages released`
             : infection.stage === "assembly"
@@ -773,22 +782,22 @@ export default function BacteriaVsVirusCanvas({ params = {}, setParam }) {
                 : infection.stage === "injection"
                   ? `sheath contracts · genome ${Math.round(infection.genomeInjected * 100)} % injected`
                   : "tail fibres find their receptor · baseplate docks"}
-        </SceneLabel>
+        </ToggleLabel>
       )}
       {drug.started && (
-        <SceneLabel position={[PHAGE_REF.position[0], 4.1, 0.4]} tone="text-ink-300">
+        <ToggleLabel position={[PHAGE_REF.position[0], 4.1, 0.4]} tone="text-ink-300">
           penicillin falls straight past · no effect
-        </SceneLabel>
+        </ToggleLabel>
       )}
       {drug.started && !drug.lysed && (
-        <SceneLabel position={[BACT.centre[0], 4.05, 0.4]} tone="text-rose-300">
+        <ToggleLabel position={[BACT.centre[0], 4.05, 0.4]} tone="text-rose-300">
           {drug.stage === "administer" ? "penicillin binds the wall-building enzymes" : drug.stage === "breach" ? `cross-links fail · wall ${Math.round(drug.wallIntegrity * 100)} % intact · swelling` : "osmotic lysis · water rushes in"}
-        </SceneLabel>
+        </ToggleLabel>
       )}
       {drug.lysed && (
-        <SceneLabel position={[BACT.centre[0], 4.05, 0.4]} tone="text-rose-300" accent>
+        <ToggleLabel position={[BACT.centre[0], 4.05, 0.4]} tone="text-rose-300" accent>
           lysed by penicillin · the virus next door is untouched
-        </SceneLabel>
+        </ToggleLabel>
       )}
 
       <TimelineCaption
@@ -799,6 +808,7 @@ export default function BacteriaVsVirusCanvas({ params = {}, setParam }) {
         tone={latest === "antibiotic" ? "text-rose-300" : "text-sky-300"}
       />
 
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }

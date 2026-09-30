@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { SceneLabel } from "@/components/visualizations/scene-kit";
+import { ToggleLabel } from "@/components/visualizations/scene-kit";
 import { advanceTimeline, clamp, describeTimeline } from "@/lib/timeline";
 
 // ─── Triggered timeline kit ─────────────────────────────────────────
@@ -100,16 +100,16 @@ export function TimelineDriver({ timeline, trigger = 0, speed = 1, autoplay = fa
 export function TimelineCaption({ position = [0, -1, 0], timeline, snapshot, idle = "press the button to begin", tone = "text-ink-300" }) {
   if (!snapshot || !snapshot.active) {
     return (
-      <SceneLabel position={position} tone="text-ink-500">
+      <ToggleLabel position={position} tone="text-ink-500">
         {idle}
-      </SceneLabel>
+      </ToggleLabel>
     );
   }
   const n = timeline.stages.length;
   const bar = Array.from({ length: 5 }, (_, i) => (snapshot.progress * 5 > i + 0.5 ? "▰" : "▱")).join("");
   return (
-    <SceneLabel position={position} tone={snapshot.complete ? "text-emerald-300" : tone} accent={snapshot.complete}>
+    <ToggleLabel position={position} tone={snapshot.complete ? "text-emerald-300" : tone} accent={snapshot.complete}>
       {snapshot.complete ? `complete · ${snapshot.label}` : `${snapshot.index + 1} / ${n} · ${snapshot.label} · ${bar}${snapshot.playing ? "" : " · paused"}`}
-    </SceneLabel>
+    </ToggleLabel>
   );
 }

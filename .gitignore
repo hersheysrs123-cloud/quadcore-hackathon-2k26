@@ -24,3 +24,6 @@ next-env.d.ts
 .vscode/
 .agents/
 tests/export_outputs/
+
+# Python bytecode (scripts/heart-bake, scripts/arm-model)
+__pycache__/

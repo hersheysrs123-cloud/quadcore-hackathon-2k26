@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { createContext, useContext, useMemo, useEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
+import { Html, Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, DEFAULT_GRAPHICS_SETTINGS } from "@/lib/db";
@@ -195,6 +195,89 @@ export function SceneLabel({
       </span>
     </Html>
   );
+}
+
+/** Stands in for SceneLabel when a scene's labels are switched off. */
+export const NoLabel = () => null;
+
+/**
+ * Whether a scene's labels are on, for scenes whose labels are spread over
+ * many subcomponents. Provide it INSIDE SceneCanvas — React context does not
+ * cross the R3F boundary, so a provider outside the canvas is never seen.
+ */
+export const LabelsOn = createContext(true);
+
+/** A SceneLabel that renders nothing while the nearest LabelsOn is false. */
+export function ToggleLabel(props) {
+  return useContext(LabelsOn) ? <SceneLabel {...props} /> : null;
+}
+
+/**
+ * A label in a column beside the model, joined to the part it names by a thin
+ * leader line with a dot on the part. For crowded models, where labels sat on
+ * their parts and piled on top of each other.
+ *
+ * `side` is the column the label is in: a left-column label ends at `at`, a
+ * right-column one starts there, so neither runs back over the model.
+ */
+export function Callout({ anchor, at, side = "right", children, tone = "text-ink-200", accent = false, color = "#c6cfdf" }) {
+  const points = useMemo(() => [anchor, at], [anchor[0], anchor[1], anchor[2], at[0], at[1], at[2]]);
+  if (!useContext(LabelsOn)) return null;
+  return (
+    <group>
+      {/* Drawn over everything: a leader line that vanishes behind the first
+          rib it passes is no help finding what it points at. */}
+      <Line points={points} color={color} lineWidth={1} transparent opacity={0.75} depthTest={false} renderOrder={10} />
+      <mesh position={anchor} renderOrder={10}>
+        <sphereGeometry args={[0.045, 10, 8]} />
+        <meshBasicMaterial color={color} depthTest={false} transparent />
+      </mesh>
+      <Html position={at} style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
+        <span
+          className={`inline-block whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
+            accent ? "border-duck-500/50 bg-duck-500/15 text-duck-300" : `border-ink-800 bg-ink-950/85 ${tone}`
+          }`}
+          style={{ transform: side === "left" ? "translate(-100%, -50%)" : "translate(0, -50%)" }}
+        >
+          {children}
+        </span>
+      </Html>
+    </group>
+  );
+}
+
+/**
+ * Frames a `view` box ({ cx, cy, cz?, width, height, depth? }) at any canvas
+ * aspect, looking along `direction`, and hands the target to the orbit
+ * controls. Runs on resize and when the box changes, never per frame, so the
+ * user's orbiting is left alone in between.
+ *
+ * `depth` is the box's extent towards the camera: its front face is that
+ * much nearer, and it is the front face that has to fit.
+ *
+ * Do not also pass `target` in SceneCanvas's `controls`: SceneCanvas spreads
+ * it onto OrbitControls every render, which would undo the target set here.
+ */
+export function FitCamera({ view, direction = [0, 0.15, 1], fov = 45, margin = 1.04 }) {
+  const camera = useThree((st) => st.camera);
+  const controls = useThree((st) => st.controls);
+  const aspect = useThree((st) => st.size.width / Math.max(st.size.height, 1));
+  const { cx = 0, cy = 0, cz = 0, width, height, depth = 0 } = view;
+  const [dx, dy, dz] = direction;
+  useEffect(() => {
+    // A canvas measured before layout is 0 wide; fitting to it sends the camera to NaN.
+    if (!(aspect > 0.05)) return;
+    const tanHalf = Math.tan((fov / 2) * DEG);
+    const target = new THREE.Vector3(cx, cy, cz);
+    const fit = Math.max(height / 2 / tanHalf, width / 2 / (tanHalf * aspect)) * margin + depth / 2;
+    camera.position.copy(target).addScaledVector(new THREE.Vector3(dx, dy, dz).normalize(), fit);
+    camera.lookAt(target);
+    if (controls) {
+      controls.target.copy(target);
+      controls.update();
+    }
+  }, [camera, controls, aspect, cx, cy, cz, width, height, depth, dx, dy, dz, fov, margin]);
+  return null;
 }
 
 // ─── Corner-pinned panels ───────────────────────────────────────────

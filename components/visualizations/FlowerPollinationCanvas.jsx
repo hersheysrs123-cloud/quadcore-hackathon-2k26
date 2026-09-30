@@ -11,6 +11,9 @@ import {
   clamp,
   hashRandom,
   lerp,
+  FitCamera,
+  LabelsOn,
+  ToggleLabel,
 } from "@/components/visualizations/scene-kit";
 import { makeBlobGeometry } from "@/components/visualizations/cell-organelles";
 import { TimelineCaption, TimelineDriver } from "@/components/visualizations/timeline-kit";
@@ -46,7 +49,10 @@ const STYLE = { bottom: 1.95, top: 4.6, radius: 0.17 };
 const STIGMA_Y = 4.75;
 const OVULE_A = { centre: [0.38, 1.05, -0.08], rx: 0.3, ry: 0.42 };
 const OVULE_B = { centre: [-0.44, 0.95, -0.14], rx: 0.27, ry: 0.38 };
-const GAUGE = { x: 2.35 };
+/** Far enough right that its scale clears the anther and petal labels. */
+const GAUGE = { x: 3.3 };
+/** Stem base and caption to the verdict at the top, the gauge at the right. */
+const FLOWER_VIEW = { cx: 0.75, cy: 2.2, width: 8.6, height: 9.4, depth: 3 };
 const TUBE_SEGMENTS = 160;
 const TUBE_RADIAL = 8;
 
@@ -348,9 +354,9 @@ function Stem() {
         <sphereGeometry args={[0.62, 20, 14]} />
         <meshStandardMaterial color={COLOURS.stem} roughness={0.8} />
       </mesh>
-      <SceneLabel position={[-0.95, RECEPTACLE_Y - 0.25, 0.4]} tone="text-ink-400">
+      <ToggleLabel position={[-0.95, RECEPTACLE_Y - 0.65, 0.4]} tone="text-ink-400">
         receptacle
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -370,7 +376,7 @@ function Perianth({ vector }) {
     <group>
       {[0.35, Math.PI / 2, Math.PI - 0.35].map((a, i) => (
         <group key={i} rotation={[0, a, 0]}>
-          <mesh position={[0.55 + 1.15 * petalScale, RECEPTACLE_Y + 0.55 + 0.9 * petalScale, 0]} rotation={[0, 0, insect ? 0.62 : 0.85]} scale={petalScale} geometry={petal} castShadow>
+          <mesh position={[0.55 + 1.15 * petalScale, RECEPTACLE_Y + 0.55 + 0.9 * petalScale, 0]} rotation={[0, 0, insect ? 0.62 : 0.85]} scale={petalScale} geometry={petal}>
             <meshStandardMaterial color={petalColour} roughness={0.55} side={THREE.DoubleSide} emissive={insect ? COLOURS.petalInsectDeep : "#000000"} emissiveIntensity={insect ? 0.12 : 0} />
           </mesh>
           {/* Nectary at the petal base — the reward that pays the courier. */}
@@ -392,16 +398,16 @@ function Perianth({ vector }) {
           </mesh>
         </group>
       ))}
-      <SceneLabel position={[insect ? 2.6 : 2.35, insect ? 2.35 : 0.7, -0.6]} tone={insect ? "text-pink-300" : "text-ink-400"}>
+      <ToggleLabel position={[2.1, 2.95, -0.6]} tone={insect ? "text-pink-300" : "text-ink-400"}>
         {insect ? "petal · large, bright — advertises" : "petals · small, dull — nothing to advertise"}
-      </SceneLabel>
-      <SceneLabel position={[-1.6, RECEPTACLE_Y + 0.5, -0.4]} tone="text-emerald-300">
+      </ToggleLabel>
+      <ToggleLabel position={[-1.75, RECEPTACLE_Y + 0.6, -0.4]} tone="text-emerald-300">
         sepal
-      </SceneLabel>
+      </ToggleLabel>
       {insect && (
-        <SceneLabel position={[1.15, RECEPTACLE_Y + 0.1, 0.65]} tone="text-amber-200">
+        <ToggleLabel position={[1.15, RECEPTACLE_Y + 0.1, 0.65]} tone="text-amber-200">
           nectar
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
@@ -431,15 +437,15 @@ function Stamens({ vector, pollenGeometry }) {
           </group>
         </group>
       ))}
-      <SceneLabel position={[1.25, filamentTop + (insect ? 0.62 : -0.75), -0.3]} tone="text-amber-300">
+      <ToggleLabel position={[1.25, filamentTop + (insect ? 0.62 : -0.75), -0.3]} tone="text-amber-300">
         {insect ? "anther · spiky, sticky pollen" : "anther · dangling · light dry pollen"}
-      </SceneLabel>
-      <SceneLabel position={[-1.35, RECEPTACLE_Y + 2.7, -0.3]} tone="text-ink-300">
+      </ToggleLabel>
+      <ToggleLabel position={[-1.35, RECEPTACLE_Y + 2.7, -0.3]} tone="text-ink-300">
         filament
-      </SceneLabel>
-      <SceneLabel position={[-1.55, filamentTop + 0.35, -0.3]} tone="text-ink-400">
+      </ToggleLabel>
+      <ToggleLabel position={[-1.55, filamentTop + 0.35, -0.3]} tone="text-ink-400">
         stamen = anther + filament
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -483,9 +489,9 @@ function Stigma({ vector, landed }) {
           ))}
         </group>
       )}
-      <SceneLabel position={[1.05, 0.45, 0.2]} tone="text-lime-300" accent={landed}>
+      <ToggleLabel position={[1.05, 0.45, 0.2]} tone="text-lime-300" accent={landed}>
         {landed ? `stigma · pollinated` : insect ? "stigma · sticky, inside the flower" : "stigma · feathery, sieves the air"}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -500,9 +506,9 @@ function LandedGrain({ landing, germination, geometry, colour }) {
         <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.35} roughness={0.5} />
       </mesh>
       {landing >= 1 && germination < 1 && (
-        <SceneLabel position={[-0.95, 0.35, 0.2]} tone="text-amber-200">
+        <ToggleLabel position={[-0.95, 0.35, 0.2]} tone="text-amber-200">
           {germination > 0 ? "grain hydrates · tube emerges" : "pollen grain · landed"}
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
@@ -517,9 +523,9 @@ function Style() {
         <cylinderGeometry args={[STYLE.radius, STYLE.radius * 1.15, length, 24, 1, true, Math.PI / 2, Math.PI]} />
         <meshStandardMaterial color={COLOURS.style} roughness={0.6} side={THREE.DoubleSide} transparent opacity={0.9} />
       </mesh>
-      <SceneLabel position={[-0.95, 3.7, 0.2]} tone="text-ink-300">
+      <ToggleLabel position={[-0.95, 3.7, 0.2]} tone="text-ink-300">
         style · cut-away
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -587,21 +593,23 @@ function Ovule({ ovule, primary, describe }) {
       {e && <Halo position={[0, -0.02, 0.03]} radius={0.26} color={COLOURS.endosperm} opacity={0.14} />}
       {primary && (
         <>
-          <SceneLabel position={[0.85, ry + 0.05, 0.2]} tone={entered ? "text-amber-200" : "text-ink-400"}>
+          {/* A column to the right of the ovary, spread wider than the ovule's
+              own height so the three never overprint. */}
+          <ToggleLabel position={[0.62, ry + 0.3, 0.2]} className="inline-block translate-x-1/2" tone={entered ? "text-amber-200" : "text-ink-400"}>
             {entered ? "micropyle · tube entering" : "micropyle"}
-          </SceneLabel>
-          <SceneLabel position={[0.85, ry * 0.42, 0.2]} tone={z ? "text-amber-300" : "text-rose-300"} accent={z}>
+          </ToggleLabel>
+          <ToggleLabel position={[0.62, ry * 0.3, 0.2]} className="inline-block translate-x-1/2" tone={z ? "text-amber-300" : "text-rose-300"} accent={z}>
             {z ? "zygote · 2n (sperm + egg)" : "egg cell · n"}
-          </SceneLabel>
-          <SceneLabel position={[0.85, -0.12, 0.2]} tone={e ? "text-fuchsia-300" : "text-violet-300"} accent={e}>
+          </ToggleLabel>
+          <ToggleLabel position={[0.62, -0.28, 0.2]} className="inline-block translate-x-1/2" tone={e ? "text-fuchsia-300" : "text-violet-300"} accent={e}>
             {e ? "endosperm · 3n (sperm + 2 polar nuclei)" : "2 polar nuclei · n + n"}
-          </SceneLabel>
+          </ToggleLabel>
         </>
       )}
       {!primary && (
-        <SceneLabel position={[-0.7, -ry - 0.15, 0.2]} tone="text-ink-400">
+        <ToggleLabel position={[-0.75, -ry - 0.35, 0.2]} tone="text-ink-400">
           second ovule
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
@@ -628,12 +636,12 @@ function Ovary({ describe }) {
       </group>
       <Ovule ovule={OVULE_A} primary describe={describe} />
       <Ovule ovule={OVULE_B} primary={false} describe={describe} />
-      <SceneLabel position={[-1.85, OVARY.centre[1] + 0.55, 0.3]} tone="text-emerald-300">
+      <ToggleLabel position={[-1.85, OVARY.centre[1] + 0.55, 0.3]} tone="text-emerald-300">
         ovary · cut open
-      </SceneLabel>
-      <SceneLabel position={[-1.6, OVARY.centre[1] - 0.95, 0.4]} tone="text-ink-400">
+      </ToggleLabel>
+      <ToggleLabel position={[1.95, OVARY.centre[1] - 1.55, 0.4]} tone="text-ink-400">
         carpel = stigma + style + ovary
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -740,12 +748,12 @@ function Verdict({ describe }) {
   const tone = describe.fertilised ? "text-emerald-300" : describe.pollinated ? "text-amber-300" : "text-ink-400";
   return (
     <group>
-      <SceneLabel position={[0, 6.35, 0]} accent={describe.pollinated}>
+      <ToggleLabel position={[0, 6.35, 0]} accent={describe.pollinated}>
         {describe.pollinated ? "POLLINATION ✓ · pollen on the stigma" : "POLLINATION · pollen must reach the stigma"}
-      </SceneLabel>
-      <SceneLabel position={[0, 5.95, 0]} tone={tone} accent={describe.fertilised}>
+      </ToggleLabel>
+      <ToggleLabel position={[0, 5.95, 0]} tone={tone} accent={describe.fertilised}>
         {describe.fertilised ? "FERTILISATION ✓ · nuclei fused in the ovule" : describe.pollinated ? "FERTILISATION · not yet — the tube is still growing" : "FERTILISATION · fusion of nuclei, in the ovule, hours later"}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -753,7 +761,7 @@ function Verdict({ describe }) {
 // ─── The scene ──────────────────────────────────────────────────────
 
 export default function FlowerPollinationCanvas({ params = {}, setParam }) {
-  const { vector: vectorKey = "insect", pollinate = 0, time = 0, speed = 1 } = params || {};
+  const { vector: vectorKey = "insect", pollinate = 0, time = 0, speed = 1, showLabels = true } = params || {};
   const vector = vectorFor(vectorKey);
   const live = useRef(null);
   const [snapshot, setSnapshot] = useState(null);
@@ -778,9 +786,11 @@ export default function FlowerPollinationCanvas({ params = {}, setParam }) {
   return (
     <SceneCanvas
       camera={{ position: [0.4, 3.4, 11.5], fov: 42 }}
-      controls={{ minDistance: 4, maxDistance: 28, target: [0, 2.6, 0], maxPolarAngle: Math.PI * 0.52 }}
-      lights={{ ambient: 0.6, keyLight: 1.3, rim: PALETTE.emerald }}
+      controls={{ minDistance: 4, maxDistance: 28, maxPolarAngle: Math.PI * 0.52 }}
+      lights={{ ambient: 0.7, keyLight: 1.3, rim: PALETTE.emerald }}
     >
+      <FitCamera view={FLOWER_VIEW} direction={[0.04, 0.12, 1]} fov={42} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <TimelineDriver timeline={POLLINATION_TIMELINE} trigger={pollinate} speed={speed} live={live} scrub={scrub} onTick={setSnapshot} />
 
       <Stem />
@@ -803,19 +813,19 @@ export default function FlowerPollinationCanvas({ params = {}, setParam }) {
       )}
 
       {describe.nuclei.tube !== null && (
-        <SceneLabel position={[-1.7, Math.max(2.45, lerp(STYLE.top, STYLE.bottom, clamp(describe.tubeFraction, 0, 1)) + 0.1), 0.3]} tone="text-sky-300">
+        <ToggleLabel position={[-1.7, Math.max(2.45, lerp(STYLE.top, STYLE.bottom, clamp(describe.tubeFraction, 0, 1)) + 0.1), 0.3]} tone="text-sky-300">
           {describe.nuclei.divided ? "tube nucleus + 2 sperm nuclei (n)" : "tube nucleus + generative nucleus"}
-        </SceneLabel>
+        </ToggleLabel>
       )}
       {describe.nuclei.divided && describe.fertilisation === 0 && (
-        <SceneLabel position={[1.75, 3.35, 0.3]} tone="text-rose-300">
+        <ToggleLabel position={[1.75, 3.35, 0.3]} tone="text-rose-300">
           generative nucleus divided → 2 sperm
-        </SceneLabel>
+        </ToggleLabel>
       )}
 
       <Verdict describe={describe} />
       <TimelineCaption position={[0, -1.75, 0.5]} timeline={POLLINATION_TIMELINE} snapshot={snapshot} idle="press Trigger pollination — or drag the time slider" />
-
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }

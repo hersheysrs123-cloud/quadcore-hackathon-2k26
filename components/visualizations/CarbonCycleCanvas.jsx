@@ -11,6 +11,9 @@ import {
   SceneLabel,
   clamp,
   hashRandom,
+  FitCamera,
+  LabelsOn,
+  ToggleLabel,
 } from "@/components/visualizations/scene-kit";
 import {
   DioramaSlab,
@@ -56,7 +59,12 @@ const PASTURE = { x: -3.6, z: 2.5, w: 4.6, d: 2.2 };
 const OCEAN = { centre: [4.3, 0, 0.7], size: [5.2, 1.0, 5.4] };
 const PLANT = { x: 2.5, z: -3.3 };
 const SUN = { position: [-7.0, 8.0, -5.0] };
-const CHART = { position: [-9.6, 3.3, -6.6], width: 7.6, height: 2.3 };
+/**
+ * In front of the diorama and below it, like a caption panel. It used to
+ * stand at the back left, inside the sky dome, where it sat across the sun
+ * and the greenhouse band.
+ */
+const CHART = { position: [-4.6, -3.3, 5.6], width: 9.2, height: 2.3 };
 const ENVELOPE_Y = 4.9;
 const DOME_RADIUS = 9.2;
 const THERMO = { x: 7.1, z: -1.2, height: 3.2, maxC: 6 };
@@ -199,7 +207,7 @@ function Cattle({ count, maxCount = 12, seed = 41 }) {
 
   return (
     <group>
-      <instancedMesh ref={bodies} args={[parts.body, undefined, maxCount]} frustumCulled={false} castShadow>
+      <instancedMesh ref={bodies} args={[parts.body, undefined, maxCount]} frustumCulled={false}>
         <meshStandardMaterial color={COLOURS.cow} roughness={0.8} />
       </instancedMesh>
       <instancedMesh ref={heads} args={[parts.head, undefined, maxCount]} frustumCulled={false}>
@@ -246,9 +254,9 @@ function Pasture({ pasture, livestockRef }) {
       ))}
       <Cattle count={cattle} />
       <FluxStream from={CATTLE_TOP} to={AIR_OVER_PASTURE} rateRef={livestockRef} colour={COLOURS.livestock} count={40} travel={2.6} lift={0.2} spread={0.5} size={0.05} seed={12} />
-      <SceneLabel position={[PASTURE.x, 0.95, PASTURE.z + PASTURE.d / 2 + 0.2]} tone="text-violet-300">
+      <ToggleLabel position={[PASTURE.x, 0.95, PASTURE.z + PASTURE.d / 2 + 0.2]} tone="text-violet-300">
         {cattle === 0 ? "no pasture · all forest" : `pasture · ${cattle} head · methane`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -260,15 +268,15 @@ function Forest({ forest, photoRef, respRef }) {
       <TreeStand region={FOREST} count={trees} maxCount={FOREST.maxTrees} seed={5} height={1.2} />
       <FluxStream from={[AIR_OVER_FOREST[0] - 0.7, AIR_OVER_FOREST[1], AIR_OVER_FOREST[2]]} to={[CANOPY[0] - 0.7, CANOPY[1], CANOPY[2]]} rateRef={photoRef} colour={COLOURS.photosynthesis} count={110} travel={2.2} lift={0.1} spread={1.4} size={0.05} seed={21} />
       <FluxStream from={[CANOPY[0] + 0.7, CANOPY[1], CANOPY[2]]} to={[AIR_OVER_FOREST[0] + 0.7, AIR_OVER_FOREST[1], AIR_OVER_FOREST[2]]} rateRef={respRef} colour={COLOURS.respiration} count={110} travel={2.2} lift={0.1} spread={1.4} size={0.05} seed={22} />
-      <SceneLabel position={[FOREST.x - 1.1, 1.85, FOREST.z + 1.2]} tone="text-emerald-300">
+      <ToggleLabel position={[FOREST.x - 1.7, 2.3, FOREST.z + 1.2]} tone="text-emerald-300">
         photosynthesis ↓
-      </SceneLabel>
-      <SceneLabel position={[FOREST.x + 1.2, 1.85, FOREST.z + 1.2]} tone="text-amber-300">
+      </ToggleLabel>
+      <ToggleLabel position={[FOREST.x + 1.7, 2.3, FOREST.z + 1.2]} tone="text-amber-300">
         respiration ↑
-      </SceneLabel>
-      <SceneLabel position={[FOREST.x, 0.35, FOREST.z + FOREST.d / 2 + 0.15]} tone="text-ink-300">
+      </ToggleLabel>
+      <ToggleLabel position={[FOREST.x, 0.35, FOREST.z + FOREST.d / 2 + 0.15]} tone="text-ink-300">
         {`forest · ${Math.round(forest)} % cover · ${trees} of ${FOREST.maxTrees} stands`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -279,7 +287,7 @@ function CoalPlant({ combustion, combustionRef }) {
   return (
     <group>
       <group position={[PLANT.x, 0, PLANT.z]}>
-      <mesh position={[0, 0.5, 0]} castShadow>
+      <mesh position={[0, 0.5, 0]}>
         <boxGeometry args={[1.9, 1.0, 1.1]} />
         <meshStandardMaterial color={COLOURS.brick} roughness={0.85} />
       </mesh>
@@ -290,7 +298,7 @@ function CoalPlant({ combustion, combustionRef }) {
       </mesh>
       {lit && <Halo position={[0, 0.42, 0.6]} radius={0.35 + 0.5 * k} color={COLOURS.furnace} opacity={0.05 + 0.15 * k} />}
       {[-0.45, 0.45].map((x) => (
-        <mesh key={x} position={[x, 1.45, 0]} castShadow>
+        <mesh key={x} position={[x, 1.45, 0]}>
           <cylinderGeometry args={[0.13, 0.17, 1.1, 12]} />
           <meshStandardMaterial color={COLOURS.chimney} roughness={0.7} metalness={0.2} />
         </mesh>
@@ -300,9 +308,9 @@ function CoalPlant({ combustion, combustionRef }) {
         <coneGeometry args={[0.55, 0.45, 8]} />
         <meshStandardMaterial color={COLOURS.coal} roughness={1} />
       </mesh>
-      <SceneLabel position={[0, 2.35, 0.2]} tone={lit ? "text-ink-200" : "text-ink-500"}>
+      <ToggleLabel position={[0, 2.35, 0.2]} tone={lit ? "text-ink-200" : "text-ink-500"}>
         {lit ? `coal plant · ${Math.round(combustion)} % · combustion ↑` : "coal plant · shut down"}
-      </SceneLabel>
+      </ToggleLabel>
       </group>
       {CHIMNEY_TOPS.map((top, i) => (
         <FluxStream key={i} from={top} to={[AIR_OVER_PLANT[0] + (i === 0 ? -0.3 : 0.3), AIR_OVER_PLANT[1], AIR_OVER_PLANT[2]]} rateRef={combustionRef} colour={COLOURS.combustion} count={70} travel={2.4} lift={0} spread={0.55} size={0.075} seed={31 + i} emissive={false} opacity={0.7} />
@@ -356,12 +364,12 @@ function Ocean({ solved, oceanRef }) {
       <WaterBody position={OCEAN.centre} size={OCEAN.size} />
       <Carbonates />
       <FluxStream from={AIR_OVER_OCEAN} to={SEA_SURFACE} rateRef={oceanRef} colour={uptaking ? COLOURS.ocean : COLOURS.outgas} count={60} travel={2.4} lift={0.1} spread={1.6} size={0.055} seed={51} />
-      <SceneLabel position={[OCEAN.centre[0], 0.45, OCEAN.centre[2] + OCEAN.size[2] / 2 + 0.15]} tone={uptaking ? "text-sky-300" : "text-rose-300"}>
+      <ToggleLabel position={[OCEAN.centre[0], 0.45, OCEAN.centre[2] + OCEAN.size[2] / 2 + 0.15]} tone={uptaking ? "text-sky-300" : "text-rose-300"}>
         {uptaking ? `ocean · dissolving CO₂ ↓ · pH ${solved.pH.toFixed(2)}` : `ocean · outgassing CO₂ ↑ · pH ${solved.pH.toFixed(2)}`}
-      </SceneLabel>
-      <SceneLabel position={[OCEAN.centre[0], -0.55, OCEAN.centre[2] + OCEAN.size[2] / 2 + 0.3]} tone="text-ink-400">
+      </ToggleLabel>
+      <ToggleLabel position={[OCEAN.centre[0], -0.55, OCEAN.centre[2] + OCEAN.size[2] / 2 + 0.3]} tone="text-ink-400">
         {`dissolved CO₂ · HCO₃⁻ · CO₃²⁻ · surface at ${Math.round(solved.oceanPpm)} ppm-equivalent`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -439,14 +447,14 @@ function Atmosphere({ solved, longwave, shortRef, longRef, trapRef }) {
       <GreenhouseMolecules ppm={solved.ppm} pasture={solved.pasture} />
       <PhotonShower mode="shortwave" origin={SUN.position} ground={{ x: 0, z: 0, w: 12, d: 7, y: 0 }} envelopeY={ENVELOPE_Y} escapeY={DOME_RADIUS + 1} rateRef={shortRef} albedo={0.3} count={140} velocity={5} size={0.05} seed={81} />
       <PhotonShower mode="longwave" ground={{ x: 0, z: 0, w: 12, d: 7, y: 0 }} envelopeY={ENVELOPE_Y} escapeY={DOME_RADIUS + 1} rateRef={longRef} trapRef={trapRef} count={160} velocity={3.6} size={0.055} seed={82} />
-      <SceneLabel position={[3.4, ENVELOPE_Y + 0.45, 4.2]} tone={longwave ? "text-orange-300" : "text-sky-300"}>
+      <ToggleLabel position={[1.2, ENVELOPE_Y + 1.35, 3.6]} tone={longwave ? "text-orange-300" : "text-sky-300"}>
         {longwave
           ? `greenhouse layer · CO₂ + CH₄ · ${Math.round(solved.opacity * 100)} % of outgoing IR absorbed`
           : `atmosphere · ${Math.round(solved.ppm)} ppm CO₂ · shortwave passes through`}
-      </SceneLabel>
-      <SceneLabel position={[4.2, ENVELOPE_Y + 2.2, -1.0]} accent>
+      </ToggleLabel>
+      <ToggleLabel position={[4.2, ENVELOPE_Y + 2.2, -1.0]} accent>
         {`CO₂ ${Math.round(solved.ppm)} ppm · ${solved.ppmPerYear >= 0 ? "+" : "−"}${Math.abs(solved.ppmPerYear).toFixed(1)} ppm/yr`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -482,12 +490,13 @@ function Thermometer({ anomaly }) {
       {ticks.map((t) => (
         <Line key={t.c} points={t.points} color={PALETTE.slate} lineWidth={1} />
       ))}
+      {/* The reading is the instrument's own, so it stays with labels off. */}
       <SceneLabel position={[0, THERMO.height + 0.7, 0]} accent>
         {`${anomaly >= 0 ? "+" : "−"}${Math.abs(anomaly).toFixed(2)} °C`}
       </SceneLabel>
-      <SceneLabel position={[0, -0.25, 0]} tone="text-ink-400">
+      <ToggleLabel position={[0, -0.25, 0]} tone="text-ink-400">
         global mean · vs pre-industrial
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -516,8 +525,11 @@ function BudgetChart({ solved }) {
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** The dome and the ppm counter above it, down to the chart and caption under the slab. */
+const CARBON_VIEW = { cx: 0, cy: 2.2, width: 20.5, height: 16, depth: 10 };
+
 export default function CarbonCycleCanvas({ params = {}, setParam }) {
-  const { combustion = 100, forest = BASELINE_FOREST_PCT, solar = 50, longwave = false, reset = 0, speed = 1 } = params || {};
+  const { combustion = 100, forest = BASELINE_FOREST_PCT, solar = 50, longwave = false, reset = 0, speed = 1, showLabels = true } = params || {};
   const controls = useMemo(() => ({ combustion: Number(combustion) || 0, forest: Number(forest) || BASELINE_FOREST_PCT, solar: Number(solar) || 0 }), [combustion, forest, solar]);
 
   // One ref per stream; the driver writes them every frame, the particles read them.
@@ -546,9 +558,11 @@ export default function CarbonCycleCanvas({ params = {}, setParam }) {
   return (
     <SceneCanvas
       camera={{ position: [0.6, 8.2, 18.5], fov: 44 }}
-      controls={{ minDistance: 6, maxDistance: 38, target: [0, 1.4, 0], maxPolarAngle: Math.PI * 0.49 }}
-      lights={{ ambient: 0.45 + 0.2 * sunK, keyLight: 0.6 + 0.9 * sunK, rim: ECO_COLOURS.sky }}
+      controls={{ minDistance: 6, maxDistance: 38, maxPolarAngle: Math.PI * 0.49 }}
+      lights={{ ambient: 0.58 + 0.2 * sunK, keyLight: 0.7 + 0.9 * sunK, rim: ECO_COLOURS.sky }}
     >
+      <FitCamera view={CARBON_VIEW} direction={[0.03, 0.4, 1]} fov={44} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <CarbonDriver controls={controls} speed={speed} resetToken={reset} rates={rates} onTick={setSolved} setParam={setParam} />
 
       <SunSource position={SUN.position} intensity={sunK} radius={0.7} label={`sun · ${solarLabel(solar)}`} />
@@ -561,10 +575,11 @@ export default function CarbonCycleCanvas({ params = {}, setParam }) {
       <Thermometer anomaly={solved.anomaly} />
       <BudgetChart solved={solved} />
 
-      <SceneLabel position={[0, -1.35, 4.9]} tone="text-ink-400">
+      <ToggleLabel position={[0, -5.4, 5.6]} tone="text-ink-400">
         {`${SIM_YEARS_PER_SECOND * speed} sim-years per second · year ${solved.year.toFixed(0)} · ${longwave ? "showing re-radiated longwave IR" : "showing incoming shortwave sunlight"}`}
-      </SceneLabel>
+      </ToggleLabel>
 
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }

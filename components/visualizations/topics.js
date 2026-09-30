@@ -2655,10 +2655,11 @@ export const TOPICS = [
     blurb: "Lock-and-key binding, and what heat does to it",
     syllabus: "Biology 5 · Enzymes",
     keywords: "enzyme substrate active site lock key denature optimum temperature ph catalyst protein",
-    defaults: { temperature: 37, ph: 7, speed: 1 },
+    defaults: { temperature: 37, ph: 7, speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "temperature", label: "Temperature", min: 0, max: 80, step: 1, format: (v) => `${v}°C` },
       { type: "slider", key: "ph", label: "pH", min: 1, max: 14, step: 0.5, format: (v) => v.toFixed(1) },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
       // No "speed" slider here — the HUD's universal Animation Speed slider
       // already writes this key. See the note on `bohr`.
     ],
@@ -2702,11 +2703,12 @@ export const TOPICS = [
     blurb: "Complementary A–T and C–G pairs, and replication",
     syllabus: "Biology 17 · Inheritance",
     keywords: "dna double helix base pair adenine thymine cytosine guanine replication chromosome gene nucleotide",
-    defaults: { spin: 1, pairs: 16, unzip: 0 },
+    // No spin slider: the helix turns at the Animation Speed slider's rate (0 pauses it).
+    defaults: { pairs: 16, unzip: 0, showLabels: true },
     controls: [
-      { type: "slider", key: "spin", label: "Spin speed", min: 0, max: 2.5, step: 0.1, format: (v) => (v === 0 ? "paused" : `${v.toFixed(1)}×`) },
       { type: "slider", key: "pairs", label: "Base pairs", min: 8, max: 26, step: 1 },
       { type: "action", key: "unzip", label: "Unzip DNA", icon: Scissors },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "DNA is a double helix: two strands of nucleotides wound around each other and joined by base pairs.",
@@ -2817,6 +2819,7 @@ export const TOPICS = [
       showBonds: true,
       colourByType: true,
       spin: true,
+      showLabels: true,
     },
     controls: [
       { type: "choice", key: "structure", label: "Secondary structure", columns: 3, options: STRUCTURE_OPTIONS },
@@ -2826,6 +2829,7 @@ export const TOPICS = [
       { type: "toggle", key: "showBonds", label: "Show hydrogen bonds" },
       { type: "toggle", key: "colourByType", label: "Colour by hydrophobicity" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Secondary structure is held together by hydrogen bonds along the backbone. In an α-helix each one runs from residue i to residue i+4, and that fixed spacing is what forces the spiral of 3.6 residues per turn.",
@@ -3021,11 +3025,12 @@ export const TOPICS = [
     syllabus: "Biology 14 · Coordination & Response",
     keywords:
       "reflex arc withdrawal reflex stimulus receptor nociceptor sensory neuron relay neuron interneuron motor neuron effector spinal cord dorsal root ganglion ventral root synapse neurotransmitter action potential myelin conduction velocity involuntary response time",
-    defaults: { stimulus: "flame", pathway: "intact", slowMotion: true, speed: 1 },
+    defaults: { stimulus: "flame", pathway: "intact", slowMotion: true, speed: 1, showLabels: true },
     controls: [
       { type: "choice", key: "stimulus", label: "Stimulus type", columns: 1, options: STIMULUS_OPTIONS },
       { type: "choice", key: "pathway", label: "Nerve pathway", columns: 1, options: NERVE_PATHWAY_OPTIONS },
       { type: "toggle", key: "slowMotion", label: "Slow-motion playback (10× slowed)" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "A reflex arc is the shortest route from a stimulus to a response: receptor → sensory neuron → relay neuron in the spinal cord → motor neuron → effector. The impulse never has to reach the brain's cortex to make the arm move, which is why the response is involuntary and why it is fast — about 30 ms from the burn to the biceps being told to contract, most of it spent travelling up the arm.",
@@ -3080,11 +3085,12 @@ export const TOPICS = [
     syllabus: "Biology 14 · Coordination & Response · Movement",
     keywords:
       "antagonistic muscle pair biceps triceps agonist antagonist flexor extensor elbow joint hinge lever torque moment force distance tendon ligament contraction relaxation bulge fatigue lactic acid anaerobic respiration strain skeleton humerus radius ulna scapula",
-    defaults: { elbowAngle: 90, load: 10, fatigue: 0, speed: 1 },
+    defaults: { elbowAngle: 90, load: 10, fatigue: 0, speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "elbowAngle", label: "Elbow joint angle", min: 0, max: 145, step: 1, format: (v) => (v === 0 ? "0° · full extension" : v === 145 ? "145° · full flexion" : `${v}°`) },
       { type: "slider", key: "load", label: "Handheld load", min: 0, max: 25, step: 0.5, format: (v) => (v === 0 ? "no dumbbell" : `${v} kg dumbbell`) },
       { type: "action", key: "fatigue", label: "Fatigue mode — lactic acid build-up", icon: Activity, variant: "danger" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Muscle tissue can only PULL. It contracts, gets shorter and fatter, and hauls its two attachment points together; it cannot push them apart. So a joint that has to move both ways needs two muscles on opposite sides: the biceps flexes the elbow, the triceps extends it, and while one contracts the other relaxes and is stretched. That is an antagonistic pair.",
@@ -3134,12 +3140,13 @@ export const TOPICS = [
     syllabus: "Biology 8 · Transport in Plants",
     keywords:
       "transpiration transpiration stream xylem vessel lignin cohesion tension adhesion capillary root hair osmosis water potential stoma stomata guard cell turgor potassium abscisic acid ABA humidity wind light intensity boundary layer vapour pressure deficit cavitation embolism phloem translocation spongy mesophyll palisade epidermis",
-    defaults: { light: 70, humidity: 50, wind: 2, soil: "hydrated", speed: 1 },
+    defaults: { light: 70, humidity: 50, wind: 2, soil: "hydrated", speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "light", label: "Light intensity", min: 0, max: 100, step: 1, format: (v) => (v === 0 ? "0 % · night" : `${v} %`) },
       { type: "slider", key: "humidity", label: "Relative humidity", min: 10, max: 95, step: 1, format: (v) => `${v} % RH` },
       { type: "slider", key: "wind", label: "Wind speed", min: 0, max: 10, step: 0.5, format: (v) => (v === 0 ? "still air" : `${v} m/s`) },
       { type: "choice", key: "soil", label: "Soil moisture", columns: 2, options: SOIL_MOISTURE_OPTIONS },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "There is no pump. Water evaporates from the wet walls of the spongy mesophyll cells and diffuses out of the stomata; that loss pulls on the column of water in the xylem, and because water molecules cling to each other (cohesion) and to the lignified vessel wall (adhesion), the whole unbroken thread is dragged up from the roots — the cohesion–tension theory. The column is under TENSION, typically −1 to −2 MPa at midday, and if it is pulled too hard it snaps: an air bubble (embolism) breaks the vessel.",
@@ -3194,11 +3201,12 @@ export const TOPICS = [
     syllabus: "Biology 7 · Nutrition & the Alimentary Canal",
     keywords:
       "peristalsis oesophagus esophagus small intestine bolus chyme swallowing smooth muscle circular muscle longitudinal muscle muscularis contraction relaxation wave gravity antiperistalsis lumen mucosa transit digestive tract alimentary canal segmentation sphincter",
-    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1 },
+    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1, showLabels: true },
     controls: [
       { type: "action", key: "swallow", label: "Trigger swallow — peristaltic wave", icon: Waves },
       { type: "choice", key: "consistency", label: "Bolus consistency", columns: 1, options: BOLUS_CONSISTENCY_OPTIONS },
       { type: "choice", key: "orientation", label: "Gravity inversion", columns: 2, options: GRAVITY_ORIENTATION_OPTIONS },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "The wall of the gut has two layers of smooth muscle at right angles: an inner CIRCULAR layer whose fibres run round the tube, and an outer LONGITUDINAL layer whose fibres run along it. Neither can push — each can only contract and shorten — so moving food is a matter of WHERE each layer is contracting.",
@@ -3253,13 +3261,14 @@ export const TOPICS = [
     syllabus: "Biology 9 · Ecosystems & Human Influence",
     keywords:
       "carbon cycle photosynthesis respiration combustion fossil fuel coal decomposition ocean carbonate dissolved carbon dioxide CO2 methane CH4 livestock deforestation forest cover greenhouse effect greenhouse gas longwave infrared shortwave radiation albedo radiative forcing global warming temperature anomaly climate change ppm gigatonne carbon sink source solar cycle",
-    defaults: { combustion: 100, forest: 60, solar: 50, longwave: false, reset: 0, speed: 1 },
+    defaults: { combustion: 100, forest: 60, solar: 50, longwave: false, reset: 0, speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "combustion", label: "Fossil fuel combustion rate", min: 0, max: 500, step: 5, format: (v) => (v === 0 ? "0 % · shut down" : `${v} % · ${((FOSSIL_GTC_PER_YEAR * v) / 100).toFixed(1)} GtC/yr`) },
       { type: "slider", key: "forest", label: "Global forest cover", min: 10, max: 100, step: 1, format: (v) => `${v} % forest · ${100 - v} % pasture` },
       { type: "slider", key: "solar", label: "Solar activity cycle", min: 0, max: 100, step: 1, format: (v) => solarLabel(v) },
       { type: "toggle", key: "longwave", label: "Photon filter: re-radiated longwave IR (off = shortwave sunlight)" },
       { type: "action", key: "reset", label: "Reset to present day · 420 ppm", icon: RotateCcw, variant: "ghost" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Carbon moves round a loop. Photosynthesis takes about 120 gigatonnes of carbon a year out of the air into plants; respiration and decay put almost all of it back. The ocean swaps a similar amount with the air across its surface. Left alone this loop is BALANCED — for ten thousand years before industry the air sat at 280 ppm — and the tiny net flows today (the land and sea each soaking up 2–3 GtC/yr more than they give) only exist because the air is now richer in CO₂ than the plants and water below it.",
@@ -3314,11 +3323,12 @@ export const TOPICS = [
     syllabus: "Biology 9 · Energy Flow in Ecosystems",
     keywords:
       "food chain food web energy pyramid trophic level producer primary consumer secondary consumer tertiary apex predator herbivore carnivore ten percent rule energy transfer efficiency heat loss respiration biomass pyramid of numbers chain length bioaccumulation biomagnification DDT microplastics persistent toxin trophic cascade keystone predator sparrowhawk blue tit caterpillar oak",
-    defaults: { insolation: 100, toxin: 0, cascade: 0, speed: 1 },
+    defaults: { insolation: 100, toxin: 0, cascade: 0, speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "insolation", label: "Primary solar insolation", min: 50, max: 150, step: 5, format: (v) => `${v} % · ${Math.round((PRODUCER_KJ_AT_FULL_SUN * v) / 100).toLocaleString()} kJ fixed` },
       { type: "action", key: "toxin", label: "Introduce persistent bioaccumulative toxin", icon: Biohazard, variant: "danger" },
       { type: "action", key: "cascade", label: "Apex predator removal / trophic cascade", icon: Skull, variant: "ghost" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Only about 10 % of the energy stored in one trophic level becomes stored energy in the next. The rest — 90 % — is used by the organisms themselves (respiration, movement, keeping warm), lost as heat, left uneaten (roots, bones, feathers) or passed out undigested, and none of that is available to whatever eats them. So 10 000 kJ in the oak leaves becomes 1 000 kJ of caterpillar, 100 kJ of blue tit and 10 kJ of sparrowhawk — and since each animal up the chain is bigger and needs more, the headcounts fall even faster: half a million leaves feed a single hawk.",
@@ -3373,11 +3383,12 @@ export const TOPICS = [
     syllabus: "Biology 8 · Reproduction in Plants",
     keywords:
       "flower pollination fertilisation fertilization pollen grain stigma style ovary ovule micropyle anther filament stamen carpel pistil petal sepal nectar wind-pollinated insect-pollinated pollen tube tube nucleus generative nucleus sperm nuclei egg cell polar nuclei zygote endosperm double fertilisation diploid triploid seed",
-    defaults: { vector: "insect", pollinate: 0, time: 0, speed: 1 },
+    defaults: { vector: "insect", pollinate: 0, time: 0, speed: 1, showLabels: true },
     controls: [
       { type: "choice", key: "vector", label: "Pollination vector", columns: 2, options: POLLINATION_VECTOR_OPTIONS },
       { type: "action", key: "pollinate", label: "Trigger pollination — deliver a grain to the stigma", icon: Flower2 },
       { type: "slider", key: "time", label: "Time — pollen tube growth", min: 0, max: TIMELINE_SECONDS, step: 0.1, format: (v) => timeLabel(v) },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "POLLINATION is a delivery: a pollen grain from an anther lands on a stigma. It is over in a moment and involves no fusion of anything. A wind-pollinated flower makes millions of small, smooth, dry grains and holds a feathery stigma out in the air to sieve them; an insect-pollinated flower makes fewer, larger, spiky and sticky grains, and pays a courier with nectar, scent and bright petals to carry them from anther to a sticky stigma inside the flower.",
@@ -3432,10 +3443,11 @@ export const TOPICS = [
     syllabus: "Biology 9 · Microorganisms & Disease",
     keywords:
       "bacteria bacterium virus bacteriophage T4 phage prokaryote cell wall peptidoglycan cell membrane cytoplasm circular DNA chromosome plasmid 70S ribosome flagellum capsid head DNA core contractile sheath baseplate tail fibres lytic cycle attachment injection replication assembly lysis burst size antibiotic penicillin tetracycline antibiotic resistance living non-living pathogen infection",
-    defaults: { antibiotic: 0, lytic: 0, speed: 1 },
+    defaults: { antibiotic: 0, lytic: 0, speed: 1, showLabels: true },
     controls: [
       { type: "action", key: "antibiotic", label: "Administer penicillin / antibiotics", icon: Pill, variant: "danger" },
       { type: "action", key: "lytic", label: "Trigger viral lytic cycle", icon: Bug },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "A bacterium is a living cell. It has a peptidoglycan cell wall, a membrane, cytoplasm in which it respires and makes its own proteins on 70S ribosomes, a single circular chromosome loose in the cytoplasm (no nucleus), often small extra rings of DNA called plasmids, and sometimes a flagellum. It grows, responds to its surroundings and reproduces on its own by splitting in two. A virus has none of that: a T4 bacteriophage is a protein capsid round a length of DNA, with a contractile sheath, a baseplate and tail fibres — a particle, not a cell, and not alive by any of the criteria.",
@@ -3490,7 +3502,7 @@ export const TOPICS = [
     syllabus: "Biology 17 · Inheritance · Cell Division",
     keywords:
       "mitosis meiosis cell division chromosome chromatid sister chromatids homologous chromosomes homologues bivalent tetrad centromere kinetochore spindle microtubule centrosome centriole prophase metaphase anaphase telophase cytokinesis interphase G2 S phase replication diploid haploid 2n n ploidy gamete equational reductional crossing over chiasma chiasmata recombination synapsis independent assortment genetic variation diversity colchicine spindle poison metaphase arrest cleavage furrow nuclear envelope",
-    defaults: { mode: "mitosis", stage: 0, playing: true, chiasmata: 2, colchicine: 0, speed: 1 },
+    defaults: { mode: "mitosis", stage: 0, playing: true, chiasmata: 2, colchicine: 0, speed: 1, showLabels: true },
     controls: [
       { type: "choice", key: "mode", label: "Mode", columns: 1, options: DIVISION_MODE_OPTIONS, patch: (mode) => ({ mode, stage: 0 }) },
       {
@@ -3514,6 +3526,7 @@ export const TOPICS = [
         when: (p) => p.mode === "meiosis",
       },
       { type: "action", key: "colchicine", label: "Colchicine — spindle poison (press again to wash out)", icon: Syringe, variant: "danger" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Two words students swap: SISTER CHROMATIDS are the two identical copies of one chromosome, made in S phase and joined at the centromere — same colour, same alleles, one chromosome until they part. HOMOLOGOUS CHROMOSOMES are the two different members of a pair, one from each parent (red and blue here), carrying the same genes but possibly different alleles. Count centromeres to count chromosomes: a cell with 2n = 4 has four chromosomes and eight chromatids after replication, and still four chromosomes when they are lined up on the plate.",
@@ -3563,7 +3576,7 @@ export const TOPICS = [
     syllabus: "Biology 9 · Transport in Animals · The Heart",
     keywords:
       "heart cardiac cycle atrium atria ventricle ventricles right left atrial systole ventricular systole diastole isovolumetric contraction relaxation ejection filling valve tricuspid mitral bicuspid aortic pulmonary semilunar atrioventricular lub dub S1 S2 heart sounds phonocardiogram murmur ECG electrocardiogram P wave QRS complex T wave SA node sinoatrial pacemaker AV node bundle of His Purkinje fibres conduction Wiggers diagram pressure volume stroke volume cardiac output ejection fraction heart rate bpm ventricular fibrillation defibrillator aortic stenosis pressure gradient aorta vena cava pulmonary artery pulmonary vein",
-    defaults: { bpm: 75, pathology: "normal", stage: 0, playing: true, speed: 1 },
+    defaults: { bpm: 75, pathology: "normal", stage: 0, playing: true, speed: 1, showLabels: true },
     controls: [
       { type: "slider", key: "bpm", label: "Heart rate", min: MIN_BPM, max: MAX_BPM, step: 1, format: formatBpm },
       { type: "choice", key: "pathology", label: "Pathology mode", columns: 1, options: CARDIAC_PATHOLOGY_OPTIONS },
@@ -3576,6 +3589,7 @@ export const TOPICS = [
         playLabel: "Step-by-step",
         pauseLabel: "Continuous · real-time",
       },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "One beat is a sequence of pressure changes that open and shut four one-way valves. The SA node fires (P wave) and the atria contract, topping up ventricles that are already mostly full. The impulse waits at the AV node, then races down the bundle of His and Purkinje fibres (QRS); the ventricles contract, pressure inside them shoots above atrial pressure and the tricuspid and mitral valves slam shut — S1, 'lub'. For a moment every valve is closed and the volume cannot change: isovolumetric contraction.",

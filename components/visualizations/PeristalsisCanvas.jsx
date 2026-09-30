@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
+  FitCamera,
+  LabelsOn,
   PALETTE,
   SceneCanvas,
-  SceneLabel,
+  ToggleLabel,
   VectorArrow,
   clamp,
 } from "@/components/visualizations/scene-kit";
@@ -276,7 +278,7 @@ function Bolus({ consistency, live, texture }) {
 
   const colour = consistency === "liquid" ? COLOURS.liquid : consistency === "dry" ? COLOURS.dry : COLOURS.soft;
   return (
-    <mesh ref={ref} geometry={geometry} castShadow>
+    <mesh ref={ref} geometry={geometry}>
       <meshStandardMaterial
         color={colour}
         map={texture ?? undefined}
@@ -388,7 +390,7 @@ function Gut({ live, consistency, texture }) {
         <meshStandardMaterial color={COLOURS.wall} roughness={0.6} transparent opacity={0.22} side={THREE.DoubleSide} depthWrite={false} />
       </ProfiledTube>
       {/* Circular muscle: one ring per station, fattening and flushing as it contracts. */}
-      <TubeRings length={TUBE_LENGTH} count={RING_COUNT} radiusAt={ringRadius} thicknessAt={ringThickness} stationAt={ringStation} colourAt={ringColour} tubular={30} radial={8} dynamic castShadow>
+      <TubeRings length={TUBE_LENGTH} count={RING_COUNT} radiusAt={ringRadius} thicknessAt={ringThickness} stationAt={ringStation} colourAt={ringColour} tubular={30} radial={8} dynamic>
         <meshStandardMaterial vertexColors roughness={0.5} emissive="#ffffff" emissiveIntensity={0.1} />
       </TubeRings>
       {/* Longitudinal muscle: fibres down the outside. */}
@@ -405,41 +407,68 @@ function Gut({ live, consistency, texture }) {
         <torusGeometry args={[LUMEN_RADIUS + WALL_THICKNESS + 0.02, 0.06, 10, 32]} />
         <meshStandardMaterial color={COLOURS.wall} roughness={0.6} />
       </mesh>
-      <mesh position={[0, TUBE_LENGTH + 0.55, 0]} scale={[1.6, 1.0, 1.2]}>
-        <sphereGeometry args={[0.6, 24, 18]} />
-        <meshStandardMaterial color={COLOURS.stomach} roughness={0.65} transparent opacity={0.75} />
-      </mesh>
-      <SceneLabel position={[0, -0.5, 0.4]} tone="text-ink-300">
+      <Stomach />
+      <ToggleLabel position={[0, -0.5, 0.4]} tone="text-ink-300">
         from the pharynx · mouth end
-      </SceneLabel>
-      <SceneLabel position={[0, TUBE_LENGTH + 1.25, 0.4]} tone="text-ink-300">
+      </ToggleLabel>
+      <ToggleLabel position={[0.55, TUBE_LENGTH + 1.75, 0.4]} tone="text-ink-300">
         stomach · cardiac sphincter
-      </SceneLabel>
+      </ToggleLabel>
 
-      {/* Labels that ride the wave. */}
-      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.complete ? l.state.constriction : null)} offset={[1.25, 0, 0.3]}>
-        <SceneLabel position={[0, 0, 0]} tone="text-rose-300">
+      {/* Labels that ride the wave. The one behind the bolus hangs off the
+          left of the tube, with the bolus, and the one ahead of it off the right, each edge-
+          aligned to the tube: all three used to be centred just right of it,
+          and at the bolus they sat on top of each other. */}
+      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.complete ? l.state.constriction : null)} offset={[-0.55, 0, 0.3]}>
+        <ToggleLabel position={[0, 0, 0]} tone="text-rose-300" className="inline-block -translate-x-1/2">
           circular muscle contracting · behind
-        </SceneLabel>
+        </ToggleLabel>
       </Follower>
-      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.delivered ? Math.min(TUBE_LENGTH_CM - 0.5, l.state.relaxation) : null)} offset={[1.25, 0, 0.3]}>
-        <SceneLabel position={[0, 0, 0]} tone="text-amber-300">
+      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.delivered ? Math.min(TUBE_LENGTH_CM - 0.5, l.state.relaxation) : null)} offset={[0.55, 0, 0.3]}>
+        <ToggleLabel position={[0, 0, 0]} tone="text-amber-300" className="inline-block translate-x-1/2">
           longitudinal contracting · lumen opens ahead
-        </SceneLabel>
+        </ToggleLabel>
       </Follower>
-      <Follower live={live} pick={(l) => (l.state && l.presence > 0.3 && !l.state.delivered ? l.state.bolus : null)} offset={[-1.3, 0, 0.3]}>
-        <SceneLabel position={[0, 0, 0]} tone="text-ink-100">
+      <Follower live={live} pick={(l) => (l.state && l.presence > 0.3 && !l.state.delivered ? l.state.bolus : null)} offset={[-0.55, 0, 0.3]}>
+        <ToggleLabel position={[0, 0, 0]} tone="text-ink-100" className="inline-block -translate-x-1/2">
           bolus
-        </SceneLabel>
+        </ToggleLabel>
       </Follower>
+    </group>
+  );
+}
+
+/**
+ * The stomach the oesophagus opens into: a J-shaped sac that swings to the
+ * body's left, grown on the shared noise blob rather than a bare sphere. Its
+ * neck overlaps the end of the tube so the two share no face.
+ */
+function Stomach() {
+  const geometry = useMemo(() => makeBlobGeometry({ radius: 0.62, amp: 0.1, freq: 1.3, seed: 12, scale: [1.7, 1.05, 1.15], segments: 40, rings: 28 }), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <group position={[0.55, TUBE_LENGTH + 0.72, 0]} rotation={[0, 0, -0.35]}>
+      <mesh geometry={geometry}>
+        <meshStandardMaterial color={COLOURS.stomach} roughness={0.55} transparent opacity={0.82} />
+      </mesh>
+      {/* Rugae: the folds of the lining, seen through the wall. */}
+      {[-0.55, -0.2, 0.15, 0.5].map((x) => (
+        <mesh key={x} position={[x, -0.05, 0.25]} rotation={[0, 0, 0.3]} scale={[0.12, 0.55, 0.12]}>
+          <sphereGeometry args={[1, 12, 10]} />
+          <meshStandardMaterial color="#e2a0ae" roughness={0.5} transparent opacity={0.6} depthWrite={false} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** The whole tube, pharynx to stomach, with the gravity arrow beside it. */
+const PERISTALSIS_VIEW = { cx: 0.7, cy: -0.35, width: 8.8, height: 11.2, depth: 2.5 };
+
 export default function PeristalsisCanvas({ params = {}, setParam }) {
-  const { swallow = 0, consistency = "soft", orientation = "upright", speed = 1 } = params || {};
+  const { swallow = 0, consistency = "soft", orientation = "upright", speed = 1, showLabels = true } = params || {};
   const cKey = CONSISTENCIES[consistency] ? consistency : "soft";
   const oKey = ORIENTATIONS[orientation] ? orientation : "upright";
 
@@ -452,9 +481,11 @@ export default function PeristalsisCanvas({ params = {}, setParam }) {
   return (
     <SceneCanvas
       camera={{ position: [0.8, 0.4, 12.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 28, target: [0.4, 0, 0] }}
-      lights={{ ambient: 0.55, keyLight: 1.2, rim: PALETTE.rose }}
+      controls={{ minDistance: 5, maxDistance: 28 }}
+      lights={{ ambient: 0.68, keyLight: 1.25, rim: PALETTE.rose }}
     >
+      <FitCamera view={PERISTALSIS_VIEW} direction={[0.06, 0.05, 1]} fov={46} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <PeristalsisDriver trigger={swallow} consistency={cKey} orientation={oKey} speed={speed} live={live} setParam={setParam} />
 
       <FlipGroup live={live}>
@@ -465,10 +496,11 @@ export default function PeristalsisCanvas({ params = {}, setParam }) {
       </FlipGroup>
 
       {/* Gravity, fixed to the world: always straight down. */}
-      <VectorArrow from={[3.4, 1.4, 0]} to={[3.4, -0.4, 0]} color={COLOURS.gravity} radius={0.05} headLength={0.32} headRadius={0.14} label="g" labelOffset={0.35} />
-      <SceneLabel position={[3.4, 2.0, 0]} tone={oKey === "inverted" ? "text-amber-300" : "text-ink-400"}>
+      <VectorArrow from={[3.4, 1.4, 0]} to={[3.4, -0.4, 0]} color={COLOURS.gravity} radius={0.05} headLength={0.32} headRadius={0.14} label={showLabels ? "g" : undefined} labelOffset={0.35} />
+      <ToggleLabel position={[3.4, 2.0, 0]} tone={oKey === "inverted" ? "text-amber-300" : "text-ink-400"}>
         {oKey === "inverted" ? "upside-down · the wave still delivers" : "right-side up"}
-      </SceneLabel>
+      </ToggleLabel>
+      </LabelsOn.Provider>
 
     </SceneCanvas>
   );

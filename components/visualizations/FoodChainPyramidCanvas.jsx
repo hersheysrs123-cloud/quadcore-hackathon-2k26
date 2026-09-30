@@ -7,8 +7,11 @@ import * as THREE from "three";
 import {
   Halo,
   PALETTE,
+  Callout,
+  FitCamera,
+  LabelsOn,
   SceneCanvas,
-  SceneLabel,
+  ToggleLabel,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
@@ -46,8 +49,14 @@ const TIER_D = 3.2;
 const PYRAMID_X = -0.4;
 const SUN = { position: [3.4, 8.3, -3.6] };
 const CHART = { position: [6.9, 0.35, -1.2], width: 4.4, height: 3.4 };
+/** The pyramid, the heat plume to its right, the chart beyond, and the sun above. */
+const FOOD_VIEW = { cx: 1.1, cy: 3.2, width: 22, height: 11.6, depth: 7 };
 /** The toxin label hangs off the slab's right edge, but never closer than this to the centre — the apex slab is narrow. */
 const LABEL_REACH = 3.4;
+/** Where the column of tier labels ends, left of the widest slab. */
+const TIER_LABEL_X = PYRAMID_X - 4.6;
+/** Extra spacing of that column over the slabs' own, so two-line labels clear each other. */
+const TIER_FAN = 0.8;
 
 const COLOURS = {
   energy: PALETTE.gold,
@@ -57,8 +66,8 @@ const COLOURS = {
   dead: "#64748b",
   floor: "#3d5a2e",
   soil: "#4a3627",
-  leaf: "#a7f3d0",
-  caterpillar: "#3f6212",
+  leaf: "#86efac",
+  caterpillar: "#65a30d",
   titBody: "#0369a1",
   titBreast: "#fde047",
   hawkBody: "#78350f",
@@ -91,12 +100,14 @@ const upRate = (kj) => (kj <= 0 ? 0 : 1.0 + 0.9 * Math.log10(kj + 1));
 /** Geometry for one of each organism, built once and disposed with the scene. */
 function useOrganismParts() {
   const parts = useMemo(() => {
-    const leaf = new THREE.SphereGeometry(1, 10, 6).scale(0.19, 0.035, 0.11);
-    const caterpillar = new THREE.CapsuleGeometry(0.035, 0.17, 3, 8).rotateZ(Math.PI / 2).translate(0, 0.035, 0);
-    const titBody = new THREE.SphereGeometry(1, 12, 9).scale(0.13, 0.11, 0.1).translate(0, 0.11, 0);
-    const titBreast = new THREE.SphereGeometry(1, 10, 7).scale(0.09, 0.07, 0.085).translate(0.05, 0.08, 0);
-    const hawkBody = new THREE.SphereGeometry(1, 14, 10).scale(0.32, 0.17, 0.15).translate(0, 0.2, 0);
-    const hawkWings = new THREE.BoxGeometry(0.16, 0.025, 0.95).translate(0, 0.28, 0);
+    // About twice their old size: at 0.2–0.6 units on a slab seven wide the
+    // organisms were specks, and the pyramid read as four coloured boxes.
+    const leaf = new THREE.SphereGeometry(1, 14, 8).scale(0.34, 0.05, 0.19);
+    const caterpillar = new THREE.CapsuleGeometry(0.065, 0.3, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.065, 0);
+    const titBody = new THREE.SphereGeometry(1, 16, 12).scale(0.23, 0.19, 0.17).translate(0, 0.19, 0);
+    const titBreast = new THREE.SphereGeometry(1, 14, 10).scale(0.15, 0.12, 0.145).translate(0.09, 0.14, 0);
+    const hawkBody = new THREE.SphereGeometry(1, 18, 12).scale(0.5, 0.26, 0.23).translate(0, 0.3, 0);
+    const hawkWings = new THREE.BoxGeometry(0.26, 0.035, 1.5).translate(0, 0.42, 0);
     return { leaf, caterpillar, titBody, titBreast, hawkBody, hawkWings };
   }, []);
   useEffect(() => () => Object.values(parts).forEach((g) => g.dispose()), [parts]);
@@ -158,7 +169,6 @@ function Population({ count, maxCount, y, widthRef, parts, seed, dead = false, e
           }}
           args={[part.geometry, undefined, maxCount]}
           frustumCulled={false}
-          castShadow
         >
           <meshStandardMaterial color={dead ? COLOURS.dead : part.colour} roughness={0.6} emissive={dead ? "#000000" : part.colour} emissiveIntensity={dead ? 0 : 0.12} />
         </instancedMesh>
@@ -193,7 +203,7 @@ function TierSlab({ tier, widthRef }) {
   const empty = tier.energyKJ <= 0;
   return (
     <group>
-      <mesh ref={meshRef} position={[PYRAMID_X, y, 0]} castShadow receiveShadow>
+      <mesh ref={meshRef} position={[PYRAMID_X, y, 0]}>
         <boxGeometry args={[1, TIER_H - 0.06, TIER_D]} />
         <meshStandardMaterial color={empty ? COLOURS.ghost : colour} roughness={0.55} metalness={0.05} transparent={empty} opacity={empty ? 0.18 : 1} emissive={toxic ? COLOURS.toxin : colour} emissiveIntensity={toxic ? 0.35 : 0.08} />
       </mesh>
@@ -212,22 +222,25 @@ function TierLabels({ tier, width, doses }) {
   const reach = Math.max(width / 2 + 0.35, LABEL_REACH);
   return (
     <group>
-      {/* Name and numbers stacked on the front face, so nothing hangs off the left into the HUD. */}
-      <SceneLabel position={[PYRAMID_X, y - TIER_H * 0.27, zFront]} tone="text-ink-300">
-        {`${tier.label} · ${tier.organism}`}
-      </SceneLabel>
-      <SceneLabel position={[PYRAMID_X, y - TIER_H * 0.72, zFront]} accent={pop > 0} tone={pop > 0 ? undefined : "text-rose-300"}>
-        {`${energyText} · ${popText}`}
-      </SceneLabel>
+      {/* Name and numbers in a column to the left, one line per tier, each
+          joined to its slab's front corner, name over numbers. On the front faces they covered
+          the organisms standing on the tier below. */}
+      <Callout anchor={[PYRAMID_X - width / 2, y - TIER_H / 2, zFront]} at={[TIER_LABEL_X, y - TIER_H / 2 + (tier.level - (TIERS.length - 1) / 2) * TIER_FAN, zFront]} side="left" accent={pop > 0} tone={pop > 0 ? undefined : "text-rose-300"}>
+        <span className="inline-block text-right leading-tight">
+          <span className="text-ink-300">{tier.label}</span>
+          <br />
+          {`${energyText} · ${popText}`}
+        </span>
+      </Callout>
       {doses > 0 && (
-        <SceneLabel position={[PYRAMID_X + reach, y - TIER_H / 2, zFront]} tone={status === "lethal" || status === "harmed" ? "text-fuchsia-300" : "text-ink-400"}>
+        <ToggleLabel position={[PYRAMID_X + reach, y - TIER_H / 2, zFront]} tone={status === "lethal" || status === "harmed" ? "text-fuchsia-300" : "text-ink-400"}>
           {`${tier.toxinPpm < 1 ? tier.toxinPpm.toFixed(2) : tier.toxinPpm.toFixed(1)} ppm · ${tier.toxinLabel}`}
-        </SceneLabel>
+        </ToggleLabel>
       )}
       {tier.removed && (
-        <SceneLabel position={[PYRAMID_X, y + 0.15, 0]} tone="text-rose-300">
+        <ToggleLabel position={[PYRAMID_X, y + 0.15, 0]} tone="text-rose-300">
           {tier.toxinStatus === "lethal" ? "sparrowhawk poisoned · population 0" : "sparrowhawk removed · trophic cascade"}
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
@@ -303,9 +316,9 @@ function FifthLink({ pyramid, apexWidth }) {
       {box.map((pts, i) => (
         <Line key={i} points={pts} color={COLOURS.ghost} lineWidth={1} dashed dashSize={0.12} gapSize={0.09} transparent opacity={0.6} />
       ))}
-      <SceneLabel position={[0, hh + 0.3, hd]} tone="text-ink-400">
+      <ToggleLabel position={[0, hh + 0.3, hd]} tone="text-ink-400">
         {`5th link? ${NEXT_LINK.organism} · would receive ${pyramid.nextLink.energyKJ.toFixed(1)} kJ · needs ${NEXT_LINK.kjPerIndividual} kJ · not viable`}
-      </SceneLabel>
+      </ToggleLabel>
       <Line points={[[-apexWidth / 2, -hh - TIER_H + 0.03, hd + 0.02], [-hw, -hh, hd + 0.02]]} color={COLOURS.ghost} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.08} transparent opacity={0.4} />
       <Line points={[[apexWidth / 2, -hh - TIER_H + 0.03, hd + 0.02], [hw, -hh, hd + 0.02]]} color={COLOURS.ghost} lineWidth={0.8} dashed dashSize={0.08} gapSize={0.08} transparent opacity={0.4} />
     </group>
@@ -342,7 +355,7 @@ function EnergyChart({ pyramid }) {
 // ─── The scene ──────────────────────────────────────────────────────
 
 export default function FoodChainPyramidCanvas({ params = {} }) {
-  const { insolation = 100, toxin = 0, cascade = 0, speed = 1 } = params || {};
+  const { insolation = 100, toxin = 0, cascade = 0, speed = 1, showLabels = true } = params || {};
   const pyramid = useMemo(() => solveFoodChain({ insolation: Number(insolation) || 100, toxinDoses: Number(toxin) || 0, cascadePresses: Number(cascade) || 0 }), [insolation, toxin, cascade]);
   const parts = useOrganismParts();
 
@@ -390,9 +403,11 @@ export default function FoodChainPyramidCanvas({ params = {} }) {
   return (
     <SceneCanvas
       camera={{ position: [1.8, 5.4, 16.2], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 34, target: [1.6, 2.2, 0], maxPolarAngle: Math.PI * 0.49 }}
-      lights={{ ambient: 0.35 + 0.3 * sunK, keyLight: 0.5 + 0.8 * sunK, rim: PALETTE.emerald }}
+      controls={{ minDistance: 5, maxDistance: 34, maxPolarAngle: Math.PI * 0.49 }}
+      lights={{ ambient: 0.55 + 0.25 * sunK, keyLight: 0.65 + 0.8 * sunK, rim: PALETTE.emerald }}
     >
+      <FitCamera view={FOOD_VIEW} direction={[0.05, 0.42, 1]} fov={46} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <SunSource position={SUN.position} intensity={sunK} radius={0.75} label={`sun · ${Math.round(insolation)} % insolation · ${pyramid.producerKJ.toLocaleString()} kJ fixed by the leaves`} />
       <DioramaSlab size={[16, 1.0, 7]} top={COLOURS.floor} side={COLOURS.soil} />
 
@@ -421,18 +436,18 @@ export default function FoodChainPyramidCanvas({ params = {} }) {
       <EnergyChart pyramid={pyramid} />
 
       {/* The heat streams' destination, named. */}
-      <SceneLabel position={[PYRAMID_X + tierWidth(producers.energyKJ) / 2 + 1.1, 3.9, 0]} tone="text-rose-300">
+      <ToggleLabel position={[PYRAMID_X + tierWidth(producers.energyKJ) / 2 + 1.1, 3.9, 0]} tone="text-rose-300">
         90 % lost at each link · heat · waste · uneaten
-      </SceneLabel>
-      <SceneLabel position={[PYRAMID_X, -0.35, TIER_D / 2 + 0.6]} tone="text-ink-400">
+      </ToggleLabel>
+      <ToggleLabel position={[PYRAMID_X + 1.2, -1.35, TIER_D / 2 + 0.6]} tone="text-ink-400">
         {`chain length ${pyramid.chainLength} of ${TIERS.length} · the sparrowhawk gets ${(pyramid.apexShare * 100).toFixed(1)} % of what the leaves stored`}
-      </SceneLabel>
+      </ToggleLabel>
       {pyramid.doses > 0 && (
-        <SceneLabel position={[PYRAMID_X - 1.6, tierTop(0) + 4.25, 0.3]} tone="text-fuchsia-300">
+        <ToggleLabel position={[PYRAMID_X - 1.6, tierTop(0) + 4.25, 0.3]} tone="text-fuchsia-300">
           {`persistent toxin · ${pyramid.doses} ${pyramid.doses === 1 ? "spray" : "sprays"} · ×10 per link · birds harmed above ${TOXIN_HARM_PPM} ppm, killed above ${TOXIN_LETHAL_PPM} ppm`}
-        </SceneLabel>
+        </ToggleLabel>
       )}
-
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }
