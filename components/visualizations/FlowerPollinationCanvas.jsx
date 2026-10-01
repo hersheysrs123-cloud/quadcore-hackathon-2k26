@@ -95,6 +95,13 @@ const COLOURS = {
   endosperm: "#c084fc",
   nectar: "#fde047",
   wind: "#cbd5e1",
+  // vertex colours baked by scripts/flower-model, named here for the key
+  petal: "#f6a2c8",
+  tepal: "#c6c08a",
+  anther: "#f0b92a",
+  stigma: "#c8df4c",
+  style: "#bfe08e",
+  ovary: "#7fb94b",
 };
 
 /** An organ's local point (x out from the axis, y up, z across) at azimuth `a`, in the scene. */

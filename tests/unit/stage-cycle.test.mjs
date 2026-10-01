@@ -194,3 +194,35 @@ describe("the stepper", () => {
     assert.equal(released.arrested, false);
   });
 });
+
+describe("paced stepping and far jumps", () => {
+  const FIVE = makeCycle(
+    ["a", "b", "c", "d", "e"].map((key) => ({ key, label: key.toUpperCase(), duration: 2 })),
+    { stepRate: 1 },
+  );
+  const runFive = (state, seconds, speed = 1, step = 1 / 60) => {
+    let s = state;
+    for (let t = 0; t < seconds - 1e-9; t += step) s = stepperTick(FIVE, s, step, speed);
+    return s;
+  };
+
+  it("a jump to a stage that is not a neighbour goes straight there, never round the wrap", () => {
+    // From a (hold 1) to d (hold 7): the wrap is shorter (4 back) but the film should play forward (6).
+    const s = stepperJump(FIVE, createStepper(FIVE, { index: 0 }), 3);
+    assert.ok(s.tween.to > s.tween.from, "forward through b and c");
+    assert.ok(close(s.tween.to - s.tween.from, 6));
+    // And from e back to b: straight back, not forward round the wrap.
+    const back = stepperJump(FIVE, createStepper(FIVE, { index: 4 }), 1);
+    assert.ok(back.tween.to < back.tween.from);
+  });
+
+  it("a paced cycle steps at its rate, scaled by the animation speed", () => {
+    const s = stepperNext(FIVE, createStepper(FIVE, { index: 0 }));
+    assert.ok(close(s.tween.duration, 2), `one stage at 1 cycle s per s takes 2 s, got ${s.tween.duration}`);
+    const slow = runFive(s, 1, 1);
+    const fast = runFive(s, 1, 2);
+    assert.ok(slow.tween, "still stepping after 1 s at 1×");
+    assert.equal(fast.tween, null, "done after 1 s at 2×");
+    assert.ok(close(fast.t, holdTime(FIVE, 1)));
+  });
+});

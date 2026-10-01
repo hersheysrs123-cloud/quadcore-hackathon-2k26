@@ -57,6 +57,17 @@ const COLOURS = {
   burst: "#fecaca",
   meterOn: PALETTE.rose,
   phageDna: "#f472b6",
+  flagellum: "#ece3cf",
+  // vertex colours baked by scripts/microbe-model, named here for the key
+  wall: "#c9a066",
+  membrane: "#e98bb6",
+  cytoplasm: "#c4e6f6",
+  nucleoid: "#8b8ef4",
+  plasmid: "#c084fc",
+  ribosome: "#ffe39a",
+  capsid: "#8b8fe0",
+  sheath: "#9aa3ef",
+  progeny: "#949ee6",
 };
 
 // ─── The scene clock ────────────────────────────────────────────────
@@ -174,7 +185,7 @@ function useMaterials() {
         roughness: 0.5,
       }),
       flagellum: new THREE.MeshStandardMaterial({
-        color: "#ece3cf",
+        color: COLOURS.flagellum,
         roughness: 0.45,
         transparent: true,
         opacity: 1,

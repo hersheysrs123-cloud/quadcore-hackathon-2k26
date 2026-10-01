@@ -8289,3 +8289,58 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - One scene clock, scaled by the speed slider, drives the flagella, plasmids, ribosomes, fragments, progeny and the penicillin rain. At 0 they stop.
   - The hooks now use the wall's dissolving material with the same seed, so they tear away with the wall's shreds. The filaments are shed before the wall is gone. The bacterium's anatomy labels are removed once it has lysed.
   - `_spool_span` fits each spool layer inside the capsid, with a clearance, by sampling heights up and down from the head's centre.
+
+## Mitosis and meiosis: inside-out chromatids, centrosomes inside the new nuclei, and two wrong claims about gametes
+
+- **Problem:**
+  - Sister chromatids were drawn joined at their tips and splayed apart at the centromere, so every chromosome looked like ")(", the reverse of a real one.
+  - In telophase the centrosomes, and the spindle fibres from them, sat inside the re-forming nuclei.
+  - In meiosis I both sisters of a homologue were offset front-to-back, so from the front each homologue looked like one chromatid and a bivalent showed two chromatids, not four.
+  - The kinetochore fibres reached the chromosomes while the nuclear envelope was still intact.
+  - Metaphase II labelled sister chromatids "identical" even after crossing over had made them differ. Cytokinesis II said the four gametes were "none identical" (and the stage was called "four genetically different gametes") even with crossing over set to 0, when they are two identical pairs.
+  - The chromatin was a cloud of beads, the centrioles two yellow barrels, and the drift and spin of chromatin, centrosomes and spindle ran on the wall clock, ignoring the speed slider.
+- **Root cause:**
+  - The sister offset was `bow · (1 − u²)`, largest at the centromere (u = 0) and zero at the tips.
+  - The telophase nucleus was centred 0.32 inside the pole with a radius of 0.94, so it swallowed the centrosome at the pole.
+  - The meiosis I sisters were separated along the depth axis to keep both kinetochores facing one pole.
+  - The fibre's reach was gated only by condensation.
+  - The labels were fixed strings that did not look at the crossover count.
+  - `live.clock` advanced by the raw frame delta, and several parts read `clock.elapsedTime`.
+- **Resolution:**
+  - Sisters are now offset by their own local radius plus a gap that grows towards the tips, so they touch at the centromere and open slightly along the arms.
+  - Each new nucleus forms between its chromosomes and the equator, with the centrosome just beyond it, and centres in its daughter as the furrow closes. The interpolar fibres left after anaphase are the midzone between the new nuclei.
+  - In meiosis I the sisters lie side by side in view, and both kinetochores sit fused on the homologue's outer face, facing one pole. Sister 0 is the inner one, next to the homologue it crosses over with.
+  - Kinetochore fibres only reach once the envelope has broken down (prometaphase).
+  - The labels now depend on the crossover count. The stage is "Cytokinesis II — four haploid gametes", and the mode's product line and the topic text say the gametes all differ only once crossing over has happened.
+  - The cell's parts are now our own Blender models (`scripts/division-model`): chromatin territories, a pored nuclear envelope that fragments and re-forms, a nucleolus, real centrioles in their PCM, and mitochondria.
+  - Every ambient motion now runs on a clock scaled by the speed slider.
+
+## Cell division: a flash of the previous stage at every boundary, jumpy transitions, and parts poking through
+
+- **Problem:**
+  - Playing the mitosis/meiosis scene, every new stage began with a one-frame flash of the stage before it.
+  - Stepping to the next stage crammed it into about half a second, so it read as a jump. Picking a far stage could rewind the film backwards through the end of the cycle.
+  - Between meiosis I and II every chromosome shrank by 30 % and turned 90° in one frame. The centrosomes, nucleoli and every organelle jumped to new places. In telophase the kinetochore fibres vanished and the interpolar fibres snapped to the midzone, and the midbody blinked out at the next stage.
+  - Astral fibres stuck out of the cell, chromosomes reached through an intact nuclear envelope (in prophase, telophase and between the divisions) and, in anaphase, out of the cell. Some mitochondria poked through the membrane.
+  - The Details keys of four scenes (carbon cycle, flower, bacteria, cell division) named colours the scenes no longer drew after their model rebuilds.
+- **Root cause:**
+  - `StageCycleDriver` pushes the stage index to the HUD as the playhead crosses a boundary. A render in between still carried the old index, and the driver read any index unlike its own as the student picking a stage. While playing, that cuts to the stage's start: one frame of the previous stage. Measured: the clock went 13.82 → 11.42 → 13.83 at each boundary.
+  - Step tweens took a fixed 0.45–1.6 s whatever the distance, and always went the shorter way round.
+  - The second division used new frames, with the chromosomes scaled by the daughter's scale, and fresh seats and organelle layouts. Several telophase channels switched on `afterAnaphase` instead of blending.
+  - Nothing tested containment. Astral fibre length ignored the membrane; chromosome seats and arm lengths ignored the envelope and, near the poles, the narrowing cell; and organelles pushed behind the chromosomes were also pushed outwards.
+  - The model rebuilds baked their colours into the meshes, so the hexes the keys used were no longer anywhere in the scenes' code.
+- **Resolution:**
+  - The driver now reacts only to a CHANGE in the stage prop (`seen.prop`). A stale value is never a choice. After the fix the clock only ever runs forward, apart from the cycle's own (faded) wrap.
+  - A cycle can pace its steps (`makeCycle(stages, { stepRate })`). The division cycles step at 1.3 cycle s per s, scaled by the speed and capped at 3 s, so a step shows its whole transition. A jump to a stage that is not a neighbour goes straight there within the cycle.
+  - The choreography moved to `mitosis-choreography.js`, and a test plays it at 60 fps checking that nothing moves more than 0.1 in a frame.
+    - Meiosis II starts where meiosis I ended and turns to its new spindle over prophase II.
+    - Chromosomes keep their size.
+    - The centrosome splits gradually.
+    - Organelles, envelope, nucleolus and centrosomes keep their world placement.
+    - The telophase fibres and the midbody blend out.
+  - Containment, also tested frame by frame:
+    - Astral fibres stop at the cortex (`fibreReach`).
+    - A chromosome in an intact nucleus is kept inside it: its centromere is pulled in and its arms are folded shorter where they would reach through.
+    - Near the poles a set bunches in towards the spindle axis.
+    - Organelles keep their distance from the centre.
+  - Each scene's `COLOURS` table now names the baked model colours, and the keys use them. Flower tepals are labelled as such in wind mode.
