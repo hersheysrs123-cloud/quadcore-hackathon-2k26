@@ -8271,3 +8271,21 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - `speed` is passed down to all three. Each advances by `delta × speed`.
   - The pollen's bobbing and the wingbeat run on their own accumulated clocks rather than `clock.elapsedTime`, so they slow and stop with the slider too.
   - Measured over about 0.6 s, the wind streaks moved 15 px at 0.1× and 209 px at 1×.
+
+## Bacteria vs virus: flagella through the cell, a flagellum deaf to the speed slider, and leftovers after the burst
+
+- **Problem:**
+  - The flagella showed inside the cut-away cell: the filaments ran from their hooks straight through the body.
+  - The old flagellum spun at a fixed rate whatever the Animation Speed slider said.
+  - After the cell burst, the five flagellar hooks (the tails' starting points) stayed floating where the wall had been, and the anatomy labels still pointed at empty space.
+  - Seen from behind, the phage's DNA spool poked out of the top and bottom of its capsid.
+- **Root cause:**
+  - The filaments were static meshes swept from each hook towards a point behind the cell; for hooks on the far side of the body, the straight run crossed it.
+  - The old flagellum turned on the raw frame delta (`rawDelta × 7`), not on a speed-scaled clock.
+  - The hooks used a plain material, so nothing in the burst touched them: the filaments faded, the hooks did not. The labels were drawn whatever the cell's state.
+  - The spool's layers had a fixed height, chosen for the capsid's middle, but the capsid narrows towards its poles.
+- **Resolution:**
+  - The filaments are drawn by the scene each frame. Each axis leaves its hook outwards, runs back along the outside of the cell at a clearance, and joins the bundle behind the pole. A left-handed helix is wound round it and its phase follows the motor, so the wave travels down the filament. The cell runs and tumbles, with runs of irregular length.
+  - One scene clock, scaled by the speed slider, drives the flagella, plasmids, ribosomes, fragments, progeny and the penicillin rain. At 0 they stop.
+  - The hooks now use the wall's dissolving material with the same seed, so they tear away with the wall's shreds. The filaments are shed before the wall is gone. The bacterium's anatomy labels are removed once it has lysed.
+  - `_spool_span` fits each spool layer inside the capsid, with a clearance, by sampling heights up and down from the head's centre.
