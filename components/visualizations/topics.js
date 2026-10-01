@@ -3263,13 +3263,14 @@ export const TOPICS = [
     syllabus: "Biology 9 · Ecosystems & Human Influence",
     keywords:
       "carbon cycle photosynthesis respiration combustion fossil fuel coal decomposition ocean carbonate dissolved carbon dioxide CO2 methane CH4 livestock deforestation forest cover greenhouse effect greenhouse gas longwave infrared shortwave radiation albedo radiative forcing global warming temperature anomaly climate change ppm gigatonne carbon sink source solar cycle",
-    defaults: { combustion: 100, forest: 60, solar: 50, longwave: false, reset: 0, speed: 1, showLabels: true },
+    defaults: { combustion: 100, forest: 60, solar: 50, longwave: false, reset: 0, speed: 1, showLabels: true, showFlows: true },
     controls: [
       { type: "slider", key: "combustion", label: "Fossil fuel combustion rate", min: 0, max: 500, step: 5, format: (v) => (v === 0 ? "0 % · shut down" : `${v} % · ${((FOSSIL_GTC_PER_YEAR * v) / 100).toFixed(1)} GtC/yr`) },
       { type: "slider", key: "forest", label: "Global forest cover", min: 10, max: 100, step: 1, format: (v) => `${v} % forest · ${100 - v} % pasture` },
       { type: "slider", key: "solar", label: "Solar activity cycle", min: 0, max: 100, step: 1, format: (v) => solarLabel(v) },
       { type: "toggle", key: "longwave", label: "Photon filter: re-radiated longwave IR (off = shortwave sunlight)" },
       { type: "action", key: "reset", label: "Reset to present day · 420 ppm", icon: RotateCcw, variant: "ghost" },
+      { type: "toggle", key: "showFlows", label: "Show flow arrows, molecules & light rays" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [

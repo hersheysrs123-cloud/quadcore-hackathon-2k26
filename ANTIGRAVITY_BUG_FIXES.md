@@ -8191,3 +8191,47 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - The Blender MCP times out at 60 s, so the muscles are built one per timer tick from a queue, which is polled.
   - `sdf._rot`, which turns the carpals' ellipsoids, had been lost in an earlier cleanup. Nothing noticed until the hand was rebuilt from scratch, because the old hand meshes were reused. It is restored and checked against Blender's `Euler(..., "XYZ")`.
   - Painting the triceps' tendon sheet from the tendon's own path speckled the paint near its hook round the olecranon, where the nearest point on the path flips from one side to the other. The paint now comes from a separate straight sheet, `triceps_aponeurosis`.
+
+## Carbon cycle: an invisible ocean, and two ecosystem scenes that read as coloured boxes and confetti
+
+- **Problem:**
+  - The carbon-cycle scene had no visible sea. Its `WaterBody` basin was placed below the slab's top face, inside the box, and `DioramaSlab`'s grass plane covered it. Only the drifting carbonate dots and the ocean's labels showed where the water should be.
+  - Both ecosystem scenes drew every flow as a spray of particles (√flux in the carbon cycle, 10 % / 90 % streams on the pyramid). At any distance these read as confetti, not as flows with a direction and a size.
+  - The pyramid's organisms were scaled primitives (a flattened sphere for a leaf, a capsule for a caterpillar). On four flat coloured slabs they read as specks on boxes.
+- **Root cause:**
+  - The basin was a box inside a box: nothing cut the slab where the sea was meant to be.
+  - The particle streams were the only way the shared kit drew a flux.
+- **Resolution:**
+  - **Carbon cycle:**
+    - The block is now built in two parts, land and sea floor, so the sea occupies a real gap with a glass front. Its water column, surface and floor sediment are drawn there.
+    - The flows are labelled tube arrows whose radius is set in the vertex shader. A flux change never rebuilds geometry, which matters because the scene re-renders ten times a second.
+  - **Pyramid:**
+    - The terraces are built against a common back wall, so every step faces the camera.
+    - The energy is a gold ribbon that narrows at each riser.
+    - The 90 % leaves as wavy heat arrows.
+  - **Models:** both scenes' organisms and objects are now our own Blender models (`scripts/ecosystem-model`).
+- **Pitfalls found on the way:**
+  - The sparrowhawk model stands on a log whose top is at the bird's feet. Seated at the terrace top, the log sank into the terrace, so the scene lifts the hawk by `2 × logRadius`.
+  - A poisoned hawk turned about its feet swung its log upright. It is turned about the log's own axis instead.
+  - At diorama scale a winter moth caterpillar 0.16 cm thick rendered as a pale stick, and with random headings its looping arch was seen end-on. The body is now 0.21 cm thick and the caterpillars walk across the step, so the loop shows in profile.
+  - Hot-looking orange wisps for the 90 % read as fire. They became wavy textbook heat arrows over a faint haze.
+
+## Carbon cycle: a conveyor through the turbine hall, a hidden furnace, a z-fighting sea floor and rice-grain sunlight
+
+- **Problem:**
+  - The coal conveyor ran from the heap straight through the turbine hall's wall and roof towards the boiler house.
+  - The furnace was a flat orange square. It sat on a face that a row of trees hid from the default camera.
+  - The bottom of the sea flickered.
+  - Photons drawn as stretched ellipsoids looked like grains of rice.
+  - The sun was a flat pale disc behind a grey halo sphere.
+- **Root cause:**
+  - The conveyor was one straight sweep from the heap to a point inside the boiler house, and nothing stopped it crossing the hall.
+  - The water box's floor and its left side lay exactly on the sea floor's top face and the land block's cliff face, so they z-fought.
+- **Resolution:**
+  - **Conveyor:** a covered gallery on two trestles now ends at the hall's west wall. It is built from a gridded box, so it reads as a structure.
+  - **Furnace:** a framed, flickering fire with an open door and a warm light. A gravel access road keeps trees out of its sightline.
+  - **Sea:** the water is inset by `WATER_INSET`.
+  - **Photons:** drawn as camera-facing comet trails that grow from each emission or bounce.
+  - **Sun:** `SunSource` is a granulated photosphere with limb darkening and additive corona glows.
+  - **Toggle:** a new control hides the arrows, molecules and light rays.
+- **Pitfall:** the station's window bands were one continuous dark strip on the long walls. `_windows` took the mullion spacing from both x and z, and on a wall of constant z the z term was constant and always in the window range. It now uses the axis the wall runs along.

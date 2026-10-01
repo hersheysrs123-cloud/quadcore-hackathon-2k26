@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Halo, PALETTE, ToggleLabel, clamp, hashRandom } from "@/components/visualizations/scene-kit";
+import { PALETTE, ToggleLabel, clamp, hashRandom } from "@/components/visualizations/scene-kit";
 
 // ─── Ecosystem diorama kit ──────────────────────────────────────────
 // The furniture the two ecosystem-scale scenes stand on. Where the cell and
@@ -109,16 +109,93 @@ export function SkyEnvelope({ centre = [0, 0, 0], radius = 9, colour = ECO_COLOU
   );
 }
 
-/** The sun: a lamp whose brightness is a control, with a caption. */
-export function SunSource({ position = [-6, 7, -3], intensity = 1, radius = 0.6, colour = ECO_COLOURS.sun, label }) {
+/** A soft radial glow, white at the centre, for the sun's corona and glare (built once). */
+let glowTexture = null;
+function getGlowTexture() {
+  if (glowTexture || typeof document === "undefined") return glowTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d");
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.18, "rgba(255,240,200,0.75)");
+  grad.addColorStop(0.45, "rgba(255,190,110,0.22)");
+  grad.addColorStop(1, "rgba(255,160,80,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  glowTexture = new THREE.CanvasTexture(c);
+  glowTexture.colorSpace = THREE.SRGBColorSpace;
+  return glowTexture;
+}
+
+const SUN_SURFACE = {
+  vertexShader: /* glsl */ `
+    varying vec3 vN;
+    varying vec3 vP;
+    varying vec3 vV;
+    void main() {
+      vN = normalize(normalMatrix * normal);
+      vP = position;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vV = -mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform float uTime, uK;
+    varying vec3 vN;
+    varying vec3 vP;
+    varying vec3 vV;
+    float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+    float n3(vec3 p) {
+      vec3 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
+                 mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+    }
+    void main() {
+      vec3 q = normalize(vP);
+      // Granulation: convection cells boiling on the photosphere.
+      float g = n3(q * 9.0 + uTime * 0.15) * 0.6 + n3(q * 22.0 - uTime * 0.25) * 0.4;
+      // Limb darkening: the disc is hotter-looking at its centre than its edge.
+      float mu = clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0);
+      float limb = pow(mu, 0.65);
+      vec3 edge = vec3(0.92, 0.34, 0.04);
+      vec3 centre = vec3(1.0, 0.88, 0.58);
+      vec3 c = mix(edge, centre, limb) * (0.68 + 0.5 * g);
+      gl_FragColor = vec4(c * (0.95 + 0.3 * uK), 1.0);
+    }`,
+};
+
+/**
+ * The sun, whose brightness is a control: a photosphere with boiling
+ * granulation and limb darkening, a corona and a wider glare (camera-facing
+ * glows), a point light, and a caption.
+ */
+export function SunSource({ position = [-6, 7, -3], intensity = 1, radius = 0.6, label }) {
   const k = clamp(intensity, 0, 2);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uK: { value: 1 } }), []);
+  const material = useMemo(() => new THREE.ShaderMaterial({ uniforms, ...SUN_SURFACE, toneMapped: false }), [uniforms]);
+  const glow = useMemo(() => getGlowTexture(), []);
+  useEffect(() => () => material.dispose(), [material]);
+  uniforms.uK.value = k;
+  useFrame((_, dt) => {
+    uniforms.uTime.value += Math.min(dt, 0.05);
+  });
   return (
     <group position={position}>
-      <mesh>
-        <sphereGeometry args={[radius, 28, 20]} />
-        <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.4 + 1.8 * k} toneMapped={false} />
+      <mesh material={material}>
+        <sphereGeometry args={[radius, 48, 32]} />
       </mesh>
-      <Halo radius={radius * (1.6 + 0.8 * k)} color={colour} opacity={0.05 + 0.1 * k} />
+      {glow && (
+        <>
+          <sprite scale={[radius * (5.2 + 2 * k), radius * (5.2 + 2 * k), 1]} renderOrder={-1}>
+            <spriteMaterial map={glow} color="#ffc070" transparent opacity={0.5 + 0.2 * k} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+          </sprite>
+          <sprite scale={[radius * 11, radius * 11, 1]} renderOrder={-2}>
+            <spriteMaterial map={glow} color="#ffb070" transparent opacity={0.1 + 0.1 * k} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+          </sprite>
+        </>
+      )}
       <pointLight intensity={2 + 10 * k} distance={40} decay={2} color="#fff3c4" />
       {label && (
         <ToggleLabel position={[0, -radius - 0.55, 0]} tone={k > 0.2 ? "text-amber-200" : "text-ink-500"}>
@@ -336,8 +413,9 @@ const TRAPPED = 3;
  * `rateRef.current` is photons per second. Colour is per instance so a
  * bounced or trapped photon changes colour the moment it does.
  */
-export function PhotonShower({ mode = "shortwave", origin = [-6, 7, -3], ground = { x: 0, z: 0, w: 10, d: 6, y: 0 }, envelopeY = 5, escapeY = 9, rateRef, trapRef, albedo = 0.3, count = 120, speed = 1, velocity = 4.5, size = 0.05, seed = 3, colours = ECO_COLOURS }) {
+export function PhotonShower({ mode = "shortwave", origin = [-6, 7, -3], ground = { x: 0, z: 0, w: 10, d: 6, y: 0 }, envelopeY = 5, escapeY = 9, rateRef, trapRef, albedo = 0.3, count = 120, speed = 1, velocity = 4.5, size = 0.05, trail = 0, seed = 3, colours = ECO_COLOURS }) {
   const meshRef = useRef(null);
+  const trailParts = useTrailParts(trail > 0);
   const state = useMemo(
     () => ({
       age: new Float32Array(count).fill(-1),
@@ -349,6 +427,9 @@ export function PhotonShower({ mode = "shortwave", origin = [-6, 7, -3], ground 
       dummy: new THREE.Object3D(),
       colour: new THREE.Color(),
       palette: [new THREE.Color(colours.shortwave), new THREE.Color(colours.reflected), new THREE.Color(colours.longwave), new THREE.Color(colours.trapped)],
+      dir: new THREE.Vector3(),
+      leg: new Float32Array(count),
+      lastKind: new Uint8Array(count),
     }),
     [count, colours],
   );
@@ -448,7 +529,21 @@ export function PhotonShower({ mode = "shortwave", origin = [-6, 7, -3], ground 
         d.position.set(0, -100, 0);
       } else {
         d.position.set(state.pos[o], state.pos[o + 1], state.pos[o + 2]);
-        d.scale.setScalar(size * (state.kind[i] === TRAPPED ? 1.4 : 1));
+        const sz = size * (state.kind[i] === TRAPPED ? 1.4 : 1);
+        if (trail > 0) {
+          // A trail behind the photon, along the way it came. It grows from
+          // nothing at each emission, bounce or re-emission, so it never
+          // reaches back through the ground or the sun.
+          if (state.kind[i] !== state.lastKind[i] || age <= dt + 1e-6) state.leg[i] = 0;
+          state.lastKind[i] = state.kind[i];
+          state.leg[i] += dt;
+          const v = Math.hypot(state.vel[o], state.vel[o + 1], state.vel[o + 2]) || 1;
+          state.dir.set(-state.vel[o] / v, -state.vel[o + 1] / v, -state.vel[o + 2] / v);
+          d.quaternion.setFromUnitVectors(X_AXIS, state.dir);
+          d.scale.set(Math.min(trail, state.leg[i] * v), sz, 1);
+        } else {
+          d.scale.setScalar(sz);
+        }
       }
       d.updateMatrix();
       mesh.setMatrixAt(i, d.matrix);
@@ -459,12 +554,78 @@ export function PhotonShower({ mode = "shortwave", origin = [-6, 7, -3], ground 
     if (state.pending > 4) state.pending = 4;
   });
 
+  if (trailParts) return <instancedMesh ref={meshRef} args={[trailParts.geometry, trailParts.material, count]} frustumCulled={false} renderOrder={4} />;
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
       <sphereGeometry args={[1, 6, 5]} />
       <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthWrite={false} toneMapped={false} />
     </instancedMesh>
   );
+}
+
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+
+/**
+ * A photon drawn as a glowing comet: a ribbon from its head back along the
+ * way it came, turned to face the camera, bright at the head and fading to
+ * nothing. Each instance's matrix carries the head (translation), the
+ * trail (its x column: direction and length) and the width (its y column's
+ * length), so the shader needs nothing else.
+ */
+function useTrailParts(on) {
+  const parts = useMemo(() => {
+    if (!on) return null;
+    const geometry = new THREE.PlaneGeometry(1, 1, 8, 1).translate(0.5, 0, 0);
+    const material = new THREE.ShaderMaterial({
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        varying vec3 vCol;
+        void main() {
+          mat4 m = modelMatrix * instanceMatrix;
+          vec3 head = (m * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          vec3 axis = (m * vec4(1.0, 0.0, 0.0, 0.0)).xyz;
+          float w = length((m * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+          vec4 hv = viewMatrix * vec4(head, 1.0);
+          vec4 tv = viewMatrix * vec4(head + axis, 1.0);
+          vec4 p = mix(hv, tv, position.x);
+          vec2 d = tv.xy - hv.xy;
+          float dl = length(d);
+          d = dl > 1e-5 ? d / dl : vec2(1.0, 0.0);
+          p.xy += vec2(-d.y, d.x) * position.y * w * (1.0 - 0.75 * position.x);
+          vUv = vec2(position.x, position.y);
+          #ifdef USE_INSTANCING_COLOR
+            vCol = instanceColor;
+          #else
+            vCol = vec3(1.0);
+          #endif
+          gl_Position = projectionMatrix * p;
+        }`,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        varying vec3 vCol;
+        void main() {
+          float across = smoothstep(0.5, 0.0, abs(vUv.y));
+          float along = pow(1.0 - vUv.x, 2.2);
+          float head = smoothstep(0.12, 0.0, vUv.x);
+          vec3 c = mix(vCol, vec3(1.0), head * 0.6);
+          gl_FragColor = vec4(c * 1.4, (along * 0.85 + head * 0.5) * across);
+        }`,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    return { geometry, material };
+  }, [on]);
+  useEffect(
+    () => () => {
+      parts?.geometry.dispose();
+      parts?.material.dispose();
+    },
+    [parts],
+  );
+  return parts;
 }
 
 /** A dashed guide line in the XZ plane — the edge of a region, a boundary. */
