@@ -8235,3 +8235,39 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - **Sun:** `SunSource` is a granulated photosphere with limb darkening and additive corona glows.
   - **Toggle:** a new control hides the arrows, molecules and light rays.
 - **Pitfall:** the station's window bands were one continuous dark strip on the long walls. `_windows` took the mullion spacing from both x and z, and on a wall of constant z the z term was constant and always in the window range. It now uses the axis the wall runs along.
+
+## Flower pollination: stamens through the ovary, and a flower of primitives
+
+- **Problem:**
+  - The four stamens stood at radius 0.78 from the flower's axis and rose straight up, but the ovary is 0.86 wide. Each filament ran through the ovary wall.
+  - The flower was built from primitives: flattened blobs for petals, capsules for anthers, a half-cylinder style and a half-sphere ovary with no wall thickness. Its "cut" was a missing front half, not a cut: no organ showed a cut face.
+- **Root cause:** the stamen radius was chosen for the label layout, not from the ovary's size, and nothing modelled the receptacle the stamens grow from.
+- **Resolution:**
+  - The flower is now our own Blender model (`scripts/flower-model`), dissected at z = 0. The solid organs are SDF solids cut by the plane, with tissue painted on their cut faces. The petals and sepals clip at the same plane.
+  - The receptacle is a broad disc. The stamens stand on its rim at radius 0.95, outside the ovary, and their filaments bow outwards past it.
+  - The ovules sit on funicles in a real locule, on a basal placenta.
+- **Pitfalls found on the way:**
+  - **The bee's timing.** The bee's flight curve was sampled by arc length, so with the new geometry it reached the stigma well before the grain lands at s = 0.7. It now follows keyframes in its visit parameter: it dwells on an anther and is on the stigma at s = 0.7.
+  - **Decimation.** Plain decimation flattened the painted cut faces into a few large triangles and lost their detail. `decimate_keep_cut` gives the cut face's vertices weight 0, so the collapse spares them.
+  - **Rim staircase.** A hard max with z left a voxel staircase along each cut rim. `dissect` softens the max by 0.012.
+
+## Triggered timelines stopped a fraction of a second after the button was pressed
+
+- **Problem:** in the flower pollination scene, pressing "Trigger pollination" played for 0.1–0.4 s and then paused, as if the time slider had been dragged.
+- **Root cause:**
+  - `TimelineDriver` pushes the playing clock into the time slider ten times a second, and treats any slider value it did not push as the user scrubbing.
+  - It compared the incoming prop only with the last value it pushed. When React took longer than one push interval to re-render, the slider prop arrived carrying an earlier push. The driver read that stale echo as a drag and paused.
+  - The rebuilt flower is heavier to render, so it lost that race almost every time. Any scene using the driver (the bacteria and respiratory scenes too) could hit it under load.
+- **Resolution:**
+  - The driver now remembers the values it has pushed recently. An incoming value that matches one of them is its own echo, however late, and is consumed without pausing.
+  - It also tracks the last prop value it has seen separately from the last value it pushed, so the same stale value is never judged twice.
+  - A value the driver never pushed is still a drag: it jumps there and pauses. The next press still replays from the start.
+
+## Flower pollination: the wind ignored the animation speed slider
+
+- **Problem:** in wind mode, the drifting pollen cloud and the wind streaks moved at the same pace whatever the Animation Speed slider said. The bee's wingbeat ignored it too.
+- **Root cause:** `WindPollen`, `WindStreaks` and the `Bee` wings advanced on the raw frame delta and `clock.elapsedTime`. Only the `TimelineDriver` was given `speed`.
+- **Resolution:**
+  - `speed` is passed down to all three. Each advances by `delta × speed`.
+  - The pollen's bobbing and the wingbeat run on their own accumulated clocks rather than `clock.elapsedTime`, so they slow and stop with the slider too.
+  - Measured over about 0.6 s, the wind streaks moved 15 px at 0.1× and 209 px at 1×.

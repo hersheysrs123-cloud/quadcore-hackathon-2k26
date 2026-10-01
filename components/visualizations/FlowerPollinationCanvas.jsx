@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Halo,
@@ -15,8 +15,9 @@ import {
   LabelsOn,
   ToggleLabel,
 } from "@/components/visualizations/scene-kit";
-import { makeBlobGeometry } from "@/components/visualizations/cell-organelles";
 import { TimelineCaption, TimelineDriver } from "@/components/visualizations/timeline-kit";
+import { usePackedModel } from "@/components/visualizations/plant-model";
+import { FLOWER_MODEL } from "@/components/visualizations/flower-model-meta";
 import { pulse, smoothstep } from "@/lib/timeline";
 import {
   MICROPYLE_OVERSHOOT,
@@ -27,13 +28,18 @@ import {
 } from "@/lib/pollination";
 
 // ─── Flower dissection: pollination and fertilisation ───────────────
-// A flower cut down the middle, the front half taken away: three petals
-// and the sepals at the back, four stamens, and the carpel in the centre
-// — stigma, style, and an ovary opened to show two ovules, one of them
-// with its micropyle turned towards the style.
+// A flower cut down the middle, as a botany practical dissects one, and
+// the front half taken away: our own Blender model (scripts/flower-model).
+// The pedicel, receptacle, carpel and ovules are solids whose cut faces show
+// fresh tissue (green epidermis, pale cortex, the vascular strands and the
+// style's transmitting tract); petals and sepals that cross the cut are
+// clipped at the same plane, z = 0. An insect flower has five large pink
+// petals, a nectary at the ovary's base, stamens inside the flower and a
+// wet, papillate stigma; a wind flower has small papery tepals, anthers
+// dangling outside on hair-thin filaments and a feathery stigma.
 //
-// Press the button and the vector delivers a grain: a bee visits the
-// anther then the stigma, or the wind blows a cloud past a feathery
+// Press the button and the vector delivers a grain: a honeybee visits an
+// anther then the stigma, or the wind blows a cloud past the feathery
 // stigma and one grain catches. That moment is POLLINATION, and the label
 // says so. Everything after it — the tube growing down the style (a
 // TubeGeometry whose draw range is the model's fraction), the three
@@ -43,40 +49,44 @@ import {
 // playing, the scene drives it; dragged, it drives the scene.
 // ─────────────────────────────────────────────────────────────────────
 
-const RECEPTACLE_Y = 0.15;
-const OVARY = { centre: [0, 1.05, 0], radius: 0.86, scaleY: 1.18 };
-const STYLE = { bottom: 1.95, top: 4.6, radius: 0.17 };
-const STIGMA_Y = 4.75;
-const OVULE_A = { centre: [0.38, 1.05, -0.08], rx: 0.3, ry: 0.42 };
-const OVULE_B = { centre: [-0.44, 0.95, -0.14], rx: 0.27, ry: 0.38 };
-/** Far enough right that its scale clears the anther and petal labels. */
-const GAUGE = { x: 3.3 };
+const FLOWER_GLB = "/models/flower.glb";
+const M = FLOWER_MODEL;
+
+const STIGMA_Y = M.stigmaY;
+/** The style as the tube sees it: from the stigma to the top of the locule. */
+const STYLE = { bottom: M.locule.centre[1] + M.locule.radius[1], top: M.style.top };
+const toOvule = (o) => ({ centre: o.centre, rx: o.rx, ry: o.ry });
+const OVULE_A = toOvule(M.ovules[0]);
+const OVULE_B = toOvule(M.ovules[1]);
+/** Far enough right that its scale clears the petals and the anther labels. */
+const GAUGE = { x: 3.45 };
 /** Stem base and caption to the verdict at the top, the gauge at the right. */
-const FLOWER_VIEW = { cx: 0.75, cy: 2.2, width: 8.6, height: 9.4, depth: 3 };
-const TUBE_SEGMENTS = 160;
+const FLOWER_VIEW = { cx: 0.75, cy: 2.2, width: 8.8, height: 9.4, depth: 3 };
+const TUBE_SEGMENTS = 180;
 const TUBE_RADIAL = 8;
 
+/** The dissection: everything in front of z = 0 has been cut away. */
+const CUT_PLANE = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+const deg = Math.PI / 180;
+/** Azimuths (0 = +x, 90° = straight back) of the organs in each whorl. */
+const WHORLS = {
+  petals: [90, 18, 162, -54, 234].map((a) => a * deg),
+  sepals: [126, 54, 198, -18, 270].map((a) => a * deg),
+  tepals: [90, 30, 150, -30, 210].map((a) => a * deg),
+  stamensInsect: [14, 34, 56, 78, 102, 124, 146, 166].map((a) => a * deg),
+  stamensWind: [28, 90, 152].map((a) => a * deg),
+};
+/** The stamen the bee works: its anther, in the scene. */
+const BEE_STAMEN = WHORLS.stamensInsect[0];
+
 const COLOURS = {
-  stem: "#3f8a3a",
-  sepal: "#4d9a45",
-  petalInsect: "#f472b6",
-  petalInsectDeep: "#db2777",
-  petalWind: "#8fae74",
-  filament: "#e9f0d8",
-  anther: "#f5c518",
   pollenInsect: "#fbbf24",
   pollenWind: "#fde68a",
-  stigma: "#a3e635",
-  stigmaSticky: "#bef264",
-  style: "#c7e8a8",
-  ovaryWall: "#86c96b",
-  ovaryInner: "#5f9e4c",
-  ovule: "#f1f5e0",
-  sac: "#d9f0c4",
   egg: "#fb7185",
   synergid: "#fda4af",
   polar: PALETTE.violet,
   antipodal: "#94a3b8",
+  sacCell: "#fdf6e3",
   tube: "#fcd34d",
   tubeNucleus: PALETTE.sky,
   generative: PALETTE.violet,
@@ -84,26 +94,111 @@ const COLOURS = {
   zygote: PALETTE.gold,
   endosperm: "#c084fc",
   nectar: "#fde047",
-  bee: "#facc15",
-  beeStripe: "#1f2937",
-  wing: "#e0f2fe",
   wind: "#cbd5e1",
 };
 
+/** An organ's local point (x out from the axis, y up, z across) at azimuth `a`, in the scene. */
+function whorlPoint(a, x, y, z = 0, base = 0) {
+  const r = base + x;
+  return new THREE.Vector3(r * Math.cos(a) + z * Math.sin(a), y, -r * Math.sin(a) + z * Math.cos(a));
+}
+
+// ─── Materials ──────────────────────────────────────────────────────
+
+function EnableLocalClipping() {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const was = gl.localClippingEnabled;
+    gl.localClippingEnabled = true;
+    return () => {
+      gl.localClippingEnabled = was;
+    };
+  }, [gl]);
+  return null;
+}
+
+/**
+ * A petal: vertex-coloured (white claw flushing to pink, a yellow nectar
+ * guide), with fine veins fanning from the claw drawn from the leaf
+ * coordinates, a velvet sheen, and clipped at the dissection plane.
+ */
+function makePetalMaterial() {
+  const m = new THREE.MeshPhysicalMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    roughness: 0.55,
+    sheen: 0.6,
+    sheenRoughness: 0.45,
+    sheenColor: new THREE.Color("#ffd6e8"),
+    clippingPlanes: [CUT_PLANE],
+  });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 _uvl;\nvarying vec2 vUvl;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUvl = _uvl;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vUvl;")
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          float u = vUvl.x;
+          float v = vUvl.y;
+          // Main veins fan from the claw; finer ones between them.
+          float k1 = v * (5.0 + 4.0 * u);
+          float k2 = v * (13.0 + 12.0 * u) + 0.5;
+          float w1 = fwidth(k1) * 1.3 + 0.07;
+          float w2 = fwidth(k2) * 1.3 + 0.1;
+          float v1 = 1.0 - smoothstep(0.0, w1, abs(fract(k1 + 0.5) - 0.5));
+          float v2 = 1.0 - smoothstep(0.0, w2, abs(fract(k2 + 0.5) - 0.5));
+          float along = smoothstep(0.02, 0.18, u) * (1.0 - smoothstep(0.7, 0.98, u));
+          float vein = (v1 * 0.45 + v2 * 0.18 * smoothstep(0.25, 0.45, u)) * along;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.93, 0.7, 0.82), vein);
+          // Thin petal tissue: the underside shows a touch of light through it.
+          if (!gl_FrontFacing) diffuseColor.rgb *= 1.06;
+        }`,
+      );
+  };
+  return m;
+}
+
+function useMaterials() {
+  const mats = useMemo(
+    () => ({
+      tissue: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.35 }),
+      ovule: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.4, sheenColor: new THREE.Color("#fffbe8") }),
+      wet: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 }),
+      nectary: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05 }),
+      plain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }),
+      leaf: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, side: THREE.DoubleSide, clippingPlanes: [CUT_PLANE] }),
+      petal: makePetalMaterial(),
+      bee: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 }),
+      wing: new THREE.MeshPhysicalMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.2, iridescence: 0.8, iridescenceIOR: 1.4 }),
+      pollen: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55 }),
+    }),
+    [],
+  );
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  return mats;
+}
+
 // ─── The tube's path ────────────────────────────────────────────────
 
-/** Stigma → down the style → across the locule → micropyle → egg apparatus. */
+/** Grain on the stigma → down the cut face of the style → across the locule → micropyle → egg apparatus. */
 function useTubePath() {
   return useMemo(() => {
+    const [ax, ay, az] = OVULE_A.centre;
+    const top = ay + OVULE_A.ry;
     const curve = new THREE.CatmullRomCurve3(
       [
-        new THREE.Vector3(0, STIGMA_Y - 0.05, 0.06),
-        new THREE.Vector3(0, 3.6, 0.06),
-        new THREE.Vector3(0, 2.6, 0.06),
-        new THREE.Vector3(0, STYLE.bottom + 0.05, 0.06),
-        new THREE.Vector3(0.17, 1.72, 0.03),
-        new THREE.Vector3(OVULE_A.centre[0] - 0.02, OVULE_A.centre[1] + OVULE_A.ry + 0.02, OVULE_A.centre[2] + 0.06),
-        new THREE.Vector3(OVULE_A.centre[0] + 0.03, OVULE_A.centre[1] + 0.2, OVULE_A.centre[2] + 0.06),
+        new THREE.Vector3(0, STIGMA_Y + 0.17, -0.01),
+        new THREE.Vector3(0, STIGMA_Y - 0.1, 0.022),
+        new THREE.Vector3(0, 3.6, 0.022),
+        new THREE.Vector3(0, 2.6, 0.022),
+        new THREE.Vector3(0, STYLE.bottom + 0.05, 0.022),
+        new THREE.Vector3(0.12, STYLE.bottom - 0.17, 0.01),
+        new THREE.Vector3(ax - 0.01, top + 0.04, az + 0.03),
+        new THREE.Vector3(ax, top - 0.16, az - 0.01),
       ],
       false,
       "catmullrom",
@@ -118,7 +213,7 @@ function useTubePath() {
         break;
       }
     }
-    const geometry = new THREE.TubeGeometry(curve, TUBE_SEGMENTS, 0.055, TUBE_RADIAL, false);
+    const geometry = new THREE.TubeGeometry(curve, TUBE_SEGMENTS, 0.032, TUBE_RADIAL, false);
     return { curve, styleShare, geometry };
   }, []);
 }
@@ -132,142 +227,39 @@ function useDisposedTubePath() {
 /** Model fraction (0–1 down the style, up to 1.09 inside the ovule) → curve parameter. */
 const fractionToU = (f, styleShare) => (f <= 1 ? f * styleShare : styleShare + ((f - 1) / MICROPYLE_OVERSHOOT) * (1 - styleShare));
 
-// ─── Vectors ────────────────────────────────────────────────────────
+// ─── Pollen ─────────────────────────────────────────────────────────
 
-/** Pollen grains: smooth spheres for wind, spiky icosahedra for insects. */
-function usePollenGeometry(spiky) {
-  const geometry = useMemo(() => {
-    if (!spiky) return new THREE.SphereGeometry(1, 10, 8);
-    const g = new THREE.IcosahedronGeometry(1, 1);
-    const pos = g.attributes.position;
-    for (let i = 0; i < pos.count; i += 1) {
-      const v = new THREE.Vector3().fromBufferAttribute(pos, i);
-      const spike = i % 3 === 0 ? 1.45 : 0.85;
-      v.multiplyScalar(spike);
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
-    g.computeVertexNormals();
-    return g;
-  }, [spiky]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return geometry;
-}
-
-/** Grains dusted over an anther's surface. */
-function AntherPollen({ geometry, colour, count = 14, seed = 1, sizeScale = 1 }) {
+/** Grains dusted over one anther's slits (insect) or all over a dangling anther (wind), in the stamen's frame. */
+function AntherPollen({ geometry, material, colour, insect, seed }) {
   const meshRef = useRef(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const count = insect ? 11 : 16;
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
+    const d = new THREE.Object3D();
+    const c = new THREE.Color(colour);
+    const [ax, ay] = insect ? M.anther.insect : M.anther.wind;
     for (let i = 0; i < count; i += 1) {
-      const a = hashRandom(seed + i * 1.7) * Math.PI * 2;
-      const y = (hashRandom(seed * 3 + i * 2.3) - 0.5) * 0.5;
-      const side = i % 2 === 0 ? -0.11 : 0.11;
-      dummy.position.set(side + Math.cos(a) * 0.11, y, Math.sin(a) * 0.11);
-      dummy.scale.setScalar(0.035 * sizeScale);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      const r1 = hashRandom(seed * 13.1 + i * 1.7);
+      const r2 = hashRandom(seed * 7.3 + i * 2.3);
+      const r3 = hashRandom(seed * 5.7 + i * 3.1);
+      const side = i % 2 ? 1 : -1;
+      if (insect) d.position.set(ax - 0.095 - 0.025 * r3, ay + (r1 - 0.5) * 0.34, side * (0.072 + (r2 - 0.5) * 0.05));
+      else d.position.set(ax + Math.cos(r2 * 6.28) * 0.07, ay + (r1 - 0.5) * 0.8, Math.sin(r2 * 6.28) * 0.08);
+      d.rotation.set(r1 * 6, r2 * 6, r3 * 6);
+      d.scale.setScalar(insect ? 0.019 : 0.014);
+      d.updateMatrix();
+      mesh.setMatrixAt(i, d.matrix);
+      mesh.setColorAt(i, c);
     }
     mesh.instanceMatrix.needsUpdate = true;
-  }, [count, seed, dummy, sizeScale, geometry]);
-  return (
-    <instancedMesh ref={meshRef} args={[geometry, undefined, count]} frustumCulled={false}>
-      <meshStandardMaterial color={colour} roughness={0.6} emissive={colour} emissiveIntensity={0.25} />
-    </instancedMesh>
-  );
-}
-
-/**
- * The bee. `s` runs 0 → 1 along its visit: in from the right, a pause at
- * the anther (where it picks up pollen), on to the stigma (where it
- * leaves some), and away to the left. Wings flap; pollen appears on its
- * underside after the anther.
- */
-function Bee({ s, visible, pollenGeometry }) {
-  const group = useRef(null);
-  const wingL = useRef(null);
-  const wingR = useRef(null);
-  const path = useMemo(
-    () =>
-      new THREE.CatmullRomCurve3(
-        [
-          new THREE.Vector3(7.5, 6.2, 1.6),
-          new THREE.Vector3(4.2, 5.2, 0.9),
-          new THREE.Vector3(1.55, 4.35, 0.25),
-          new THREE.Vector3(1.4, 4.25, 0.2),
-          new THREE.Vector3(0.9, 5.1, 0.45),
-          new THREE.Vector3(0.05, 5.45, 0.55),
-          new THREE.Vector3(0.05, 5.4, 0.55),
-          new THREE.Vector3(-2.2, 6.0, 1.2),
-          new THREE.Vector3(-7.5, 7.0, 1.8),
-        ],
-        false,
-        "catmullrom",
-        0.4,
-      ),
-    [],
-  );
-  const hasPollen = s > 0.32;
-  useFrame(({ clock }) => {
-    const g = group.current;
-    if (!g) return;
-    const u = clamp(s, 0, 1);
-    const p = path.getPointAt(u);
-    const ahead = path.getPointAt(Math.min(1, u + 0.01));
-    g.position.copy(p);
-    g.lookAt(ahead);
-    g.rotateY(-Math.PI / 2);
-    g.visible = visible;
-    const flap = Math.sin(clock.elapsedTime * 40) * 0.6;
-    if (wingL.current) wingL.current.rotation.x = -0.4 + flap;
-    if (wingR.current) wingR.current.rotation.x = 0.4 - flap;
-  });
-  return (
-    <group ref={group}>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <capsuleGeometry args={[0.16, 0.34, 4, 12]} />
-        <meshStandardMaterial color={COLOURS.bee} roughness={0.7} />
-      </mesh>
-      {[-0.1, 0.04, 0.18].map((x) => (
-        <mesh key={x} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[0.165, 0.035, 8, 20]} />
-          <meshStandardMaterial color={COLOURS.beeStripe} roughness={0.8} />
-        </mesh>
-      ))}
-      {/* Head at +x — the group is turned so +x faces along the path. */}
-      <mesh position={[0.36, 0.02, 0]}>
-        <sphereGeometry args={[0.13, 12, 10]} />
-        <meshStandardMaterial color={COLOURS.beeStripe} roughness={0.7} />
-      </mesh>
-      <group ref={wingL} position={[0.02, 0.14, 0.05]}>
-        <mesh position={[0, 0, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.24, 16]} />
-          <meshStandardMaterial color={COLOURS.wing} transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} />
-        </mesh>
-      </group>
-      <group ref={wingR} position={[0.02, 0.14, -0.05]}>
-        <mesh position={[0, 0, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.24, 16]} />
-          <meshStandardMaterial color={COLOURS.wing} transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} />
-        </mesh>
-      </group>
-      {/* Pollen picked up at the anther, stuck to the hairy underside. */}
-      {hasPollen && (
-        <group position={[0, -0.15, 0]}>
-          {[-0.14, -0.04, 0.06, 0.16].map((x, i) => (
-            <mesh key={i} position={[x, (i % 2) * 0.03, (i % 2 ? 0.06 : -0.06)]} geometry={pollenGeometry} scale={0.04}>
-              <meshStandardMaterial color={COLOURS.pollenInsect} emissive={COLOURS.pollenInsect} emissiveIntensity={0.3} />
-            </mesh>
-          ))}
-        </group>
-      )}
-    </group>
-  );
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [count, insect, colour, seed]);
+  return <instancedMesh ref={meshRef} args={[geometry, material, count]} frustumCulled={false} />;
 }
 
 /** A cloud of light grains blown left to right across the flower's top. */
-function WindPollen({ densityRef, geometry, count = 90, seed = 9 }) {
+function WindPollen({ densityRef, geometry, material, speed = 1, count = 110, seed = 9 }) {
   const meshRef = useRef(null);
   const state = useMemo(
     () => ({
@@ -275,37 +267,44 @@ function WindPollen({ densityRef, geometry, count = 90, seed = 9 }) {
       y: Float32Array.from({ length: count }, (_, i) => 3.4 + hashRandom(seed * 3 + i * 2.1) * 3.2),
       z: Float32Array.from({ length: count }, (_, i) => -1.5 + hashRandom(seed * 7 + i * 0.7) * 3),
       phase: Float32Array.from({ length: count }, (_, i) => hashRandom(seed * 11 + i * 1.9) * Math.PI * 2),
+      t: 0,
       dummy: new THREE.Object3D(),
     }),
     [count, seed],
   );
-  useFrame(({ clock }, rawDelta) => {
+  useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    const dt = Math.min(rawDelta, 0.05);
+    const c = new THREE.Color(COLOURS.pollenWind);
+    for (let i = 0; i < count; i += 1) mesh.setColorAt(i, c);
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [count]);
+  useFrame((_, rawDelta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    // The wind blows at the animation speed, like everything else in the scene.
+    const dt = Math.min(rawDelta, 0.05) * speed;
+    state.t += dt;
     const density = densityRef.current;
-    const t = clock.elapsedTime;
+    const t = state.t;
     const d = state.dummy;
     for (let i = 0; i < count; i += 1) {
       state.x[i] += (2.2 + 1.5 * Math.sin(state.phase[i])) * dt;
       if (state.x[i] > 8) state.x[i] = -8;
       const on = i < Math.round(density * count);
       d.position.set(state.x[i], state.y[i] + 0.15 * Math.sin(t * 2 + state.phase[i]), state.z[i]);
-      d.scale.setScalar(on ? 0.035 : 0);
+      d.rotation.set(t + state.phase[i], state.phase[i], 0);
+      d.scale.setScalar(on ? 0.03 : 0);
       d.updateMatrix();
       mesh.setMatrixAt(i, d.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
   });
-  return (
-    <instancedMesh ref={meshRef} args={[geometry, undefined, count]} frustumCulled={false}>
-      <meshStandardMaterial color={COLOURS.pollenWind} emissive={COLOURS.pollenWind} emissiveIntensity={0.4} transparent opacity={0.9} />
-    </instancedMesh>
-  );
+  return <instancedMesh ref={meshRef} args={[geometry, material, count]} frustumCulled={false} />;
 }
 
 /** Wind streaks so the air itself is visible. */
-function WindStreaks({ densityRef, count = 18, seed = 4 }) {
+function WindStreaks({ densityRef, speed = 1, count = 18, seed = 4 }) {
   const meshRef = useRef(null);
   const state = useMemo(
     () => ({
@@ -319,7 +318,7 @@ function WindStreaks({ densityRef, count = 18, seed = 4 }) {
   useFrame((_, rawDelta) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    const dt = Math.min(rawDelta, 0.05);
+    const dt = Math.min(rawDelta, 0.05) * speed;
     const density = densityRef.current;
     const d = state.dummy;
     for (let i = 0; i < count; i += 1) {
@@ -327,7 +326,7 @@ function WindStreaks({ densityRef, count = 18, seed = 4 }) {
       if (state.x[i] > 8) state.x[i] = -8;
       const on = i < Math.round(density * count);
       d.position.set(state.x[i], state.y[i], state.z[i]);
-      d.scale.set(on ? 1 : 0, on ? 1 : 0, on ? 1 : 0);
+      d.scale.setScalar(on ? 1 : 0);
       d.updateMatrix();
       mesh.setMatrixAt(i, d.matrix);
     }
@@ -335,161 +334,193 @@ function WindStreaks({ densityRef, count = 18, seed = 4 }) {
   });
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
-      <boxGeometry args={[1.1, 0.016, 0.016]} />
-      <meshBasicMaterial color={COLOURS.wind} transparent opacity={0.5} depthWrite={false} />
+      <boxGeometry args={[1.1, 0.012, 0.012]} />
+      <meshBasicMaterial color={COLOURS.wind} transparent opacity={0.4} depthWrite={false} />
     </instancedMesh>
+  );
+}
+
+// ─── The honeybee ───────────────────────────────────────────────────
+
+/**
+ * A worker honeybee. `s` runs 0 → 1 along its visit: in from the right, a
+ * pause on an anther (where it picks up pollen), on to the stigma (where it
+ * leaves some), and away to the left. Wings beat; the pollen baskets on its
+ * hind legs fill after the anther.
+ */
+function Bee({ s, visible, parts, mats, speed = 1 }) {
+  const group = useRef(null);
+  const wingL = useRef(null);
+  const wingR = useRef(null);
+  // Keyframes in s: it dwells on the anther, and is on the stigma at
+  // s = 0.7, the moment the grain lands (the end of the arrival stage).
+  const flight = useMemo(() => {
+    const [ax, ay] = M.anther.insect;
+    const anther = whorlPoint(BEE_STAMEN, ax, M.stamenBase.y + ay + 0.42, 0, M.stamenBase.radius);
+    const stigma = new THREE.Vector3(0.02, STIGMA_Y + M.stigmaTop + 0.3, -0.05);
+    const v = (x, y, z) => new THREE.Vector3(x, y, z);
+    const keys = [
+      [0, v(7.5, 6.4, 1.6)],
+      [0.16, v(4.0, 5.5, 0.9)],
+      [0.27, anther.clone().add(v(0.25, 0.08, 0.3))],
+      [0.33, anther],
+      [0.42, anther.clone().add(v(-0.02, 0.02, 0.01))],
+      [0.52, anther.clone().add(v(-0.35, 0.55, 0.25))],
+      [0.62, stigma.clone().add(v(0.18, 0.12, 0.12))],
+      [0.68, stigma],
+      [0.76, stigma.clone().add(v(-0.02, 0.02, 0.0))],
+      [0.88, v(-2.2, 6.2, 1.2)],
+      [1, v(-7.5, 7.0, 1.8)],
+    ];
+    const curve = new THREE.CatmullRomCurve3(keys.map((k) => k[1]), false, "catmullrom", 0.4);
+    // s → the curve's own parameter, which passes control point k at k / (n - 1).
+    const toT = (sv) => {
+      const n = keys.length;
+      for (let k = 0; k < n - 1; k += 1) {
+        if (sv <= keys[k + 1][0]) return (k + (sv - keys[k][0]) / (keys[k + 1][0] - keys[k][0])) / (n - 1);
+      }
+      return 1;
+    };
+    return { curve, toT };
+  }, []);
+  const hasPollen = s > 0.36;
+  const ahead = useMemo(() => new THREE.Vector3(), []);
+  const beat = useRef(0);
+  useFrame((_, rawDelta) => {
+    const g = group.current;
+    if (!g) return;
+    const t = flight.toT(clamp(s, 0, 1));
+    flight.curve.getPoint(t, g.position);
+    flight.curve.getPoint(Math.min(1, t + 0.02), ahead);
+    ahead.y = g.position.y + (ahead.y - g.position.y) * 0.3; // stays level-ish, as a bee hovers
+    if (ahead.distanceToSquared(g.position) > 1e-6) {
+      g.lookAt(ahead);
+      g.rotateY(-Math.PI / 2);
+    }
+    g.visible = visible;
+    beat.current += Math.min(rawDelta, 0.05) * speed;
+    const flap = Math.sin(beat.current * 48) * 0.7;
+    if (wingL.current) wingL.current.rotation.x = -0.25 - flap;
+    if (wingR.current) wingR.current.rotation.x = 0.25 + flap;
+  });
+  if (!parts.bee) return null;
+  return (
+    <group ref={group} scale={0.85}>
+      <mesh geometry={parts.bee.geometry} material={mats.bee} />
+      {hasPollen && parts.beePollen && <mesh geometry={parts.beePollen.geometry} material={mats.plain} />}
+      <group ref={wingL} position={[0.17, 0.09, 0.05]} rotation={[0, 0.35, 0]}>
+        <mesh geometry={parts.beeWing.geometry} material={mats.wing} renderOrder={3} />
+      </group>
+      <group ref={wingR} position={[0.17, 0.09, -0.05]} rotation={[0, -0.35, 0]}>
+        <mesh geometry={parts.beeWing.geometry} material={mats.wing} scale={[1, 1, -1]} renderOrder={3} />
+      </group>
+    </group>
   );
 }
 
 // ─── The flower ─────────────────────────────────────────────────────
 
-function Stem() {
-  return (
-    <group>
-      <mesh position={[0, RECEPTACLE_Y - 1.4, 0]}>
-        <cylinderGeometry args={[0.13, 0.16, 2.8, 12]} />
-        <meshStandardMaterial color={COLOURS.stem} roughness={0.8} />
-      </mesh>
-      <mesh position={[0, RECEPTACLE_Y, 0]} scale={[1, 0.45, 1]}>
-        <sphereGeometry args={[0.62, 20, 14]} />
-        <meshStandardMaterial color={COLOURS.stem} roughness={0.8} />
-      </mesh>
-      <ToggleLabel position={[-0.95, RECEPTACLE_Y - 0.65, 0.4]} tone="text-ink-400">
-        receptacle
-      </ToggleLabel>
-    </group>
-  );
+/** Organs repeated round a whorl, each turned to its azimuth. */
+function Whorl({ geometry, material, angles, base, y, jitter = 0, seed = 1, renderOrder = 0 }) {
+  return angles.map((a, i) => {
+    const r = jitter ? hashRandom(seed + i * 2.7) - 0.5 : 0;
+    return (
+      <group key={i} rotation={[0, a, 0]}>
+        <mesh geometry={geometry} material={material} position={[base, y, 0]} rotation={[r * jitter, 0, r * jitter * 0.5]} scale={1 + r * jitter * 0.4} renderOrder={renderOrder} />
+      </group>
+    );
+  });
 }
 
-/** Petals and sepals at the back of the cut; the front ones are dissected away. */
-function Perianth({ vector }) {
-  const insect = vector.key === "insect";
-  const petal = useMemo(() => makeBlobGeometry({ radius: 1, amp: 0.05, freq: 1.6, seed: 21, scale: [1.55, 0.06, 0.95], segments: 36, rings: 20 }), []);
-  const sepal = useMemo(() => makeBlobGeometry({ radius: 1, amp: 0.05, freq: 1.8, seed: 22, scale: [0.95, 0.05, 0.36], segments: 28, rings: 14 }), []);
-  useEffect(() => () => {
-    petal.dispose();
-    sepal.dispose();
-  }, [petal, sepal]);
-  const petalScale = insect ? 1 : 0.42;
-  const petalColour = insect ? COLOURS.petalInsect : COLOURS.petalWind;
+function Perianth({ insect, parts, mats }) {
   return (
     <group>
-      {[0.35, Math.PI / 2, Math.PI - 0.35].map((a, i) => (
-        <group key={i} rotation={[0, a, 0]}>
-          <mesh position={[0.55 + 1.15 * petalScale, RECEPTACLE_Y + 0.55 + 0.9 * petalScale, 0]} rotation={[0, 0, insect ? 0.62 : 0.85]} scale={petalScale} geometry={petal}>
-            <meshStandardMaterial color={petalColour} roughness={0.55} side={THREE.DoubleSide} emissive={insect ? COLOURS.petalInsectDeep : "#000000"} emissiveIntensity={insect ? 0.12 : 0} />
-          </mesh>
-          {/* Nectary at the petal base — the reward that pays the courier. */}
-          {insect && (
-            <group position={[0.62, RECEPTACLE_Y + 0.42, 0]}>
-              <mesh>
-                <sphereGeometry args={[0.09, 12, 10]} />
-                <meshStandardMaterial color={COLOURS.nectar} emissive={COLOURS.nectar} emissiveIntensity={0.9} roughness={0.1} />
-              </mesh>
-              <Halo radius={0.18} color={COLOURS.nectar} opacity={0.14} />
-            </group>
-          )}
-        </group>
-      ))}
-      {[0.12, Math.PI / 2 - 0.55, Math.PI / 2 + 0.55, Math.PI - 0.12].map((a, i) => (
-        <group key={i} rotation={[0, a, 0]}>
-          <mesh position={[1.05, RECEPTACLE_Y + 0.28, 0]} rotation={[0, 0, 0.42]} geometry={sepal}>
-            <meshStandardMaterial color={COLOURS.sepal} roughness={0.7} side={THREE.DoubleSide} />
-          </mesh>
-        </group>
-      ))}
-      <ToggleLabel position={[2.1, 2.95, -0.6]} tone={insect ? "text-pink-300" : "text-ink-400"}>
+      {parts.sepal && <Whorl geometry={parts.sepal.geometry} material={mats.leaf} angles={WHORLS.sepals} base={M.sepalBase.radius} y={M.sepalBase.y} jitter={0.15} seed={5} />}
+      {insect
+        ? parts.petal && <Whorl geometry={parts.petal.geometry} material={mats.petal} angles={WHORLS.petals} base={M.petalBase.radius} y={M.petalBase.y} jitter={0.12} seed={2} />
+        : parts.tepal && <Whorl geometry={parts.tepal.geometry} material={mats.leaf} angles={WHORLS.tepals} base={M.tepalBase.radius} y={M.tepalBase.y} jitter={0.2} seed={3} />}
+      <ToggleLabel position={[2.55, 2.35, -0.6]} tone={insect ? "text-pink-300" : "text-ink-400"}>
         {insect ? "petal · large, bright — advertises" : "petals · small, dull — nothing to advertise"}
       </ToggleLabel>
-      <ToggleLabel position={[-1.75, RECEPTACLE_Y + 0.6, -0.4]} tone="text-emerald-300">
+      <ToggleLabel position={[-2.0, 0.3, 0.2]} tone="text-emerald-300">
         sepal
       </ToggleLabel>
-      {insect && (
-        <ToggleLabel position={[1.15, RECEPTACLE_Y + 0.1, 0.65]} tone="text-amber-200">
-          nectar
-        </ToggleLabel>
-      )}
     </group>
   );
 }
 
-function Stamens({ vector, pollenGeometry }) {
-  const insect = vector.key === "insect";
-  const filamentTop = insect ? 3.85 : 4.75;
-  const pollenColour = insect ? COLOURS.pollenInsect : COLOURS.pollenWind;
+function Nectary({ parts, mats }) {
+  const drops = useMemo(
+    () =>
+      [30, 75, 115, 160].map((a, i) => {
+        const p = whorlPoint(a * deg, M.nectary.radius - 0.02, M.nectary.y + 0.07, 0.04 * (i % 2 ? 1 : -1));
+        return [p.x, p.y, p.z];
+      }),
+    [],
+  );
   return (
     <group>
-      {[0.55, 1.25, Math.PI - 1.25, Math.PI - 0.55].map((a, i) => (
-        <group key={i} rotation={[0, a, 0]}>
-          <mesh position={[0.78, RECEPTACLE_Y + (filamentTop - RECEPTACLE_Y) / 2, 0]}>
-            <cylinderGeometry args={[0.03, 0.04, filamentTop - RECEPTACLE_Y, 8]} />
-            <meshStandardMaterial color={COLOURS.filament} roughness={0.7} />
-          </mesh>
-          {/* Two-lobed anther; a wind anther dangles below the filament tip. */}
-          <group position={[0.78, insect ? filamentTop + 0.2 : filamentTop - 0.32, 0]}>
-            {[-0.11, 0.11].map((x) => (
-              <mesh key={x} position={[x, 0, 0]}>
-                <capsuleGeometry args={[0.1, 0.3, 4, 10]} />
-                <meshStandardMaterial color={COLOURS.anther} roughness={0.55} />
-              </mesh>
-            ))}
-            <AntherPollen geometry={pollenGeometry} colour={pollenColour} count={insect ? 14 : 22} seed={i + 3} sizeScale={insect ? 1.15 : 0.8} />
-          </group>
-        </group>
+      {parts.nectary && <mesh geometry={parts.nectary.geometry} material={mats.nectary} />}
+      {/* Nectar beading on the disc: the reward that pays the courier. */}
+      {drops.map((p, i) => (
+        <mesh key={i} position={p} scale={[1, 0.7, 1]}>
+          <sphereGeometry args={[0.05, 14, 10]} />
+          <meshPhysicalMaterial color={COLOURS.nectar} roughness={0.05} transmission={0.6} thickness={0.1} clearcoat={1} emissive={COLOURS.nectar} emissiveIntensity={0.15} />
+        </mesh>
       ))}
-      <ToggleLabel position={[1.25, filamentTop + (insect ? 0.62 : -0.75), -0.3]} tone="text-amber-300">
+      <ToggleLabel position={[1.45, 0.0, 0.5]} tone="text-amber-200">
+        nectary · nectar
+      </ToggleLabel>
+    </group>
+  );
+}
+
+/** Each stamen a little taller or shorter and leaning a little, as in a real flower; the bee's stays as modelled. */
+const stamenPose = (i, angle) => {
+  if (angle === BEE_STAMEN) return { lean: 0, stretch: 1, twist: 0 };
+  const r1 = hashRandom(i * 3.7 + 1) - 0.5;
+  const r2 = hashRandom(i * 5.3 + 2) - 0.5;
+  return { lean: r1 * 0.12, stretch: 1 + r2 * 0.14, twist: r1 * 0.5 };
+};
+
+function Stamens({ insect, parts, mats, pollen }) {
+  const part = insect ? parts.stamenInsect : parts.stamenWind;
+  const angles = insect ? WHORLS.stamensInsect : WHORLS.stamensWind;
+  const [, ay] = insect ? M.anther.insect : M.anther.wind;
+  const antherY = M.stamenBase.y + ay;
+  return (
+    <group>
+      {part &&
+        angles.map((a, i) => {
+          const { lean, stretch, twist } = stamenPose(i, a);
+          return (
+            <group key={i} rotation={[0, a, 0]}>
+              <group position={[M.stamenBase.radius, M.stamenBase.y, 0]} rotation={[0, twist, lean]} scale={[1, stretch, 1]}>
+                <mesh geometry={part.geometry} material={mats.plain} />
+                {pollen && <AntherPollen geometry={pollen} material={mats.pollen} colour={insect ? COLOURS.pollenInsect : COLOURS.pollenWind} insect={insect} seed={i + 1} />}
+              </group>
+            </group>
+          );
+        })}
+      <ToggleLabel position={[insect ? 1.45 : 2.2, antherY + (insect ? 0.62 : -0.1), -0.3]} tone="text-amber-300">
         {insect ? "anther · spiky, sticky pollen" : "anther · dangling · light dry pollen"}
       </ToggleLabel>
-      <ToggleLabel position={[-1.35, RECEPTACLE_Y + 2.7, -0.3]} tone="text-ink-300">
+      <ToggleLabel position={[-1.55, 2.7, -0.3]} tone="text-ink-300">
         filament
       </ToggleLabel>
-      <ToggleLabel position={[-1.55, filamentTop + 0.35, -0.3]} tone="text-ink-400">
+      <ToggleLabel position={[-1.75, antherY + 0.45, -0.3]} tone="text-ink-400">
         stamen = anther + filament
       </ToggleLabel>
     </group>
   );
 }
 
-function Stigma({ vector, landed }) {
-  const insect = vector.key === "insect";
-  const feathers = useMemo(
-    () =>
-      Array.from({ length: 16 }, (_, i) => ({
-        angle: -1.05 + (i / 15) * 2.1,
-        spin: hashRandom(i * 2.3) * Math.PI * 2,
-        length: 0.55 + 0.25 * hashRandom(i * 1.7),
-      })),
-    [],
-  );
+function Stigma({ insect, landed, parts, mats }) {
+  const part = insect ? parts.stigmaSticky : parts.stigmaFeathery;
   return (
     <group position={[0, STIGMA_Y, 0]}>
-      {insect ? (
-        <>
-          <mesh scale={[1.25, 0.72, 1.1]}>
-            <sphereGeometry args={[0.3, 20, 14]} />
-            <meshStandardMaterial color={landed ? COLOURS.stigmaSticky : COLOURS.stigma} roughness={0.15} metalness={0.05} emissive={COLOURS.stigma} emissiveIntensity={0.18} />
-          </mesh>
-          {/* Sticky secretion — glossy droplets. */}
-          {[0.18, -0.2, 0.05].map((x, i) => (
-            <mesh key={i} position={[x, 0.16, 0.16 - i * 0.12]}>
-              <sphereGeometry args={[0.05, 10, 8]} />
-              <meshStandardMaterial color="#f0fdf4" roughness={0.05} transparent opacity={0.8} />
-            </mesh>
-          ))}
-        </>
-      ) : (
-        <group>
-          {feathers.map((f, i) => (
-            <group key={i} rotation={[0, f.spin, f.angle]}>
-              <mesh position={[0, f.length / 2, 0]}>
-                <cylinderGeometry args={[0.012, 0.022, f.length, 6]} />
-                <meshStandardMaterial color={COLOURS.stigma} roughness={0.7} />
-              </mesh>
-            </group>
-          ))}
-        </group>
-      )}
-      <ToggleLabel position={[1.05, 0.45, 0.2]} tone="text-lime-300" accent={landed}>
+      {part && <mesh geometry={part.geometry} material={insect ? mats.wet : mats.tissue} />}
+      <ToggleLabel position={[1.05, insect ? 0.5 : 1.05, 0.2]} tone="text-lime-300" accent={landed}>
         {landed ? `stigma · pollinated` : insect ? "stigma · sticky, inside the flower" : "stigma · feathery, sieves the air"}
       </ToggleLabel>
     </group>
@@ -497,13 +528,13 @@ function Stigma({ vector, landed }) {
 }
 
 /** The grain that lands; the tube grows out of it. */
-function LandedGrain({ landing, germination, geometry, colour }) {
-  const scale = 0.09 * smoothstep(landing);
+function LandedGrain({ landing, germination, geometry, material, colour }) {
+  const scale = 0.06 * smoothstep(landing);
   if (landing <= 0) return null;
   return (
-    <group position={[0, STIGMA_Y + 0.12, 0.08]}>
+    <group position={[0, STIGMA_Y + M.stigmaTop + 0.03, -0.04]}>
       <mesh geometry={geometry} scale={scale * (1 + 0.15 * germination)}>
-        <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.35} roughness={0.5} />
+        <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.3} roughness={0.5} vertexColors />
       </mesh>
       {landing >= 1 && germination < 1 && (
         <ToggleLabel position={[-0.95, 0.35, 0.2]} tone="text-amber-200">
@@ -514,100 +545,77 @@ function LandedGrain({ landing, germination, geometry, colour }) {
   );
 }
 
-function Style() {
-  const length = STYLE.top - STYLE.bottom;
+/** A cell of the embryo sac: a pale, translucent cell with its nucleus. */
+function SacCell({ position, radius, colour, glow = 0.45, nucleus = true }) {
   return (
-    <group>
-      {/* Back half only, so the tube inside is on show. */}
-      <mesh position={[0, STYLE.bottom + length / 2, 0]}>
-        <cylinderGeometry args={[STYLE.radius, STYLE.radius * 1.15, length, 24, 1, true, Math.PI / 2, Math.PI]} />
-        <meshStandardMaterial color={COLOURS.style} roughness={0.6} side={THREE.DoubleSide} transparent opacity={0.9} />
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[radius, 16, 12]} />
+        <meshPhysicalMaterial color={COLOURS.sacCell} roughness={0.3} transparent opacity={0.55} depthWrite={false} clearcoat={0.6} />
       </mesh>
-      <ToggleLabel position={[-0.95, 3.7, 0.2]} tone="text-ink-300">
-        style · cut-away
-      </ToggleLabel>
+      {nucleus && (
+        <mesh>
+          <sphereGeometry args={[radius * 0.45, 12, 10]} />
+          <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={glow} />
+        </mesh>
+      )}
     </group>
   );
 }
 
-function Ovule({ ovule, primary, describe }) {
+/**
+ * The contents of the opened embryo sac: egg apparatus at the micropylar
+ * end (an egg flanked by two synergids), two polar nuclei in the central
+ * cell, three antipodals at the far end. They change as fertilisation runs.
+ */
+function EmbryoSac({ ovule, primary, describe }) {
   const { centre, rx, ry } = ovule;
   const z = describe?.zygoteFormed && primary;
   const e = describe?.endospermFormed && primary;
   const entered = primary && describe?.entry > 0;
+  const sy = ry * 0.62;
+  const cz = -0.045;
   return (
-    <group position={centre}>
-      {/* Integuments — the ovule's coat — open at the micropyle end (top). */}
-      <mesh scale={[rx, ry, rx]}>
-        <sphereGeometry args={[1, 24, 18, 0, Math.PI * 2, 0.32, Math.PI - 0.32]} />
-        <meshStandardMaterial color={COLOURS.ovule} roughness={0.6} transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} />
-      </mesh>
-      {/* Embryo sac. */}
-      <mesh scale={[rx * 0.62, ry * 0.7, rx * 0.62]} position={[0, -0.02, 0]}>
-        <sphereGeometry args={[1, 18, 14]} />
-        <meshStandardMaterial color={COLOURS.sac} roughness={0.5} transparent opacity={0.35} depthWrite={false} />
-      </mesh>
-      {/* Micropyle: the gap the tube comes through. */}
-      <mesh position={[0, ry - 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.05, 0.085, 16]} />
-        <meshBasicMaterial color="#365314" side={THREE.DoubleSide} />
-      </mesh>
-      {/* Egg apparatus near the micropyle: egg + two synergids. */}
-      <mesh position={[0, ry * 0.42, 0.04]}>
-        <sphereGeometry args={[z ? 0.1 : 0.075, 14, 12]} />
-        <meshStandardMaterial color={z ? COLOURS.zygote : COLOURS.egg} emissive={z ? COLOURS.zygote : COLOURS.egg} emissiveIntensity={z ? 1.0 : 0.45} />
-      </mesh>
-      {[-0.09, 0.09].map((x) => (
-        <mesh key={x} position={[x, ry * 0.5, -0.02]}>
-          <sphereGeometry args={[0.04, 10, 8]} />
-          <meshStandardMaterial color={COLOURS.synergid} roughness={0.5} />
-        </mesh>
+    <group position={[centre[0], centre[1] + 0.03 * ry, centre[2]]}>
+      {[-1, 1].map((s) => (
+        <SacCell key={s} position={[s * rx * 0.2, sy * 0.72, cz]} radius={rx * 0.15} colour={COLOURS.synergid} glow={0.2} />
       ))}
-      {/* Two polar nuclei in the centre; fuse with the second sperm into the 3n endosperm. */}
+      <SacCell position={[0, sy * 0.42, cz]} radius={z ? rx * 0.25 : rx * 0.21} colour={z ? COLOURS.zygote : COLOURS.egg} glow={z ? 1.0 : 0.45} />
       {e ? (
-        <mesh position={[0, -0.02, 0.03]}>
-          <sphereGeometry args={[0.12, 14, 12]} />
+        <mesh position={[0, -0.02, cz]}>
+          <sphereGeometry args={[rx * 0.3, 16, 12]} />
           <meshStandardMaterial color={COLOURS.endosperm} emissive={COLOURS.endosperm} emissiveIntensity={0.9} />
         </mesh>
       ) : (
-        [-0.05, 0.05].map((x) => (
-          <mesh key={x} position={[x, -0.02, 0.03]}>
-            <sphereGeometry args={[0.048, 10, 8]} />
+        [-1, 1].map((s) => (
+          <mesh key={s} position={[s * rx * 0.13, -0.02, cz]}>
+            <sphereGeometry args={[rx * 0.13, 12, 10]} />
             <meshStandardMaterial color={COLOURS.polar} emissive={COLOURS.polar} emissiveIntensity={0.5} />
           </mesh>
         ))
       )}
-      {/* Antipodal cells at the far end. */}
-      {[-0.06, 0, 0.06].map((x) => (
-        <mesh key={x} position={[x, -ry * 0.55, 0]}>
-          <sphereGeometry args={[0.03, 8, 6]} />
-          <meshStandardMaterial color={COLOURS.antipodal} roughness={0.6} />
-        </mesh>
+      {[-1, 0, 1].map((s) => (
+        <SacCell key={s} position={[s * rx * 0.2, -sy * 0.75 + Math.abs(s) * 0.03, cz]} radius={rx * 0.11} colour={COLOURS.antipodal} glow={0.1} />
       ))}
-      {/* Funicle: the stalk to the ovary wall. */}
-      <mesh position={[primary ? 0.22 : -0.2, -ry * 0.2, -0.1]} rotation={[0, 0, primary ? -1.1 : 1.1]}>
-        <cylinderGeometry args={[0.03, 0.03, 0.3, 6]} />
-        <meshStandardMaterial color={COLOURS.ovaryInner} roughness={0.7} />
-      </mesh>
-      {z && <Halo position={[0, ry * 0.42, 0.04]} radius={0.22} color={COLOURS.zygote} opacity={0.18} />}
-      {e && <Halo position={[0, -0.02, 0.03]} radius={0.26} color={COLOURS.endosperm} opacity={0.14} />}
+      {z && <Halo position={[0, sy * 0.42, cz]} radius={0.2} color={COLOURS.zygote} opacity={0.18} />}
+      {e && <Halo position={[0, -0.02, cz]} radius={0.24} color={COLOURS.endosperm} opacity={0.14} />}
       {primary && (
         <>
           {/* A column to the right of the ovary, spread wider than the ovule's
               own height so the three never overprint. */}
-          <ToggleLabel position={[0.62, ry + 0.3, 0.2]} className="inline-block translate-x-1/2" tone={entered ? "text-amber-200" : "text-ink-400"}>
+          <ToggleLabel position={[0.85, ry + 0.3, 0.2]} className="inline-block translate-x-1/2" tone={entered ? "text-amber-200" : "text-ink-400"}>
             {entered ? "micropyle · tube entering" : "micropyle"}
           </ToggleLabel>
-          <ToggleLabel position={[0.62, ry * 0.3, 0.2]} className="inline-block translate-x-1/2" tone={z ? "text-amber-300" : "text-rose-300"} accent={z}>
+          <ToggleLabel position={[0.85, ry * 0.3, 0.2]} className="inline-block translate-x-1/2" tone={z ? "text-amber-300" : "text-rose-300"} accent={z}>
             {z ? "zygote · 2n (sperm + egg)" : "egg cell · n"}
           </ToggleLabel>
-          <ToggleLabel position={[0.62, -0.28, 0.2]} className="inline-block translate-x-1/2" tone={e ? "text-fuchsia-300" : "text-violet-300"} accent={e}>
+          <ToggleLabel position={[0.85, -0.28, 0.2]} className="inline-block translate-x-1/2" tone={e ? "text-fuchsia-300" : "text-violet-300"} accent={e}>
             {e ? "endosperm · 3n (sperm + 2 polar nuclei)" : "2 polar nuclei · n + n"}
           </ToggleLabel>
         </>
       )}
       {!primary && (
-        <ToggleLabel position={[-0.75, -ry - 0.35, 0.2]} tone="text-ink-400">
+        <ToggleLabel position={[-0.65, -ry - 0.3, 0.2]} tone="text-ink-400">
           second ovule
         </ToggleLabel>
       )}
@@ -615,32 +623,24 @@ function Ovule({ ovule, primary, describe }) {
   );
 }
 
-function Ovary({ describe }) {
+function Carpel({ describe, parts, mats }) {
   return (
     <group>
-      <group position={OVARY.centre} scale={[1, OVARY.scaleY, 0.92]}>
-        {/* Back half of the ovary wall, and a darker inner lining for depth. */}
-        <mesh>
-          <sphereGeometry args={[OVARY.radius, 36, 24, Math.PI, Math.PI]} />
-          <meshStandardMaterial color={COLOURS.ovaryWall} roughness={0.6} side={THREE.DoubleSide} />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[OVARY.radius * 0.93, 36, 24, Math.PI, Math.PI]} />
-          <meshStandardMaterial color={COLOURS.ovaryInner} roughness={0.85} side={THREE.BackSide} />
-        </mesh>
-        {/* The cut face: a thin ring in the plane of the cut, where the front half was removed. */}
-        <mesh>
-          <ringGeometry args={[OVARY.radius * 0.93, OVARY.radius, 48]} />
-          <meshStandardMaterial color="#a3d977" roughness={0.6} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
-      <Ovule ovule={OVULE_A} primary describe={describe} />
-      <Ovule ovule={OVULE_B} primary={false} describe={describe} />
-      <ToggleLabel position={[-1.85, OVARY.centre[1] + 0.55, 0.3]} tone="text-emerald-300">
+      {parts.body && <mesh geometry={parts.body.geometry} material={mats.tissue} />}
+      {parts.ovules && <mesh geometry={parts.ovules.geometry} material={mats.ovule} />}
+      <EmbryoSac ovule={OVULE_A} primary describe={describe} />
+      <EmbryoSac ovule={OVULE_B} primary={false} describe={describe} />
+      <ToggleLabel position={[-1.65, 1.75, 0.3]} tone="text-emerald-300">
         ovary · cut open
       </ToggleLabel>
-      <ToggleLabel position={[1.95, OVARY.centre[1] - 1.55, 0.4]} tone="text-ink-400">
+      <ToggleLabel position={[1.95, -0.6, 0.4]} tone="text-ink-400">
         carpel = stigma + style + ovary
+      </ToggleLabel>
+      <ToggleLabel position={[-1.05, 3.15, 0.2]} tone="text-ink-300">
+        style · cut lengthways
+      </ToggleLabel>
+      <ToggleLabel position={[-1.55, -0.45, 0.4]} tone="text-ink-400">
+        receptacle
       </ToggleLabel>
     </group>
   );
@@ -682,25 +682,20 @@ function PollenTube({ path, liveRef, vectorKey }) {
 
   return (
     <group>
-      <mesh ref={meshRef} geometry={path.geometry}>
-        <meshStandardMaterial color={COLOURS.tube} emissive={COLOURS.tube} emissiveIntensity={0.45} roughness={0.45} toneMapped={false} />
+      <mesh ref={meshRef} geometry={path.geometry} renderOrder={2}>
+        <meshStandardMaterial color={COLOURS.tube} emissive={COLOURS.tube} emissiveIntensity={0.5} roughness={0.35} transparent opacity={0.92} toneMapped={false} />
       </mesh>
-      <mesh ref={tubeNucleus} visible={false}>
-        <sphereGeometry args={[0.07, 10, 8]} />
-        <meshStandardMaterial color={COLOURS.tubeNucleus} emissive={COLOURS.tubeNucleus} emissiveIntensity={1.2} toneMapped={false} />
-      </mesh>
-      <mesh ref={generative} visible={false}>
-        <sphereGeometry args={[0.062, 10, 8]} />
-        <meshStandardMaterial color={COLOURS.generative} emissive={COLOURS.generative} emissiveIntensity={1.2} toneMapped={false} />
-      </mesh>
-      <mesh ref={sperm1} visible={false}>
-        <sphereGeometry args={[0.058, 10, 8]} />
-        <meshStandardMaterial color={COLOURS.sperm} emissive={COLOURS.sperm} emissiveIntensity={1.3} toneMapped={false} />
-      </mesh>
-      <mesh ref={sperm2} visible={false}>
-        <sphereGeometry args={[0.058, 10, 8]} />
-        <meshStandardMaterial color={COLOURS.sperm} emissive={COLOURS.sperm} emissiveIntensity={1.3} toneMapped={false} />
-      </mesh>
+      {[
+        [tubeNucleus, COLOURS.tubeNucleus, 0.052],
+        [generative, COLOURS.generative, 0.046],
+        [sperm1, COLOURS.sperm, 0.042],
+        [sperm2, COLOURS.sperm, 0.042],
+      ].map(([ref, colour, r], i) => (
+        <mesh key={i} ref={ref} visible={false} renderOrder={3}>
+          <sphereGeometry args={[r, 12, 10]} />
+          <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={1.2} toneMapped={false} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -748,12 +743,41 @@ function Verdict({ describe }) {
   const tone = describe.fertilised ? "text-emerald-300" : describe.pollinated ? "text-amber-300" : "text-ink-400";
   return (
     <group>
-      <ToggleLabel position={[0, 6.35, 0]} accent={describe.pollinated}>
+      <ToggleLabel position={[0, 6.55, 0]} accent={describe.pollinated}>
         {describe.pollinated ? "POLLINATION ✓ · pollen on the stigma" : "POLLINATION · pollen must reach the stigma"}
       </ToggleLabel>
-      <ToggleLabel position={[0, 5.95, 0]} tone={tone} accent={describe.fertilised}>
+      <ToggleLabel position={[0, 6.15, 0]} tone={tone} accent={describe.fertilised}>
         {describe.fertilised ? "FERTILISATION ✓ · nuclei fused in the ovule" : describe.pollinated ? "FERTILISATION · not yet — the tube is still growing" : "FERTILISATION · fusion of nuclei, in the ovule, hours later"}
       </ToggleLabel>
+    </group>
+  );
+}
+
+/** Everything built from the model: it suspends while the GLB loads, the labels above do not. */
+function FlowerModel({ vector, describe, beeS, beeVisible, windRef, liveRef, path, speed }) {
+  const parts = usePackedModel(FLOWER_GLB);
+  const mats = useMaterials();
+  const insect = vector.key === "insect";
+  const pollen = (insect ? parts.pollenSpiky : parts.pollenSmooth)?.geometry;
+  return (
+    <group>
+      <Carpel describe={describe} parts={parts} mats={mats} />
+      {insect && <Nectary parts={parts} mats={mats} />}
+      <Perianth insect={insect} parts={parts} mats={mats} />
+      <Stamens insect={insect} parts={parts} mats={mats} pollen={pollen} />
+      <Stigma insect={insect} landed={describe.pollinated} parts={parts} mats={mats} />
+      {pollen && <LandedGrain landing={describe.landing} germination={describe.germination} geometry={pollen} colour={insect ? COLOURS.pollenInsect : COLOURS.pollenWind} />}
+      <PollenTube path={path} liveRef={liveRef} vectorKey={vector.key} />
+      {insect ? (
+        <Bee s={beeS} visible={beeVisible} parts={parts} mats={mats} speed={speed} />
+      ) : (
+        pollen && (
+          <>
+            <WindPollen densityRef={windRef} geometry={pollen} material={mats.pollen} speed={speed} />
+            <WindStreaks densityRef={windRef} speed={speed} />
+          </>
+        )
+      )}
     </group>
   );
 }
@@ -768,7 +792,6 @@ export default function FlowerPollinationCanvas({ params = {}, setParam }) {
   const describe = useMemo(() => describePollination(snapshot ? snapshot.t : Number(time) || 0, vector.key), [snapshot, time, vector.key]);
 
   const path = useDisposedTubePath();
-  const pollenGeometry = usePollenGeometry(vector.pollen.spiky);
 
   // Wind density and the bee's place on its path follow the arrival stage.
   const windRef = useRef(0);
@@ -786,45 +809,35 @@ export default function FlowerPollinationCanvas({ params = {}, setParam }) {
   return (
     <SceneCanvas
       camera={{ position: [0.4, 3.4, 11.5], fov: 42 }}
-      controls={{ minDistance: 4, maxDistance: 28, maxPolarAngle: Math.PI * 0.52 }}
-      lights={{ ambient: 0.7, keyLight: 1.3, rim: PALETTE.emerald }}
+      controls={{ minDistance: 3, maxDistance: 28, maxPolarAngle: Math.PI * 0.52 }}
+      lights={{ ambient: 0.55, keyLight: 1.25, rim: PALETTE.emerald }}
     >
       <FitCamera view={FLOWER_VIEW} direction={[0.04, 0.12, 1]} fov={42} />
+      <EnableLocalClipping />
+      <hemisphereLight args={["#f3f7ff", "#2f3b22", 0.55]} />
+      {/* A soft light from the front, so the cut faces read as moist tissue. */}
+      <directionalLight position={[1.5, 3, 8]} intensity={0.55} color="#fff6ea" />
       <LabelsOn.Provider value={showLabels !== false}>
-      <TimelineDriver timeline={POLLINATION_TIMELINE} trigger={pollinate} speed={speed} live={live} scrub={scrub} onTick={setSnapshot} />
+        <TimelineDriver timeline={POLLINATION_TIMELINE} trigger={pollinate} speed={speed} live={live} scrub={scrub} onTick={setSnapshot} />
 
-      <Stem />
-      <Perianth vector={vector} />
-      <Stamens vector={vector} pollenGeometry={pollenGeometry} />
-      <Ovary describe={describe} />
-      <Style />
-      <Stigma vector={vector} landed={describe.pollinated} />
-      <LandedGrain landing={describe.landing} germination={describe.germination} geometry={pollenGeometry} colour={vector.key === "insect" ? COLOURS.pollenInsect : COLOURS.pollenWind} />
-      <PollenTube path={path} liveRef={live} vectorKey={vector.key} />
-      <GrowthGauge describe={describe} />
+        <Suspense fallback={null}>
+          <FlowerModel vector={vector} describe={describe} beeS={beeS} beeVisible={beeVisible} windRef={windRef} liveRef={live} path={path} speed={Number(speed) || 0} />
+        </Suspense>
+        <GrowthGauge describe={describe} />
 
-      {vector.key === "insect" ? (
-        <Bee s={beeS} visible={beeVisible} pollenGeometry={pollenGeometry} />
-      ) : (
-        <>
-          <WindPollen densityRef={windRef} geometry={pollenGeometry} />
-          <WindStreaks densityRef={windRef} />
-        </>
-      )}
+        {describe.nuclei.tube !== null && (
+          <ToggleLabel position={[-1.7, Math.max(2.45, lerp(STYLE.top, STYLE.bottom, clamp(describe.tubeFraction, 0, 1)) + 0.1), 0.3]} tone="text-sky-300">
+            {describe.nuclei.divided ? "tube nucleus + 2 sperm nuclei (n)" : "tube nucleus + generative nucleus"}
+          </ToggleLabel>
+        )}
+        {describe.nuclei.divided && describe.fertilisation === 0 && (
+          <ToggleLabel position={[1.75, 3.35, 0.3]} tone="text-rose-300">
+            generative nucleus divided → 2 sperm
+          </ToggleLabel>
+        )}
 
-      {describe.nuclei.tube !== null && (
-        <ToggleLabel position={[-1.7, Math.max(2.45, lerp(STYLE.top, STYLE.bottom, clamp(describe.tubeFraction, 0, 1)) + 0.1), 0.3]} tone="text-sky-300">
-          {describe.nuclei.divided ? "tube nucleus + 2 sperm nuclei (n)" : "tube nucleus + generative nucleus"}
-        </ToggleLabel>
-      )}
-      {describe.nuclei.divided && describe.fertilisation === 0 && (
-        <ToggleLabel position={[1.75, 3.35, 0.3]} tone="text-rose-300">
-          generative nucleus divided → 2 sperm
-        </ToggleLabel>
-      )}
-
-      <Verdict describe={describe} />
-      <TimelineCaption position={[0, -1.75, 0.5]} timeline={POLLINATION_TIMELINE} snapshot={snapshot} idle="press Trigger pollination — or drag the time slider" />
+        <Verdict describe={describe} />
+        <TimelineCaption position={[0, -1.75, 0.5]} timeline={POLLINATION_TIMELINE} snapshot={snapshot} idle="press Trigger pollination — or drag the time slider" />
       </LabelsOn.Provider>
     </SceneCanvas>
   );
