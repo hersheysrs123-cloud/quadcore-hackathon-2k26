@@ -623,7 +623,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                       )}
                       <span
                         title={`${n} ${n === 1 ? "annotation" : "annotations"}`}
-                        className={`shrink-0 rounded-full border border-ink-750 px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                        className={`shrink-0 rounded-full border border-ink-750 px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-opacity group-hover/poem:opacity-0 group-has-[.lit-del:focus-visible]/poem:opacity-0 ${
                           n ? "bg-duck-500/15 text-duck-300" : "bg-ink-850 text-ink-600"
                         }`}
                       >
@@ -635,7 +635,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                       onClick={() => askDeletePoem(p)}
                       title="Delete poem"
                       aria-label={`Delete ${p.title || "poem"}`}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-ink-850 p-1 text-ink-500 opacity-0 transition-opacity hover:bg-gap-500/15 hover:text-gap-400 focus-visible:opacity-100 group-hover/poem:opacity-100"
+                      className="lit-del absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-500 opacity-0 transition-opacity hover:bg-gap-500/15 hover:text-gap-400 focus-visible:opacity-100 group-hover/poem:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

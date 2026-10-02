@@ -108,8 +108,9 @@ Three entry points share one confirm (`askDeletePoem`), which names the poem and
 how many annotations go with it:
 
 - **Poem list**: a ghosted `Trash2` button pinned to the right of each row
-  (`bg-ink-850`, `hover:bg-gap-500/15 hover:text-gap-400`). It fades in on row
-  hover or keyboard focus and covers the annotation-count pill while visible.
+  (`hover:bg-gap-500/15 hover:text-gap-400`). On row hover or keyboard focus it
+  fades in and the annotation-count pill fades out, so the two swap places
+  rather than stacking.
 - **Poem header**: a `Delete` button after `Edit lines`, neutral until hover
   (`hover:bg-gap-500/10 hover:text-gap-400`). Its label shows from `xl` up.
 - The line editor's "Delete poem" and the sample banner's "Delete sample" are

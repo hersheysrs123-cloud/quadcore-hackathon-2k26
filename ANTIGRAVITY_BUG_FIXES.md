@@ -8550,3 +8550,38 @@ tab.
 
 Calendar events have no automatic alert (only the manual 🔔 test trigger), so
 they had no clock to go stale.
+
+---
+
+## Calendar Timer Panel: Chooser Started/Paused Timers, Running Timers Hidden; Poem Trash Over Count
+
+### 1. Problem
+
+- In the Calendar tab, the Focus / Short / Long buttons **started or paused**
+  the matching timer instead of choosing it. Clicking "Focus" while Focus ran
+  paused it, and clicking "Short" started a second timer while the display
+  stayed on the first.
+- The panel showed only `primaryTimer` (the active timer ending soonest), so
+  any other running timer was invisible there.
+- "Custom" created a new, unstarted timer on every click. Its minutes field
+  only appeared when a custom timer already happened to be primary, so a
+  first-time user could not reach it.
+- Literature: the poem-row trash icon was drawn on top of the annotation-count
+  pill.
+
+### 2. Root cause
+
+The widget was written for a single timer. It used `useGlobalTimer()`'s
+single-timer helpers (`startTimer(mode)` toggles the first timer of that mode;
+`mode`, `secondsLeft` and `togglePlayPause()` are all `primaryTimer`'s) after
+the store had become multi-timer.
+
+### 3. Resolution
+
+- `StudyTimerWidget` rewritten against the multi-timer API. A chooser
+  (`role="radiogroup"`) lists every timer and only selects; the controls act
+  on `selectedId`, which defaults to the running timer. A "Running now" list
+  shows every active timer. "+ Custom" opens a name + minutes form that
+  creates the timer and starts it, and custom timers can be deleted.
+- `LiteratureView`: the count pill fades out on row hover/focus while the
+  trash fades in, so they swap places instead of stacking.
