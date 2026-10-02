@@ -41,8 +41,8 @@ components, each with one job:
 
 | Component | Owns |
 | :--- | :--- |
-| `NavRail.jsx` | The always-visible left rail: the eight sections (Home, Notes, Quizzes, Mastery, Calendar, 3D Lab, Literature, Saved), the running-timer readout, quick capture, search, theme toggle and Settings |
-| `NotesPanel.jsx` | The contextual panel shown **only** in Notes: space switcher (dropdown or grid), search, the nested note tree, drag-to-reorder, multi-select bulk actions, Trash |
+| `NavRail.jsx` | The always-visible left rail: the eight sections (Home, Notes, Quizzes, Mastery, Calendar, 3D Lab, Literature, Saved), the running-timer readout, quick capture, search, theme toggle and Settings. It scrolls on short windows, and a right-click menu pins or unpins items (persisted in `localStorage` `socratic_rail_hidden`; Settings is locked) |
+| `NotesPanel.jsx` | The contextual panel shown **only** in Notes: space switcher (dropdown or grid), a dedicated Space Hub button, search, the nested note tree, drag-to-reorder, multi-select bulk actions, Trash |
 | `TopBar.jsx` | Breadcrumb with overflow menu, back/forward, panel toggle, save status, the Explain / Quiz me / Tutor switcher, the note `⋯` menu and focus mode |
 | `HomeView.jsx` | The Home overview: greeting, counts, recent notes, the timer HUD and the tutorial entry point |
 

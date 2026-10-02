@@ -436,23 +436,13 @@ export default function NotesPanel({
               );
             })}
           </div>
-          <div className="mt-1.5 flex gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-duck-400 hover:bg-ink-850"
-            >
-              <Plus className="h-3 w-3" /> New space
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenSpaceHub?.()}
-              title="Space settings & syllabus"
-              className="flex items-center justify-center rounded-lg px-2 py-1.5 text-ink-400 hover:bg-ink-850 hover:text-ink-100"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-duck-400 hover:bg-ink-850"
+          >
+            <Plus className="h-3 w-3" /> New space
+          </button>
         </div>
       ) : (
       <div className="relative px-3 pt-3" ref={switcherRef}>
@@ -531,20 +521,24 @@ export default function NotesPanel({
             >
               <Plus className="h-3.5 w-3.5" /> New space
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSwitcherOpen(false);
-                onOpenSpaceHub?.();
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium text-ink-300 hover:bg-ink-850 hover:text-ink-100"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" /> Space settings &amp; syllabus
-            </button>
           </div>
         )}
       </div>
       )}
+
+      {/* Space Hub — its own row so syllabus and AI settings are one click away. */}
+      <div className="px-3 pt-1.5">
+        <button
+          type="button"
+          onClick={() => onOpenSpaceHub?.()}
+          title={`Open the ${activeSpace} Space Hub: syllabus and subject settings`}
+          className="flex w-full items-center gap-2.5 rounded-lg border border-ink-750 bg-ink-850/60 px-2.5 py-1.5 text-left transition-colors hover:border-duck-500/40 hover:bg-ink-800"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-duck-400" />
+          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-200">Space Hub</span>
+          <span className="shrink-0 text-[10px] text-ink-500">Syllabus &amp; AI</span>
+        </button>
+      </div>
 
       {/* Search */}
       <div className="px-3 pt-2">

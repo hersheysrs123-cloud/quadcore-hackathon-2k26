@@ -8434,3 +8434,38 @@ that behaviour had stopped being reachable.
   the panel to tiles and persists; Explain, Quiz me and Tutor each open their
   own drawer; the 3D studio renders all 51 topics under software WebGL. No
   console errors outside headless-GPU noise.
+
+---
+
+## Redesigned Shell: Rail Items Cut Off on Short Windows, Lost Donate & Feedback Entry Points
+
+### 1. Problem
+
+- **The nav rail could not scroll.** The rail stacks the brand tile, eight
+  sections and five foot tools (about 680px). It had no overflow handling, so on
+  a laptop-height window or a zoomed browser the bottom items (Theme, Settings)
+  were clipped off-screen and could not be reached at all.
+- **Donate and Feedback had no way in.** The redesign dropped the sidebar
+  header that held them. `FeatureRequestModal` still shipped, but nothing
+  rendered it.
+
+### 2. Root cause
+
+The rail is a `flex-col` at `h-full` with `mt-auto` on the foot group. Without
+`min-h-0` and `overflow-y-auto`, the column just overflows its parent. The
+workspace root is `overflow-hidden`, so the overflow is clipped instead of
+scrolling.
+
+### 3. Resolution
+
+1. `NavRail.jsx`: `min-h-0 overflow-y-auto overflow-x-hidden` with the
+   scrollbar hidden. `mt-auto` still pins the foot tools when there is room,
+   and the active-section indicator sits inside the rail's padding, so it is
+   not clipped.
+2. Users can also unpin rail items they do not use via a right-click menu
+   (`socratic_rail_hidden` in localStorage). Settings is locked so the menu
+   can never hide the way back.
+3. `SettingsModal` gained a **Support & Feedback** tab with Donate (disabled
+   when `NEXT_PUBLIC_STRIPE_DONATE_URL` is unset, instead of opening `#` as the
+   old button did) and Feedback, which opens `FeatureRequestModal`. That modal
+   moved from `z-[200]` to `z-[230]` so it stacks above Settings (`z-[210]`).

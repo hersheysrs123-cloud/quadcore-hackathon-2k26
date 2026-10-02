@@ -14,12 +14,15 @@ is no longer rendered as a component.
 - **Brand**: duck tile at the top, linking Home.
 - **Sections** (icon over a 10px label, in study-loop order): Home, Notes, Quizzes, Mastery, Calendar, 3D Lab, Saved. Active: `bg-ink-800 text-ink-100`; idle: `text-ink-500 hover:text-ink-200`. Mastery carries a `gap-500` count badge when the heatmap holds unresolved gaps.
 - **Foot tools**: running-timer readout (live `mm:ss` when a timer is going), Capture (`Ctrl+I`), Search (`Ctrl+K`), theme toggle, Settings.
+- **Scrolling**: the rail is `overflow-y-auto` with its scrollbar hidden (`[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`), so on short windows every item stays reachable. `mt-auto` still pins the foot tools to the bottom when there is room.
+- **Pin / unpin (right-click)**: right-clicking anywhere on the rail opens a `role="menu"` popover (`w-52 rounded-xl border-ink-700 bg-ink-900 shadow-2xl`, clamped to the viewport). If the click landed on an item (`data-rail-id`), the first row is **Unpin {item}**. Below it, a "Show in sidebar" checklist covers every section and foot tool (checked = `bg-duck-500` square), plus **Show everything** when anything is hidden. **Settings is locked** (lock icon, disabled) because it is always the way back. Hidden ids persist per device in `localStorage` under `socratic_rail_hidden` and load after mount.
 
 #### 1b. Notes panel (`NotesPanel.jsx`)
 - **Width**: `w-64 shrink-0`, `bg-ink-900 border-r border-ink-800`.
 - **Space switcher** — two layouts, chosen in Settings ("Space Switcher Display") and persisted in `db.settings` under `space_switcher_layout`:
-  - `dropdown` (default): a trigger showing the active space's icon, name and note count, opening a `role="listbox"` popover with per-row edit, "New space" and "Space settings & syllabus".
+  - `dropdown` (default): a trigger showing the active space's icon, name and note count, opening a `role="listbox"` popover with per-row edit and "New space".
   - `grid`: two-column tiles for one-click switching (`border-ink-750 bg-ink-850/80`, active `border-duck-500/60 bg-duck-500/15 text-duck-300`), each with a hover-revealed edit pencil.
+- **Space Hub button**: a dedicated row directly under either switcher layout (`border-ink-750 bg-ink-850/60`, `hover:border-duck-500/40`). It has a duck `SlidersHorizontal` icon, a "Space Hub" label and a muted "Syllabus & AI" hint, and opens the active space's hub (`activeTab = "spacehub"`). It replaces the old in-dropdown "Space settings & syllabus" item and the grid's icon-only button.
 - **Search**: "Find a note" input (`bg-ink-850`, `focus-within:border-ink-700`) filtering the space by title. Results render flat and are **not** reorderable.
 - **Notes List**: nested sub-page tree per active space.
   - **Header Controls**: Inline "Select" / "Done" action button (`text-[11px] px-2 py-0.5 rounded font-medium text-ink-400 hover:text-ink-200 hover:bg-ink-800`), turning into active pill `bg-duck-500/20 text-duck-300 ring-1 ring-duck-400/40 font-semibold` when selecting.
@@ -71,6 +74,7 @@ is no longer rendered as a component.
 - **3D & Graphics Tab**: Performance presets (*Auto*, *High*, *Medium*, *Low/Battery Saver*), target FPS (30/60/120), DPR pixel ratio scaling, and auto-pause when hidden.
 - **API Keys Tab**: Personal Google Gemini API key configuration stored 100% privately in Dexie IndexedDB.
 - **Backup & Reset Tab**: Export/import `.socratic` JSON packages and table-targeted factory reset with typed `"RESET"` confirmation.
+- **Support & Feedback Tab** (`💛`): two action cards in the factory-reset card style. **Donate / Support** (`HeartHandshake`, rose) opens `NEXT_PUBLIC_STRIPE_DONATE_URL` in a new tab and is disabled with an explanatory subtitle when that variable is unset. **Feedback / Feature request** (`MessageSquare`, duck) opens `FeatureRequestModal`, which sits at `z-[230]` so it stacks above Settings (`z-[210]`). These were the sidebar-header buttons before the redesign.
 
 ### 6. Modal Dialogs & Overlay Layouts
 - **Backdrop**: `fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in`.
