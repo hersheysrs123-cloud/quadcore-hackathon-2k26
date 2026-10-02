@@ -1,8 +1,9 @@
-@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Caveat:wght@500;700&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
 :root {
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-note-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-note-serif: "Lora", "Charter", Georgia, "Times New Roman", serif;
   --font-note-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -38,108 +39,95 @@
 }
 
 @theme {
-  /* Default Neutral Ramp (Dark Mode) — lighter & warmer slate tones */
-  --color-ink-950: #12151e;
-  --color-ink-900: #181c27;
-  --color-ink-850: #1f2332;
-  --color-ink-800: #282d3f;
-  --color-ink-700: #363d54;
-  --color-ink-600: #4e5672;
-  --color-ink-500: #737c9a;
-  --color-ink-400: #9aa2bc;
-  --color-ink-200: #d6dbed;
-  --color-ink-100: #f1f3fa;
-  /* Half-steps the components already ask for (`text-ink-300`, `border-ink-750`).
-   * Tailwind v4 generates nothing for an undefined colour, so until these
-   * existed those ~270 classes were silently inert. */
-  --color-ink-750: #2f364b;
-  --color-ink-300: #b8bfd6;
+  /* ── Redesign neutral ramp (dark) ──────────────────────────────────
+   * Cooler, quieter slate. Surfaces step by ~4-5 L* so panels, cards and
+   * hover states read as one calm system instead of competing boxes. */
+  --color-ink-950: #0b0d12;
+  --color-ink-900: #11141b;
+  --color-ink-850: #171b24;
+  --color-ink-800: #21262f;
+  --color-ink-750: #262c37;
+  --color-ink-700: #2e3540;
+  --color-ink-600: #464e5c;
+  --color-ink-500: #6b7484;
+  --color-ink-400: #9aa3b4;
+  /* Half-step the components already ask for (`text-ink-300`). Tailwind v4
+   * generates nothing for an undefined colour, so while this was missing
+   * those classes were silently inert. Re-stepped onto the new ramp. */
+  --color-ink-300: #bac0cd;
+  --color-ink-200: #d9dde5;
+  --color-ink-100: #f5f6f8;
 
-  /* The Duck Accent */
-  --color-duck-100: #fdf1d0;
-  --color-duck-200: #fae3a3;
-  --color-duck-300: #f7d67c;
-  --color-duck-400: #f0c04a;
+  /* The Duck accent — kept, slightly warmer and less saturated.
+   * 100 and 200 are the emphasis-text steps (selected command-palette row);
+   * 700 is the pressed/border step. */
+  --color-duck-100: #fdf3d5;
+  --color-duck-200: #fbe7b0;
+  --color-duck-300: #f9d98a;
+  --color-duck-400: #f2c14e;
   --color-duck-500: #d9a227;
   --color-duck-700: #8a6410;
 
   /* ── Mastery status scale (Solid / Shaky / Gap) ────────────────────
    * Reserved meanings. Never reuse these as decoration or as a series
    * colour. Every place that paints one MUST also render the matching
-   * glyph (● ◐ ○) and word — a good/bad scale is red-vs-green by
-   * definition, which collapses under deuteranopia, so colour is never
-   * allowed to be the only channel here.
-   *
-   * Dark steps clear 3:1 on ink-900 (5.07 / 6.45 / 3.54). The scale's
-   * yellow step is deliberately unused: it is indistinguishable from
-   * --color-duck-400, so a "shaky" chip would read as a primary button.
-   */
+   * glyph (● ◐ ○) and word. */
   --color-solid-300: #4ade80;
   --color-solid-400: #22c55e;
-  --color-solid-500: #0ca30c;
+  --color-solid-500: #22b14c;
   --color-shaky-500: #ec835a;
-  --color-gap-300: #f08080;
-  --color-gap-400: #e35d5d;
-  --color-gap-500: #d03b3b;
+  --color-gap-300: #f08585;
+  --color-gap-400: #e86464;
+  --color-gap-500: #e04848;
+
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* Light Mode Overrides — High contrast crisp white */
+/* ── Light theme: a true neutral light ramp (not an inverted dark one) ── */
 [data-theme="light"],
 .light {
   color-scheme: light;
-  --color-ink-950: #ffffff;
-  --color-ink-900: #f3f4f6;
-  --color-ink-850: #ffffff;
-  --color-ink-800: #9ca3af;
-  --color-ink-700: #6b7280;
-  --color-ink-600: #4b5563;
-  --color-ink-500: #374151;
-  --color-ink-400: #1f2937;
-  --color-ink-200: #111827;
-  --color-ink-100: #000000;
-  --color-ink-750: #848b99;
-  --color-ink-300: #182130;
+  --color-ink-950: #f6f7f9;
+  --color-ink-900: #ffffff;
+  --color-ink-850: #f1f2f5;
+  --color-ink-800: #e6e8ed;
+  --color-ink-750: #dfe2e8;
+  --color-ink-700: #cfd3db;
+  --color-ink-600: #9aa1ae;
+  --color-ink-500: #6f7683;
+  --color-ink-400: #4b5261;
+  --color-ink-300: #393e4c;
+  --color-ink-200: #262b36;
+  --color-ink-100: #0f1219;
 
-  /* 100 and 200 are the emphasis-text steps (selected command-palette row), so
-   * on a white surface they are the darkest browns, not brighter oranges. */
-  --color-duck-100: #6b2f0b;
-  --color-duck-200: #7c3a0d;
-  --color-duck-300: #d97706;
-  --color-duck-400: #b45309;
-  --color-duck-500: #92400e;
-  --color-duck-700: #78350f;
+  /* 100 and 200 are the emphasis-text steps, so on a white surface they are
+   * the darkest browns, not brighter oranges. */
+  --color-duck-100: #663903;
+  --color-duck-200: #7a4503;
+  --color-duck-300: #c47a06;
+  --color-duck-400: #b36a05;
+  --color-duck-500: #8f5304;
+  --color-duck-700: #6b3e03;
 
-  /* Re-stepped for the light surface, not an automatic flip. */
   --color-solid-300: #16a34a;
   --color-solid-400: #15803d;
-  --color-solid-500: #0a7d0a;
-  --color-shaky-500: #ea580c;
-  --color-gap-300: #b91c1c;
-  --color-gap-400: #991b1b;
-  --color-gap-500: #b02a2a;
+  --color-solid-500: #158a3a;
+  --color-shaky-500: #d9601f;
+  --color-gap-300: #c02c2c;
+  --color-gap-400: #a02525;
+  --color-gap-500: #c03030;
 }
 
-/* Light Mode Card, Code Block & Element Contrast Overrides */
 [data-theme="light"] .code-block,
 .light .code-block {
   color: #065f46 !important;
   background-color: #f8fafc !important;
-  border-color: #64748b !important;
+  border-color: #cbd5e1 !important;
 }
 
 [data-theme="light"] code,
 .light code {
   color: #065f46;
-}
-
-[data-theme="light"] .border-ink-800,
-.light .border-ink-800 {
-  border-color: #9ca3af;
-}
-
-[data-theme="light"] .border-ink-700,
-.light .border-ink-700 {
-  border-color: #6b7280;
 }
 
 /* Workspace.jsx already used `animate-fade-in` for its save toast, but nothing
@@ -211,7 +199,9 @@ html {
 body {
   background-color: var(--color-ink-950);
   color: var(--color-ink-100);
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -1428,4 +1418,174 @@ html.light .katex-inline-node:hover {
 
 .katex-inline-node .katex {
   color: inherit !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Literature — poem canvas
+   ═══════════════════════════════════════════════════════════════
+   The one part of the Literature section Tailwind cannot express.
+   Overlapping annotations are drawn as STACKED UNDERLINES built from
+   layered linear-gradients on the segment's own background, because:
+
+     · every visual state is a background layer, so turning a highlight
+       on or off never changes metrics and never reflows the poem;
+     · a segment covered by three annotations needs three lines at three
+       different offsets, which no border or text-decoration can do;
+     · the text stays a flat run of spans, so selection offsets (and the
+       `data-start` contract PoemCanvas relies on) stay exact.
+
+   Depth 1 is the duck accent nearest the text, depth 2 adds a muted
+   second line, depth 3+ adds a third. `--lit-u-pad` is the reserved
+   space beneath each line that the stack is drawn into. */
+.lit-poem {
+  --lit-u-pad: 11px;
+  counter-reset: lit-ln;
+}
+
+.lit-line {
+  position: relative;
+  padding-left: 2px;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Line numbers appear on hover only: always-on numbering competes with the
+   poem for attention, and this is a reading surface first. */
+.lit-line::before {
+  counter-increment: lit-ln;
+  content: counter(lit-ln);
+  position: absolute;
+  left: -34px;
+  width: 24px;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-600);
+  top: 0.9em;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.lit-poem:hover .lit-line::before {
+  opacity: 1;
+}
+
+.lit-line.is-blank {
+  height: 1.1em;
+  line-height: 1.1em;
+}
+
+.lit-line.is-blank::before {
+  content: "";
+  counter-increment: lit-ln;
+}
+
+.lit-seg {
+  padding-bottom: var(--lit-u-pad);
+  background-repeat: no-repeat;
+  background-image: none;
+  border-radius: 1px;
+}
+
+.lit-seg.has-ann {
+  cursor: pointer;
+  background-image:
+    linear-gradient(to bottom, var(--lit-tint, transparent) 0 calc(100% - var(--lit-u-pad)), transparent 0),
+    var(--lit-u-layers, none);
+}
+
+.lit-seg[data-depth="1"] {
+  --lit-u-layers:
+    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px);
+}
+
+.lit-seg[data-depth="2"] {
+  --lit-u-layers:
+    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px),
+    linear-gradient(to top, transparent 0 4px, var(--color-duck-700) 4px 6px, transparent 6px);
+}
+
+.lit-seg[data-depth="3"] {
+  --lit-u-layers:
+    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px),
+    linear-gradient(to top, transparent 0 4px, var(--color-duck-700) 4px 6px, transparent 6px),
+    linear-gradient(to top, transparent 0 0, var(--color-shaky-500) 0 2px, transparent 2px);
+}
+
+.lit-seg.has-ann:hover {
+  --lit-tint: color-mix(in srgb, var(--color-duck-400) 12%, transparent);
+}
+
+.lit-seg.is-hot {
+  --lit-tint: color-mix(in srgb, var(--color-duck-400) 18%, transparent);
+}
+
+.lit-seg.is-open {
+  --lit-tint: color-mix(in srgb, var(--color-duck-400) 28%, transparent);
+}
+
+/* Numbered markers. The digits live in a pseudo-element so they are invisible
+   both to text selection and to the character-offset maths in PoemCanvas —
+   put them in a text node and every range after the first marker shifts. */
+.lit-marker {
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  vertical-align: super;
+  color: var(--color-duck-300);
+  background: color-mix(in srgb, var(--color-duck-400) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-duck-400) 35%, transparent);
+  border-radius: 3px;
+  padding: 1.5px 3px 1.5px 3.5px;
+  margin: 0 1px 0 1.5px;
+  cursor: pointer;
+  user-select: none;
+  display: inline-block;
+  position: relative;
+  top: -0.15em;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.lit-marker::after {
+  content: attr(data-n);
+}
+
+.lit-marker:hover,
+.lit-marker.is-hot {
+  background: var(--color-duck-400);
+  color: var(--color-ink-950);
+  border-color: var(--color-duck-400);
+}
+
+.lit-marker.is-open {
+  background: var(--color-duck-300);
+  color: var(--color-ink-950);
+  border-color: var(--color-duck-300);
+}
+
+/* A marker for the 2nd+ phrase of a multi-part annotation is dimmed, so a
+   rhyme pair reads as "one note, seen twice" rather than as two notes. */
+.lit-marker.is-part {
+  opacity: 0.72;
+}
+
+/* Test mode: the poem stays perfectly readable and only the analysis is
+   hidden, because the point is recall of your own reading, not of the text. */
+.lit-blurable.is-hidden {
+  filter: blur(5px);
+  opacity: 0.85;
+  user-select: none;
+  cursor: pointer;
+  color: var(--color-ink-500);
+}
+
+.lit-blurable.is-hidden * {
+  pointer-events: none;
 }

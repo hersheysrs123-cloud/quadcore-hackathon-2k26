@@ -51,6 +51,8 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
       ? "Notes & Content Blocks"
       : target === "calendar"
       ? "Calendar Events"
+      : target === "literature"
+      ? "Literature Poems & Annotations"
       : "ALL WORKSPACE DATA";
 
   const isConfirmed = userAnswer.trim() === "RESET";
@@ -172,7 +174,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
   );
 }
 
-function SettingsModal({
+export function SettingsModal({
   open,
   onClose,
   theme,
@@ -1005,6 +1007,21 @@ function SettingsModal({
                   </div>
                   <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Events</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetTarget("literature")}
+                  className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">📖</span>
+                    <div>
+                      <div className="font-bold text-ink-100">Factory Reset Literature</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Clear all poems and annotations</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Poems</span>
+                </button>
               </div>
 
               <div className="border-t border-ink-800 pt-3">
@@ -1152,7 +1169,7 @@ function SettingsModal({
 }
 
 // ─── Create New Space Modal ─────────────────────────────────────────
-function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
+export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
   const inputRef = useRef(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📂");
@@ -1316,7 +1333,7 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
 }
 
 // ─── Edit Space Modal ───────────────────────────────────────────────
-function EditSpaceModal({
+export function EditSpaceModal({
   open,
   onClose,
   space,
@@ -1506,7 +1523,7 @@ function EditSpaceModal({
 }
 
 // ─── Trash / Temporarily Deleted Notes Modal ────────────────────────
-function TrashModal({
+export function TrashModal({
   open,
   onClose,
   trashNotes = [],
@@ -1641,7 +1658,7 @@ function TrashModal({
 }
 
 // ─── Batch Delete Confirmation Dialog ────────────────────────────────
-function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
+export function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
   if (!open || count === 0) return null;
 
   return (
@@ -1720,7 +1737,7 @@ function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }
 }
 
 // ─── Batch Move to Space Modal ──────────────────────────────────────
-function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
+export function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
   if (!open || count === 0) return null;
 
   return (

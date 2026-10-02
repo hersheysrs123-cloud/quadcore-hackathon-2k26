@@ -26,6 +26,7 @@ quadcore-hackathon-2k26/
 │   │   ├── nested-sub-pages.test.mjs      # Sub-page wiring across editor/workspace/sidebar/storage, exporters & slash-menu ranking
 │   │   ├── physics-solvers.test.mjs      # Refraction (Snell's law), thin lenses, gas laws, chemistry formulas
 │   │   ├── quiz-grading.test.mjs         # Deterministic integer MC grading & fallback heatmap normalizer
+│   │   ├── literature-core.test.mjs      # Poem ranges, overlap segmentation, multi-part annotations, reading-order numbering, line remapping & import sanitising (25 tests)
 │   │   ├── quiz-studio-flow.test.mjs     # 2-column exam runner layout, draft answer auto-saving, and question matrix
 │   │   ├── reformat-note.test.mjs        # Multi-chunk note reformatting and hierarchical block structure generation
 │   │   ├── muscle-mechanics.test.mjs     # Elbow lever torque, volume-preserving bulge, fatigue give-way & tendon strain
