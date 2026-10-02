@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { useOnClickOutside } from "usehooks-ts";
 import { useGlobalTimer } from "@/lib/timerStore";
 import { Play, Pause, RotateCcw, Plus, Calendar, AlertTriangle, Clock, Trash2 } from "lucide-react";
@@ -27,6 +27,17 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
   const [newTitle, setNewTitle] = useState("");
   const [newDuration, setNewDuration] = useState(15);
   const popoverRef = useRef(null);
+  // Where the panel fits: below the button unless there is more room above,
+  // and never taller than that room, so it scrolls instead of growing the page.
+  const [placement, setPlacement] = useState({ up: false, maxHeight: 480 });
+  useLayoutEffect(() => {
+    if (!isOpen || !popoverRef.current) return;
+    const r = popoverRef.current.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - 24;
+    const above = r.top - 24;
+    const up = below < 320 && above > below;
+    setPlacement({ up, maxHeight: Math.max(200, Math.min(480, up ? above : below)) });
+  }, [isOpen]);
 
   const modeEmojis = {
     focus: "🍅",
@@ -119,9 +130,15 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
 
       {/* ── Multi-Timer Dropdown Panel ── */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-1.5 z-[100] w-72 max-h-[85vh] overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-4 shadow-2xl backdrop-blur-xl animate-fade-up">
+        // Sized to the room it opens into (see `placement`) and scrolled
+        // internally; a fixed viewport cap alone ran past the bottom of the
+        // page and stretched it instead of scrolling.
+        <div
+          style={{ maxHeight: placement.maxHeight }}
+          className={`absolute left-0 z-[100] flex w-72 flex-col rounded-xl ${placement.up ? "bottom-full mb-1.5" : "top-full mt-1.5"} border border-ink-700 bg-ink-900 p-4 shadow-2xl backdrop-blur-xl animate-fade-up`}
+        >
           {/* Header Bar */}
-          <div className="flex items-center justify-between border-b border-ink-800 pb-3 mb-3">
+          <div className="flex shrink-0 items-center justify-between border-b border-ink-800 pb-3 mb-3">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-duck-400" />
               <h4 className="text-xs font-bold text-ink-100">Unified Timers</h4>
@@ -155,7 +172,7 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
 
           {/* Add Custom Timer Form */}
           {showAddForm && (
-            <form onSubmit={handleCreateTimer} className="mb-3 rounded-lg border border-duck-500/30 bg-ink-950 p-3 space-y-2.5 animate-fade-in">
+            <form onSubmit={handleCreateTimer} className="mb-3 shrink-0 rounded-lg border border-duck-500/30 bg-ink-950 p-3 space-y-2.5 animate-fade-in">
               <div className="text-[11px] font-semibold text-duck-300">Create Custom Timer</div>
               <input
                 type="text"
@@ -188,7 +205,7 @@ export default function GlobalTimerHUD({ onNavigateCalendar }) {
           )}
 
           {/* Timers List */}
-          <div className="space-y-2.5 mb-3">
+          <div className="-mr-2 min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain pr-2">
             {timers.map((timer) => (
               <div
                 key={timer.id}
