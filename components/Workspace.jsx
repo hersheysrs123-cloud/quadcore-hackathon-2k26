@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { SettingsModal } from "@/components/Sidebar";
 import NavRail from "@/components/redesign/NavRail";
@@ -78,44 +78,54 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 /** Graded quiz and Socratic sessions, for the mastery heatmap. */
 const SESSIONS_KEY = "socratic_study_sessions";
 
+// Saved space selection and list, read from localStorage. Only call these on
+// the client after hydration: reading them during render makes the server
+// HTML (defaults) disagree with the client's first render.
+function readStoredActiveSpace() {
+  try {
+    const deleted = new Set(JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]"));
+    const lastState = JSON.parse(localStorage.getItem("socratic_last_workspace_state") || "null");
+    if (lastState?.activeSpace && !deleted.has(lastState.activeSpace)) {
+      return lastState.activeSpace;
+    }
+    const savedSpaces = JSON.parse(localStorage.getItem("socratic_spaces") || "null");
+    if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
+      const firstNonDeleted = savedSpaces.find((s) => s?.name && !deleted.has(s.name));
+      if (firstNonDeleted) return firstNonDeleted.name;
+    }
+    const firstDefault = SPACES.find((s) => !deleted.has(s.name));
+    if (firstDefault) return firstDefault.name;
+  } catch (e) {}
+  return SPACES[0].name;
+}
+
+function readStoredSpaces() {
+  try {
+    const deleted = new Set(JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]"));
+    const savedSpaces = JSON.parse(localStorage.getItem("socratic_spaces") || "null");
+    if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
+      const filtered = savedSpaces.filter((s) => s?.name && !deleted.has(s.name));
+      if (filtered.length > 0) return filtered;
+    }
+    const nonDeletedDefaults = SPACES.filter((s) => !deleted.has(s.name));
+    if (nonDeletedDefaults.length > 0) return nonDeletedDefaults;
+    return [{ name: "General", icon: "📂", blurb: "" }];
+  } catch (e) {}
+  return SPACES;
+}
+
 export default function Workspace() {
   const [mounted, setMounted] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [activeSpace, setActiveSpace] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const deleted = new Set(JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]"));
-        const lastState = JSON.parse(localStorage.getItem("socratic_last_workspace_state") || "null");
-        if (lastState?.activeSpace && !deleted.has(lastState.activeSpace)) {
-          return lastState.activeSpace;
-        }
-        const savedSpaces = JSON.parse(localStorage.getItem("socratic_spaces") || "null");
-        if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
-          const firstNonDeleted = savedSpaces.find((s) => s?.name && !deleted.has(s.name));
-          if (firstNonDeleted) return firstNonDeleted.name;
-        }
-        const firstDefault = SPACES.find((s) => !deleted.has(s.name));
-        if (firstDefault) return firstDefault.name;
-      } catch (e) {}
-    }
-    return SPACES[0].name;
-  });
-  const [spaces, setSpaces] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const deleted = new Set(JSON.parse(localStorage.getItem("socratic_deleted_spaces") || "[]"));
-        const savedSpaces = JSON.parse(localStorage.getItem("socratic_spaces") || "null");
-        if (Array.isArray(savedSpaces) && savedSpaces.length > 0) {
-          const filtered = savedSpaces.filter((s) => s?.name && !deleted.has(s.name));
-          if (filtered.length > 0) return filtered;
-        }
-        const nonDeletedDefaults = SPACES.filter((s) => !deleted.has(s.name));
-        if (nonDeletedDefaults.length > 0) return nonDeletedDefaults;
-        return [{ name: "General", icon: "📂", blurb: "" }];
-      } catch (e) {}
-    }
-    return SPACES;
-  });
+  // Server and first client render must agree, so both start from the
+  // defaults; the saved space and space list are applied in a layout effect
+  // right after hydration, before the first paint (no flash of defaults).
+  const [activeSpace, setActiveSpace] = useState(SPACES[0].name);
+  const [spaces, setSpaces] = useState(SPACES);
+  useLayoutEffect(() => {
+    setActiveSpace(readStoredActiveSpace());
+    setSpaces(readStoredSpaces());
+  }, []);
   const [activeTab, setActiveTab] = useState("notes");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instantNoteOpen, setInstantNoteOpen] = useState(false);

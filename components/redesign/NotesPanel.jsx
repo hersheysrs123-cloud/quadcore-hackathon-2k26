@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useOnClickOutside } from "usehooks-ts";
 import {
   Check,
@@ -90,16 +90,24 @@ export default function NotesPanel({
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [batchMoveOpen, setBatchMoveOpen] = useState(false);
 
-  const [expanded, setExpanded] = useState(() => {
-    if (typeof window === "undefined") return new Set();
+  // Starts empty so the server and first client render agree; the saved set
+  // is merged in right after hydration. Saving waits until then, or the first
+  // (empty) render would overwrite what was stored.
+  const [expanded, setExpanded] = useState(() => new Set());
+  const expandedLoaded = useRef(false);
+  useLayoutEffect(() => {
     try {
       const cached = JSON.parse(localStorage.getItem(EXPANDED_KEY) || "[]");
-      return new Set(Array.isArray(cached) ? cached : []);
+      if (Array.isArray(cached) && cached.length > 0) {
+        setExpanded((prev) => new Set([...cached, ...prev]));
+      }
     } catch {
-      return new Set();
+      /* convenience only */
     }
-  });
+    expandedLoaded.current = true;
+  }, []);
   useEffect(() => {
+    if (!expandedLoaded.current) return;
     try {
       localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(expanded).slice(-500)));
     } catch {
@@ -353,6 +361,21 @@ export default function NotesPanel({
               <GripVertical className="h-3.5 w-3.5" />
             </div>
           ) : null}
+
+          {!isMultiSelecting && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateSubPage?.(n);
+              }}
+              title="Add a sub-page"
+              aria-label={`Add a sub-page to ${n.title || "Untitled Note"}`}
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-duck-300 focus-visible:opacity-100 group-hover:opacity-100"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           {hasChildren ? (
             <button

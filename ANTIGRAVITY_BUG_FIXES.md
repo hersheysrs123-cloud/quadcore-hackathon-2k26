@@ -8469,3 +8469,38 @@ scrolling.
    when `NEXT_PUBLIC_STRIPE_DONATE_URL` is unset, instead of opening `#` as the
    old button did) and Feedback, which opens `FeatureRequestModal`. That modal
    moved from `z-[200]` to `z-[230]` so it stacks above Settings (`z-[210]`).
+
+---
+
+## Workspace Hydration Mismatch: Space Icon Rendered From localStorage
+
+### 1. Problem
+
+Loading `/workspace` threw a React "Hydration failed because the server
+rendered text didn't match the client" error. It pointed at the space
+switcher's icon in `NotesPanel`: the server rendered `📂` and the browser
+rendered the saved space's icon (e.g. `🎓`). React then threw the server HTML
+away and re-rendered the tree on the client.
+
+### 2. Root cause
+
+`Workspace.jsx` initialised `activeSpace` and `spaces` with lazy `useState`
+initialisers that read `localStorage` when `typeof window !== "undefined"`. On
+the server they fell back to the defaults (`SPACES`), and on the client's
+first render they returned the saved values, so the two renders disagreed.
+`NotesPanel`'s expanded-notes set did the same thing with
+`socratic_sidebar_expanded_notes`. The old sidebar used the same initialisers;
+the redesign made the mismatch visible because the active space's icon is now
+the first thing the panel renders.
+
+### 3. Resolution
+
+- `Workspace.jsx`: both states start from the defaults on server and client.
+  The saved values are read by `readStoredActiveSpace()` /
+  `readStoredSpaces()` inside a `useLayoutEffect`, which runs after hydration
+  but before the first paint, so there is no flash of default spaces. The
+  existing Dexie hydration effect still runs afterwards and has the final say.
+- `NotesPanel.jsx`: `expanded` starts empty and the saved set is merged in a
+  `useLayoutEffect`. The save effect is held back (`expandedLoaded` ref) until
+  that load has run, so the empty first render cannot overwrite the stored
+  set.
