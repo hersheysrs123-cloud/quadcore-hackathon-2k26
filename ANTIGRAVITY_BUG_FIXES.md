@@ -7898,3 +7898,449 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
   - The positron colour moved off the parent gold, and stopped positrons annihilate into two gammas.
   - The nucleus colours moved into `lib/radioactiveDecay.js`, and the legend uses `#3b4658`.
   - Added `FitCamera` and a `showLabels` toggle.
+
+## Enzyme: a cracked, faceted ball with boxes for an active site
+
+- **Problem:**
+  - The enzyme's surface split open along black seams whenever it moved.
+  - The "active site" was four boxes stuck on the outside of an icosahedron, and the substrate was two boxes that did not fit them.
+  - Labels ran into the rate curve.
+- **Root cause:**
+  - `IcosahedronGeometry` is non-indexed, so every vertex exists once per face. The wobble added `Math.sin(t + i)` per vertex **index**, so copies of one position moved by different amounts and the seams opened.
+- **Fix:**
+  - The body is a signed-distance function: a noisy sphere minus the substrate's own outline (plus 0.05 clearance). New `sdf-mesh.js` meshes it once with marching cubes and welds the vertices. The pocket is open towards the camera, so the key visibly sits in its lock.
+  - Deformation is a smooth function of position only, and it squeezes the pocket's lining shut as the enzyme denatures.
+  - The substrate is two extruded halves that split into the two products.
+  - The curve has ticks, the optimum and denaturation labels are staggered, and `FitCamera` frames the scene.
+  - Added a `showLabels` toggle.
+
+## DNA: a left-handed helix, bases drawn as beads on the backbone
+
+- **Problem:**
+  - The helix twisted the wrong way.
+  - Bases were spheres sitting on the backbone, and each rung was drawn in one base's colour across the whole pair.
+- **Root cause:**
+  - Points were placed at (cos θ, y, sin θ). Rising in +y, that turns clockwise seen from above, which is a left-handed helix. B-DNA is right-handed.
+- **Fix:**
+  - `helixPoint` uses z = −sin θ.
+  - Sugars, phosphates and bases are separate parts. Purines are fused 6+5 ring plates and pyrimidines single rings, each in its own colour and meeting its partner in the middle across two or three hydrogen bonds.
+  - 5′/3′ labels, `FitCamera` and a `showLabels` toggle.
+
+## Protein: a squashed helix off the top and bottom of the frame
+
+- **Problem:**
+  - The α-helix was a flat zig-zag that ran out of the view.
+  - The coil drifted off to one side.
+  - Residues were bare spheres, so "hydrophobic side chains" had nothing to point at.
+- **Root cause:**
+  - Rise 0.42 against radius 0.95 is not an α-helix (0.15 nm rise against a 0.23 nm Cα radius, so 0.62 at this scale).
+  - The coil walk advanced +x every step.
+  - No scaling to fit.
+- **Fix:**
+  - Real proportions (rise 0.62; sheet 1.4 per residue and 2.0 between strands).
+  - A smooth backbone tube, and side chains coloured by hydrophobicity that point the right way for each structure.
+  - A centred random-walk coil.
+  - The helix is laid N→C left to right, and the zoom-to-fit blends with the fold.
+  - Added a `showLabels` toggle.
+
+## Cell: labels piled in one corner, and a flaccid cell drawn plasmolysed
+
+- **Problem:**
+  - Six organelle labels overlapped at the top of the plant cell.
+  - At any concentrated solution the membrane was drawn pulled away from the wall while the panel said "Flaccid".
+- **Root cause:**
+  - Each organelle floated its own label just above itself.
+  - `membraneScale` shrank linearly from tonicity 0.
+- **Fix:**
+  - Organelle names are `Callout`s in two columns beside the cell.
+  - The membrane only pulls away past 0.85 × `PLASMOLYSIS_AT`.
+  - `FitCamera` frames each cell type.
+
+## Respiratory: the lungs labelled the wrong way round
+
+- **Problem:**
+  - "Left Lung (Cardiac Notch)" sat on the viewer's left and "Right Lung (3 Lobes)" on the viewer's right. The view is anterior (the sternum faces the camera), so both were on the wrong side.
+  - Labels piled down the midline.
+  - The camera cropped the trachea.
+  - Shadows were on.
+  - The labels toggle was local state, so it was lost on a topic switch.
+- **Fix:**
+  - The labels are callouts, with the right lung on the viewer's left and the cardiac notch on the right.
+  - `FitCamera` frames `THORAX_VIEW`.
+  - Every `castShadow`/`receiveShadow` was removed.
+  - `showLabels` is read from params.
+
+## Arm rig: a NaN vertex at the tip of every bone
+
+- **Problem:** `THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN` for every bone, in both arm scenes.
+- **Root cause:** `makeBoneGeometry`'s distal cap computed `Math.sqrt(1 − ((t − 0.95) / 0.05)²)`. At t = 1 the ratio rounds to 1.0000000000000009, so the root was of a negative number. `Math.max(NaN, 0.02)` is NaN.
+- **Fix:** Both cap terms clamp at 0 under the root.
+
+## Reflex arc: candle z-fighting, a flame "at 80 °C", milestones on the elbow
+
+- **Problem:**
+  - The candle dish flickered against the table.
+  - The label said "flame ≈ 80 °C at the tip". A candle flame is near 1000 °C.
+  - On withdrawal, three milestone labels landed on the elbow.
+- **Root cause:**
+  - The dish's underside was exactly the table top's plane.
+  - The 80 °C in `lib/reflexArc.js` is `skinC`, the skin's temperature, not the flame's.
+- **Fix:**
+  - The dish sits 0.01 into the table and the wax 0.01 into the dish, on a lighter table with legs.
+  - The labels read "Candle flame (skin heats to 80 °C)".
+  - The milestones are one checklist, top right.
+  - `FitCamera`, no shadows, and a `showLabels` toggle.
+
+## Antagonistic muscles: black dumbbell, a floor disc across the view, stacked labels
+
+- **Fix:**
+  - The dumbbell's metalness dropped from 0.6–0.8 to 0.1–0.35. With no environment map it rendered black.
+  - The shadow-catching floor disc is gone.
+  - The view is side-on and fitted, because the lever diagram is planar.
+  - The insertion and moment-arm labels moved clear of each other.
+  - Added a `showLabels` toggle.
+
+## Transpiration: two soil halves meeting in one plane
+
+- **Problem:** The soil block flickered across its whole width.
+- **Root cause:** The solid back half ended at z = −0.3 and the translucent front half began there, so the faces were coplanar. The drought cracks sat 0.005 above the soil.
+- **Fix:**
+  - The front half starts 0.005 forward and is 0.01 smaller.
+  - The cracks sit at 0.012.
+  - The soil is lighter, labels are spread, `FitCamera` frames the scene, there are no shadows, and a `showLabels` toggle clears the labels.
+
+## Diorama slab (carbon cycle, food chain): the grass plane 0.005 above its box
+
+- **Fix:** The plane sits at 0.012.
+- **Carbon cycle:** the budget chart moved out of the sky dome (where it crossed the sun) to the front, below the slab. `FitCamera`, labels decluttered, a `showLabels` toggle, and no shadows.
+- **Food chain:** organisms are twice the size, tier labels are fanned callouts in a column (they covered the organisms on the tier below), `FitCamera`, a `showLabels` toggle, and no shadows.
+
+## Cardiac cycle: septa in the cut plane
+
+- **Problem:** The midline flickered where the septa met the chambers.
+- **Root cause:** The septa and the fibrous skeleton had their front faces at z = 0, the same plane as the chambers' cut-face rings.
+- **Fix:**
+  - They stop 0.012 short (`SEPTUM_Z`).
+  - `FitCamera` frames the heart with the Wiggers panel (it was cropped).
+  - Anatomy labels toggle, while the chart text stays.
+  - No shadows.
+
+## Peristalsis, flower, bacteria vs virus, mitosis: cropped views and overprinted labels
+
+- **Peristalsis:** the three wave labels are edge-aligned on opposite sides of the tube, the stomach is a shaped blob, and the whole tube is framed.
+- **Flower:** the gauge moved clear of the anther and petal labels, and the ovule and base labels were spread.
+- **Bacteria vs virus:** both specimens are framed, and the bacterium's labels are callouts.
+- **Mitosis:** framed, and the shadows removed.
+- **All four:** a `showLabels` toggle through `LabelsOn`; instrument readings stay visible.
+
+## Enzyme rate curve: a symmetric bell instead of the lopsided textbook curve
+
+- **Problem:**
+  - The rate against temperature read 1 % at 0 °C, where Q10 ≈ 2 gives about 8 %.
+  - It fell to 80 % by 45 °C although nothing had started to unfold. The fall after the optimum was no steeper than the rise before it until a cliff at 48 °C.
+- **Root cause:** `enzymeRate` used a Gaussian centred on 37 °C for temperature, which is symmetric by construction, and bolted a separate collapse on at 50 °C.
+- **Fix:**
+  - Rate = the Q10 rise × the fraction of molecules still folded. `UNFOLD_START` is solved so the peak stays exactly at 37 °C.
+  - The curve now reads 9 % at 0 °C, 56 % at 45 °C, 7 % at 50 °C and 0 by 52 °C.
+  - The "denatured enzyme" label follows the same test as the active-site row, so it can't disagree with the panel while the enzyme unfolds gradually.
+  - New tests pin the Q10 rise and the lopsided shape.
+
+## Enzyme: "denatures above 50 °C" while the curve was already collapsing
+
+- **Problem:** the chart's marker said "denatures above 50 °C" and the panel said "Reversible? yes" at 45 °C. On the corrected curve, molecules start unfolding just past 37 °C and the rate is 7 % by 50 °C, so the denaturing happens between those two temperatures, and it is permanent.
+- **Fix:**
+  - A rose "denaturing" band shades 37–50 °C, and the marker reads "fully denatured by 50 °C".
+  - `solveEnzyme` has a `denaturing` flag, set when more than 5 % of the molecules have unfolded but not yet all of them.
+  - The panel shows it amber, the active-site row gives the share of molecules unfolding, and `reversible` is false.
+
+## Cardiac cycle: the aorta on the wrong side, the QRS after "lub", a toy heart
+
+- **Problem:**
+  - The aortic arch came down on the viewer's left, which is the patient's right. The descending aorta runs on the patient's left.
+  - The IVC entered the right atrium from the side.
+  - The QRS peaked in the middle of isovolumetric contraction, after S1. The ventricles cannot contract, let alone shut the AV valves, before they depolarise.
+  - The P wave sat inside atrial systole, rather than just before it.
+  - The dicrotic notch was only a bump.
+  - The heart was four hemispheres and three boxes, and its labels piled up in the middle.
+- **Root cause:**
+  - The vessel paths were hand-placed points with the arch heading the wrong way.
+  - `ecgAt` drew P, QRS and T each inside the stage they are named after, not the stage they come just before.
+- **Fix:**
+  - `ecgAt` and `conductionAt` now put the P wave and SA firing at the end of filling, the AV delay through atrial systole, and His → Purkinje with the QRS at its end. Tests pin R before S1 and a continuous ECG.
+  - The incisura dips before it rebounds.
+  - New `heart-anatomy.js` builds a sectioned heart from one signed-distance field, with the anatomy listed in its header. A flood-fill check confirms the two sides connect only through the valves.
+  - The beat deforms the mesh with the wall volume conserved, plus AV-plane descent.
+  - Chordae link each AV leaflet to its papillary muscles, and the conduction paths are snapped to the inner surfaces.
+  - Labels are callouts in two columns, and the Wiggers panel sits beside or under the heart by aspect, with each phase named over its own span.
+
+## Cardiac cycle: the canvas went white when the scanned heart loaded
+
+- **Problem:** with the new `heart.glb`, the scene rendered briefly, then the canvas turned white and three logged "WebGLRenderer: Context Lost". It happened even when a single 3 k-vertex leaflet was drawn from the file.
+- **Root cause:** `useGLTF` suspends while the file streams. The heart had no `<Suspense>` of its own, so the whole R3F tree suspended and remounted, including `WebGLCleanup`, which disposes every geometry and material as it unmounts. The respiratory scene already wrapped its GLBs in `<Suspense fallback={null}>`.
+- **Fix:** the heart and its valves sit in their own `<Suspense>` with a "loading the heart…" label, and everything else draws while the model streams.
+- **Also:** a `getContext('webgl2')` probe from the debugging console can create a context on R3F's canvas before R3F does. It gave misleading "lost" readings, so don't probe a canvas that way.
+
+## Cardiac cycle: jerky beat, leaflets through the wall, parts floating off the heart
+
+- **Problem:** the scanned heart beat erratically, the tricuspid leaflets swung out through the side of the right ventricle when they opened, and translucent vessels, cusps and vessel ends floated around and in front of the heart.
+- **Root causes:**
+  - The beat was computed in JavaScript for all ~120 k vertices every frame: 35–66 ms a frame, so 15–25 fps with GC spikes.
+  - `hemodynamicsAt` dropped `ventricularSqueeze` from 0.9 to 0.135 between isovolumetric relaxation and filling (a stray `* 0.15`), so the atria twitched once a beat.
+  - The bake put each leaflet's hinge at the height of the valve's middle, not on its attached rim, and the scene turned it a fixed 62° from the scanned pose: for the tricuspid, out through the RV wall.
+  - The x-ray ghost of everything in front of the four-chamber cut (arch and branches, venae cavae, pulmonary veins, outflow roots, semilunar cusps) read as loose parts; its cut ends glowed as rings. The opaque mesh's superior vena cava and left pulmonary veins also ended in rings joined to the heart only by thin strips of cut wall.
+- **Fix:**
+  - The beat runs in the vertex shader (`BEAT_VERTEX_BODY`, uniforms set once a frame).
+  - Filling's squeeze now carries on from 0.9; the continuity test checks both squeezes across every stage boundary.
+  - `leafletPose` finds each leaflet's hinge from its shape and swings it between a computed shut angle (free edge on the axis) and an open one (along the flow).
+  - The ghost and the semilunar cusps are gone; the outflow streams and callouts point into the outflow tracts. The opaque vessel stumps are cut off at rest y 3.0 and x 3.1.
+- **Also:** the Wiggers panel's tags now obey **Show labels**, and the wide layout sizes itself to the callouts' pixel width so they no longer run off the canvas or into the panel.
+
+## Cell explorer: the cutaway removed the back of the cell instead of the front
+
+- **Problem:** with **Cutaway view** on, the cell still looked closed from the front; the half that was cut away was the one facing away from the camera.
+- **Root cause:** `CutawayProvider`'s plane normal pointed at +z, on the belief (written in its comment) that three discards the side the normal points to. three does the opposite: `clipping_planes_fragment` discards where `dot(vClipPosition, n) > constant` with `vClipPosition = −mvPosition`, i.e. where n · p + constant < 0, so it KEEPS the normal's side. With the camera at +z, the +z normal kept the front half.
+- **Fix:** the normal is (0, 0, −1), and the comment now states the rule. (The cardiac scene's `SECTION` plane already used −z the right way.)
+
+## Cell explorer: callouts pointed at empty space in the cutaway
+
+- **Problem:** with the cutaway now removing the front half, most organelle callouts ended in empty space; their anchors (and the Golgi, centrioles and a lysosome themselves) sat in front of the cut.
+- **Root cause:** `PLANT_CALLOUTS` / `ANIMAL_CALLOUTS` anchors were placed at z 0.4–1.35, on the camera side, which the cutaway slices away.
+- **Fix:** every anchor is on the z = 0 outline of whatever crosses the cut (wall, membrane, nucleus, rough ER, vacuole) or on an organelle behind it, and checked clear of the organelles in front when the cutaway is off. The Golgi (both cells), the centrioles and the first lysosome moved to z −0.1 to −0.2 so the cutaway keeps them.
+
+## Protein folding: the α-helix was left-handed
+
+- **Problem:** the folded α-helix twisted the wrong way. Real α-helices are right-handed (left-handed ones essentially never occur in proteins, because the L-amino acids' side chains clash).
+- **Root cause:** `helixPositions` (and the helix side-chain directions) used z = +sin(angle) as y rises, which turns clockwise seen from above: a left-handed helix. The DNA scene had the same slip, already fixed there.
+- **Fix:** z = −sin(angle) in both, so the helix is right-handed. Laying it on its side is a pure rotation, so it stays right-handed on screen.
+
+## Reflex arc: overlapping labels, a back-to-front cord and nerves strung through the air
+
+- **Problems:**
+  - "relay neuron" sat on top of "ventral root · motor neuron", and the dorsal/ventral tags were crowded onto the section.
+  - The cord section was deeper (front to back) than wide; a real cervical cord is about 13 mm wide and 8 mm deep.
+  - The sensory and motor neurons ran as two separate wires from the shoulder to the cord, though they travel together in one mixed spinal nerve and only part at the roots.
+  - The arm was a bare skeleton floating in space.
+- **Fix:** the section is now a 3D C6 segment (right proportions, fissure and sulcus, grey matter, central canal, spinal vessels) in its vertebra, with rootlets, roots, the ganglion and the spinal nerve whose sheath carries both fibres; the neurons have cell bodies; the arm has faint skin. The cord's labels are `Callout` columns, the checklist moved below them, and the severed-root marker's slab is shallow enough that it no longer punches a dark hole in the cord's edge.
+
+## Reflex arc: a floating vertebral plate, a silent "mild warmth", and a cylinder-and-ball arm
+
+- **Problems:**
+  - Behind the cord, the vertebral body read as a loose plate. It was 0.62 deep and barely touched the arch.
+  - "Mild warmth" seemed to do nothing, and the candle still said the skin heats to 80 °C.
+  - The arm was the rig's primitive bones: cylinders, spheres and boxes.
+- **Causes and fixes:**
+  - The vertebra is one joined bone: the body overlaps the arch and is as deep as it is tall, stopping short of the rootlets, which leave between vertebrae.
+  - Warmth behaves correctly: 40 °C is below the ~43 °C pain threshold, the slow C-fibre impulse reaches the cord and the brain (felt), but the motor neuron is never fired. The scene now says so in an outcome caption for every mode, and the candle's label follows the stimulus.
+  - The arm is BodyParts3D's real bones and skin (`public/models/arm.glb`, `scripts/arm-bake/`, CC BY 4.0, credited in a shared `ModelCredits` panel, which the heart now uses too), fitted to the rig so the nerves, muscles and timing are unchanged, with the skin bent at the elbow in the vertex shader.
+
+## Reflex arc: the arm replaced with our own anatomical model
+
+- **Problem:** the arm was BodyParts3D's scanned bones under a translucent skin. The skin's rim glow read as a highlight round the hand, the muscles were still two procedural sausages, and the model was a third-party asset.
+- **Fix:** `public/models/arm.glb` is now built in-house by `scripts/arm-model/`, a Blender script:
+  - Bones and muscles are sculpted as signed-distance fields in numpy and meshed with Blender's OpenVDB.
+  - Muscles are packed into each compartment's outer contour, meeting along fascial grooves, so they fill the limb instead of floating as separate tubes.
+  - The soft tissue bends in the vertex shader from per-vertex humerus and forearm weights, and the skin is gone.
+  - The BodyParts3D arm, `scripts/arm-bake/`, `ARM_MODEL_CREDIT` and the scene's Credits button are removed.
+- **Pitfalls found on the way:**
+  - The SDF evaluator culls each shape to its bounding box and reports MARGIN beyond it. A compartment wider than MARGIN made every far muscle read "equally far", so no muscle claimed the gap and the humerus showed through. The muscle build raises MARGIN to 0.45.
+  - The triceps belly's lowest tenth was weighted to the forearm, so on flexion it swung round with the olecranon as a hook below the elbow. It is now pinned to the humerus; only its tendon wraps.
+  - The nerve routes, drawn for the old thin arm, would have run inside the new muscle. They were re-laid on the surface measured off the model.
+
+## Arm model: blobs in the bones, muscles sticking out, bone showing through, and tearing when it moved
+
+- **Problems** (the in-house arm the reflex-arc and muscle-pair scenes draw):
+  - The bones were built from blended blobs, and it showed as lumps.
+  - Muscles stuck out:
+    - the bicipital aponeurosis stood off the forearm as a white hook;
+    - the deltoid's insertion ended in a white tip proud of the arm;
+    - the triceps' tendon sheet rode on the belly as a raised tongue.
+  - The biceps looked torn along the line between its two heads.
+  - Muscles were separate cylinders with gaps between them. The humerus showed down the medial side of the arm, which is the side both scenes' cameras look at.
+  - The forearm muscles were thin strips over visible bone.
+  - The scapular muscles were flat slabs.
+  - The gripping thumb pointed straight forward past the dumbbell handle.
+- **Causes and fixes** (`scripts/arm-model/`):
+  - **Bones:** they are lofts of cross-sections traced from Gray's Anatomy, with lathed joint surfaces, not unions of blobs (`skeleton.py`, `hand.py`).
+  - **Tearing:**
+    - Each vertex took its bend weights and morph displacement from the nearest head alone, so both jumped where two heads merged. The mesh then tore along that line whenever the biceps contracted or the elbow bent.
+    - They are now blended across the heads by how near each is (`soft.head_weights`).
+    - The shape keys were also saved at value 1, so every "rest" preview showed the morph. They are saved at 0.
+  - **Bone showing on the arm:**
+    - Brachialis and the triceps' medial head now run down the humeral shaft's centre and have the bone carved out of them (`carve="humerus"`). They wrap its front and back halves as in Gray's mid-arm section.
+    - Coracobrachialis and the top of the medial head cover the upper medial shaft.
+  - **Forearm:**
+    - The muscles are packed into one smooth hull and split between neighbours along fascial seams.
+    - The hull fills gaps up to about 1 cm over the fleshy upper forearm and narrows at the wrist and at the epicondyles.
+    - Tendons take no part in the packing. As packed members, cords claimed a belly's share of the limb and showed as broad white sheets.
+    - Near the common origins at the epicondyles each muscle keeps its own shape and they overlap. Cutting each belly to its share there left flat-topped stumps.
+  - **Scapular muscles:** supraspinatus, infraspinatus, the teres muscles and subscapularis are domes over their fossae whose margins sink into the bone (`sculpt.Pillow`), converging on their tendons.
+  - **Sheets:** the aponeurosis and the triceps' tendon are painted onto the muscles by their footprint, with a clean edge. The tendon sheet is sunk into the belly and surfaces only where it leaves the muscle. The deltoid's three parts are fused more smoothly and its insertion stays fleshy.
+  - **Thumb:**
+    - The thumb's metacarpal can now turn about its own axis (`spin`, opposition). Without it, thumb flexion bends across the palm and cannot wrap a bar.
+    - The grip and pointing poses were searched numerically against the fitted handle and the curled fingers.
+    - `handMatrices` in `arm-model.jsx` applies the same turn.
+  - **Bending the elbow** (checked by posing copies with the shader's own maths at 90°, 145° and the reflex poses):
+    - The contracted biceps drew its belly 4 cm up the arm and left its tendon as a bare string across the elbow. It now gathers only slightly towards its origin.
+    - The triceps' tendon hung in a loose loop round the flexed elbow. Its part that turns with the forearm ran 4 cm behind the elbow's axis, so it swept a wide arc. It now runs close behind the bone and wraps the point of the elbow. Its sheet over the belly is painted on, so it stretches with the belly.
+  - **Legend:** the muscle-pair legend named the old arm's colours. It now uses the model's muscle, tendon and bone colours.
+  - **Scene:** the reflex arc's nerve routes were re-laid on the new surface, measured in Blender.
+- **Pitfalls found on the way:**
+  - A torn-looking crease in a Blender preview was a shape key left at 1, not the mesher. Check the key values before chasing the geometry.
+  - A Voronoi split between muscles leaves flat facets wherever they converge on a common point.
+  - Relaxing that split instead gave every muscle there the same shared hull. The identical surfaces z-fought as white speckles round the elbow.
+  - The Blender MCP times out at 60 s, so the muscles are built one per timer tick from a queue, which is polled.
+  - `sdf._rot`, which turns the carpals' ellipsoids, had been lost in an earlier cleanup. Nothing noticed until the hand was rebuilt from scratch, because the old hand meshes were reused. It is restored and checked against Blender's `Euler(..., "XYZ")`.
+  - Painting the triceps' tendon sheet from the tendon's own path speckled the paint near its hook round the olecranon, where the nearest point on the path flips from one side to the other. The paint now comes from a separate straight sheet, `triceps_aponeurosis`.
+
+## Carbon cycle: an invisible ocean, and two ecosystem scenes that read as coloured boxes and confetti
+
+- **Problem:**
+  - The carbon-cycle scene had no visible sea. Its `WaterBody` basin was placed below the slab's top face, inside the box, and `DioramaSlab`'s grass plane covered it. Only the drifting carbonate dots and the ocean's labels showed where the water should be.
+  - Both ecosystem scenes drew every flow as a spray of particles (√flux in the carbon cycle, 10 % / 90 % streams on the pyramid). At any distance these read as confetti, not as flows with a direction and a size.
+  - The pyramid's organisms were scaled primitives (a flattened sphere for a leaf, a capsule for a caterpillar). On four flat coloured slabs they read as specks on boxes.
+- **Root cause:**
+  - The basin was a box inside a box: nothing cut the slab where the sea was meant to be.
+  - The particle streams were the only way the shared kit drew a flux.
+- **Resolution:**
+  - **Carbon cycle:**
+    - The block is now built in two parts, land and sea floor, so the sea occupies a real gap with a glass front. Its water column, surface and floor sediment are drawn there.
+    - The flows are labelled tube arrows whose radius is set in the vertex shader. A flux change never rebuilds geometry, which matters because the scene re-renders ten times a second.
+  - **Pyramid:**
+    - The terraces are built against a common back wall, so every step faces the camera.
+    - The energy is a gold ribbon that narrows at each riser.
+    - The 90 % leaves as wavy heat arrows.
+  - **Models:** both scenes' organisms and objects are now our own Blender models (`scripts/ecosystem-model`).
+- **Pitfalls found on the way:**
+  - The sparrowhawk model stands on a log whose top is at the bird's feet. Seated at the terrace top, the log sank into the terrace, so the scene lifts the hawk by `2 × logRadius`.
+  - A poisoned hawk turned about its feet swung its log upright. It is turned about the log's own axis instead.
+  - At diorama scale a winter moth caterpillar 0.16 cm thick rendered as a pale stick, and with random headings its looping arch was seen end-on. The body is now 0.21 cm thick and the caterpillars walk across the step, so the loop shows in profile.
+  - Hot-looking orange wisps for the 90 % read as fire. They became wavy textbook heat arrows over a faint haze.
+
+## Carbon cycle: a conveyor through the turbine hall, a hidden furnace, a z-fighting sea floor and rice-grain sunlight
+
+- **Problem:**
+  - The coal conveyor ran from the heap straight through the turbine hall's wall and roof towards the boiler house.
+  - The furnace was a flat orange square. It sat on a face that a row of trees hid from the default camera.
+  - The bottom of the sea flickered.
+  - Photons drawn as stretched ellipsoids looked like grains of rice.
+  - The sun was a flat pale disc behind a grey halo sphere.
+- **Root cause:**
+  - The conveyor was one straight sweep from the heap to a point inside the boiler house, and nothing stopped it crossing the hall.
+  - The water box's floor and its left side lay exactly on the sea floor's top face and the land block's cliff face, so they z-fought.
+- **Resolution:**
+  - **Conveyor:** a covered gallery on two trestles now ends at the hall's west wall. It is built from a gridded box, so it reads as a structure.
+  - **Furnace:** a framed, flickering fire with an open door and a warm light. A gravel access road keeps trees out of its sightline.
+  - **Sea:** the water is inset by `WATER_INSET`.
+  - **Photons:** drawn as camera-facing comet trails that grow from each emission or bounce.
+  - **Sun:** `SunSource` is a granulated photosphere with limb darkening and additive corona glows.
+  - **Toggle:** a new control hides the arrows, molecules and light rays.
+- **Pitfall:** the station's window bands were one continuous dark strip on the long walls. `_windows` took the mullion spacing from both x and z, and on a wall of constant z the z term was constant and always in the window range. It now uses the axis the wall runs along.
+
+## Flower pollination: stamens through the ovary, and a flower of primitives
+
+- **Problem:**
+  - The four stamens stood at radius 0.78 from the flower's axis and rose straight up, but the ovary is 0.86 wide. Each filament ran through the ovary wall.
+  - The flower was built from primitives: flattened blobs for petals, capsules for anthers, a half-cylinder style and a half-sphere ovary with no wall thickness. Its "cut" was a missing front half, not a cut: no organ showed a cut face.
+- **Root cause:** the stamen radius was chosen for the label layout, not from the ovary's size, and nothing modelled the receptacle the stamens grow from.
+- **Resolution:**
+  - The flower is now our own Blender model (`scripts/flower-model`), dissected at z = 0. The solid organs are SDF solids cut by the plane, with tissue painted on their cut faces. The petals and sepals clip at the same plane.
+  - The receptacle is a broad disc. The stamens stand on its rim at radius 0.95, outside the ovary, and their filaments bow outwards past it.
+  - The ovules sit on funicles in a real locule, on a basal placenta.
+- **Pitfalls found on the way:**
+  - **The bee's timing.** The bee's flight curve was sampled by arc length, so with the new geometry it reached the stigma well before the grain lands at s = 0.7. It now follows keyframes in its visit parameter: it dwells on an anther and is on the stigma at s = 0.7.
+  - **Decimation.** Plain decimation flattened the painted cut faces into a few large triangles and lost their detail. `decimate_keep_cut` gives the cut face's vertices weight 0, so the collapse spares them.
+  - **Rim staircase.** A hard max with z left a voxel staircase along each cut rim. `dissect` softens the max by 0.012.
+
+## Triggered timelines stopped a fraction of a second after the button was pressed
+
+- **Problem:** in the flower pollination scene, pressing "Trigger pollination" played for 0.1–0.4 s and then paused, as if the time slider had been dragged.
+- **Root cause:**
+  - `TimelineDriver` pushes the playing clock into the time slider ten times a second, and treats any slider value it did not push as the user scrubbing.
+  - It compared the incoming prop only with the last value it pushed. When React took longer than one push interval to re-render, the slider prop arrived carrying an earlier push. The driver read that stale echo as a drag and paused.
+  - The rebuilt flower is heavier to render, so it lost that race almost every time. Any scene using the driver (the bacteria and respiratory scenes too) could hit it under load.
+- **Resolution:**
+  - The driver now remembers the values it has pushed recently. An incoming value that matches one of them is its own echo, however late, and is consumed without pausing.
+  - It also tracks the last prop value it has seen separately from the last value it pushed, so the same stale value is never judged twice.
+  - A value the driver never pushed is still a drag: it jumps there and pauses. The next press still replays from the start.
+
+## Flower pollination: the wind ignored the animation speed slider
+
+- **Problem:** in wind mode, the drifting pollen cloud and the wind streaks moved at the same pace whatever the Animation Speed slider said. The bee's wingbeat ignored it too.
+- **Root cause:** `WindPollen`, `WindStreaks` and the `Bee` wings advanced on the raw frame delta and `clock.elapsedTime`. Only the `TimelineDriver` was given `speed`.
+- **Resolution:**
+  - `speed` is passed down to all three. Each advances by `delta × speed`.
+  - The pollen's bobbing and the wingbeat run on their own accumulated clocks rather than `clock.elapsedTime`, so they slow and stop with the slider too.
+  - Measured over about 0.6 s, the wind streaks moved 15 px at 0.1× and 209 px at 1×.
+
+## Bacteria vs virus: flagella through the cell, a flagellum deaf to the speed slider, and leftovers after the burst
+
+- **Problem:**
+  - The flagella showed inside the cut-away cell: the filaments ran from their hooks straight through the body.
+  - The old flagellum spun at a fixed rate whatever the Animation Speed slider said.
+  - After the cell burst, the five flagellar hooks (the tails' starting points) stayed floating where the wall had been, and the anatomy labels still pointed at empty space.
+  - Seen from behind, the phage's DNA spool poked out of the top and bottom of its capsid.
+- **Root cause:**
+  - The filaments were static meshes swept from each hook towards a point behind the cell; for hooks on the far side of the body, the straight run crossed it.
+  - The old flagellum turned on the raw frame delta (`rawDelta × 7`), not on a speed-scaled clock.
+  - The hooks used a plain material, so nothing in the burst touched them: the filaments faded, the hooks did not. The labels were drawn whatever the cell's state.
+  - The spool's layers had a fixed height, chosen for the capsid's middle, but the capsid narrows towards its poles.
+- **Resolution:**
+  - The filaments are drawn by the scene each frame. Each axis leaves its hook outwards, runs back along the outside of the cell at a clearance, and joins the bundle behind the pole. A left-handed helix is wound round it and its phase follows the motor, so the wave travels down the filament. The cell runs and tumbles, with runs of irregular length.
+  - One scene clock, scaled by the speed slider, drives the flagella, plasmids, ribosomes, fragments, progeny and the penicillin rain. At 0 they stop.
+  - The hooks now use the wall's dissolving material with the same seed, so they tear away with the wall's shreds. The filaments are shed before the wall is gone. The bacterium's anatomy labels are removed once it has lysed.
+  - `_spool_span` fits each spool layer inside the capsid, with a clearance, by sampling heights up and down from the head's centre.
+
+## Mitosis and meiosis: inside-out chromatids, centrosomes inside the new nuclei, and two wrong claims about gametes
+
+- **Problem:**
+  - Sister chromatids were drawn joined at their tips and splayed apart at the centromere, so every chromosome looked like ")(", the reverse of a real one.
+  - In telophase the centrosomes, and the spindle fibres from them, sat inside the re-forming nuclei.
+  - In meiosis I both sisters of a homologue were offset front-to-back, so from the front each homologue looked like one chromatid and a bivalent showed two chromatids, not four.
+  - The kinetochore fibres reached the chromosomes while the nuclear envelope was still intact.
+  - Metaphase II labelled sister chromatids "identical" even after crossing over had made them differ. Cytokinesis II said the four gametes were "none identical" (and the stage was called "four genetically different gametes") even with crossing over set to 0, when they are two identical pairs.
+  - The chromatin was a cloud of beads, the centrioles two yellow barrels, and the drift and spin of chromatin, centrosomes and spindle ran on the wall clock, ignoring the speed slider.
+- **Root cause:**
+  - The sister offset was `bow · (1 − u²)`, largest at the centromere (u = 0) and zero at the tips.
+  - The telophase nucleus was centred 0.32 inside the pole with a radius of 0.94, so it swallowed the centrosome at the pole.
+  - The meiosis I sisters were separated along the depth axis to keep both kinetochores facing one pole.
+  - The fibre's reach was gated only by condensation.
+  - The labels were fixed strings that did not look at the crossover count.
+  - `live.clock` advanced by the raw frame delta, and several parts read `clock.elapsedTime`.
+- **Resolution:**
+  - Sisters are now offset by their own local radius plus a gap that grows towards the tips, so they touch at the centromere and open slightly along the arms.
+  - Each new nucleus forms between its chromosomes and the equator, with the centrosome just beyond it, and centres in its daughter as the furrow closes. The interpolar fibres left after anaphase are the midzone between the new nuclei.
+  - In meiosis I the sisters lie side by side in view, and both kinetochores sit fused on the homologue's outer face, facing one pole. Sister 0 is the inner one, next to the homologue it crosses over with.
+  - Kinetochore fibres only reach once the envelope has broken down (prometaphase).
+  - The labels now depend on the crossover count. The stage is "Cytokinesis II — four haploid gametes", and the mode's product line and the topic text say the gametes all differ only once crossing over has happened.
+  - The cell's parts are now our own Blender models (`scripts/division-model`): chromatin territories, a pored nuclear envelope that fragments and re-forms, a nucleolus, real centrioles in their PCM, and mitochondria.
+  - Every ambient motion now runs on a clock scaled by the speed slider.
+
+## Cell division: a flash of the previous stage at every boundary, jumpy transitions, and parts poking through
+
+- **Problem:**
+  - Playing the mitosis/meiosis scene, every new stage began with a one-frame flash of the stage before it.
+  - Stepping to the next stage crammed it into about half a second, so it read as a jump. Picking a far stage could rewind the film backwards through the end of the cycle.
+  - Between meiosis I and II every chromosome shrank by 30 % and turned 90° in one frame. The centrosomes, nucleoli and every organelle jumped to new places. In telophase the kinetochore fibres vanished and the interpolar fibres snapped to the midzone, and the midbody blinked out at the next stage.
+  - Astral fibres stuck out of the cell, chromosomes reached through an intact nuclear envelope (in prophase, telophase and between the divisions) and, in anaphase, out of the cell. Some mitochondria poked through the membrane.
+  - The Details keys of four scenes (carbon cycle, flower, bacteria, cell division) named colours the scenes no longer drew after their model rebuilds.
+- **Root cause:**
+  - `StageCycleDriver` pushes the stage index to the HUD as the playhead crosses a boundary. A render in between still carried the old index, and the driver read any index unlike its own as the student picking a stage. While playing, that cuts to the stage's start: one frame of the previous stage. Measured: the clock went 13.82 → 11.42 → 13.83 at each boundary.
+  - Step tweens took a fixed 0.45–1.6 s whatever the distance, and always went the shorter way round.
+  - The second division used new frames, with the chromosomes scaled by the daughter's scale, and fresh seats and organelle layouts. Several telophase channels switched on `afterAnaphase` instead of blending.
+  - Nothing tested containment. Astral fibre length ignored the membrane; chromosome seats and arm lengths ignored the envelope and, near the poles, the narrowing cell; and organelles pushed behind the chromosomes were also pushed outwards.
+  - The model rebuilds baked their colours into the meshes, so the hexes the keys used were no longer anywhere in the scenes' code.
+- **Resolution:**
+  - The driver now reacts only to a CHANGE in the stage prop (`seen.prop`). A stale value is never a choice. After the fix the clock only ever runs forward, apart from the cycle's own (faded) wrap.
+  - A cycle can pace its steps (`makeCycle(stages, { stepRate })`). The division cycles step at 1.3 cycle s per s, scaled by the speed and capped at 3 s, so a step shows its whole transition. A jump to a stage that is not a neighbour goes straight there within the cycle.
+  - The choreography moved to `mitosis-choreography.js`, and a test plays it at 60 fps checking that nothing moves more than 0.1 in a frame.
+    - Meiosis II starts where meiosis I ended and turns to its new spindle over prophase II.
+    - Chromosomes keep their size.
+    - The centrosome splits gradually.
+    - Organelles, envelope, nucleolus and centrosomes keep their world placement.
+    - The telophase fibres and the midbody blend out.
+  - Containment, also tested frame by frame:
+    - Astral fibres stop at the cortex (`fibreReach`).
+    - A chromosome in an intact nucleus is kept inside it: its centromere is pulled in and its arms are folded shorter where they would reach through.
+    - Near the poles a set bunches in towards the spindle axis.
+    - Organelles keep their distance from the centre.
+  - Each scene's `COLOURS` table now names the baked model colours, and the keys use them. Flower tepals are labelled as such in wind mode.

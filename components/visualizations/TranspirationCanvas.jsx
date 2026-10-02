@@ -1,21 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { Line } from "@react-three/drei";
+import { Suspense, useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Line, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import {
   Halo,
   PALETTE,
   SceneCanvas,
-  SceneLabel,
+  LabelsOn,
+  ToggleLabel,
   VectorArrow,
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
-import { makeBlobGeometry, makeRoundedBoxGeometry } from "@/components/visualizations/cell-organelles";
-import { ProfiledTube, TubeFlow, TubeRings } from "@/components/visualizations/tube-transit";
-import { lignifiedRings, profileRadius } from "@/lib/tubeTransit";
+import { TubeFlow } from "@/components/visualizations/tube-transit";
+import { PLANT_GLB, makeShootMaterial, makeSoilMaterial, makeStemMaterial, usePlantModel } from "@/components/visualizations/plant-model";
+import { PLANT_MODEL } from "@/components/visualizations/plant-model-meta";
 import {
   CAVITATION_TENSION_MPA,
   MAX_WIND_MS,
@@ -24,84 +25,72 @@ import {
 } from "@/lib/transpiration";
 
 // ─── Plant transpiration ────────────────────────────────────────────
-// Three magnifications of the same pathway, left to right:
+// A bean seedling (Phaseolus vulgaris) in a cut block of soil, and four
+// magnified panels that follow the water through it, like the numbered
+// insets of a textbook figure:
 //
-//   the plant      root hairs in soil, a cut-away stem with its vascular
-//                  bundle (three xylem vessels with lignin rings, two
-//                  phloem tubes), and a leaf;
-//   leaf section   ×200 — upper epidermis, palisade, spongy mesophyll with
-//                  its air spaces, and the lower epidermis with the pore
-//                  the vapour leaves through;
-//   the stoma      ×800, surface view — two kidney-shaped guard cells that
-//                  bow apart as K⁺ (and then water) moves into them.
+//   1  root hairs   x100: hairs threading between soil particles, each
+//                   wrapped in a film of water they draw on by osmosis
+//   2  stem         x40: a wedge cut out of the stem shows the ring of
+//                   vascular bundles; water rises in the split-open xylem
+//                   vessels, sugar sinks in the phloem
+//   3  leaf         x200: a freeze-fractured leaf; water leaves the vein,
+//                   evaporates off the mesophyll into the air spaces and
+//                   collects in the chamber over the stoma
+//   4  stoma        x800: the lower epidermis face-on; two guard cells
+//                   bow apart as K+ (and water) move in, and the vapour
+//                   diffuses out through the pore
+//
+// Every mesh is our own (scripts/plant-model, in Blender). The scene adds
+// what moves with the model: the particle streams, the wind, the guard
+// cells' opening (a morph), the wilt of the whole plant in drought
+// (a morph), the water films thinning in dry soil (a morph), the soil
+// drying and cracking (its shader).
 //
 // Nothing here is a clock. `lib/transpiration.js` is steady state, so the
-// scene is a picture of the controls: the rate of every stream — soil
-// water into the root, the column up the xylem, vapour out of the pore —
-// is the same transpiration flux in a different place, and the guard cells
-// simply sit at the aperture the light and the soil give them.
+// scene is a picture of the controls: every stream runs at the one
+// transpiration flux, and the guard cells sit at the aperture the light
+// and the soil give them. "Focus" flies the camera into one panel.
 // ─────────────────────────────────────────────────────────────────────
 
 /** World units of flow speed per mL/hr of transpiration. */
-const FLOW_UNITS_PER_ML = 0.006;
+const FLOW_UNITS_PER_ML = 0.005;
 
-const STEM = { x: -2.6, bottom: -2.5, top: 2.0, radius: 0.55 };
-const STEM_LENGTH = STEM.top - STEM.bottom;
-const SOIL = { centre: [-2.6, -3.55, 0], size: [4.6, 2.1, 3] };
-const SOIL_TOP = SOIL.centre[1] + SOIL.size[1] / 2;
-const LEAF = { centre: [-0.55, 2.8, 0], length: 3.0, width: 1.7, rotation: [0.5, 0.2, 0.12] };
+const M = PLANT_MODEL;
+const PLANT_AT = [-4.35, -1.15, 0];
+const PANEL = { width: 4.5, height: 3.75 };
+const PANELS = {
+  root: { n: 1, x: 0.95, y: -2.05, title: "1 · root hairs · ×100", tone: "text-sky-300", ring: "#7dd3fc" },
+  stem: { n: 2, x: 0.95, y: 2.05, title: "2 · stem · cut-away · ×40", tone: "text-amber-300", ring: "#fcd34d" },
+  leaf: { n: 3, x: 5.75, y: 2.05, title: "3 · leaf section · ×200", tone: "text-emerald-300", ring: "#6ee7b7" },
+  stoma: { n: 4, x: 5.75, y: -2.05, title: "4 · stoma · lower epidermis · ×800", tone: "text-sky-300", ring: "#a5b4fc" },
+};
 
-/** Xylem vessels in the front half of the stem, where the cut-away shows them. */
-const VESSELS = [
-  { x: -0.2, z: 0.16, seed: 1 },
-  { x: 0.03, z: 0.28, seed: 2 },
-  { x: 0.25, z: 0.12, seed: 3 },
-];
-const VESSEL_RADIUS = 0.115;
-const LIGNIN_PITCH = 0.34;
-const LIGNIN_RELIEF = 0.22;
-const PHLOEM = [
-  { x: -0.36, z: -0.02 },
-  { x: 0.4, z: -0.06 },
-];
-
-/** Root hairs: angle in the XZ plane (radians), depth below the soil top, length. */
-const ROOT_HAIRS = [
-  { angle: 0.35, depth: 0.55, length: 0.95, seed: 11 },
-  { angle: 2.75, depth: 0.7, length: 0.85, seed: 12 },
-  { angle: -0.9, depth: 0.95, length: 1.0, seed: 13 },
-  { angle: 1.9, depth: 1.2, length: 0.8, seed: 14 },
-  { angle: -2.3, depth: 1.05, length: 0.9, seed: 15 },
-  { angle: 0.9, depth: 1.45, length: 0.7, seed: 16 },
-];
-
-/** Leaf-section inset (×200) and stoma inset (×800), to the right. */
-const SECTION = { x: 3.9, y: 2.15, width: 4.2, height: 3.0 };
-const STOMA = { x: 3.9, y: -1.95, width: 4.2, height: 3.6, R: 0.78, r: 0.21 };
+/** The whole figure, and each panel on its own. */
+const VIEWS = {
+  all: { cx: 0.85, cy: 0.15, width: 16.6, height: 9.2 },
+  root: { cx: PANELS.root.x, cy: PANELS.root.y, width: PANEL.width + 0.3, height: PANEL.height + 0.6 },
+  stem: { cx: PANELS.stem.x, cy: PANELS.stem.y, width: PANEL.width + 0.3, height: PANEL.height + 0.6 },
+  leaf: { cx: PANELS.leaf.x, cy: PANELS.leaf.y, width: PANEL.width + 0.3, height: PANEL.height + 0.6 },
+  stoma: { cx: PANELS.stoma.x, cy: PANELS.stoma.y, width: PANEL.width + 0.3, height: PANEL.height + 0.6 },
+};
 
 const COLOURS = {
-  soilWet: "#3b2a1e",
-  soilDry: "#8c6a48",
-  root: "#e9dcc4",
-  cortex: "#7a9a5b",
-  xylemWall: "#e3d3ab",
-  lignin: "#b07a4a",
-  phloem: "#8a5a3c",
   water: PALETTE.sky,
   strained: "#fbbf24",
   cavitated: PALETTE.rose,
-  sugar: PALETTE.gold,
-  leaf: "#3f9a4a",
-  epidermis: "#bfe3a8",
-  palisade: "#3e8f3a",
-  spongy: "#6dbb63",
-  guard: "#4fbf60",
-  pavement: "#c8e6b0",
-  chloroplast: "#1f6f2a",
-  potassium: PALETTE.gold,
+  sugar: PALETTE.goldDim,
   vapour: "#dbeafe",
   wind: "#cbd5e1",
   sun: "#fde68a",
+  potassium: PALETTE.gold,
+  embolism: "#f8fafc",
+  // vertex colours baked by scripts/plant-model, named here for the key
+  xylemWall: "#c8a266",
+  guard: "#6fb455",
+  boundary: "#93c5fd",
+  film: "#7cc4f0",
+  panel: "#141b29",
 };
 
 const columnColour = (tensionMPa) => {
@@ -114,18 +103,69 @@ const columnColour = (tensionMPa) => {
   return COLOURS.water;
 };
 
-const ZERO_REF = { current: 0 };
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
-// ─── Particle plumes ────────────────────────────────────────────────
+// ─── Camera ─────────────────────────────────────────────────────────
 
 /**
- * Vapour: particles born in a box around `origin` at `rateRef.current`
- * per second, carried by `velocity` plus a horizontal drift from
- * `driftRef.current`, shrinking away over `life` seconds. Used for the water
- * evaporating off the mesophyll into the leaf's air spaces, and again for
- * the vapour leaving the pore into the wind.
+ * Frames `view` like scene-kit's FitCamera, but flies there over most of a
+ * second when the view changes (Focus), instead of jumping.
  */
-function Plume({ count = 70, origin = [0, 0, 0], spread = [0.3, 0.05, 0.2], velocity = [0, -0.5, 0], driftRef = null, rateRef, speed = 1, life = 2, colour = COLOURS.vapour, size = 0.05, seed = 1 }) {
+function FocusCamera({ view, direction = [0.03, 0.05, 1], fov = 42, margin = 1.03 }) {
+  const camera = useThree((st) => st.camera);
+  const controls = useThree((st) => st.controls);
+  const aspect = useThree((st) => st.size.width / Math.max(st.size.height, 1));
+  const anim = useRef({ t: 1, first: true, fromP: new THREE.Vector3(), fromT: new THREE.Vector3(), toP: new THREE.Vector3(), toT: new THREE.Vector3() });
+  const { cx, cy, width, height } = view;
+  useEffect(() => {
+    if (!(aspect > 0.05)) return;
+    const a = anim.current;
+    const tanHalf = Math.tan(((fov / 2) * Math.PI) / 180);
+    const fit = Math.max(height / 2 / tanHalf, width / 2 / (tanHalf * aspect)) * margin;
+    a.toT.set(cx, cy, 0);
+    a.toP.copy(a.toT).addScaledVector(new THREE.Vector3(...direction).normalize(), fit);
+    if (a.first) {
+      a.first = false;
+      camera.position.copy(a.toP);
+      camera.lookAt(a.toT);
+      if (controls) {
+        controls.target.copy(a.toT);
+        controls.update();
+      }
+      a.t = 1;
+      return;
+    }
+    a.fromP.copy(camera.position);
+    a.fromT.copy(controls ? controls.target : a.toT);
+    a.t = 0;
+    // `direction` is a literal; its values are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera, controls, aspect, cx, cy, width, height, fov, margin]);
+  useFrame((_, delta) => {
+    const a = anim.current;
+    if (a.t >= 1) return;
+    a.t = Math.min(1, a.t + delta / 0.9);
+    const e = a.t < 0.5 ? 4 * a.t * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 3) / 2;
+    camera.position.lerpVectors(a.fromP, a.toP, e);
+    const target = new THREE.Vector3().lerpVectors(a.fromT, a.toT, e);
+    camera.lookAt(target);
+    if (controls) {
+      controls.target.copy(target);
+      controls.update();
+    }
+  });
+  return null;
+}
+
+// ─── Particles ──────────────────────────────────────────────────────
+
+/**
+ * Particles born in a box round `origin` at `rateRef.current` per second,
+ * carried by `velocity` (in the parent's frame) plus a sideways drift from
+ * `driftRef.current`, fading over `life` seconds: vapour off the leaves, out
+ * of a pore.
+ */
+function Plume({ count = 60, origin = [0, 0, 0], spread = [0.3, 0.05, 0.2], velocity = [0, -0.5, 0], driftRef = null, driftAxis = [1, 0, 0], rateRef, speed = 1, life = 2, colour = COLOURS.vapour, size = 0.05, opacity = 0.7, seed = 1 }) {
   const meshRef = useRef(null);
   const state = useMemo(
     () => ({
@@ -133,25 +173,26 @@ function Plume({ count = 70, origin = [0, 0, 0], spread = [0.3, 0.05, 0.2], velo
       pos: new Float32Array(count * 3),
       wobble: Array.from({ length: count }, (_, i) => hashRandom(seed * 13.7 + i * 2.9) * Math.PI * 2),
       pending: 0,
+      births: 0,
       dummy: new THREE.Object3D(),
     }),
     [count, seed],
   );
-
   useFrame((_, rawDelta) => {
     const mesh = meshRef.current;
     if (!mesh) return;
     const dt = Math.min(rawDelta, 0.05) * speed;
     const rate = rateRef ? rateRef.current : 0;
     const drift = driftRef ? driftRef.current : 0;
-    state.pending += rate * dt;
+    state.pending = Math.min(4, state.pending + rate * dt);
     const d = state.dummy;
     for (let i = 0; i < count; i += 1) {
       let age = state.age[i];
       if (age < 0 && state.pending >= 1) {
         state.pending -= 1;
+        state.births += 1;
         age = 0;
-        const h = (k) => hashRandom(seed * 31.1 + i * 7.3 + k * 97.7 + state.pending * 3.3) - 0.5;
+        const h = (k) => hashRandom(seed * 31.1 + state.births * 7.3 + k * 97.7) - 0.5;
         state.pos[i * 3] = origin[0] + h(1) * 2 * spread[0];
         state.pos[i * 3 + 1] = origin[1] + h(2) * 2 * spread[1];
         state.pos[i * 3 + 2] = origin[2] + h(3) * 2 * spread[2];
@@ -163,33 +204,30 @@ function Plume({ count = 70, origin = [0, 0, 0], spread = [0.3, 0.05, 0.2], velo
       state.age[i] = age;
       if (age < 0) {
         d.scale.setScalar(0);
-        d.position.set(0, 0, 0);
       } else {
         const k = age / life;
-        const sway = 0.12 * Math.sin(age * 3 + state.wobble[i]);
-        state.pos[i * 3] += (velocity[0] + drift) * dt + sway * dt;
-        state.pos[i * 3 + 1] += velocity[1] * dt;
-        state.pos[i * 3 + 2] += velocity[2] * dt + sway * 0.5 * dt;
+        const sway = 0.1 * Math.sin(age * 3 + state.wobble[i]);
+        state.pos[i * 3] += (velocity[0] + drift * driftAxis[0]) * dt + sway * dt;
+        state.pos[i * 3 + 1] += (velocity[1] + drift * driftAxis[1]) * dt;
+        state.pos[i * 3 + 2] += (velocity[2] + drift * driftAxis[2]) * dt + sway * 0.5 * dt;
         d.position.set(state.pos[i * 3], state.pos[i * 3 + 1], state.pos[i * 3 + 2]);
-        d.scale.setScalar(size * (0.6 + 0.9 * Math.sin(Math.PI * Math.min(1, k * 1.15))));
+        d.scale.setScalar(size * (0.5 + Math.sin(Math.PI * Math.min(1, k * 1.1))));
       }
       d.updateMatrix();
       mesh.setMatrixAt(i, d.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
-    if (state.pending > 4) state.pending = 4;
   });
-
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
       <sphereGeometry args={[1, 8, 6]} />
-      <meshBasicMaterial color={colour} transparent opacity={0.75} depthWrite={false} toneMapped={false} />
+      <meshBasicMaterial color={colour} transparent opacity={opacity} depthWrite={false} toneMapped={false} />
     </instancedMesh>
   );
 }
 
 /** Wind: streaks sweeping left to right across a region at the wind speed. */
-function WindStreaks({ count = 14, origin = [0, 0, 0], size = [4, 2.4, 1], windRef, speed = 1, seed = 5 }) {
+function WindStreaks({ count = 14, origin = [0, 0, 0], size = [4, 2.4, 1], windRef, speed = 1, seed = 5, length = 0.9 }) {
   const meshRef = useRef(null);
   const state = useMemo(
     () => ({
@@ -206,8 +244,7 @@ function WindStreaks({ count = 14, origin = [0, 0, 0], size = [4, 2.4, 1], windR
     const mesh = meshRef.current;
     if (!mesh) return;
     const dt = Math.min(rawDelta, 0.05) * speed;
-    const wind = windRef ? windRef.current : 0;
-    const frac = clamp(wind / MAX_WIND_MS, 0, 1);
+    const frac = clamp((windRef ? windRef.current : 0) / MAX_WIND_MS, 0, 1);
     const d = state.dummy;
     for (let i = 0; i < count; i += 1) {
       // The number of streaks on show, and their speed and length, all rise with the wind.
@@ -223,544 +260,663 @@ function WindStreaks({ count = 14, origin = [0, 0, 0], size = [4, 2.4, 1], windR
   });
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
-      <boxGeometry args={[0.9, 0.018, 0.018]} />
-      <meshBasicMaterial color={COLOURS.wind} transparent opacity={0.55} depthWrite={false} />
+      <boxGeometry args={[length, 0.016, 0.016]} />
+      <meshBasicMaterial color={COLOURS.wind} transparent opacity={0.5} depthWrite={false} />
     </instancedMesh>
   );
 }
 
+/**
+ * Particles running along polylines at `speedRef.current` (units a second),
+ * `perPath` on each, evenly spaced and looping: water in the root hairs and
+ * on into the root.
+ */
+function PathFlow({ paths, perPath = 2, speedRef, colour, size = 0.03, opacity = 0.95, seed = 3 }) {
+  const meshRef = useRef(null);
+  const state = useMemo(() => {
+    const step = 0.02;
+    const routes = paths.map((pts) => {
+      const P = pts.map((p) => new THREE.Vector3(...p));
+      const curve = new THREE.CatmullRomCurve3(P, false, "centripetal", 0.5);
+      const len = curve.getLength();
+      const n = Math.max(2, Math.ceil(len / step));
+      return { pts: curve.getSpacedPoints(n), len };
+    });
+    const seats = [];
+    routes.forEach((r, i) => {
+      for (let k = 0; k < perPath; k += 1) seats.push({ route: i, u: (k + hashRandom(seed + i * 3.7 + k)) / perPath });
+    });
+    return { routes, seats, phase: 0, dummy: new THREE.Object3D() };
+  }, [paths, perPath, seed]);
+  useFrame((_, rawDelta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const v = speedRef ? speedRef.current : 0;
+    state.phase += Math.min(rawDelta, 0.05) * v;
+    const d = state.dummy;
+    state.seats.forEach((seat, i) => {
+      const r = state.routes[seat.route];
+      const s = (((seat.u + state.phase / r.len) % 1) + 1) % 1;
+      const f = s * (r.pts.length - 1);
+      const j = Math.floor(f);
+      const p = r.pts[j];
+      const q = r.pts[Math.min(j + 1, r.pts.length - 1)];
+      d.position.lerpVectors(p, q, f - j);
+      // fade in at the start of a route and out at its end
+      d.scale.setScalar(v > 0 ? Math.min(1, s * 12, (1 - s) * 12) : 0.85);
+      d.updateMatrix();
+      mesh.setMatrixAt(i, d.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, state.seats.length]} frustumCulled={false} renderOrder={3}>
+      <sphereGeometry args={[size, 8, 6]} />
+      <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={1.6} toneMapped={false} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 1} />
+    </instancedMesh>
+  );
+}
+
+// ─── Panel frames ───────────────────────────────────────────────────
+
+function PanelFrame({ panel, children }) {
+  const hw = PANEL.width / 2;
+  const hh = PANEL.height / 2;
+  return (
+    <group position={[panel.x, panel.y, 0]}>
+      <mesh position={[0, 0, -1.25]}>
+        <planeGeometry args={[PANEL.width, PANEL.height]} />
+        <meshBasicMaterial color={COLOURS.panel} transparent opacity={0.72} depthWrite={false} />
+      </mesh>
+      <Line points={[[-hw, -hh, -1.2], [hw, -hh, -1.2], [hw, hh, -1.2], [-hw, hh, -1.2], [-hw, -hh, -1.2]]} color={panel.ring} lineWidth={1.2} transparent opacity={0.7} />
+      <ToggleLabel position={[0, hh + 0.24, -1.2]} tone={panel.tone}>
+        {panel.title}
+      </ToggleLabel>
+      {children}
+    </group>
+  );
+}
+
+/** A magnifier ring on the plant, numbered like the panel it opens. */
+function Marker({ at, panel, radius = 0.32 }) {
+  const pts = useMemo(() => Array.from({ length: 49 }, (_, i) => [Math.cos((i / 48) * Math.PI * 2) * radius, Math.sin((i / 48) * Math.PI * 2) * radius, 0]), [radius]);
+  return (
+    <group position={at}>
+      <Line points={pts} color={panel.ring} lineWidth={1.6} transparent opacity={0.9} />
+      <ToggleLabel position={[radius + 0.18, radius + 0.1, 0]} tone={panel.tone}>
+        {String(panel.n)}
+      </ToggleLabel>
+    </group>
+  );
+}
+
+/** An arrow between two panels: the way the water goes next. The panels' numbered titles name the steps. */
+function Hop({ from, to }) {
+  return <VectorArrow from={from} to={to} color={COLOURS.water} radius={0.022} headLength={0.18} headRadius={0.07} />;
+}
+
 // ─── The plant ──────────────────────────────────────────────────────
-
-function Soil({ drought }) {
-  return (
-    <group position={SOIL.centre}>
-      {/* Cut away: solid soil behind the root, a see-through slab in front of it. */}
-      <mesh position={[0, 0, -SOIL.size[2] * 0.3]} receiveShadow>
-        <boxGeometry args={[SOIL.size[0], SOIL.size[1], SOIL.size[2] * 0.4]} />
-        <meshStandardMaterial color={drought ? COLOURS.soilDry : COLOURS.soilWet} roughness={0.95} metalness={0} />
-      </mesh>
-      <mesh position={[0, 0, SOIL.size[2] * 0.2]}>
-        <boxGeometry args={[SOIL.size[0], SOIL.size[1], SOIL.size[2] * 0.6]} />
-        <meshStandardMaterial color={drought ? COLOURS.soilDry : COLOURS.soilWet} roughness={0.95} transparent opacity={0.3} depthWrite={false} />
-      </mesh>
-      {/* Drought cracks on the surface. */}
-      {drought &&
-        [0, 1, 2, 3].map((i) => (
-          <mesh key={i} position={[-1.6 + i * 1.05, SOIL.size[1] / 2 + 0.005, (hashRandom(i + 3) - 0.5) * 2]} rotation={[-Math.PI / 2, 0, (hashRandom(i) - 0.5) * 1.2]}>
-            <planeGeometry args={[0.9, 0.05]} />
-            <meshBasicMaterial color="#2a1c12" />
-          </mesh>
-        ))}
-      <SceneLabel position={[-1.55, SOIL.size[1] / 2 + 0.28, 1.5]} tone={drought ? "text-amber-300" : "text-ink-300"}>
-        {drought ? "dry soil · Ψ ≈ −2.0 MPa" : "moist soil · Ψ ≈ −0.05 MPa"}
-      </SceneLabel>
-    </group>
-  );
-}
-
-/** A root hair with soil water converging on it at the transpiration flux. */
-function RootHair({ hair, flowRef, colour }) {
-  const base = [STEM.x + Math.cos(hair.angle) * 0.2, SOIL_TOP - hair.depth, Math.sin(hair.angle) * 0.2];
-  // Local +y points outward along the hair; water runs −y, into the root.
-  const quaternion = useMemo(() => {
-    const dir = new THREE.Vector3(Math.cos(hair.angle), -0.25, Math.sin(hair.angle)).normalize();
-    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  }, [hair.angle]);
-  const scatter = (s) => 0.035 + 0.3 * (s / hair.length);
-  return (
-    <group position={base} quaternion={quaternion}>
-      <mesh position={[0, hair.length / 2, 0]}>
-        <cylinderGeometry args={[0.02, 0.045, hair.length, 8]} />
-        <meshStandardMaterial color={COLOURS.root} roughness={0.8} />
-      </mesh>
-      <TubeFlow length={hair.length} count={14} speedRef={flowRef} radiusAt={scatter} fill={1} colour={colour} size={0.035} opacity={0.85} seed={hair.seed} />
-    </group>
-  );
-}
-
-function Root({ flowRef, colour }) {
-  return (
-    <group>
-      <mesh position={[STEM.x, SOIL_TOP - 0.85, 0]} rotation={[Math.PI, 0, 0]}>
-        <coneGeometry args={[0.32, 1.8, 14]} />
-        <meshStandardMaterial color={COLOURS.root} roughness={0.75} />
-      </mesh>
-      {ROOT_HAIRS.map((hair, i) => (
-        <RootHair key={i} hair={hair} flowRef={flowRef} colour={colour} />
-      ))}
-      <SceneLabel position={[STEM.x + 1.5, SOIL_TOP - 0.55, 1.0]} tone="text-sky-300">
-        root hair · water in by osmosis
-      </SceneLabel>
-    </group>
-  );
-}
-
-/** One xylem vessel: lignified wall, annular thickening, the column inside. */
-function XylemVessel({ vessel, flowRef, colour, cavitated }) {
-  const features = useMemo(() => lignifiedRings(STEM_LENGTH, LIGNIN_PITCH, LIGNIN_RELIEF), []);
-  const wallRadius = useMemo(() => (s) => profileRadius(s, VESSEL_RADIUS, features), [features]);
-  const lumenRadius = useMemo(() => (s) => profileRadius(s, VESSEL_RADIUS, features) - 0.025, [features]);
-  const ringRadius = useMemo(() => () => VESSEL_RADIUS + 0.012, []);
-  const ringThickness = useMemo(() => () => 0.028, []);
-  // A cavitated vessel has an air gap in it; nothing moves.
-  const speedRef = cavitated ? ZERO_REF : flowRef;
-  return (
-    <group position={[STEM.x + vessel.x, STEM.bottom, vessel.z]}>
-      <ProfiledTube length={STEM_LENGTH} rings={96} segments={16} radiusAt={wallRadius}>
-        <meshStandardMaterial color={COLOURS.xylemWall} roughness={0.55} transparent opacity={0.42} side={THREE.DoubleSide} depthWrite={false} />
-      </ProfiledTube>
-      <TubeRings length={STEM_LENGTH} count={Math.floor(STEM_LENGTH / LIGNIN_PITCH)} radiusAt={ringRadius} thicknessAt={ringThickness} tubular={20} radial={6}>
-        <meshStandardMaterial color={COLOURS.lignin} roughness={0.6} metalness={0.05} />
-      </TubeRings>
-      <TubeFlow length={STEM_LENGTH} count={30} speedRef={speedRef} radiusAt={lumenRadius} fill={0.6} colour={colour} size={0.036} seed={vessel.seed} />
-      {cavitated && (
-        <group position={[0, STEM_LENGTH * 0.62, 0]}>
-          <mesh>
-            <sphereGeometry args={[VESSEL_RADIUS - 0.02, 14, 10]} />
-            <meshStandardMaterial color="#f8fafc" emissive="#f8fafc" emissiveIntensity={0.4} roughness={0.2} />
-          </mesh>
-          <Halo radius={VESSEL_RADIUS + 0.08} color={PALETTE.rose} opacity={0.25} />
-        </group>
-      )}
-    </group>
-  );
-}
-
-function PhloemTube({ tube, speed }) {
-  const speedRef = useRef(-0.12 * speed);
-  useEffect(() => {
-    speedRef.current = -0.12 * speed;
-  }, [speed]);
-  return (
-    <group position={[STEM.x + tube.x, STEM.bottom, tube.z]}>
-      <mesh position={[0, STEM_LENGTH / 2, 0]}>
-        <cylinderGeometry args={[0.08, 0.08, STEM_LENGTH, 12, 1, true]} />
-        <meshStandardMaterial color={COLOURS.phloem} roughness={0.7} transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} />
-      </mesh>
-      <TubeFlow length={STEM_LENGTH} count={10} speedRef={speedRef} radius={0.05} fill={0.7} colour={COLOURS.sugar} size={0.03} opacity={0.8} seed={9} />
-    </group>
-  );
-}
-
-function Stem({ flowRef, colour, cavitated, speed }) {
-  return (
-    <group>
-      {/* Cortex: the back half only, so the bundle is on show. */}
-      <mesh position={[STEM.x, (STEM.top + STEM.bottom) / 2, 0]} castShadow>
-        <cylinderGeometry args={[STEM.radius, STEM.radius * 1.08, STEM_LENGTH, 32, 1, true, Math.PI / 2, Math.PI]} />
-        <meshStandardMaterial color={COLOURS.cortex} roughness={0.8} side={THREE.DoubleSide} />
-      </mesh>
-      {VESSELS.map((v, i) => (
-        <XylemVessel key={i} vessel={v} flowRef={flowRef} colour={colour} cavitated={cavitated && i === 1} />
-      ))}
-      {PHLOEM.map((p, i) => (
-        <PhloemTube key={i} tube={p} speed={speed} />
-      ))}
-      <SceneLabel position={[STEM.x - 1.15, STEM.bottom + 1.4, 0.4]} tone="text-sky-300">
-        xylem · lignified vessels
-      </SceneLabel>
-      <SceneLabel position={[STEM.x - 1.05, STEM.bottom + 3.2, 0.4]} tone="text-amber-300">
-        phloem · sugars down
-      </SceneLabel>
-      <SceneLabel position={[STEM.x + 1.15, STEM.bottom + 2.4, 0.3]} tone="text-ink-300">
-        stem · cut-away
-      </SceneLabel>
-      {cavitated && (
-        <SceneLabel position={[STEM.x + 1.45, STEM.bottom + STEM_LENGTH * 0.62 + 0.05, 0.5]} tone="text-rose-300">
-          embolism · column broken
-        </SceneLabel>
-      )}
-    </group>
-  );
-}
-
-function Leaf({ flowRef, colour }) {
-  const blade = useMemo(() => makeBlobGeometry({ radius: 1, amp: 0.05, freq: 1.4, seed: 4, scale: [LEAF.length / 2, 0.06, LEAF.width / 2], segments: 40, rings: 24 }), []);
-  useEffect(() => () => blade.dispose(), [blade]);
-  // Petiole: from the top of the stem out to the leaf centre.
-  const petiole = useMemo(() => {
-    const from = new THREE.Vector3(STEM.x, STEM.top, 0);
-    const to = new THREE.Vector3(...LEAF.centre);
-    const dir = to.clone().sub(from);
-    return {
-      length: dir.length(),
-      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()),
-      from: from.toArray(),
-    };
-  }, []);
-  return (
-    <group>
-      <group position={petiole.from} quaternion={petiole.quaternion}>
-        <mesh position={[0, petiole.length / 2, 0]}>
-          <cylinderGeometry args={[0.07, 0.1, petiole.length, 10]} />
-          <meshStandardMaterial color={COLOURS.cortex} roughness={0.8} />
-        </mesh>
-        <TubeFlow length={petiole.length} count={10} speedRef={flowRef} radius={0.035} fill={0.8} colour={colour} size={0.03} seed={21} />
-      </group>
-      <group position={LEAF.centre} rotation={LEAF.rotation}>
-        <mesh geometry={blade} castShadow>
-          <meshStandardMaterial color={COLOURS.leaf} roughness={0.55} side={THREE.DoubleSide} />
-        </mesh>
-        {/* Midrib and veins carry the column into the blade, lying in its plane. */}
-        <mesh position={[0, 0.03, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.025, 0.035, LEAF.length * 0.9, 8]} />
-          <meshStandardMaterial color="#d8f0c0" roughness={0.6} />
-        </mesh>
-        {[-0.9, -0.45, 0.0, 0.45, 0.9].map((x, i) => (
-          <group key={i} position={[x, 0.03, 0]}>
-            <mesh position={[0.18, 0, 0.3]} rotation={[Math.PI / 2, -0.55, 0]}>
-              <cylinderGeometry args={[0.012, 0.012, 0.7, 6]} />
-              <meshStandardMaterial color="#c9e8b0" roughness={0.6} />
-            </mesh>
-            <mesh position={[0.18, 0, -0.3]} rotation={[Math.PI / 2, 0.55, 0]}>
-              <cylinderGeometry args={[0.012, 0.012, 0.7, 6]} />
-              <meshStandardMaterial color="#c9e8b0" roughness={0.6} />
-            </mesh>
-          </group>
-        ))}
-      </group>
-      <SceneLabel position={[LEAF.centre[0] + 0.2, LEAF.centre[1] + 0.75, 0.3]} tone="text-emerald-300">
-        leaf · evaporation from the mesophyll
-      </SceneLabel>
-    </group>
-  );
-}
 
 function Sun({ light }) {
   const k = clamp(light / 100, 0, 1);
   return (
-    <group position={[-5.3, 5.0, -1.2]}>
+    <group position={[-6.5, 3.55, -1.4]}>
       <mesh>
-        <sphereGeometry args={[0.45, 24, 18]} />
+        <sphereGeometry args={[0.42, 24, 18]} />
         <meshStandardMaterial color={COLOURS.sun} emissive={COLOURS.sun} emissiveIntensity={0.3 + 2.2 * k} toneMapped={false} />
       </mesh>
-      <Halo radius={0.8 + 0.6 * k} color={COLOURS.sun} opacity={0.04 + 0.12 * k} />
-      <pointLight intensity={0.6 + 6 * k} distance={16} decay={2} color="#fff3c4" />
-      <SceneLabel position={[0, -0.95, 0]} tone={k > 0.15 ? "text-amber-200" : "text-ink-500"}>
+      <Halo radius={0.75 + 0.6 * k} color={COLOURS.sun} opacity={0.04 + 0.12 * k} />
+      <pointLight intensity={0.8 + 7 * k} distance={18} decay={2} color="#fff3c4" />
+      <ToggleLabel position={[0, -0.9, 0]} tone={k > 0.15 ? "text-amber-200" : "text-ink-500"}>
         {k < 0.05 ? "night · no light" : `light ${Math.round(light)} %`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
 
-// ─── Leaf section, ×200 ─────────────────────────────────────────────
-
-function InsetFrame({ x, y, width, height, title, tone = "text-ink-300" }) {
-  const hw = width / 2;
-  const hh = height / 2;
+function Plant({ solved, windRef, evapRateRef, speed, drought, focusAll }) {
+  const parts = usePlantModel();
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uWind: { value: 0 }, uDry: { value: 0 } }), []);
+  const shootMat = useMemo(() => makeShootMaterial(uniforms), [uniforms]);
+  const soilMat = useMemo(() => makeSoilMaterial(uniforms), [uniforms]);
+  useEffect(() => () => {
+    shootMat.dispose();
+    soilMat.dispose();
+  }, [shootMat, soilMat]);
+  const shootRef = useRef(null);
+  // A bean wilts in dry soil: its leaves hang at the pulvini as turgor goes.
+  // Brighter light (more demand) makes it worse; a strained column in moist
+  // soil only droops a little.
+  const wiltTarget = drought ? 0.55 + 0.4 * clamp(solved.light / 100, 0, 1) : clamp((solved.tensionMPa - 1.2) / 1.5, 0, 0.25);
+  const wiltRef = useRef(0);
+  useFrame(({ clock }, delta) => {
+    uniforms.uTime.value = clock.elapsedTime * speed;
+    uniforms.uWind.value += (clamp(solved.wind / MAX_WIND_MS, 0, 1) - uniforms.uWind.value) * Math.min(1, delta * 2);
+    uniforms.uDry.value += ((drought ? 1 : 0) - uniforms.uDry.value) * Math.min(1, delta * 1.2);
+    wiltRef.current += (wiltTarget - wiltRef.current) * Math.min(1, delta * 0.9);
+    const m = shootRef.current;
+    if (m?.morphTargetInfluences) m.morphTargetInfluences[0] = wiltRef.current;
+  });
+  const leaves = M.plant.leaves;
+  const soil = M.plant.soil;
   return (
-    <group position={[x, y, 0]}>
-      <Line points={[[-hw, -hh, 0], [hw, -hh, 0], [hw, hh, 0], [-hw, hh, 0], [-hw, -hh, 0]]} color={PALETTE.line} lineWidth={1} transparent opacity={0.8} />
-      <mesh position={[0, 0, -0.35]}>
-        <planeGeometry args={[width, height]} />
-        <meshBasicMaterial color="#1c2436" transparent opacity={0.6} depthWrite={false} />
+    <group position={PLANT_AT}>
+      <mesh ref={shootRef} geometry={parts.plant.geometry} material={shootMat} morphTargetInfluences={[0]} />
+      <mesh geometry={parts.roots.geometry}>
+        <meshStandardMaterial vertexColors roughness={0.72} metalness={0} />
       </mesh>
-      <SceneLabel position={[0, hh + 0.28, 0]} tone={tone}>
-        {title}
-      </SceneLabel>
+      <mesh geometry={parts.soil.geometry} material={soilMat} />
+      {/* Vapour leaving the undersides of the leaves, carried off by the wind. */}
+      {leaves.map((l, i) => (
+        <Plume
+          key={i}
+          count={26}
+          origin={add(l.centre, [-l.normal[0] * 0.12, -0.12, -l.normal[2] * 0.12])}
+          spread={[l.length * 0.3, 0.04, l.length * 0.2]}
+          velocity={[0, -0.14, 0.05]}
+          driftRef={windRef}
+          rateRef={evapRateRef}
+          speed={speed}
+          life={2.2}
+          size={0.035}
+          opacity={0.45}
+          seed={70 + i}
+        />
+      ))}
+      <WindStreaks count={16} origin={[0.2, 3.4, 0.6]} size={[6, 3.6, 1.2]} windRef={windRef} speed={speed} seed={9} length={0.7} />
+      <Marker at={add(M.plant.hairZones.find((z) => z[0] > 0.6) ?? M.plant.hairZones[0], [0, 0, 0.1])} panel={PANELS.root} />
+      <Marker at={add(M.plant.stemMid, [0, 0, 0.1])} panel={PANELS.stem} radius={0.28} />
+      <Marker at={add(leaves[1].centre, [0, 0.05, 0.25])} panel={PANELS.leaf} radius={0.42} />
+      <Marker at={add(leaves[0].centre, [0, -0.1, 0.25])} panel={PANELS.stoma} radius={0.36} />
+      <ToggleLabel position={[soil.lo[0] + 1.2, soil.hi[1] - 0.25, 0.4]} tone={drought ? "text-amber-300" : "text-ink-300"}>
+        {drought ? "dry soil · Ψ ≈ −2.0 MPa" : "moist soil · Ψ ≈ −0.05 MPa"}
+      </ToggleLabel>
+      {focusAll && (
+        <>
+          <ToggleLabel position={add(M.plant.stemTop, [0.95, 0.45, 0.3])} tone={solved.columnState === "cavitation" ? "text-rose-300" : solved.columnState === "strained" ? "text-amber-300" : "text-sky-300"}>
+            {`column tension ${solved.tensionMPa.toFixed(2)} MPa · ${solved.columnState}`}
+          </ToggleLabel>
+          <ToggleLabel position={add(M.plant.stemMid, [0.95, -0.9, 0.3])} tone="text-ink-300">
+            {`${solved.rateMlPerHour < 10 ? solved.rateMlPerHour.toFixed(1) : Math.round(solved.rateMlPerHour)} mL/hr up the stem`}
+          </ToggleLabel>
+          {drought && (
+            <ToggleLabel position={add(M.plant.stemTop, [-1.4, -0.2, 0.3])} tone="text-amber-300">
+              wilting · turgor lost
+            </ToggleLabel>
+          )}
+        </>
+      )}
     </group>
   );
 }
 
-function LeafSection({ solved, evapRateRef, windRef, speed }) {
-  const spongy = useMemo(
-    () =>
-      Array.from({ length: 12 }, (_, i) => ({
-        geometry: makeBlobGeometry({ radius: 0.22 + 0.08 * hashRandom(i * 3.1), amp: 0.16, freq: 2.2, seed: i + 30, segments: 20, rings: 14 }),
-        position: [-1.7 + (i % 6) * 0.68 + (hashRandom(i * 1.3) - 0.5) * 0.18, -0.15 - Math.floor(i / 6) * 0.5 + (hashRandom(i * 2.9) - 0.5) * 0.16, (hashRandom(i * 4.7) - 0.5) * 0.35],
-      })),
-    [],
-  );
-  useEffect(() => () => spongy.forEach((c) => c.geometry.dispose()), [spongy]);
-  const aperture = solved.aperture;
-  const gap = 0.12 + 0.5 * aperture;
-  const x = SECTION.x;
-  const y = SECTION.y;
+// ─── Panel 1: root hairs ────────────────────────────────────────────
+
+function RootPanel({ flowRef, colour, drought, detail }) {
+  const parts = usePlantModel();
+  const rt = M.rootTip;
+  const waterRef = useRef(null);
+  const dryRef = useRef(0);
+  useFrame((_, delta) => {
+    dryRef.current += ((drought ? 1 : 0) - dryRef.current) * Math.min(1, delta * 1.2);
+    const w = waterRef.current;
+    if (w?.morphTargetInfluences) w.morphTargetInfluences[0] = dryRef.current;
+  });
+  // Water: out of the film at a hair's tip, down the hair, into the root and
+  // along its stele towards the plant (off the panel to the left).
+  const paths = useMemo(() => {
+    const axis = rt.axis;
+    const out = [];
+    rt.hairs.forEach((h, i) => {
+      if (i % 2) return;
+      const base = h[0];
+      let best = 0;
+      let bd = Infinity;
+      axis.forEach((p, j) => {
+        const d = (p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2 + (p[2] - base[2]) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = j;
+        }
+      });
+      const tip = h[h.length - 1];
+      const into = [...h].reverse();
+      out.push([add(tip, [0.03, 0.03, 0]), ...into, ...axis.slice(0, best + 1).reverse()]);
+    });
+    return out;
+  }, [rt]);
+  const scale = 0.86;
   return (
-    <group>
-      <InsetFrame x={x} y={y} width={SECTION.width} height={SECTION.height} title="leaf section · ×200" tone="text-emerald-300" />
-      <group position={[x, y, 0]}>
-        {/* Upper epidermis with its waxy cuticle. */}
-        <mesh position={[0, 1.15, 0]}>
-          <boxGeometry args={[3.7, 0.16, 0.7]} />
-          <meshStandardMaterial color={COLOURS.epidermis} roughness={0.5} />
+    <PanelFrame panel={PANELS.root}>
+      <group scale={scale} rotation={[0.1, 0.12, 0]}>
+        <mesh geometry={parts.rootSoil.geometry}>
+          <meshStandardMaterial vertexColors roughness={0.88} metalness={0} />
         </mesh>
-        <mesh position={[0, 1.245, 0]}>
-          <boxGeometry args={[3.7, 0.02, 0.7]} />
-          <meshStandardMaterial color="#f5fbe8" roughness={0.2} />
+        <mesh geometry={parts.rootStele.geometry}>
+          <meshStandardMaterial vertexColors roughness={0.6} />
         </mesh>
-        {/* Palisade: tall cells packed under the upper surface. */}
-        {Array.from({ length: 8 }, (_, i) => (
-          <mesh key={i} position={[-1.62 + i * 0.465, 0.62, 0]}>
-            <capsuleGeometry args={[0.19, 0.5, 4, 10]} />
-            <meshStandardMaterial color={COLOURS.palisade} roughness={0.6} />
-          </mesh>
-        ))}
-        {/* Spongy mesophyll: loose cells with air spaces between them. */}
-        {spongy.map((cell, i) => (
-          <mesh key={i} geometry={cell.geometry} position={cell.position}>
-            <meshStandardMaterial color={COLOURS.spongy} roughness={0.6} />
-          </mesh>
-        ))}
-        {/* Water evaporating off the cell walls into the air spaces, drifting down to the pore. */}
-        <Plume count={50} origin={[0, -0.35, 0]} spread={[1.5, 0.45, 0.2]} velocity={[0, -0.35, 0]} rateRef={evapRateRef} speed={speed} life={2.4} size={0.035} seed={41} />
-        {/* Lower epidermis, split around the pore. */}
-        <mesh position={[-(0.925 + gap / 4), -1.0, 0]}>
-          <boxGeometry args={[1.85 - gap / 2, 0.16, 0.7]} />
-          <meshStandardMaterial color={COLOURS.epidermis} roughness={0.5} />
+        <mesh geometry={parts.rootTip.geometry} renderOrder={2}>
+          <meshStandardMaterial vertexColors roughness={0.42} transparent opacity={0.7} depthWrite={false} />
         </mesh>
-        <mesh position={[0.925 + gap / 4, -1.0, 0]}>
-          <boxGeometry args={[1.85 - gap / 2, 0.16, 0.7]} />
-          <meshStandardMaterial color={COLOURS.epidermis} roughness={0.5} />
+        <mesh ref={waterRef} geometry={parts.rootWater.geometry} morphTargetInfluences={[0]} renderOrder={4}>
+          <meshStandardMaterial color={COLOURS.film} roughness={0.08} metalness={0} transparent opacity={0.26} depthWrite={false} emissive={COLOURS.film} emissiveIntensity={0.12} />
         </mesh>
-        {/* Guard cells in section: two round cells either side of the pore. */}
-        <mesh position={[-(gap / 2 + 0.14), -1.0, 0]}>
-          <sphereGeometry args={[0.15, 14, 10]} />
-          <meshStandardMaterial color={COLOURS.guard} roughness={0.5} />
-        </mesh>
-        <mesh position={[gap / 2 + 0.14, -1.0, 0]}>
-          <sphereGeometry args={[0.15, 14, 10]} />
-          <meshStandardMaterial color={COLOURS.guard} roughness={0.5} />
-        </mesh>
-        {/* Vapour leaving through the pore, into whatever air is outside. */}
-        <Plume count={60} origin={[0, -1.12, 0]} spread={[gap * 0.35, 0.02, 0.1]} velocity={[0, -0.45, 0]} driftRef={windRef} rateRef={evapRateRef} speed={speed} life={2.0} size={0.045} seed={42} />
-        {/* Boundary layer: the skin of humid air under the leaf, thinned by wind. */}
-        <mesh position={[0, -1.22 - 0.16 * (1 - clamp(solved.wind / MAX_WIND_MS, 0, 1)), 0.02]}>
-          <boxGeometry args={[3.7, 0.28 * (1 - 0.8 * clamp(solved.wind / MAX_WIND_MS, 0, 1)) + 0.03, 0.75]} />
-          <meshBasicMaterial color="#93c5fd" transparent opacity={0.06 + 0.22 * clamp(solved.humidity / 100, 0, 1)} depthWrite={false} />
-        </mesh>
-        <WindStreaks count={14} origin={[0, -1.32, 0.1]} size={[4.0, 0.36, 0.5]} windRef={windRef} speed={speed} />
-        <SceneLabel position={[-1.2, 1.5, 0.4]} tone="text-ink-300">
-          upper epidermis · cuticle
-        </SceneLabel>
-        <SceneLabel position={[1.35, 0.62, 0.45]} tone="text-emerald-300">
-          palisade
-        </SceneLabel>
-        <SceneLabel position={[-1.35, -0.6, 0.5]} tone="text-emerald-300">
-          spongy mesophyll · air spaces
-        </SceneLabel>
-        <SceneLabel position={[0, -0.78, 0.5]} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
-          {solved.poreOpen ? "stoma open · vapour out" : "stoma closed"}
-        </SceneLabel>
-        <SceneLabel position={[1.3, -1.42, 0.5]} tone={solved.wind > 1 ? "text-ink-200" : "text-ink-500"}>
-          {solved.wind > 0.5 ? `wind ${solved.wind.toFixed(1)} m/s strips the boundary layer` : `still air · boundary layer · RH ${Math.round(solved.humidity)} %`}
-        </SceneLabel>
+        <PathFlow paths={paths} perPath={2} speedRef={flowRef} colour={colour} size={0.03} />
       </group>
-    </group>
+      {detail && (
+        <>
+          <ToggleLabel position={[-1.2, -1.45, 0.6]} tone="text-sky-300">
+            root hair · water in by osmosis
+          </ToggleLabel>
+          <ToggleLabel position={[1.55, -0.7, 0.6]} tone="text-ink-300">
+            root cap
+          </ToggleLabel>
+          <ToggleLabel position={[-1.55, -0.55, 0.7]} tone="text-amber-200">
+            stele · xylem to the stem
+          </ToggleLabel>
+          <ToggleLabel position={[1.15, 1.2, 0.6]} tone={drought ? "text-amber-300" : "text-sky-300"}>
+            {drought ? "thin water films · dry soil" : "water film round each particle"}
+          </ToggleLabel>
+          <ToggleLabel position={[-0.2, 1.45, 0.6]} tone="text-ink-400">
+            sand · silt · clay–humus crumbs
+          </ToggleLabel>
+        </>
+      )}
+    </PanelFrame>
   );
 }
 
-// ─── The stoma, ×800, surface view ──────────────────────────────────
+// ─── Panel 2: the stem ──────────────────────────────────────────────
 
-/** K⁺ ions inside a guard cell, spread along its midline, as many as it is holding. */
-function IonFill({ side, bow, held, count = 14, seed }) {
-  const meshRef = useRef(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-  const seats = useMemo(
-    () =>
-      Array.from({ length: count }, (_, i) => ({
-        y: (hashRandom(seed + i * 1.9) - 0.5) * 2 * STOMA.R * 0.82,
-        rho: (hashRandom(seed * 2 + i * 3.7) - 0.5) * 0.16,
-        phase: hashRandom(seed * 5 + i * 0.7) * Math.PI * 2,
-      })),
-    [count, seed],
+function StemPanel({ flowRef, colour, cavitated, speed, detail }) {
+  const parts = usePlantModel();
+  const st = M.stem;
+  const mat = useMemo(() => makeStemMaterial(st), [st]);
+  useEffect(() => () => mat.dispose(), [mat]);
+  const sugarRef = useRef(-0.12 * speed);
+  useEffect(() => {
+    sugarRef.current = -0.12 * speed;
+  }, [speed]);
+  const zero = useRef(0);
+  const xylem = st.channels.filter((c) => c.kind === "xylem");
+  const phloem = st.channels.filter((c) => c.kind === "phloem");
+  // The widest vessel on the right-hand face is the one that embolises.
+  const broken = xylem.reduce((b, c, i) => (c.r > xylem[b].r || (c.r === xylem[b].r && c.x > xylem[b].x) ? i : b), 0);
+  return (
+    <PanelFrame panel={PANELS.stem}>
+      <group position={[0, -0.12, 0]} rotation={[0.42, 0, 0]}>
+        <mesh geometry={parts.stem.geometry} material={mat} />
+        <mesh geometry={parts.stemDetail.geometry}>
+          <meshStandardMaterial vertexColors roughness={0.55} />
+        </mesh>
+        {xylem.map((c, i) => (
+          <group key={`x${i}`} position={[c.x, -st.H, c.z]}>
+            <TubeFlow length={2 * st.H} count={14} speedRef={cavitated && i === broken ? zero : flowRef} radius={c.r * 0.55} fill={0.9} colour={colour} size={Math.min(0.03, c.r * 0.55)} seed={i + 1} />
+          </group>
+        ))}
+        {phloem.map((c, i) => (
+          <group key={`p${i}`} position={[c.x, -st.H, c.z]}>
+            <TubeFlow length={2 * st.H} count={8} speedRef={sugarRef} radius={c.r * 0.5} fill={0.8} colour={COLOURS.sugar} size={0.02} opacity={0.9} seed={i + 20} />
+          </group>
+        ))}
+        {cavitated && (
+          <group position={[xylem[broken].x, 0.35, xylem[broken].z]}>
+            <mesh scale={[1, 2.2, 1]}>
+              <sphereGeometry args={[xylem[broken].r * 0.9, 14, 10]} />
+              <meshStandardMaterial color={COLOURS.embolism} emissive={COLOURS.embolism} emissiveIntensity={0.4} roughness={0.2} />
+            </mesh>
+            <Halo radius={0.16} color={PALETTE.rose} opacity={0.3} />
+          </group>
+        )}
+      </group>
+      {detail && (
+        <>
+          <ToggleLabel position={[-1.6, 0.9, 0.6]} tone="text-ink-300">
+            epidermis · cortex
+          </ToggleLabel>
+          <ToggleLabel position={[-1.55, -0.55, 0.9]} tone="text-sky-300">
+            xylem vessels · water up
+          </ToggleLabel>
+          <ToggleLabel position={[1.6, -0.55, 0.9]} tone="text-amber-300">
+            phloem · sugar down
+          </ToggleLabel>
+          <ToggleLabel position={[0.0, 1.55, 0.2]} tone="text-ink-300">
+            vascular bundles in a ring · pith inside
+          </ToggleLabel>
+          {cavitated && (
+            <ToggleLabel position={[1.55, 0.55, 0.9]} tone="text-rose-300">
+              embolism · column broken
+            </ToggleLabel>
+          )}
+        </>
+      )}
+    </PanelFrame>
   );
-  useFrame(({ clock }) => {
+}
+
+// ─── Panel 3: the leaf section ──────────────────────────────────────
+
+/**
+ * Vapour in the leaf's air spaces: evaporated off the mesophyll walls, it
+ * drifts to the substomatal chamber and, if the pore is open, out through
+ * it. With the pore shut it only wanders and fades.
+ */
+function AirSpaceVapour({ rateRef, openRef, speed, box, chamber, pore, count = 70 }) {
+  const meshRef = useRef(null);
+  const state = useMemo(
+    () => ({ age: new Float32Array(count).fill(-1), pos: new Float32Array(count * 3), births: 0, pending: 0, dummy: new THREE.Object3D() }),
+    [count],
+  );
+  useFrame((_, rawDelta) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    const shown = Math.round(held * count);
-    const t = clock.elapsedTime;
+    const dt = Math.min(rawDelta, 0.05) * speed;
+    state.pending = Math.min(4, state.pending + (rateRef.current || 0) * dt);
+    const open = openRef.current;
+    const d = state.dummy;
     for (let i = 0; i < count; i += 1) {
-      const seat = seats[i];
-      const y = seat.y;
-      const px = guardMidline(side, bow, y) + seat.rho + 0.015 * Math.sin(t * 2 + seat.phase);
-      dummy.position.set(px, y, 0.14);
-      dummy.scale.setScalar(i < shown ? 1 : 0);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      let age = state.age[i];
+      const o = i * 3;
+      if (age < 0 && state.pending >= 1) {
+        state.pending -= 1;
+        state.births += 1;
+        age = 0;
+        const h = (k) => hashRandom(state.births * 5.1 + k * 31.7);
+        state.pos[o] = box[0] + h(1) * (box[3] - box[0]);
+        state.pos[o + 1] = box[1] + h(2) * (box[4] - box[1]);
+        state.pos[o + 2] = box[2] + h(3) * (box[5] - box[2]);
+      }
+      if (age >= 0) {
+        age += dt;
+        const x = state.pos[o];
+        const y = state.pos[o + 1];
+        const z = state.pos[o + 2];
+        // towards the chamber, then down through the pore
+        const inChamber = Math.abs(x - chamber[0]) < 0.16 && y < chamber[1] + 0.12;
+        const tx = inChamber ? pore[0] : chamber[0];
+        const ty = inChamber ? pore[1] - 0.4 : chamber[1];
+        const tz = inChamber ? pore[2] : chamber[2];
+        let vx = tx - x;
+        let vy = ty - y;
+        let vz = tz - z;
+        const l = Math.hypot(vx, vy, vz) || 1;
+        const v = inChamber && open < 0.1 ? 0.05 : 0.45;
+        vx = (vx / l) * v + 0.12 * Math.sin(age * 4 + i);
+        vy = (vy / l) * v;
+        vz = (vz / l) * v;
+        state.pos[o] += vx * dt;
+        state.pos[o + 1] += vy * dt;
+        state.pos[o + 2] += vz * dt;
+        if (age > 4.5 || state.pos[o + 1] < pore[1] - 0.05) age = -1;
+      }
+      state.age[i] = age;
+      if (age < 0) d.scale.setScalar(0);
+      else {
+        d.position.set(state.pos[o], state.pos[o + 1], state.pos[o + 2]);
+        d.scale.setScalar(0.028 * Math.min(1, age * 3));
+      }
+      d.updateMatrix();
+      mesh.setMatrixAt(i, d.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
   });
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>
-      <sphereGeometry args={[0.045, 8, 6]} />
+      <sphereGeometry args={[1, 8, 6]} />
+      <meshBasicMaterial color={COLOURS.vapour} transparent opacity={0.8} depthWrite={false} toneMapped={false} />
+    </instancedMesh>
+  );
+}
+
+function LeafPanel({ solved, flowRef, colour, evapRateRef, windRef, speed, detail }) {
+  const parts = usePlantModel();
+  const ls = M.leafSection;
+  const guardRef = useRef(null);
+  const openRef = useRef(solved.aperture);
+  useFrame((_, delta) => {
+    openRef.current += (solved.aperture - openRef.current) * Math.min(1, delta * 2);
+    const g = guardRef.current;
+    if (g?.morphTargetInfluences) g.morphTargetInfluences[0] = openRef.current;
+  });
+  const exitRef = useRef(0);
+  useEffect(() => {
+    exitRef.current = solved.aperture > 0.08 ? evapRateRef.current : 0;
+  });
+  const windFrac = clamp(solved.wind / MAX_WIND_MS, 0, 1);
+  const layer = 0.3 * (1 - 0.8 * windFrac) + 0.04;
+  // Water leaving the vein's two vessels for the mesophyll round it.
+  const veinPaths = useMemo(() => {
+    const out = [];
+    ls.vessels.forEach(([x, y], i) => {
+      for (let k = 0; k < 4; k += 1) {
+        const a = (k / 4) * Math.PI * 2 + i;
+        out.push([[x, y, ls.front], [x + Math.cos(a) * 0.2, y + Math.sin(a) * 0.18, ls.front - 0.02], [x + Math.cos(a) * 0.42, y + Math.sin(a) * 0.36, ls.front - 0.06]]);
+      }
+    });
+    return out;
+  }, [ls]);
+  const box = ls.box;
+  return (
+    <PanelFrame panel={PANELS.leaf}>
+      <group position={[0, 0.05, 0]} rotation={[0.1, -0.22, 0]}>
+        <mesh geometry={parts.leafSection.geometry}>
+          <meshStandardMaterial vertexColors roughness={0.55} metalness={0} />
+        </mesh>
+        <mesh ref={guardRef} geometry={parts.leafGuard.geometry} morphTargetInfluences={[0]}>
+          <meshStandardMaterial vertexColors roughness={0.5} />
+        </mesh>
+        <PathFlow paths={veinPaths} perPath={2} speedRef={flowRef} colour={colour} size={0.022} />
+        <AirSpaceVapour rateRef={evapRateRef} openRef={openRef} speed={speed} box={[box[0] + 0.1, -0.75, box[2] + 0.2, box[3] - 0.1, -0.05, box[5] - 0.05]} chamber={ls.chamber} pore={[ls.stoma.x, ls.stoma.y, ls.stoma.z - 0.05]} />
+        {/* Out of the pore, into whatever air is under the leaf. */}
+        <Plume count={50} origin={[ls.stoma.x, ls.stoma.y - 0.12, ls.stoma.z - 0.05]} spread={[0.04, 0.02, 0.06]} velocity={[0, -0.4, 0]} driftRef={windRef} rateRef={exitRef} speed={speed} life={1.8} size={0.032} seed={42} />
+        {/* The boundary layer: humid, still air against the leaf, thinned by wind. */}
+        <mesh position={[0, -1.04 - layer / 2, ls.front + 0.02]}>
+          <planeGeometry args={[3.8, layer]} />
+          <meshBasicMaterial color={COLOURS.boundary} transparent opacity={0.06 + 0.16 * clamp(solved.humidity / 100, 0, 1)} depthWrite={false} />
+        </mesh>
+        <WindStreaks count={12} origin={[0, -1.35, 0.1]} size={[3.8, 0.34, 0.5]} windRef={windRef} speed={speed} seed={5} />
+      </group>
+      {detail ? (
+        <>
+          <ToggleLabel position={[-1.1, 1.38, 0.5]} tone="text-ink-300">
+            cuticle · upper epidermis
+          </ToggleLabel>
+          <ToggleLabel position={[1.55, 0.62, 0.6]} tone="text-emerald-300">
+            palisade
+          </ToggleLabel>
+          <ToggleLabel position={[-1.55, -0.62, 0.7]} tone="text-sky-300">
+            vein · xylem
+          </ToggleLabel>
+          <ToggleLabel position={[-0.25, -0.1, 0.7]} tone="text-emerald-300">
+            spongy mesophyll · air spaces
+          </ToggleLabel>
+          <ToggleLabel position={[1.45, -0.55, 0.7]} tone="text-ink-200">
+            substomatal chamber
+          </ToggleLabel>
+          <ToggleLabel position={[1.2, -1.05, 0.7]} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
+            {solved.poreOpen ? "stoma open · vapour out" : "stoma closed"}
+          </ToggleLabel>
+          <ToggleLabel position={[-0.7, -1.62, 0.5]} tone={solved.wind > 1 ? "text-ink-200" : "text-ink-500"}>
+            {solved.wind > 0.5 ? `wind ${solved.wind.toFixed(1)} m/s strips the boundary layer` : `still air · boundary layer · RH ${Math.round(solved.humidity)} %`}
+          </ToggleLabel>
+        </>
+      ) : (
+        <ToggleLabel position={[1.2, -1.2, 0.7]} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
+          {solved.poreOpen ? "stoma open · vapour out" : "stoma closed"}
+        </ToggleLabel>
+      )}
+    </PanelFrame>
+  );
+}
+
+// ─── Panel 4: the stoma ─────────────────────────────────────────────
+
+/** K⁺ ions in the guard cells of the stoma at the centre, as many as they hold. */
+function IonFill({ held, bowRef, count = 12 }) {
+  const meshRef = useRef(null);
+  const sm = M.stoma;
+  const seats = useMemo(
+    () => Array.from({ length: count * 2 }, (_, i) => ({ side: i < count ? -1 : 1, t: (hashRandom(i * 1.9 + 3) - 0.5) * 2.2, rho: (hashRandom(i * 3.7) - 0.5) * 0.12, phase: hashRandom(i * 0.7) * 6.28 })),
+    [count],
+  );
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  useFrame(({ clock }) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const shown = Math.round(held * count);
+    const bow = bowRef.current;
+    seats.forEach((s, i) => {
+      const t = s.t * 0.55 * Math.PI / 2;
+      const c = Math.cos(t);
+      const x = s.side * (sm.GR * 1.02 * c + sm.openBow * bow * Math.pow(c, 1.2)) + s.side * s.rho * 0.5;
+      const y = sm.GB * Math.sin(t) + 0.01 * Math.sin(clock.elapsedTime * 2 + s.phase);
+      dummy.position.set(x, y, 0.16);
+      dummy.scale.setScalar(i % count < shown ? 1 : 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count * 2]} frustumCulled={false}>
+      <sphereGeometry args={[0.032, 8, 6]} />
       <meshStandardMaterial color={COLOURS.potassium} emissive={COLOURS.potassium} emissiveIntensity={1.6} toneMapped={false} />
     </instancedMesh>
   );
 }
 
-/** x of a guard cell's midline at height y: a semicircle of radius R, flattened by `bow`, bulging away from the pore. */
-const guardMidline = (side, bow, y) => side * bow * Math.sqrt(Math.max(0, STOMA.R * STOMA.R - y * y));
-
-/**
- * One guard cell: a kidney bean — a tube whose axis is a flattened
- * semicircle and whose radius is fat in the middle and pinched at the tips,
- * where it meets its partner at (0, ±R). Flaccid, the two beans lie straight
- * against each other and the pore between them is shut; turgid, the thin
- * inner wall is dragged out by the thick outer one and they bow apart.
- * Built on the shared tube kit: the bow is the axis, not a scale.
- */
-function GuardCell({ side, bow, turgor, held, seed }) {
-  const L = 2 * STOMA.R;
-  const swell = 0.9 + 0.2 * clamp(turgor, 0, 1);
-  const radiusAt = useMemo(() => (s) => STOMA.r * swell * (0.06 + 0.94 * Math.pow(Math.sin(Math.PI * clamp(s / L, 0, 1)), 0.55)), [L, swell]);
-  const centreAt = useMemo(
-    () => (s, out) => {
-      out[0] = guardMidline(side, bow, s - STOMA.R);
-      out[1] = 0;
-    },
-    [side, bow],
-  );
-  return (
-    <group>
-      <group position={[0, -STOMA.R, 0]}>
-        <ProfiledTube length={L} rings={44} segments={18} radiusAt={radiusAt} centreAt={centreAt} castShadow>
-          <meshStandardMaterial color={COLOURS.guard} roughness={0.45} />
-        </ProfiledTube>
-      </group>
-      {/* Chloroplasts — guard cells are the only epidermal cells that have them. */}
-      {[-0.55, -0.2, 0.15, 0.5].map((f, i) => {
-        const y = f * STOMA.R;
-        return (
-          <mesh key={i} position={[guardMidline(side, bow, y) + side * 0.03, y, STOMA.r * 0.7]}>
-            <sphereGeometry args={[0.05, 8, 6]} />
-            <meshStandardMaterial color={COLOURS.chloroplast} roughness={0.5} />
-          </mesh>
-        );
-      })}
-      <IonFill side={side} bow={bow} held={held} seed={seed} />
-    </group>
-  );
-}
-
-function Stoma({ solved }) {
-  const bowClosed = STOMA.r / STOMA.R;
-  const bow = bowClosed + (1 - bowClosed) * solved.aperture;
+function StomaPanel({ solved, evapRateRef, windRef, speed, detail }) {
+  const parts = usePlantModel();
+  const sm = M.stoma;
+  const guardRef = useRef(null);
+  const bowRef = useRef(solved.aperture);
+  useFrame((_, delta) => {
+    bowRef.current += (solved.aperture - bowRef.current) * Math.min(1, delta * 2);
+    const g = guardRef.current;
+    if (g?.morphTargetInfluences) g.morphTargetInfluences[0] = bowRef.current;
+  });
+  const exitRef = useRef(0);
+  useEffect(() => {
+    exitRef.current = solved.aperture > 0.08 ? evapRateRef.current * 0.6 : 0;
+  });
   const turgor = clamp((solved.turgorMPa - 0.6) / 3.9, 0, 1);
-  const pavement = useMemo(
-    () =>
-      [
-        { p: [-1.55, 1.05, -0.1], s: [1.0, 0.9] },
-        { p: [1.55, 1.05, -0.1], s: [1.0, 0.9] },
-        { p: [-1.6, -1.05, -0.1], s: [0.9, 0.95] },
-        { p: [1.6, -1.05, -0.1], s: [0.9, 0.95] },
-        { p: [0, 1.45, -0.1], s: [1.4, 0.5] },
-        { p: [0, -1.45, -0.1], s: [1.4, 0.5] },
-        { p: [-1.5, 0.0, -0.1], s: [0.75, 1.0] },
-        { p: [1.5, 0.0, -0.1], s: [0.75, 1.0] },
-      ].map((c, i) => ({ ...c, geometry: makeRoundedBoxGeometry({ size: [c.s[0], c.s[1], 0.22], exponent: 5, amp: 0.02, seed: i + 60, segments: 28, rings: 18 }) })),
-    [],
-  );
-  useEffect(() => () => pavement.forEach((c) => c.geometry.dispose()), [pavement]);
-
-  // What the cells are actually holding: light's K⁺ less whatever ABA has dumped.
   const held = solved.aperture;
   const efflux = solved.droughtClosed && solved.kFraction > 0.04;
-  const x = STOMA.x;
-  const y = STOMA.y;
-  const arrowLen = 0.25 + 0.5 * (efflux ? solved.kFraction : held);
-  const outer = STOMA.R * bow + STOMA.r;
-  // Arrows point in while K⁺ is being pumped in, out while ABA is dumping it.
-  const arrow = (sign, yOff, colour, label) => {
-    const near = sign * (outer + 0.35);
-    const far = sign * (outer + 0.35 + arrowLen);
+  const arrowLen = 0.22 + 0.4 * (efflux ? solved.kFraction : held);
+  const outer = sm.GR * 2 + sm.openBow * solved.aperture + 0.15;
+  const arrow = (sign, yOff, colour, name) => {
+    const near = sign * (outer + 0.2);
+    const far = sign * (outer + 0.2 + arrowLen);
     return efflux ? (
-      <VectorArrow from={[near, yOff, 0.2]} to={[far, yOff, 0.2]} color={colour} radius={0.028} headLength={0.16} headRadius={0.07} label={label} labelOffset={0.3} />
+      <VectorArrow from={[near, yOff, 0.3]} to={[far, yOff, 0.3]} color={colour} radius={0.024} headLength={0.14} headRadius={0.06} label={detail ? name : undefined} labelOffset={0.28} />
     ) : (
-      <VectorArrow from={[far, yOff, 0.2]} to={[near, yOff, 0.2]} color={colour} radius={0.028} headLength={0.16} headRadius={0.07} label={label} labelOffset={-arrowLen - 0.35} />
+      <VectorArrow from={[far, yOff, 0.3]} to={[near, yOff, 0.3]} color={colour} radius={0.024} headLength={0.14} headRadius={0.06} label={detail ? name : undefined} labelOffset={-arrowLen - 0.3} />
     );
   };
   return (
-    <group>
-      <InsetFrame x={x} y={y} width={STOMA.width} height={STOMA.height} title="stoma · lower epidermis · ×800" tone="text-sky-300" />
-      <group position={[x, y, 0]}>
-        {pavement.map((c, i) => (
-          <mesh key={i} geometry={c.geometry} position={c.p}>
-            <meshStandardMaterial color={COLOURS.pavement} roughness={0.6} />
-          </mesh>
-        ))}
-        {/* The pore: dark where the two cells have bowed apart. */}
-        <mesh position={[0, 0, -0.05]} scale={[Math.max(0.02, STOMA.R * bow - STOMA.r) * 2, STOMA.R * 1.9, 1]}>
-          <circleGeometry args={[0.5, 24]} />
-          <meshBasicMaterial color="#0b1020" />
+    <PanelFrame panel={PANELS.stoma}>
+      <group rotation={[-0.32, 0, 0]} scale={0.95}>
+        <mesh geometry={parts.stomaSurface.geometry}>
+          <meshStandardMaterial vertexColors roughness={0.4} metalness={0} />
         </mesh>
-        <GuardCell side={-1} bow={bow} turgor={turgor} held={held} seed={71} />
-        <GuardCell side={1} bow={bow} turgor={turgor} held={held} seed={72} />
-        {/* K⁺ pumped in from the neighbouring cells, water following by osmosis — or both leaving under ABA. */}
+        <mesh ref={guardRef} geometry={parts.stomaGuard.geometry} morphTargetInfluences={[0]}>
+          <meshStandardMaterial vertexColors roughness={0.45} />
+        </mesh>
+        <IonFill held={held} bowRef={bowRef} />
+        {/* Vapour diffusing out of the open pores, towards the viewer and away on the wind. */}
+        {sm.stomata.map(([x, y], i) => (
+          <Plume key={i} count={36} origin={[x, y, 0.02]} spread={[0.05, 0.25, 0.02]} velocity={[0, 0, 0.45]} driftRef={windRef} rateRef={exitRef} speed={speed} life={1.6} size={0.036} opacity={0.6} seed={50 + i} />
+        ))}
         {(held > 0.04 || efflux) && (
           <>
-            {arrow(-1, 0.28, COLOURS.potassium, "K⁺")}
-            {arrow(1, 0.28, COLOURS.potassium, "K⁺")}
+            {arrow(-1, 0.3, COLOURS.potassium, "K⁺")}
+            {arrow(1, 0.3, COLOURS.potassium, "K⁺")}
             {arrow(-1, -0.3, COLOURS.water, "H₂O")}
             {arrow(1, -0.3, COLOURS.water, "H₂O")}
           </>
         )}
-        <SceneLabel position={[0, -STOMA.R - 0.5, 0.3]} accent={solved.poreOpen} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
-          {solved.poreOpen ? `open pore · ${solved.poreWidthUm.toFixed(1)} µm` : `closed pore · ${solved.poreWidthUm.toFixed(1)} µm`}
-        </SceneLabel>
-        <SceneLabel position={[-1.55, STOMA.R + 0.35, 0.3]} tone="text-emerald-300">
-          guard cell · {turgor > 0.5 ? "turgid" : "flaccid"}
-        </SceneLabel>
-        <SceneLabel position={[1.5, STOMA.R + 0.35, 0.3]} tone="text-ink-400">
-          pavement cells
-        </SceneLabel>
-        {solved.droughtClosed && (
-          <SceneLabel position={[0, STOMA.R + 0.85, 0.3]} tone="text-amber-300">
-            ABA from the roots · K⁺ dumped, pore shut
-          </SceneLabel>
-        )}
       </group>
-    </group>
+      <ToggleLabel position={[0, -1.25, 0.6]} accent={solved.poreOpen} tone={solved.poreOpen ? "text-sky-300" : "text-rose-300"}>
+        {solved.poreOpen ? `open pore · ${solved.poreWidthUm.toFixed(1)} µm` : `closed pore · ${solved.poreWidthUm.toFixed(1)} µm`}
+      </ToggleLabel>
+      {detail && (
+        <>
+          <ToggleLabel position={[-1.2, 0.95, 0.6]} tone="text-emerald-300">
+            guard cell · {turgor > 0.5 ? "turgid" : "flaccid"}
+          </ToggleLabel>
+          <ToggleLabel position={[1.35, 0.95, 0.4]} tone="text-ink-400">
+            pavement cells
+          </ToggleLabel>
+          {solved.droughtClosed && (
+            <ToggleLabel position={[0, 1.5, 0.6]} tone="text-amber-300">
+              ABA from the roots · K⁺ dumped, pore shut
+            </ToggleLabel>
+          )}
+        </>
+      )}
+    </PanelFrame>
   );
 }
 
 // ─── The scene ──────────────────────────────────────────────────────
 
-export default function TranspirationCanvas({ params = {} }) {
-  const { light = 70, humidity = 50, wind = 2, soil = "hydrated", speed = 1 } = params || {};
-  const solved = useMemo(() => solveTranspiration({ light, humidity, wind, soil }), [light, humidity, wind, soil]);
-
+function Figure({ solved, speed, focus }) {
   // Every stream in the scene runs at the one flux.
   const flowRef = useRef(0);
   const evapRateRef = useRef(0);
   const windRef = useRef(0);
   useEffect(() => {
     flowRef.current = solved.rateMlPerHour * FLOW_UNITS_PER_ML * speed;
-    evapRateRef.current = 1.5 + solved.rateMlPerHour * 0.11;
-    windRef.current = solved.wind * 0.22;
+    evapRateRef.current = 1.5 + solved.rateMlPerHour * 0.1;
+    windRef.current = solved.wind * 0.2;
   }, [solved, speed]);
-
   const colour = columnColour(solved.tensionMPa);
   const cavitated = solved.columnState === "cavitation";
   const drought = solved.soil === "drought";
+  const all = focus === "all";
+  const R = PANELS.root;
+  const S = PANELS.stem;
+  const L = PANELS.leaf;
+  const T = PANELS.stoma;
+  const hw = PANEL.width / 2;
+  const hh = PANEL.height / 2;
+  return (
+    <>
+      <Sun light={solved.light} />
+      <Plant solved={solved} windRef={windRef} evapRateRef={evapRateRef} speed={speed} drought={drought} focusAll={all} />
+      <RootPanel flowRef={flowRef} colour={colour} drought={drought} detail={focus === "root"} />
+      <StemPanel flowRef={flowRef} colour={colour} cavitated={cavitated} speed={speed} detail={focus === "stem"} />
+      <LeafPanel solved={solved} flowRef={flowRef} colour={colour} evapRateRef={evapRateRef} windRef={windRef} speed={speed} detail={focus === "leaf"} />
+      <StomaPanel solved={solved} evapRateRef={evapRateRef} windRef={windRef} speed={speed} detail={focus === "stoma"} />
+      {all && (
+        <>
+          <Hop from={[R.x, R.y + hh + 0.06, -1.1]} to={[S.x, S.y - hh - 0.32, -1.1]} />
+          <Hop from={[S.x + hw + 0.04, S.y, -1.1]} to={[L.x - hw - 0.04, L.y, -1.1]} />
+          <Hop from={[L.x, L.y - hh - 0.06, -1.1]} to={[T.x, T.y + hh + 0.32, -1.1]} />
+        </>
+      )}
+    </>
+  );
+}
 
+export default function TranspirationCanvas({ params = {} }) {
+  const { light = 70, humidity = 50, wind = 2, soil = "hydrated", speed = 1, showLabels = true, focus = "all" } = params || {};
+  const solved = useMemo(() => solveTranspiration({ light, humidity, wind, soil }), [light, humidity, wind, soil]);
+  const view = VIEWS[focus] ?? VIEWS.all;
   return (
     <SceneCanvas
-      camera={{ position: [1.2, 0.9, 14.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 30, target: [0.7, 0.2, 0] }}
-      lights={{ ambient: 0.5 + 0.25 * clamp(light / 100, 0, 1), keyLight: 0.5 + 0.9 * clamp(light / 100, 0, 1), rim: PALETTE.emerald }}
+      camera={{ position: [0.7, 0.6, 16], fov: 42 }}
+      controls={{ minDistance: 2.5, maxDistance: 34 }}
+      lights={{ ambient: 0.6 + 0.25 * clamp(light / 100, 0, 1), keyLight: 0.7 + 0.9 * clamp(light / 100, 0, 1), rim: PALETTE.emerald }}
     >
-      <Sun light={light} />
-      <Soil drought={drought} />
-      <Root flowRef={flowRef} colour={colour} />
-      <Stem flowRef={flowRef} colour={colour} cavitated={cavitated} speed={speed} />
-      <Leaf flowRef={flowRef} colour={colour} />
-
-      {/* Where each magnification comes from. */}
-      <Line points={[[LEAF.centre[0] + 0.9, LEAF.centre[1] - 0.05, 0], [SECTION.x - SECTION.width / 2, SECTION.y + 0.6, 0]]} color={PALETTE.line} lineWidth={1} dashed dashSize={0.14} gapSize={0.1} />
-      <Line points={[[SECTION.x, SECTION.y - SECTION.height / 2, 0], [STOMA.x, STOMA.y + STOMA.height / 2, 0]]} color={PALETTE.line} lineWidth={1} dashed dashSize={0.14} gapSize={0.1} />
-
-      <LeafSection solved={solved} evapRateRef={evapRateRef} windRef={windRef} speed={speed} />
-      <Stoma solved={solved} />
-
-      {/* Tension gauge on the column. */}
-      <SceneLabel position={[STEM.x + 1.0, STEM.top + 0.2, 0.4]} tone={cavitated ? "text-rose-300" : solved.columnState === "strained" ? "text-amber-300" : "text-sky-300"}>
-        {`column tension ${solved.tensionMPa.toFixed(2)} MPa · ${solved.columnState}`}
-      </SceneLabel>
-      <SceneLabel position={[STEM.x + 1.5, SOIL_TOP + 0.5, 0.4]} tone="text-ink-300">
-        {`${solved.rateMlPerHour < 10 ? solved.rateMlPerHour.toFixed(1) : Math.round(solved.rateMlPerHour)} mL/hr up the stem`}
-      </SceneLabel>
-
+      <FocusCamera view={view} />
+      <LabelsOn.Provider value={showLabels !== false}>
+        <Suspense fallback={null}>
+          <Figure solved={solved} speed={speed} focus={VIEWS[focus] ? focus : "all"} />
+        </Suspense>
+      </LabelsOn.Provider>
     </SceneCanvas>
   );
 }
+
+useGLTF.preload(PLANT_GLB);

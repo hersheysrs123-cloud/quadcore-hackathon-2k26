@@ -36,6 +36,7 @@ quadcore-hackathon-2k26/
 │   │   ├── food-chain.test.mjs           # 10 % pyramid, headcounts, fifth-link starvation, dim-sun apex loss, biomagnification & lethal dose, cascade toggle
 │   │   ├── timeline.test.mjs             # Stage layout, clock description & clamping, per-stage progress, advancing, easing helpers
 │   │   ├── stage-cycle.test.mjs          # Cycle layout & wrapping, shortest-way deltas, tempo-split advancing, stepper play/pause/next/prev/jump, lock arrest & forward-only recovery
+│   │   ├── mitosis-choreography.test.mjs # Plays mitosis and meiosis at 60 fps: nothing jumps between stages (incl. meiosis I → II), chromosomes stay inside intact nuclei and the cell, organelles inside the membrane, astral fibres stop at the cortex
 │   │   ├── cell-division.test.mjs        # Stage lists, census (chromosomes vs chromatids per stage), chiasma plan & swapped origins, diversity ladder, pose channels in range & every hold tableau distinct from its neighbours
 │   │   ├── redox.test.mjs                # Series order vs E°, equation balancing/atom conservation, displace/less-reactive/same-metal/water outcomes, rate ordering, colour mixing, electron conservation, rust needs both, salt factor, couple direction, anode lifetime & exhaustion
 │   │   ├── cardiac-cycle.test.mjs        # HR → systole/diastole shares & tempo, volumes/output, boundary continuity, isovolumetric holds, valve logic, Wiggers ranges, S1/S2 placement, ECG/conduction, fibrillation
@@ -43,6 +44,7 @@ quadcore-hackathon-2k26/
 │   │   ├── pathogens.test.mjs            # Anatomy parts, living checklist, 100 %/0 % efficacy, wall shredding, lytic stages, burst size, host status
 │   │   ├── tube-transit.test.mjs         # Profile bumps, squeeze-to-fit, recycling stream, tube winding vs analytic normals (via three.js)
 │   │   ├── respiratory-mechanics.test.mjs # CT thoracic skeleton kinematics, diaphragm morphing, and Boyle's Law physics
+│   │   ├── heart-credits.test.mjs         # The heart's BodyParts3D CC BY 4.0 credit (lib/heartCredits.js, the GLB's asset.copyright, the scene); the arm GLB is our own (no BodyParts3D): its seven nodes, the _BEND/_FIBRE/_SEG attributes the shaders read, the contract/stretch/flex morphs, and both arm scenes drawing ModelledArm with no Credits panel
 │   │   ├── shadow-optics.test.mjs        # Shadow geometry: bench bounds, point/broad lamp penumbra, and material transmission
 │   │   ├── space-hub.test.mjs            # Space Hub document uploads, active AI toggles, and pedagogy presets
 │   │   ├── syntax-highlighter.test.mjs   # 10-language tokenizer & syntax highlighting rules
@@ -99,6 +101,14 @@ quadcore-hackathon-2k26/
 │   ├── m1_stress_challenge.test.js       # Editor stress challenge
 │   └── tier5_adversarial_stress.test.js  # Tier-5 adversarial hardening
 ├── scripts/
+│   ├── heart-bake/                       # Offline pipeline (numpy/scipy + three) that builds public/models/heart.glb and heart-model-meta.js from BodyParts3D; see its README
+│   ├── division-model/                   # Blender (Python) build of public/models/division.glb: chromatin territories, nucleolus, nuclear envelope with pores, centrioles (mother with appendages, daughter), pericentriolar material, mitochondrion; reuses plant-model's helpers and GLB writer; see its README
+│   ├── ecosystem-model/                  # Blender (Python) build of public/models/food-chain.glb (oak shoot, looper caterpillar with a loop morph, blue tit, sparrowhawk on a log) and carbon-cycle.glb (broadleaf, spruce, stump, Holstein cow, coal power station); reuses plant-model's helpers and GLB writer; see its README
+│   ├── flower-model/                     # Blender (Python) build of public/models/flower.glb: the half-flower dissected at z = 0 (SDF body, ovules, nectary and sticky stigma with painted tissue cut faces; parametric petals, sepals, tepals, stamens, feathery stigma), a worker honeybee with wings and pollen loads, spiky and smooth pollen grains; reuses plant-model's helpers and GLB writer; see its README
+│   ├── microbe-model/                    # Blender (Python) build of public/models/microbes.glb: the cut-away E. coli (SDF wall, membrane and cytoplasm shells with painted rims; nucleoid, plasmid, ribosome, pili, flagellar hooks), the T4 phage (capsid with DNA spool, sheath, core, baseplate, tail fibre, low-detail progeny) and penicillin G; reuses plant-model's helpers and GLB writer; see its README
+│   ├── gut-model/                        # Blender (Python) build of public/models/gut.glb: the cut-away oesophagus stored at rest with per-vertex (s, w, fold), the SDF stomach with vessels pressed onto it, chewed and dry boluses; wave_preview.py poses the wave for checking; see its README
+│   ├── plant-model/                      # Blender (Python) build of public/models/transpiration.glb: the bean seedling (parametric stem, leaves, roots), the SDF soil and magnified panels (stem wedge, fractured leaf, stoma surface, root tip in soil), morphs, 16-bit GLB writer, plant-model-meta.js; reuses arm-model's SDF mesher; see its README
+│   ├── arm-model/                        # Blender (Python) build of public/models/arm.glb: bones lofted from traced cross-sections, a posable hand, muscles swept along paths (domed Pillows for the scapular fossae, the forearm packed, the humerus-wrapping muscles carved to the bone), meshed with OpenVDB; bend weights blended across heads, GLB writer, arm-model-meta.js; see its README
 │   ├── cdp_visual_tester.mjs             # Drives the running app over CDP for visual checks
 │   ├── empirical-stress-test-m1.mjs      # Empirical editor stress run (part of npm test)
 │   ├── test_exports_visual.mjs           # Visual check of the export pipeline

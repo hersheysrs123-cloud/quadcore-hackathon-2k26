@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { SceneLabel } from "@/components/visualizations/scene-kit";
+import { ToggleLabel } from "@/components/visualizations/scene-kit";
 import {
   clampIndex,
   createStepper,
@@ -30,8 +30,12 @@ import {
 //              is the settled, textbook tableau for the stage.
 //   playing    the clock runs continuously and wraps. Each time the playhead
 //              crosses into a new stage the driver pushes the index back to
-//              the HUD, so the chips follow the film — and it remembers what
-//              it pushed, so that echo is never mistaken for a jump.
+//              the HUD, so the chips follow the film. Only a CHANGE in the
+//              stage prop is the student choosing: the push comes back
+//              through React a render or more later, and a render in between
+//              still carries the old index. Read as a choice, that stale
+//              index cut the film back to the previous stage's start for a
+//              frame at every boundary — a flash of the last phase.
 //   lock       an optional arrest (colchicine): the clock may not pass that
 //              stage's hold point in either mode.
 //
@@ -75,7 +79,8 @@ export function StageCycleDriver({
   if (ref.current === null) {
     ref.current = {
       machine: createStepper(cycle, { index: stage, playing, lock }),
-      seen: { cycle, stage: clampIndex(cycle, stage), playing, lock: lock ?? null },
+      // `stage` is the index the machine is on; `prop` the last stage prop seen.
+      seen: { cycle, stage: clampIndex(cycle, stage), prop: clampIndex(cycle, stage), playing, lock: lock ?? null },
       sincePush: 1,
     };
   }
@@ -96,6 +101,7 @@ export function StageCycleDriver({
       const index = clampIndex(cycle, stage);
       m = createStepper(cycle, { index, playing, lock });
       seen.cycle = cycle;
+      seen.prop = clampIndex(cycle, stage);
       seen.playing = playing;
       seen.lock = lock ?? null;
       push(index);
@@ -115,13 +121,17 @@ export function StageCycleDriver({
       push(m.index);
     }
 
-    // A stage index the driver did not write is the student choosing a stage.
+    // A new stage prop that is not where the machine already is: the student
+    // choosing a stage. An unchanged prop is never a choice, however stale.
     const wanted = clampIndex(cycle, stage);
-    if (wanted !== seen.stage) {
-      m = stepperJump(cycle, m, wanted);
-      seen.stage = wanted;
-      // The lock may have clamped the request; say so.
-      push(m.index);
+    if (wanted !== seen.prop) {
+      seen.prop = wanted;
+      if (wanted !== seen.stage) {
+        m = stepperJump(cycle, m, wanted);
+        seen.stage = wanted;
+        // The lock may have clamped the request; say so.
+        push(m.index);
+      }
     }
 
     const dt = Math.min(rawDelta, 1 / 30);
@@ -154,8 +164,8 @@ export function StageCaption({ position = [0, -1, 0], snapshot, tone = "text-ink
   const bar = Array.from({ length: 5 }, (_, i) => (snapshot.progress * 5 > i + 0.5 ? "▰" : "▱")).join("");
   const state = snapshot.arrested ? arrestedLabel : snapshot.transitioning ? "stepping…" : snapshot.playing ? "playing" : "paused";
   return (
-    <SceneLabel position={position} tone={snapshot.arrested ? "text-rose-300" : tone} accent={!snapshot.arrested && !snapshot.playing && !snapshot.transitioning}>
+    <ToggleLabel position={position} tone={snapshot.arrested ? "text-rose-300" : tone} accent={!snapshot.arrested && !snapshot.playing && !snapshot.transitioning}>
       {`${snapshot.index + 1} / ${snapshot.count} · ${snapshot.label} · ${bar} · ${state}`}
-    </SceneLabel>
+    </ToggleLabel>
   );
 }

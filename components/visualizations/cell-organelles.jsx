@@ -31,7 +31,7 @@ import { PALETTE, SceneLabel, clamp, hashRandom } from "@/components/visualizati
  * permutation table, and is only ever sampled at build time to bend a mesh —
  * the artefacts a proper simplex noise avoids are invisible at this amplitude.
  */
-function fbm3(x, y, z) {
+export function fbm3(x, y, z) {
   let value = 0;
   let amplitude = 0.5;
   let frequency = 1;
@@ -265,11 +265,12 @@ export function useClip() {
  */
 export function CutawayProvider({ enabled, children }) {
   const gl = useThree((state) => state.gl);
-  // The clipping shader discards fragments where `dot(position, normal) >
-  // constant`, so the normal points at the half that is *removed*. Pointing
-  // it at -Z kept the camera-facing half and threw away the hidden one, which
-  // from a front-on view is indistinguishable from no cutaway at all.
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
+  // three KEEPS the side the normal points to: it discards a fragment where
+  // normal · p + constant < 0 (`clipping_planes_fragment`, with vClipPosition
+  // = −mvPosition). The camera looks from +z, so the normal points at −z to
+  // remove the front half. It used to point at +z on the opposite reading of
+  // the shader, which sliced off the hidden back half and left the front shut.
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), []);
 
   useEffect(() => {
     const previous = gl.localClippingEnabled;
@@ -1284,7 +1285,7 @@ export function CellWall({ size, selected, onSelect, showLabel }) {
  * partially permeable: two rows of heads, tails inside, gaps small enough to
  * pass water and nothing much else.
  */
-export function BilayerPatch({ position, normal = [0, 0, 1], visible }) {
+export function BilayerPatch({ position, normal = [0, 0, 1], visible, showLabel = true }) {
   const clip = useClip();
 
   const geo = useGeometries(
@@ -1363,9 +1364,11 @@ export function BilayerPatch({ position, normal = [0, 0, 1], visible }) {
         />
       </mesh>
 
-      <SceneLabel position={[0, 0.42, 0]} accent>
-        phospholipid bilayer
-      </SceneLabel>
+      {showLabel && (
+        <SceneLabel position={[0, 0.42, 0]} accent>
+          phospholipid bilayer
+        </SceneLabel>
+      )}
     </group>
   );
 }

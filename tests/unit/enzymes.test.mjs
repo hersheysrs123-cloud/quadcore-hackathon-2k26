@@ -41,6 +41,28 @@ describe("the optima", () => {
   });
 });
 
+describe("the shape of the temperature curve", () => {
+  // The regression: a symmetric Gaussian. It gave 1 % at 0 °C, where Q10 ≈ 2
+  // gives ~8 %, and lost 20 % of the rate between 37 and 45 °C before any
+  // molecule had unfolded.
+  it("rises roughly as Q10 ≈ 2 below the optimum", () => {
+    for (const [t, q10] of [[0, 0.077], [10, 0.154], [20, 0.308]]) {
+      const r = enzymeRate(t, 7).rate;
+      assert.ok(r > q10 * 0.8 && r < q10 * 1.3, `${t} °C gave ${r.toFixed(3)}, Q10 says ~${q10}`);
+    }
+  });
+
+  it("is lopsided — falls more steeply after the optimum than it rose before it", () => {
+    const rise = enzymeRate(37, 7).rate - enzymeRate(27, 7).rate;
+    const fall = enzymeRate(37, 7).rate - enzymeRate(47, 7).rate;
+    assert.ok(fall > 1.5 * rise, `rise ${rise.toFixed(2)} vs fall ${fall.toFixed(2)}`);
+  });
+
+  it("has almost nothing left by the denaturation temperature", () => {
+    assert.ok(enzymeRate(DENATURE_TEMP, 7).rate < 0.1);
+  });
+});
+
 describe("denaturation", () => {
   // The regression: the scene denatured at 50 °C and the panel at 55 °C while
   // its own note said "> 50 °C". At 52 °C the scene collapsed the rate to 9 %
@@ -92,6 +114,18 @@ describe("denaturation", () => {
       assert.ok(r <= last + 1e-9, `rate rose again at ${t.toFixed(1)} °C`);
       last = r;
     }
+  });
+
+  // The regression: the curve was labelled "denatures above 50 °C" and the
+  // panel said "Reversible? yes" at 45 °C, while the rate was already
+  // collapsing because molecules were unfolding.
+  it("calls 37–50 °C denaturing, and permanent", () => {
+    assert.equal(solveEnzyme({ temperature: 37, ph: 7 }).denaturing, false);
+    const warm = solveEnzyme({ temperature: 45, ph: 7 });
+    assert.equal(warm.denaturing, true);
+    assert.equal(warm.denatured, false);
+    assert.equal(warm.reversible, false);
+    assert.equal(solveEnzyme({ temperature: 55, ph: 7 }).denaturing, false, "past 50 °C it is denatured, not denaturing");
   });
 
   it("calls heat denaturation irreversible", () => {

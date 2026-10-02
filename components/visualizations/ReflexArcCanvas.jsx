@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
   CANVAS_BG,
+  Callout,
+  FitCamera,
+  LabelsOn,
+  NoLabel,
   PALETTE,
   SceneCanvas,
   SceneLabel,
@@ -13,16 +17,9 @@ import {
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { makeFlowPath } from "@/components/visualizations/charge-carriers";
-import {
-  ArmSkeleton,
-  MUSCLE_SPECS,
-  Muscle,
-  createPose,
-  frameOf,
-  localToWorld,
-  setPose,
-  useArmTextures,
-} from "@/components/visualizations/arm-rig";
+import { ARM_MODEL } from "@/components/visualizations/arm-model-meta";
+import { ARM, createPose, frameOf, localToWorld, setPose } from "@/components/visualizations/arm-rig";
+import { ModelledArm } from "@/components/visualizations/arm-model";
 import {
   DORSAL_ROOT_FRACTION,
   STAGES,
@@ -47,8 +44,10 @@ import {
 // slow-motion only changes how many wall-clock milliseconds each
 // physiological one is worth.
 //
-// The arm is the shared rig from `arm-rig.jsx`; the nerves are hung on its
-// bones so they follow the withdrawal for free.
+// The arm moves on the shared rig's kinematics (`arm-rig.jsx`) but is drawn
+// with our own anatomical model (`public/models/arm.glb`, built in Blender by
+// scripts/arm-model): bones, and the muscles and tendons over them. The
+// nerves are hung on its bones so they follow the withdrawal for free.
 // ─────────────────────────────────────────────────────────────────────
 
 const SHOULDER = [0, 2.2, 0];
@@ -63,18 +62,40 @@ const POSES = {
   withdrawn: { shoulder: 30, elbow: 100 },
 };
 
+/** The hand points at the flame with its index finger. */
+const POINTING = { current: { from: "point", to: "point", t: 0 } };
+
 const CANDLE_X = 5.85;
 const TABLE_Y = -3.2;
 const CANDLE_TOP_Y = -1.75;
 
-/** Transverse section of the cord, hung behind and above the shoulder. */
-const CORD = { centre: [-1.4, 4.4, 0], rx: 0.95, ry: 0.8, depth: 0.5 };
-/** Nerves inside the cord run just in front of its cut face, so they read. */
-const NERVE_Z = 0.46;
-const DORSAL_HORN = [-1.9, 4.05, NERVE_Z];
-const VENTRAL_HORN = [-0.9, 4.0, NERVE_Z];
-const GANGLION = [-2.55, 3.25, 0.05];
-const BRAIN_TOP = [-1.72, 5.75, 0.25];
+/**
+ * The C6 segment of the spinal cord (the biceps' segment), magnified and cut
+ * across, hung behind and above the shoulder. Section-local coordinates:
+ * x runs dorsal (−, towards the back) to ventral (+), y is lateral, z runs
+ * along the cord with the cut face at z = `face`. A real cervical cord is
+ * about 13 mm wide and 8 mm front to back, so it is wider (ry) than deep (rx).
+ * `S` takes a section-local point to the world.
+ */
+const CORD = { centre: [-2.05, 4.55, 0], k: 1.15, rx: 0.7, ry: 1.0, face: 0.45, back: -1.55 };
+const S = (x, y, z) => [CORD.centre[0] + x * CORD.k, CORD.centre[1] + y * CORD.k, z * CORD.k];
+/** Just proud of the cut face, where the neurons inside the cord are drawn. */
+const ON_FACE = CORD.face + 0.035;
+const DORSAL_HORN = S(-0.38, -0.36, ON_FACE);
+const RELAY_SOMA = S(0.0, -0.3, ON_FACE);
+const VENTRAL_HORN = S(0.36, -0.47, ON_FACE);
+/** Rootlets leave the cord's side at the dorsolateral and ventrolateral sulci. */
+const DORSAL_ENTRY = S(-0.52, -0.69, 0.12);
+const VENTRAL_EXIT = S(0.42, -0.83, 0.12);
+const DORSAL_ROOT = S(-0.58, -1.08, 0.12);
+const GANGLION = S(-0.6, -1.45, 0.12);
+const VENTRAL_ROOT = S(0.4, -1.22, 0.12);
+/** Where the two roots join into the spinal nerve. */
+const JUNCTION = S(0.0, -1.98, 0.12);
+const BRAIN_TOP = S(-0.45, 1.55, ON_FACE);
+/** The spinal nerve from the roots to the shoulder: both neurons travel in it. */
+const NERVE_BUNDLE = [JUNCTION, [-1.4, 2.08, 0.18], [-0.8, 2.12, 0.2], [-0.3, 2.14, 0.22]];
+const bundle = (dy, dz) => NERVE_BUNDLE.map(([x, y, z]) => [x, y + dy, z + dz]);
 
 const NEURON_COLOURS = {
   sensory: PALETTE.gold,
@@ -85,6 +106,15 @@ const NEURON_COLOURS = {
   synapse: PALETTE.emerald,
   pain: PALETTE.rose,
   flame: "#fb923c",
+};
+
+/** A one-line account of each run, for the caption. */
+const OUTCOME = {
+  fires: (s) => `Withdrawal reflex: the biceps is told to contract ${Math.round(s.responseMs)} ms after the burn, before the pain is even felt.`,
+  threshold: () =>
+    "40 °C is warm, not painful (pain starts near 43 °C). Warm receptors send slow impulses up C fibres at 2 m/s and the warmth is felt, but the relay neuron does not fire the motor neuron: no reflex.",
+  dorsal: () => "Dorsal root cut: the impulse never gets into the spinal cord. No reflex, and nothing is felt.",
+  ventral: () => "Ventral root cut: the pain reaches the brain and is felt, but the order to move never reaches the biceps.",
 };
 
 /** Wall-clock phases of one cycle, seconds. */
@@ -140,33 +170,53 @@ const SENSORY_ROUTE = [
   {
     frame: "forearm",
     points: [
-      [0.04, -3.72, -0.2],
-      [0.12, -3.2, -0.1],
-      [0.16, -2.6, 0.05],
-      [0.2, -1.8, 0.14],
-      [0.15, -0.8, 0.25],
-      [0.05, 0.0, 0.32],
+      // The index fingertip (arm-model-meta.js), then along the palm side of
+      // the finger, over the palm and the carpal tunnel, and up the front of
+      // the forearm on the surface of the flexors (measured off the model).
+      ARM_MODEL.indexTip,
+      [0.18, -3.879, -0.201],
+      [0.163, -3.723, -0.19],
+      [0.138, -3.427, -0.168],
+      [0.146, -3.257, -0.155],
+      [0.135, -2.983, -0.136],
+      [0.138, -2.6, -0.1],
+      [0.191, -2.35, -0.05],
+      [0.25, -2.05, 0.038],
+      [0.193, -1.8, 0.115],
+      [0.243, -1.3, 0.201],
+      [0.272, -0.8, 0.31],
+      [0.212, -0.35, 0.424],
+      [0.035, 0.0, 0.43],
     ],
   },
   {
+    // Up the medial bicipital groove, between biceps and triceps, then off
+    // the arm into the armpit towards the neck.
     frame: "humerus",
     points: [
-      [0.05, -3.0, 0.32],
-      [0.0, -2.2, 0.34],
-      [-0.02, -1.2, 0.34],
-      [-0.1, -0.35, 0.32],
-      [-0.12, -0.15, 0.3],
+      [0.035, -3.0, 0.43],
+      [0.0, -2.6, 0.292],
+      [0.0, -2.2, 0.238],
+      [0.0, -1.7, 0.152],
+      [0.0, -1.2, 0.14],
+      [-0.02, -0.7, 0.086],
+      [-0.04, -0.35, 0.25],
+      [-0.05, -0.15, 0.49],
     ],
   },
   {
+    // Up the spinal nerve beside the motor fibre, through the dorsal root
+    // ganglion (where its cell body sits off to one side), along the dorsal
+    // root and its rootlets into the cord, and across to the dorsal horn.
     frame: "world",
     points: [
-      [SHOULDER[0] - 0.12, SHOULDER[1] - 0.15, 0.3],
-      [-0.6, 2.35, 0.25],
-      [-1.4, 2.7, 0.15],
-      [-2.3, 3.0, 0.05],
+      [SHOULDER[0] - 0.05, SHOULDER[1] - 0.15, 0.49],
+      ...bundle(0.035, 0.04).reverse(),
+      S(-0.3, -1.72, 0.14),
       GANGLION,
-      [-2.35, 3.6, 0.15],
+      DORSAL_ROOT,
+      DORSAL_ENTRY,
+      S(-0.5, -0.55, ON_FACE),
       DORSAL_HORN,
     ],
   },
@@ -175,7 +225,7 @@ const SENSORY_ROUTE = [
 const RELAY_ROUTE = [
   {
     frame: "world",
-    points: [DORSAL_HORN, [-1.5, 4.14, NERVE_Z], [-1.15, 4.07, NERVE_Z], VENTRAL_HORN],
+    points: [DORSAL_HORN, S(-0.2, -0.27, ON_FACE), RELAY_SOMA, S(0.2, -0.4, ON_FACE), VENTRAL_HORN],
   },
 ];
 
@@ -184,20 +234,23 @@ const MOTOR_ROUTE = [
     frame: "world",
     points: [
       VENTRAL_HORN,
-      [-0.55, 3.6, 0.2],
-      [-0.35, 3.2, 0.1],
-      [0.0, 2.75, 0.1],
-      [0.3, 2.35, 0.1],
-      [SHOULDER[0] + 0.32, SHOULDER[1] - 0.1, 0.1],
+      S(0.43, -0.66, ON_FACE),
+      VENTRAL_EXIT,
+      VENTRAL_ROOT,
+      S(0.22, -1.7, 0.1),
+      ...bundle(-0.035, -0.04),
+      [SHOULDER[0] + 0.331, SHOULDER[1] - 0.1, 0.238],
     ],
   },
   {
+    // Down the medial face of the biceps to its motor end plates.
     frame: "humerus",
     points: [
-      [0.32, -0.1, 0.1],
-      [0.44, -0.6, 0.12],
-      [0.55, -1.3, 0.14],
-      [0.58, -1.75, 0.16],
+      [0.331, -0.1, 0.238],
+      [0.322, -0.6, 0.211],
+      [0.321, -1.0, 0.207],
+      [0.317, -1.4, 0.199],
+      [0.306, -1.75, 0.167],
     ],
   },
 ];
@@ -205,7 +258,8 @@ const MOTOR_ROUTE = [
 const BRAIN_ROUTE = [
   {
     frame: "world",
-    points: [DORSAL_HORN, [-1.78, 4.5, NERVE_Z], [-1.7, 5.05, 0.28], BRAIN_TOP],
+    // Schematic: the ascending copy really runs up the dorsal columns, along the cord.
+    points: [DORSAL_HORN, S(-0.48, 0.0, ON_FACE), S(-0.46, 0.75, ON_FACE), S(-0.45, 1.15, ON_FACE), BRAIN_TOP],
   },
 ];
 
@@ -255,11 +309,13 @@ function RouteTubes({ route, frame, colour, radius, dashed }) {
 }
 
 /** A severed root: the tube interrupted by a slab of background, and a marker. */
-function Cut({ position, label }) {
+function Cut({ position, label, Label }) {
   return (
     <group position={position}>
+      {/* Just deep enough to interrupt the root's sheath: the cuts sit where the
+          roots meet the cord, and a deeper slab punched a hole in its edge. */}
       <mesh>
-        <boxGeometry args={[0.22, 0.22, 0.7]} />
+        <boxGeometry args={[0.2, 0.2, 0.32]} />
         <meshBasicMaterial color={CANVAS_BG} />
       </mesh>
       <mesh rotation={[0, 0, Math.PI / 4]}>
@@ -270,88 +326,269 @@ function Cut({ position, label }) {
         <boxGeometry args={[0.32, 0.05, 0.05]} />
         <meshBasicMaterial color={PALETTE.rose} toneMapped={false} />
       </mesh>
-      <SceneLabel position={[0, -0.36, 0]} tone="text-rose-300">
+      <Label position={[0, -0.36, 0]} tone="text-rose-300">
         {label}
-      </SceneLabel>
+      </Label>
+    </group>
+  );
+}
+
+const CORD_COLOURS = {
+  white: "#efe6d4",
+  grey: "#b98c86",
+  canal: "#3b2a2a",
+  bone: "#e6dcc4",
+  root: "#efe2bf",
+  artery: "#c2362f",
+  vein: "#4b5f9a",
+};
+
+/** The cord's outline in the section plane: an ellipse notched by the anterior median fissure (+x) and posterior median sulcus (−x). */
+function cordOutline() {
+  const pts = [];
+  const n = 72;
+  for (let i = 0; i < n; i += 1) {
+    const t = (i / n) * Math.PI * 2;
+    const x = Math.cos(t) * CORD.rx;
+    const y = Math.sin(t) * CORD.ry;
+    // The fissure is a deep narrow cleft; the sulcus a shallow groove.
+    if (Math.abs(y) < 0.07 && x > 0) {
+      pts.push([x - 0.24 * (1 - Math.abs(y) / 0.07), y * 0.35]);
+    } else if (Math.abs(y) < 0.05 && x < 0) {
+      pts.push([x + 0.06 * (1 - Math.abs(y) / 0.05), y]);
+    } else {
+      pts.push([x, y]);
+    }
+  }
+  return pts;
+}
+
+/**
+ * The grey-matter butterfly (half, y ≥ 0, from the ventral midline round to
+ * the dorsal one): broad ventral horns full of motor neuron cell bodies,
+ * slender dorsal horns reaching almost to the dorsolateral surface where the
+ * sensory rootlets come in, joined across the middle by the grey commissure.
+ */
+const GREY_HALF = [
+  [0.2, 0], [0.24, 0.18], [0.42, 0.26], [0.55, 0.4], [0.52, 0.6], [0.34, 0.66], [0.16, 0.52],
+  [0.05, 0.5], [-0.05, 0.4], [-0.2, 0.38], [-0.36, 0.48], [-0.5, 0.56], [-0.56, 0.54],
+  [-0.5, 0.44], [-0.34, 0.28], [-0.2, 0.12], [-0.16, 0],
+];
+
+function shapeOf(points) {
+  const shape = new THREE.Shape();
+  shape.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i += 1) shape.lineTo(points[i][0], points[i][1]);
+  shape.closePath();
+  return shape;
+}
+
+function ellipsePath(cx, cy, rx, ry, path = new THREE.Path()) {
+  path.absellipse(cx, cy, rx, ry, 0, Math.PI * 2, false, 0);
+  return path;
+}
+
+/**
+ * The C6 segment in 3D: a short length of cord cut square across at the
+ * front, the grey matter on the cut face, the surface arteries and veins, the
+ * vertebra it runs through (sitting just below the cut, so the roots pass in
+ * front of it the way they leave through the intervertebral foramen), the dorsal and ventral rootlets fanning into their
+ * roots, the dorsal root ganglion, and the two roots joining into the spinal
+ * nerve.
+ */
+function SpinalSegment() {
+  const g = useMemo(() => {
+    const depth = CORD.face - CORD.back;
+    const cord = new THREE.ExtrudeGeometry(shapeOf(cordOutline()), { depth, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2, curveSegments: 4 });
+    cord.translate(0, 0, CORD.back);
+    const greyPts = [...GREY_HALF, ...GREY_HALF.slice(1, -1).reverse().map(([x, y]) => [x, -y])];
+    // A thin slab standing just proud of the cut face, so it never z-fights it.
+    const grey = new THREE.ExtrudeGeometry(shapeOf(greyPts), { depth: 0.03, bevelEnabled: false });
+    grey.translate(0, 0, CORD.face + 0.012);
+
+    // The vertebra: body in front (ventral), arch round the canal behind,
+    // spinous process pointing back, transverse processes out to the sides.
+    // One joined bone: the body overlaps the arch (the pedicles), and it is
+    // as deep as it is tall. A thin body standing clear of the arch read as a
+    // loose plate. It stops short of the rootlets, which leave between two
+    // vertebrae (the intervertebral foramen).
+    const vz0 = -1.55;
+    const vDepth = 0.85;
+    const body = new THREE.ExtrudeGeometry(ellipsePath(1.25, 0, 0.56, 1.0, new THREE.Shape()), { depth: vDepth, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 2 });
+    body.translate(0, 0, vz0);
+    const archShape = ellipsePath(-0.02, 0, 1.02, 1.33, new THREE.Shape());
+    archShape.holes.push(ellipsePath(0.0, 0, 0.8, 1.1));
+    const arch = new THREE.ExtrudeGeometry(archShape, { depth: vDepth * 0.8, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2 });
+    arch.translate(0, 0, vz0 + 0.05);
+    const spinous = new THREE.ExtrudeGeometry(shapeOf([[-0.95, 0.12], [-1.62, 0.08], [-1.68, 0], [-1.62, -0.08], [-0.95, -0.12]]), { depth: vDepth * 0.7, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2 });
+    spinous.translate(0, 0, vz0 + 0.08);
+    const transverse = [1, -1].map((side) => {
+      const t = new THREE.ExtrudeGeometry(shapeOf([[0.55, side * 1.05], [0.62, side * 1.62], [0.3, side * 1.7], [0.05, side * 1.18]]), { depth: vDepth * 0.6, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2 });
+      t.translate(0, 0, vz0 + 0.1);
+      return t;
+    });
+    return { cord, grey, body, arch, spinous, transverse };
+  }, []);
+  useEffect(
+    () => () => {
+      for (const v of Object.values(g)) (Array.isArray(v) ? v : [v]).forEach((x) => x.dispose());
+    },
+    [g],
+  );
+
+  // Rootlets: a fan of fine strands off the side of the cord, spread along it, into each root.
+  const rootlets = useMemo(() => {
+    const fan = (from, to, zs) =>
+      zs.map((z) => new THREE.CatmullRomCurve3([new THREE.Vector3(...S(from[0], from[1], z)), new THREE.Vector3(...S((from[0] + to[0]) / 2, (from[1] + to[1]) / 2 - 0.05, (z + 0.12) / 2)), new THREE.Vector3(...S(to[0], to[1], 0.12))]));
+    return [
+      ...fan([-0.52, -0.69], [-0.58, -1.08], [-0.55, -0.3, -0.05, 0.3]),
+      ...fan([0.42, -0.83], [0.4, -1.22], [-0.45, -0.15, 0.2]),
+    ];
+  }, []);
+  const roots = useMemo(
+    () => ({
+      dorsal: new THREE.CatmullRomCurve3([DORSAL_ROOT, S(-0.6, -1.25, 0.12), GANGLION, S(-0.45, -1.72, 0.12), JUNCTION].map((p) => new THREE.Vector3(...p))),
+      ventral: new THREE.CatmullRomCurve3([VENTRAL_ROOT, S(0.3, -1.6, 0.12), JUNCTION].map((p) => new THREE.Vector3(...p))),
+      nerve: new THREE.CatmullRomCurve3([...NERVE_BUNDLE, [0.05, 2.12, 0.22]].map((p) => new THREE.Vector3(...p))),
+    }),
+    [],
+  );
+  const tubes = useMemo(
+    () => ({
+      rootlets: rootlets.map((c) => new THREE.TubeGeometry(c, 16, 0.022, 6, false)),
+      dorsal: new THREE.TubeGeometry(roots.dorsal, 40, 0.075, 10, false),
+      ventral: new THREE.TubeGeometry(roots.ventral, 30, 0.07, 10, false),
+      nerve: new THREE.TubeGeometry(roots.nerve, 40, 0.12, 12, false),
+    }),
+    [rootlets, roots],
+  );
+  useEffect(
+    () => () => {
+      tubes.rootlets.forEach((t) => t.dispose());
+      tubes.dorsal.dispose();
+      tubes.ventral.dispose();
+      tubes.nerve.dispose();
+    },
+    [tubes],
+  );
+
+  const bone = <meshStandardMaterial color={CORD_COLOURS.bone} roughness={0.72} metalness={0.02} />;
+  const nerveSheath = (
+    <meshStandardMaterial color={CORD_COLOURS.root} roughness={0.5} transparent opacity={0.42} depthWrite={false} />
+  );
+  // A vessel along the cord: one of the three longitudinal spinal arteries, or a vein.
+  const vessel = (x, y, colour, r = 0.028) => (
+    <mesh position={[x, y, (CORD.face + CORD.back) / 2]} rotation={[Math.PI / 2, 0, 0]}>
+      <cylinderGeometry args={[r, r, CORD.face - CORD.back, 8]} />
+      <meshStandardMaterial color={colour} roughness={0.4} />
+    </mesh>
+  );
+
+  return (
+    <group>
+      <group position={CORD.centre} scale={CORD.k}>
+        <mesh geometry={g.cord}>
+          <meshStandardMaterial color={CORD_COLOURS.white} roughness={0.55} metalness={0.02} />
+        </mesh>
+        <mesh geometry={g.grey}>
+          <meshStandardMaterial color={CORD_COLOURS.grey} roughness={0.7} metalness={0.02} />
+        </mesh>
+        {/* Central canal, in the grey commissure. */}
+        <mesh position={[0.02, 0, CORD.face + 0.045]}>
+          <circleGeometry args={[0.035, 16]} />
+          <meshBasicMaterial color={CORD_COLOURS.canal} />
+        </mesh>
+        {/* Anterior spinal artery in the fissure, posterior spinal arteries and a vein behind. */}
+        {vessel(0.66, 0, CORD_COLOURS.artery, 0.034)}
+        {vessel(-0.56, 0.42, CORD_COLOURS.artery)}
+        {vessel(-0.56, -0.42, CORD_COLOURS.artery)}
+        {vessel(-0.69, 0.0, CORD_COLOURS.vein, 0.03)}
+        <mesh geometry={g.body}>{bone}</mesh>
+        <mesh geometry={g.arch}>{bone}</mesh>
+        <mesh geometry={g.spinous}>{bone}</mesh>
+        {g.transverse.map((t, i) => (
+          <mesh key={i} geometry={t}>
+            {bone}
+          </mesh>
+        ))}
+      </group>
+
+      {tubes.rootlets.map((t, i) => (
+        <mesh key={i} geometry={t}>
+          <meshStandardMaterial color={CORD_COLOURS.root} roughness={0.55} />
+        </mesh>
+      ))}
+      <mesh geometry={tubes.dorsal}>{nerveSheath}</mesh>
+      <mesh geometry={tubes.ventral}>{nerveSheath}</mesh>
+      <mesh geometry={tubes.nerve}>{nerveSheath}</mesh>
+      {/* The dorsal root ganglion: a swelling on the dorsal root. */}
+      <mesh position={GANGLION} scale={[0.19, 0.28, 0.19]}>
+        <sphereGeometry args={[1, 20, 16]} />
+        <meshStandardMaterial color={CORD_COLOURS.root} roughness={0.5} transparent opacity={0.55} depthWrite={false} />
+      </mesh>
+
     </group>
   );
 }
 
 /**
- * Transverse section of the spinal cord: an ellipse of white matter with
- * the grey-matter butterfly standing slightly proud of its cut face, drawn
- * so that dorsal is towards the back of the body (−x) and ventral towards
- * the front, which is the orientation the arm's nerves arrive in.
+ * A neuron's cell body: a soma with short dendrites in the section plane.
+ * Motor neurons are big and multipolar; the relay neuron is smaller.
  */
-function SpinalCordSection() {
-  const geometries = useMemo(() => {
-    const white = new THREE.Shape();
-    white.absellipse(0, 0, CORD.rx, CORD.ry, 0, Math.PI * 2, false, 0);
-    const whiteGeom = new THREE.ExtrudeGeometry(white, { depth: CORD.depth, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05, bevelSegments: 3 });
-    whiteGeom.translate(0, 0, -CORD.depth / 2);
-
-    const grey = new THREE.Shape();
-    const outline = [
-      [-0.66, 0.6], [-0.45, 0.35], [-0.25, 0.17], [0.0, 0.16], [0.25, 0.22], [0.5, 0.48], [0.68, 0.3],
-      [0.58, 0.08], [0.58, -0.08], [0.68, -0.3], [0.5, -0.48], [0.25, -0.22], [0.0, -0.16], [-0.25, -0.17],
-      [-0.45, -0.35], [-0.66, -0.6], [-0.5, -0.28], [-0.38, 0], [-0.5, 0.28],
-    ];
-    grey.moveTo(outline[0][0], outline[0][1]);
-    grey.splineThru(outline.slice(1).map(([x, y]) => new THREE.Vector2(x, y)));
-    grey.closePath();
-    // Deeper than the white matter plus its bevel, so the butterfly stands
-    // proud of the cut face instead of vanishing inside it.
-    const greyDepth = CORD.depth + 0.24;
-    const greyGeom = new THREE.ExtrudeGeometry(grey, { depth: greyDepth, bevelEnabled: false });
-    greyGeom.translate(0, 0, -greyDepth / 2);
-    return { white: whiteGeom, grey: greyGeom };
-  }, []);
-  useEffect(
-    () => () => {
-      geometries.white.dispose();
-      geometries.grey.dispose();
-    },
-    [geometries],
+function Soma({ position, colour, radius, dendrites, seed = 0 }) {
+  const arms = useMemo(
+    () =>
+      Array.from({ length: dendrites }, (_, i) => {
+        const a = (i / dendrites) * Math.PI * 2 + seed;
+        const len = radius * (2.2 + 0.8 * Math.sin(i * 2.3 + seed));
+        return { a, len };
+      }),
+    [dendrites, radius, seed],
   );
-
   return (
-    <group position={CORD.centre}>
-      <mesh geometry={geometries.white} castShadow>
-        <meshStandardMaterial color="#f3ede1" roughness={0.6} metalness={0.02} />
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[radius, 16, 12]} />
+        <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.4} roughness={0.4} />
       </mesh>
-      <mesh geometry={geometries.grey}>
-        <meshStandardMaterial color="#c9a3a3" roughness={0.7} metalness={0.02} />
-      </mesh>
-      {/* Central canal. */}
-      <mesh position={[0, 0, CORD.depth / 2 + 0.13]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.02, 12]} />
-        <meshBasicMaterial color="#3b2a2a" />
-      </mesh>
-      <SceneLabel position={[0.3, CORD.ry + 0.42, 0]} tone="text-ink-200">
-        spinal cord · transverse section
-      </SceneLabel>
-      <SceneLabel position={[-CORD.rx - 0.55, 0.35, 0]} tone="text-ink-500">
-        dorsal (back)
-      </SceneLabel>
-      <SceneLabel position={[CORD.rx + 0.6, 0.35, 0]} tone="text-ink-500">
-        ventral (front)
-      </SceneLabel>
+      {arms.map(({ a, len }, i) => (
+        <mesh key={i} position={[(Math.cos(a) * len) / 2, (Math.sin(a) * len) / 2, 0]} rotation={[0, 0, a - Math.PI / 2]}>
+          <cylinderGeometry args={[radius * 0.12, radius * 0.3, len, 6]} />
+          <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.3} roughness={0.45} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
 /** The candle, its flame and the light it throws. Flickers on its own. */
-function Candle({ flameRef, lightRef }) {
+function Candle({ flameRef, lightRef, Label, nociceptive = true }) {
   return (
     <group position={[CANDLE_X, 0, -0.2]}>
       {/* Dish, wax and wick. */}
-      <mesh position={[0, TABLE_Y + 0.04, 0]} receiveShadow>
-        <cylinderGeometry args={[0.7, 0.62, 0.08, 28]} />
-        <meshStandardMaterial color="#8a6a52" roughness={0.6} metalness={0.3} />
+      {/* Dish, a hundredth into the table top, and the wax a hundredth into
+          the dish: the dish's underside used to lie exactly in the table's top
+          face and the two z-fought. */}
+      <mesh position={[0, TABLE_Y + 0.03, 0]}>
+        <cylinderGeometry args={[0.7, 0.62, 0.08, 36]} />
+        <meshStandardMaterial color="#b08a63" roughness={0.45} metalness={0.35} />
       </mesh>
-      <mesh position={[0, (TABLE_Y + 0.08 + CANDLE_TOP_Y) / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.28, 0.3, CANDLE_TOP_Y - TABLE_Y - 0.08, 24]} />
-        <meshStandardMaterial color="#f5efe0" roughness={0.5} metalness={0.02} />
+      <mesh position={[0, TABLE_Y + 0.075, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.68, 0.025, 8, 36]} />
+        <meshStandardMaterial color="#c49b70" roughness={0.4} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, (TABLE_Y + 0.06 + CANDLE_TOP_Y) / 2, 0]}>
+        <cylinderGeometry args={[0.28, 0.3, CANDLE_TOP_Y - TABLE_Y - 0.06, 32]} />
+        <meshStandardMaterial color="#f7f1e3" roughness={0.42} metalness={0.02} />
+      </mesh>
+      {/* The melt pool, dished a little below the rim, and one run of wax down the side. */}
+      <mesh position={[0, CANDLE_TOP_Y - 0.015, 0]}>
+        <cylinderGeometry args={[0.24, 0.24, 0.02, 28]} />
+        <meshStandardMaterial color="#fff6dc" emissive="#ffcf80" emissiveIntensity={0.25} roughness={0.2} />
+      </mesh>
+      <mesh position={[0.27, CANDLE_TOP_Y - 0.28, 0.1]} scale={[0.6, 1, 0.6]}>
+        <capsuleGeometry args={[0.05, 0.4, 4, 10]} />
+        <meshStandardMaterial color="#f7f1e3" roughness={0.42} />
       </mesh>
       <mesh position={[0, CANDLE_TOP_Y + 0.08, 0]}>
         <cylinderGeometry args={[0.02, 0.02, 0.18, 6]} />
@@ -381,9 +618,10 @@ function Candle({ flameRef, lightRef }) {
         </mesh>
       </group>
       <pointLight ref={lightRef} position={[0, CANDLE_TOP_Y + 0.6, 0.4]} color="#ffb060" intensity={3} distance={7} decay={2} />
-      <SceneLabel position={[0, TABLE_Y - 0.35, 0]} tone="text-ink-400">
-        candle · flame ≈ 80 °C at the tip
-      </SceneLabel>
+      {/* The flame is near 1000 °C; the 80 °C the model uses is the skin's. */}
+      <Label position={[0, TABLE_Y - 0.35, 0]} tone="text-ink-400">
+        {nociceptive ? "candle flame · fingertip skin heats to ~80 °C" : "candle flame · fingertip held above it, skin at ~40 °C"}
+      </Label>
     </group>
   );
 }
@@ -399,11 +637,11 @@ function Flash({ innerRef, position, colour, radius = 0.16 }) {
 }
 
 /** Milestone label that lights up once its stage has been reached. */
-function Milestone({ position, stage, reached, blocked }) {
+function Milestone({ position, stage, reached, blocked, Label }) {
   return (
-    <SceneLabel position={position} accent={reached && !blocked} tone={blocked ? "text-rose-300" : "text-ink-400"}>
+    <Label position={position} accent={reached && !blocked} tone={blocked ? "text-rose-300" : "text-ink-400"}>
       {`${reached ? (blocked ? "✕" : "✓") : "○"} ${stage.label}`}
-    </SceneLabel>
+    </Label>
   );
 }
 
@@ -618,8 +856,68 @@ function ReflexDriver({ solved, slowMotion, speed, poseRef, bicepsState, triceps
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** From the cord's callouts on the left, over the brain line, down to the table and out past the candle. */
+const REFLEX_VIEW = { cx: 0.75, cy: 1.5, width: 14.6, height: 10.4, depth: 3 };
+
+/** Callouts for the cord, in two columns either side of it, ordered by height so no leaders cross. */
+const CORD_CALLOUTS = {
+  left: [
+    { key: "white", anchor: S(-0.28, 0.78, ON_FACE), text: "White matter · axon tracts", tone: "text-ink-200" },
+    { key: "vertebra", anchor: S(-1.45, 0.0, -0.7), text: "Vertebra (C6) · spinous process", tone: "text-ink-300" },
+    { key: "dh", anchor: DORSAL_HORN, text: "Dorsal (back) horn · synapse", tone: "text-emerald-300" },
+    { key: "dr", anchor: DORSAL_ROOT, text: "Dorsal root · sensory in", tone: "text-amber-300" },
+    { key: "drg", anchor: GANGLION, text: "Dorsal root ganglion · sensory cell body", tone: "text-amber-300" },
+  ],
+  right: [
+    { key: "grey", anchor: S(0.4, 0.45, ON_FACE), text: "Grey matter · cell bodies", tone: "text-ink-200" },
+    { key: "canal", anchor: S(0.02, 0, ON_FACE), text: "Central canal", tone: "text-ink-300" },
+    { key: "relay", anchor: RELAY_SOMA, text: "Relay neuron", tone: "text-violet-300" },
+    { key: "vh", anchor: VENTRAL_HORN, text: "Ventral (front) horn · motor neuron", tone: "text-sky-300" },
+    { key: "vr", anchor: VENTRAL_ROOT, text: "Ventral root · motor out", tone: "text-sky-300" },
+    { key: "nerve", anchor: NERVE_BUNDLE[1], text: "Spinal nerve · both neurons together", tone: "text-ink-200" },
+  ],
+};
+const CALLOUT_LEFT_X = -3.95;
+// Clear of the vertebral body, which reaches x ≈ 0.2.
+const CALLOUT_RIGHT_X = 0.45;
+const calloutRow = (i) => 6.15 - i * 0.58;
+
+/**
+ * A light laminate bench on four legs. The old table was a dark slab whose
+ * top the candle dish sat exactly in.
+ */
+function Table() {
+  const legs = [
+    [-0.9, -1.6],
+    [7.7, -1.6],
+    [-0.9, 1.6],
+    [7.7, 1.6],
+  ];
+  return (
+    <group>
+      <mesh position={[3.4, TABLE_Y - 0.07, 0]}>
+        <boxGeometry args={[9.2, 0.14, 4]} />
+        <meshStandardMaterial color="#d9cdb6" roughness={0.55} metalness={0.02} />
+      </mesh>
+      {/* Edge banding, proud of the top's front face so no face is shared. */}
+      <mesh position={[3.4, TABLE_Y - 0.07, 2.005]}>
+        <boxGeometry args={[9.22, 0.15, 0.02]} />
+        <meshStandardMaterial color="#b9ab92" roughness={0.5} />
+      </mesh>
+      {legs.map(([x, z]) => (
+        <mesh key={`${x}:${z}`} position={[x, TABLE_Y - 0.13 - 0.9, z]}>
+          <boxGeometry args={[0.16, 1.8, 0.16]} />
+          <meshStandardMaterial color="#9aa3b2" roughness={0.4} metalness={0.5} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export default function ReflexArcCanvas({ params = {}, setParam }) {
-  const { stimulus = "flame", pathway = "intact", slowMotion = true, speed = 1, liveStage = -1 } = params || {};
+  const { stimulus = "flame", pathway = "intact", slowMotion = true, speed = 1, liveStage = -1, showLabels = true } = params || {};
+  // Every label in the scene goes through this, so one toggle clears them all.
+  const Label = showLabels ? SceneLabel : NoLabel;
 
   const solved = useMemo(() => solveReflex({ stimulus, pathway }), [stimulus, pathway]);
   const reachPose = solved.nociceptive ? POSES.flame : POSES.warmth;
@@ -629,7 +927,6 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
 
   const bicepsState = useRef({ activation: 0, fatigue: 0, strain: 0 });
   const tricepsState = useRef({ activation: 0, fatigue: 0, strain: 0 });
-  const textures = useArmTextures();
 
   const routes = useMemo(
     () => ({
@@ -672,11 +969,14 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
   const blocked = (i) => solved.stages[i].blocked && stageIndex >= i;
 
   return (
+    <div className="relative h-full w-full">
     <SceneCanvas
       camera={{ position: [1.9, 1.6, 14.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 30, target: [1.9, 1.1, 0] }}
-      lights={{ ambient: 0.5, keyLight: 1.1, rim: PALETTE.gold }}
+      controls={{ minDistance: 5, maxDistance: 30 }}
+      lights={{ ambient: 0.68, keyLight: 1.2, rim: PALETTE.gold }}
     >
+      <LabelsOn.Provider value={showLabels !== false}>
+      <FitCamera view={REFLEX_VIEW} direction={[0, 0.08, 1]} fov={46} />
       <ReflexDriver
         solved={solved}
         slowMotion={Boolean(slowMotion)}
@@ -690,27 +990,27 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
         setParam={setParam}
       />
 
-      {/* Table the candle stands on. */}
-      <mesh position={[3.4, TABLE_Y - 0.06, 0]} receiveShadow>
-        <boxGeometry args={[9, 0.12, 4]} />
-        <meshStandardMaterial color="#3b4557" roughness={0.75} metalness={0.15} />
-      </mesh>
+      <Table />
 
-      <ArmSkeleton
+      {/* Its own Suspense: without one the whole canvas suspends and remounts
+          while the model streams (see the cardiac scene's heart). */}
+      <Suspense fallback={null}>
+      <ModelledArm
         poseRef={poseRef}
-        grip={0}
+        handRef={POINTING}
+        bicepsState={bicepsState}
+        tricepsState={tricepsState}
         humerusChildren={
           <>
             <RouteTubes route={routes.sensory} frame="humerus" colour={NEURON_COLOURS.sensory} />
             <RouteTubes route={routes.motor} frame="humerus" colour={NEURON_COLOURS.motor} />
             <Flash innerRef={(el) => (refs.endPlate.current = el)} position={NMJ_LOCAL} colour={NEURON_COLOURS.synapse} radius={0.2} />
-            <SceneLabel position={[NMJ_LOCAL[0] + 0.25, NMJ_LOCAL[1] - 0.42, NMJ_LOCAL[2]]} tone="text-emerald-300">
+            <Label position={[NMJ_LOCAL[0] + 0.35, NMJ_LOCAL[1] - 0.45, NMJ_LOCAL[2]]} tone="text-emerald-300">
               neuromuscular junction
-            </SceneLabel>
-            <Milestone position={[0.95, -1.75, 0.2]} stage={STAGES[4]} reached={reached(4)} blocked={blocked(4)} />
-            <SceneLabel position={[0.35, -1.1, 0.5]} tone="text-sky-300">
-              motor neuron
-            </SceneLabel>
+            </Label>
+            <Label position={[0.95, -1.35, 0.1]} tone="text-ink-200">
+              biceps brachii · effector
+            </Label>
           </>
         }
         forearmChildren={
@@ -721,14 +1021,15 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
               <sphereGeometry args={[0.11, 12, 10]} />
               <meshBasicMaterial color={NEURON_COLOURS.pain} transparent opacity={0} toneMapped={false} depthWrite={false} />
             </mesh>
-            <Milestone position={[0.55, -3.95, 0.1]} stage={STAGES[0]} reached={reached(0)} blocked={blocked(0)} />
-            <Milestone position={[0.75, -1.7, 0.3]} stage={STAGES[1]} reached={reached(1)} blocked={blocked(1)} />
+            {/* Behind the forearm, clear of the elbow labels when the arm pulls back. */}
+            <Label position={[-0.55, -2.0, 0.3]} tone="text-amber-300">
+              sensory neuron
+            </Label>
           </>
         }
       />
+      </Suspense>
 
-      <Muscle poseRef={poseRef} spec={MUSCLE_SPECS.biceps} stateRef={bicepsState} textures={textures} label="biceps brachii · effector" labelOffset={0.55} />
-      <Muscle poseRef={poseRef} spec={MUSCLE_SPECS.triceps} stateRef={tricepsState} textures={textures} showLabel={false} />
 
       {/* Nerves in the fixed part of the body: shoulder to cord and back. */}
       <RouteTubes route={routes.sensory} frame="world" colour={NEURON_COLOURS.sensory} />
@@ -736,40 +1037,41 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
       <RouteTubes route={routes.motor} frame="world" colour={NEURON_COLOURS.motor} />
       <RouteTubes route={routes.brain} frame="world" colour={NEURON_COLOURS.brain} dashed />
 
-      <SpinalCordSection />
+      <SpinalSegment />
 
-      {/* Dorsal root ganglion: the sensory neuron's cell body, outside the cord. */}
-      <mesh position={GANGLION} castShadow>
-        <sphereGeometry args={[0.2, 18, 14]} />
-        <meshStandardMaterial color={NEURON_COLOURS.sensory} emissive={NEURON_COLOURS.sensory} emissiveIntensity={0.45} roughness={0.4} />
-      </mesh>
-      <SceneLabel position={[-3.1, 3.0, 0]} tone="text-amber-300">
-        dorsal root ganglion
-      </SceneLabel>
-      <SceneLabel position={[-1.75, 2.45, 0]} tone="text-amber-300">
-        sensory neuron
-      </SceneLabel>
-      <SceneLabel position={[-1.4, 3.7, 0.3]} tone="text-violet-300">
-        relay neuron
-      </SceneLabel>
-      <SceneLabel position={[0.35, 3.05, 0]} tone="text-sky-300">
-        ventral root
-      </SceneLabel>
-      <SceneLabel position={[-2.75, 3.95, 0]} tone="text-amber-300">
-        dorsal root
-      </SceneLabel>
-      <SceneLabel position={[BRAIN_TOP[0], BRAIN_TOP[1] + 0.35, 0]} tone={solved.sensationReachesBrain ? "text-ink-200" : "text-ink-600"}>
+      {/* Cell bodies: the sensory neuron's in the ganglion, on a short stalk
+          off its axon (it is pseudo-unipolar); the relay neuron's and the big
+          multipolar motor neuron's in the grey matter. */}
+      <Soma position={[GANGLION[0] - 0.13, GANGLION[1] + 0.02, GANGLION[2] + 0.06]} colour={NEURON_COLOURS.sensory} radius={0.085} dendrites={0} />
+      <Soma position={RELAY_SOMA} colour={NEURON_COLOURS.relay} radius={0.055} dendrites={3} seed={0.6} />
+      <Soma position={VENTRAL_HORN} colour={NEURON_COLOURS.motor} radius={0.085} dendrites={5} seed={1.1} />
+
+      {CORD_CALLOUTS.left.map((c, i) => (
+        <Callout key={c.key} anchor={c.anchor} at={[CALLOUT_LEFT_X, calloutRow(i), 0]} side="left" tone={c.tone}>
+          {c.text}
+        </Callout>
+      ))}
+      {CORD_CALLOUTS.right.map((c, i) => (
+        <Callout key={c.key} anchor={c.anchor} at={[CALLOUT_RIGHT_X, calloutRow(i), 0]} side="right" tone={c.tone}>
+          {c.text}
+        </Callout>
+      ))}
+      <Label position={[BRAIN_TOP[0] - 0.2, BRAIN_TOP[1] + 0.35, 0]} tone={solved.sensationReachesBrain ? "text-ink-200" : "text-ink-600"}>
         {solved.sensationReachesBrain ? "to brain · sensation felt (later)" : "to brain · nothing arrives"}
-      </SceneLabel>
+      </Label>
 
-      <Milestone position={[0.75, 4.25, 0.2]} stage={STAGES[2]} reached={reached(2)} blocked={blocked(2)} />
-      <Milestone position={[0.75, 3.7, 0.2]} stage={STAGES[3]} reached={reached(3)} blocked={blocked(3)} />
+      {/* The five stages as one checklist, right, above the candle and clear of
+          the cord callouts and the withdrawn hand. Scattered on the arm they
+          moved with it, and on withdrawal three of them landed on the elbow. */}
+      {STAGES.map((stage, i) => (
+        <Milestone key={stage.label} position={[6.75, 2.9 - i * 0.5, 0]} stage={stage} reached={reached(i)} blocked={blocked(i)} Label={Label} />
+      ))}
 
       <Flash innerRef={(el) => (refs.dorsalSynapse.current = el)} position={DORSAL_HORN} colour={NEURON_COLOURS.synapse} />
       <Flash innerRef={(el) => (refs.ventralSynapse.current = el)} position={VENTRAL_HORN} colour={NEURON_COLOURS.synapse} />
 
-      {pathway === "dorsal" && <Cut position={cuts.dorsal} label="dorsal root severed" />}
-      {pathway === "ventral" && <Cut position={cuts.ventral} label="ventral root severed" />}
+      {pathway === "dorsal" && <Cut position={cuts.dorsal} label="dorsal root severed" Label={Label} />}
+      {pathway === "ventral" && <Cut position={cuts.ventral} label="ventral root severed" Label={Label} />}
 
       {/* The impulse: a bright head with a short fading trail. */}
       <mesh ref={(el) => (refs.pulse.current = el)} visible={false}>
@@ -787,8 +1089,15 @@ export default function ReflexArcCanvas({ params = {}, setParam }) {
         <meshBasicMaterial color={PALETTE.bone} transparent opacity={0.8} toneMapped={false} />
       </mesh>
 
-      <Candle flameRef={(el) => (refs.flame.current = el)} lightRef={(el) => (refs.light.current = el)} />
+      {/* What this run shows. Mild warmth in particular looks like "nothing
+          happened" unless the scene says why: that IS the lesson. */}
+      <Label position={[6.55, 5.45, 0]} tone={solved.fires ? "text-emerald-200" : "text-amber-200"}>
+        <span className="inline-block w-56 whitespace-normal text-center leading-snug">{OUTCOME[solved.reason ?? "fires"](solved)}</span>
+      </Label>
 
+      <Candle flameRef={(el) => (refs.flame.current = el)} lightRef={(el) => (refs.light.current = el)} Label={Label} nociceptive={solved.nociceptive} />
+      </LabelsOn.Provider>
     </SceneCanvas>
+    </div>
   );
 }

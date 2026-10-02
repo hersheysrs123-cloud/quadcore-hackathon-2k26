@@ -24,7 +24,7 @@ import { solveColumn } from "@/lib/distillation";
 import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
 import { CELL_COLOURS, ELECTROLYTE, formatGasVolume, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
 import { DENATURE_TEMP, ENZYME_COLOURS, OPTIMUM_PH, OPTIMUM_TEMP, solveEnzyme } from "@/lib/enzymes";
-import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, PAIR_BONDS, describeHelix } from "@/lib/dna";
+import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, HYDROGEN_BOND_COLOUR, PAIR_BONDS, describeHelix } from "@/lib/dna";
 import { WATER_COLOUR, solveOsmosis } from "@/lib/cellBiology";
 import { STRUCTURE_COLOURS, solveFolding } from "@/lib/proteinFolding";
 import { latticeFactsFor, latticeKeyFor } from "@/lib/lattices";
@@ -2831,18 +2831,20 @@ function renderTopicDetailsReadout(topic, params) {
           ["Temperature", `${e.temperature.toFixed(0)} °C`, e.denatured ? "bad" : undefined],
           ["pH", e.ph.toFixed(1), e.extremePh ? "bad" : undefined],
           ["Optimum", `${OPTIMUM_TEMP} °C, pH ${OPTIMUM_PH}`],
-          ["Denatures above", `${DENATURE_TEMP} °C`, e.denatured ? "bad" : "good"],
-          ["Active site", e.activeSite, e.denatured || e.extremePh ? "bad" : "good"],
+          ["Denaturing", `${OPTIMUM_TEMP}–${DENATURE_TEMP} °C · fully denatured by ${DENATURE_TEMP} °C`, e.denatured ? "bad" : e.denaturing ? "gold" : "good"],
+          ["Active site", e.activeSite, e.denatured || e.extremePh ? "bad" : e.denaturing ? "gold" : "good"],
           ["Reversible?", e.reversible ? "yes — just slower; warming it up recovers the rate" : "no — the shape is permanently changed", e.reversible ? "good" : "bad"],
         ],
         note: e.denatured
-          ? `Above ${DENATURE_TEMP} °C the active site has permanently changed shape — the substrate no longer fits, and cooling will not bring the rate back. Look at the cliff on the curve.`
-          : e.extremePh
+          ? `By ${DENATURE_TEMP} °C essentially every molecule's active site has permanently changed shape — the substrate no longer fits, and cooling will not bring the rate back.`
+          : e.denaturing
+            ? `Past the optimum the enzyme is denaturing: heat is unfolding more molecules every degree, faster than the extra collisions can make up for, so the rate falls steeply. The unfolded ones stay unfolded if you cool it.`
+            : e.extremePh
             ? "Extreme pH distorts the active site too, so the substrate binds poorly. Move pH back towards 7 and the whole curve lifts."
             : e.tooCold
               ? "Cold: the particles collide less often and with less energy, so the rate is low — but the enzyme is unharmed and warming it up recovers the rate."
               : "Near the optimum: frequent, energetic collisions and a perfectly shaped active site.",
-        noteTone: e.denatured ? "bad" : e.extremePh ? "warn" : "good",
+        noteTone: e.denatured ? "bad" : e.extremePh || e.denaturing ? "warn" : "good",
       };
 
       legend = {
@@ -2851,14 +2853,14 @@ function renderTopicDetailsReadout(topic, params) {
           {
             // The scene draws the enzyme emerald and lerps it to rose as it
             // unfolds. The key used to show it blue.
-            color: e.distortion > 0.5 ? ENZYME_COLOURS.denatured : ENZYME_COLOURS.enzyme,
+            color: e.denatured || e.extremePh ? ENZYME_COLOURS.denatured : ENZYME_COLOURS.enzyme,
             shape: "square",
-            label: e.distortion > 0.5 ? "Denatured enzyme" : "Enzyme",
+            label: e.denatured || e.extremePh ? "Denatured enzyme" : "Enzyme",
             note: "a protein catalyst — not used up by the reaction",
           },
           { color: ENZYME_COLOURS.substrate, shape: "square", label: "Substrate", note: "the key that fits this lock" },
           { color: ENZYME_COLOURS.product, shape: "square", label: "Products", note: "the two halves, drifting apart after the split" },
-          { color: ENZYME_COLOURS.curve, shape: "line", label: "Rate against temperature", note: "climbs to the optimum, then falls off a cliff" },
+          { color: ENZYME_COLOURS.curve, shape: "line", label: "Rate against temperature", note: "climbs faster and faster to the optimum, then falls far more steeply" },
           { color: ENZYME_COLOURS.marker, shape: "dot", label: "Where you are on that curve" },
         ],
       };
@@ -2903,6 +2905,8 @@ function renderTopicDetailsReadout(topic, params) {
           })),
           { color: BACKBONE_COLOURS.strandA, shape: "line", label: "Backbone, strand 1", note: "sugar–phosphate — strong, and never broken by unzipping" },
           { color: BACKBONE_COLOURS.strandB, shape: "line", label: "Backbone, strand 2", note: "running the opposite way — the strands are antiparallel" },
+          { color: BACKBONE_COLOURS.phosphate, shape: "dot", label: "Phosphate", note: "links one sugar to the next, on the outside of the helix" },
+          { color: HYDROGEN_BOND_COLOUR, shape: "line", label: "Hydrogen bonds", note: "two across A–T, three across C–G — weak, so the strands can part" },
         ],
       };
       break;
@@ -3149,10 +3153,10 @@ function renderTopicDetailsReadout(topic, params) {
         title: "Muscle & Lever Key",
         items: [
           { color: "#ff5a6e", shape: "square", label: "Contracted muscle", note: "Bright, short and swollen — pulling" },
-          { color: "#9e3547", shape: "square", label: "Relaxed muscle", note: "Dark, long and thin — being stretched" },
+          { color: "#9c2f3a", shape: "square", label: "Relaxed muscle", note: "Dark, long and thin — being stretched" },
           { color: "#6e2f66", shape: "square", label: "Fatigued muscle", note: "Purple tint and tremor after the trigger" },
-          { color: "#f1f5f9", shape: "line", label: "Tendon", note: "Pearl → amber → rose as tensile strain climbs" },
-          { color: "#e7e0cf", shape: "square", label: "Bone", note: "Scapula, humerus, radius, ulna, hand" },
+          { color: "#eceae2", shape: "line", label: "Tendon", note: "Pearl → amber → rose as tensile strain climbs" },
+          { color: "#e8dcc4", shape: "square", label: "Bone", note: "Clavicle, scapula, humerus, radius, ulna, hand" },
           { color: "#fbbf24", shape: "dot", label: "Origin", note: "Fixed attachment on the scapula / humerus" },
           { color: "#34d399", shape: "dot", label: "Insertion", note: "Radial tuberosity (biceps), olecranon (triceps)" },
           { color: "#fb7185", shape: "line", label: "W — load weight", note: "Acts straight down at the hand" },
@@ -3207,11 +3211,12 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Pathway Key",
         items: [
-          { color: "#38bdf8", shape: "dot", label: "Liquid water", note: "Soil → root hair → xylem → leaf; turns amber then rose as tension climbs" },
-          { color: "#dbeafe", shape: "dot", label: "Water vapour", note: "Off the mesophyll walls, out through the stoma, away on the wind" },
-          { color: "#e3d3ab", shape: "line", label: "Xylem vessel", note: "Dead, hollow, lignified — the rings are the thickening" },
-          { color: "#8a5a3c", shape: "line", label: "Phloem", note: "Sugars going the other way (not part of the stream)" },
-          { color: "#4fbf60", shape: "square", label: "Guard cells", note: "Kidney-shaped; bow apart when turgid to open the pore" },
+          { color: "#38bdf8", shape: "dot", label: "Liquid water", note: "Soil film → root hair → xylem → leaf vein; turns amber then rose as tension climbs" },
+          { color: "#dbeafe", shape: "dot", label: "Water vapour", note: "Off the mesophyll into the air spaces, out through the stoma, away on the wind" },
+          { color: "#7cc4f0", shape: "square", label: "Soil water film", note: "Wraps each soil particle; thins back in drought" },
+          { color: "#c8a266", shape: "line", label: "Xylem thickening", note: "Rings and spirals of lignin inside the split-open vessels" },
+          { color: "#f59e0b", shape: "dot", label: "Sugar (phloem)", note: "Going the other way, down the sieve tubes (not part of the stream)" },
+          { color: "#6fb455", shape: "square", label: "Guard cells", note: "Kidney-shaped; bow apart when turgid to open the pore" },
           { color: "#fbbf24", shape: "dot", label: "K⁺ ions", note: "Pumped into guard cells by light; water follows by osmosis" },
           { color: "#93c5fd", shape: "square", label: "Boundary layer", note: "Humid still air under the leaf — thinner in wind" },
           { color: "#f8fafc", shape: "dot", label: "Embolism", note: "An air bubble where the column has cavitated" },
@@ -3267,11 +3272,12 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Gut Wall Key",
         items: [
-          { color: "#ff5a6e", shape: "dot", label: "Circular muscle — contracting", note: "Rings fatten, flush and close the lumen behind the bolus" },
-          { color: "#8e3a48", shape: "dot", label: "Circular muscle — relaxed", note: "Dark, thin rings elsewhere" },
-          { color: "#fbbf24", shape: "line", label: "Longitudinal muscle — contracting", note: "Fibres brighten ahead of the bolus; the segment shortens and widens" },
-          { color: "#8a5a2a", shape: "line", label: "Longitudinal muscle — relaxed", note: "Dull fibres along the outside of the wall" },
-          { color: "#f4b8c1", shape: "square", label: "Mucosa · lumen", note: "The glassy lining you see the bolus through" },
+          { color: "#ff5a6e", shape: "square", label: "Circular muscle — contracting", note: "The inner layer flushes and thickens, closing the lumen behind the bolus" },
+          { color: "#9e3c48", shape: "square", label: "Circular muscle — relaxed", note: "The inner muscle layer everywhere else" },
+          { color: "#fbbf24", shape: "square", label: "Longitudinal muscle — contracting", note: "The outer layer glows ahead of the bolus; the segment shortens and widens" },
+          { color: "#b25461", shape: "square", label: "Longitudinal muscle — relaxed", note: "The outer layer, its bundles running down the tube" },
+          { color: "#eeb4b9", shape: "square", label: "Mucosa", note: "The wet lining, folded lengthways; the folds flatten as the bolus stretches it" },
+          { color: "#f1dfca", shape: "square", label: "Submucosa", note: "Loose tissue with glands and vessels between mucosa and muscle" },
           { color: "#c9a26b", shape: "dot", label: "Bolus", note: "Chewed food — or water, or a dry lump" },
           { color: "#64748b", shape: "line", label: "g — gravity", note: "Fixed to the world; the tube flips, the arrow does not" },
         ],
@@ -3341,10 +3347,10 @@ function renderTopicDetailsReadout(topic, params) {
         items: [
           { color: "#34d399", shape: "dot", label: "Photosynthesis", note: "CO₂ from the air into the forest canopy" },
           { color: "#f59e0b", shape: "dot", label: "Respiration & decay", note: "Carbon from living things back into the air" },
-          { color: "#94a3b8", shape: "dot", label: "Combustion", note: "Fossil carbon up the coal plant's stacks" },
+          { color: "#a3adbd", shape: "dot", label: "Combustion", note: "Fossil carbon up the coal plant's stacks" },
           { color: "#a78bfa", shape: "dot", label: "Land use & methane", note: "Cleared pasture and its cattle" },
           { color: "#38bdf8", shape: "dot", label: "Ocean uptake", note: "Dissolving into the sea; turns rose if the sea outgasses" },
-          { color: "#e2e8f0", shape: "dot", label: "CO₂ molecules", note: "The greenhouse layer — more of them as ppm climbs" },
+          { color: "#e5484d", shape: "dot", label: "CO₂ molecules", note: "Red oxygens on a dark carbon — more of them as ppm climbs" },
           { color: "#fde047", shape: "dot", label: "Shortwave photon", note: "Sunlight; passes through the air, 30 % bounces off the ground" },
           { color: "#fb7185", shape: "dot", label: "Longwave photon", note: "Infrared re-radiated by the warm ground" },
           { color: "#f97316", shape: "dot", label: "Trapped photon", note: "Absorbed by CO₂/CH₄ and re-emitted — half of them back down" },
@@ -3477,12 +3483,12 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Flower Key",
         items: [
-          { color: v.key === "insect" ? "#f472b6" : "#8fae74", shape: "square", label: "Petals", note: v.key === "insect" ? "Large and bright — an advertisement" : "Small and dull — no visitor to attract" },
-          { color: "#f5c518", shape: "square", label: "Anther (on its filament)", note: "Makes the pollen · anther + filament = stamen" },
+          { color: v.key === "insect" ? "#f6a2c8" : "#c6c08a", shape: "square", label: v.key === "insect" ? "Petals" : "Tepals", note: v.key === "insect" ? "Large and bright — an advertisement" : "Small and dull — no visitor to attract" },
+          { color: "#f0b92a", shape: "square", label: "Anther (on its filament)", note: "Makes the pollen · anther + filament = stamen" },
           { color: v.key === "insect" ? "#fbbf24" : "#fde68a", shape: "dot", label: "Pollen grain", note: v.key === "insect" ? "Spiky, sticky — clings to the bee" : "Smooth, light — rides the wind" },
-          { color: "#a3e635", shape: "square", label: "Stigma", note: v.key === "insect" ? "Sticky knob inside the flower" : "Feathery sieve held out in the air" },
-          { color: "#c7e8a8", shape: "line", label: "Style", note: "The tube grows down its middle" },
-          { color: "#86c96b", shape: "square", label: "Ovary (cut open) with ovules", note: "Stigma + style + ovary = carpel" },
+          { color: "#c8df4c", shape: "square", label: "Stigma", note: v.key === "insect" ? "Sticky knob inside the flower" : "Feathery sieve held out in the air" },
+          { color: "#bfe08e", shape: "line", label: "Style", note: "The tube grows down its middle" },
+          { color: "#7fb94b", shape: "square", label: "Ovary (cut open) with ovules", note: "Stigma + style + ovary = carpel" },
           { color: "#fcd34d", shape: "line", label: "Pollen tube", note: "Grows ~1.5 mm/h towards the micropyle" },
           { color: "#38bdf8", shape: "dot", label: "Tube nucleus", note: "Leads the growing tip" },
           { color: "#a78bfa", shape: "dot", label: "Generative nucleus / polar nuclei", note: "Divides into 2 sperm · 2 polar nuclei await the second" },
@@ -3546,17 +3552,17 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Anatomy Key",
         items: [
-          { color: "#f5deb3", shape: "line", label: "Peptidoglycan wall lattice", note: "Penicillin's target — struts vanish as cross-links fail" },
-          { color: "#f9a8d4", shape: "square", label: "Cell membrane", note: "Inside the wall" },
-          { color: "#7dd3fc", shape: "square", label: "Cytoplasm", note: "Where the bacterium's metabolism runs" },
-          { color: "#818cf8", shape: "dot", label: "Circular chromosome & fragments", note: "Degraded during host takeover" },
+          { color: "#c9a066", shape: "square", label: "Cell wall (outer membrane + peptidoglycan)", note: "Penicillin's target — holes open as cross-links fail" },
+          { color: "#e98bb6", shape: "square", label: "Cell membrane", note: "Inside the wall" },
+          { color: "#c4e6f6", shape: "square", label: "Cytoplasm", note: "Where the bacterium's metabolism runs" },
+          { color: "#8b8ef4", shape: "dot", label: "Circular chromosome & fragments", note: "Degraded during host takeover" },
           { color: "#c084fc", shape: "dot", label: "Plasmid", note: "Extra DNA ring — resistance genes ride here" },
-          { color: "#fde68a", shape: "dot", label: "70S ribosomes", note: "Turn violet when the phage genes take them over" },
-          { color: "#e2e8f0", shape: "line", label: "Flagellum", note: "A rotating motor" },
-          { color: "#93c5fd", shape: "square", label: "Phage capsid head", note: "Protein — not a cell" },
+          { color: "#ffe39a", shape: "dot", label: "70S ribosomes", note: "Turn violet when the phage genes take them over" },
+          { color: "#ece3cf", shape: "line", label: "Flagella", note: "Helical filaments turned by rotary motors" },
+          { color: "#8b8fe0", shape: "square", label: "Phage capsid head", note: "Protein — not a cell" },
           { color: "#f472b6", shape: "dot", label: "Phage DNA", note: "Drains from the head into the host" },
-          { color: "#a5b4fc", shape: "line", label: "Contractile sheath · baseplate · fibres", note: "The syringe" },
-          { color: "#bfdbfe", shape: "dot", label: "Progeny virions", note: "Assembled inside, released at lysis" },
+          { color: "#9aa3ef", shape: "line", label: "Contractile sheath · baseplate · fibres", note: "The syringe" },
+          { color: "#949ee6", shape: "dot", label: "Progeny virions", note: "Assembled inside, released at lysis" },
           { color: "#fb7185", shape: "dot", label: "Penicillin", note: "Rains on both — acts on one" },
         ],
       };
@@ -3622,10 +3628,12 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#fde68a", shape: "dot", label: "Kinetochore", note: "Where a spindle fibre grips the centromere" },
           { color: "#fbbf24", shape: "dot", label: "Centrosome · spindle pole", note: "Duplicated in interphase, parted in prophase" },
           { color: "#7dd3fc", shape: "line", label: "Microtubules", note: "Kinetochore, interpolar and astral fibres — colchicine dissolves them" },
-          { color: "#c4b5fd", shape: "square", label: "Nuclear envelope", note: "Breaks down in prophase, re-forms in telophase" },
+          { color: "#cbbcff", shape: "square", label: "Nuclear envelope (with pores)", note: "Breaks into fragments in prophase, re-forms in telophase" },
+          { color: "#8f80c4", shape: "dot", label: "Nucleolus", note: "Disappears in prophase, returns in telophase" },
           { color: "#fef9c3", shape: "dot", label: "Chiasma", note: "Where non-sister chromatids have exchanged arms" },
           { color: "#fb923c", shape: "line", label: "Contractile ring", note: "Actin–myosin; cytokinesis" },
-          { color: "#5eead4", shape: "square", label: "Cell membrane", note: "Elongates in anaphase B, furrows in cytokinesis" },
+          { color: "#7fe3d6", shape: "square", label: "Cell membrane", note: "Elongates in anaphase B, furrows in cytokinesis" },
+          { color: "#f7a07e", shape: "dot", label: "Mitochondria", note: "Shared out between the daughters by the furrow" },
         ],
       };
       break;
@@ -3664,7 +3672,7 @@ function renderTopicDetailsReadout(topic, params) {
           ["AV valves (tricuspid · mitral)", valve(h.valves.mitral), h.valves.mitral > 0.5 ? "good" : undefined],
           ["Semilunar valves (pulmonary · aortic)", `${valve(h.valves.pulmonary)} · ${valve(h.valves.aortic)}${path.key === "stenosis" ? " (max 32 %)" : ""}`, h.valves.aortic > 0.1 ? "good" : undefined],
           ["Heart sounds", h.sounds.label, h.sounds.s1 > 0.5 || h.sounds.s2 > 0.5 ? "gold" : h.sounds.murmur > 0.3 ? "warn" : undefined],
-          ["ECG", vf ? `${h.ecg.toFixed(2)} mV · chaotic, no P–QRS–T` : `${h.ecg.toFixed(2)} mV · ${st.key === "atrialSystole" ? "P wave" : st.key === "isoContraction" ? "QRS complex" : st.key === "ejection" ? (progress > 0.55 ? "T wave" : "ST segment") : st.key === "isoRelaxation" ? "end of T" : "isoelectric"}`, vf ? "bad" : undefined],
+          ["ECG", vf ? `${h.ecg.toFixed(2)} mV · chaotic, no P–QRS–T` : `${h.ecg.toFixed(2)} mV · ${st.key === "atrialSystole" ? (progress < 0.25 ? "end of the P wave" : progress < 0.6 ? "PR segment · AV delay" : "QRS complex") : st.key === "isoContraction" ? "ST segment" : st.key === "ejection" ? (progress > 0.55 ? "T wave" : "ST segment") : st.key === "isoRelaxation" ? "end of T" : progress > 0.78 ? "P wave" : "isoelectric"}`, vf ? "bad" : undefined],
           ["Conduction", h.conduction.label],
           ["LV – aortic gradient", `${Math.max(0, sm.gradient).toFixed(0)} mmHg peak${path.key === "stenosis" ? " — the ventricle's extra work" : ""}`, path.key === "stenosis" ? "bad" : undefined],
         ],
@@ -3673,9 +3681,9 @@ function renderTopicDetailsReadout(topic, params) {
           : path.key === "stenosis"
             ? `The calcified aortic leaflets open only a third of the way. To push the same blood through a narrower orifice the left ventricle must generate about ${Math.max(0, sm.gradient).toFixed(0)} mmHg more than the aorta ever sees — its wall thickens (hypertrophy), the aortic pulse rises late and small (pulsus parvus et tardus), and the turbulent jet through the valve is the crescendo–decrescendo murmur between S1 and S2.`
             : st.key === "atrialSystole"
-              ? `The SA node fires; the P wave is the atria depolarising and they contract, topping up ventricles that were already about 80 % full through the open AV valves. The impulse then waits at the AV node — the PR interval — so the atria finish before the ventricles start.`
+              ? `The P wave just before this phase was the SA node's impulse spreading over the atria; now they contract, topping up ventricles that were already about 80 % full through the open AV valves. The impulse waits at the AV node (the PR interval) so the atria finish first; then the QRS at the end of this phase races down the bundle of His and the Purkinje fibres.`
               : st.key === "isoContraction"
-                ? `The QRS: the impulse races down the bundle of His and Purkinje fibres and the ventricles contract. Their pressure passes the atria's within milliseconds and the tricuspid and mitral valves slam shut — S1, 'lub'. Every valve is now closed: pressure rockets from ${Math.round(10)} to ${Math.round(sm.diastolicAorta)} mmHg while the volume stays at ${sm.edv.toFixed(0)} mL.`
+                ? `The QRS has just swept the ventricles, and now they contract. Their pressure passes the atria's within milliseconds and the tricuspid and mitral valves slam shut — S1, 'lub'. Every valve is now closed: pressure rockets from ${Math.round(10)} to ${Math.round(sm.diastolicAorta)} mmHg while the volume stays at ${sm.edv.toFixed(0)} mL.`
                 : st.key === "ejection"
                   ? `Ventricular pressure has passed the aortic and pulmonary pressures, the semilunar leaflets are pushed open and ${sm.strokeVolume.toFixed(0)} mL is ejected — fast at first, then slower as the muscle shortens. The aortic trace rides just under the ventricular one. The T wave late in ejection is the ventricles repolarising.`
                   : st.key === "isoRelaxation"
@@ -3687,11 +3695,15 @@ function renderTopicDetailsReadout(topic, params) {
       legend = {
         title: "Heart Key",
         items: [
-          { color: "#b91c1c", shape: "square", label: "Myocardium · cut face", note: "Wall thickness: atria thin, RV thicker, LV thickest — it thickens as it squeezes" },
-          { color: "#ef4444", shape: "dot", label: "Oxygenated blood", note: "Left side: pulmonary veins → LA → LV → aorta" },
-          { color: "#3b82f6", shape: "dot", label: "Deoxygenated blood", note: "Right side: venae cavae → RA → RV → pulmonary trunk" },
-          { color: "#fde2e2", shape: "square", label: "Valve leaflets", note: "Swing open with the pressure gradient; a ring of light blooms when they shut (S1, S2)" },
-          { color: "#e5d5a0", shape: "square", label: "Stenotic leaflets", note: "Thick, calcified, opening a third of the way" },
+          { color: "#7d2a24", shape: "square", label: "Myocardium · cut face", note: "Atria ~2.5 mm, RV ~4 mm, LV ~10 mm; it thickens as it squeezes" },
+          { color: "#b8564d", shape: "square", label: "Left-heart lining", note: "LA and LV endocardium: the oxygenated side" },
+          { color: "#9a4e58", shape: "square", label: "Right-heart lining", note: "RA and RV endocardium: the deoxygenated side" },
+          { color: "#e5c27c", shape: "square", label: "Epicardial fat", note: "Fills the grooves; the coronary vessels run in it" },
+          { color: "#b3261e", shape: "line", label: "Coronary arteries", note: "The heart's own blood supply, on its surface" },
+          { color: "#ef4444", shape: "dot", label: "Oxygenated blood", note: "Pulmonary veins → LA → LV → aorta" },
+          { color: "#3b82f6", shape: "dot", label: "Deoxygenated blood", note: "Venae cavae → RA → RV → pulmonary trunk" },
+          { color: "#ead2c4", shape: "square", label: "Tricuspid & mitral leaflets", note: "The scanned leaflets swing with the pressure gradient; a ring of light blooms when they shut (S1). The aortic and pulmonary valves sit just in front of this cut" },
+          { color: "#f5ede4", shape: "line", label: "Chordae tendineae", note: "Tie the AV leaflets to the papillary muscles so they cannot turn inside out" },
           { color: "#fde047", shape: "dot", label: "SA node · AV node", note: "Flash as they fire" },
           { color: "#fbbf24", shape: "line", label: "Conduction pathway", note: "Lights up along its length as the impulse travels" },
           { color: "#f97316", shape: "dot", label: "Fibrillation wavelets", note: "Chaotic sparks in V-fib" },

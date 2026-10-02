@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
+import { useGLTF } from "@react-three/drei";
 import {
+  FitCamera,
+  LabelsOn,
   PALETTE,
   SceneCanvas,
-  SceneLabel,
+  ToggleLabel,
   VectorArrow,
   clamp,
 } from "@/components/visualizations/scene-kit";
-import { makeBlobGeometry } from "@/components/visualizations/cell-organelles";
-import { ProfiledTube, TubeFlow, TubeRings } from "@/components/visualizations/tube-transit";
+import { TubeFlow } from "@/components/visualizations/tube-transit";
+import { GUT, GUT_GLB, GUT_STEP, GUT_STATIONS, makeGutUniforms, makeOesophagusMaterial, useGutModel } from "@/components/visualizations/gut-model";
 import { profileRadius, squeezeBody } from "@/lib/tubeTransit";
 import {
   CONSISTENCIES,
@@ -28,30 +30,29 @@ import {
 } from "@/lib/peristalsis";
 
 // ─── Peristalsis ────────────────────────────────────────────────────
-// A length of gut stood on end: a glassy lumen you can see the bolus
-// through, a ring of circular muscle every centimetre, and longitudinal
-// fibres running down the outside. Press "swallow" and a wave runs down it.
+// Our own oesophagus and stomach (scripts/gut-model, in Blender), the tube
+// with a window cut down its front so the lumen, the bolus and every layer
+// of the wall show: the folded mucosa, the pale submucosa, the INNER
+// circular and OUTER longitudinal muscle. Press "swallow" and a wave runs
+// down it into the stomach.
 //
 // The wave is a clock in `lib/peristalsis.js`; the scene reads the clock
-// every frame and writes the answer straight into the geometry — the lumen
-// narrows where the circular layer is contracting, the rings there fatten
-// and flush, the fibres AHEAD of the bolus brighten and the rings there
-// bunch up as the segment shortens and opens. All of it is the shared
-// tube kit from `tube-transit.jsx`, rewritten in place; nothing allocates
-// per frame.
+// every frame, samples the lumen profile and both layers' activation every
+// quarter centimetre, and hands that to the oesophagus's vertex shader
+// (gut-model.jsx), which moves the stored-at-rest wall: shut and thickened
+// behind the bolus, open and thinned ahead of it, the folds crowding where it
+// closes, the segment ahead shortening. The circular layer flushes rose
+// where it contracts, the longitudinal layer amber. Nothing allocates per
+// frame.
 //
-// Gravity is a separate group. Flip it and the whole tube turns over while
+// Gravity is a separate group. Flip it and the whole gut turns over while
 // the wave carries on regardless — which is the demonstration.
 // ─────────────────────────────────────────────────────────────────────
 
 /** World units per centimetre of gut. */
 const SCALE = 0.3;
-const TUBE_LENGTH = TUBE_LENGTH_CM * SCALE;
-const LUMEN_RADIUS = LUMEN_RADIUS_CM * SCALE;
-const WALL_THICKNESS = 0.07;
-const RING_COUNT = 30;
-const FIBRE_COUNT = 10;
-const FIBRE_RADIUS = 0.032;
+/** The gut spans the mouth end (0) to the bottom of the stomach (~38 cm); this centres it. */
+const GUT_MID_CM = 19;
 /** The ring never quite shuts: the lumen keeps this much radius, cm. */
 const LUMEN_FLOOR_CM = 0.12;
 
@@ -59,69 +60,14 @@ const LUMEN_FLOOR_CM = 0.12;
 const PUSH_EVERY_S = 0.1;
 
 const COLOURS = {
-  mucosa: "#f4b8c1",
-  wall: "#d98a94",
-  circularRelaxed: "#8e3a48",
-  circularContracted: "#ff5a6e",
-  longitudinalRelaxed: "#8a5a2a",
-  longitudinalContracted: "#fbbf24",
   liquid: "#7dd3fc",
-  soft: "#c9a26b",
-  dry: "#8b6b3e",
-  stomach: "#c97b8c",
   gravity: PALETTE.slate,
 };
-
-const RELAXED_C = new THREE.Color(COLOURS.circularRelaxed);
-const CONTRACTED_C = new THREE.Color(COLOURS.circularContracted);
-const RELAXED_L = new THREE.Color(COLOURS.longitudinalRelaxed);
-const CONTRACTED_L = new THREE.Color(COLOURS.longitudinalContracted);
 
 const easeInOut = (t) => {
   const x = clamp(t, 0, 1);
   return x * x * (3 - 2 * x);
 };
-
-// ─── Bolus textures ─────────────────────────────────────────────────
-
-function makeBolusTexture(kind) {
-  if (typeof document === "undefined") return null;
-  const size = 128;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  const base = kind === "liquid" ? "#93c5fd" : kind === "dry" ? "#7a5a30" : "#c9a26b";
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, size, size);
-  const seeded = (i) => {
-    const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
-    return x - Math.floor(x);
-  };
-  if (kind === "liquid") {
-    for (let i = 0; i < 40; i += 1) {
-      ctx.fillStyle = `rgba(255, 255, 255, ${(0.08 + 0.2 * seeded(i)).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.ellipse(seeded(i * 3) * size, seeded(i * 5) * size, 4 + seeded(i * 7) * 10, 2 + seeded(i * 11) * 5, seeded(i) * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else {
-    // Mottled chewed food: dark and light flecks, coarser and drier for the dry bolus.
-    const flecks = kind === "dry" ? 140 : 90;
-    for (let i = 0; i < flecks; i += 1) {
-      const light = seeded(i * 13) > 0.5;
-      ctx.fillStyle = light ? `rgba(245, 222, 179, ${(0.25 + 0.4 * seeded(i)).toFixed(3)})` : `rgba(60, 35, 15, ${(0.2 + 0.4 * seeded(i * 2)).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(seeded(i * 3) * size, seeded(i * 5) * size, 2 + seeded(i * 7) * (kind === "dry" ? 7 : 5), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
 
 // ─── The clock ──────────────────────────────────────────────────────
 
@@ -216,6 +162,10 @@ function PeristalsisDriver({ trigger, consistency, orientation, speed, live, set
 }
 
 // ─── The gut ────────────────────────────────────────────────────────
+// Everything below is in centimetres, in the gut's own frame: the mouth end
+// of the oesophagus at the origin, the tube running down -y.
+
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
 /** Follows a station along the tube so an Html label can ride the wave. */
 function Follower({ live, pick, children, offset = [0, 0, 0] }) {
@@ -229,29 +179,20 @@ function Follower({ live, pick, children, offset = [0, 0, 0] }) {
       return;
     }
     g.visible = true;
-    g.position.set(offset[0], clamp(s, 0, TUBE_LENGTH_CM) * SCALE + offset[1], offset[2]);
+    g.position.set(offset[0], -clamp(s, 0, TUBE_LENGTH_CM) + offset[1], offset[2]);
   });
   return <group ref={ref}>{children}</group>;
 }
 
-function Bolus({ consistency, live, texture }) {
+/**
+ * The bolus: our chewed-food or dry-lump model (a liquid is a smooth
+ * slug), squeezed into the lumen where it is. A liquid slug also stretches
+ * back to the ring that is pushing it.
+ */
+function Bolus({ consistency, live }) {
+  const parts = useGutModel();
   const c = consistencyFor(consistency);
-  const geometry = useMemo(
-    () =>
-      makeBlobGeometry({
-        radius: 1,
-        amp: consistency === "dry" ? 0.2 : consistency === "soft" ? 0.07 : 0.02,
-        freq: consistency === "dry" ? 2.6 : 1.6,
-        seed: consistency === "dry" ? 7 : 3,
-        segments: 36,
-        rings: 24,
-      }),
-    [consistency],
-  );
-  useEffect(() => () => geometry.dispose(), [geometry]);
   const ref = useRef(null);
-  const wallRadius = useMemo(() => (s) => profileRadius(s, LUMEN_RADIUS_CM, lumenFeatures(live.current.state, consistency), LUMEN_FLOOR_CM), [live, consistency]);
-
   useFrame(({ clock }) => {
     const m = ref.current;
     if (!m) return;
@@ -262,175 +203,128 @@ function Bolus({ consistency, live, texture }) {
       return;
     }
     m.visible = true;
-    // Squeeze into the lumen where the bolus is; a liquid slug also stretches
-    // back to the ring that is pushing it.
-    const r = wallRadius(st.bolus);
+    const r = profileRadius(st.bolus, LUMEN_RADIUS_CM, lumenFeatures(st, consistency), LUMEN_FLOOR_CM);
     const body = squeezeBody(c.restRadius, c.restHalf, r, c.compliance);
     const stretch = consistency === "liquid" ? st.ahead : consistency === "soft" ? st.ahead * 0.4 : 0;
     const length = body.length + stretch;
     const centre = st.bolus - stretch / 2;
     const wobble = consistency === "liquid" ? 0.04 * Math.sin(clock.elapsedTime * 9) : 0;
-    m.position.set(0, centre * SCALE, 0);
-    m.scale.set((body.radius + wobble) * SCALE * l.presence, (length / 2) * SCALE * l.presence, (body.radius - wobble) * SCALE * l.presence);
+    // the food models are about a unit sphere, lumps included
+    const k = consistency === "liquid" ? 1 : 0.86;
+    m.position.set(0, -centre, 0);
+    m.scale.set((body.radius + wobble) * k * l.presence, (length / 2) * k * l.presence, (body.radius - wobble) * k * l.presence);
   });
-
-  const colour = consistency === "liquid" ? COLOURS.liquid : consistency === "dry" ? COLOURS.dry : COLOURS.soft;
+  if (consistency === "liquid") {
+    return (
+      <mesh ref={ref}>
+        <sphereGeometry args={[1, 40, 28]} />
+        <meshStandardMaterial color={COLOURS.liquid} emissive={COLOURS.liquid} emissiveIntensity={0.15} roughness={0.08} metalness={0.1} transparent opacity={0.72} />
+      </mesh>
+    );
+  }
+  const geometry = consistency === "dry" ? parts.bolusDry.geometry : parts.bolusSoft.geometry;
   return (
-    <mesh ref={ref} geometry={geometry} castShadow>
-      <meshStandardMaterial
-        color={colour}
-        map={texture ?? undefined}
-        emissive={colour}
-        emissiveIntensity={0.18}
-        roughness={consistency === "liquid" ? 0.15 : consistency === "dry" ? 0.9 : 0.6}
-        metalness={consistency === "liquid" ? 0.1 : 0}
-        transparent={consistency === "liquid"}
-        opacity={consistency === "liquid" ? 0.85 : 1}
-      />
+    <mesh ref={ref} geometry={geometry}>
+      {/* chewed food glistens with saliva; the dry lump does not */}
+      <meshStandardMaterial vertexColors roughness={consistency === "dry" ? 0.92 : 0.38} metalness={0} />
     </mesh>
   );
 }
 
-/** A longitudinal muscle fibre lying on the outside of the wall, thickening where it contracts. */
-function LongitudinalFibre({ index, live, outerRadius }) {
-  const angle = (index / FIBRE_COUNT) * Math.PI * 2;
-  const cosA = Math.cos(angle);
-  const sinA = Math.sin(angle);
-  const centreAt = useMemo(
-    () => (s, out) => {
-      const R = outerRadius(s) + FIBRE_RADIUS * 0.8;
-      out[0] = R * cosA;
-      out[1] = R * sinA;
-    },
-    [outerRadius, cosA, sinA],
-  );
-  const radiusAt = useMemo(
-    () => (s) => {
-      const a = layerActivation(s / SCALE, live.current.state).longitudinal;
-      return FIBRE_RADIUS * (1 + 0.9 * a);
-    },
-    [live],
-  );
-  const colourAt = useMemo(() => {
-    const tmp = new THREE.Color();
-    return (s, out) => {
-      const a = layerActivation(s / SCALE, live.current.state).longitudinal;
-      tmp.copy(RELAXED_L).lerp(CONTRACTED_L, a);
-      out[0] = tmp.r;
-      out[1] = tmp.g;
-      out[2] = tmp.b;
-    };
-  }, [live]);
-  return (
-    <ProfiledTube length={TUBE_LENGTH} rings={72} segments={7} radiusAt={radiusAt} centreAt={centreAt} colourAt={colourAt} dynamic>
-      <meshStandardMaterial vertexColors roughness={0.55} emissive="#ffffff" emissiveIntensity={0.08} />
-    </ProfiledTube>
-  );
-}
+function Gut({ live, consistency, showLabels }) {
+  const parts = useGutModel();
+  const uniforms = useMemo(() => makeGutUniforms(), []);
+  const material = useMemo(() => makeOesophagusMaterial(uniforms), [uniforms]);
+  useEffect(() => () => material.dispose(), [material]);
 
-function Gut({ live, consistency, texture }) {
-  // Lumen radius in world units at world station s; the wall sits outside it.
-  const lumenRadius = useMemo(
-    () => (s) => profileRadius(s / SCALE, LUMEN_RADIUS_CM, lumenFeatures(live.current.state, consistency), LUMEN_FLOOR_CM) * SCALE,
-    [live, consistency],
-  );
-  const wallRadius = useMemo(() => (s) => lumenRadius(s) + WALL_THICKNESS, [lumenRadius]);
-  const ringRadius = useMemo(() => (s) => wallRadius(s) + 0.01, [wallRadius]);
-  const ringThickness = useMemo(
-    () => (s) => {
-      const a = layerActivation(s / SCALE, live.current.state).circular;
-      return 0.045 * (1 + 1.3 * a);
-    },
-    [live],
-  );
-  // Rings bunch towards the longitudinal zone as that segment shortens.
-  const ringStation = useMemo(
-    () => (i) => {
-      const s0 = ((i + 0.5) / RING_COUNT) * TUBE_LENGTH;
-      const st = live.current.state;
-      if (!st) return s0;
-      const a = layerActivation(s0 / SCALE, st).longitudinal;
-      return s0 + 0.22 * a * (st.relaxation * SCALE - s0);
-    },
-    [live],
-  );
-  const ringColour = useMemo(() => {
-    const tmp = new THREE.Color();
-    return (s, out) => {
-      const a = layerActivation(s / SCALE, live.current.state).circular;
-      tmp.copy(RELAXED_C).lerp(CONTRACTED_C, a);
-      out[0] = tmp.r;
-      out[1] = tmp.g;
-      out[2] = tmp.b;
-    };
-  }, [live]);
+  // Sample the wave every GUT_STEP cm for the wall's vertex shader.
+  useFrame(({ clock }) => {
+    const st = live.current.state;
+    const feats = lumenFeatures(st, consistency);
+    const prof = uniforms.uProf.value;
+    for (let i = 0; i < GUT_STATIONS; i += 1) {
+      const s = i * GUT_STEP;
+      const L = profileRadius(s, LUMEN_RADIUS_CM, feats, LUMEN_FLOOR_CM);
+      const a = layerActivation(s, st);
+      // the segment ahead shortens: its stations slide towards the middle of it
+      const shift = st ? 0.22 * a.longitudinal * (st.relaxation - s) : 0;
+      prof[i].set(L, a.circular, a.longitudinal, shift);
+    }
+    uniforms.uTime.value = clock.elapsedTime;
+  });
 
   // Chyme: with a liquid bolus, fine droplets run on ahead down the lumen.
   const chymeSpeed = useRef(0);
-  useFrame(() => {
-    const st = live.current.state;
-    chymeSpeed.current = consistency === "liquid" && st && !st.delivered ? st.bolusSpeed * SCALE * 0.9 : 0;
-  });
   const chymeFront = useRef(0);
   useFrame(() => {
     const st = live.current.state;
-    chymeFront.current = st ? (st.bolus + 1.5) * SCALE : -1;
+    chymeSpeed.current = consistency === "liquid" && st && !st.delivered ? st.bolusSpeed * 0.9 : 0;
+    chymeFront.current = st ? st.bolus + 1.5 : -1;
   });
+  const chymeRadius = useMemo(() => (s) => profileRadius(s, LUMEN_RADIUS_CM, lumenFeatures(live.current.state, consistency), LUMEN_FLOOR_CM) * 0.6, [live, consistency]);
+
+  // Where a layer shows on the right-hand cut face, for its label.
+  const face = (w, s) => {
+    const r = GUT.lumen + w * GUT.wall;
+    return [r * Math.sin(GUT.window), -s, r * Math.cos(GUT.window)];
+  };
 
   return (
     <group>
-      {/* Mucosal lining: the glassy inside of the tube. */}
-      <ProfiledTube length={TUBE_LENGTH} rings={96} segments={28} radiusAt={lumenRadius} dynamic>
-        <meshStandardMaterial color={COLOURS.mucosa} roughness={0.25} transparent opacity={0.16} side={THREE.DoubleSide} depthWrite={false} />
-      </ProfiledTube>
-      {/* Muscular wall. */}
-      <ProfiledTube length={TUBE_LENGTH} rings={96} segments={28} radiusAt={wallRadius} dynamic>
-        <meshStandardMaterial color={COLOURS.wall} roughness={0.6} transparent opacity={0.22} side={THREE.DoubleSide} depthWrite={false} />
-      </ProfiledTube>
-      {/* Circular muscle: one ring per station, fattening and flushing as it contracts. */}
-      <TubeRings length={TUBE_LENGTH} count={RING_COUNT} radiusAt={ringRadius} thicknessAt={ringThickness} stationAt={ringStation} colourAt={ringColour} tubular={30} radial={8} dynamic castShadow>
-        <meshStandardMaterial vertexColors roughness={0.5} emissive="#ffffff" emissiveIntensity={0.1} />
-      </TubeRings>
-      {/* Longitudinal muscle: fibres down the outside. */}
-      {Array.from({ length: FIBRE_COUNT }, (_, i) => (
-        <LongitudinalFibre key={i} index={i} live={live} outerRadius={ringRadius} />
-      ))}
-      <Bolus consistency={consistency} live={live} texture={texture} />
+      <mesh geometry={parts.oesophagus.geometry} material={material} frustumCulled={false} />
+      <mesh geometry={parts.stomach.geometry}>
+        <meshStandardMaterial vertexColors roughness={0.5} metalness={0} />
+      </mesh>
+      <Bolus consistency={consistency} live={live} />
       {consistency === "liquid" && (
-        <TubeFlow length={TUBE_LENGTH} count={18} speedRef={chymeSpeed} radiusAt={(s) => lumenRadius(s) * 0.7} fill={1} frontRef={chymeFront} colour={COLOURS.liquid} size={0.03} opacity={0.8} seed={5} />
+        <group rotation={[Math.PI, 0, 0]}>
+          <TubeFlow length={TUBE_LENGTH_CM} count={18} speedRef={chymeSpeed} radiusAt={chymeRadius} fill={1} frontRef={chymeFront} colour={COLOURS.liquid} size={0.1} opacity={0.8} seed={5} />
+        </group>
       )}
 
-      {/* Ends: pharynx above, stomach below. */}
-      <mesh position={[0, -0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[LUMEN_RADIUS + WALL_THICKNESS + 0.02, 0.06, 10, 32]} />
-        <meshStandardMaterial color={COLOURS.wall} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, TUBE_LENGTH + 0.55, 0]} scale={[1.6, 1.0, 1.2]}>
-        <sphereGeometry args={[0.6, 24, 18]} />
-        <meshStandardMaterial color={COLOURS.stomach} roughness={0.65} transparent opacity={0.75} />
-      </mesh>
-      <SceneLabel position={[0, -0.5, 0.4]} tone="text-ink-300">
+      <ToggleLabel position={[0, 1.6, 0.5]} tone="text-ink-300">
         from the pharynx · mouth end
-      </SceneLabel>
-      <SceneLabel position={[0, TUBE_LENGTH + 1.25, 0.4]} tone="text-ink-300">
-        stomach · cardiac sphincter
-      </SceneLabel>
+      </ToggleLabel>
+      <ToggleLabel position={[7.2, -27.5, 1.5]} tone="text-ink-300">
+        stomach · fundus
+      </ToggleLabel>
+      <ToggleLabel position={[-3.8, -24.6, 1.5]} tone="text-ink-300">
+        cardiac sphincter
+      </ToggleLabel>
+      {showLabels && (
+        <group>
+          <ToggleLabel position={add(face(0.02, 3.2), [4.4, 0, 0])} tone="text-rose-200">
+            mucosa · folds
+          </ToggleLabel>
+          <ToggleLabel position={add(face(0.3, 5.0), [4.2, 0, 0])} tone="text-ink-300">
+            submucosa
+          </ToggleLabel>
+          <ToggleLabel position={add(face(0.58, 6.8), [4.0, 0, 0])} tone="text-rose-300">
+            circular muscle · inner
+          </ToggleLabel>
+          <ToggleLabel position={add(face(0.85, 8.6), [3.8, 0, 0])} tone="text-amber-300">
+            longitudinal muscle · outer
+          </ToggleLabel>
+        </group>
+      )}
 
-      {/* Labels that ride the wave. */}
-      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.complete ? l.state.constriction : null)} offset={[1.25, 0, 0.3]}>
-        <SceneLabel position={[0, 0, 0]} tone="text-rose-300">
+      {/* Labels that ride the wave. The one behind the bolus hangs off the
+          left of the tube, with the bolus, and the one ahead of it off the
+          right, each edge-aligned to the tube. */}
+      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.complete ? l.state.constriction : null)} offset={[-2.4, 0, 1]}>
+        <ToggleLabel position={[0, 0, 0]} tone="text-rose-300" className="inline-block -translate-x-1/2">
           circular muscle contracting · behind
-        </SceneLabel>
+        </ToggleLabel>
       </Follower>
-      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.delivered ? Math.min(TUBE_LENGTH_CM - 0.5, l.state.relaxation) : null)} offset={[1.25, 0, 0.3]}>
-        <SceneLabel position={[0, 0, 0]} tone="text-amber-300">
+      <Follower live={live} pick={(l) => (l.state && l.presence > 0.05 && !l.state.delivered ? Math.min(TUBE_LENGTH_CM - 0.5, l.state.relaxation) : null)} offset={[2.4, 0, 1]}>
+        <ToggleLabel position={[0, 0, 0]} tone="text-amber-300" className="inline-block translate-x-1/2">
           longitudinal contracting · lumen opens ahead
-        </SceneLabel>
+        </ToggleLabel>
       </Follower>
-      <Follower live={live} pick={(l) => (l.state && l.presence > 0.3 && !l.state.delivered ? l.state.bolus : null)} offset={[-1.3, 0, 0.3]}>
-        <SceneLabel position={[0, 0, 0]} tone="text-ink-100">
+      <Follower live={live} pick={(l) => (l.state && l.presence > 0.3 && !l.state.delivered ? l.state.bolus : null)} offset={[-2.4, 0, 1]}>
+        <ToggleLabel position={[0, 0, 0]} tone="text-ink-100" className="inline-block -translate-x-1/2">
           bolus
-        </SceneLabel>
+        </ToggleLabel>
       </Follower>
     </group>
   );
@@ -438,41 +332,48 @@ function Gut({ live, consistency, texture }) {
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** The whole tube, pharynx to stomach, with the gravity arrow beside it. */
+const PERISTALSIS_VIEW = { cx: 0.7, cy: 0, width: 8.8, height: 12.6, depth: 2.5 };
+
 export default function PeristalsisCanvas({ params = {}, setParam }) {
-  const { swallow = 0, consistency = "soft", orientation = "upright", speed = 1 } = params || {};
+  const { swallow = 0, consistency = "soft", orientation = "upright", speed = 1, showLabels = true } = params || {};
   const cKey = CONSISTENCIES[consistency] ? consistency : "soft";
   const oKey = ORIENTATIONS[orientation] ? orientation : "upright";
 
   // Everything the frame loop shares, in one mutable bag.
   const live = useRef({ phase: "idle", state: null, presence: 0, arrival: 0, flip: 0 });
 
-  const texture = useMemo(() => makeBolusTexture(cKey), [cKey]);
-  useEffect(() => () => texture?.dispose(), [texture]);
-
   return (
     <SceneCanvas
       camera={{ position: [0.8, 0.4, 12.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 28, target: [0.4, 0, 0] }}
-      lights={{ ambient: 0.55, keyLight: 1.2, rim: PALETTE.rose }}
+      controls={{ minDistance: 5, maxDistance: 28 }}
+      lights={{ ambient: 0.68, keyLight: 1.25, rim: PALETTE.rose }}
     >
+      <FitCamera view={PERISTALSIS_VIEW} direction={[0.06, 0.05, 1]} fov={46} />
+      <LabelsOn.Provider value={showLabels !== false}>
       <PeristalsisDriver trigger={swallow} consistency={cKey} orientation={oKey} speed={speed} live={live} setParam={setParam} />
 
       <FlipGroup live={live}>
-        {/* The tube is built along +y with s = 0 at y = 0; turn it so the mouth is at the top. */}
-        <group position={[0, TUBE_LENGTH / 2, 0]} rotation={[Math.PI, 0, 0]}>
-          <Gut live={live} consistency={cKey} texture={texture} />
+        {/* The gut is modelled in cm with the mouth end at the origin; centre it. */}
+        <group position={[0, GUT_MID_CM * SCALE, 0]} scale={SCALE}>
+          <Suspense fallback={null}>
+            <Gut live={live} consistency={cKey} showLabels={showLabels !== false} />
+          </Suspense>
         </group>
       </FlipGroup>
 
       {/* Gravity, fixed to the world: always straight down. */}
-      <VectorArrow from={[3.4, 1.4, 0]} to={[3.4, -0.4, 0]} color={COLOURS.gravity} radius={0.05} headLength={0.32} headRadius={0.14} label="g" labelOffset={0.35} />
-      <SceneLabel position={[3.4, 2.0, 0]} tone={oKey === "inverted" ? "text-amber-300" : "text-ink-400"}>
+      <VectorArrow from={[3.4, 1.4, 0]} to={[3.4, -0.4, 0]} color={COLOURS.gravity} radius={0.05} headLength={0.32} headRadius={0.14} label={showLabels ? "g" : undefined} labelOffset={0.35} />
+      <ToggleLabel position={[3.4, 2.0, 0]} tone={oKey === "inverted" ? "text-amber-300" : "text-ink-400"}>
         {oKey === "inverted" ? "upside-down · the wave still delivers" : "right-side up"}
-      </SceneLabel>
+      </ToggleLabel>
+      </LabelsOn.Provider>
 
     </SceneCanvas>
   );
 }
+
+useGLTF.preload(GUT_GLB);
 
 /** Rotates its children about z by the live flip angle. */
 function FlipGroup({ live, children }) {

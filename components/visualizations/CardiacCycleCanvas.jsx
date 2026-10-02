@@ -1,19 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { HEART_MODEL_CREDIT } from "@/lib/heartCredits";
+import ModelCredits from "@/components/visualizations/ModelCredits";
 import {
   PALETTE,
   SceneCanvas,
   SceneLabel,
   clamp,
   hashRandom,
+  Callout,
+  FitCamera,
+  LabelsOn,
+  ToggleLabel,
 } from "@/components/visualizations/scene-kit";
 import { StageCaption, StageCycleDriver } from "@/components/visualizations/stage-stepper";
+import { BEAT_VERTEX_BODY, BEAT_VERTEX_HEAD, HEART_GLB, HEART_MODEL, HEART_TISSUE, beatUniforms, deformPoint, makeBeat, setBeatUniforms, weightsAt } from "@/components/visualizations/heart-model";
 import {
   CARDIAC_CYCLE,
   EDV_REST,
+  ESV_REST,
   beatTime,
   hemodynamicsAtCycle,
   pathologyFor,
@@ -23,47 +32,45 @@ import {
 } from "@/lib/cardiacCycle";
 
 // ─── The cardiac cycle ──────────────────────────────────────────────
-// A four-chamber heart sectioned like a textbook plate: each chamber is
-// the BACK half of a thick-walled sphere, so the camera looks straight into
-// the cavities and sees the cut edge of the myocardium — thin round the
-// atria, thicker round the right ventricle, thickest round the left. The
-// cavity radius is set from the chamber's volume every frame and the wall
-// swells to keep its own volume, so the left ventricle visibly thickens as
-// it squeezes.
+// A real human heart (BodyParts3D, CC BY 4.0: see heart-model.js and
+// lib/heartCredits.js) opened along the four-chamber plane like an atlas
+// plate: the scanned blood pools of all four chambers inside walls of
+// textbook thickness, the scanned tricuspid and mitral leaflets with chordae
+// to the scanned papillary muscles, and coronary vessels in their fat. The
+// aortic and pulmonary valves really sit in front of this plane, so, as in an
+// atlas section, they are not drawn; blood streams into the outflow tracts
+// below them. The beat moves the vertices (in the vertex shader):
+//
+//   · each chamber scales about its centre so its wall keeps its volume —
+//     the lining moves by the full amount and the outside less, so a
+//     squeezing ventricle visibly thickens;
+//   · in systole the AV plane descends ~11 mm towards an apex that barely
+//     moves, stretching the atria as they refill;
+//   · aortic stenosis thickens the LV wall (concentric hypertrophy) and
+//     fibrillation shivers the ventricles.
 //
 // Everything else hangs off one hemodynamic state per frame
 // (`hemodynamicsAtCycle` in `lib/cardiacCycle.js`, read from the stepper's
-// clock): the four valves' leaflets swing on their annuli by the model's
-// open fraction; blood particles run the inflow and outflow paths at the
-// model's flow rates; the conduction tubes reveal themselves along their
-// length as the impulse travels SA → AV → His → Purkinje; a glow pulses at
-// a valve when it shuts (S1, S2). The Wiggers panel beside the heart is
-// ONE beat sampled at the current rate and pathology — rebuilt only when
-// those change — with a cursor riding the same clock, and a scrolling
-// monitor strip draws the live ECG underneath.
-//
-// Playing, the stepper runs at the per-stage tempo `tempoFor(bpm)` gives
-// it, so systole and diastole shorten by their own physiological amounts;
-// stepping parks on each phase's textbook moment.
+// clock): the valve leaflets swing by the model's open fraction and their
+// chordae follow; blood particles run the inflow and outflow paths at the
+// model's flow rates; the conduction system lights up along the real inner
+// surfaces as the impulse travels SA → atria → AV → His → bundle branches
+// → Purkinje; a ring blooms at the AV valves when they shut (S1). The Wiggers
+// panel is ONE beat at the current rate and pathology with a cursor on the
+// same clock, and the monitor strip scrolls the live ECG.
 // ─────────────────────────────────────────────────────────────────────
 
 const COLOURS = {
-  myocardium: "#b91c1c",
-  myocardiumDark: "#7f1d1d",
-  endocardium: "#fca5a5",
+  myocardium: HEART_TISSUE.cutMuscle,
+  coronaryArtery: "#b3261e",
+  coronaryVein: "#4a3560",
   bloodLeft: "#ef4444",
   bloodRight: "#3b82f6",
-  bloodLeftDim: "#7f1d1d",
-  bloodRightDim: "#1e3a8a",
-  vesselLeft: "#dc2626",
-  vesselRight: "#2563eb",
-  leaflet: "#fde2e2",
-  leafletStenotic: "#e5d5a0",
-  calcium: "#fef3c7",
-  annulus: "#fecaca",
+  leaflet: "#ead2c4",
+  chordae: "#f5ede4",
   node: "#fde047",
   conduction: "#fbbf24",
-  conductionIdle: "#78350f",
+  conductionIdle: "#8a5a1c",
   chaos: "#f97316",
   panel: "#0d121c",
   traceLV: "#f87171",
@@ -75,305 +82,314 @@ const COLOURS = {
   cursor: "#ffffff",
 };
 
-/** Chamber layout: viewer's left is the patient's right. Radii at rest, world units. */
-const CHAMBERS = {
-  ra: { centre: [-1.46, 1.22, 0], cavity: 0.78, wall: 0.1, scaleY: 0.95, side: "right", kind: "atrium", label: "Right atrium" },
-  la: { centre: [1.42, 1.26, 0], cavity: 0.74, wall: 0.11, scaleY: 0.95, side: "left", kind: "atrium", label: "Left atrium" },
-  rv: { centre: [-1.05, -1.22, 0], cavity: 1.0, wall: 0.16, scaleY: 1.24, side: "right", kind: "ventricle", label: "Right ventricle" },
-  lv: { centre: [1.14, -1.26, 0], cavity: 0.98, wall: 0.36, scaleY: 1.24, side: "left", kind: "ventricle", label: "Left ventricle" },
-};
+/** Where the vessel stumps are cut off: above the atria (rest y) and beyond the left atrium (rest x). */
+const VESSEL_TOP = 3.0;
+const VESSEL_RIGHT = 3.1;
 
-const VALVES = {
-  tricuspid: { centre: [-1.22, 0.24, -0.2], radius: 0.46, leaflets: 3, kind: "av", side: "right", label: "tricuspid valve" },
-  mitral: { centre: [1.26, 0.26, -0.2], radius: 0.44, leaflets: 2, kind: "av", side: "left", label: "mitral (bicuspid) valve" },
-  pulmonary: { centre: [-0.62, 0.7, -0.55], radius: 0.3, leaflets: 3, kind: "semilunar", side: "right", label: "pulmonary valve" },
-  aortic: { centre: [0.5, 0.62, -0.6], radius: 0.3, leaflets: 3, kind: "semilunar", side: "left", label: "aortic valve" },
-};
+/** Clip everything to the back of the section: z ≤ 0. */
+const SECTION = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0.004);
 
-const PANEL = { x: 3.55, y: -2.45, width: 5.1, height: 5.3 };
-const STRIP = { x: 3.55, y: -3.55, width: 5.1, height: 0.75, samples: 360, seconds: 3 };
-
-// ─── Anatomy ────────────────────────────────────────────────────────
-
-/** The cut edge of a chamber wall: an annulus in the z = 0 plane, rewritten as the radii change. */
-function CutFace({ live, id, segments = 56 }) {
-  const built = useMemo(() => {
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array((segments + 1) * 2 * 3);
-    const index = [];
-    for (let i = 0; i < segments; i += 1) {
-      const a = i * 2;
-      index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-    }
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geometry.setIndex(index);
-    const normals = new Float32Array((segments + 1) * 2 * 3);
-    for (let i = 0; i < (segments + 1) * 2; i += 1) normals[i * 3 + 2] = 1;
-    geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
-    return { geometry, positions };
-  }, [segments]);
-  useEffect(() => () => built.geometry.dispose(), [built]);
-
-  useFrame(() => {
-    const c = live.current.chambers[id];
-    const p = built.positions;
-    for (let i = 0; i <= segments; i += 1) {
-      const a = (i / segments) * Math.PI * 2;
-      const cos = Math.cos(a);
-      const sin = Math.sin(a);
-      const k = i * 6;
-      p[k] = cos * c.inner;
-      p[k + 1] = sin * c.inner;
-      p[k + 2] = 0;
-      p[k + 3] = cos * c.outer;
-      p[k + 4] = sin * c.outer;
-      p[k + 5] = 0;
-    }
-    built.geometry.attributes.position.needsUpdate = true;
-    built.geometry.computeBoundingSphere();
-  });
-
-  return (
-    <mesh geometry={built.geometry}>
-      <meshStandardMaterial color={COLOURS.myocardium} roughness={0.8} side={THREE.DoubleSide} />
-    </mesh>
-  );
+/** Rest point → where the beat has it now. */
+function useDeformedPoint(point) {
+  return useMemo(() => ({ rest: point, weights: weightsAt(point[0], point[1], point[2]), out: [0, 0, 0] }), [point]);
 }
+const place = (dp, beat) => deformPoint(dp.rest[0], dp.rest[1], dp.rest[2], dp.weights, beat, dp.out);
 
-/** One chamber: outer muscle shell, inner blood-lined cavity, and the cut face between them. */
-function Chamber({ live, id }) {
-  const spec = CHAMBERS[id];
-  const group = useRef(null);
-  const outer = useRef(null);
-  const inner = useRef(null);
-  const blood = useRef(null);
-  const bloodColour = spec.side === "left" ? COLOURS.bloodLeft : COLOURS.bloodRight;
+// ─── The heart ──────────────────────────────────────────────────────
 
-  useFrame(() => {
-    const c = live.current.chambers[id];
-    const g = group.current;
-    if (!g) return;
-    g.position.set(spec.centre[0] + c.jitter[0], spec.centre[1] + c.jitter[1], spec.centre[2]);
-    g.scale.set(1, spec.scaleY, 1);
-    if (outer.current) outer.current.scale.setScalar(c.outer);
-    if (inner.current) inner.current.scale.setScalar(c.inner);
-    if (blood.current) {
-      blood.current.scale.setScalar(c.inner * 0.985);
-      blood.current.material.opacity = 0.55 + 0.35 * c.fullness;
-    }
-  });
-
-  return (
-    <group ref={group}>
-      {/* Back half only: phi from π to 2π keeps z ≤ 0, so the cavity faces the camera. */}
-      <mesh ref={outer} receiveShadow castShadow>
-        <sphereGeometry args={[1, 44, 30, Math.PI, Math.PI]} />
-        <meshStandardMaterial color={spec.kind === "ventricle" ? COLOURS.myocardium : COLOURS.myocardiumDark} roughness={0.75} side={THREE.FrontSide} />
-      </mesh>
-      <mesh ref={inner}>
-        <sphereGeometry args={[1, 44, 30, Math.PI, Math.PI]} />
-        <meshStandardMaterial color={COLOURS.endocardium} roughness={0.5} side={THREE.BackSide} />
-      </mesh>
-      <mesh ref={blood}>
-        <sphereGeometry args={[1, 32, 22, Math.PI, Math.PI]} />
-        <meshStandardMaterial color={bloodColour} emissive={bloodColour} emissiveIntensity={0.25} roughness={0.3} transparent opacity={0.7} side={THREE.BackSide} depthWrite={false} />
-      </mesh>
-      <CutFace live={live} id={id} />
-    </group>
-  );
+function EnableLocalClipping() {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const was = gl.localClippingEnabled;
+    gl.localClippingEnabled = true;
+    return () => {
+      gl.localClippingEnabled = was;
+    };
+  }, [gl]);
+  return null;
 }
-
-/** The septa: slabs between the two sides, back half only. */
-function Septa() {
-  return (
-    <group>
-      <mesh position={[0.02, -1.3, -0.62]}>
-        <boxGeometry args={[0.34, 2.6, 1.24]} />
-        <meshStandardMaterial color={COLOURS.myocardium} roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 1.2, -0.62]}>
-        <boxGeometry args={[0.16, 1.5, 1.24]} />
-        <meshStandardMaterial color={COLOURS.myocardiumDark} roughness={0.8} />
-      </mesh>
-      {/* The fibrous skeleton between atria and ventricles. */}
-      <mesh position={[0, 0.25, -0.62]}>
-        <boxGeometry args={[4.9, 0.14, 1.24]} />
-        <meshStandardMaterial color={COLOURS.annulus} roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
-/** A tube along a few points: the great vessels. */
-function Vessel({ points, radius, colour, taper = false }) {
-  const geometry = useMemo(() => {
-    const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)), false, "catmullrom", 0.4);
-    return new THREE.TubeGeometry(curve, 40, radius, 14, false);
-  }, [points, radius]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return (
-    <mesh geometry={geometry} castShadow>
-      <meshStandardMaterial color={colour} roughness={0.55} transparent={taper} opacity={taper ? 0.85 : 1} />
-    </mesh>
-  );
-}
-
-const AORTA = [
-  [0.5, 0.62, -0.6],
-  [0.55, 1.65, -0.78],
-  [0.25, 2.55, -0.8],
-  [-0.55, 2.9, -0.7],
-  [-1.25, 2.5, -0.75],
-  [-1.5, 1.7, -0.95],
-];
-const PULMONARY = [
-  [-0.62, 0.7, -0.55],
-  [-0.6, 1.5, -0.45],
-  [-0.9, 2.15, -0.35],
-];
-const PULMONARY_LEFT = [
-  [-0.9, 2.15, -0.35],
-  [-0.2, 2.35, -0.25],
-  [0.6, 2.25, -0.3],
-];
-const SVC = [
-  [-1.55, 2.9, -0.45],
-  [-1.5, 2.2, -0.45],
-  [-1.46, 1.75, -0.4],
-];
-const IVC = [
-  [-2.9, 0.15, -0.55],
-  [-2.35, 0.55, -0.5],
-  [-2.05, 0.85, -0.45],
-];
-const PV_UPPER = [
-  [2.85, 1.85, -0.5],
-  [2.3, 1.55, -0.45],
-  [1.98, 1.4, -0.4],
-];
-const PV_LOWER = [
-  [2.9, 0.75, -0.5],
-  [2.35, 0.95, -0.45],
-  [2.0, 1.05, -0.4],
-];
 
 /**
- * One valve: an annulus with `n` leaflets hinged on its rim. AV leaflets
- * swing DOWN into the ventricle to open; semilunar leaflets swing UP into
- * the artery. A stenotic aortic valve has thick, nodular leaflets that
- * barely move.
+ * Wet tissue: the baked vertex colour's alpha is how glistening the surface
+ * is (endocardium and epicardium shine, the cut face of muscle is duller),
+ * and drives roughness. Alpha is forced back to 1 so nothing turns see-through.
  */
-function Valve({ live, id, stenotic }) {
-  const spec = VALVES[id];
-  const n = spec.leaflets;
-  const leafRefs = useRef([]);
+function wetTissue(shader) {
+  // The scan's superior vena cava and left pulmonary veins run on past the
+  // heart, and their ends, joined only by thin strips of cut wall, floated as
+  // loose rings; the vessels are cut off as short stubs instead.
+  shader.vertexShader = shader.vertexShader
+    .replace("#include <common>", "#include <common>\nvarying vec2 vRestXY;")
+    .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRestXY = position.xy;");
+  shader.fragmentShader = shader.fragmentShader
+    .replace("#include <common>", "#include <common>\nvarying vec2 vRestXY;")
+    .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>\n  if (vRestXY.y > ${VESSEL_TOP.toFixed(2)} || vRestXY.x > ${VESSEL_RIGHT.toFixed(2)}) discard;`)
+    .replace("#include <color_fragment>", "#include <color_fragment>\n  float wetness = vColor.a;\n  diffuseColor.a = 1.0;")
+    .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = mix(0.78, 0.3, wetness);");
+}
+
+/**
+ * A geometry ready for the GPU beat: the heart mesh's baked weights
+ * (`_beat_a`, `_beat_b`) renamed for the shader, or weights computed once
+ * from position for the loose parts (the coronary vessels).
+ */
+function useBeatGeometry(geometry, baked) {
+  const g = useMemo(() => {
+    const out = geometry.clone();
+    if (baked) {
+      out.setAttribute("aBeatA", geometry.attributes._beat_a);
+      out.setAttribute("aBeatB", geometry.attributes._beat_b);
+    } else {
+      const p = geometry.attributes.position;
+      const a = new Float32Array(p.count * 4);
+      const b = new Float32Array(p.count * 4);
+      for (let i = 0; i < p.count; i += 1) {
+        const w = weightsAt(p.getX(i), p.getY(i), p.getZ(i));
+        a.set(w.slice(0, 4), i * 4);
+        b[i * 4] = w[4];
+      }
+      out.setAttribute("aBeatA", new THREE.BufferAttribute(a, 4));
+      out.setAttribute("aBeatB", new THREE.BufferAttribute(b, 4));
+    }
+    // The walls move a little past their rest bounds; don't let culling clip them.
+    out.computeBoundingSphere();
+    out.boundingSphere.radius *= 1.15;
+    return out;
+  }, [geometry, baked]);
+  useEffect(() => () => g.dispose(), [g]);
+  return g;
+}
+
+/** onBeforeCompile for a beating mesh: the beat in the vertex shader, plus an optional fragment patch. */
+function beatShader(uniforms, fragment) {
+  return (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${BEAT_VERTEX_HEAD}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${BEAT_VERTEX_BODY}`);
+    fragment?.(shader);
+  };
+}
+
+/**
+ * The scanned heart, opened along the four-chamber plane: muscle, fat,
+ * linings and vessel walls in their baked colours, and the coronary
+ * arteries and veins on its surface. What lies in front of the cut (the
+ * outflow tracts, aortic and pulmonary valves, and great vessels) is left
+ * out, as in an atlas section: drawn as x-ray glass it read as a clutter of
+ * loose parts over the chambers. (The GLB still carries it as `ghost`.)
+ */
+function ScannedHeart({ live }) {
+  const { nodes } = useGLTF(HEART_GLB);
+  const heart = useBeatGeometry(nodes.heart.geometry, true);
+  const arteries = useBeatGeometry(nodes.coronaryArteries.geometry, false);
+  const veins = useBeatGeometry(nodes.coronaryVeins.geometry, false);
+  const uniforms = useMemo(() => beatUniforms(), []);
+  const shaders = useMemo(() => ({ wet: beatShader(uniforms, wetTissue), plain: beatShader(uniforms) }), [uniforms]);
+  useFrame(() => setBeatUniforms(uniforms, live.current.beat));
+  return (
+    <group>
+      <mesh geometry={heart}>
+        <meshPhysicalMaterial vertexColors roughness={0.5} clearcoat={0.55} clearcoatRoughness={0.28} sheen={0.25} sheenColor="#ffcfc4" onBeforeCompile={shaders.wet} customProgramCacheKey={() => "heart-wet"} />
+      </mesh>
+      <mesh geometry={arteries}>
+        <meshPhysicalMaterial color={COLOURS.coronaryArtery} roughness={0.35} clearcoat={0.6} clearcoatRoughness={0.25} clippingPlanes={[SECTION]} onBeforeCompile={shaders.plain} customProgramCacheKey={() => "heart-plain"} />
+      </mesh>
+      <mesh geometry={veins}>
+        <meshPhysicalMaterial color={COLOURS.coronaryVein} roughness={0.35} clearcoat={0.6} clearcoatRoughness={0.25} clippingPlanes={[SECTION]} onBeforeCompile={shaders.plain} customProgramCacheKey={() => "heart-plain"} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Where a scanned leaflet hinges and how far it swings, from its own shape.
+ * The hinge is its attached rim (the vertices furthest from the valve's
+ * axis), the free edge the ones nearest it. The swing is a turn about the
+ * rim's tangent, in the plane of the leaflet's radius and the flow, from the
+ * pose the scan caught it in to:
+ * - shut: the free edge reaching the axis (leaflets meeting), just
+ *   downstream of the ring;
+ * - open: lying along the flow against the wall, tilted a little inward.
+ * The bake's hinge sat at the middle of the valve rather than on the ring,
+ * so a fixed turn about it swung the tricuspid out through the RV wall.
+ */
+function leafletPose(geometry, spec, kind) {
+  const f = new THREE.Vector3(...spec.flow).normalize();
+  const C = new THREE.Vector3(...spec.centre);
+  const pos = geometry.attributes.position;
+  const q = new THREE.Vector3();
+  const pts = [];
+  const mean = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 1) {
+    q.fromBufferAttribute(pos, i).sub(C);
+    const radial = q.clone().addScaledVector(f, -q.dot(f));
+    pts.push({ p: q.clone().add(C), rad: radial.length() });
+    mean.add(radial);
+  }
+  const r = mean.normalize();
+  const a = new THREE.Vector3().crossVectors(r, f).normalize(); // +turn carries r towards f
+  pts.sort((u, v) => u.rad - v.rad);
+  const band = (from, to) => pts.slice(Math.floor(from * pts.length), Math.max(Math.floor(from * pts.length) + 1, Math.floor(to * pts.length)));
+  const avg = (list) => list.reduce((s, x) => s.add(x.p), new THREE.Vector3()).divideScalar(list.length);
+  const hinge = avg(band(0.9, 1));
+  const freeBand = band(0, 0.1);
+  const edgeMid = avg(freeBand);
+  const d = edgeMid.clone().sub(hinge);
+  const phi0 = Math.atan2(d.dot(f), d.dot(r));
+  const length = Math.hypot(d.dot(f), d.dot(r));
+  const hingeRad = hinge.clone().sub(C).addScaledVector(f, -hinge.clone().sub(C).dot(f)).length();
+  // Shut: the edge meets the axis; if the leaflet is too short, it points straight in.
+  const shut = length > hingeRad ? Math.acos(-hingeRad / length) : Math.PI * 0.94;
+  const open = Math.atan2(1, kind === "av" ? -0.22 : -0.1);
+  // Three points along the free edge for the chordae.
+  const byTangent = freeBand.slice().sort((u, v) => u.p.dot(a) - v.p.dot(a));
+  const edge = [0.15, 0.5, 0.85].map((t) => byTangent[Math.floor(t * (byTangent.length - 1))].p.toArray());
+  const hingeArr = hinge.toArray();
+  return {
+    hinge: hingeArr,
+    edge,
+    axisV: a,
+    dp: { rest: hingeArr, weights: weightsAt(...hingeArr), out: [0, 0, 0] },
+    angleAt: (openness) => shut + (open - shut) * clamp(openness, 0, 1) - phi0,
+  };
+}
+
+const AV_VALVES = ["tricuspid", "mitral"];
+
+/**
+ * One AV valve, from the scan: each leaflet swings about its hinge on the
+ * annulus by the model's open fraction, down into the ventricle, and the
+ * hinge rides the beating wall. The leaflets are tied to their papillary
+ * muscles by chordae tendineae. (The aortic and pulmonary valves sit in
+ * front of the section, so they are not drawn.)
+ */
+function Valve({ live, id }) {
+  const { nodes } = useGLTF(HEART_GLB);
+  const spec = HEART_MODEL.valves[id];
+  const kind = id === "tricuspid" || id === "mitral" ? "av" : "semilunar";
+  const outer = useRef([]);
+  const inner = useRef([]);
   const glow = useRef(null);
-  const hinges = useMemo(
+  const chords = useRef(null);
+  const hinges = useMemo(() => spec.leaflets.map((_, i) => leafletPose(nodes[`leaflet_${id}_${i}`].geometry, spec, kind)), [nodes, spec, id, kind]);
+  const centre = useDeformedPoint(spec.centre);
+  const tips = useMemo(
     () =>
-      Array.from({ length: n }, (_, i) => {
-        const theta = ((i + 0.5) / n) * Math.PI * 2;
-        return {
-          theta,
-          position: new THREE.Vector3(Math.cos(theta) * spec.radius, 0, Math.sin(theta) * spec.radius),
-          // Tangent to the rim in the valve's plane (XZ): the hinge axis.
-          axis: new THREE.Vector3(-Math.sin(theta), 0, Math.cos(theta)).normalize(),
-        };
-      }),
-    [n, spec.radius],
+      Object.values(HEART_MODEL.papillary)
+        .filter((p) => p.valve === id)
+        .map((p) => ({ rest: p.tip, weights: weightsAt(...p.tip), out: [0, 0, 0] })),
+    [id],
   );
-  // Each leaflet is a circle sector built in the XZ plane and translated so its rim midpoint is at the origin.
-  const geometries = useMemo(
-    () =>
-      hinges.map((h) => {
-        const g = new THREE.CircleGeometry(spec.radius * 0.98, 12, h.theta - Math.PI / n, (Math.PI * 2) / n);
-        // CircleGeometry lies in XY; lay it flat in XZ (y ↦ z, so a point at angle θ lands at (r cos θ, 0, r sin θ), on the hinge).
-        g.rotateX(Math.PI / 2);
-        g.translate(-h.position.x, 0, -h.position.z);
-        return g;
-      }),
-    [hinges, spec.radius, n],
-  );
-  useEffect(() => () => geometries.forEach((g) => g.dispose()), [geometries]);
-  const nodules = useMemo(
-    () =>
-      stenotic
-        ? Array.from({ length: 9 }, (_, i) => {
-            const t = hashRandom(i * 3 + 1) * Math.PI * 2;
-            const r = spec.radius * (0.3 + 0.55 * hashRandom(i * 5 + 2));
-            return [Math.cos(t) * r, 0.035, Math.sin(t) * r, 0.03 + 0.03 * hashRandom(i * 7 + 3)];
-          })
-        : [],
-    [stenotic, spec.radius],
-  );
-  const tmpQ = useMemo(() => new THREE.Quaternion(), []);
+  const chordGeometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(Math.max(1, hinges.length * 3) * 6), 3));
+    return g;
+  }, [hinges.length]);
+  useEffect(() => () => chordGeometry.dispose(), [chordGeometry]);
+  const tmp = useMemo(() => ({ q: new THREE.Quaternion(), v: new THREE.Vector3() }), []);
 
   useFrame(() => {
-    const v = live.current.valves[id];
-    const open = v.open;
-    // Closed leaflets meet at the centre; open ones swing through up to 68°.
-    // A positive angle about the rim tangent swings the free edge DOWN (−y):
-    // into the ventricle for an AV valve, so semilunar leaflets take the negative.
-    const angle = (spec.kind === "av" ? 1 : -1) * open * (68 * Math.PI) / 180;
-    for (let i = 0; i < n; i += 1) {
-      const m = leafRefs.current[i];
-      if (!m) continue;
-      tmpQ.setFromAxisAngle(hinges[i].axis, angle);
-      m.quaternion.copy(tmpQ);
-    }
+    const L = live.current;
+    const v = L.valves[id];
+    hinges.forEach((h, i) => {
+      const o = outer.current[i];
+      const m = inner.current[i];
+      if (!o || !m) return;
+      const p = place(h.dp, L.beat);
+      o.position.set(p[0], p[1], p[2]);
+      m.quaternion.setFromAxisAngle(h.axisV, h.angleAt(v.open));
+    });
     const g = glow.current;
     if (g) {
+      const c = place(centre, L.beat);
+      g.position.set(c[0], c[1], c[2]);
       g.visible = v.sound > 0.05;
-      g.scale.setScalar(spec.radius * (1.2 + 1.6 * v.sound));
-      g.material.opacity = 0.55 * v.sound;
+      g.scale.setScalar(spec.radius * (0.9 + 1.2 * v.sound));
+      g.material.opacity = 0.5 * v.sound;
+    }
+    const lines = chords.current;
+    if (lines) {
+      const arr = chordGeometry.attributes.position.array;
+      const tipsNow = tips.map((t) => place(t, L.beat).slice());
+      let k = 0;
+      hinges.forEach((h) => {
+        const p = place(h.dp, L.beat);
+        tmp.q.setFromAxisAngle(h.axisV, h.angleAt(v.open));
+        for (const e of h.edge) {
+          tmp.v.set(e[0] - h.hinge[0], e[1] - h.hinge[1], e[2] - h.hinge[2]).applyQuaternion(tmp.q);
+          const ex = p[0] + tmp.v.x;
+          const ey = p[1] + tmp.v.y;
+          const ez = p[2] + tmp.v.z;
+          let best = tipsNow[0];
+          let bd = Infinity;
+          for (const t of tipsNow) {
+            const d = (t[0] - ex) ** 2 + (t[1] - ey) ** 2 + (t[2] - ez) ** 2;
+            if (d < bd) {
+              bd = d;
+              best = t;
+            }
+          }
+          arr.set([ex, ey, ez, best[0], best[1], best[2]], k * 6);
+          k += 1;
+        }
+      });
+      chordGeometry.attributes.position.needsUpdate = true;
+      chordGeometry.computeBoundingSphere();
     }
   });
 
   return (
-    <group position={spec.centre}>
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[spec.radius, 0.035, 8, 40]} />
-        <meshStandardMaterial color={COLOURS.annulus} roughness={0.6} />
-      </mesh>
+    <>
       {hinges.map((h, i) => (
-        <group key={i} position={h.position} ref={(el) => (leafRefs.current[i] = el)}>
-          <mesh geometry={geometries[i]} castShadow>
-            <meshStandardMaterial color={stenotic ? COLOURS.leafletStenotic : COLOURS.leaflet} roughness={stenotic ? 0.9 : 0.35} side={THREE.DoubleSide} transparent opacity={stenotic ? 1 : 0.92} />
-          </mesh>
+        <group key={i} ref={(el) => (outer.current[i] = el)} position={h.hinge}>
+          <group ref={(el) => (inner.current[i] = el)}>
+            <mesh geometry={nodes[`leaflet_${id}_${i}`].geometry} position={[-h.hinge[0], -h.hinge[1], -h.hinge[2]]}>
+              <meshPhysicalMaterial color={COLOURS.leaflet} roughness={0.42} clearcoat={0.5} side={THREE.DoubleSide} clippingPlanes={[SECTION]} />
+            </mesh>
+          </group>
         </group>
       ))}
-      {nodules.map((p, i) => (
-        <mesh key={`n${i}`} position={[p[0], p[1], p[2]]}>
-          <sphereGeometry args={[p[3], 8, 6]} />
-          <meshStandardMaterial color={COLOURS.calcium} roughness={0.9} />
-        </mesh>
-      ))}
       {/* The sound: a ring of light that blooms as the leaflets slam shut. */}
-      <mesh ref={glow} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.8, 1, 32]} />
+      <mesh ref={glow} quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...spec.flow))}>
+        <ringGeometry args={[0.8, 1, 40]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
       </mesh>
-    </group>
+      <lineSegments ref={chords} geometry={chordGeometry} frustumCulled={false}>
+        <lineBasicMaterial color={COLOURS.chordae} transparent opacity={0.9} clippingPlanes={[SECTION]} />
+      </lineSegments>
+    </>
   );
 }
 
 // ─── Blood ──────────────────────────────────────────────────────────
 
+const M = HEART_MODEL;
+const V = M.valves;
+/** Where the superior vena cava rises out of the right atrium on the cut face (its centroid is in front of the cut). */
+const SVC_IN_SECTION = [-0.25, 2.6, -0.3];
+/** Nudge a point just behind the section, so particles run inside the opened cavities. */
+const behind = (p, z = -0.35) => [p[0], p[1], Math.min(p[2], z)];
+
+/** Blood paths through the real chambers and valves, from the veins to the outflow tracts. */
 const STREAMS = [
-  { key: "svc", points: [[-1.55, 2.9, -0.45], [-1.5, 1.9, -0.4], [-1.46, 1.1, -0.3]], colour: COLOURS.bloodRight, drive: "venous", count: 8 },
-  { key: "ivc", points: [[-2.9, 0.15, -0.55], [-2.2, 0.75, -0.45], [-1.5, 1.05, -0.3]], colour: COLOURS.bloodRight, drive: "venous", count: 8 },
-  { key: "pv", points: [[2.85, 1.85, -0.5], [2.2, 1.45, -0.4], [1.42, 1.16, -0.3]], colour: COLOURS.bloodLeft, drive: "venous", count: 8 },
-  { key: "pv2", points: [[2.9, 0.75, -0.5], [2.3, 1.0, -0.4], [1.5, 1.2, -0.3]], colour: COLOURS.bloodLeft, drive: "venous", count: 6 },
-  { key: "tricuspid", points: [[-1.46, 1.1, -0.3], [-1.22, 0.24, -0.2], [-1.05, -1.05, -0.3]], colour: COLOURS.bloodRight, drive: "av", count: 14 },
-  { key: "mitral", points: [[1.42, 1.15, -0.3], [1.26, 0.26, -0.2], [1.14, -1.1, -0.3]], colour: COLOURS.bloodLeft, drive: "av", count: 14 },
-  { key: "pulmonary", points: [[-1.05, -0.9, -0.35], [-0.75, 0.0, -0.5], [-0.62, 0.7, -0.55], [-0.6, 1.5, -0.45], [-0.9, 2.15, -0.35]], colour: COLOURS.bloodRight, drive: "semilunar", count: 16 },
-  { key: "aorta", points: [[1.14, -0.95, -0.35], [0.8, -0.1, -0.5], [0.5, 0.62, -0.6], [0.55, 1.65, -0.78], [0.25, 2.55, -0.8], [-0.55, 2.9, -0.7]], colour: COLOURS.bloodLeft, drive: "semilunar", count: 18 },
+  { key: "svc", points: [SVC_IN_SECTION.map((c, k) => (k === 1 ? c + 0.35 : c)), [-0.45, 2.2, -0.35], behind(M.chambers.ra)], colour: COLOURS.bloodRight, drive: "venous", count: 9 },
+  { key: "ivc", points: [M.vessels.ivc, [-1.3, 0.2, -1.6], behind(M.chambers.ra)], colour: COLOURS.bloodRight, drive: "venous", count: 8 },
+  { key: "tricuspid", points: [behind(M.chambers.ra), behind(V.tricuspid.centre), behind(M.chambers.rv)], colour: COLOURS.bloodRight, drive: "av", count: 14 },
+  // Outflow: towards the pulmonary and aortic valves, which sit just in front of the cut.
+  { key: "pulmonary", points: [behind(M.chambers.rv), behind(V.pulmonary.centre, -0.1)], colour: COLOURS.bloodRight, drive: "semilunar", count: 12 },
+  { key: "pvl", points: [behind(M.vessels.lspv2), behind(M.chambers.la)], colour: COLOURS.bloodLeft, drive: "venous", count: 6 },
+  { key: "pvl2", points: [M.vessels.lipv3, behind(M.chambers.la)], colour: COLOURS.bloodLeft, drive: "venous", count: 6 },
+  { key: "pvr", points: [M.vessels.rspv, behind(M.chambers.la)], colour: COLOURS.bloodLeft, drive: "venous", count: 6 },
+  { key: "mitral", points: [behind(M.chambers.la), behind(V.mitral.centre), behind(M.chambers.lv)], colour: COLOURS.bloodLeft, drive: "av", count: 14 },
+  { key: "aorta", points: [behind(M.chambers.lv), behind(V.aortic.centre, -0.1)], colour: COLOURS.bloodLeft, drive: "semilunar", count: 12 },
 ];
 
-/** Particles running one path at the model's flow rate for that path. */
+/** Particles running one path at the model's flow rate, carried with the beating walls. */
 function BloodStream({ live, stream }) {
   const ref = useRef(null);
   const curve = useMemo(() => new THREE.CatmullRomCurve3(stream.points.map((p) => new THREE.Vector3(...p)), false, "catmullrom", 0.4), [stream.points]);
-  const state = useRef({ dummy: new THREE.Object3D(), point: new THREE.Vector3(), phases: Array.from({ length: stream.count }, (_, i) => (i + hashRandom(i * 2.3 + 5) * 0.6) / stream.count), speed: 0 });
+  const state = useRef({ dummy: new THREE.Object3D(), point: new THREE.Vector3(), out: [0, 0, 0], phases: Array.from({ length: stream.count }, (_, i) => (i + hashRandom(i * 2.3 + 5) * 0.6) / stream.count), speed: 0 });
 
   useFrame((_, rawDelta) => {
     const mesh = ref.current;
@@ -387,11 +403,12 @@ function BloodStream({ live, stream }) {
     const visible = s.speed > 0.03;
     mesh.visible = visible;
     if (!visible) return;
-    const rate = (stream.drive === "venous" ? 0.35 : 0.9) * s.speed * L.speed;
+    const rate = (stream.drive === "venous" ? 0.3 : 0.75) * s.speed * L.speed;
     for (let i = 0; i < stream.count; i += 1) {
       s.phases[i] = (s.phases[i] + rate * dt) % 1;
       curve.getPointAt(s.phases[i], s.point);
-      s.dummy.position.copy(s.point);
+      deformPoint(s.point.x, s.point.y, s.point.z, weightsAt(s.point.x, s.point.y, s.point.z), L.beat, s.out);
+      s.dummy.position.set(s.out[0], s.out[1], s.out[2]);
       const fade = Math.sin(Math.PI * s.phases[i]);
       s.dummy.scale.setScalar(0.05 * (0.6 + 0.6 * fade) * (0.5 + 0.5 * s.speed));
       s.dummy.updateMatrix();
@@ -401,8 +418,8 @@ function BloodStream({ live, stream }) {
   });
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, stream.count]} frustumCulled={false}>
-      <sphereGeometry args={[1, 8, 6]} />
+    <instancedMesh ref={ref} args={[undefined, undefined, stream.count]} frustumCulled={false} renderOrder={6}>
+      <sphereGeometry args={[1, 10, 8]} />
       <meshStandardMaterial color={stream.colour} emissive={stream.colour} emissiveIntensity={0.9} roughness={0.4} toneMapped={false} />
     </instancedMesh>
   );
@@ -410,26 +427,34 @@ function BloodStream({ live, stream }) {
 
 // ─── Conduction ─────────────────────────────────────────────────────
 
-const PATHS = {
-  atria: [[-0.95, 1.85, -0.5], [-1.5, 1.6, -0.55], [-1.85, 1.1, -0.5], [-1.4, 0.6, -0.55], [-0.75, 0.45, -0.55], [-0.35, 0.3, -0.58]],
-  atriaLeft: [[-0.95, 1.85, -0.5], [-0.2, 1.7, -0.55], [0.7, 1.75, -0.5], [1.6, 1.5, -0.5], [1.9, 1.0, -0.5]],
-  his: [[-0.35, 0.3, -0.58], [-0.1, -0.05, -0.65], [0.0, -0.55, -0.66], [0.0, -1.05, -0.66]],
-  rightBranch: [[0.0, -1.05, -0.66], [-0.25, -1.75, -0.6], [-0.55, -2.25, -0.5], [-1.25, -2.15, -0.45], [-1.95, -1.55, -0.45], [-2.0, -0.7, -0.5], [-1.6, -0.2, -0.5]],
-  leftBranch: [[0.0, -1.05, -0.66], [0.3, -1.8, -0.6], [0.75, -2.35, -0.5], [1.5, -2.2, -0.45], [2.1, -1.5, -0.45], [2.1, -0.6, -0.5], [1.7, -0.15, -0.5]],
-};
-const SA_NODE = [-0.95, 1.85, -0.5];
-const AV_NODE = [-0.35, 0.3, -0.58];
+/**
+ * The conduction system, baked onto the scan's inner walls (heart-model-meta):
+ *   SA node   in the right atrial wall where the SVC enters
+ *   atria     over the right atrium to the AV node; Bachmann's bundle across the roof
+ *   AV node   on the right atrial floor by the septum (the triangle of Koch)
+ *   His       to the crest of the interventricular septum
+ *   branches  down each face of the septum; the right one crosses the
+ *             moderator band to the anterior papillary muscle
+ *   Purkinje  round the apex and up the free walls
+ */
+const PATHS = M.conduction.paths;
 
-/** A conduction tube revealed along its length by `progress`, glowing while active. */
-function ConductionPath({ live, id, pick, radius = 0.028 }) {
+/** A tube along baked points that deforms with the beat and is revealed along its length by `progress`. */
+function ConductionPath({ live, points, pick, radius = 0.028 }) {
   const ref = useRef(null);
-  // Two copies of the tube: the dim full-length trace, and a lit one whose
-  // draw range is the impulse's progress (a shared geometry would clip both).
   const built = useMemo(() => {
-    const curve = new THREE.CatmullRomCurve3(PATHS[id].map((p) => new THREE.Vector3(...p)), false, "catmullrom", 0.4);
-    const idle = new THREE.TubeGeometry(curve, 48, radius, 8, false);
-    return { idle, lit: idle.clone() };
-  }, [id, radius]);
+    const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)), false, "catmullrom", 0.35);
+    const idle = new THREE.TubeGeometry(curve, 72, radius, 8, false);
+    const lit = idle.clone();
+    const rest = new Float32Array(idle.attributes.position.array);
+    const n = rest.length / 3;
+    const weights = new Float32Array(n * 6);
+    for (let i = 0; i < n; i += 1) {
+      const w = weightsAt(rest[i * 3], rest[i * 3 + 1], rest[i * 3 + 2]);
+      for (let k = 0; k < 6; k += 1) weights[i * 6 + k] = w[k];
+    }
+    return { idle, lit, rest, weights };
+  }, [points, radius]);
   useEffect(
     () => () => {
       built.idle.dispose();
@@ -438,93 +463,94 @@ function ConductionPath({ live, id, pick, radius = 0.028 }) {
     [built],
   );
   const total = built.lit.index ? built.lit.index.count : 0;
-  const colours = useMemo(() => ({ idle: new THREE.Color(COLOURS.conductionIdle), on: new THREE.Color(COLOURS.conduction), tmp: new THREE.Color() }), []);
+  const out = useMemo(() => [0, 0, 0], []);
+  const wv = useMemo(() => [0, 0, 0, 0, 0, 0], []);
 
   useFrame(() => {
+    const L = live.current;
+    const { rest, weights } = built;
+    const a = built.idle.attributes.position.array;
+    const b = built.lit.attributes.position.array;
+    for (let i = 0; i < rest.length / 3; i += 1) {
+      for (let k = 0; k < 6; k += 1) wv[k] = weights[i * 6 + k];
+      deformPoint(rest[i * 3], rest[i * 3 + 1], rest[i * 3 + 2], wv, L.beat, out);
+      a[i * 3] = b[i * 3] = out[0];
+      a[i * 3 + 1] = b[i * 3 + 1] = out[1];
+      a[i * 3 + 2] = b[i * 3 + 2] = out[2];
+    }
+    built.idle.attributes.position.needsUpdate = true;
+    built.lit.attributes.position.needsUpdate = true;
     const m = ref.current;
     if (!m) return;
-    const c = live.current.conduction;
-    const progress = clamp(pick(c), 0, 1);
-    // Reveal the lit stretch on top of a dim full-length trace (drawn by the sibling below).
+    const progress = clamp(pick(L.conduction), 0, 1);
     const shown = Math.max(0, Math.floor((total / 6) * progress) * 6);
     m.geometry.setDrawRange(0, shown);
     m.visible = shown > 0;
-    colours.tmp.copy(colours.on);
-    m.material.emissive.copy(colours.tmp);
-    m.material.emissiveIntensity = 1.2 + 1.5 * (progress > 0 && progress < 1 ? 1 : 0.4);
+    m.material.emissiveIntensity = progress > 0 && progress < 1 ? 2.6 : 1.4;
   });
 
   return (
     <group>
       <mesh geometry={built.idle}>
-        <meshStandardMaterial color={COLOURS.conductionIdle} emissive={COLOURS.conductionIdle} emissiveIntensity={0.25} roughness={0.6} />
+        <meshStandardMaterial color={COLOURS.conductionIdle} emissive={COLOURS.conductionIdle} emissiveIntensity={0.35} roughness={0.6} clippingPlanes={[SECTION]} />
       </mesh>
-      <mesh ref={ref} geometry={built.lit} scale={[1.02, 1.02, 1.02]}>
-        <meshStandardMaterial color={COLOURS.conduction} emissive={COLOURS.conduction} emissiveIntensity={1.4} toneMapped={false} />
+      <mesh ref={ref} geometry={built.lit}>
+        <meshStandardMaterial color={COLOURS.conduction} emissive={COLOURS.conduction} emissiveIntensity={1.4} toneMapped={false} clippingPlanes={[SECTION]} />
       </mesh>
     </group>
   );
 }
 
-function Node({ live, pick, position, label, radius = 0.11 }) {
+function Node({ live, pick, position, radius = 0.1 }) {
   const ref = useRef(null);
+  const dp = useDeformedPoint(position);
   useFrame(() => {
     const m = ref.current;
     if (!m) return;
-    const a = clamp(pick(live.current.conduction), 0, 1);
+    const L = live.current;
+    const p = place(dp, L.beat);
+    m.position.set(p[0], p[1], p[2]);
+    const a = clamp(pick(L.conduction), 0, 1);
     m.scale.setScalar(1 + 0.9 * a);
-    m.material.emissiveIntensity = 0.3 + 2.4 * a;
+    m.material.emissiveIntensity = 0.4 + 2.4 * a;
   });
   return (
-    <group position={position}>
-      <mesh ref={ref}>
-        <sphereGeometry args={[radius, 16, 12]} />
-        <meshStandardMaterial color={COLOURS.node} emissive={COLOURS.node} emissiveIntensity={0.3} toneMapped={false} />
-      </mesh>
-      <SceneLabel position={[0, radius + 0.22, 0.2]} tone="text-amber-300">
-        {label}
-      </SceneLabel>
-    </group>
+    <mesh ref={ref} position={position}>
+      <sphereGeometry args={[radius, 16, 12]} />
+      <meshStandardMaterial color={COLOURS.node} emissive={COLOURS.node} emissiveIntensity={0.4} toneMapped={false} />
+    </mesh>
   );
 }
 
 /** Fibrillation: sparks all over the ventricular walls, no order to them. */
-function ChaosSparks({ live, count = 28 }) {
+function ChaosSparks({ live }) {
   const ref = useRef(null);
-  const seats = useMemo(
-    () =>
-      Array.from({ length: count }, (_, i) => {
-        const left = i % 2 === 0;
-        const spec = left ? CHAMBERS.lv : CHAMBERS.rv;
-        const a = hashRandom(i * 1.7 + 3) * Math.PI;
-        const b = (hashRandom(i * 2.9 + 5) - 0.5) * Math.PI * 0.9;
-        const r = spec.cavity + spec.wall * 0.5;
-        return { x: spec.centre[0] + Math.cos(a) * Math.cos(b) * r, y: spec.centre[1] + Math.sin(b) * r * spec.scaleY, z: spec.centre[2] - Math.abs(Math.sin(a)) * Math.cos(b) * r, phase: hashRandom(i * 3.3 + 7) * 20, rate: 6 + 8 * hashRandom(i * 4.1 + 9) };
-      }),
-    [count],
-  );
+  const seats = useMemo(() => M.conduction.seats.map((p, i) => ({ p, w: weightsAt(...p), phase: hashRandom(i * 3.3 + 7) * 20, rate: 6 + 8 * hashRandom(i * 4.1 + 9) })), []);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const out = useMemo(() => [0, 0, 0], []);
   useFrame(({ clock }) => {
     const mesh = ref.current;
     if (!mesh) return;
-    const chaos = live.current.conduction.chaos;
+    const L = live.current;
+    const chaos = L.conduction.chaos;
     mesh.visible = chaos > 0.02;
     if (!mesh.visible) return;
     const t = clock.elapsedTime;
     for (let i = 0; i < seats.length; i += 1) {
       const s = seats[i];
+      deformPoint(s.p[0], s.p[1], s.p[2], s.w, L.beat, out);
       const flick = Math.max(0, Math.sin(t * s.rate + s.phase)) ** 6;
-      dummy.position.set(s.x, s.y, s.z);
-      dummy.scale.setScalar(0.06 + 0.16 * flick * chaos);
+      dummy.position.set(out[0], out[1], out[2]);
+      dummy.scale.setScalar(0.05 + 0.14 * flick * chaos);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
   });
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, count]} frustumCulled={false}>
+    <instancedMesh ref={ref} args={[undefined, undefined, seats.length]} frustumCulled={false}>
       <sphereGeometry args={[1, 8, 6]} />
-      <meshStandardMaterial color={COLOURS.chaos} emissive={COLOURS.chaos} emissiveIntensity={2} toneMapped={false} />
+      <meshStandardMaterial color={COLOURS.chaos} emissive={COLOURS.chaos} emissiveIntensity={2} toneMapped={false} clippingPlanes={[SECTION]} />
     </instancedMesh>
   );
 }
@@ -542,6 +568,10 @@ function useTraceGeometry(n) {
   useEffect(() => () => built.geometry.dispose(), [built]);
   return built;
 }
+
+const PANEL = { width: 5.1, height: 5.3 };
+const PANEL_STAGE_NAMES = { atrialSystole: "Atrial", isoContraction: "Iso-contraction", ejection: "Ejection", isoRelaxation: "Iso-relaxation", filling: "Filling" };
+const STRIP = { width: 5.1, height: 0.75, samples: 360, seconds: 3 };
 
 const ROWS = {
   pressure: { y0: 3.05, h: 1.65, min: 0, max: 200 },
@@ -577,12 +607,7 @@ function Marker({ x, y0, h, colour, label, tone, dashed = false }) {
   const built = useTraceGeometry(2);
   useEffect(() => {
     const p = built.positions;
-    p[0] = x;
-    p[1] = y0;
-    p[2] = 0.005;
-    p[3] = x;
-    p[4] = y0 + h;
-    p[5] = 0.005;
+    p.set([x, y0, 0.005, x, y0 + h, 0.005]);
     built.geometry.attributes.position.needsUpdate = true;
     built.geometry.computeBoundingSphere();
   }, [x, y0, h, built]);
@@ -592,16 +617,16 @@ function Marker({ x, y0, h, colour, label, tone, dashed = false }) {
         <lineBasicMaterial color={colour} transparent opacity={dashed ? 0.35 : 0.9} toneMapped={false} />
       </line>
       {label && (
-        <SceneLabel position={[x, y0 + h + 0.18, 0]} tone={tone}>
+        <ToggleLabel position={[x, y0 + h + 0.18, 0]} tone={tone}>
           {label}
-        </SceneLabel>
+        </ToggleLabel>
       )}
     </group>
   );
 }
 
 /** The Wiggers diagram: pressures, volume, ECG and phonocardiogram over one beat, with a cursor on the live clock. */
-function WiggersPanel({ live, bpm, pathology }) {
+function WiggersPanel({ live, bpm, pathology, position, scale }) {
   const data = useMemo(() => wiggersSamples(bpm, pathology, 240), [bpm, pathology]);
   const markers = useMemo(() => soundMarkers(bpm), [bpm]);
   const cursor = useRef(null);
@@ -622,65 +647,63 @@ function WiggersPanel({ live, bpm, pathology }) {
     c.position.x = live.current.beatFraction * PANEL.width;
   });
   const tl = data.timeline;
-  const boundaries = CARDIAC_CYCLE.stages.map((s) => ({ key: s.key, x: (tl.starts[s.key] / tl.period) * PANEL.width, short: s.short }));
+  const boundaries = CARDIAC_CYCLE.stages.map((s) => ({ key: s.key, x: (tl.starts[s.key] / tl.period) * PANEL.width }));
+  // Each phase is named over the middle of its own span; the two short
+  // isovolumetric phases go under the panel so no two names collide.
+  const spans = CARDIAC_CYCLE.stages.map((s) => ({ key: s.key, mid: ((tl.starts[s.key] + tl.durations[s.key] / 2) / tl.period) * PANEL.width, text: PANEL_STAGE_NAMES[s.key], below: s.key.startsWith("iso") }));
   const summary = data.summary;
 
   return (
-    <group position={[PANEL.x, PANEL.y, 0]}>
+    <group position={position} scale={scale}>
       <mesh position={[PANEL.width / 2, PANEL.height / 2 - 0.15, -0.05]}>
         <planeGeometry args={[PANEL.width + 0.6, PANEL.height + 0.7]} />
         <meshBasicMaterial color={COLOURS.panel} transparent opacity={0.9} depthWrite={false} />
       </mesh>
-      <SceneLabel position={[PANEL.width / 2, PANEL.height + 0.2, 0]} accent>
+      <ToggleLabel position={[PANEL.width / 2, PANEL.height + 0.2, 0]} accent>
         {`Wiggers diagram · one beat at ${Math.round(tl.bpm)} bpm · ${tl.period.toFixed(2)} s`}
-      </SceneLabel>
+      </ToggleLabel>
 
-      {/* Stage boundaries. */}
-      {boundaries.map((b, i) => (
-        <Marker key={b.key} x={b.x} y0={0} h={PANEL.height - 0.3} colour={PALETTE.slate} dashed label={i % 2 === 0 ? b.short : undefined} tone="text-ink-500" />
+      {/* Stage boundaries, and each phase named over its span. */}
+      {boundaries.map((b) => (
+        <Marker key={b.key} x={b.x} y0={0} h={PANEL.height - 0.3} colour={PALETTE.slate} dashed />
       ))}
-      {boundaries
-        .filter((_, i) => i % 2 === 1)
-        .map((b) => (
-          <SceneLabel key={`${b.key}-lo`} position={[b.x, -0.3, 0]} tone="text-ink-500">
-            {b.short}
-          </SceneLabel>
-        ))}
+      {spans.map((sp) => (
+        <ToggleLabel key={`${sp.key}-name`} position={[sp.mid, sp.below ? -0.3 : PANEL.height - 0.42, 0]} tone="text-ink-500">
+          {sp.text}
+        </ToggleLabel>
+      ))}
 
       {/* Pressure row. */}
       <StaticTrace samples={data.samples} pick={picks.lv} row="pressure" colour={COLOURS.traceLV} />
       <StaticTrace samples={data.samples} pick={picks.ao} row="pressure" colour={COLOURS.traceAo} />
       <StaticTrace samples={data.samples} pick={picks.la} row="pressure" colour={COLOURS.traceLA} />
-      <SceneLabel position={[-0.55, ROWS.pressure.y0 + ROWS.pressure.h, 0]} tone="text-rose-300">
+      <ToggleLabel position={[-0.55, ROWS.pressure.y0 + ROWS.pressure.h, 0]} tone="text-rose-300">
         {`${ROWS.pressure.max} mmHg`}
-      </SceneLabel>
-      <SceneLabel position={[-0.55, ROWS.pressure.y0, 0]} tone="text-ink-500">
-        0
-      </SceneLabel>
-      <SceneLabel position={[PANEL.width + 0.5, ROWS.pressure.y0 + ROWS.pressure.h * 0.78, 0]} tone="text-rose-300">
+      </ToggleLabel>
+      <ToggleLabel position={[PANEL.width + 0.5, ROWS.pressure.y0 + ROWS.pressure.h * 0.78, 0]} tone="text-rose-300">
         LV
-      </SceneLabel>
-      <SceneLabel position={[PANEL.width + 0.5, ROWS.pressure.y0 + ROWS.pressure.h * 0.52, 0]} tone="text-amber-300">
+      </ToggleLabel>
+      <ToggleLabel position={[PANEL.width + 0.5, ROWS.pressure.y0 + ROWS.pressure.h * 0.52, 0]} tone="text-amber-300">
         aorta
-      </SceneLabel>
-      <SceneLabel position={[PANEL.width + 0.5, ROWS.pressure.y0 + ROWS.pressure.h * 0.1, 0]} tone="text-violet-300">
+      </ToggleLabel>
+      <ToggleLabel position={[PANEL.width + 0.5, ROWS.pressure.y0 + ROWS.pressure.h * 0.1, 0]} tone="text-violet-300">
         LA
-      </SceneLabel>
+      </ToggleLabel>
 
       {/* Volume row. */}
       <StaticTrace samples={data.samples} pick={picks.vol} row="volume" colour={COLOURS.traceVol} />
-      <SceneLabel position={[-0.55, ROWS.volume.y0 + ROWS.volume.h, 0]} tone="text-sky-300">
+      <ToggleLabel position={[-0.55, ROWS.volume.y0 + ROWS.volume.h, 0]} tone="text-sky-300">
         {`${ROWS.volume.max} mL`}
-      </SceneLabel>
-      <SceneLabel position={[PANEL.width + 0.5, ROWS.volume.y0 + ROWS.volume.h * 0.5, 0]} tone="text-sky-300">
+      </ToggleLabel>
+      <ToggleLabel position={[PANEL.width + 0.5, ROWS.volume.y0 + ROWS.volume.h * 0.5, 0]} tone="text-sky-300">
         {`LV vol · SV ${Math.round(summary.strokeVolume)}`}
-      </SceneLabel>
+      </ToggleLabel>
 
       {/* ECG row. */}
       <StaticTrace samples={data.samples} pick={picks.ecg} row="ecg" colour={COLOURS.traceEcg} />
-      <SceneLabel position={[PANEL.width + 0.5, ROWS.ecg.y0 + ROWS.ecg.h * 0.5, 0]} tone="text-emerald-300">
+      <ToggleLabel position={[PANEL.width + 0.5, ROWS.ecg.y0 + ROWS.ecg.h * 0.5, 0]} tone="text-emerald-300">
         ECG
-      </SceneLabel>
+      </ToggleLabel>
 
       {/* Phonocardiogram row with S1 / S2 markers. */}
       <StaticTrace samples={data.samples} pick={picks.phono} row="phono" colour={COLOURS.tracePhono} />
@@ -690,9 +713,9 @@ function WiggersPanel({ live, bpm, pathology }) {
           <Marker x={markers.s2 * PANEL.width} y0={ROWS.phono.y0} h={ROWS.phono.h} colour={COLOURS.tracePhono} label="S2 · dub" tone="text-ink-100" />
         </>
       )}
-      <SceneLabel position={[PANEL.width + 0.5, ROWS.phono.y0 + ROWS.phono.h * 0.5, 0]} tone="text-ink-300">
+      <ToggleLabel position={[PANEL.width + 0.5, ROWS.phono.y0 + ROWS.phono.h * 0.5, 0]} tone="text-ink-300">
         sounds
-      </SceneLabel>
+      </ToggleLabel>
 
       {/* The cursor: where the heart is now. */}
       <mesh ref={cursor} position={[0, (PANEL.height - 0.3) / 2, 0.02]}>
@@ -704,7 +727,7 @@ function WiggersPanel({ live, bpm, pathology }) {
 }
 
 /** A monitor strip: the last few seconds of ECG scrolling left. */
-function EcgStrip({ live }) {
+function EcgStrip({ live, position, scale }) {
   const built = useTraceGeometry(STRIP.samples);
   const ring = useRef({ values: new Float32Array(STRIP.samples), head: 0, acc: 0 });
   const perSample = STRIP.seconds / STRIP.samples;
@@ -730,7 +753,7 @@ function EcgStrip({ live }) {
   });
 
   return (
-    <group position={[STRIP.x, STRIP.y - STRIP.height, 0]}>
+    <group position={position} scale={scale}>
       <mesh position={[STRIP.width / 2, STRIP.height / 2, -0.05]}>
         <planeGeometry args={[STRIP.width + 0.6, STRIP.height + 0.5]} />
         <meshBasicMaterial color="#04140a" transparent opacity={0.92} depthWrite={false} />
@@ -738,9 +761,9 @@ function EcgStrip({ live }) {
       <line geometry={built.geometry} frustumCulled={false}>
         <lineBasicMaterial color={COLOURS.traceEcg} toneMapped={false} />
       </line>
-      <SceneLabel position={[STRIP.width / 2, STRIP.height + 0.3, 0]} tone="text-emerald-300">
+      <ToggleLabel position={[STRIP.width / 2, STRIP.height + 0.3, 0]} tone="text-emerald-300">
         {`live ECG · last ${STRIP.seconds} s`}
-      </SceneLabel>
+      </ToggleLabel>
     </group>
   );
 }
@@ -754,19 +777,15 @@ function makeLiveBag() {
     vfT: 0,
     beatFraction: 0,
     ecg: 0,
-    chambers: {
-      ra: { inner: CHAMBERS.ra.cavity, outer: CHAMBERS.ra.cavity + CHAMBERS.ra.wall, fullness: 1, jitter: [0, 0] },
-      la: { inner: CHAMBERS.la.cavity, outer: CHAMBERS.la.cavity + CHAMBERS.la.wall, fullness: 1, jitter: [0, 0] },
-      rv: { inner: CHAMBERS.rv.cavity, outer: CHAMBERS.rv.cavity + CHAMBERS.rv.wall, fullness: 1, jitter: [0, 0] },
-      lv: { inner: CHAMBERS.lv.cavity, outer: CHAMBERS.lv.cavity + CHAMBERS.lv.wall, fullness: 1, jitter: [0, 0] },
-    },
+    beat: makeBeat(),
     valves: { tricuspid: { open: 1, sound: 0 }, mitral: { open: 1, sound: 0 }, pulmonary: { open: 0, sound: 0 }, aortic: { open: 0, sound: 0 } },
     flows: { venous: 0.5, av: 0, semilunar: 0 },
     conduction: { sa: 0, atria: 0, av: 0, his: 0, purkinje: 0, chaos: 0 },
   };
 }
 
-const wallOuter = (inner, spec, thick = 1) => Math.cbrt(inner ** 3 + (spec.cavity + spec.wall * thick) ** 3 - spec.cavity ** 3);
+/** How far the AV plane drops towards the apex at full ejection: 0.55 units ≈ 11 mm (normal is 10–15 mm). */
+const AV_DESCENT = 0.55;
 
 function choreograph(live, snap, bpm, pathology, speed, clock) {
   const vf = pathology === "vfib";
@@ -777,28 +796,19 @@ function choreograph(live, snap, bpm, pathology, speed, clock) {
   live.ecg = h.ecg;
   live.beatFraction = beatTime(bpm, snap.t) / h.summary.period;
 
-  const hypertrophy = pathology === "stenosis" ? 1.4 : 1;
-  const quiver = vf ? 0.02 * Math.sin(clock * 38) * h.quiver : 0;
-  const ventricleScale = Math.cbrt(clamp(h.vLV, 20, 140) / EDV_REST);
-  for (const id of ["lv", "rv"]) {
-    const spec = CHAMBERS[id];
-    const c = live.chambers[id];
-    c.inner = spec.cavity * ventricleScale * (1 + quiver);
-    c.outer = wallOuter(c.inner, spec, id === "lv" ? hypertrophy : 1) * (1 + 0.04 * h.wallTension);
-    c.fullness = clamp((h.vLV - 40) / 80, 0, 1);
-    c.jitter[0] = vf ? 0.02 * Math.sin(clock * 41 + (id === "lv" ? 1 : 0)) : 0;
-    c.jitter[1] = vf ? 0.02 * Math.cos(clock * 37) : 0;
-  }
-  for (const id of ["la", "ra"]) {
-    const spec = CHAMBERS[id];
-    const c = live.chambers[id];
-    // Atria squeeze in atrial systole and swell while the ventricles are shut.
-    c.inner = spec.cavity * (1 - 0.2 * h.atrialSqueeze) * (1 + 0.07 * h.ventricularSqueeze);
-    c.outer = wallOuter(c.inner, spec) * (1 + 0.05 * h.atrialSqueeze);
-    c.fullness = 1 - 0.5 * h.atrialSqueeze;
-    c.jitter[0] = 0;
-    c.jitter[1] = 0;
-  }
+  const beat = live.beat;
+  const quiver = vf ? 0.025 * Math.sin(clock * 38) * h.quiver : 0;
+  // The mesh is the heart at end-diastole (resting EDV); cavities scale with the volume.
+  const ventricle = Math.cbrt(clamp(h.vLV, 20, 140) / EDV_REST) * (1 + quiver);
+  beat.lv = ventricle;
+  beat.rv = ventricle;
+  beat.la = (1 - 0.14 * h.atrialSqueeze) * (1 + 0.06 * h.ventricularSqueeze);
+  beat.ra = beat.la;
+  beat.descent = vf ? 0 : AV_DESCENT * clamp((EDV_REST - h.vLV) / (EDV_REST - ESV_REST), 0, 1.2);
+  beat.hyper = pathology === "stenosis" ? 1 : 0;
+  beat.jitter[0] = vf ? 0.018 * Math.sin(clock * 41) : 0;
+  beat.jitter[1] = vf ? 0.018 * Math.cos(clock * 37) : 0;
+
   live.valves.tricuspid.open = h.valves.tricuspid;
   live.valves.mitral.open = h.valves.mitral;
   live.valves.pulmonary.open = h.valves.pulmonary;
@@ -810,54 +820,132 @@ function choreograph(live, snap, bpm, pathology, speed, clock) {
   live.flows.venous = vf ? 0.15 : 0.35 + 0.3 * h.ventricularSqueeze;
   live.flows.av = h.flow.av;
   live.flows.semilunar = h.flow.semilunar;
-  const k = h.conduction;
-  live.conduction.sa = k.sa;
-  live.conduction.atria = k.atria;
-  live.conduction.av = k.av;
-  live.conduction.his = k.his;
-  live.conduction.purkinje = k.purkinje;
-  live.conduction.chaos = k.chaos;
+  Object.assign(live.conduction, h.conduction);
 }
 
 // ─── Labels ─────────────────────────────────────────────────────────
 
-function Labels({ h, pathology, snapshot }) {
-  const items = [];
-  const at = (x, y, z, text, tone, key) => items.push({ x, y, z, text, tone, key });
-  for (const id of Object.keys(CHAMBERS)) {
-    const s = CHAMBERS[id];
-    at(s.centre[0], s.centre[1] + (s.kind === "ventricle" ? -0.15 : -0.3), 0.25, s.label, s.side === "left" ? "text-rose-200" : "text-sky-200", id);
-  }
-  at(VALVES.tricuspid.centre[0] - 0.05, VALVES.tricuspid.centre[1] - 0.34, 0.3, VALVES.tricuspid.label, "text-ink-300", "tri");
-  at(VALVES.mitral.centre[0] + 0.05, VALVES.mitral.centre[1] - 0.34, 0.3, VALVES.mitral.label, "text-ink-300", "mit");
-  at(VALVES.pulmonary.centre[0] + 0.15, VALVES.pulmonary.centre[1] + 0.42, 0.1, VALVES.pulmonary.label, "text-ink-300", "pul");
-  at(VALVES.aortic.centre[0] + 0.1, VALVES.aortic.centre[1] + 0.42, 0.1, pathology === "stenosis" ? "aortic valve · STENOTIC — calcified, opens a third" : VALVES.aortic.label, pathology === "stenosis" ? "text-amber-300" : "text-ink-300", "ao");
-  at(0.95, 2.3, -0.5, "aorta", "text-rose-300", "aorta");
-  at(-1.75, 2.35, -0.2, "pulmonary trunk", "text-sky-300", "pt");
-  at(-2.15, 2.95, -0.3, "superior vena cava", "text-sky-300", "svc");
-  at(-3.1, -0.1, -0.5, "inferior vena cava", "text-sky-300", "ivc");
-  at(2.6, 1.9, -0.5, "pulmonary veins", "text-rose-300", "pv");
-  if (h) {
-    if (h.sounds.s1 > 0.45) at(0, -0.3, 0.6, "S1 · 'lub' — AV valves shut", "text-ink-100", "s1");
-    if (h.sounds.s2 > 0.45) at(0, 1.45, 0.4, "S2 · 'dub' — semilunar valves shut", "text-ink-100", "s2");
-    if (h.sounds.murmur > 0.35) at(0.5, 1.45, 0.3, "ejection murmur — turbulent jet through the narrowed valve", "text-amber-300", "murmur");
-    at(0, -2.95, 0.3, h.conduction.label, pathology === "vfib" ? "text-orange-300" : "text-amber-200", "cond");
-  }
+/**
+ * Callouts in two columns beside the heart: the right heart (and the
+ * conduction system, which starts there) on the viewer's left, the left
+ * heart on the viewer's right. Anchors are rest positions.
+ */
+const LEFT_X = -3.45;
+const RIGHT_X = 4.35;
+const at = (p, z) => [p[0], p[1], z ?? p[2]];
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+const row = (i) => 3.85 - i * 0.72;
+const withRows = (list) => list.map((c, i) => ({ ...c, y: row(i) }));
+const RIGHT_HEART = withRows([
+  { key: "svc", anchor: SVC_IN_SECTION, text: "Superior vena cava", tone: "text-sky-300" },
+  { key: "sa", anchor: M.conduction.sa, text: "SA node · pacemaker", tone: "text-amber-300" },
+  { key: "ra", anchor: at(M.chambers.ra, -0.5), text: "Right atrium", tone: "text-sky-200" },
+  { key: "tri", anchor: at(V.tricuspid.centre, -0.3), text: "Tricuspid valve", tone: "text-ink-200" },
+  { key: "av", anchor: M.conduction.av, text: "AV node → bundle of His", tone: "text-amber-300" },
+  // The pulmonary valve sits just in front of the cut: point into the outflow tract below it.
+  { key: "pv", anchor: behind(V.pulmonary.centre, -0.3), text: "→ pulmonary valve · lungs", tone: "text-sky-300" },
+  { key: "rv", anchor: at(M.chambers.rv, -0.5), text: "Right ventricle", tone: "text-sky-200" },
+  { key: "mod", anchor: PATHS.rightBranch[3], text: "Moderator band", tone: "text-ink-300" },
+  { key: "purk", anchor: PATHS.rightApical[2], text: "Purkinje fibres", tone: "text-amber-300" },
+  { key: "ivc", anchor: M.vessels.ivc, text: "Inferior vena cava", tone: "text-sky-300" },
+]);
+const LEFT_HEART = withRows([
+  // The descending aorta runs behind the left atrium, in the section.
+  { key: "ao", anchor: [2.6, 1.0, -0.66], text: "Descending aorta", tone: "text-rose-300" },
+  { key: "pvs", anchor: M.vessels.lipv3, text: "Pulmonary veins", tone: "text-rose-300" },
+  { key: "la", anchor: at(M.chambers.la, -0.5), text: "Left atrium", tone: "text-rose-200" },
+  { key: "mit", anchor: at(V.mitral.centre, -0.3), text: "Mitral (bicuspid) valve", tone: "text-ink-200" },
+  // The aortic valve sits just in front of the cut: point into the outflow tract below it.
+  { key: "aov", anchor: behind(V.aortic.centre, -0.3), text: "→ aortic valve · body", tone: "text-rose-300" },
+  { key: "lv", anchor: at(M.chambers.lv, -0.5), text: "Left ventricle · thickest wall", tone: "text-rose-200" },
+  { key: "pap", anchor: M.papillary.lvLateral.tip, text: "Papillary muscle · chordae", tone: "text-ink-300" },
+  { key: "sep", anchor: mid(PATHS.leftBranch[2], PATHS.rightBranch[2]), text: "Interventricular septum", tone: "text-ink-300" },
+  { key: "cor", anchor: [1.9, -1.7, -0.4], text: "Coronary vessels · epicardial fat", tone: "text-ink-300" },
+  { key: "apex", anchor: at(M.apex, -0.4), text: "Apex", tone: "text-ink-300" },
+]);
+
+function Labels({ h, pathology, snapshot, bottom }) {
+  const stenosis = pathology === "stenosis";
   return (
     <>
-      {items.map((it) => (
-        <SceneLabel key={it.key} position={[it.x, it.y, it.z]} tone={it.tone}>
-          {it.text}
-        </SceneLabel>
+      {RIGHT_HEART.map((c) => {
+        return (
+          <Callout key={c.key} anchor={c.anchor} at={[LEFT_X, c.y, 0]} side="left" tone={c.tone}>
+            {c.text}
+          </Callout>
+        );
+      })}
+      {LEFT_HEART.map((c) => (
+        <Callout key={c.key} anchor={c.anchor} at={[RIGHT_X, c.y, 0]} side="right" tone={c.key === "aov" && stenosis ? "text-amber-300" : c.tone}>
+          {c.key === "aov" && stenosis ? "→ aortic valve · STENOTIC (narrowed)" : c.key === "lv" && stenosis ? "Left ventricle · hypertrophied" : c.text}
+        </Callout>
       ))}
-      <StageCaption position={[0, -3.55, 0.4]} snapshot={snapshot} />
+      {h && (
+        <ToggleLabel position={[0.1, bottom + 0.45, 0.3]} tone={pathology === "vfib" ? "text-orange-300" : "text-amber-200"}>
+          {h.sounds.s1 > 0.45
+            ? "S1 · 'lub' — tricuspid & mitral shut"
+            : h.sounds.s2 > 0.45
+              ? "S2 · 'dub' — aortic & pulmonary shut"
+              : h.sounds.murmur > 0.35
+                ? "ejection murmur — turbulent jet through the narrowed valve"
+                : h.conduction.label}
+        </ToggleLabel>
+      )}
+      <StageCaption position={[0.1, bottom, 0.3]} snapshot={snapshot} />
     </>
   );
 }
 
+// ─── Layout ─────────────────────────────────────────────────────────
+
+/**
+ * Wide canvases put the Wiggers panel beside the heart; narrow ones stack
+ * it underneath, so the heart never shrinks to a thumbnail.
+ */
+/** The widest right-column callout, in CSS px ("Coronary vessels · epicardial fat"). */
+const CALLOUT_PX = 165;
+
+function useLayout() {
+  const size = useThree((s) => s.size);
+  const labelsOn = useContext(LabelsOn);
+  return useMemo(() => {
+    const aspect = size.width / Math.max(1, size.height);
+    // Callouts are a fixed width in pixels, so on a narrow canvas they cover
+    // more of the scene. r is one column's share of the view's width W; the
+    // left column needs the view's left edge 0.3 + r·W past LEFT_X, the right
+    // column needs the panel 1.1 + r·W past RIGHT_X (clear of the panel's own
+    // left-hand tags), and the panel (with its
+    // own tags) takes 7.65. Solving W = left + right + 7.65 gives W below.
+    const r = labelsOn ? CALLOUT_PX / Math.max(1, size.width) : 0;
+    const wide = aspect > 1.2 && r < 0.25;
+    const k = 1.15;
+    if (wide) {
+      const span = Math.max(21.6, (-LEFT_X + 0.3 + RIGHT_X + 1.1 + 7.65) / (1 - 2 * r));
+      const left = Math.max(6.05, -LEFT_X + 0.3 + r * span);
+      const px = Math.max(7.9, RIGHT_X + 1.1 + r * span);
+      const right = px + 7.65;
+      return {
+        wide,
+        panel: { position: [px, -2.55, 0], scale: k },
+        strip: { position: [px, -4.1, 0], scale: [k, k, 1] },
+        view: { cx: (right - left) / 2, cy: 0.05, width: right + left, height: 9.6, depth: 2.4 },
+        bottom: -4.35,
+      };
+    }
+    // Stacked: the panel at its natural size under the heart, the strip under that.
+    return {
+      wide,
+      panel: { position: [0.45 - PANEL.width / 2, -11.0, 0], scale: 1 },
+      strip: { position: [0.45 - STRIP.width / 2, -12.8, 0], scale: [1, 1, 1] },
+      view: { cx: 0.45, cy: -4.35, width: 13.6, height: 18.2, depth: 2.4 },
+      bottom: -4.35,
+    };
+  }, [size.width, size.height, labelsOn]);
+}
+
 // ─── The scene ──────────────────────────────────────────────────────
 
-export default function CardiacCycleCanvas({ params = {}, setParam }) {
+function CardiacScene({ params, setParam }) {
   const { bpm = 75, pathology: pathologyParam = "normal", stage = 0, playing = true, speed = 1 } = params || {};
   const pathology = pathologyFor(pathologyParam).key;
   const rate = clamp(Number(bpm) || 75, 40, 180);
@@ -868,6 +956,7 @@ export default function CardiacCycleCanvas({ params = {}, setParam }) {
   const [snapshot, setSnapshot] = useState(null);
   const [h, setH] = useState(null);
   const pushed = useRef({ progress: -1, vf: -1 });
+  const layout = useLayout();
 
   // Reset the fibrillation clock when the rhythm changes.
   useEffect(() => {
@@ -900,56 +989,65 @@ export default function CardiacCycleCanvas({ params = {}, setParam }) {
   );
 
   return (
-    <SceneCanvas
-      camera={{ position: [2.4, 0.9, 12.2], fov: 42 }}
-      controls={{ minDistance: 4, maxDistance: 30, target: [2.6, 0, 0] }}
-      lights={{ ambient: 0.6, keyLight: 1.3, rim: PALETTE.rose }}
-    >
+    <>
+      <FitCamera view={layout.view} direction={[0.02, 0.05, 1]} fov={40} />
+      <EnableLocalClipping />
       <StageCycleDriver cycle={CARDIAC_CYCLE} stage={stage} playing={playing} speed={speed} tempo={tempo} live={stepperLive} setParam={setParam} onFrame={onFrame} onTick={onTick} />
 
-      {/* Anatomy */}
-      <Septa />
-      {Object.keys(CHAMBERS).map((id) => (
-        <Chamber key={id} live={live} id={id} />
-      ))}
-      <Vessel points={AORTA} radius={0.3} colour={COLOURS.vesselLeft} />
-      <Vessel points={PULMONARY} radius={0.26} colour={COLOURS.vesselRight} />
-      <Vessel points={PULMONARY_LEFT} radius={0.16} colour={COLOURS.vesselRight} />
-      <Vessel points={SVC} radius={0.22} colour={COLOURS.vesselRight} />
-      <Vessel points={IVC} radius={0.24} colour={COLOURS.vesselRight} />
-      <Vessel points={PV_UPPER} radius={0.13} colour={COLOURS.vesselLeft} />
-      <Vessel points={PV_LOWER} radius={0.13} colour={COLOURS.vesselLeft} />
-      {Object.keys(VALVES).map((id) => (
-        <Valve key={`${id}-${pathology === "stenosis" && id === "aortic"}`} live={live} id={id} stenotic={pathology === "stenosis" && id === "aortic"} />
-      ))}
+      {/* Soft fills into the opened cavities, so the back walls are not black holes. */}
+      <pointLight position={[-1.2, 0.6, 4]} intensity={14} distance={12} decay={2} color="#fff1e8" />
+      <pointLight position={[1.6, -0.8, 3.5]} intensity={10} distance={10} decay={2} color="#ffe8e0" />
 
-      {/* Blood */}
+      {/* The scanned heart streams in (about 7 MB); everything else draws meanwhile. */}
+      <Suspense
+        fallback={
+          <SceneLabel position={[0.4, 0, 0]} tone="text-ink-400">
+            loading the heart…
+          </SceneLabel>
+        }
+      >
+        <ScannedHeart live={live} />
+        {AV_VALVES.map((id) => (
+          <Valve key={id} live={live} id={id} />
+        ))}
+      </Suspense>
       {STREAMS.map((s) => (
         <BloodStream key={s.key} live={live} stream={s} />
       ))}
-
-      {/* Conduction */}
-      <ConductionPath live={live} id="atria" pick={(c) => c.atria} />
-      <ConductionPath live={live} id="atriaLeft" pick={(c) => c.atria} radius={0.022} />
-      <ConductionPath live={live} id="his" pick={(c) => (c.his > 0.05 || c.purkinje > 0 ? 1 : 0)} radius={0.04} />
-      <ConductionPath live={live} id="rightBranch" pick={(c) => c.purkinje} />
-      <ConductionPath live={live} id="leftBranch" pick={(c) => c.purkinje} />
-      <Node live={live} pick={(c) => c.sa} position={SA_NODE} label="SA node · pacemaker" />
-      <Node live={live} pick={(c) => c.av} position={AV_NODE} label="AV node · delay" radius={0.09} />
-      <SceneLabel position={[0.35, -0.75, -0.3]} tone="text-amber-300">
-        bundle of His
-      </SceneLabel>
-      <SceneLabel position={[-1.55, -2.55, -0.2]} tone="text-amber-300">
-        Purkinje fibres
-      </SceneLabel>
+      <ConductionPath live={live} points={PATHS.atria} pick={(c) => c.atria} />
+      <ConductionPath live={live} points={PATHS.bachmann} pick={(c) => c.atria} radius={0.022} />
+      <ConductionPath live={live} points={PATHS.his} pick={(c) => (c.his > 0.05 || c.purkinje > 0 ? 1 : 0)} radius={0.036} />
+      <ConductionPath live={live} points={PATHS.leftBranch} pick={(c) => c.purkinje} />
+      <ConductionPath live={live} points={PATHS.rightBranch} pick={(c) => c.purkinje} />
+      <ConductionPath live={live} points={PATHS.rightApical} pick={(c) => c.purkinje} radius={0.022} />
+      <Node live={live} pick={(c) => c.sa} position={M.conduction.sa} />
+      <Node live={live} pick={(c) => c.av} position={M.conduction.av} radius={0.085} />
       <ChaosSparks live={live} />
 
-      {/* Traces */}
-      <WiggersPanel live={live} bpm={rate} pathology={pathology} />
-      <EcgStrip live={live} />
+      <WiggersPanel live={live} bpm={rate} pathology={pathology} position={layout.panel.position} scale={layout.panel.scale} />
+      <EcgStrip live={live} position={layout.strip.position} scale={layout.strip.scale} />
 
-      <Labels h={h} pathology={pathology} snapshot={snapshot} />
+      <Labels layout={layout} h={h} pathology={pathology} snapshot={snapshot} bottom={layout.bottom} />
+    </>
+  );
+}
 
-    </SceneCanvas>
+/** The heart is scanned anatomy (BodyParts3D, CC BY 4.0): the credit the licence asks for, one click away. */
+/** The heart's credit (BodyParts3D, CC BY 4.0), in the shared Credits panel. */
+function HeartCredits() {
+  return <ModelCredits credit={HEART_MODEL_CREDIT} />;
+}
+
+export default function CardiacCycleCanvas({ params = {}, setParam }) {
+  const { showLabels = true } = params || {};
+  return (
+    <div className="relative h-full w-full">
+      <SceneCanvas camera={{ position: [2.4, 0.4, 16], fov: 40 }} controls={{ minDistance: 4, maxDistance: 40 }} lights={{ ambient: 0.62, keyLight: 1.25, rim: PALETTE.rose }}>
+        <LabelsOn.Provider value={showLabels !== false}>
+          <CardiacScene params={params} setParam={setParam} />
+        </LabelsOn.Provider>
+      </SceneCanvas>
+      <HeartCredits />
+    </div>
   );
 }
