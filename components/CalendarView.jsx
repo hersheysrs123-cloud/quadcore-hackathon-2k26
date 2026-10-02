@@ -10,7 +10,7 @@ import {
   deleteAlarm,
   toggleAlarm,
 } from "@/lib/storageService";
-import { Edit3, Trash2, Bell, Plus, Pause, Calendar as CalendarIcon, Volume2 } from "lucide-react";
+import { Edit3, Trash2, Bell, Plus, Pause, Play, RotateCcw, Calendar as CalendarIcon, Volume2 } from "lucide-react";
 import {
   useGlobalTimer,
   useTimerStore,
@@ -99,6 +99,9 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
   }
 
   if (!selected) return null;
+
+  const isStarted = (t) => t.isActive || t.pausedSecondsLeft != null;
+  const startedTimers = timers.filter(isStarted);
 
   const nearing = selected.isNearingEnd;
   const startLabel = selected.isActive
@@ -207,12 +210,25 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
         <div className="mb-1 truncate text-[11px] font-semibold uppercase tracking-wider text-ink-500">
           {MODE_EMOJI[selected.mode] || "⏱️"} {selected.title}
         </div>
-        <div
-          className={`font-mono text-5xl font-extrabold tracking-tight tabular-nums ${
-            nearing ? "text-rose-400" : selected.isActive ? "text-ink-100" : "text-ink-300"
-          }`}
-        >
-          {formatClock(selected.secondsLeft)}
+        <div className="relative flex items-center justify-center">
+          <div
+            className={`font-mono text-5xl font-extrabold tracking-tight tabular-nums ${
+              nearing ? "text-rose-400" : selected.isActive ? "text-ink-100" : "text-ink-300"
+            }`}
+          >
+            {formatClock(selected.secondsLeft)}
+          </div>
+          {isStarted(selected) && (
+            <button
+              type="button"
+              onClick={() => resetTimer(selected.id)}
+              title="Reset to full time"
+              aria-label={`Reset ${selected.title}`}
+              className="ml-3 rounded-lg border border-ink-700 bg-ink-850 p-2 text-ink-400 transition-colors hover:border-ink-600 hover:text-ink-100"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-800">
           <div
@@ -234,13 +250,6 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
         >
           {startLabel}
         </button>
-        <button
-          type="button"
-          onClick={() => resetTimer(selected.id)}
-          className="rounded-lg border border-ink-700 bg-ink-850 px-3.5 py-2 text-xs font-medium text-ink-400 transition-colors hover:border-ink-600 hover:text-ink-200"
-        >
-          ↺ Reset
-        </button>
         {!selected.isDefault && (
           <button
             type="button"
@@ -256,12 +265,12 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
         )}
       </div>
 
-      {/* Everything that is counting down right now. */}
-      {activeTimers.length > 0 && (
+      {/* Every started timer — running or paused — so pausing never hides one. */}
+      {startedTimers.length > 0 && (
         <div className="mt-5 border-t border-ink-800 pt-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">Running now</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">In progress</p>
           <ul className="space-y-1.5">
-            {activeTimers.map((t) => (
+            {startedTimers.map((t) => (
               <li
                 key={t.id}
                 className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
@@ -276,10 +285,15 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
                 >
                   <span className="shrink-0">{MODE_EMOJI[t.mode] || "⏱️"}</span>
                   <span className="truncate">{t.title}</span>
+                  {!t.isActive && (
+                    <span className="shrink-0 rounded border border-ink-750 px-1 text-[9px] font-semibold uppercase text-ink-500">
+                      Paused
+                    </span>
+                  )}
                 </button>
                 <span
                   className={`font-mono text-xs font-bold tabular-nums ${
-                    t.isNearingEnd ? "text-rose-400" : "text-duck-300"
+                    t.isNearingEnd ? "text-rose-400" : t.isActive ? "text-duck-300" : "text-ink-400"
                   }`}
                 >
                   {formatClock(t.secondsLeft)}
@@ -287,11 +301,20 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
                 <button
                   type="button"
                   onClick={() => togglePlayPause(t.id)}
-                  title="Pause"
-                  aria-label={`Pause ${t.title}`}
+                  title={t.isActive ? "Pause" : "Resume"}
+                  aria-label={`${t.isActive ? "Pause" : "Resume"} ${t.title}`}
                   className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
                 >
-                  <Pause className="h-3 w-3" />
+                  {t.isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resetTimer(t.id)}
+                  title="Reset to full time"
+                  aria-label={`Reset ${t.title}`}
+                  className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                >
+                  <RotateCcw className="h-3 w-3" />
                 </button>
               </li>
             ))}
