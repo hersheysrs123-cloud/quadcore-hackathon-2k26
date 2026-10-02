@@ -15,6 +15,7 @@ import {
   Plus,
   Upload,
   X,
+  Trash2,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import {
@@ -392,6 +393,26 @@ export default function LiteratureView({ activeSpace = "School" }) {
     [showToast]
   );
 
+  // Every visible delete goes through the same confirm, naming what is lost.
+  const askDeletePoem = useCallback(
+    (p) => {
+      const n = countAnnotations(p);
+      setConfirmState({
+        title: `Delete "${p.title || "Untitled poem"}"?`,
+        message:
+          n > 0
+            ? `This removes the poem and its ${n} ${n === 1 ? "annotation" : "annotations"}, along with any intro or conclusion you drafted. It cannot be undone — export first if you want a backup.`
+            : "This removes the poem and any intro or conclusion you drafted. It cannot be undone.",
+        confirmText: "Delete poem",
+        onConfirm: async () => {
+          setConfirmState(null);
+          await handleDeletePoem(p.id);
+        },
+      });
+    },
+    [handleDeletePoem]
+  );
+
   /* ── import / export ───────────────────────────────────────── */
 
   const handleExport = useCallback(async () => {
@@ -580,7 +601,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                 const n = countAnnotations(p);
                 const active = p.id === poem?.id;
                 return (
-                  <li key={p.id}>
+                  <li key={p.id} className="group/poem relative">
                     <button
                       type="button"
                       title={p.title}
@@ -608,6 +629,15 @@ export default function LiteratureView({ activeSpace = "School" }) {
                       >
                         {n}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => askDeletePoem(p)}
+                      title="Delete poem"
+                      aria-label={`Delete ${p.title || "poem"}`}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-ink-850 p-1 text-ink-500 opacity-0 transition-opacity hover:bg-gap-500/15 hover:text-gap-400 focus-visible:opacity-100 group-hover/poem:opacity-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </li>
                 );
@@ -748,6 +778,16 @@ export default function LiteratureView({ activeSpace = "School" }) {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     <span className="hidden lg:inline">Edit lines</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => askDeletePoem(poem)}
+                    title="Delete this poem"
+                    className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:bg-gap-500/10 hover:text-gap-400"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="hidden xl:inline">Delete</span>
                   </button>
 
                   <button

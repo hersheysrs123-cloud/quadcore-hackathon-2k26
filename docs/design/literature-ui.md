@@ -102,6 +102,19 @@ shared scrim at `z-[110]` (`bg-ink-950/50 backdrop-blur-xs`).
 The confirm dialog sits above the line editor because it is raised *from* it
 ("Delete poem?", "Discard changes?").
 
+## Deleting a poem
+
+Three entry points share one confirm (`askDeletePoem`), which names the poem and
+how many annotations go with it:
+
+- **Poem list**: a ghosted `Trash2` button pinned to the right of each row
+  (`bg-ink-850`, `hover:bg-gap-500/15 hover:text-gap-400`). It fades in on row
+  hover or keyboard focus and covers the annotation-count pill while visible.
+- **Poem header**: a `Delete` button after `Edit lines`, neutral until hover
+  (`hover:bg-gap-500/10 hover:text-gap-400`). Its label shows from `xl` up.
+- The line editor's "Delete poem" and the sample banner's "Delete sample" are
+  unchanged.
+
 ## Test hooks
 
 `data-testid="literature-poem-list"`, `data-testid="literature-essay-panel"`,

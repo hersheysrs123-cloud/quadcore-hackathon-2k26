@@ -8504,3 +8504,49 @@ the first thing the panel renders.
   `useLayoutEffect`. The save effect is held back (`expandedLoaded` ref) until
   that load has run, so the empty first render cannot overwrite the stored
   set.
+
+---
+
+## Timers: Countdown Briefly Shows Extra Seconds on Start, Dead "Extend" Buttons, Skippable Alarms
+
+### 1. Problem
+
+- **Start showed more time than was set.** Pressing Start on a 15:00 Long
+  Break showed `15:11` for up to half a second before dropping to `14:59`. The
+  rail clock, the Home timer card, the Calendar timer widget and the HUD all
+  read the same hook, so all of them did it.
+- **"Extend" on the timer-finished popup did nothing.** It dispatched
+  `socratic_extend_timer`, which nothing listened for.
+- **Recurring alarms could be skipped.** The checker fired only when a check
+  landed inside the alarm's exact minute. Chrome slows a background tab's
+  5-second interval to about once a minute, so a check could jump from
+  `07:59:58` to `08:01:02` and never see `08:00`.
+
+### 2. Root cause
+
+`useGlobalTimer` computes every countdown as `targetEndTime - lastTick`.
+`lastTick` was written only by the 500 ms ticker, and that ticker deliberately
+sleeps while no timer runs. Starting a timer set `targetEndTime` from the real
+`Date.now()`, but the first render subtracted a `lastTick` from whenever the
+ticker last ran. The display was therefore inflated by exactly how long the
+app had been idle, until the first tick 500 ms later corrected it. The same
+staleness (up to a minute) appeared when returning to a throttled background
+tab.
+
+### 3. Resolution
+
+- `lib/timerStore.js`: every store action stamps `lastTick` with the time it
+  ran, so the clock the UI reads is never older than the change it shows. A
+  `visibilitychange` listener runs a tick as soon as the tab is visible again.
+- A new `runFor(id, mins)` action restarts a finished timer for N minutes. The
+  expiry alarm now carries `timerId`, and `AlarmOverlay`'s Extend calls
+  `runFor` directly. The dead window event is gone. `totalSeconds` grows to at
+  least the extension so the progress bar never starts above 100%.
+- `AlarmOverlay.jsx`: each check scans every minute since the previous check,
+  capped at 5 minutes so waking a sleeping laptop does not replay old alarms.
+  The existing per-minute `triggerKey` keeps an alarm from firing twice.
+- Tests: 4 regressions in `tests/unit/timer-store.test.mjs`, all of which fail
+  on the previous code.
+
+Calendar events have no automatic alert (only the manual 🔔 test trigger), so
+they had no clock to go stale.
