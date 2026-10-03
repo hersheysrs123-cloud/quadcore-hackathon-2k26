@@ -1038,6 +1038,7 @@ function BookmarkGridCard({
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-ink-800 border border-ink-700 shrink-0 overflow-hidden shadow-xs">
               {bookmark.favicon && !imgError ? (
+                // eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts
                 <img
                   src={bookmark.favicon}
                   alt=""
@@ -1168,6 +1169,7 @@ function BookmarkListItem({
         {/* Favicon */}
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-800 border border-ink-700 shrink-0 overflow-hidden">
           {bookmark.favicon && !imgError ? (
+            // eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts
             <img
               src={bookmark.favicon}
               alt=""

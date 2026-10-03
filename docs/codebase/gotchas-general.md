@@ -47,3 +47,5 @@
     - `no-undef` is on because Next's preset leaves it off. A name used but never declared is a ReferenceError only when that line runs, so nothing else catches it. Turning it on found two live bugs (see ANTIGRAVITY_BUG_FIXES.md).
     - Hooks must run before any early return. A component that returns `null` for a prop and then calls hooks breaks the moment that prop flips while it is mounted: put the `return null` after the last hook.
     - To keep an unused binding on purpose (a positional destructure, say), prefix it with `_`. Function arguments are not checked.
+    - Images whose `src` is a URL the user supplied (bookmark favicons, link and media blocks, uploaded `data:` URLs) stay plain `<img>` with an `eslint-disable-next-line @next/next/no-img-element` comment giving the reason. `next/image` only loads hosts allow-listed in `next.config.mjs` and cannot take `data:` URLs, so swapping them in breaks those images. Use `next/image` only for images the app ships itself.
+    - The config is exported as a named `const config` (`import/no-anonymous-default-export`).

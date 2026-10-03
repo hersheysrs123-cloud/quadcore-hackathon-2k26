@@ -205,6 +205,7 @@ export default function AddBookmarkModal({
             <div className="relative flex items-center">
               <div className="absolute left-3 flex h-5 w-5 items-center justify-center shrink-0">
                 {faviconPreview && !faviconError ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts
                   <img
                     src={faviconPreview}
                     alt=""

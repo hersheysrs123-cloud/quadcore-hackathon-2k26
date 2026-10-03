@@ -9,7 +9,7 @@ import { FlatCompat } from "@eslint/eslintrc";
 
 const compat = new FlatCompat({ baseDirectory: dirname(fileURLToPath(import.meta.url)) });
 
-export default [
+const config = [
   { ignores: [".next/**", "node_modules/**", "out/**", "build/**", "dist/**", ".agents/**", "tests/export_outputs/**", "public/**"] },
   // flat config only picks up .js/.mjs/.cjs by itself; without this every
   // component is skipped silently
@@ -32,3 +32,5 @@ export default [
     },
   },
 ];
+
+export default config;
