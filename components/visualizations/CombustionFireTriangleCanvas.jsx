@@ -69,7 +69,12 @@ const MOUTH_Y = BURNER_Y + BURNER_MOUTH_Y;
 const JAR = { radius: cm(8.5), height: cm(20) };
 /** Raised, the jar hangs clear above the tallest (lazy yellow) flame's tip. */
 const JAR_UP_Y = 4.7;
-const PROBE_STAND = [3.0, 0, 0];
+/**
+ * The probe's stand. Its base runs 2.6 back toward the burner under the arm,
+ * so the stand stands far enough out that the base clears the burner's foot
+ * (radius 0.84); the arm is as long as the stand is far.
+ */
+const PROBE_STAND = [3.6, 0, 0];
 const PROBE_Y = MOUTH_Y + 1.35;
 const PROBE_LENGTH = 0.95;
 /** The thermocouple's digital meter, on the bench behind its stand. */

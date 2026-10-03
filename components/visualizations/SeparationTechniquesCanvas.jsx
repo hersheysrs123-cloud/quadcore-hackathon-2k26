@@ -118,8 +118,8 @@ const secondsFor = (m, station) => (m.station === station ? m.seconds : 0);
 
 // ─── Filtration ─────────────────────────────────────────────────────
 
-/** The flask stands on the retort stand's base plate — a hair above it, never in its plane. */
-const PLATE_Y = 0.123;
+/** The flask stands on the retort stand's base plate (the lab kit's: 0.132 high) — a hair above it, never in its plane. */
+const PLATE_Y = 0.135;
 const FLASK_TOP = PLATE_Y + FLASK.bodyHeight + FLASK.neckHeight;
 const FUNNEL_APEX_Y = FLASK_TOP + 0.55;
 const RING_R = FUNNEL.radius * 0.86;
@@ -466,7 +466,9 @@ function FiltrationStation({ modelRef, mixture, solvent, animSpeed = 1 }) {
   return (
     <group position={[0, BENCH_Y, 0]}>
       <RetortStand position={[STAND_X, 0, 0]} height={FUNNEL_APEX_Y + FUNNEL.height + 1.2} fittings={[{ y: RING_Y, type: "ring", reach: -STAND_X - RING_R, radius: RING_R }]} />
-      <RetortStand position={[CLAMP_STAND_X, 0, 0]} height={CLAMP_Y + 0.6} baseAngle={Math.PI} fittings={[{ y: CLAMP_Y, type: "clamp", reach: CLAMP_REACH, angle: Math.PI }]} />
+      {/* Its base runs back toward the wall: toward the funnel it ran under the
+          flask and into the first stand's base. */}
+      <RetortStand position={[CLAMP_STAND_X, 0, 0]} height={CLAMP_Y + 0.6} baseAngle={Math.PI / 2} fittings={[{ y: CLAMP_Y, type: "clamp", reach: CLAMP_REACH, angle: Math.PI }]} />
       <group position={[0, PLATE_Y, 0]}>
         <ConicalFlask liquidRef={flaskLiquid} liquidColour="#c9e3ec" liquidOpacity={0.2} />
       </group>

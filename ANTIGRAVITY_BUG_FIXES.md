@@ -8585,3 +8585,33 @@ the store had become multi-timer.
   creates the timer and starts it, and custom timers can be deleted.
 - `LiteratureView`: the count pill fades out on row hover/focus while the
   trash fades in, so they swap places instead of stacking.
+
+---
+
+## Lab Kit: Retort-Stand Bases Overlapping the Burner and Each Other
+
+### 1. Problem
+
+- Combustion: the thermocouple's retort-stand base ran through the Bunsen
+  burner's round cast foot, so the two bases looked merged into one.
+- Separation (filtration): the clamp stand's base ran back under the flask and
+  into the first stand's base, so the two plates read as one slab.
+- Separation: the flask's base sat a hair inside the new stand plate.
+
+### 2. Root cause
+
+`RetortStand` lays its base 2.6 out along the arm's side (`baseAngle`). The
+combustion stand stood 3.0 from the burner, so its base reached x = 0.4,
+inside the burner's 0.84 radius foot. In separation, both stands' bases
+pointed at the funnel and overlapped by 0.9. The old thin box plates hid this.
+The lab kit's cast base, with its raised rim, made it obvious. The flask's
+`PLATE_Y` (0.123) matched the old plate, not the kit's (0.132).
+
+### 3. Resolution
+
+- `CombustionFireTriangleCanvas.jsx`: `PROBE_STAND` moved out to x = 3.6.
+  The base now ends at x = 1.0, clear of the burner's foot. The arm reach is
+  the stand's distance, so the probe still sits in the flame.
+- `SeparationTechniquesCanvas.jsx`: the clamp stand's base runs back toward
+  the wall (`baseAngle` pi/2), and `PLATE_Y` is 0.135, just above the kit's
+  plate.
