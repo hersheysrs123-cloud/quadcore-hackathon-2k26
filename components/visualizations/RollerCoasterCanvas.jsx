@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Line, RoundedBox } from "@react-three/drei";
+import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
   AlertTriangle,
@@ -12,10 +12,12 @@ import {
   Zap,
 } from "lucide-react";
 import {
+  FollowCamera,
   SceneCanvas,
   SceneLabel,
   clamp,
 } from "@/components/visualizations/scene-kit";
+import { COASTER_CAR, CoasterCarModel } from "@/components/visualizations/coaster-car-model";
 import { ENERGY_COLOURS } from "@/components/visualizations/energy-bars";
 import {
   LOOP_OFFSET_M,
@@ -57,6 +59,10 @@ const BUFFER_X = 2.45;
 const BOGIE_HALF = 0.95;
 /** Gap between cross-ties, metres of track. */
 const TIE_SPACING = 1.5;
+/** Where a strut meets the inner side of its rail (across, up), and how far it drops to the spine, metres. */
+const STRUT_TOP_Z = 0.56;
+const STRUT_TOP_Y = -0.06;
+const STRUT_DROP = 0.36;
 
 // ─── Track geometry ─────────────────────────────────────────────────
 
@@ -166,12 +172,14 @@ function Track({ track, scale, showDanger = false }) {
           _one,
         ),
       );
-      // V-struts from each rail down to the spine.
-      const tilt = Math.atan2(HALF_GAUGE, 0.3);
+      // V-struts from the inner side of each rail down to the spine: the
+      // outer side and the underside are left clear for the car's guide and
+      // upstop wheels.
+      const tilt = Math.atan2(STRUT_TOP_Z, STRUT_DROP);
       for (const side of [-1, 1]) {
         _qx.setFromAxisAngle(_v.set(1, 0, 0), side * tilt);
         const q = _q.clone().multiply(_qx);
-        const local = new THREE.Vector3(0, -0.3 * k, (side * HALF_GAUGE * k) / 2);
+        const local = new THREE.Vector3(0, (STRUT_TOP_Y - STRUT_DROP / 2) * k, (side * STRUT_TOP_Z * k) / 2);
         local.applyQuaternion(_q);
         struts.push(
           new THREE.Matrix4().compose(
@@ -183,8 +191,9 @@ function Track({ track, scale, showDanger = false }) {
       }
     }
 
-    const tieGeo = new THREE.BoxGeometry(0.22 * k, 0.16 * k, (2 * HALF_GAUGE + 0.5) * k);
-    const strutGeo = new THREE.CylinderGeometry(0.035 * k, 0.035 * k, Math.hypot(HALF_GAUGE, 0.3) * k, 6);
+    // Ties run between the rails, not under them, for the same reason.
+    const tieGeo = new THREE.BoxGeometry(0.22 * k, 0.16 * k, 2 * (HALF_GAUGE - 0.08) * k);
+    const strutGeo = new THREE.CylinderGeometry(0.035 * k, 0.035 * k, Math.hypot(STRUT_TOP_Z, STRUT_DROP) * k, 6);
 
     return { rails, spine, ties, struts, tieGeo, strutGeo };
   }, [track, k]);
@@ -323,178 +332,8 @@ function Furniture({ track, scale }) {
 }
 
 // ─── The coaster car ────────────────────────────────────────────────
-
-/**
- * A four-seat coaster car, drawn in metres with x forward, y up and z across,
- * standing on a track whose rails lie at z = ±HALF_GAUGE, y = 0.
- *
- * It is low, as a real one is: the floor is half a metre above the rails and a
- * seated rider's head is about a metre and a half up. Each bogie is a plain
- * axle with one small wheel running on top of each rail. Riders sit in an open
- * tub in two rows, with a lap bar across each row.
- */
-const CAR_WHEEL_R = 0.17;
-const CAR_FLOOR = 0.5;
-
-/** A box-shaped limb from one point to another in the ride's x–y plane. */
-function Limb({ from, to, width, depth, material }) {
-  const dx = to[0] - from[0];
-  const dy = to[1] - from[1];
-  return (
-    <mesh
-      position={[(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, 0]}
-      rotation={[0, 0, Math.atan2(dy, dx) - Math.PI / 2]}
-      material={material}
-    >
-      <boxGeometry args={[width, Math.hypot(dx, dy), depth]} />
-    </mesh>
-  );
-}
-
-function CoasterCar() {
-  const m = useMemo(
-    () => ({
-      shell: new THREE.MeshStandardMaterial({ color: "#f59e0b", roughness: 0.3, metalness: 0.45 }),
-      trim: new THREE.MeshStandardMaterial({ color: "#fef3c7", roughness: 0.35, metalness: 0.2 }),
-      dark: new THREE.MeshStandardMaterial({ color: "#1f2937", roughness: 0.55, metalness: 0.5 }),
-      steel: new THREE.MeshStandardMaterial({ color: "#94a3b8", roughness: 0.3, metalness: 0.85 }),
-      wheel: new THREE.MeshStandardMaterial({ color: "#1f2937", roughness: 0.6, metalness: 0.2 }),
-      hub: new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.25, metalness: 0.9 }),
-      seat: new THREE.MeshStandardMaterial({ color: "#111827", roughness: 0.7 }),
-      pad: new THREE.MeshStandardMaterial({ color: "#fbbf24", roughness: 0.5 }),
-      hair: new THREE.MeshStandardMaterial({ color: "#292524", roughness: 0.8 }),
-      skin: [
-        new THREE.MeshStandardMaterial({ color: "#f1c27d", roughness: 0.7 }),
-        new THREE.MeshStandardMaterial({ color: "#8d5524", roughness: 0.7 }),
-        new THREE.MeshStandardMaterial({ color: "#e0ac69", roughness: 0.7 }),
-        new THREE.MeshStandardMaterial({ color: "#c68642", roughness: 0.7 }),
-      ],
-      shirt: ["#2563eb", "#dc2626", "#16a34a", "#9333ea"].map(
-        (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }),
-      ),
-      trousers: new THREE.MeshStandardMaterial({ color: "#1e3a8a", roughness: 0.7 }),
-    }),
-    [],
-  );
-
-  const rows = [-0.62, 0.5];
-  const seatZ = [-0.33, 0.33];
-
-  return (
-    <group>
-      {/* ── Bogies: an axle with a small wheel on each rail ── */}
-      {[-BOGIE_HALF, BOGIE_HALF].map((bx) => (
-        <group key={`bogie-${bx}`} position={[bx, 0, 0]}>
-          <mesh position={[0, CAR_WHEEL_R + RAIL_R, 0]} rotation={[Math.PI / 2, 0, 0]} material={m.steel}>
-            <cylinderGeometry args={[0.03, 0.03, HALF_GAUGE * 2, 10]} />
-          </mesh>
-          {[-1, 1].map((side) => (
-            <group key={side} position={[0, CAR_WHEEL_R + RAIL_R, side * HALF_GAUGE]}>
-              <mesh rotation={[Math.PI / 2, 0, 0]} material={m.wheel}>
-                <cylinderGeometry args={[CAR_WHEEL_R, CAR_WHEEL_R, 0.13, 20]} />
-              </mesh>
-              <mesh position={[0, 0, side * 0.07]} rotation={[Math.PI / 2, 0, 0]} material={m.hub}>
-                <cylinderGeometry args={[0.06, 0.06, 0.02, 12]} />
-              </mesh>
-              {/* Bracket from the axle up to the frame */}
-              <mesh position={[0, 0.1, side * 0.1]} material={m.dark}>
-                <boxGeometry args={[0.22, 0.16, 0.04]} />
-              </mesh>
-            </group>
-          ))}
-        </group>
-      ))}
-
-      {/* ── Frame ── */}
-      <mesh position={[0, CAR_FLOOR - 0.03, 0]} material={m.dark}>
-        <boxGeometry args={[2.7, 0.08, 1.5]} />
-      </mesh>
-
-      {/* ── Body: an open tub — floor, side walls and a nose, not a solid block ── */}
-      {[-1, 1].map((side) => (
-        <group key={`wall-${side}`}>
-          <RoundedBox args={[2.7, 0.4, 0.08]} radius={0.04} smoothness={3} position={[0, CAR_FLOOR + 0.22, side * 0.75]} material={m.shell} />
-          <mesh position={[0, CAR_FLOOR + 0.4, side * 0.795]} material={m.trim}>
-            <boxGeometry args={[2.3, 0.05, 0.02]} />
-          </mesh>
-          <mesh position={[0, CAR_FLOOR + 0.06, side * 0.795]} material={m.dark}>
-            <boxGeometry args={[2.6, 0.05, 0.02]} />
-          </mesh>
-        </group>
-      ))}
-      {/* Nose */}
-      <mesh position={[1.4, CAR_FLOOR + 0.15, 0]} scale={[0.62, 0.3, 0.76]} material={m.shell}>
-        <sphereGeometry args={[1, 24, 16]} />
-      </mesh>
-      <mesh position={[2.0, CAR_FLOOR + 0.06, 0]} material={m.dark}>
-        <boxGeometry args={[0.1, 0.16, 1.2]} />
-      </mesh>
-      {/* Tail */}
-      <mesh position={[-1.4, CAR_FLOOR + 0.15, 0]} scale={[0.32, 0.3, 0.76]} material={m.shell}>
-        <sphereGeometry args={[1, 20, 14]} />
-      </mesh>
-      {/* Rear coupling */}
-      <mesh position={[-1.75, CAR_FLOOR + 0.02, 0]} rotation={[0, 0, Math.PI / 2]} material={m.steel}>
-        <cylinderGeometry args={[0.05, 0.05, 0.3, 10]} />
-      </mesh>
-
-      {/* ── Two rows of two seats ── */}
-      {rows.map((rx, r) => (
-        <group key={`row-${r}`} position={[rx, 0, 0]}>
-          <mesh position={[0, CAR_FLOOR + 0.1, 0]} material={m.seat}>
-            <boxGeometry args={[0.56, 0.12, 1.36]} />
-          </mesh>
-          <mesh position={[-0.3, CAR_FLOOR + 0.5, 0]} rotation={[0, 0, 0.14]} material={m.seat}>
-            <boxGeometry args={[0.1, 0.78, 1.36]} />
-          </mesh>
-          {seatZ.map((z, c) => {
-            const who = r * 2 + c;
-            return (
-              <group key={`rider-${c}`} position={[0, 0, z]}>
-                {/* Headrest */}
-                <mesh position={[-0.33, CAR_FLOOR + 0.86, 0]} material={m.seat}>
-                  <boxGeometry args={[0.09, 0.18, 0.3]} />
-                </mesh>
-                {/* Torso, leaning back into the seat */}
-                <mesh position={[-0.13, CAR_FLOOR + 0.5, 0]} rotation={[0, 0, 0.14]} material={m.shirt[who]}>
-                  <boxGeometry args={[0.24, 0.5, 0.34]} />
-                </mesh>
-                {/* Head and hair */}
-                <mesh position={[-0.18, CAR_FLOOR + 0.86, 0]} material={m.skin[who]}>
-                  <sphereGeometry args={[0.12, 16, 16]} />
-                </mesh>
-                <mesh position={[-0.2, CAR_FLOOR + 0.91, 0]} scale={[1, 0.6, 1]} material={m.hair}>
-                  <sphereGeometry args={[0.13, 14, 12]} />
-                </mesh>
-                {/* Thigh, shin and foot: knees up, feet on the floor */}
-                <Limb from={[-0.05, CAR_FLOOR + 0.24]} to={[0.42, CAR_FLOOR + 0.3]} width={0.15} depth={0.16} material={m.trousers} />
-                <Limb from={[0.42, CAR_FLOOR + 0.3]} to={[0.56, CAR_FLOOR + 0.07]} width={0.13} depth={0.15} material={m.trousers} />
-                <mesh position={[0.62, CAR_FLOOR + 0.04, 0]} material={m.dark}>
-                  <boxGeometry args={[0.26, 0.07, 0.15]} />
-                </mesh>
-                {/* Arms reaching to the bar */}
-                {[-0.19, 0.19].map((az) => (
-                  <group key={az} position={[0, 0, az]}>
-                    <Limb from={[-0.1, CAR_FLOOR + 0.66]} to={[0.28, CAR_FLOOR + 0.5]} width={0.08} depth={0.08} material={m.shirt[who]} />
-                  </group>
-                ))}
-              </group>
-            );
-          })}
-          {/* Lap bar across the row, on two uprights, with a padded rail */}
-          <mesh position={[0.3, CAR_FLOOR + 0.5, 0]} rotation={[Math.PI / 2, 0, 0]} material={m.pad}>
-            <cylinderGeometry args={[0.045, 0.045, 1.34, 12]} />
-          </mesh>
-          {[-0.66, 0.66].map((z) => (
-            <mesh key={z} position={[0.3, CAR_FLOOR + 0.32, z]} material={m.steel}>
-              <cylinderGeometry args={[0.025, 0.025, 0.36, 8]} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-    </group>
-  );
-}
+// Our own model (scripts/coaster-model → coaster-car-model.jsx), drawn in
+// metres with x forward, y up and z across, on rails at z = ±HALF_GAUGE.
 
 /**
  * Where the car is: each bogie sits on the rail at its own point, and the body
@@ -508,8 +347,10 @@ function pathPoint(track, s) {
   return positionAt(track, s);
 }
 
-function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale, onSample }) {
+function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale, onSample, anchorRef }) {
   const cart = useRef(null);
+  // the distance run, for the wheels to roll by
+  const travel = useRef(0);
   const state = useRef(startRun({ track, mass }));
   const since = useRef(0);
 
@@ -530,6 +371,7 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
       }
     }
 
+    travel.current = state.current.s;
     if (cart.current) {
       const s = state.current.s;
       const [fx, fy] = pathPoint(track, s + BOGIE_HALF);
@@ -549,7 +391,11 @@ function CartRunner({ track, mass, friction, running, speed = 1, resetKey, scale
 
   return (
     <group ref={cart} scale={[scale, scale, scale]}>
-      <CoasterCar />
+      <Suspense fallback={null}>
+        <CoasterCarModel travelRef={travel} />
+      </Suspense>
+      {/* What the follow camera chases and rides on: the car's middle, at seat height */}
+      <group ref={anchorRef} position={[0, COASTER_CAR.floor + 0.3, 0]} />
     </group>
   );
 }
@@ -767,6 +613,9 @@ function MonitorDock({ live, total, verdict, minHeight, friction, maxSpeed }) {
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/** The overview framing, which the camera glides back to from the car. */
+const COASTER_HOME = { position: [1.8, 0.4, 19.5], target: [1.8, -0.3, 0] };
+
 export default function RollerCoasterCanvas({ params = {} }) {
   const {
     releaseHeight = 25,
@@ -776,7 +625,9 @@ export default function RollerCoasterCanvas({ params = {} }) {
     running = true,
     speed = 1,
     relaunch = 0,
+    camera = "overview",
   } = params || {};
+  const anchorRef = useRef(null);
 
   const track = useMemo(
     () => buildTrack({ releaseHeight, loopRadius }),
@@ -814,8 +665,10 @@ export default function RollerCoasterCanvas({ params = {} }) {
   return (
     <div className="relative h-full w-full">
       <SceneCanvas
-        camera={{ position: [1.8, 0.4, 19.5], fov: 46 }}
-        controls={{ minDistance: 6, maxDistance: 48, target: [1.8, -0.3, 0] }}
+        environment
+        camera={{ position: COASTER_HOME.position, fov: 46 }}
+        // Following the car needs to come in closer than the overview allows.
+        controls={{ minDistance: camera === "overview" ? 6 : 0.5, maxDistance: 48 }}
         lights={{ ambient: 0.58, keyLight: 1.05 }}
       >
         <group position={[-centreX + 1.8, -0.4, 0]}>
@@ -850,6 +703,7 @@ export default function RollerCoasterCanvas({ params = {} }) {
             resetKey={relaunch}
             scale={scale}
             onSample={onSample}
+            anchorRef={anchorRef}
           />
 
           {/* Theoretical minimum release height */}
@@ -884,6 +738,19 @@ export default function RollerCoasterCanvas({ params = {} }) {
             {`loop R = ${loopRadius} m · needs ${minimumTopSpeed(loopRadius).toFixed(1)} m/s at the top`}
           </SceneLabel>
         </group>
+        {/* Overview, chasing the car, or riding in its front row: eye and gaze
+            are in the car's own frame (metres), so they hold at any scale. Mounted
+            after the car, so it reads where the car is this frame, not last frame */}
+        <FollowCamera
+          mode={camera}
+          targetRef={anchorRef}
+          distance={9 * scale}
+          home={COASTER_HOME}
+          eye={[COASTER_CAR.eye[0], COASTER_CAR.eye[1] - COASTER_CAR.floor - 0.3, COASTER_CAR.eye[2]]}
+          look={[COASTER_CAR.eye[0] + 6, COASTER_CAR.eye[1] - COASTER_CAR.floor - 1.5, COASTER_CAR.eye[2]]}
+          near={0.05 * scale}
+          resetKey={relaunch}
+        />
       </SceneCanvas>
 
       <MonitorDock

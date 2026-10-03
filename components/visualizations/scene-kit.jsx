@@ -432,6 +432,131 @@ export function FitCamera({ view, direction = [0, 0.15, 1], fov = 45, margin = 1
   return null;
 }
 
+const _camTarget = new THREE.Vector3();
+const _camStep = new THREE.Vector3();
+const _camOffset = new THREE.Vector3();
+const _camQuat = new THREE.Quaternion();
+
+/**
+ * A camera that can follow something moving: a scene's "Camera" choice.
+ *
+ *   overview  the scene's own framing. Switching back to it glides the
+ *             camera home to `home` ({ position, target }).
+ *   follow    the orbit target tracks `targetRef`'s world position, and the
+ *             camera moves with it, so the user can still orbit and zoom
+ *             round the moving thing. On entering (and on each `resetKey`)
+ *             it closes in to `distance`, until the user zooms themselves.
+ *   ride      the camera rides on `targetRef`: at `eye` in its local frame,
+ *             looking at `look`, with its up turning with the object (upside
+ *             down at the top of a loop). Orbiting is switched off.
+ *
+ * It owns the orbit target: do not also pass `target` in SceneCanvas's
+ * `controls`, which re-applies it every render and would undo the follow.
+ * `home.target` is set on mount instead.
+ *
+ * Mount it AFTER whatever moves `targetRef`: frame callbacks run in mount
+ * order, and one mounted first reads last frame's position. Riding a fast
+ * car, that put the camera a third of a metre behind the rider's eyes.
+ */
+export function FollowCamera({ mode = "overview", targetRef, distance = 3, home, eye = [0, 1, 0], look = [4, 1, 0], near = 0.02, resetKey = 0 }) {
+  const camera = useThree((st) => st.camera);
+  const controls = useThree((st) => st.controls);
+  const homing = useRef(false);
+  const settling = useRef(false);
+  const saved = useRef(null);
+  const homePos = home?.position;
+  const homeTarget = home?.target;
+
+  // The home framing on mount: SceneCanvas sets the camera's position, this
+  // its target.
+  useEffect(() => {
+    if (!controls || !homeTarget) return;
+    controls.target.set(...homeTarget);
+    controls.update();
+  }, [controls]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The user taking the camera stops any glide in progress.
+  useEffect(() => {
+    if (!controls) return undefined;
+    const stop = () => {
+      homing.current = false;
+      settling.current = false;
+    };
+    controls.addEventListener("start", stop);
+    return () => controls.removeEventListener("start", stop);
+  }, [controls]);
+
+  useEffect(() => {
+    homing.current = mode === "overview";
+    settling.current = mode === "follow";
+  }, [mode, resetKey]);
+
+  // Riding needs a near plane close enough for the car's own nose, the
+  // controls off, and both put back afterwards.
+  useEffect(() => {
+    if (mode !== "ride" || !controls) return undefined;
+    saved.current = { near: camera.near };
+    controls.enabled = false;
+    camera.near = near;
+    camera.updateProjectionMatrix();
+    return () => {
+      camera.near = saved.current.near;
+      camera.up.set(0, 1, 0);
+      camera.updateProjectionMatrix();
+      controls.enabled = true;
+      // back out behind the car rather than staying inside it
+      _camOffset.copy(camera.position).sub(controls.target);
+      if (_camOffset.lengthSq() < distance * distance) {
+        camera.position.copy(controls.target).addScaledVector(_camOffset.normalize(), distance);
+      }
+      camera.lookAt(controls.target);
+    };
+  }, [mode, controls, camera, near, distance]);
+
+  useFrame((_, rawDelta) => {
+    if (!controls) return;
+    const dt = Math.min(rawDelta, 0.1);
+    const obj = targetRef?.current;
+
+    if (mode === "ride" && obj) {
+      obj.updateWorldMatrix(true, false);
+      obj.getWorldQuaternion(_camQuat);
+      camera.position.set(...eye).applyMatrix4(obj.matrixWorld);
+      controls.target.set(...look).applyMatrix4(obj.matrixWorld);
+      camera.up.set(0, 1, 0).applyQuaternion(_camQuat);
+      camera.lookAt(controls.target);
+      return;
+    }
+
+    if (mode === "follow" && obj) {
+      obj.getWorldPosition(_camTarget);
+      // the target eases after the object, and the camera moves with it
+      _camStep.copy(_camTarget).sub(controls.target).multiplyScalar(1 - Math.exp(-dt * 7));
+      controls.target.add(_camStep);
+      camera.position.add(_camStep);
+      if (settling.current) {
+        _camOffset.copy(camera.position).sub(controls.target);
+        const d = _camOffset.length();
+        const next = d + (distance - d) * (1 - Math.exp(-dt * 3));
+        camera.position.copy(controls.target).addScaledVector(_camOffset, next / Math.max(d, 1e-6));
+        if (Math.abs(next - distance) < 0.01 * distance) settling.current = false;
+      }
+      return;
+    }
+
+    if (mode === "overview" && homing.current && homePos && homeTarget) {
+      const a = 1 - Math.exp(-dt * 4);
+      _camTarget.set(...homeTarget);
+      controls.target.lerp(_camTarget, a);
+      _camStep.set(...homePos);
+      camera.position.lerp(_camStep, a);
+      if (camera.position.distanceTo(_camStep) < 0.01 && controls.target.distanceTo(_camTarget) < 0.01) homing.current = false;
+    }
+  });
+
+  return null;
+}
+
 // ─── Corner-pinned panels ───────────────────────────────────────────
 
 // The two placeholders that used to live here -- SceneReadout and

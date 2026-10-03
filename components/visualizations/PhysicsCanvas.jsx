@@ -9,6 +9,7 @@ import {
   Bond,
   CANVAS_BG,
   DEG,
+  FollowCamera,
   Halo,
   PALETTE,
   SceneCanvas,
@@ -51,6 +52,7 @@ import {
 import { gasLawReadout } from "@/lib/particleModel";
 import { usePackedModel } from "@/components/visualizations/plant-model";
 import { FLEMING_HAND } from "@/components/visualizations/fleming-hand-model-meta";
+import { CANNON, CannonModel } from "@/components/visualizations/cannon-model";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
 import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
@@ -2843,147 +2845,62 @@ const RUNWAY_TOP_Y = 0.28;
 const BALL_RADIUS = 0.13;
 /** Launch and landing origin height: runway deck surface plus ball radius so ball rests perfectly on deck. */
 const LAUNCH_Y = RUNWAY_TOP_Y + BALL_RADIUS;
+/** The overview framing, which the camera glides back to from following the ball. */
+const PROJECTILE_HOME = { position: [4.2, 3.2, 13], target: [4.2, 1.8, 0] };
 
 // simulateFlight — the quadratic-drag integrator — lives in
 // lib/projectile.js, so the HUD can quote the flight it draws rather than
 // estimating it.
 
-/** Precision laboratory cannon launcher with bright satin platinum, champagne brass fittings, and protractor scale. */
-function LaboratoryCannon({ angleDeg = 45, showLabels = true }) {
+/**
+ * Our bronze cannon on its oak carriage (scripts/cannon-model), turned to
+ * the launch angle, with a brass elevation quadrant on its near cheek and a
+ * red pointer that turns with the barrel.
+ */
+function Cannon({ angleDeg = 45, showLabels = true }) {
   const rad = angleDeg * DEG;
-  const BARREL_LEN = 0.52;
-  const BORE_R = 0.14;
-  const OUTER_R = 0.18;
-
+  const zq = CANNON.cheekOut + 0.014;
+  const brass = <meshStandardMaterial color="#c9a24a" roughness={0.3} metalness={0.9} side={THREE.DoubleSide} />;
   return (
-    <group position={[0, 0, 0]}>
-      {/* 1. Ground Carriage & Rails - Sits on ground at X <= 0 behind the runway */}
-      <group position={[-0.24, 0.04, 0]}>
-        {/* Baseplate bed: light brushed platinum */}
-        <mesh position={[0, 0, 0]} receiveShadow>
-          <boxGeometry args={[0.54, 0.08, 0.58]} />
-          <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.75} />
-        </mesh>
-        {/* Chrome longitudinal guide rails */}
-        <mesh position={[0, 0.048, -0.22]}>
-          <boxGeometry args={[0.52, 0.016, 0.04]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.95} />
-        </mesh>
-        <mesh position={[0, 0.048, 0.22]}>
-          <boxGeometry args={[0.52, 0.016, 0.04]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.95} />
-        </mesh>
-        {/* Leveling feet */}
-        {[-0.22, 0.22].map((x) =>
-          [-0.24, 0.24].map((z) => (
-            <mesh key={`foot-${x}-${z}`} position={[x, -0.035, z]}>
-              <cylinderGeometry args={[0.035, 0.035, 0.03, 16]} />
-              <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.7} />
-            </mesh>
-          ))
-        )}
-      </group>
+    <group>
+      <Suspense fallback={null}>
+        <CannonModel angleDeg={angleDeg} />
+      </Suspense>
 
-      {/* 2. Side Stanchion Cheeks - Rising from ground to trunnion pivot at LAUNCH_Y */}
-      <group position={[0, 0, 0]}>
-        {[-0.24, 0.24].map((z) => (
-          <group key={`cheek-${z}`} position={[0, 0, z]}>
-            {/* Stanchion upright cheek */}
-            <mesh position={[-0.10, LAUNCH_Y / 2, 0]}>
-              <boxGeometry args={[0.24, LAUNCH_Y, 0.04]} />
-              <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.8} />
+      {/* Brass quadrant on the near cheek, engraved every 15°, on two stays from the trunnion's hub */}
+      <group position={[0, LAUNCH_Y, zq]}>
+        <mesh>
+          <ringGeometry args={[0.16, 0.23, 40, 1, 0, Math.PI / 2]} />
+          {brass}
+        </mesh>
+        <mesh position={[0, 0, -0.002]}>
+          <circleGeometry args={[0.045, 24]} />
+          {brass}
+        </mesh>
+        <mesh position={[0.105, 0, -0.002]}>
+          <boxGeometry args={[0.12, 0.018, 0.004]} />
+          {brass}
+        </mesh>
+        <mesh position={[0, 0.105, -0.002]}>
+          <boxGeometry args={[0.018, 0.12, 0.004]} />
+          {brass}
+        </mesh>
+        {[0, 15, 30, 45, 60, 75, 90].map((deg) => {
+          const r = deg * DEG;
+          return (
+            <mesh key={`tick-${deg}`} position={[Math.cos(r) * 0.2, Math.sin(r) * 0.2, 0.001]} rotation={[0, 0, r]}>
+              <boxGeometry args={[deg % 45 === 0 ? 0.05 : 0.032, 0.005, 0.002]} />
+              <meshBasicMaterial color={deg % 45 === 0 ? "#b91c1c" : "#3b2f1a"} />
             </mesh>
-            {/* Trunnion bearing collar at [0, LAUNCH_Y, 0] */}
-            <mesh position={[0, LAUNCH_Y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.065, 0.065, 0.05, 20]} />
-              <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.94} />
-            </mesh>
-          </group>
-        ))}
-
-        {/* Laser-engraved Protractor Degree Quadrant Arc on front cheek (facing camera) */}
-        <group position={[0, LAUNCH_Y, 0.266]}>
-          <mesh>
-            <ringGeometry args={[0.16, 0.23, 32, 1, 0, Math.PI / 2]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.25} side={THREE.DoubleSide} />
+          );
+        })}
+        {/* The pointer turns with the barrel */}
+        <group rotation={[0, 0, rad]}>
+          <mesh position={[0.135, 0, 0.004]}>
+            <boxGeometry args={[0.19, 0.012, 0.004]} />
+            <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.5} roughness={0.3} />
           </mesh>
-          {/* Degree scale ticks */}
-          {[0, 15, 30, 45, 60, 75, 90].map((deg) => {
-            const r = deg * DEG;
-            return (
-              <mesh
-                key={`tick-${deg}`}
-                position={[Math.cos(r) * 0.195, Math.sin(r) * 0.195, 0.001]}
-                rotation={[0, 0, r]}
-              >
-                <boxGeometry args={[0.035, 0.004, 0.002]} />
-                <meshBasicMaterial color={deg % 45 === 0 ? "#ef4444" : "#334155"} />
-              </mesh>
-            );
-          })}
         </group>
-      </group>
-
-      {/* 3. Elevating Barrel Assembly (Pivots at [0, LAUNCH_Y, 0] and aims FORWARD & UPWARDS along +X) */}
-      <group position={[0, LAUNCH_Y, 0]} rotation={[0, 0, rad]}>
-        {/* Main barrel tube: extends FORWARD from X=0 to X=+BARREL_LEN (aiming towards target!) */}
-        <mesh position={[BARREL_LEN / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <cylinderGeometry args={[BORE_R + 0.025, OUTER_R + 0.015, BARREL_LEN, 28, 1, true]} />
-          <meshStandardMaterial
-            color="#f8fafc"
-            roughness={0.12}
-            metalness={0.92}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-
-        {/* Dark bore interior liner: open at the front muzzle (X=+BARREL_LEN) */}
-        <mesh position={[BARREL_LEN / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <cylinderGeometry args={[BORE_R, BORE_R, BARREL_LEN, 24, 1, true]} />
-          <meshStandardMaterial color="#334155" roughness={0.6} metalness={0.4} side={THREE.BackSide} />
-        </mesh>
-
-        {/* Champagne brass muzzle crown ring at the FRONT (X=+BARREL_LEN) */}
-        <mesh position={[BARREL_LEN - 0.025, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <cylinderGeometry args={[BORE_R + 0.045, BORE_R + 0.045, 0.05, 28]} />
-          <meshStandardMaterial color="#fde047" roughness={0.15} metalness={0.95} />
-        </mesh>
-
-        {/* Front muzzle bevel lip opening at X=+BARREL_LEN */}
-        <mesh position={[BARREL_LEN, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <ringGeometry args={[BORE_R, BORE_R + 0.045, 28]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.98} side={THREE.DoubleSide} />
-        </mesh>
-
-        {/* Champagne brass reinforcement band near middle */}
-        <mesh position={[BARREL_LEN * 0.45, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <cylinderGeometry args={[OUTER_R + 0.02, OUTER_R + 0.02, 0.04, 24]} />
-          <meshStandardMaterial color="#fde047" roughness={0.16} metalness={0.94} />
-        </mesh>
-
-        {/* Breech block hemisphere closing the rear at X=0 */}
-        <mesh position={[0, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <sphereGeometry args={[OUTER_R + 0.015, 20, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#f8fafc" roughness={0.14} metalness={0.92} />
-        </mesh>
-
-        {/* Mirror chrome cascabel knob behind the breech at X=-0.07 */}
-        <mesh position={[-0.07, 0, 0]}>
-          <sphereGeometry args={[0.055, 16, 16]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.08} metalness={0.98} />
-        </mesh>
-
-        {/* Trunnion axle pins passing through pivot at [0, 0, 0] */}
-        <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.048, 0.048, 0.54, 16]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.98} />
-        </mesh>
-
-        {/* Red angle pointer needle pointing along the barrel over the degree scale */}
-        <mesh position={[0.10, 0, 0.285]}>
-          <boxGeometry args={[0.16, 0.016, 0.01]} />
-          <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.8} roughness={0.2} />
-        </mesh>
       </group>
 
       {/* Angle readout badge */}
@@ -3065,8 +2982,9 @@ function updateVector(groupRef, shaftRef, headRef, labelRef, dirX, dirY, length)
   }
 }
 
-/** Muzzle blast shockwave ring displayed upon firing. */
-function MuzzleBlast({ position, angleDeg, replayKey }) {
+/** Muzzle blast shockwave ring displayed upon firing, at the cannon's muzzle. */
+function MuzzleBlast({ angleDeg, replayKey }) {
+  const position = [Math.cos(angleDeg * DEG) * CANNON.muzzleX, LAUNCH_Y + Math.sin(angleDeg * DEG) * CANNON.muzzleX, 0];
   const blastRef = useRef(null);
   const time = useRef(0);
 
@@ -3249,8 +3167,11 @@ function Projectile({
   drag = 0.04,
   mass = 1,
   gravity = 9.81,
+  ballRef,
 }) {
-  const ball = useRef(null);
+  const ownBall = useRef(null);
+  // the scene's follow camera tracks the ball through this ref
+  const ball = ballRef ?? ownBall;
   const clock = useRef(0);
   const sampleAcc = useRef(0);
 
@@ -3382,15 +3303,15 @@ function Projectile({
 
   return (
     <group>
-      {/* Machined polished brass cannonball */}
+      {/* Polished brass cannonball: it reflects the studio, with a faint glow to keep it legible from afar */}
       <mesh ref={ball} castShadow>
-        <sphereGeometry args={[BALL_RADIUS, 28, 28]} />
+        <sphereGeometry args={[BALL_RADIUS, 32, 32]} />
         <meshStandardMaterial
-          color="#f59e0b"
+          color="#f2b13a"
           emissive="#fbbf24"
-          emissiveIntensity={0.8}
+          emissiveIntensity={0.18}
           roughness={0.22}
-          metalness={0.82}
+          metalness={0.9}
         />
       </mesh>
 
@@ -3464,9 +3385,11 @@ export function ProjectileScene({ params = {} }) {
     running = true,
     replay = 0,
     spin = false,
+    camera = "overview",
   } = params || {};
 
   const [live, setLive] = useState({ t: 0, x: 0, y: 0, speed, vx: 0, vy: 0, dragForce: 0 });
+  const ballRef = useRef(null);
   const [activeReplay, setActiveReplay] = useState(0);
   const debounceTimer = useRef(null);
   const isFirstMount = useRef(true);
@@ -3522,8 +3445,9 @@ export function ProjectileScene({ params = {} }) {
 
   return (
     <SceneCanvas
-      camera={{ position: [4.2, 3.2, 13], fov: 46 }}
-      controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * animSpeed, target: [4.2, 1.8, 0] }}
+      environment
+      camera={{ position: PROJECTILE_HOME.position, fov: 46 }}
+      controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * animSpeed }}
     >
       <Grid
         args={[28, 16]}
@@ -3538,11 +3462,11 @@ export function ProjectileScene({ params = {} }) {
       {/* Metric runway track with light colors & ground distance markers */}
       <DistanceRunway maxDist={Math.max(flight.range, ideal.range)} scale={scale} showLabels={showLabels} />
 
-      {/* Precision laboratory cannon with aligned muzzle & light platinum finish */}
-      <LaboratoryCannon angleDeg={angle} showLabels={showLabels} />
+      {/* Our bronze cannon (scripts/cannon-model), turned to the launch angle */}
+      <Cannon angleDeg={angle} showLabels={showLabels} />
 
       {/* Muzzle blast impulse shockwave upon firing */}
-      <MuzzleBlast position={[0, LAUNCH_Y, 0]} angleDeg={angle} replayKey={activeReplay} />
+      <MuzzleBlast angleDeg={angle} replayKey={activeReplay} />
 
       {/* Trajectory lines */}
       {showIdeal && (
@@ -3581,6 +3505,7 @@ export function ProjectileScene({ params = {} }) {
         drag={drag}
         mass={mass}
         gravity={gravity}
+        ballRef={ballRef}
       />
 
       {/* Calibrated landing target rings on runway */}
@@ -3595,6 +3520,9 @@ export function ProjectileScene({ params = {} }) {
         />
       )}
 
+      {/* Overview, or riding alongside the ball: it closes in at the cannon and keeps the ball in the middle of the
+          picture. Mounted after the ball, so it reads where the ball is this frame */}
+      <FollowCamera mode={camera} targetRef={ballRef} distance={2.6} home={PROJECTILE_HOME} resetKey={activeReplay} />
     </SceneCanvas>
   );
 }
