@@ -424,7 +424,6 @@ export function choreograph(live, snap, modeKey, chromatids, dt, speed) {
     u.kinetochoreHold = 1 - telo;
   }
 
-  const plan = live.plan;
   const pull = pose.separate;
   const chromatidScale = division === 2 ? 0.86 : 1;
   const meiosisOne = meiosis && division === 1;

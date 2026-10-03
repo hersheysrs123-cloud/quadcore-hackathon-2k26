@@ -40,9 +40,6 @@ async function ensureChrome() {
 async function runCdpCapture() {
   await ensureChrome();
 
-  const versionRes = await fetch("http://127.0.0.1:9222/json/version");
-  const versionData = await versionRes.json();
-
   const targetRes = await fetch("http://127.0.0.1:9222/json/new?about:blank", { method: "PUT" });
   const targetData = await targetRes.json();
   const pageWsUrl = targetData.webSocketDebuggerUrl;

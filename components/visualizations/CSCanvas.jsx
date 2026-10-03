@@ -260,7 +260,7 @@ export function SortingScene({ params = {} }) {
 
   const count = clamp(Math.round(size), 5, MAX_BARS);
   const values = useMemo(() => makeValues(count, shuffle), [count, shuffle]);
-  const { frames, comparisons, writes, truncated } = useMemo(
+  const { frames } = useMemo(
     () => buildFrames(values, algorithm),
     [values, algorithm],
   );
@@ -287,7 +287,6 @@ export function SortingScene({ params = {} }) {
     comparisons: 0,
     writes: 0,
   };
-  const done = cursor >= frames.length - 1;
   const info = ALGORITHM_META[algorithm] ?? ALGORITHM_META.bubble;
 
   return (

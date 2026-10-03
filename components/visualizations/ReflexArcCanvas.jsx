@@ -18,7 +18,7 @@ import {
 } from "@/components/visualizations/scene-kit";
 import { makeFlowPath } from "@/components/visualizations/charge-carriers";
 import { ARM_MODEL } from "@/components/visualizations/arm-model-meta";
-import { ARM, createPose, frameOf, localToWorld, setPose } from "@/components/visualizations/arm-rig";
+import { createPose, frameOf, localToWorld, setPose } from "@/components/visualizations/arm-rig";
 import { ModelledArm } from "@/components/visualizations/arm-model";
 import {
   DORSAL_ROOT_FRACTION,

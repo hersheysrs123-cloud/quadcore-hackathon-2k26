@@ -1,11 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import katex from "katex";
 import {
-  cleanZeroWidth,
-  formatMarkdownInline,
   setBlockDOMFromText,
-  tryAutoFormatInlineCode,
   tryAutoFormatInlineMath,
   handleInlineBoundaryKeyDown,
   setCaretToEnd,
@@ -509,23 +505,8 @@ class MockRange {
     if (!this.startContainer || !this.endContainer) return frag;
 
     // Helper to find index of a node in its parent
-    const indexOf = (node) => (node.parentNode ? node.parentNode.childNodes.indexOf(node) : -1);
 
     // Helper to check if node A is strictly before node B in document order
-    const isNodeBefore = (nodeA, nodeB) => {
-      if (nodeA === nodeB) return false;
-      const root = nodeA.parentNode || nodeA;
-      // Get all descendants in order
-      const allNodes = [];
-      const collect = (n) => {
-        allNodes.push(n);
-        for (const c of n.childNodes || []) collect(c);
-      };
-      let top = root;
-      while (top.parentNode) top = top.parentNode;
-      collect(top);
-      return allNodes.indexOf(nodeA) < allNodes.indexOf(nodeB);
-    };
 
     // Case 1: startContainer === endContainer
     if (this.startContainer === this.endContainer) {

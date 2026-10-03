@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import {
-  filterBlocksForExport,
   blocksToMarkdownLossy,
   tryParseMarkdownToBlocks,
   blocksToHTMLLossy,
@@ -9,9 +8,7 @@ import {
   blocksToPlainText,
   tryParsePlainTextToBlocks,
   blocksToDocxBlob,
-  tryParseDocxToBlocks,
-  exportBookmarksToHtml,
-  parseNetscapeBookmarksHtml
+  tryParseDocxToBlocks
 } from "../lib/exportImport.js";
 
 // Let's create an ultra-comprehensive demo note that has all 19 block types

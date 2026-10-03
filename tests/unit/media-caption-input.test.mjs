@@ -8,8 +8,6 @@ describe("Media Block Caption & Input Keyboard Isolation", () => {
     let deleted = false;
     let addedAfter = false;
 
-    const block = { id: "media-1", type: "media", url: "https://example.com/test.png", content: "Initial caption" };
-
     const handleContainerKeyDown = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
         return;
@@ -62,6 +60,12 @@ describe("Media Block Caption & Input Keyboard Isolation", () => {
     handleContainerKeyDown(deleteEvent);
     assert.equal(deleted, false, "Delete from caption INPUT must not invoke onDelete");
     assert.equal(deleteDefaultPrevented, false, "Native Delete must not be default-prevented");
+
+    for (const key of ["ArrowDown", "Enter"]) {
+      handleContainerKeyDown({ key, target: mockInputTarget, preventDefault: () => {} });
+    }
+    assert.equal(exitedDown, false, "ArrowDown from caption INPUT must not invoke onExitDown");
+    assert.equal(addedAfter, false, "Enter from caption INPUT must not add a block after");
 
     const mockDivTarget = { tagName: "DIV" };
     let divBackspacePrevented = false;
