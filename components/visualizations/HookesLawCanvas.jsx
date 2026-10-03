@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -11,6 +11,7 @@ import {
   clamp,
 } from "@/components/visualizations/scene-kit";
 import { FORCE_COLOURS, ForceVector, useForceScale } from "@/components/visualizations/force-diagram";
+import { KitPart } from "@/components/visualizations/lab-kit-model";
 import {
   ELASTIC_LIMIT_EXTENSION,
   FAILURE_EXTENSION,
@@ -93,25 +94,40 @@ function Spring({ lengthM, setM, failed }) {
 }
 
 /** Retort stand: cast base, upright rod, boss head and clamp arm. */
+/** Rod x, and how much bigger this stand is than the lab kit's (a heavier rod). */
+const STAND_X = 1.55;
+const STAND_SCALE = 1.45;
+
+/**
+ * The retort stand: the lab kit's cast base and boss head (our own models),
+ * sized up for this heavier rod, with the arm reaching back over the spring
+ * and the hook it hangs from.
+ */
 function RetortStand() {
+  const armFrom = STAND_X - 0.215 * STAND_SCALE;
   return (
     <group>
-      <mesh position={[0.5, -2.62, 0]} receiveShadow>
-        <boxGeometry args={[3.1, 0.24, 1.7]} />
-        <meshStandardMaterial color="#8c9cb3" roughness={0.6} metalness={0.4} />
+      <Suspense fallback={null}>
+        <group position={[STAND_X, -2.74, 0]} rotation={[0, Math.PI, 0]} scale={[0.97, 2, 0.85]}>
+          <KitPart name="standBase" shade={1.9} />
+        </group>
+        <group position={[STAND_X, TOP_Y + 0.22, 0]} rotation={[0, Math.PI, 0]} scale={STAND_SCALE}>
+          <KitPart name="bossHead" shade={1.6} />
+          <KitPart name="bossScrews" />
+        </group>
+      </Suspense>
+      <mesh position={[STAND_X, 0.1, 0]} castShadow>
+        <cylinderGeometry args={[0.085, 0.085, 5.2, 20]} />
+        <meshStandardMaterial color="#8d96a3" roughness={0.3} metalness={0.85} />
       </mesh>
-      <mesh position={[1.55, 0.1, 0]}>
-        <cylinderGeometry args={[0.085, 0.085, 5.2, 18]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
+      <mesh position={[STAND_X, 2.7, 0]}>
+        <sphereGeometry args={[0.085, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color="#8d96a3" roughness={0.3} metalness={0.85} />
       </mesh>
-      {/* Boss head and the arm the spring hangs from. */}
-      <mesh position={[1.55, TOP_Y + 0.22, 0]}>
-        <boxGeometry args={[0.34, 0.4, 0.34]} />
-        <meshStandardMaterial color="#2f3745" roughness={0.5} metalness={0.6} />
-      </mesh>
-      <mesh position={[0.78, TOP_Y + 0.22, 0]}>
-        <boxGeometry args={[1.6, 0.14, 0.16]} />
-        <meshStandardMaterial color="#5b6472" roughness={0.35} metalness={0.75} />
+      {/* The arm, out of the boss and back over the spring. */}
+      <mesh position={[(armFrom - 0.05) / 2, TOP_Y + 0.22, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.06, 0.06, armFrom + 0.05, 16]} />
+        <meshStandardMaterial color="#8d96a3" roughness={0.3} metalness={0.85} />
       </mesh>
       {/* The hook itself. */}
       <mesh position={[0, TOP_Y + 0.1, 0]}>

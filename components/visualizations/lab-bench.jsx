@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { PALETTE, clamp, hashRandom, lerp } from "@/components/visualizations/scene-kit";
+import { KitPart, LAB_KIT } from "@/components/visualizations/lab-kit-model";
 
 // ─── Lab bench base ─────────────────────────────────────────────────
 // The furniture and materials shared by the apparatus scenes — the
@@ -25,7 +26,11 @@ import { PALETTE, clamp, hashRandom, lerp } from "@/components/visualizations/sc
 //   burner       `BunsenBurner` — body, needle valve, rotating air
 //                collar, and a flame the caller drives every frame
 //                through a ref, so the same burner serves a fixed
-//                medium flame under a basin and a fully adjustable one;
+//                medium flame under a basin and a fully adjustable one.
+//                The stand's base, boss heads and clamp, the tripod and
+//                the burner's body are our own models from the lab kit
+//                (lab-kit-model.jsx, scripts/labkit-model); rods, arms,
+//                rings and the flame stay here, sized by their props;
 //   glassware    `ConicalFlask`, `Funnel`, `EvaporatingBasin`,
 //                `GlassJar`, `HeatShield`. Vessels that hold a liquid
 //                take a `liquidRef` the caller writes `{ fill, colour,
@@ -203,14 +208,18 @@ export function HeatMat({ position = [0, 0, 0], size = [4, 3.2] }) {
 export function RetortStand({ position = [0, 0, 0], height = 6, fittings = [], armRefs, baseAngle = 0, children }) {
   return (
     <group position={position}>
-      <group rotation={[0, baseAngle, 0]}>
-        <mesh position={[cm(5), 0.06, 0]} castShadow receiveShadow>
-          <boxGeometry args={[cm(16), 0.12, cm(10)]} />
-          <meshStandardMaterial {...DARK_STEEL} />
-        </mesh>
-      </group>
-      <mesh position={[0, 0.12 + height / 2, 0]}>
-        <cylinderGeometry args={[0.055, 0.055, height, 14]} />
+      <Suspense fallback={null}>
+        <group rotation={[0, baseAngle, 0]}>
+          <KitPart name="standBase" />
+        </group>
+      </Suspense>
+      {/* The rod, screwed into the base's boss, with a domed top. */}
+      <mesh position={[0, 0.12 + height / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.055, 0.055, height, 18]} />
+        <meshStandardMaterial {...STEEL} />
+      </mesh>
+      <mesh position={[0, 0.12 + height, 0]}>
+        <sphereGeometry args={[0.055, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshStandardMaterial {...STEEL} />
       </mesh>
       {fittings.map((f, i) => {
@@ -225,45 +234,29 @@ export function RetortStand({ position = [0, 0, 0], height = 6, fittings = [], a
               if (armRefs) armRefs.current[i] = el;
             }}
           >
-            {/* Boss head. */}
-            <mesh>
-              <boxGeometry args={[0.24, 0.3, 0.24]} />
-              <meshStandardMaterial {...DARK_STEEL} />
-            </mesh>
-            <mesh position={[0.16, 0.06, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.035, 0.035, 0.14, 8]} />
-              <meshStandardMaterial {...BRASS} />
-            </mesh>
-            {/* Arm. */}
-            <mesh position={[reach / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.04, 0.04, reach, 10]} />
+            {/* Boss head and its thumbscrews. */}
+            <Suspense fallback={null}>
+              <KitPart name="bossHead" />
+              <KitPart name="bossScrews" />
+            </Suspense>
+            {/* Arm, out of the boss's collar. */}
+            <mesh position={[(reach + 0.2) / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <cylinderGeometry args={[0.04, 0.04, reach - 0.2, 12]} />
               <meshStandardMaterial {...STEEL} />
             </mesh>
             {f.type === "ring" && (
-              <mesh position={[reach + (f.radius ?? 0.9), 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[f.radius ?? 0.9, 0.04, 8, 32]} />
+              <mesh position={[reach + (f.radius ?? 0.9), 0, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+                <torusGeometry args={[f.radius ?? 0.9, 0.04, 10, 48]} />
                 <meshStandardMaterial {...STEEL} />
               </mesh>
             )}
             {f.type === "clamp" && (
-              <group position={[reach, 0, 0]}>
-                <mesh position={[0, 0.12, 0]}>
-                  <boxGeometry args={[0.36, 0.06, 0.16]} />
-                  <meshStandardMaterial {...DARK_STEEL} />
-                </mesh>
-                <mesh position={[0, -0.12, 0]}>
-                  <boxGeometry args={[0.36, 0.06, 0.16]} />
-                  <meshStandardMaterial {...DARK_STEEL} />
-                </mesh>
-                <mesh position={[0.14, 0.12, 0]}>
-                  <boxGeometry args={[0.08, 0.06, 0.3]} />
-                  <meshStandardMaterial {...RUBBER} />
-                </mesh>
-                <mesh position={[0.14, -0.12, 0]}>
-                  <boxGeometry args={[0.08, 0.06, 0.3]} />
-                  <meshStandardMaterial {...RUBBER} />
-                </mesh>
-              </group>
+              <Suspense fallback={null}>
+                <group position={[reach, 0, 0]}>
+                  <KitPart name="clampSteel" />
+                  <KitPart name="clampCork" />
+                </group>
+              </Suspense>
             )}
           </group>
         );
@@ -280,44 +273,75 @@ export function RetortStand({ position = [0, 0, 0], height = 6, fittings = [], a
  */
 export const TRIPOD_TOP_CLEARANCE = 0.075;
 
-/** A tripod with a wire gauze and its ceramic centre — where a basin or beaker sits. */
+/**
+ * A tripod (our own model: a flat steel ring on three splayed legs) with a
+ * wire gauze and its ceramic centre — where a basin or beaker sits. The
+ * legs are scaled to `height`; the ring's top is at `height`.
+ */
 export function Tripod({ position = [0, 0, 0], height = 2.2, gauze = true }) {
-  const legs = [0, 120, 240];
-  const r = cm(5.4);
+  const wire = useGauzeTexture();
   return (
     <group position={position}>
-      {legs.map((deg) => {
-        const a = (deg * Math.PI) / 180;
-        const x = Math.cos(a) * r;
-        const z = Math.sin(a) * r;
-        return (
-          <mesh key={deg} position={[x * 0.72, height / 2, z * 0.72]} rotation={[z * 0.09, 0, -x * 0.09]}>
-            <cylinderGeometry args={[0.045, 0.045, height, 10]} />
-            <meshStandardMaterial {...STEEL} />
-          </mesh>
-        );
-      })}
-      <mesh position={[0, height, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[cm(4.6), 0.045, 8, 30]} />
-        <meshStandardMaterial {...STEEL} />
-      </mesh>
+      <Suspense fallback={null}>
+        <group position={[0, height, 0]}>
+          <KitPart name="tripodRing" />
+          {LAB_KIT.tripod.legAngles.map((a) => (
+            <group key={a} position={[Math.cos(a) * LAB_KIT.tripod.legRadius, 0, Math.sin(a) * LAB_KIT.tripod.legRadius]} rotation={[0, -a, 0]} scale={[1, height, 1]}>
+              <KitPart name="tripodLeg" />
+            </group>
+          ))}
+        </group>
+      </Suspense>
       {gauze && (
         <>
-          {/* The gauze sits ON the ring (clear of the torus), and its ceramic
-              centre is a disc with thickness above it. Two planes 0.01 apart
-              used to fight each other at any distance. */}
-          <mesh position={[0, height + 0.05, 0]}>
+          {/* The gauze sits ON the ring (clear of it), and its ceramic centre
+              is a disc with thickness above it. Two planes 0.01 apart used to
+              fight each other at any distance. */}
+          <mesh position={[0, height + 0.05, 0]} receiveShadow>
             <boxGeometry args={[cm(11), 0.012, cm(11)]} />
-            <meshStandardMaterial color="#8a93a0" roughness={0.85} metalness={0.3} />
+            <meshStandardMaterial color="#9aa3ae" roughness={0.6} metalness={0.6} map={wire} alphaMap={wire} alphaTest={0.35} transparent={false} />
           </mesh>
-          <mesh position={[0, height + 0.065, 0]}>
-            <cylinderGeometry args={[cm(3.2), cm(3.2), 0.02, 28]} />
-            <meshStandardMaterial color="#e2dfd9" roughness={0.95} />
+          <mesh position={[0, height + 0.065, 0]} receiveShadow>
+            <cylinderGeometry args={[cm(3.2), cm(3.3), 0.02, 40]} />
+            <meshStandardMaterial color="#e2dfd9" roughness={0.97} />
           </mesh>
         </>
       )}
     </group>
   );
+}
+
+/** A woven wire square: the gauze's texture, also its alpha (the holes). */
+function useGauzeTexture() {
+  const texture = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 256;
+    const g = c.getContext("2d");
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = "#fff";
+    g.lineWidth = 3;
+    for (let k = 0; k <= 256; k += 16) {
+      g.beginPath();
+      g.moveTo(k, 0);
+      g.lineTo(k, 256);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(0, k);
+      g.lineTo(256, k);
+      g.stroke();
+    }
+    // a crimped border all round
+    g.lineWidth = 14;
+    g.strokeRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    return t;
+  }, []);
+  useEffect(() => () => texture?.dispose(), [texture]);
+  return texture;
 }
 
 // ─── The burner ─────────────────────────────────────────────────────
@@ -567,88 +591,23 @@ export function BunsenBurner({ position = [0, 0, 0], collar = 0.2, flameRef, ani
     }
   });
 
-  const holeAngles = [0, 90, 180, 270];
-
   return (
     <group position={position}>
-      {/* Base. */}
-      <mesh position={[0, BURNER.baseHeight / 2, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[BURNER.baseRadius * 0.82, BURNER.baseRadius, BURNER.baseHeight, 28]} />
-        <meshStandardMaterial {...DARK_STEEL} />
-      </mesh>
-      {/* Gas inlet and needle valve, on the side of the base. */}
-      <mesh position={[-BURNER.baseRadius * 0.55, BURNER.baseHeight + 0.09, cm(2.2)]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.07, 0.07, cm(4.5), 10]} />
-        <meshStandardMaterial {...BRASS} />
-      </mesh>
-      <mesh position={[-BURNER.baseRadius * 0.55, BURNER.baseHeight + 0.09, cm(4.8)]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.09, 0.06, 0.28, 10]} />
-        <meshStandardMaterial {...BRASS} />
-      </mesh>
-      {/* Needle valve: a knurled wheel on the far side that opens with the gas. */}
-      <group position={[BURNER.baseRadius * 0.7, BURNER.baseHeight + 0.1, 0]} rotation={[0, 0, valveOpen ? 0 : Math.PI / 2]}>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.16, 0.16, 0.08, 16]} />
-          <meshStandardMaterial {...BRASS} />
-        </mesh>
-        <mesh position={[0.05, 0, 0]}>
-          <boxGeometry args={[0.04, 0.3, 0.06]} />
-          <meshStandardMaterial {...DARK_STEEL} />
-        </mesh>
-      </group>
-      {/* Barrel. */}
-      <mesh position={[0, BURNER.baseHeight + BURNER.barrelHeight / 2, 0]} castShadow>
-        <cylinderGeometry args={[BURNER.barrelRadius, BURNER.barrelRadius * 1.08, BURNER.barrelHeight, 20]} />
-        <meshStandardMaterial {...STEEL} />
-      </mesh>
-      {/* Air holes in the barrel, fixed. */}
-      {holeAngles.map((deg) => {
-        const a = (deg * Math.PI) / 180;
-        return (
-          <mesh
-            key={deg}
-            position={[Math.cos(a) * BURNER.barrelRadius * 1.02, BURNER.baseHeight + BURNER.collarY + BURNER.collarHeight * 0.5, Math.sin(a) * BURNER.barrelRadius * 1.02]}
-            rotation={[0, -a + Math.PI / 2, 0]}
-          >
-            <circleGeometry args={[0.07, 12]} />
-            <meshBasicMaterial color="#0b0e14" side={THREE.DoubleSide} />
-          </mesh>
-        );
-      })}
-      {/* The collar: a brass sleeve with matching holes, turned by the slider. */}
-      <group position={[0, BURNER.baseHeight + BURNER.collarY + BURNER.collarHeight / 2, 0]} rotation={[0, (1 - open) * (Math.PI / 4), 0]}>
-        <mesh>
-          <cylinderGeometry args={[BURNER.collarRadius, BURNER.collarRadius, BURNER.collarHeight, 24, 1, true]} />
-          <meshStandardMaterial {...BRASS} side={THREE.DoubleSide} />
-        </mesh>
-        <mesh position={[0, BURNER.collarHeight / 2, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[BURNER.collarRadius, 0.025, 8, 24]} />
-          <meshStandardMaterial {...BRASS} />
-        </mesh>
-        <mesh position={[0, -BURNER.collarHeight / 2, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[BURNER.collarRadius, 0.025, 8, 24]} />
-          <meshStandardMaterial {...BRASS} />
-        </mesh>
-        {holeAngles.map((deg) => {
-          const a = (deg * Math.PI) / 180;
-          return (
-            <mesh key={deg} position={[Math.cos(a) * BURNER.collarRadius * 1.01, 0, Math.sin(a) * BURNER.collarRadius * 1.01]} rotation={[0, -a + Math.PI / 2, 0]}>
-              <circleGeometry args={[0.075, 12]} />
-              <meshBasicMaterial color={open > 0.5 ? "#0b0e14" : "#2a2418"} side={THREE.DoubleSide} />
-            </mesh>
-          );
-        })}
-        {/* A grip tab so the rotation reads. */}
-        <mesh position={[BURNER.collarRadius + 0.06, 0, 0]}>
-          <boxGeometry args={[0.14, BURNER.collarHeight * 0.7, 0.08]} />
-          <meshStandardMaterial {...BRASS} />
-        </mesh>
-      </group>
-      {/* Mouth rim. */}
-      <mesh position={[0, BURNER_MOUTH_Y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[BURNER.barrelRadius, 0.03, 8, 20]} />
-        <meshStandardMaterial {...DARK_STEEL} />
-      </mesh>
+      {/* Our own model: a cast base, steel barrel with its air holes, brass
+          gas inlet (its barb toward -x, where the hose goes on), a needle
+          valve wheel, and the air collar the slider turns: its holes line
+          up with the barrel's when it is fully open. */}
+      <Suspense fallback={null}>
+        <KitPart name="burnerBase" />
+        <KitPart name="burnerBarrel" />
+        <KitPart name="burnerInlet" />
+        <group position={LAB_KIT.burner.valveAt} rotation={[valveOpen ? 0 : Math.PI / 2, 0, 0]}>
+          <KitPart name="burnerValve" />
+        </group>
+        <group position={[0, LAB_KIT.burner.collarY, 0]} rotation={[0, (1 - open) * (Math.PI / 2), 0]}>
+          <KitPart name="burnerCollar" />
+        </group>
+      </Suspense>
 
       {/* The flame: an envelope and a core, each one shell rebuilt every
           frame, self-lit and graded in colour and alpha up its height; and

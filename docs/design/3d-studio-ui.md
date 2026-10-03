@@ -122,4 +122,15 @@ Lab scenes opt into `SceneCanvas`'s `environment`, a procedural studio that meta
 - **Glass** stays transparent and glossy (opacity ≤ 0.6, roughness ≤ 0.35), so it is picked up as glass and catches the softboxes as highlights.
 - **Damp, don't brighten:** a broad flat metal top (a brushed-aluminium bench inlay) or a body of liquid mirrors the studio's overhead and washes out. Give its material `userData={{ envReflect: 0.3 }}` (liquids 0.35, a liquid metal 1).
 - **Light rooms:** a scene set in a bright room passes `environment={{ tone: "light" }}`, so chrome mirrors a pale room rather than a dark floor.
+- **Lab kit finishes (`lab-kit-model.jsx`):** the modelled apparatus carries its colour in vertex colours and takes one of these finishes:
+  - painted cast iron: roughness 0.55, metalness 0.3; hammertone blue-grey `(0.30, 0.34, 0.41)`
+  - enamel: roughness 0.42, metalness 0.15
+  - steel: roughness 0.3, metalness 0.85
+  - brass: roughness 0.3, metalness 0.9
+  - lead: roughness 0.62, metalness 0.45
+  - cork: roughness 0.9
+  - plastic: roughness 0.45, metalness 0.05
+  - porcelain: roughness 0.22
+  - glass: roughness 0.04, opacity 0.2, double-sided, no depth write
+  - Binding-post caps are white and tinted by the `color` prop.
 

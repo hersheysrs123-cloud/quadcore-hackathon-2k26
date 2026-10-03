@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -10,6 +10,8 @@ import {
   clamp,
   hashRandom,
 } from "@/components/visualizations/scene-kit";
+import { Tripod as LabTripod } from "@/components/visualizations/lab-bench";
+import { KitPart, LAB_KIT } from "@/components/visualizations/lab-kit-model";
 import {
   AMBIENT_C,
   LOOP_LENGTH,
@@ -81,6 +83,14 @@ const ROD_NODES = 18;
 /** Where the blackened plate stands: 15 cm from the flame, touching nothing. */
 const PLATE_X = -cm(15);
 const FLAME_Y = BENCH_Y + 1.3;
+/** The lab kit's burner stands taller than this scene's: squash it to the flame's height. */
+const BURNER_SQUASH = (FLAME_Y - BENCH_Y) / LAB_KIT.burner.mouthY;
+/** The burner's inlet barb, where the hose goes on (the burner is turned to face the tap). */
+const INLET_TIP = [-LAB_KIT.burner.inletTip[0], BENCH_Y + LAB_KIT.burner.inletTip[1] * BURNER_SQUASH, 0];
+/** The bench gas turret, its nozzle turned toward the burner. */
+const TAP_AT = [2.1, BENCH_Y, -1.6];
+const TAP_SCALE = 1.2;
+const TAP_TURN = Math.atan2(-0.6, -0.8);
 
 const WAX_POSITIONS = [0.3, 0.5, 0.7, 0.88];
 
@@ -441,16 +451,21 @@ function Bench({ intensity }) {
  * being done rather than a number that changed.
  */
 function GasSupply({ intensity }) {
+  const nozzle = [
+    TAP_AT[0] + Math.cos(TAP_TURN) * 0.4 * TAP_SCALE,
+    TAP_AT[1] + 0.42 * TAP_SCALE,
+    TAP_AT[2] - Math.sin(TAP_TURN) * 0.4 * TAP_SCALE,
+  ];
   const hose = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(2.1, BENCH_Y + 0.25, -1.55),
-      new THREE.Vector3(1.75, BENCH_Y + 0.08, -0.95),
+      new THREE.Vector3(...nozzle),
+      new THREE.Vector3(1.45, BENCH_Y + 0.12, -0.95),
       new THREE.Vector3(1.05, BENCH_Y + 0.07, -0.4),
-      new THREE.Vector3(0.4, BENCH_Y + 0.1, -0.05),
-      new THREE.Vector3(cm(0.95) + 0.03, BENCH_Y + 0.34, 0),
+      new THREE.Vector3(INLET_TIP[0] + 0.32, INLET_TIP[1] - 0.03, -0.03),
+      new THREE.Vector3(INLET_TIP[0] - 0.08, INLET_TIP[1], 0),
     ]);
-    return new THREE.TubeGeometry(curve, 40, 0.055, 8, false);
-  }, []);
+    return new THREE.TubeGeometry(curve, 48, 0.055, 10, false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => hose.dispose(), [hose]);
 
   const open = clamp(intensity / 100, 0, 1);
@@ -459,21 +474,17 @@ function GasSupply({ intensity }) {
       <mesh geometry={hose}>
         <meshStandardMaterial color="#5b6b82" roughness={0.75} />
       </mesh>
-      <mesh position={[2.1, BENCH_Y + 0.3, -1.6]}>
-        <boxGeometry args={[0.34, 0.6, 0.34]} />
-        <meshStandardMaterial color="#c6a25a" roughness={0.35} metalness={0.6} />
-      </mesh>
-      <mesh position={[2.1, BENCH_Y + 0.72, -1.6]}>
-        <cylinderGeometry args={[0.07, 0.07, 0.24, 10]} />
-        <meshStandardMaterial color="#c6a25a" roughness={0.35} metalness={0.6} />
-      </mesh>
-      {/* The knob: a lever that swings from crosswise (shut) to in-line (open). */}
-      <group position={[2.1, BENCH_Y + 0.86, -1.6]} rotation={[0, open * (Math.PI / 2), 0]}>
-        <mesh>
-          <boxGeometry args={[0.62, 0.08, 0.1]} />
-          <meshStandardMaterial color={open > 0.02 ? "#f59e0b" : "#ef4444"} roughness={0.5} />
-        </mesh>
-      </group>
+      {/* Our own bench gas turret (lab kit); the lever lies in line with the
+          nozzle when open and turns across it when shut. */}
+      <Suspense fallback={null}>
+        <group position={TAP_AT} rotation={[0, TAP_TURN, 0]} scale={TAP_SCALE}>
+          <KitPart name="gasTurret" />
+          <KitPart name="gasValve" />
+          <group position={[0, 0.72, 0]} rotation={[0, (1 - open) * (Math.PI / 2), 0]}>
+            <KitPart name="gasLever" />
+          </group>
+        </group>
+      </Suspense>
       <SceneLabel position={[2.1, BENCH_Y + 1.35, -1.6]} tone="text-ink-400">
         {open > 0.02 ? "gas tap · open" : "gas tap · shut"}
       </SceneLabel>
@@ -521,29 +532,21 @@ function BunsenBurner({ modelRef, animSpeed = 1 }) {
 
   return (
     <group position={[0, 0, 0]}>
-      {/* Base, barrel and the air collar that decides the flame's colour. */}
-      <mesh position={[0, BENCH_Y + 0.09, 0]}>
-        <cylinderGeometry args={[cm(3.4), cm(4), 0.18, 24]} />
-        <meshStandardMaterial color="#8593a8" roughness={0.5} metalness={0.55} />
-      </mesh>
-      <mesh position={[0, (BENCH_Y + FLAME_Y) / 2, 0]}>
-        <cylinderGeometry args={[cm(0.75), cm(0.9), FLAME_Y - BENCH_Y, 20]} />
-        <meshStandardMaterial color="#8593a8" roughness={0.35} metalness={0.8} />
-      </mesh>
-      <mesh position={[0, BENCH_Y + 0.55, 0]}>
-        <cylinderGeometry args={[cm(1.1), cm(1.1), 0.26, 20]} />
-        <meshStandardMaterial color="#b9c4d4" roughness={0.3} metalness={0.85} />
-      </mesh>
-      {/* The air hole in the collar — the thing that turns the flame blue. */}
-      <mesh position={[0, BENCH_Y + 0.55, cm(1.1) + 0.005]}>
-        <planeGeometry args={[0.13, 0.13]} />
-        <meshBasicMaterial color="#1e293b" />
-      </mesh>
-      {/* The needle valve at the base, where the hose joins. */}
-      <mesh position={[cm(0.95) + 0.05, BENCH_Y + 0.34, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.085, 0.085, 0.16, 12]} />
-        <meshStandardMaterial color="#c6a25a" roughness={0.35} metalness={0.6} />
-      </mesh>
+      {/* Our own burner (lab kit), squashed to this scene's flame height and
+          turned so its inlet faces the gas tap; the collar fully open. */}
+      <Suspense fallback={null}>
+        <group position={[0, BENCH_Y, 0]} rotation={[0, Math.PI, 0]} scale={[1, BURNER_SQUASH, 1]}>
+          <KitPart name="burnerBase" />
+          <KitPart name="burnerBarrel" />
+          <KitPart name="burnerInlet" />
+          <group position={LAB_KIT.burner.valveAt}>
+            <KitPart name="burnerValve" />
+          </group>
+          <group position={[0, LAB_KIT.burner.collarY, 0]}>
+            <KitPart name="burnerCollar" />
+          </group>
+        </group>
+      </Suspense>
 
       {/* Unit-height cones, scaled in the frame loop. */}
       <mesh ref={outer} position={[0, FLAME_Y, 0]}>
@@ -575,34 +578,12 @@ function BunsenBurner({ modelRef, animSpeed = 1 }) {
   );
 }
 
+/** The shared lab tripod and gauze, its ceramic centre just under the beaker's base. */
 function Tripod() {
-  const legs = [0, 120, 240];
+  // The lab kit is built to 2 mm a unit; this scene runs at 2.3 mm.
   return (
-    <group>
-      {legs.map((a) => {
-        const r = cm(5.4);
-        const x = Math.cos(a * DEG) * r;
-        const z = Math.sin(a * DEG) * r;
-        return (
-          <mesh key={a} position={[x * 0.72, (BENCH_Y + 0) / 2, z * 0.72]} rotation={[z * 0.09, 0, -x * 0.09]}>
-            <cylinderGeometry args={[0.045, 0.045, Math.abs(BENCH_Y), 10]} />
-            <meshStandardMaterial color="#8593a8" roughness={0.4} metalness={0.75} />
-          </mesh>
-        );
-      })}
-      <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[cm(4.6), 0.045, 8, 30]} />
-        <meshStandardMaterial color="#8593a8" roughness={0.4} metalness={0.75} />
-      </mesh>
-      {/* Ceramic-centred gauze — what actually spreads the flame. */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[cm(11), cm(11)]} />
-        <meshStandardMaterial color="#a4afbf" roughness={0.85} metalness={0.2} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[cm(3.2), 24]} />
-        <meshStandardMaterial color="#d6d3ce" roughness={0.95} side={THREE.DoubleSide} />
-      </mesh>
+    <group scale={[S / 0.2, 1, S / 0.2]}>
+      <LabTripod position={[0, BENCH_Y, 0]} height={-BENCH_Y - 0.02} />
     </group>
   );
 }

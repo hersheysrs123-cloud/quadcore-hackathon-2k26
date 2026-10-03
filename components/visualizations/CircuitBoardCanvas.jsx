@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import { Html, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -16,6 +16,7 @@ import {
   makeFlowPath,
 } from "@/components/visualizations/charge-carriers";
 import { buildConductors, driftSpeed, filamentHeat, solveCircuit } from "@/lib/circuits";
+import { KitPart } from "@/components/visualizations/lab-kit-model";
 
 // ─── Series and parallel circuits on a 3D breadboard ────────────────
 // Two bulbs, a pack of cells and a switch, laid out flat so the topology is
@@ -62,10 +63,7 @@ const COPPER = CHARGE_COLOURS.copper;
 const BOARD_TONE = "#cfd6e1";
 const BOARD_SKIRT = "#7f8b9e";
 const HOLE_TONE = "#8e99aa";
-const PORCELAIN = "#e8ebf1";
-const HOUSING = "#dde2ea";
 const BRASS = "#c9a25f";
-const STEEL = "#cbd5e1";
 
 /**
  * Filament colour against a 0–1 heat.
@@ -297,23 +295,12 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
 
   return (
     <group position={position}>
-      {/* Porcelain base plate, with its two mounting screws. */}
-      <mesh position={[0, 0.016, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.31, 0.34, 0.032, 30]} />
-        <meshStandardMaterial color={PORCELAIN} roughness={0.5} metalness={0.05} />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 0.25, 0.036, 0]}>
-          <cylinderGeometry args={[0.028, 0.028, 0.012, 10]} />
-          <meshStandardMaterial color="#7d8797" roughness={0.4} metalness={0.8} />
-        </mesh>
-      ))}
-
-      {/* Socket, always on the board: a ceramic barrel the colour bands read against. */}
-      <mesh position={[0, 0.15, 0]} castShadow>
-        <cylinderGeometry args={[0.17, 0.2, 0.26, 24]} />
-        <meshStandardMaterial color={PORCELAIN} roughness={0.42} metalness={0.05} />
-      </mesh>
+      {/* The lampholder (lab kit): a porcelain plate with its two screws, the
+          socket barrel the colour bands read against, and the contact ring
+          the bulb's thread sits in. */}
+      <Suspense fallback={null}>
+        <KitPart name="bulbHolder" />
+      </Suspense>
       {showBands &&
         bands.map((c, i) => (
           <mesh key={i} position={[0, 0.075 + i * 0.062, 0]}>
@@ -321,30 +308,15 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
             <meshStandardMaterial color={c} roughness={0.5} metalness={0.15} />
           </mesh>
         ))}
-      {/* The contact ring the bulb's screw thread sits in. */}
-      <mesh position={[0, 0.285, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.16, 0.022, 8, 24]} />
-        <meshStandardMaterial color="#9aa3b2" roughness={0.35} metalness={0.9} />
-      </mesh>
 
       {/* The bulb itself. */}
       <group position={[removed ? 0.5 : 0, 0.28 + lift, 0]} rotation={[0, 0, tilt]}>
-        {/* Brass screw base. */}
-        <mesh position={[0, 0.09, 0]} castShadow>
-          <cylinderGeometry args={[0.14, 0.15, 0.18, 20]} />
-          <meshStandardMaterial color={BRASS} roughness={0.36} metalness={0.9} />
-        </mesh>
-        {[0, 1, 2].map((i) => (
-          <mesh key={i} position={[0, 0.04 + i * 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.147, 0.013, 6, 20]} />
-            <meshStandardMaterial color="#8a6c3f" roughness={0.45} metalness={0.9} />
-          </mesh>
-        ))}
-        {/* The dark tip of the base, where the bottom contact is. */}
-        <mesh position={[0, -0.005, 0]}>
-          <cylinderGeometry args={[0.05, 0.06, 0.02, 12]} />
-          <meshStandardMaterial color="#3a3f4a" roughness={0.5} metalness={0.6} />
-        </mesh>
+        {/* The bulb (lab kit): a rolled brass screw cap with its insulated
+            contact, the glass stem and lead-in wires, and the envelope. */}
+        <Suspense fallback={null}>
+          <KitPart name="bulbBase" />
+          <KitPart name="bulbWires" />
+        </Suspense>
 
         {/* Filament — visible through the glass, and the whole point. */}
         <mesh position={[0, 0.36, 0]}>
@@ -357,34 +329,9 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
             roughness={0.4}
           />
         </mesh>
-        {/* Glass stem and the support wires from the base up to the filament. */}
-        <mesh position={[0, 0.24, 0]}>
-          <cylinderGeometry args={[0.022, 0.03, 0.14, 8]} />
-          <meshStandardMaterial color="#dfeaf5" transparent opacity={0.55} roughness={0.15} />
-        </mesh>
-        {[-0.05, 0.05].map((x) => (
-          <mesh key={x} position={[x, 0.26, 0]}>
-            <cylinderGeometry args={[0.008, 0.008, 0.16, 6]} />
-            <meshStandardMaterial color="#9aa3b2" roughness={0.4} metalness={0.8} />
-          </mesh>
-        ))}
-
-        {/* Glass envelope, with a small glint so it reads as glass on a light board. */}
-        <mesh position={[0, 0.38, 0]}>
-          <sphereGeometry args={[0.235, 26, 20]} />
-          <meshStandardMaterial
-            color="#d5e6f7"
-            transparent
-            opacity={0.2}
-            roughness={0.05}
-            metalness={0.05}
-            depthWrite={false}
-          />
-        </mesh>
-        <mesh position={[-0.1, 0.5, 0.13]}>
-          <sphereGeometry args={[0.04, 10, 10]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.55} depthWrite={false} />
-        </mesh>
+        <Suspense fallback={null}>
+          <KitPart name="bulbGlass" />
+        </Suspense>
 
         {!removed && bulb?.lit && (
           <>
@@ -411,58 +358,26 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
   );
 }
 
-/** A binding post: brass foot, coloured cap, knurled ring — where a wire clamps on. */
+/** A binding post (lab kit): brass foot and stud, a knurled cap in its colour — where a wire clamps on. */
 function BindingPost({ position, colour, glow = 0 }) {
   return (
     <group position={position}>
-      <mesh position={[0, 0.03, 0]} castShadow>
-        <cylinderGeometry args={[0.15, 0.16, 0.06, 20]} />
-        <meshStandardMaterial color={BRASS} roughness={0.32} metalness={0.9} />
-      </mesh>
-      <mesh position={[0, 0.19, 0]} castShadow>
-        <cylinderGeometry args={[0.085, 0.095, 0.26, 18]} />
-        <meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={glow} roughness={0.35} metalness={0.1} />
-      </mesh>
-      {[0.11, 0.15, 0.19].map((y) => (
-        <mesh key={y} position={[0, y + 0.1, 0]}>
-          <cylinderGeometry args={[0.1, 0.1, 0.018, 18]} />
-          <meshStandardMaterial color="#1f2733" roughness={0.6} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0.34, 0]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.04, 14]} />
-        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
-      </mesh>
+      <Suspense fallback={null}>
+        <KitPart name="postMetal" />
+        <KitPart name="postCap" color={colour} emissive={colour} emissiveIntensity={glow} />
+      </Suspense>
     </group>
   );
 }
 
-/** One AA cell lying along x: a foil wrapper with a dark band, a raised + nub and a flat − end. */
+/** One AA cell lying along x (lab kit): its printed wrapper, crimped steel can, and the raised + nub toward +x. */
 function Cell({ position }) {
   return (
     <group position={position}>
-      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[0.16, 0.16, 0.76, 28]} />
-        <meshStandardMaterial color="#e7b84a" roughness={0.32} metalness={0.55} />
-      </mesh>
-      {/* Label band. */}
-      <mesh position={[-0.04, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.1615, 0.1615, 0.3, 28]} />
-        <meshStandardMaterial color="#2a303c" roughness={0.5} metalness={0.3} />
-      </mesh>
-      {/* Steel end caps; the + one is raised. */}
-      <mesh position={[-0.385, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.15, 0.16, 0.03, 24]} />
-        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
-      </mesh>
-      <mesh position={[0.385, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.16, 0.15, 0.03, 24]} />
-        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
-      </mesh>
-      <mesh position={[0.42, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.065, 0.065, 0.05, 14]} />
-        <meshStandardMaterial color={STEEL} roughness={0.2} metalness={0.95} />
-      </mesh>
+      <Suspense fallback={null}>
+        <KitPart name="cellWrap" />
+        <KitPart name="cellSteel" />
+      </Suspense>
     </group>
   );
 }
@@ -471,29 +386,17 @@ function Cell({ position }) {
 function BatteryPack({ volts, current, overCurrent }) {
   return (
     <group position={[0, 0, BATTERY_Z]}>
-      {/* Holder: a light body with a recessed tray the cells lie in. */}
-      <RoundedBox args={[2.3, 0.3, 0.9]} radius={0.06} smoothness={3} position={[0, 0.15, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={HOUSING} roughness={0.55} metalness={0.05} />
-      </RoundedBox>
-      <mesh position={[0, 0.305, 0]}>
-        <boxGeometry args={[1.9, 0.014, 0.62]} />
-        <meshStandardMaterial color="#c3cad6" roughness={0.7} />
-      </mesh>
-      {/* Retaining lip along the front of the tray. */}
-      <mesh position={[0, 0.34, 0.36]}>
-        <boxGeometry args={[1.9, 0.07, 0.04]} />
-        <meshStandardMaterial color={HOUSING} roughness={0.55} />
-      </mesh>
+      {/* The holder (lab kit): a moulded body with the cradle walls the cells
+          lie between, a coil spring at each cell's − end and a tab at its +. */}
+      <Suspense fallback={null}>
+        <KitPart name="batteryHolder" />
+        <KitPart name="batteryContacts" />
+      </Suspense>
 
       {/* Cells, wired end to end: one cell's + nub meets the next one's − end. */}
       {[-0.42, 0.42].map((x) => (
         <Cell key={x} position={[x, 0.42, 0]} />
       ))}
-      {/* The strip that carries the current from the first cell across to the second. */}
-      <mesh position={[0, 0.42, 0]}>
-        <boxGeometry args={[0.1, 0.05, 0.05]} />
-        <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.9} />
-      </mesh>
 
       {/* Polarity moulded into the holder beside each terminal. */}
       <PolarityMark position={[TERMINAL_X, 0.32, -0.34]} plus colour="#c0392b" />
@@ -519,35 +422,14 @@ function BatteryPack({ volts, current, overCurrent }) {
 function KnifeSwitch({ position }) {
   return (
     <group position={position}>
-      <RoundedBox args={[0.44, 0.09, 0.86]} radius={0.03} smoothness={2} position={[0, 0.045, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#efe6d2" roughness={0.5} />
-      </RoundedBox>
-      {/* Hinge jaw and contact jaw, and the copper each is fed by. */}
-      {[-0.3, 0.3].map((z) => (
-        <group key={z} position={[0, 0, z]}>
-          <mesh position={[0, 0.13, 0]} castShadow>
-            <boxGeometry args={[0.13, 0.15, 0.1]} />
-            <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.9} />
-          </mesh>
-          <mesh position={[0, 0.2, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.03, 0.03, 0.15, 10]} />
-            <meshStandardMaterial color="#8a6c3f" roughness={0.4} metalness={0.9} />
-          </mesh>
-        </group>
-      ))}
-      {/* The blade, closed across both jaws, and its handle. */}
-      <mesh position={[0, 0.2, 0]} castShadow>
-        <boxGeometry args={[0.06, 0.04, 0.62]} />
-        <meshStandardMaterial color={STEEL} roughness={0.25} metalness={0.95} />
-      </mesh>
-      <mesh position={[0, 0.3, -0.24]}>
-        <cylinderGeometry args={[0.04, 0.05, 0.16, 12]} />
-        <meshStandardMaterial color="#1b2230" roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.39, -0.24]}>
-        <sphereGeometry args={[0.065, 14, 12]} />
-        <meshStandardMaterial color="#1b2230" roughness={0.45} />
-      </mesh>
+      {/* Our own model (lab kit): porcelain base, brass hinge and contact
+          jaws on their copper, the steel blade closed across them, and its
+          insulated handle. */}
+      <Suspense fallback={null}>
+        <KitPart name="switchBase" />
+        <KitPart name="switchMetal" />
+        <KitPart name="switchHandle" />
+      </Suspense>
       <SceneLabel position={[0, 0.62, 0]} tone="text-ink-400">switch · closed</SceneLabel>
     </group>
   );
@@ -558,25 +440,11 @@ function Meter({ position, value, unit, label, tone = "amber", warn = false }) {
   const face = warn ? "#fb7185" : tone === "sky" ? "#7dd3fc" : "#fcd34d";
   return (
     <group position={position}>
-      <RoundedBox args={[0.8, 0.2, 0.52]} radius={0.035} smoothness={3} position={[0, 0.1, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={HOUSING} roughness={0.5} metalness={0.1} />
-      </RoundedBox>
-      {/* Bezel, then the dark LCD sunk into it. */}
-      <mesh position={[0, 0.203, 0]}>
-        <boxGeometry args={[0.68, 0.012, 0.4]} />
-        <meshStandardMaterial color="#2b3444" roughness={0.5} metalness={0.3} />
-      </mesh>
-      <mesh position={[0, 0.21, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.6, 0.32]} />
-        <meshStandardMaterial color="#07100c" roughness={0.9} />
-      </mesh>
-      {/* Two input sockets along the back edge. */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 0.22, 0.2, -0.235]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.035, 0.035, 0.03, 12]} />
-          <meshStandardMaterial color={s > 0 ? "#d9483a" : "#1f2733"} roughness={0.4} />
-        </mesh>
-      ))}
+      {/* Our own case (lab kit): bezel, the dark LCD sunk into it, and two
+          input sockets along the back edge. The reading is drawn below. */}
+      <Suspense fallback={null}>
+        <KitPart name="meterCase" />
+      </Suspense>
       <Html position={[0, 0.24, 0]} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
         <div className="flex flex-col items-center">
           <span

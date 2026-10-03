@@ -47,14 +47,12 @@
       - Graph Chrome: Midnight backing plate (`#0d121c` at $0.88$ opacity, border `#363d54`), horizontal center voltage zero line (`#525e76`), peak threshold dashed limit lines (`#334155`), and real-time scrolling sinusoidal trace in vibrant sky blue (`#38bdf8`, lineWidth 2.4).
       - Title & Scale Labels: Prominent title mounted above the graph grid at `position={[0, TRACE.height + 0.35, 0]}` ($Y = 5.25$, `#f8fafc`, font-bold), with dynamic peak voltage indicator ($\pm V_{\text{peak}}\text{ V}$).
     - **Laboratory Center-Zero Galvanometer (`LaboratoryGalvanometer`)**:
-      - Chassis: Anodized slate aluminum enclosure (`#334155`, roughness 0.4, metalness 0.6).
-      - Bezel & Dial: Polished chrome front bezel (`#e2e8f0`, metalness 0.9) with porcelain white dial face (`#f8fafc`, roughness 0.8).
+      - Case and Bezel: our own model (lab kit `galvoCase`, `galvoBezel`): a black moulded case on a plinth with red and black terminal posts, and a chrome bezel round the porcelain white dial face (`#f8fafc`, roughness 0.8).
       - Scale & Ticks: Center zero arc with graduation marks (`#64748b` / `#475569`, lineWidth 1.8), "+ / −" polarity markings, and brass center pivot cap (`#fbbf24`).
       - Needle: High-visibility pivoted red needle (`#ef4444`, emissive `#ef4444` at 0.90) dynamically tracking instantaneous e.m.f. with angular damping.
       - Stationary Anchor: Permanently positioned at $X = -1.3, Y = -3.30, Z = 1.35$ (right edge at $X = -0.2$), balanced beside the light bulb with fixed wiring leads.
     - **Demonstration Incandescent Light Bulb (`DemonstrationBulb`)**:
-      - Socket Base: Ivory ceramic insulator block (`#f8fafc`, roughness 0.3) with threaded brass screw collar (`#d97706`, metalness 0.85, roughness 0.20) and brass binding posts (`#fbbf24`), standing upright on the bench in the foreground at fixed coordinates $X = 1.8, Y = -3.30, Z = 1.35$.
-      - Glass Envelope: Blown glass envelope with physical transmission (`color: "#ffffff"`, transmission 0.88, roughness 0.12, opacity 0.38, ior 1.5).
+      - Holder, Cap and Envelope: our own model (lab kit `lampHolder`, `lampCap`, `lampGlass`): a porcelain batten holder with two brass terminal screws, a brass bayonet cap, and a blown GLS envelope (glass finish), standing on the bench at $X = 1.8, Y = -3.30, Z = 1.35$.
       - Filament: Tungsten hairpin loop with perceptual non-linear voltage power scaling $\text{power} = \operatorname{clamp}((|\mathcal{E}| / V_{\text{rated}})^{1.6}, 0, 2.8)$ ($V_{\text{rated}} = 115\text{ V}$ generator, $85\text{ V}$ solenoid). Ramps dynamically from cold gray (`#64748b`) when unpowered to radiant orange (`#ea580c`), glowing gold, and brilliant incandescent white-hot (`#fef08a`, emissive intensity up to $7.5$) with localized `<pointLight>` intensity scaling from $0$ up to $9.0$ lumens.
     - **Lowered Laboratory Bench & Fixed Meter Anchoring (`LaboratoryBench`)**:
       - Elevation: Baseplate lowered to $Y = -3.48$ (tabletop surface flush at $Y = -3.30$, thickness $0.36$), bevelled edge molding (`#94a3b8`), and grounded rubber feet extending down to $Y = -3.70$.

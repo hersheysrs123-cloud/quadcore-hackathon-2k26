@@ -1256,7 +1256,7 @@ function renderTopicDetailsReadout(topic, params) {
             { color: PALETTE.emerald, shape: "square", label: "Induced field B", note: "Opposes ΔΦ; the end it leaves from is an induced north pole" },
             { color: "#38bdf8", shape: "dash", label: "Field Lines B", note: "Arrowed from N to S outside the magnet" },
             { color: "#fef08a", shape: "dot", label: "Demonstration Light Bulb", note: "Incandescent filament glow (P ∝ ε²)" },
-            { color: "#334155", shape: "square", label: "Center-Zero Galvanometer", note: "Deflects ± to show induced current direction" },
+            { color: "#f8fafc", shape: "square", label: "Center-Zero Galvanometer", note: "Deflects ± to show induced current direction" },
           ],
         };
       } else {
@@ -1299,7 +1299,7 @@ function renderTopicDetailsReadout(topic, params) {
             { color: "#ea580c", shape: "line", label: "Copper Coil Winding", note: "One wire wound N times; its two ends go to the slip rings" },
             { color: "#fef08a", shape: "dot", label: "Charge dots & gold arrows", note: "Conventional current (+ to −); reverses every half turn" },
             { color: "#fef08a", shape: "dot", label: "Demonstration Light Bulb", note: "Flashes at each AC voltage crest" },
-            { color: "#334155", shape: "square", label: "Center-Zero Galvanometer", note: "Needle tracks instantaneous e.m.f." },
+            { color: "#f8fafc", shape: "square", label: "Center-Zero Galvanometer", note: "Needle tracks instantaneous e.m.f." },
           ],
         };
       }

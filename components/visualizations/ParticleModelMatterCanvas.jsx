@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -12,7 +12,8 @@ import {
   hashRandom,
 } from "@/components/visualizations/scene-kit";
 import { relaxTo } from "@/components/visualizations/vessel-rack";
-import { DARK_STEEL, GLASS, LabBench, RUBBER, STEEL, THICK_GLASS } from "@/components/visualizations/lab-bench";
+import { DARK_STEEL, GLASS, LabBench, STEEL, THICK_GLASS } from "@/components/visualizations/lab-bench";
+import { KitPart } from "@/components/visualizations/lab-kit-model";
 import { InstancedPopulation, createPopulation, mixParticleColour, spawnParticle } from "@/components/visualizations/particle-population";
 import {
   CONTAINER,
@@ -64,7 +65,6 @@ const BENCH_Y = -3.1;
  * two coplanar faces that z-fought across the whole base.
  */
 const PLATE_TOP = 0.5;
-const PLATE_BODY_H = PLATE_TOP - 0.02;
 /** The column's glass base (0.12 thick) sits on the plate's face, which stands 0.046 above PLATE_TOP. */
 const COLUMN_BASE_Y = PLATE_TOP + 0.05;
 const FLOOR_Y = COLUMN_BASE_Y + 0.12;
@@ -288,24 +288,13 @@ function HotPlate({ modelRef }) {
   });
   return (
     <group>
-      {/* Body on four rubber feet, clear of the bench top. */}
-      <mesh position={[0, 0.02 + PLATE_BODY_H / 2, 0]}>
-        <boxGeometry args={[4.6, PLATE_BODY_H, 4.6]} />
-        <meshStandardMaterial color="#d9dee5" roughness={0.45} metalness={0.2} />
-      </mesh>
-      {[-1, 1].map((sx) =>
-        [-1, 1].map((sz) => (
-          <mesh key={`${sx}${sz}`} position={[sx * 2.0, 0.012, sz * 2.0]}>
-            <cylinderGeometry args={[0.16, 0.18, 0.024, 12]} />
-            <meshStandardMaterial {...RUBBER} />
-          </mesh>
-        )),
-      )}
-      {/* The ceramic top plate: a slab proud of the body, then the glowing face a hair above it. */}
-      <mesh position={[0, PLATE_TOP + 0.02, 0]}>
-        <boxGeometry args={[4.3, 0.04, 4.3]} />
-        <meshStandardMaterial color="#2a303a" roughness={0.5} metalness={0.1} />
-      </mesh>
+      {/* Our own hotplate (lab kit): the enamel body on rubber feet with its
+          vents, a dark fascia with the display bezel and the two knobs, and
+          the black ceramic top. The glowing face and rings are drawn here. */}
+      <Suspense fallback={null}>
+        <KitPart name="hotplate" />
+        <KitPart name="hotplateTop" />
+      </Suspense>
       <mesh ref={face} position={[0, PLATE_TOP + 0.042, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[4.1, 4.1]} />
         <meshStandardMaterial color="#1f2937" emissive="#f97316" emissiveIntensity={0.05} roughness={0.55} toneMapped={false} />
@@ -316,29 +305,11 @@ function HotPlate({ modelRef }) {
           <meshStandardMaterial color="#374151" emissive="#f97316" emissiveIntensity={0.1} roughness={0.6} toneMapped={false} polygonOffset polygonOffsetFactor={-1} />
         </mesh>
       ))}
-      {/* The front control panel: sloped fascia, a display and two knobs. */}
-      <group position={[0, 0.02 + PLATE_BODY_H / 2, 2.3]}>
-        <mesh position={[0, 0, 0.012]}>
-          <boxGeometry args={[4.4, PLATE_BODY_H - 0.06, 0.02]} />
-          <meshStandardMaterial color="#1f2530" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 0.02, 0.03]}>
-          <boxGeometry args={[0.9, 0.22, 0.02]} />
-          <meshStandardMaterial color="#0f1a14" emissive="#1f6f4a" emissiveIntensity={0.6} roughness={0.3} />
-        </mesh>
-        {[-1.4, 1.4].map((x, i) => (
-          <group key={x} position={[x, 0, 0.06]}>
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.16, 0.18, 0.1, 20]} />
-              <meshStandardMaterial color={i === 0 ? "#b91c1c" : "#1d4ed8"} roughness={0.4} />
-            </mesh>
-            <mesh position={[0, 0.08, 0.052]}>
-              <boxGeometry args={[0.03, 0.12, 0.01]} />
-              <meshStandardMaterial color="#f8fafc" />
-            </mesh>
-          </group>
-        ))}
-      </group>
+      {/* The display, lit, inside its bezel. */}
+      <mesh position={[0, 0.02 + 0.26, 2.3 + 0.014]}>
+        <planeGeometry args={[0.94, 0.24]} />
+        <meshStandardMaterial color="#0f1a14" emissive="#1f6f4a" emissiveIntensity={0.6} roughness={0.3} />
+      </mesh>
     </group>
   );
 }

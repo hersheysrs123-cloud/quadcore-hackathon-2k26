@@ -53,6 +53,7 @@ import { gasLawReadout } from "@/lib/particleModel";
 import { usePackedModel } from "@/components/visualizations/plant-model";
 import { FLEMING_HAND } from "@/components/visualizations/fleming-hand-model-meta";
 import { CANNON, CannonModel } from "@/components/visualizations/cannon-model";
+import { KitPart } from "@/components/visualizations/lab-kit-model";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
 import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
@@ -1483,16 +1484,12 @@ function LaboratoryGalvanometer({ position = [-1.3, -3.3, 1.35], needleRef }) {
 
   return (
     <group position={position}>
-      {/* Slate chassis box: base at y=0, height 1.3 */}
-      <mesh position={[0, 0.65, 0]}>
-        <boxGeometry args={[2.2, 1.3, 0.35]} />
-        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.6} />
-      </mesh>
-      {/* Polished chrome front bezel */}
-      <mesh position={[0, 0.65, 0.18]}>
-        <boxGeometry args={[2.08, 1.18, 0.04]} />
-        <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
-      </mesh>
+      {/* Our own case (lab kit): a black moulded case on a plinth, a chrome
+          bezel round the dial, and the terminal posts in front. */}
+      <Suspense fallback={null}>
+        <KitPart name="galvoCase" />
+        <KitPart name="galvoBezel" />
+      </Suspense>
       {/* Porcelain white dial face */}
       <mesh position={[0, 0.65, 0.205]}>
         <planeGeometry args={[1.96, 1.06]} />
@@ -1523,16 +1520,6 @@ function LaboratoryGalvanometer({ position = [-1.3, -3.3, 1.35], needleRef }) {
         </mesh>
       </group>
 
-      {/* Terminal binding posts */}
-      <mesh position={[-0.85, 0.2, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
-        <meshStandardMaterial color="#ef4444" roughness={0.3} metalness={0.5} />
-      </mesh>
-      <mesh position={[0.85, 0.2, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
-        <meshStandardMaterial color="#1e293b" roughness={0.3} metalness={0.5} />
-      </mesh>
-
       {/* Centre-zero, with the two senses of deflection labelled outside the arc */}
       <SceneLabel position={[0, 1.2, 0.22]} tone="text-ink-400">
         0
@@ -1558,28 +1545,13 @@ function DemonstrationBulb({ position = [1.8, -3.3, 1.35], powerRef, showBulb = 
   if (!showBulb) return null;
   return (
     <group position={position}>
-      {/* Porcelain Ceramic Socket Base */}
-      <mesh position={[0, 0.15, 0]}>
-        <cylinderGeometry args={[0.42, 0.48, 0.3, 24]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.3} metalness={0.1} />
-      </mesh>
-      {/* Brass Threaded Screw Collar */}
-      <mesh position={[0, 0.38, 0]}>
-        <cylinderGeometry args={[0.28, 0.28, 0.22, 24]} />
-        <meshStandardMaterial color="#d97706" metalness={0.85} roughness={0.2} />
-      </mesh>
-      {/* Blown Glass Envelope */}
-      <mesh position={[0, 0.82, 0]}>
-        <sphereGeometry args={[0.44, 24, 24]} />
-        <meshPhysicalMaterial
-          color="#ffffff"
-          transmission={0.88}
-          roughness={0.12}
-          transparent={true}
-          opacity={0.38}
-          ior={1.5}
-        />
-      </mesh>
+      {/* Our own lamp (lab kit): a porcelain batten holder with its two
+          terminal screws, a brass bayonet cap, and the blown envelope. */}
+      <Suspense fallback={null}>
+        <KitPart name="lampHolder" />
+        <KitPart name="lampCap" />
+        <KitPart name="lampGlass" />
+      </Suspense>
       {/* Tungsten Filament Hairpin Loop */}
       <mesh
         ref={(el) => {
@@ -1616,16 +1588,6 @@ function DemonstrationBulb({ position = [1.8, -3.3, 1.35], powerRef, showBulb = 
         distance={5.5}
         decay={2}
       />
-
-      {/* Terminals on socket */}
-      <mesh position={[-0.34, 0.15, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
-        <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.1} />
-      </mesh>
-      <mesh position={[0.34, 0.15, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.12, 12]} />
-        <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.1} />
-      </mesh>
 
       <SceneLabel position={[0, -0.28, 0]} tone="text-ink-400">
         demonstration bulb (P ∝ ε²)
