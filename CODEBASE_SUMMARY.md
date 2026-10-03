@@ -32,7 +32,7 @@ The annotated file tree is split by area so each file stays readable:
 | [file-map-app-and-components.md](docs/codebase/file-map-app-and-components.md) | `app/` (pages, API routes, error boundaries) and `components/` (29 app-UI components + `components/literature/`) |
 | [file-map-3d-visualizations.md](docs/codebase/file-map-3d-visualizations.md) | `components/visualizations/` — every 3D scene, the shared kits and the topic registry |
 | [file-map-lib.md](docs/codebase/file-map-lib.md) | `lib/` — one pure engine per 3D topic, plus storage, AI, export and editor services |
-| [file-map-tests-scripts-docs.md](docs/codebase/file-map-tests-scripts-docs.md) | `tests/` (83 unit files, integration, e2e, the four guardrails), `scripts/`, `docs/` and root files |
+| [file-map-tests-scripts-docs.md](docs/codebase/file-map-tests-scripts-docs.md) | `tests/` (84 unit files, integration, e2e, the four guardrails), `scripts/`, `docs/` and root files |
 
 ### The application shell (`components/redesign/`)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Grid, Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -29,6 +29,7 @@ import {
   rub,
   solveStatic,
 } from "@/lib/electrostatics";
+import { SWEATER, SweaterModel } from "@/components/visualizations/sweater-model";
 
 // ─── Static electricity ─────────────────────────────────────────────
 // A balloon, a wool sweater, a wall and a Van de Graaff, with the charge on
@@ -355,13 +356,13 @@ function HumidityHaze({ humidity = 40, animSpeed = 1 }) {
 
 // ─── Objects ────────────────────────────────────────────────────────
 
-/** The wool sweater on its stand — the electron donor. */
+/** The wool sweater on its dress form — the electron donor. */
 function Sweater({ markers }) {
   const signs = useMemo(
     () =>
-      // Just clear of the torso's front face (z = +0.31), or the box hides them.
+      // Just clear of the chest, cables included, or the wool hides them.
       patchMarkers(Math.round(markers), {
-        centre: [SWEATER_X, 0.35, 0.34],
+        centre: [SWEATER_X, SWEATER.chestY - 0.07, SWEATER.frontZ + 0.03],
         width: 0.95,
         height: 1.45,
         seed: 13,
@@ -372,59 +373,17 @@ function Sweater({ markers }) {
 
   return (
     <group>
-      {/* Stand: a weighted base, a pole and a shaped support plate under the hem. */}
-      <mesh position={[SWEATER_X, FLOOR_Y + 0.05, 0]}>
-        <cylinderGeometry args={[0.55, 0.62, 0.1, 20]} />
-        <meshStandardMaterial color="#b3bdcb" roughness={0.6} metalness={0.2} />
-      </mesh>
-      <mesh position={[SWEATER_X, FLOOR_Y + 1.1, 0]}>
-        <cylinderGeometry args={[0.07, 0.07, 2.1, 12]} />
-        <meshStandardMaterial color="#95a3b8" roughness={0.45} metalness={0.4} />
-      </mesh>
-
-      {/* Torso and sleeves. */}
-      <RoundedBox args={[1.25, 1.7, 0.62]} radius={0.16} smoothness={4} position={[SWEATER_X, 0.35, 0]}>
-        <meshStandardMaterial color="#dcbb85" roughness={0.98} metalness={0.0} />
-      </RoundedBox>
-      {/* Ribbed hem, and the pole's support plate beneath it. */}
-      <RoundedBox args={[1.29, 0.2, 0.66]} radius={0.07} smoothness={3} position={[SWEATER_X, -0.42, 0]}>
-        <meshStandardMaterial color="#c9a468" roughness={0.99} />
-      </RoundedBox>
-      <mesh position={[SWEATER_X, -0.56, 0]}>
-        <cylinderGeometry args={[0.32, 0.32, 0.04, 20]} />
-        <meshStandardMaterial color="#95a3b8" roughness={0.45} metalness={0.4} />
-      </mesh>
-      {/* Cable-knit ridges down the front. */}
-      {[-0.42, -0.21, 0, 0.21, 0.42].map((x) => (
-        <mesh key={x} position={[SWEATER_X + x, 0.42, 0.315]}>
-          <boxGeometry args={[0.055, 1.28, 0.02]} />
-          <meshStandardMaterial color="#ceac72" roughness={0.99} />
-        </mesh>
-      ))}
-      {[-0.85, 0.85].map((x) => (
-        <group key={x} position={[SWEATER_X + x, 0.25, 0]} rotation={[0, 0, x > 0 ? -0.22 : 0.22]}>
-          <RoundedBox args={[0.52, 1.15, 0.5]} radius={0.14} smoothness={4}>
-            <meshStandardMaterial color="#d1ae76" roughness={0.98} />
-          </RoundedBox>
-          {/* Ribbed cuff. */}
-          <RoundedBox args={[0.56, 0.18, 0.54]} radius={0.06} smoothness={3} position={[0, -0.56, 0]}>
-            <meshStandardMaterial color="#c9a468" roughness={0.99} />
-          </RoundedBox>
+      {/* Our own model (scripts/sweater-model): a cable-knit wool sweater
+          on a dress form, standing on the floor. */}
+      <Suspense fallback={null}>
+        <group position={[SWEATER_X, 0, 0]}>
+          <SweaterModel />
         </group>
-      ))}
-      {/* Collar, and the dark neck opening inside it. */}
-      <mesh position={[SWEATER_X, 1.24, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.33, 0.1, 8, 22]} />
-        <meshStandardMaterial color="#c29d63" roughness={0.98} />
-      </mesh>
-      <mesh position={[SWEATER_X, 1.235, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.25, 22]} />
-        <meshStandardMaterial color="#6b5335" roughness={1} />
-      </mesh>
+      </Suspense>
 
       <ChargeSigns signs={signs} size={0.2} />
 
-      <SceneLabel position={[SWEATER_X, 1.85, 0]} tone={markers > 0.5 ? "text-rose-300" : "text-ink-400"}>
+      <SceneLabel position={[SWEATER_X, SWEATER.top + 0.3, 0]} tone={markers > 0.5 ? "text-rose-300" : "text-ink-400"}>
         {markers > 0.5
           ? `wool · ${Math.round(markers)} unpaired + left behind`
           : "wool sweater · neutral"}
