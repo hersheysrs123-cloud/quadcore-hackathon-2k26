@@ -16,32 +16,22 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   cleanZeroWidth,
-  formatMarkdownInline,
   setBlockDOMFromText,
-  tryAutoFormatInlineCode,
-  tryAutoFormatInlineMath,
   handleInlineBoundaryKeyDown,
   setCaretToEnd,
   setCaretToStart,
   getDOMCaretLength,
   setCaretAtOffset,
   isCaretAtLogicalStart,
-  isCaretAtBlockStart,
   isCaretAtLogicalEnd,
-  isCaretAtBlockEnd,
-  isCaretOnFirstVisualLine,
-  isCaretOnLastVisualLine,
   getBlockTextFromDOM,
   splitBlockDOMAtRange,
-  getSerializedTextFromRange,
 } from "../lib/editorCaret.js";
 
 import {
   blocksToMarkdownLossy,
-  tryParseMarkdownToBlocks,
   blocksToHTMLLossy,
   blocksToPlainText,
-  tryParsePlainTextToBlocks,
 } from "../lib/exportImport.js";
 import { editorBlocksToText } from "../lib/blocks.js";
 

@@ -18,13 +18,13 @@ import {
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { KitPart } from "@/components/visualizations/lab-kit-model";
-import { ATOM_COLOURS, ELEMENTS, SHELL_CAPACITY, SHELL_NAMES } from "@/lib/atomicStructure";
+import { ATOM_COLOURS, ELEMENTS, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
-import { BOND_COLOUR, latticeFactsFor } from "@/lib/lattices";
+import { BOND_COLOUR } from "@/lib/lattices";
 import { diamondFragment, iceFragment, quartzFragment } from "@/lib/latticeGeometry";
 import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
 import { ELEMENT_STYLE, VSEPR_BOND_COLOUR, solveVsepr } from "@/lib/vsepr";
-import { crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isValid, nameFor, sub } from "@/lib/organic";
+import { crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isValid, nameFor } from "@/lib/organic";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
 import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";
@@ -254,7 +254,6 @@ export function BohrAtomScene({ params = {} }) {
 
   const element = ELEMENTS[symbol] ?? ELEMENTS.Na;
   const outer = element.shells.length - 1;
-  const valence = element.shells[outer];
 
   useEffect(() => setFocused(null), [symbol]);
 
@@ -318,8 +317,6 @@ const CC_TRIPLE = 1.20; // C≡C bond (linear, sp)
 const CO_BOND   = 1.43; // C–O single
 const CD_BOND   = 1.22; // C=O double (carbonyl)
 const CH_BOND   = 1.09;
-const CHAIN_X   = 0.8167;
-const CHAIN_Y   = 0.5772;
 
 // tan(54.74°) and tan(70.53°): how far off the "away" axis the remaining
 // hydrogens sit for two and three of them on a tetrahedral carbon.
@@ -2073,8 +2070,6 @@ export function CrystalLatticeScene({ params = {} }) {
     return buildNaCl();
   }, [structure, slide]);
 
-  const facts = latticeFactsFor(structure);
-
   return (
     <SceneCanvas camera={{ position: [6, 4.5, 8], fov: 45 }}>
       <LabelsOn.Provider value={showLabels !== false}>
@@ -3047,7 +3042,7 @@ export function EnergyProfileScene({ params = {} }) {
     () => solveEnergetics({ activation, deltaH, catalyst, catalystDrop, temperature }),
     [activation, deltaH, catalyst, catalystDrop, temperature],
   );
-  const { exothermic, uncatalysed, effectiveEa, reverseEa, clampedByDeltaH } = e;
+  const { exothermic, uncatalysed, effectiveEa, reverseEa } = e;
 
   const bump = useMemo(() => barrierAmplitude(effectiveEa, deltaH), [effectiveEa, deltaH]);
   const baseBump = useMemo(
@@ -3061,7 +3056,7 @@ export function EnergyProfileScene({ params = {} }) {
     [baseBump, deltaH],
   );
 
-  const { fraction, speedUp, rateConstant, proceeds } = e;
+  const { proceeds } = e;
 
   const peakY = effectiveEa * ENERGY_SCALE;
   const productY = deltaH * ENERGY_SCALE;

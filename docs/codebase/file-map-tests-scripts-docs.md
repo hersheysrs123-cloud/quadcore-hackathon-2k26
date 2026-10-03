@@ -131,6 +131,7 @@ quadcore-hackathon-2k26/
 │   ├── FEATURES.md                       # Full user-facing feature guide (the long-form README content)
 │   ├── codebase/                         # This technical reference, split by topic (index: CODEBASE_SUMMARY.md)
 │   └── design/                           # The design system, split by topic (index: DESIGN_SYSTEM.md)
+├── eslint.config.mjs                     # ESLint flat config: Next's core-web-vitals rules (through FlatCompat) plus no-unused-vars and no-undef as errors; covers .js/.jsx/.mjs/.cjs. `npm test` runs it first (errors only)
 ├── DESIGN_SYSTEM.md                      # Official UI design system & CSS color tokens spec
 ├── AGENTS.md / GEMINI.md                 # Agent workflow rules (which docs to update after which kind of change)
 ├── PROJECT.md                            # Feature and milestone plan for the caret-navigation work

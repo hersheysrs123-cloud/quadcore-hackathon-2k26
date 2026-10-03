@@ -11,7 +11,6 @@ import { smoothstep } from "@/lib/stageCycle";
 import { PAIRS, PARENTS, arrestIndexFor, chiasmaPlan, chromatids as listChromatids, colchicineApplied, cycleFor, modeFor } from "@/lib/cellDivision";
 import {
   ARM_LENGTH,
-  CHROMATID_RADIUS,
   D2,
   LMAX,
   MITOCHONDRIA,
@@ -108,8 +107,6 @@ const COLOURS = {
   nucleolus: "#8f80c4",
 };
 
-const MATERNAL = new THREE.Color(COLOURS.maternal);
-const PATERNAL = new THREE.Color(COLOURS.paternal);
 const MT_COLOUR = new THREE.Color(COLOURS.microtubule);
 const MT_POISONED = new THREE.Color(COLOURS.microtubulePoisoned);
 

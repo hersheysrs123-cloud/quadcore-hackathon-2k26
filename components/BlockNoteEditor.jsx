@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useOnClickOutside } from "usehooks-ts";
 import { Lock, Sparkles, AlertCircle } from "lucide-react";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 import {
   CORE_LANGUAGES,
@@ -1196,9 +1195,7 @@ export {
 
 import {
   renderKatexToStringMemoized,
-  escapeHtml,
   cleanZeroWidth,
-  formatMarkdownInline,
   setBlockDOMFromText,
   tryAutoFormatInlineCode,
   tryAutoFormatInlineMath,
@@ -1209,7 +1206,6 @@ import {
   setCaretAtOffset,
   isCaretAtLogicalStart,
   isCaretAtBlockStart,
-  isCaretAtLogicalEnd,
   isCaretAtBlockEnd,
   isCaretOnFirstVisualLine,
   isCaretOnLastVisualLine,
@@ -1859,25 +1855,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
 }
 
 // ─── Code Snippet Block (10-Language Syntax Highlighting & Dropdown) ──
-function HighlightCode({ code, language }) {
-  const normLang = normalizeLanguage(language);
-  const tokens = useMemo(() => tokenizeCode(code || "", normLang), [code, normLang]);
 
-  return (
-    <code>
-      {tokens.map((token, index) => {
-        if (!token.type || token.type === "plain") {
-          return <span key={index}>{token.text}</span>;
-        }
-        return (
-          <span key={index} className={TOKEN_STYLES[token.type] || ""}>
-            {token.text}
-          </span>
-        );
-      })}
-    </code>
-  );
-}
 
 function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExitDown, onExitUp, isLocked = false, registerRef }) {
   const [copied, setCopied] = useState(false);
@@ -4327,9 +4305,8 @@ const EditorBlock = memo(function EditorBlock({
   const [menuPosition, setMenuPosition] = useState(null);
   // The block only becomes draggable while the ⠿ handle is held. Making the
   // whole row draggable would hijack text selection inside contentEditable.
-  const [handleHeld, setHandleHeld] = useState(false);
+  const [, setHandleHeld] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [showNotePicker, setShowNotePicker] = useState(false);
 
   const [selectedMathNode, setSelectedMathNode] = useState(null);
   const [popoverFormula, setPopoverFormula] = useState("");
@@ -4581,7 +4558,6 @@ const EditorBlock = memo(function EditorBlock({
         mathNode.remove();
       } else {
         const katexHtml = renderKatexToStringMemoized(newFormula, { displayMode: false, throwOnError: false });
-        const escapedFormula = newFormula.replace(/"/g, "&quot;");
         mathNode.setAttribute("data-formula", newFormula);
         mathNode.innerHTML = katexHtml;
       }
@@ -5678,13 +5654,12 @@ export default function BlockNoteEditor({
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [banner, setBanner] = useState(initialBanner);
-  const [isFavorite, setIsFavorite] = useState(initialFavorite);
+  const [isFavorite] = useState(initialFavorite);
   const [emoji, setEmoji] = useState(initialEmoji);
   const [fontStyle, setFontStyle] = useState(initialFontStyle || "sans");
   const [fullWidth, setFullWidth] = useState(Boolean(initialFullWidth));
   const [isLocked, setIsLocked] = useState(Boolean(initialLocked));
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showStats, setShowStats] = useState(false);
   const [showBannerPicker, setShowBannerPicker] = useState(false);
   const [isReformatting, setIsReformatting] = useState(false);
   const [reformatProgress, setReformatProgress] = useState(null);
@@ -6475,24 +6450,6 @@ export default function BlockNoteEditor({
     }),
     [dragging, dragOver, performSave, pushHistorySnapshot],
   );
-
-  const { totalCharacters, totalWords } = useMemo(() => {
-    let chars = 0;
-    let words = 0;
-    for (let i = 0; i < blocks.length; i++) {
-      const c = blocks[i].content;
-      if (c) {
-        chars += c.length;
-        const trimmed = c.trim();
-        if (trimmed) {
-          words += trimmed.split(/\s+/).length;
-        }
-      }
-    }
-    return { totalCharacters: chars, totalWords: words };
-  }, [blocks]);
-
-  const totalBlocks = blocks.length;
 
   useEffect(() => {
     onBlocksChange?.(blocks);
@@ -7532,6 +7489,7 @@ export default function BlockNoteEditor({
               if (textAfter.length === 0) {
                 const idx = blocks.findIndex((b) => b.id === blockId);
                 if (idx !== -1 && idx < blocks.length - 1) {
+                  const block = blocks[idx];
                   const targetBlock = blocks[idx + 1];
                   // 1. Standalone embed block (divider, site, media, canvas): delete it!
                   if (standaloneEmbedTypes.includes(targetBlock?.type)) {

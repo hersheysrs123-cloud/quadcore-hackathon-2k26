@@ -5,7 +5,6 @@ import { useOnClickOutside } from "usehooks-ts";
 import { createPortal } from "react-dom";
 import {
   MoreHorizontal,
-  Save,
   Star,
   Copy,
   Edit3,
@@ -94,7 +93,6 @@ export default function NoteMenu({
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const [savedFeedback, setSavedFeedback] = useState(false);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [menuPos, setMenuPos] = useState({

@@ -30,7 +30,7 @@ import {
   PAIR_BONDS,
   sequenceFor,
 } from "@/lib/dna";
-import { CRENATION_AT, LYSIS_BELOW, PLASMOLYSIS_AT, organelleFor, solveOsmosis } from "@/lib/cellBiology";
+import { CRENATION_AT, LYSIS_BELOW, PLASMOLYSIS_AT, solveOsmosis } from "@/lib/cellBiology";
 import { BONDS_FORM_ABOVE, STRUCTURE_COLOURS, solveFolding } from "@/lib/proteinFolding";
 import {
   BilayerPatch,
@@ -1081,7 +1081,6 @@ export function CellExplorerScene({ params = {} }) {
   // One solve, shared with the Details panel — which used to switch states at
   // ±0.05 against the scene's ±0.45, and never said "Flaccid" at all.
   const osmosis = solveOsmosis({ cellType, tonicity });
-  const status = { text: osmosis.state, tone: osmosis.tone };
 
   const layout = isPlant ? PLANT_LAYOUT : ANIMAL_LAYOUT;
 
@@ -1127,7 +1126,6 @@ export function CellExplorerScene({ params = {} }) {
 
   const bounds = isPlant ? [3.0, 2.0, 2.0] : [2.4, 2.0, 2.0];
   const vacuoleScale = clamp(1 - Math.max(0, tonicity) * 0.45, 0.5, 1.15);
-  const detail = selected ? organelleFor(selected) : null;
 
   return (
     <SceneCanvas
@@ -1283,7 +1281,6 @@ export function CellExplorerScene({ params = {} }) {
 
 // ═══ 4 · Protein folding & secondary structure ═══════════════════════
 
-const MAX_RESIDUES = 64;
 /**
  * α-helix geometry at real proportions: 1 nm is 4.13 world units, so the Cα
  * radius (0.23 nm) is 0.95 and the rise (0.15 nm per residue) is 0.62, which

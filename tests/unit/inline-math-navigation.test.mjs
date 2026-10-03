@@ -7,16 +7,12 @@ import {
   handleInlineBoundaryKeyDown,
   isCaretAtLogicalStart,
   isCaretAtLogicalEnd,
-  isCaretAtBlockStart,
-  isCaretAtBlockEnd,
   isCaretOnFirstVisualLine,
   isCaretOnLastVisualLine,
   getDOMCaretLength,
   setCaretToStart,
   setCaretToEnd,
   setCaretAtOffset,
-  getBlockTextFromDOM,
-  setBlockDOMFromText,
 } from "../../lib/editorCaret.js";
 
 describe("Milestone 1 (M1): Navigation & Inline Math Pills (F1, F2, F3)", () => {

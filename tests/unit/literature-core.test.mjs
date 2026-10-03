@@ -189,7 +189,6 @@ describe("Literature — numbering & bucketing", () => {
 });
 
 describe("Literature — remapping after line edits", () => {
-  const poemLines = ["one", "two", "three", "four"];
   const an = [
     makeAnnotation([{ startLine: 1, startChar: 0, endLine: 1, endChar: 3 }], "on two"),
     makeAnnotation([{ startLine: 3, startChar: 0, endLine: 3, endChar: 4 }], "on four"),

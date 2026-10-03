@@ -494,7 +494,6 @@ export default function HookesLawCanvas({ params = {}, setParam }) {
   const scale = useForceScale([solved.force, solved.limitForce], 1.4);
 
   const zeroY = TOP_Y - NATURAL_LENGTH * S;
-  const pointerY = TOP_Y - solved.length * S;
   const restY = TOP_Y - solved.restLength * S;
 
   return (

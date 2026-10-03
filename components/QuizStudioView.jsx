@@ -18,7 +18,6 @@ import {
   ChevronUp,
   ChevronDown,
   CheckSquare,
-  Square,
   Code,
   Calculator,
 } from "lucide-react";
@@ -63,7 +62,6 @@ const MATH_SYMBOLS = [
 function DeleteQuizConfirmModal({ open, mode = "trash", quiz = null, count = 0, onClose, onConfirm }) {
   if (!open) return null;
 
-  const isTrash = mode === "trash";
   const isPermanent = mode === "permanent";
   const isClearAll = mode === "clear_all";
 

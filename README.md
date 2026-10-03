@@ -105,6 +105,7 @@ Dark ("Sleek Slate") and light themes are CSS variables in `app/globals.css`, sw
 ## 🧪 Tests
 
 ```bash
-npm test        # unit, integration, e2e, caret-navigation and stress suites (Node's built-in runner; no browser or API key needed)
+npm test        # lint (errors only), then unit, integration, e2e, caret-navigation and stress suites (Node's built-in runner; no browser or API key needed)
+npm run lint    # ESLint with warnings: Next's rules plus unused and undeclared variables (eslint.config.mjs)
 npm run build   # production build check
 ```

@@ -8615,3 +8615,23 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
 - `SeparationTechniquesCanvas.jsx`: the clamp stand's base runs back toward
   the wall (`baseAngle` pi/2), and `PLATE_Y` is 0.135, just above the kit's
   plate.
+
+## Lint: an undeclared variable in two places, and a hook after an early return
+
+- **Problem:**
+  - In the editor, pressing Delete at the end of a block, to pull the next text block up into it, did nothing.
+  - The refraction scene's Details key referred to a variable that does not exist.
+  - The breathing scene's skeleton returned early before its hooks ran.
+  - The project had no linter, so none of this, nor about 120 unused imports and variables, was caught.
+- **Root cause:**
+  - The Delete branch of `handleKeyDown` (`BlockNoteEditor.jsx`) read `block.content` and `block.type`, but only the Backspace branch declares `block`. The merge path threw a ReferenceError after `preventDefault()`, so neither the merge nor the browser's own delete happened.
+  - `VisualizationHUD.jsx`'s refraction legend called `mediumColour(medium2)`. The scene destructures `medium2` from its params; the HUD never did.
+  - `RealisticCTSkeleton` (`RespiratoryCanvas.jsx`) had `if (!visible) return null` above `useGLTF`, `useRef`, `useMemo` and `useFrame`. Its parent unmounts it rather than flipping `visible`, so it had not fired yet, but any caller that flipped the prop would hit React's hook-order error.
+- **Resolution:**
+  - Added ESLint 9 (`eslint.config.mjs`): Next's core-web-vitals rules plus `no-unused-vars` and `no-undef` as errors. `npm run lint` shows warnings too, and `npm test` lints first and fails on errors.
+  - The Delete branch now declares `const block = blocks[idx]`. Checked in the browser: Delete at the end of a heading merges the paragraph below into it (38 blocks to 37), and Ctrl+Z restores it.
+  - The legend uses `params.medium2`, defaulting to glass as the scene does.
+  - The skeleton's `return null` now comes after its last hook.
+  - The tutorial's step functions are keyed `Content` instead of `render`. They were already mounted as components (`<StepComponent />`), but the hooks rule only treats capitalised names as components.
+  - Removed the unused imports, variables and dead helpers. `const [x, setX] = useState()` with only the setter used became `const [, setX]`, which keeps behaviour. In `media-caption-input.test.mjs` two flags were set but never asserted; the test now asserts that ArrowDown and Enter from a caption input do not exit or add a block.
+  - Turned off `react/no-unescaped-entities`: it only flags apostrophes in JSX prose, which React escapes anyway. 72 `react-hooks/exhaustive-deps` and 6 `@next/next/no-img-element` findings stay as warnings, for review case by case.

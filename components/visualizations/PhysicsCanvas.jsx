@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Grid, Html, Line, RoundedBox } from "@react-three/drei";
+import { Grid, Html, Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
   AtomSphere,
@@ -21,8 +21,6 @@ import {
 } from "@/components/visualizations/scene-kit";
 import { mediumColour, mediumName } from "@/components/visualizations/media";
 import {
-  OPTICS_TITLES,
-  imageNature,
   opticsTypeOf,
   solveBlock,
   solveRayOptics,
@@ -235,7 +233,7 @@ export function RefractionScene({ params = {} }) {
     speed = 1.0,
   } = params || {};
 
-  const { i, r, e, tir, critical, lateral, run, reflectance } = solveBlock(
+  const { i, r, e, tir, lateral, run, reflectance } = solveBlock(
     angle,
     n1,
     n2,
@@ -1149,7 +1147,7 @@ export function LensOpticsScene({ params = {} }) {
   // Where the image is, from lib/rayOptics.js — the same call the HUD makes,
   // so the panel cannot claim an image the scene is not drawing.
   const solved = solveRayOptics({ type, focal, objectDistance, objectHeight });
-  const { atInfinity, v, imgX, imageHeight, magnification: m, real, isMirror, isConverging } = solved;
+  const { atInfinity, v, imgX, imageHeight, real, isMirror, isConverging } = solved;
 
   const objectTop = [-u, h, 0];
   const span = atInfinity ? u + 2 * f : Math.max(u, Math.abs(v), 2 * f);
@@ -1211,9 +1209,6 @@ export function LensOpticsScene({ params = {} }) {
   const ray3ReflectedEnd = isMirror ? [-FAR, ray3HitY, 0] : [FAR, ray3HitY, 0];
   const ray3VirtualPoints = (!real && !atInfinity) ? [[0, ray3HitY, 0], [imgX, ray3HitY, 0]] : null;
   const showThirdRay = !atInfinity && Math.abs(u - f) > 1e-3;
-
-  const nature = imageNature(solved);
-  const titleMap = OPTICS_TITLES;
 
   return (
     <SceneCanvas camera={{ position: [0.5, 3.5, 12], fov: 45 }} lights={{ ambient: 0.85, keyLight: 1.8, rim: "#93c5fd" }}>
@@ -3350,7 +3345,7 @@ export function ProjectileScene({ params = {} }) {
     camera = "overview",
   } = params || {};
 
-  const [live, setLive] = useState({ t: 0, x: 0, y: 0, speed, vx: 0, vy: 0, dragForce: 0 });
+  const [, setLive] = useState({ t: 0, x: 0, y: 0, speed, vx: 0, vy: 0, dragForce: 0 });
   const ballRef = useRef(null);
   const [activeReplay, setActiveReplay] = useState(0);
   const debounceTimer = useRef(null);

@@ -13,7 +13,7 @@
  *   • Tier 4: Real-World Application Scenarios (S1 to S5, 5 Tests)
  */
 
-import { describe, it, before } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import katex from "katex";
 import {
@@ -21,7 +21,6 @@ import {
   tryParseMarkdownToBlocks,
   blocksToHTMLLossy,
   blocksToPlainText,
-  tryParsePlainTextToBlocks,
   getNormalizedTableData,
 } from "../lib/exportImport.js";
 import { editorBlocksToText } from "../lib/blocks.js";
@@ -401,21 +400,7 @@ class MockElement extends MockNode {
   }
 }
 
-class MockDocumentFragment extends MockNode {
-  constructor() {
-    super(11, "#document-fragment");
-  }
 
-  cloneNode(deep = false) {
-    const clone = new MockDocumentFragment();
-    if (deep) {
-      for (const child of this.childNodes) {
-        clone.appendChild(child.cloneNode(true));
-      }
-    }
-    return clone;
-  }
-}
 
 function parseHTMLToMockElement(htmlStr, rootEl) {
   if (!htmlStr) return;
@@ -2006,7 +1991,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
         assert.equal(editor.blocks[0].content, "Hello World");
         assert.equal(editor.selectedId, "b1");
 
-        const el1 = editor.getDOM("b1");
         const sel = window.getSelection();
         const curRange = sel.getRangeAt(0);
         assert.equal(curRange.startOffset, 6, "Caret should be at index 6 (end of 'Hello ')");
@@ -3427,7 +3411,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
 
       // 1. From header (col 0), ArrowDown moves to row 0 col 0
       const isHeader = true;
-      const rowIndex = 0;
       const colIndex = 0;
       if (isHeader) {
         if (tableData.rows.length > 0) {
@@ -3480,7 +3463,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
     });
 
     it("Headerless table cleanly exits upward on ArrowUp from row 0 (BUG-TBL-09)", () => {
-      const blockId = "nohead";
       const tableData = {
         hasHeaderRow: false,
         headers: ["Col 1", "Col 2"],
@@ -3624,7 +3606,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
     });
 
     it("Toggle details textarea ArrowUp on line 1 returns focus to toggle summary header (BUG-TOG-02)", () => {
-      const blockId = "toggle_1";
       let returnedToHeader = false;
 
       const mockHeader = {
@@ -3651,8 +3632,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
         { id: "b2", type: "text", content: "World" },
       ];
 
-      const blockId = "b1";
-      const idx = 0;
       const nextBlock = blocks[1];
       const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
 
@@ -3927,9 +3906,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
         { id: "b0", type: "text", content: "Only block" }
       ];
       let newBlockCreated = false;
-      const mockHandleAddAfter = () => {
-        newBlockCreated = true;
-      };
 
       const handleExitDown = (blockId) => {
         const idx = blocks.findIndex((b) => b.id === blockId);
@@ -4135,8 +4111,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
       let focusedBlockId = null;
       let focusedPosition = null;
 
-      const mockAddRow = () => { rowAdded = true; };
-      const mockAddCol = () => { colAdded = true; };
       const mockOnExitDown = (id) => {
         exitedDownId = id;
         const idx = blocks.findIndex((b) => b.id === id);
@@ -4313,7 +4287,6 @@ describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite"
 
       // Verify handleMultiBlockKeydown ignores selectedId when selectedBlockIds is empty
       const selectedBlockIds = new Set();
-      const selectedId = "div_1";
       const effectiveIds = selectedBlockIds && selectedBlockIds.size > 0 ? selectedBlockIds : null;
       assert.equal(effectiveIds, null);
     });

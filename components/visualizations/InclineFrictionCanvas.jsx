@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
 import { Grid, Line, RoundedBox } from "@react-three/drei";
 import { Activity, X } from "lucide-react";
 import {

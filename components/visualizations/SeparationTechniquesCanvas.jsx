@@ -43,7 +43,6 @@ import {
   SOLVENTS,
   SOLVENT_DEPTH_MM,
   STATIONS,
-  STATION_ORDER,
   formatSeconds,
   liquidAppearance,
   rfText,
