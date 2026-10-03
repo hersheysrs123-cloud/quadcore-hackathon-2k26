@@ -66,7 +66,7 @@ A comprehensive suite of 51 real-time interactive 3D STEM simulations built usin
 
 - ⚛️ **Physics Engine** ([`PhysicsCanvas.jsx`](../components/visualizations/PhysicsCanvas.jsx) & [`ShadowLabCanvas.jsx`](../components/visualizations/ShadowLabCanvas.jsx)):
   - **Wave Refraction & Snell's Law**: Multi-medium ray tracing (Air, Water, Glass, Diamond, Perspex), critical angle, total internal reflection, and Fresnel reflection rays.
-  - **Motor Effect & Fleming's Left-Hand Rule**: Magnetic flux lines, current conductors, Lorentz force vectors, and Fleming's left-hand rule.
+  - **Motor Effect & Fleming's Left-Hand Rule**: Magnetic flux lines, current, Lorentz force vectors, and a realistic human left hand, modelled in-house in Blender, holding the rule: first finger along the field, second finger along the current, thumb along the force. Reversing the poles or the current turns the hand so its fingers still match, and the arrows always leave from its fingertips.
   - **Geometric Optics & Ray Diagrams**: Convex/concave lenses and spherical curved mirrors (concave/convex), adjustable object height, focal length controls, real/virtual images, principal ray tracing, and projection screen.
   - **Electromagnetic Induction & Faraday's Law**: Dual apparatus architecture (AC Generator Dynamo & Bar Magnet / Solenoid Rig), center-zero galvanometer, dynamic incandescent bulb load ($P \propto \mathcal{E}^{1.6}$), Lenz's law opposing field vectors, and top live AC EMF sine graph.
   - **Kinetic Gas Laws ($PV=nRT$)**: Kinetic particle container with collision vectors, temperature/volume controls, and pressure gauge readouts.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Grid, Html, Line, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -49,6 +49,8 @@ import {
   screenIntensity,
 } from "@/lib/interference";
 import { gasLawReadout } from "@/lib/particleModel";
+import { usePackedModel } from "@/components/visualizations/plant-model";
+import { FLEMING_HAND } from "@/components/visualizations/fleming-hand-model-meta";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
 import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
@@ -580,361 +582,50 @@ export function RefractionScene({ params = {} }) {
 
 // ═══ 2 · Fleming's left-hand rule & the motor effect ══════════════════
 
-// ═══ 2 · Fleming's left-hand rule & the motor effect ══════════════════
+// The hand is our own model (scripts/hand-model): a human left hand held in
+// the rule, built in this scene's axes — first finger along +X (the field),
+// thumb along +Y (the force), second finger along +Z (the current) — so it
+// needs no placing, only a half-turn when a polarity flips.
+const FLEMING_GLB = "/models/fleming-hand.glb";
 
-const ROBO_PRIMARY = "#f8fafc";
-const ROBO_SECONDARY = "#cbd5e1";
-const ROBO_DARK = "#334155";
-const ROBO_GOLD = "#fbbf24";
-const ROBO_RED = "#ef4444";
-const ROBO_GLOW = "#0ea5e9";
-const ROBO_PURPLE = "#d946ef";
-const ROBO_GREEN = "#10b981";
-
-function RoboFinger({ points, rStart, rEnd, tipColor }) {
-  const tipQuat = useMemo(() => {
-    const pPrev = new THREE.Vector3(...points[points.length - 2]);
-    const pLast = new THREE.Vector3(...points[points.length - 1]);
-    const dir = pLast.clone().sub(pPrev).normalize();
-    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  }, [points]);
-
-  return (
-    <group>
-      {points.map((p, i) => {
-        const next = points[i + 1];
-        const r = rStart + (rEnd - rStart) * (i / (points.length - 1));
-        const rNext = next ? rStart + (rEnd - rStart) * ((i + 1) / (points.length - 1)) : r;
-        
-        return (
-          <group key={i}>
-            <mesh position={p}>
-              <sphereGeometry args={[r * 1.25, 24, 24]} />
-              <meshStandardMaterial color={ROBO_DARK} metalness={0.9} roughness={0.4} />
-            </mesh>
-            {/* Floating Armor Shield over knuckle */}
-            <mesh position={p} rotation={[Math.PI/4, 0, 0]}>
-              <sphereGeometry args={[r * 1.35, 16, 16, 0, Math.PI, 0, Math.PI/2]} />
-              <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.1} />
-            </mesh>
-            {/* Joint Groove/Rings (gyroscope style) */}
-            <mesh position={p} rotation={[Math.PI/2, 0, 0]}>
-              <torusGeometry args={[r * 1.28, r * 0.1, 16, 32]} />
-              <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.2} />
-            </mesh>
-            <mesh position={p} rotation={[0, Math.PI/2, 0]}>
-              <torusGeometry args={[r * 1.28, r * 0.08, 16, 32]} />
-              <meshStandardMaterial color={ROBO_SECONDARY} metalness={0.9} roughness={0.2} />
-            </mesh>
-            {/* Side Hinges / Bolts */}
-            <mesh position={p} rotation={[0, 0, Math.PI/2]}>
-              <cylinderGeometry args={[r * 0.5, r * 0.5, r * 2.8, 16]} />
-              <meshStandardMaterial color={ROBO_DARK} metalness={0.9} roughness={0.3} />
-            </mesh>
-            {/* Glowing Bolt Caps */}
-            <mesh position={p} rotation={[0, 0, Math.PI/2]}>
-              <cylinderGeometry args={[r * 0.3, r * 0.3, r * 2.85, 16]} />
-              <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={3.0} />
-            </mesh>
-            {/* Status indicator LED on knuckles */}
-            <mesh position={p} rotation={[0, 0, Math.PI/2]}>
-              <cylinderGeometry args={[r * 0.15, r * 0.15, r * 2.88, 16]} />
-              <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={4.0} />
-            </mesh>
-            <mesh position={p}>
-              <sphereGeometry args={[r * 0.95, 16, 16]} />
-              <meshStandardMaterial color={tipColor || ROBO_GLOW} emissive={tipColor || ROBO_GLOW} emissiveIntensity={2.5} />
-            </mesh>
-            {/* Energy halo around joint */}
-            <mesh position={p} rotation={[Math.PI/4, Math.PI/4, 0]}>
-              <torusGeometry args={[r * 1.5, r * 0.02, 16, 32]} />
-              <meshStandardMaterial color={ROBO_PURPLE} emissive={ROBO_PURPLE} emissiveIntensity={3.0} transparent opacity={0.6} />
-            </mesh>
-            {next && <Segment p1={p} p2={next} r1={r} r2={rNext} tipColor={tipColor} />}
-          </group>
-        );
-      })}
-      
-      <mesh position={points[points.length - 1]} quaternion={tipQuat}>
-        <cylinderGeometry args={[rEnd * 0.7, rEnd * 1.1, 0.15, 24]} />
-        <meshStandardMaterial color={tipColor || ROBO_GLOW} emissive={tipColor || ROBO_GLOW} emissiveIntensity={4.0} />
-      </mesh>
-      <mesh position={points[points.length - 1]} quaternion={tipQuat}>
-        <cylinderGeometry args={[rEnd * 0.8, rEnd * 0.8, 0.25, 24]} />
-        <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.05} />
-      </mesh>
-      {/* Laser targeting dot on tip */}
-      {(() => {
-        const pLast = new THREE.Vector3(...points[points.length - 1]);
-        const pPrev = new THREE.Vector3(...points[points.length - 2]);
-        const tipDir = pLast.clone().sub(pPrev).normalize();
-        const laserPos = pLast.clone().add(tipDir.multiplyScalar(rEnd * 0.8));
-        return (
-          <mesh position={laserPos.toArray()} quaternion={tipQuat}>
-            <sphereGeometry args={[rEnd * 0.2, 16, 16]} />
-            <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={6.0} />
-          </mesh>
-        );
-      })()}
-    </group>
-  );
+// The half-turn that keeps the hand's three digits on B, I and F. Each is a
+// rotation, never a mirror, so it stays a left hand.
+function handRotation(bSign, iSign) {
+  if (bSign > 0 && iSign > 0) return [0, 0, 0];
+  if (bSign < 0 && iSign > 0) return [0, 0, Math.PI];
+  if (bSign > 0 && iSign < 0) return [Math.PI, 0, 0];
+  return [0, Math.PI, 0];
 }
 
-function Segment({ p1, p2, r1, r2, tipColor }) {
-  const position = useMemo(() => {
-    const v1 = new THREE.Vector3(...p1);
-    const v2 = new THREE.Vector3(...p2);
-    return v1.clone().lerp(v2, 0.5);
-  }, [p1, p2]);
-
-  const quaternion = useMemo(() => {
-    const v1 = new THREE.Vector3(...p1);
-    const v2 = new THREE.Vector3(...p2);
-    return new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      v2.sub(v1).normalize()
-    );
-  }, [p1, p2]);
-
-  const distance = useMemo(() => {
-    return new THREE.Vector3(...p1).distanceTo(new THREE.Vector3(...p2));
-  }, [p1, p2]);
-
-  return (
-    <group position={position} quaternion={quaternion}>
-      {/* Central Bone (Glass outer shell + Glowing inner core) */}
-      <mesh>
-        <cylinderGeometry args={[r2 * 0.85, r1 * 0.85, distance, 24]} />
-        <meshStandardMaterial color="#ffffff" metalness={0.9} roughness={0.1} transparent opacity={0.3} />
-      </mesh>
-      <mesh>
-        <cylinderGeometry args={[r2 * 0.4, r1 * 0.4, distance, 24]} />
-        <meshStandardMaterial color={ROBO_PURPLE} emissive={ROBO_PURPLE} emissiveIntensity={3.0} />
-      </mesh>
-      {/* Carbon fiber struts inside the glass */}
-      {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
-        <mesh key={`strut-${angle}`} position={[Math.cos(angle) * r1 * 0.6, 0, Math.sin(angle) * r1 * 0.6]}>
-          <cylinderGeometry args={[0.04, 0.04, distance, 8]} />
-          <meshStandardMaterial color={ROBO_DARK} metalness={0.9} roughness={0.6} />
-        </mesh>
-      ))}
-
-      {/* Exoskeleton Cage (4 rods) */}
-      {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
-        <mesh key={angle} position={[Math.cos(angle) * r1 * 0.95, 0, Math.sin(angle) * r1 * 0.95]}>
-          <cylinderGeometry args={[0.04, 0.04, distance * 0.9, 8]} />
-          <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.1} />
-        </mesh>
-      ))}
-      <mesh position={[0, distance/2 - r2*0.2, 0]}>
-        <cylinderGeometry args={[r2 * 1.15, r2 * 1.15, r2*0.4, 24]} />
-        <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.15} />
-      </mesh>
-      <mesh position={[0, -distance/2 + r1*0.2, 0]}>
-        <cylinderGeometry args={[r1 * 1.15, r1 * 1.15, r1*0.4, 24]} />
-        <meshStandardMaterial color={ROBO_PRIMARY} metalness={1.0} roughness={0.15} />
-      </mesh>
-      
-      {/* Side energy cables with dual colors */}
-      <mesh position={[r1 * 0.85, 0, 0]}>
-        <cylinderGeometry args={[0.03, 0.03, distance, 8]} />
-        <meshStandardMaterial color={tipColor || ROBO_GLOW} emissive={tipColor || ROBO_GLOW} emissiveIntensity={3.0} />
-      </mesh>
-      <mesh position={[-r1 * 0.85, 0, 0]}>
-        <cylinderGeometry args={[0.03, 0.03, distance, 8]} />
-        <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={3.0} />
-      </mesh>
-      
-      {/* Intense Ribbed texture / piston rings on the bone */}
-      {[-0.35, -0.15, 0.0, 0.15, 0.35].map(offset => (
-        <mesh key={offset} position={[0, distance * offset, 0]}>
-          <torusGeometry args={[r1 * 0.9, 0.04, 16, 32]} />
-          <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.2} />
-        </mesh>
-      ))}
-    </group>
-  );
+// The same turns applied to a point, so the arrows leave from the fingertips.
+function turnHandPoint([x, y, z], bSign, iSign) {
+  if (bSign > 0 && iSign > 0) return [x, y, z];
+  if (bSign < 0 && iSign > 0) return [-x, -y, z];
+  if (bSign > 0 && iSign < 0) return [x, -y, -z];
+  return [-x, y, -z];
 }
 
-/**
- * Ultra-detailed Cybernetic Robotic Left Hand for Fleming's Left-Hand Rule.
- */
 function FlemingLeftHand({ bSign, iSign }) {
-  const rotation =
-    bSign > 0 && iSign > 0
-      ? [0, 0, 0]
-      : bSign < 0 && iSign > 0
-        ? [0, 0, Math.PI]
-        : bSign > 0 && iSign < 0
-          ? [Math.PI, 0, 0]
-          : [0, Math.PI, 0];
-
+  const { hand } = usePackedModel(FLEMING_GLB);
+  const material = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        vertexColors: true,
+        // the scene is lit brightly for its poles; this keeps the skin warm
+        color: new THREE.Color(0.86, 0.86, 0.86),
+        roughness: 0.55,
+        sheen: 0.4,
+        sheenRoughness: 0.55,
+        sheenColor: new THREE.Color("#f3b49c"),
+        // the forearm fades out behind the wrist (vertex alpha)
+        transparent: true,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
   return (
-    <group rotation={rotation} scale={1.15}>
-      <ambientLight intensity={2.0} />
-      <directionalLight position={[5, 10, 5]} intensity={2.0} />
-      <directionalLight position={[-5, -10, -5]} intensity={1.0} />
-      {/* ── Hydraulic Arm Tube (Horizontal cylinder from Pole N) ── */}
-      <mesh position={[-2.4, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.35, 0.35, 2.8, 32]} />
-        <meshStandardMaterial color={ROBO_DARK} roughness={0.6} metalness={0.8} />
-      </mesh>
-      
-      {/* Vent strips along the arm */}
-      {[-1.3, -1.9, -2.5, -3.1].map((x) => (
-        <group key={x} position={[x, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
-          {/* Neon Green Vent strips */}
-          {[0, Math.PI/2, Math.PI, Math.PI*1.5].map(angle => (
-            <mesh key={`vent-${angle}`} position={[Math.cos(angle)*0.38, 0, Math.sin(angle)*0.38]} rotation={[0, Math.PI/2, 0]}>
-               <planeGeometry args={[0.2, 0.05]} />
-               <meshStandardMaterial color={ROBO_GREEN} emissive={ROBO_GREEN} emissiveIntensity={5.0} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-      
-      {/* Heavy Hydraulic cables running along the arm */}
-      {[0, Math.PI*2/3, Math.PI*4/3].map((angle, i) => (
-        <group key={`cable-${i}`}>
-          <mesh position={[-2.4, -0.02 + 0.38 * Math.sin(angle), 0.06 + 0.38 * Math.cos(angle)]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.06, 0.06, 2.8, 16]} />
-            <meshStandardMaterial color={ROBO_GOLD} metalness={1.0} roughness={0.1} />
-          </mesh>
-          <mesh position={[-2.4, -0.02 + 0.38 * Math.sin(angle), 0.06 + 0.38 * Math.cos(angle)]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.03, 0.03, 2.82, 16]} />
-            <meshStandardMaterial color={ROBO_RED} emissive={ROBO_RED} emissiveIntensity={4.0} />
-          </mesh>
-        </group>
-      ))}
-      
-      {/* Hydraulic piston glowing rings on the arm */}
-      {[-1.6, -2.2, -2.8].map((x) => (
-        <mesh key={x} position={[x, -0.02, 0.06]} rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[0.42, 0.05, 32, 32]} />
-          <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={3.5} />
-        </mesh>
-      ))}
-
-      {/* ── Main Palm Body and Curled Fingers (Rotated to face FRONT) ──────── */}
-      <group rotation={[-Math.PI / 2, 0, 0]}>
-        {/* Main Palm Body */}
-        <RoundedBox
-          args={[1.72, 1.0, 1.4]}
-          radius={0.08}
-          smoothness={4}
-          position={[-0.6, -0.02, 0.06]}
-        >
-          <meshStandardMaterial color={ROBO_PRIMARY} roughness={0.15} metalness={0.9} />
-        </RoundedBox>
-
-        {/* Dark inner layer for depth */}
-        <RoundedBox
-          args={[1.74, 0.98, 1.38]}
-          radius={0.05}
-          smoothness={4}
-          position={[-0.6, -0.02, 0.06]}
-        >
-          <meshStandardMaterial color={ROBO_DARK} roughness={0.7} metalness={0.9} />
-        </RoundedBox>
-
-        {/* Cyber Grip Pad */}
-        <RoundedBox
-          args={[1.48, 0.36, 1.28]}
-          radius={0.05}
-          smoothness={2}
-          position={[-0.55, -0.42, 0.06]}
-        >
-          <meshStandardMaterial color={ROBO_PURPLE} roughness={0.2} metalness={1.0} wireframe />
-        </RoundedBox>
-        <RoundedBox
-          args={[1.46, 0.35, 1.26]}
-          radius={0.05}
-          smoothness={2}
-          position={[-0.55, -0.4, 0.06]}
-        >
-          <meshStandardMaterial color={ROBO_DARK} roughness={0.7} metalness={0.9} />
-        </RoundedBox>
-        {/* Grip Pad Glowing nodes */}
-        {[-1.0, -0.1].map(x => 
-          [-0.4, 0.5].map(z => (
-            <mesh key={`${x}-${z}`} position={[x, -0.55, z]}>
-              <sphereGeometry args={[0.1, 16, 16]} />
-              <meshStandardMaterial color={ROBO_GLOW} emissive={ROBO_GLOW} emissiveIntensity={4.0} />
-            </mesh>
-          ))
-        )}
-
-        {/* ── Ring finger: Curled into palm ──────── */}
-        <RoboFinger
-          points={[
-            [0.2, 0.0, -0.2],
-            [0.52, -0.22, -0.2],
-            [0.46, -0.62, -0.2],
-            [0.18, -0.74, -0.2],
-          ]}
-          rStart={0.128}
-          rEnd={0.082}
-        />
-
-        {/* ── Little finger: Curled into palm ─────── */}
-        <RoboFinger
-          points={[
-            [0.15, -0.01, -0.5],
-            [0.44, -0.2, -0.5],
-            [0.38, -0.52, -0.5],
-            [0.16, -0.6, -0.5],
-          ]}
-          rStart={0.112}
-          rEnd={0.072}
-        />
-      </group>
-
-      {/* Servo Motor Housing (Thumb Joint) - Left unrotated to connect Thumb */}
-      <mesh position={[-0.75, 0.04, -0.38]}>
-        <sphereGeometry args={[0.35, 32, 32]} />
-        <meshStandardMaterial color={ROBO_SECONDARY} roughness={0.3} metalness={0.9} />
-      </mesh>
-
-      {/* ── Thumb — Force F (+Y) ── */}
-      {/* Chronologically next: Thumb above the base */}
-      <RoboFinger
-        points={[
-          [-0.75, 0.1, -0.46],
-          [-0.72, 0.75, -0.5],
-          [-0.7, 1.46, -0.52],
-        ]}
-        rStart={0.165}
-        rEnd={0.115}
-        tipColor={PALETTE.emerald}
-      />
-
-      {/* ── Second finger — Current I (+Z) ── */}
-      {/* Chronologically next: Middle finger facing front */}
-      <RoboFinger
-        points={[
-          [0.22, 0.12, -0.06],
-          [0.32, 0.11, 0.45],
-          [0.32, 0.1, 1.05],
-          [0.32, 0.09, 1.68],
-        ]}
-        rStart={0.14}
-        rEnd={0.086}
-        tipColor={PALETTE.gold}
-      />
-
-      {/* ── First finger — Field B (+X) ── */}
-      {/* Chronologically last: Index finger facing S pole (+X) */}
-      <RoboFinger
-        points={[
-          [0.2, 0.4, -0.4],
-          [0.72, 0.4, -0.4],
-          [1.26, 0.39, -0.4],
-          [1.76, 0.38, -0.4],
-        ]}
-        rStart={0.135}
-        rEnd={0.088}
-        tipColor={PALETTE.sky}
-      />
+    <group rotation={handRotation(bSign, iSign)}>
+      <mesh geometry={hand.geometry} material={material} />
     </group>
   );
 }
@@ -1027,6 +718,11 @@ export const MagnetPole = PolePlate;
 // The conductor is taken to be one metre of wire inside the field, so the
 // numbers in the readout are a real F = BIL and not I × B with a silent unit.
 const WIRE_LENGTH = 1;
+// How far past a fingertip its arrow starts.
+const TIP_GAP = 0.25;
+// The hand and its arrows are moved this far away from the way the force
+// points, so the force arrow and its label stay in frame either way up.
+const HAND_SHIFT = 0.6;
 
 export function MotorEffectScene({ params = {} }) {
   const {
@@ -1051,32 +747,22 @@ export function MotorEffectScene({ params = {} }) {
   // arrow and sliding the conductor anyway would teach the wrong thing.
   const hasForce = force > 1e-6;
 
-  // Each vector leaves from just past its fingertip, so the hand stays clear.
   const fieldDir = [bSign, 0, 0];
   const currentDir = [0, 0, iSign];
   const forceDir = [0, fSign, 0];
 
-  // Apply robotic hand rotation matrix to base fingertip local positions so vector arrows
-  // remain firmly anchored to the fingers under all polarity configurations.
-  const transformHandPoint = ([x, y, z], b, i) => {
-    if (b > 0 && i > 0) return [x, y, z];
-    if (b < 0 && i > 0) return [-x, -y, z];  // rot [0, 0, PI]
-    if (b > 0 && i < 0) return [x, -y, -z];  // rot [PI, 0, 0]
-    return [-x, y, -z];                      // rot [0, PI, 0]
+  // Each vector leaves from just past its fingertip, so the hand stays clear.
+  const startFor = (key) => {
+    const { tip, dir } = FLEMING_HAND.anchors[key];
+    return turnHandPoint(
+      [tip[0] + dir[0] * TIP_GAP, tip[1] + dir[1] * TIP_GAP, tip[2] + dir[2] * TIP_GAP],
+      bSign,
+      iSign,
+    );
   };
-
-  const fieldStart = useMemo(
-    () => transformHandPoint([2.05, 0.38, -0.4], bSign, iSign),
-    [bSign, iSign],
-  );
-  const currentStart = useMemo(
-    () => transformHandPoint([0.37, 0.09, 1.95], bSign, iSign),
-    [bSign, iSign],
-  );
-  const forceStart = useMemo(
-    () => transformHandPoint([-0.8, 1.7, -0.61], bSign, iSign),
-    [bSign, iSign],
-  );
+  const fieldStart = useMemo(() => startFor("field"), [bSign, iSign]);
+  const currentStart = useMemo(() => startFor("current"), [bSign, iSign]);
+  const forceStart = useMemo(() => startFor("force"), [bSign, iSign]);
 
   const AXIS = 4.2;
   const end = (start, dir, len) => [
@@ -1095,73 +781,86 @@ export function MotorEffectScene({ params = {} }) {
 
   return (
     <SceneCanvas camera={{ position: [8, 5, 13], fov: 45 }}>
-      {/* ── The hand is the diagram ──────────────────────────────── */}
-      <FlemingLeftHand bSign={bSign} iSign={iSign} />
+      {/* The scene has always been lit this much brighter than the studio
+          default; the lights used to ride inside the old hand model. */}
+      <ambientLight intensity={1.3} />
+      <directionalLight position={[5, 10, 5]} intensity={1.6} />
+      <directionalLight position={[-5, -10, -5]} intensity={0.8} />
 
-      {/* ── Field: first finger ──────────────────────────────────── */}
-      <VectorArrow
-        from={fieldStart}
-        to={end(fieldStart, fieldDir, AXIS)}
-        color={PALETTE.sky}
-        radius={0.055}
-        headRadius={0.17}
-        label="B — Field"
-      />
-      <FlowPulses
-        origin={fieldStart}
-        dir={fieldDir}
-        length={AXIS}
-        color={PALETTE.sky}
-        speed={(0.22 + field * 0.34) * animSpeed}
-        count={4}
-        running={animate}
-      />
+      {/* The hand and its three arrows sit a little away from the force's
+          side, so the force arrow and its label stay in frame. */}
+      <group position={[0, -HAND_SHIFT * fSign, 0]}>
+        {/* ── The hand is the diagram ──────────────────────────────── */}
+        <Suspense fallback={null}>
+          <FlemingLeftHand bSign={bSign} iSign={iSign} />
+        </Suspense>
 
-      {/* ── Current: second finger. The shaft is the conductor. ──── */}
-      <VectorArrow
-        from={currentStart}
-        to={end(currentStart, currentDir, AXIS)}
-        color={PALETTE.gold}
-        radius={0.055}
-        headRadius={0.17}
-        label="I — Current"
-      />
-      <FlowPulses
-        origin={currentStart}
-        dir={currentDir}
-        length={AXIS}
-        color={PALETTE.gold}
-        speed={(0.24 + current * 0.42) * animSpeed}
-        count={5}
-        running={animate}
-      />
+        {/* ── Field: first finger ──────────────────────────────────── */}
+        <VectorArrow
+          from={fieldStart}
+          to={end(fieldStart, fieldDir, AXIS)}
+          color={PALETTE.sky}
+          radius={0.055}
+          headRadius={0.17}
+          label="B — Field"
+        />
+        <FlowPulses
+          origin={fieldStart}
+          dir={fieldDir}
+          length={AXIS}
+          color={PALETTE.sky}
+          speed={(0.22 + field * 0.34) * animSpeed}
+          count={4}
+          running={animate}
+        />
 
-      {/* ── Force: thumb (moving conductor and rails removed) ──────── */}
-      {hasForce ? (
-        <>
-          <VectorArrow
-            from={forceStart}
-            to={end(forceStart, forceDir, clamp(1.6 + force * 1.3, 1.6, AXIS))}
-            color={PALETTE.emerald}
-            radius={0.062}
-            headRadius={0.19}
-            label={`F = BIL = ${force.toFixed(2)} N`}
-          />
-          <FlowPulses
-            origin={forceStart}
-            dir={forceDir}
-            length={clamp(1.6 + force * 1.3, 1.6, AXIS)}
-            color={PALETTE.emerald}
-            speed={(0.2 + force * 0.4) * animSpeed}
-            count={3}
-            running={animate}
-          />
-        </>
-      ) : (
-        <SceneLabel position={[0, 2.5, 0]} tone="text-rose-300">
-          I = 0 A · no current, no force, no motion
-        </SceneLabel>
-      )}
+        {/* ── Current: second finger. The shaft is the conductor. ──── */}
+        <VectorArrow
+          from={currentStart}
+          to={end(currentStart, currentDir, AXIS)}
+          color={PALETTE.gold}
+          radius={0.055}
+          headRadius={0.17}
+          label="I — Current"
+        />
+        <FlowPulses
+          origin={currentStart}
+          dir={currentDir}
+          length={AXIS}
+          color={PALETTE.gold}
+          speed={(0.24 + current * 0.42) * animSpeed}
+          count={5}
+          running={animate}
+        />
+
+        {/* ── Force: thumb (moving conductor and rails removed) ──────── */}
+        {hasForce ? (
+          <>
+            <VectorArrow
+              from={forceStart}
+              to={end(forceStart, forceDir, clamp(1.6 + force * 1.3, 1.6, AXIS))}
+              color={PALETTE.emerald}
+              radius={0.062}
+              headRadius={0.19}
+              label={`F = BIL = ${force.toFixed(2)} N`}
+            />
+            <FlowPulses
+              origin={forceStart}
+              dir={forceDir}
+              length={clamp(1.6 + force * 1.3, 1.6, AXIS)}
+              color={PALETTE.emerald}
+              speed={(0.2 + force * 0.4) * animSpeed}
+              count={3}
+              running={animate}
+            />
+          </>
+        ) : (
+          <SceneLabel position={[0, 2.5, 0]} tone="text-rose-300">
+            I = 0 A · no current, no force, no motion
+          </SceneLabel>
+        )}
+
+      </group>
 
       {/* ── Field lines and poles, framing the whole thing ───────── */}
       {showFieldLines && (
