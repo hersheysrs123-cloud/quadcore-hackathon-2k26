@@ -1601,7 +1601,7 @@ export default function HeatTransferCanvas({ params = {} }) {
   const atomic = viewMode === "atomic";
 
   return (
-    <SceneCanvas
+    <SceneCanvas environment
       camera={{ position: [0.5, 1.1, 13.4], fov: 46 }}
       controls={{ minDistance: 5, maxDistance: 32, target: [0, 0.9, 0] }}
       lights={{ ambient: flir ? 0.75 : 0.85, keyLight: flir ? 1.0 : 1.3 }}

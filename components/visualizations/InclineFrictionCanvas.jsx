@@ -710,7 +710,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
     <div className="relative flex h-full w-full flex-row overflow-hidden">
       {/* 3D WebGL Canvas Viewport */}
       <div className="relative h-full flex-1 min-w-0">
-        <SceneCanvas
+        <SceneCanvas environment
           camera={{ position: [0.6, 1.4, 12.8], fov: 46 }}
           controls={{ minDistance: 4, maxDistance: 26, target: [0.6, 0.2, 0] }}
           lights={{ ambient: 0.85, keyLight: 1.7 }}

@@ -1873,7 +1873,7 @@ export function DistillationScene({ params = {} }) {
   const furnace = furnaceTemperature(heat);
 
   return (
-    <SceneCanvas camera={{ position: DISTIL_CAMERA, fov: 45 }} controls={{ target: [0.1, -0.4, 0] }}>
+    <SceneCanvas environment camera={{ position: DISTIL_CAMERA, fov: 45 }} controls={{ target: [0.1, -0.4, 0] }}>
       {/* Concrete pad. */}
       <mesh position={[-0.3, COLUMN_BOTTOM - 0.95, -0.4]}>
         <boxGeometry args={[13.8, 0.2, 6.5]} />
@@ -2741,7 +2741,7 @@ export function ElectrolysisScene({ params = {}, setParam }) {
   const copperMat = (colour) => ({ color: colour, emissive: CELL_COLOURS.cathode, emissiveIntensity: 0.35, metalness: 0.8, roughness: 0.3 });
 
   return (
-    <SceneCanvas camera={{ position: [1.7, 3.4, 13.8], fov: 45 }} controls={{ target: [1.7, 0.5, 0] }}>
+    <SceneCanvas environment camera={{ position: [1.7, 3.4, 13.8], fov: 45 }} controls={{ target: [1.7, 0.5, 0] }}>
       {/* Bench. */}
       <mesh position={[1.7, BENCH_TOP - 0.2, 0.2]}>
         <boxGeometry args={[TANK.w + 8.5, 0.4, TANK.d + 3.2]} />

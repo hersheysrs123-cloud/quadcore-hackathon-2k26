@@ -1115,7 +1115,7 @@ export default function SeparationTechniquesCanvas({ params = {}, setParam }) {
   const fit = useMemo(() => stationFit({ station: stationKey, mixture: mixKey, solvent: solKey }), [stationKey, mixKey, solKey]);
 
   return (
-    <SceneCanvas camera={{ position: [0, 3.4, 16], fov: FOV }} controls={{ minDistance: 4, maxDistance: 30, target: orbitTarget }}>
+    <SceneCanvas environment camera={{ position: [0, 3.4, 16], fov: FOV }} controls={{ minDistance: 4, maxDistance: 30, target: orbitTarget }}>
       <LabelsOn.Provider value={showLabels !== false}>
       <FitCamera station={stationKey} />
       <StationClock modelRef={modelRef} station={stationKey} mixture={mixKey} solvent={solKey} restartToken={restart} animSpeed={speed} setParam={setParam} />

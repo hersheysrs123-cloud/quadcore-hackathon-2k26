@@ -110,3 +110,16 @@ Every scene's labels and camera go through four shared pieces, so a "Show labels
   - No skin layer: the rim-lit translucent skin read as a halo round the hand.
 - **Shadows**: biology meshes neither cast nor receive shadows.
 
+### 29. Metal, Glass and the Studio Environment (`scene-kit.jsx`, `lab-bench.jsx`)
+
+Lab scenes opt into `SceneCanvas`'s `environment`, a procedural studio that metal and glass reflect (see `docs/codebase/3d-studio-core.md`). With it, finishes are authored as what they are:
+
+- **Metal is metallic.** Polished chrome and aluminium run metalness 0.85–1 and roughness 0.15–0.35. Don't add an emissive term to fake brightness: that workaround (from before the environment existed) blows out once the metal reflects. The Van de Graaff dome is `#e9edf3`, metalness 1, roughness 0.16.
+- **`lab-bench.jsx` presets:**
+  - `STEEL`: `#8d96a3`, roughness 0.34, metalness 0.85.
+  - `DARK_STEEL`: painted cast iron, `#4d5666`, roughness 0.55, metalness 0.3. Paint, not a mirror, so it reflects nothing.
+  - `BRASS`: `#c9a24a`, roughness 0.3, metalness 0.9.
+- **Glass** stays transparent and glossy (opacity ≤ 0.6, roughness ≤ 0.35), so it is picked up as glass and catches the softboxes as highlights.
+- **Damp, don't brighten:** a broad flat metal top (a brushed-aluminium bench inlay) or a body of liquid mirrors the studio's overhead and washes out. Give its material `userData={{ envReflect: 0.3 }}` (liquids 0.35, a liquid metal 1).
+- **Light rooms:** a scene set in a bright room passes `environment={{ tone: "light" }}`, so chrome mirrors a pale room rather than a dark floor.
+

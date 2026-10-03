@@ -836,7 +836,7 @@ export default function RadioactiveDecayCanvas({ params = {}, setParam }) {
   const detectorRate = defl.direction !== 0 ? 0 : liveRate * throughFraction;
 
   return (
-    <SceneCanvas camera={{ position: [1.9, 6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
+    <SceneCanvas environment camera={{ position: [1.9, 6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
       <FitCamera />
       <LabBench y={BENCH_Y} width={21} depth={9} />
       <group position={[0, BENCH_Y, 0]}>

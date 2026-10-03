@@ -1419,7 +1419,8 @@ function LaboratoryBench() {
       {/* Tabletop slab: top face at y = -3.30 */}
       <mesh>
         <boxGeometry args={[11.6, 0.36, 4.4]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.35} metalness={0.6} />
+        {/* A broad flat top mirrors the studio's overhead: brushed, so dull it. */}
+        <meshStandardMaterial color="#cbd5e1" roughness={0.35} metalness={0.6} userData={{ envReflect: 0.3 }} />
       </mesh>
       {/* Front edge satin beveled trim */}
       <mesh position={[0, 0, 2.21]}>
@@ -2594,7 +2595,7 @@ export function InductionScene({ params = {} }) {
   const isSolenoid = params?.apparatus === "solenoid";
 
   return (
-    <SceneCanvas
+    <SceneCanvas environment
       camera={
         isSolenoid
           ? { position: [0, 1.8, 13.5], fov: 45 }

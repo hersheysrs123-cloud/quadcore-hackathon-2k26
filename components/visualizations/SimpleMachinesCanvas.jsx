@@ -1252,7 +1252,7 @@ export default function SimpleMachinesCanvas({ params = {} }) {
   return (
     <div className="relative flex h-full w-full flex-row overflow-hidden">
       <div className="relative h-full min-w-0 flex-1">
-      <SceneCanvas
+      <SceneCanvas environment
         camera={{ position: [0.2, 1.3, 14.6], fov: 46 }}
         controls={{ minDistance: 5, maxDistance: 32, target: [0.2, 0.3, 0] }}
         lights={{ ambient: 0.54, keyLight: 0.95 }}
@@ -1276,7 +1276,8 @@ export default function SimpleMachinesCanvas({ params = {} }) {
         {/* Inset top workplate in bright brushed aluminum */}
         <mesh position={[-0.4, BENCH_Y + 0.005, 0]} receiveShadow>
           <boxGeometry args={[10.0, 0.015, 2.3]} />
-          <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.65} />
+          {/* A broad flat top mirrors the studio's overhead: brushed, so dull it. */}
+          <meshStandardMaterial color="#cbd5e1" roughness={0.25} metalness={0.65} userData={{ envReflect: 0.3 }} />
         </mesh>
 
         {/* Bench support pedestals across the widened base */}

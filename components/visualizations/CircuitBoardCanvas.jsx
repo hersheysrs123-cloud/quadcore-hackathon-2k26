@@ -669,7 +669,7 @@ export default function CircuitBoardCanvas({ params = {} }) {
   const shortTrace = useMemo(() => segments.find((s) => s.kind === "short"), [segments]);
 
   return (
-    <SceneCanvas
+    <SceneCanvas environment
       camera={{ position: [0.4, 8.6, 8.4], fov: 46 }}
       controls={{ minDistance: 2.4, maxDistance: 30, target: [0, 0, -0.2], maxPolarAngle: Math.PI / 2.05 }}
       lights={{ ambient: 0.42, keyLight: 0.95 }}

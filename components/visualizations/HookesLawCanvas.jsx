@@ -482,7 +482,7 @@ export default function HookesLawCanvas({ params = {}, setParam }) {
   const restY = TOP_Y - solved.restLength * S;
 
   return (
-    <SceneCanvas
+    <SceneCanvas environment
       camera={{ position: [0.15, 0.3, 12.5], fov: 44 }}
       controls={{ minDistance: 5, maxDistance: 26, target: [0.15, -0.2, 0] }}
       lights={{ ambient: 0.58, keyLight: 1.0 }}

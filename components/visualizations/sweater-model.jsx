@@ -130,8 +130,8 @@ export function SweaterModel() {
       sweater: makeWoolMaterial(),
       form: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }),
       wood: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42 }),
-      // moderate: with no environment map a high metalness renders dark
-      metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.5 }),
+      // chrome: the static scene's studio environment gives it a room to reflect
+      metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.9 }),
     }),
     [],
   );

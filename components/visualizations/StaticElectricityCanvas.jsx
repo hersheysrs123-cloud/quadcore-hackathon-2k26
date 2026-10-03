@@ -548,8 +548,9 @@ function VanDeGraaff({ on, markers, pans, animSpeed = 1, humidity = 40 }) {
 
       {/* Dome. */}
       <mesh position={[DOME_X, DOME_Y, 0]} castShadow>
-        <sphereGeometry args={[DOME_R, 30, 24]} />
-        <meshStandardMaterial color="#eef2f8" roughness={0.28} metalness={0.45} />
+        <sphereGeometry args={[DOME_R, 48, 32]} />
+        {/* Polished aluminium: it mirrors the studio environment. */}
+        <meshStandardMaterial color="#e9edf3" roughness={0.16} metalness={1} />
       </mesh>
       <group position={[DOME_X, DOME_Y, 0]}>
         <ChargeSigns signs={domeSigns} size={0.2} />
@@ -987,6 +988,7 @@ export default function StaticElectricityCanvas({ params = {}, setParam }) {
       camera={{ position: [3.6, 2.5, 10.8], fov: 46 }}
       controls={{ minDistance: 4, maxDistance: 26, target: [0, 0.3, -0.6], maxPolarAngle: Math.PI / 2.02 }}
       lights={{ ambient: 0.75, keyLight: 0.9 }}
+      environment={{ tone: "light" }}
       fog={[18, 44]}
     >
       <Room humidity={humidity} />

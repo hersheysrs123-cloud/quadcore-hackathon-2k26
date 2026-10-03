@@ -528,7 +528,7 @@ export default function RustingGalvanicCanvas({ params = {}, setParam }) {
   };
 
   return (
-    <SceneCanvas camera={{ position: INITIAL_CAMERA, fov: 46 }} controls={{ minDistance: 4, maxDistance: 32, target: CAMERA_TARGET }}>
+    <SceneCanvas environment camera={{ position: INITIAL_CAMERA, fov: 46 }} controls={{ minDistance: 4, maxDistance: 32, target: CAMERA_TARGET }}>
       <FitCamera />
       <RustDriver modelRef={modelRef} days={days} electrolyte={electrolyte} partner={partner} playing={playing} animSpeed={speed} setParam={setParam} />
 

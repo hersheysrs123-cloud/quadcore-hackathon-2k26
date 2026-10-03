@@ -17,9 +17,10 @@ import { PALETTE, clamp, hashRandom, lerp } from "@/components/visualizations/sc
 //                other without anyone guessing;
 //   materials    the presets (`GLASS`, `PORCELAIN`, `STEEL`, `BRASS`,
 //                `RUBBER`, `PAPER`) as prop objects for JSX materials.
-//                Metals carry an emissive term: `SceneCanvas` has no
-//                environment map, and a bare high-metalness material
-//                with nothing to reflect renders as charcoal;
+//                Metals are properly metallic: every scene that uses
+//                them opts into `SceneCanvas`'s studio environment,
+//                which gives them something to reflect (they once
+//                carried an emissive term to fake that);
 //   furniture    `LabBench`, `HeatMat`, `RetortStand`, `Tripod`;
 //   burner       `BunsenBurner` — body, needle valve, rotating air
 //                collar, and a flame the caller drives every frame
@@ -61,10 +62,11 @@ export const THICK_GLASS = { ...GLASS, color: "#c3e6f2", opacity: 0.55, transmis
 /** A glazed porcelain basin. */
 export const PORCELAIN = { color: "#f3f1ec", roughness: 0.25, metalness: 0.05, emissive: "#f3f1ec", emissiveIntensity: 0.08 };
 /** Brushed steel — rods, bases, barrels. */
-export const STEEL = { color: "#6b7482", roughness: 0.38, metalness: 0.6, emissive: "#6b7482", emissiveIntensity: 0.22 };
-export const DARK_STEEL = { color: "#4d5666", roughness: 0.45, metalness: 0.5, emissive: "#4d5666", emissiveIntensity: 0.2 };
+export const STEEL = { color: "#8d96a3", roughness: 0.34, metalness: 0.85 };
+/** Painted cast iron — retort-stand bases and housings: a paint, not a mirror. */
+export const DARK_STEEL = { color: "#4d5666", roughness: 0.55, metalness: 0.3 };
 /** The brass of a collar, a gas tap, a needle valve. */
-export const BRASS = { color: "#c9a24a", roughness: 0.32, metalness: 0.6, emissive: "#c9a24a", emissiveIntensity: 0.3 };
+export const BRASS = { color: "#c9a24a", roughness: 0.3, metalness: 0.9 };
 export const RUBBER = { color: "#1f2731", roughness: 0.92, metalness: 0.05 };
 /** Filter and chromatography paper. */
 export const PAPER = { color: "#f4f1e6", roughness: 0.95, metalness: 0, side: THREE.DoubleSide };

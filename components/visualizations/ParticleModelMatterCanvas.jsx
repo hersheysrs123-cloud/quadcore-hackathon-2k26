@@ -672,7 +672,7 @@ export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
   const pistonPct = livePistonPct === null || livePistonPct === undefined ? Math.round((heightsRef.current.piston / CONTAINER.maxHeight) * 100) : livePistonPct;
 
   return (
-    <SceneCanvas camera={{ position: [2.2, 5.6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
+    <SceneCanvas environment camera={{ position: [2.2, 5.6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
       <FitCamera />
       <LabBench y={BENCH_Y} width={18} depth={8} />
       <group position={[0, BENCH_Y, 0]}>

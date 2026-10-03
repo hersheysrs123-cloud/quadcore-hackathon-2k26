@@ -850,7 +850,7 @@ export default function CombustionFireTriangleCanvas({ params = {}, setParam }) 
   const READOUT_Y = BENCH_Y + JAR_UP_Y + JAR.height * 0.75;
 
   return (
-    <SceneCanvas camera={{ position: [-0.3, 4.5, 18], fov: FOV }} controls={{ minDistance: 4, maxDistance: 32, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
+    <SceneCanvas environment camera={{ position: [-0.3, 4.5, 18], fov: FOV }} controls={{ minDistance: 4, maxDistance: 32, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
       <FitCamera />
       <CombustionDriver modelRef={modelRef} flameRef={flameRef} collar={collar} tokens={tokens} animSpeed={speed} setParam={setParam} />
 
