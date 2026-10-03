@@ -375,16 +375,16 @@ export default function QuizStudioView({
     }, 10);
   };
 
-  const handlePickOption = (qIdx, oi) => {
+  const handlePickOption = useCallback((qIdx, oi) => {
     const nextAnswers = { ...quizAnswers, [qIdx]: oi };
     setQuizAnswers(nextAnswers);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       persistQuizProgress(nextAnswers, qIdx);
     }, 250);
-  };
+  }, [quizAnswers, persistQuizProgress]);
 
-  const handleToggleMultiOption = (qIdx, oi) => {
+  const handleToggleMultiOption = useCallback((qIdx, oi) => {
     const current = Array.isArray(quizAnswers[qIdx]) ? quizAnswers[qIdx] : [];
     const next = current.includes(oi)
       ? current.filter((item) => item !== oi)
@@ -395,7 +395,7 @@ export default function QuizStudioView({
     saveTimeoutRef.current = setTimeout(() => {
       persistQuizProgress(nextAnswers, qIdx);
     }, 250);
-  };
+  }, [quizAnswers, persistQuizProgress]);
 
   const handleMoveStep = (qIdx, fromIdx, toIdx) => {
     const defaultSteps = takingQuiz?.questions?.[qIdx]?.options || takingQuiz?.questions?.[qIdx]?.steps || [];
@@ -432,11 +432,11 @@ export default function QuizStudioView({
     }, 350);
   };
 
-  const handleSelectQuestionIndex = (newIndex) => {
+  const handleSelectQuestionIndex = useCallback((newIndex) => {
     setQuizIndex(newIndex);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     persistQuizProgress(quizAnswers, newIndex);
-  };
+  }, [quizAnswers, persistQuizProgress]);
 
   const handleCloseRunner = async () => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -512,7 +512,7 @@ export default function QuizStudioView({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [takingQuiz, quizIndex, quizAnswers]);
+  }, [takingQuiz, quizIndex, handlePickOption, handleToggleMultiOption, handleSelectQuestionIndex]);
 
   const handleExecuteDelete = async () => {
     const { mode, quiz } = confirmDelete;

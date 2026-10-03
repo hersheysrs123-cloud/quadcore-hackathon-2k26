@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Sparkles,
   Folder,
@@ -52,12 +52,12 @@ export default function InteractiveTutorial({
     }
   }, [isOpen]);
 
-  const handleClose = (markCompleted = true) => {
+  const handleClose = useCallback((markCompleted = true) => {
     if (typeof window !== "undefined" && (markCompleted || dontShowAgain)) {
       localStorage.setItem("socratic_tutorial_completed", "true");
     }
     onClose();
-  };
+  }, [dontShowAgain, onClose]);
 
   // Keyboard navigation for tutorial
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function InteractiveTutorial({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, currentStep, dontShowAgain]);
+  }, [isOpen, currentStep, handleClose]);
 
   if (!isOpen) return null;
 

@@ -65,7 +65,7 @@ export default function ExplainPanel({
         setLoading(false);
       }
     }
-  }, [concept, focus, noteContent]);
+  }, [concept, focus, noteContent, spaceId]);
 
   // One fetch per (concept, focus) the drawer is opened on. noteContent is
   // deliberately not a trigger — it changes on every keystroke behind the

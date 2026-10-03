@@ -1193,9 +1193,10 @@ export function CellWall({ size, selected, onSelect, showLabel }) {
    * down at angles to each other, which is why it resists stretch in every
    * direction at once.
    */
+  // size is a new array every render; the memo keys on the numbers in it
+  const [w, h, d] = size;
   const fibrils = useMemo(() => {
     const out = [];
-    const [w, h, d] = size;
 
     /**
      * Project a direction onto the wall's surface — the same superellipsoid
@@ -1245,7 +1246,7 @@ export function CellWall({ size, selected, onSelect, showLabel }) {
     tile((u, v) => [u, 1, v], 9, 6, 0.11);
     tile((u, v) => [u, -1, v], 9, 6, 0.11);
     return out;
-  }, [size[0], size[1], size[2]]);
+  }, [w, h, d]);
 
   return (
     <Pickable id="wall" onSelect={onSelect}>
@@ -1305,13 +1306,15 @@ export function BilayerPatch({ position, normal = [0, 0, 1], visible, showLabel 
     [],
   );
 
+  // normal is a new array every render; the memo keys on the numbers in it
+  const [nx, ny, nz] = normal;
   const quaternion = useMemo(
     () =>
       new THREE.Quaternion().setFromUnitVectors(
         new THREE.Vector3(0, 0, 1),
-        new THREE.Vector3(...normal).normalize(),
+        new THREE.Vector3(nx, ny, nz).normalize(),
       ),
-    [normal[0], normal[1], normal[2]],
+    [nx, ny, nz],
   );
 
   if (!visible) return null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   Check,
   ChevronDown,
@@ -628,8 +628,9 @@ function HookesLawSidebarGraph({ params }) {
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
 
-  const toSvgX = (x) => padL + (Math.max(0, Math.min(x, xMax)) / (xMax || 1)) * plotW;
-  const toSvgY = (f) => padT + ((yMax - Math.max(0, Math.min(f, yMax))) / (yMax || 1)) * plotH;
+  // Stable until the axes change, so the path memos below can list them.
+  const toSvgX = useCallback((x) => padL + (Math.max(0, Math.min(x, xMax)) / (xMax || 1)) * plotW, [xMax, plotW]);
+  const toSvgY = useCallback((f) => padT + ((yMax - Math.max(0, Math.min(f, yMax))) / (yMax || 1)) * plotH, [yMax, plotH]);
 
   const limitX = toSvgX(x_L);
   const failX = toSvgX(x_F);
@@ -649,8 +650,7 @@ function HookesLawSidebarGraph({ params }) {
   // 1. Full Capability Envelope (faint reference background)
   const envelopePath = useMemo(() => {
     return `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(x_L)} ${toSvgY(F_L)} L ${toSvgX(x_F)} ${toSvgY(F_F)}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [k, xMax, yMax]);
+  }, [x_L, x_F, F_L, F_F, toSvgX, toSvgY]);
 
   // 2. Active Elastic Path & Area Fill
   const { elasticStrokeD, elasticFillD } = useMemo(() => {
@@ -659,8 +659,7 @@ function HookesLawSidebarGraph({ params }) {
     const stroke = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(endX)} ${toSvgY(endF)}`;
     const fill = `M ${toSvgX(0)} ${toSvgY(0)} L ${toSvgX(endX)} ${toSvgY(endF)} L ${toSvgX(endX)} ${baselineY} L ${toSvgX(0)} ${baselineY} Z`;
     return { elasticStrokeD: stroke, elasticFillD: fill };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peakX, k, xMax, yMax, baselineY]);
+  }, [peakX, x_L, k, baselineY, toSvgX, toSvgY]);
 
   // 3. Active Plastic Path & Area Fill (when peakForce > F_L)
   const { plasticStrokeD, plasticFillD } = useMemo(() => {
@@ -668,8 +667,7 @@ function HookesLawSidebarGraph({ params }) {
     const stroke = `M ${toSvgX(x_L)} ${toSvgY(F_L)} L ${toSvgX(peakX)} ${toSvgY(peakF)}`;
     const fill = `${stroke} L ${toSvgX(peakX)} ${baselineY} L ${toSvgX(x_L)} ${baselineY} Z`;
     return { plasticStrokeD: stroke, plasticFillD: fill };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peakF, peakX, F_L, k, xMax, yMax, baselineY]);
+  }, [peakF, peakX, F_L, x_L, baselineY, toSvgX, toSvgY]);
 
   // 4. Unload line (from peak point down to permanent set)
   const unloadData = useMemo(() => {
@@ -683,7 +681,7 @@ function HookesLawSidebarGraph({ params }) {
       setM,
       setSvgX: toSvgX(setM),
     };
-  }, [peakF, peakX, F_L, k, xMax, yMax]);
+  }, [peakF, peakX, F_L, k, toSvgX, toSvgY]);
 
   // 5. Operating point & tangent line
   const markerX = toSvgX(activeX);
@@ -700,7 +698,7 @@ function HookesLawSidebarGraph({ params }) {
       x1: toSvgX(x1),
       y1: toSvgY(activeF + (x1 - activeX) * m),
     };
-  }, [activeX, activeF, activeStiffness, xMax, yMax]);
+  }, [activeX, activeF, activeStiffness, xMax, toSvgX, toSvgY]);
 
   // Status Badge
   const statusBadge = isOverloaded

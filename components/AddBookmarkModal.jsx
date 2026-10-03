@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Globe, Tag, Folder, Bookmark } from "lucide-react";
 import { normalizeUrl, extractDomain, getFaviconUrl, generateFallbackTitle } from "@/lib/urlUtils";
 
@@ -78,22 +78,6 @@ export default function AddBookmarkModal({
     }
   };
 
-  // Keyboard navigation: Escape closes modal
-  useEffect(() => {
-    function handleKeyDown(e) {
-      if (!open) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleSubmit(e);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, url, title, folderId, notes, tags]);
-
   const handleAddTag = () => {
     const trimmed = tagInput.trim().toLowerCase().replace(/^[#,]+/, "");
     if (trimmed && !tags.includes(trimmed)) {
@@ -115,8 +99,10 @@ export default function AddBookmarkModal({
     setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e?.preventDefault();
+    // Ctrl+Enter reaches here even while a save is in flight; the button is disabled
+    if (isSaving) return;
     const normalized = normalizeUrl(url);
     if (!normalized) {
       alert("Please provide a valid website URL (e.g. https://example.com).");
@@ -146,7 +132,25 @@ export default function AddBookmarkModal({
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [isSaving, url, title, faviconPreview, initialBookmark, folderId, notes, tags, onSave, onClose]);
+
+  // Keyboard navigation: Escape closes modal, Ctrl/Cmd+Enter saves. Listing
+  // handleSubmit re-subscribes whenever the form state it reads changes, so
+  // Ctrl+Enter never saves a stale copy or skips the isSaving guard.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (!open) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleSubmit(e);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose, handleSubmit]);
 
   if (!open) return null;
 
@@ -205,6 +209,7 @@ export default function AddBookmarkModal({
             <div className="relative flex items-center">
               <div className="absolute left-3 flex h-5 w-5 items-center justify-center shrink-0">
                 {faviconPreview && !faviconError ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts
                   <img
                     src={faviconPreview}
                     alt=""

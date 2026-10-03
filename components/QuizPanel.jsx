@@ -138,14 +138,18 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
         setPhase("idle");
       }
     },
-    [concept, noteContent, spaceId, quiz, phase]
+    [concept, noteContent, spaceId, phase]
   );
 
+  // Generate once per (open, concept). generate and quiz are deliberately not
+  // triggers: generate changes with phase and noteContent, so a failed request
+  // (phase back to idle, quiz still null) would re-run this and retry forever.
   useEffect(() => {
     if (!open || !concept) return;
     if (lastConceptRef.current !== concept || !quiz) {
       generate();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, concept]);
 
   useEffect(() => {

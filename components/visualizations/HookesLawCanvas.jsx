@@ -300,12 +300,14 @@ function OscillatingSpringRig({ solved, hangingMass, springConstant, speed = 1, 
     }
   }, [hangingMass, springConstant]);
 
-  // Reset oscillation state when spring properties change
+  // Reset oscillation state when spring properties change. prevMass needs no
+  // reset: the effect above, which runs first, already keeps it in step with
+  // hangingMass, and a mass change must not land here or it would cancel its
+  // own bounce.
   useEffect(() => {
     yOffset.current = 0;
     yVel.current = 0;
     clock.current = 0;
-    prevMass.current = hangingMass;
   }, [springConstant, solved.permanentSet]);
 
   useFrame((_, rawDelta) => {

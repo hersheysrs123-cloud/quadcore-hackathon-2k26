@@ -674,7 +674,9 @@ function RealisticBoat({ l, w, h, colour, swamped, fluidSpec }) {
     }
 
     return { outerGeom, innerGeom, deckGeom, swampedGeom };
-  }, [l, w, h, swamped]);
+    // w is not an input: the hull is the solver's form in units of h, so the
+    // boat drawn is the one whose immersed volume set the waterline.
+  }, [l, h, t, swamped]);
 
   useEffect(() => {
     return () => {

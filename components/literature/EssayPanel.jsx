@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 const TABS = [
@@ -31,7 +31,14 @@ export default function EssayPanel({ poem, tab, onTabChange, onSave, onClose }) 
     pendingRef.current = null;
   }, [key, poem, tab]);
 
-  const flush = () => {
+  // Latest onSave, so the stable flush below (and the unmount flush) never
+  // calls an outdated copy.
+  const onSaveRef = useRef(onSave);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  const flush = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -39,10 +46,10 @@ export default function EssayPanel({ poem, tab, onTabChange, onSave, onClose }) 
     const pending = pendingRef.current;
     if (!pending) return;
     pendingRef.current = null;
-    onSave(pending.poemId, pending.field, pending.value);
-  };
+    onSaveRef.current(pending.poemId, pending.field, pending.value);
+  }, []);
 
-  useEffect(() => flush, []); // flush whatever is in flight when unmounting
+  useEffect(() => flush, [flush]); // flush whatever is in flight when unmounting
 
   const handleChange = (e) => {
     const next = e.target.value;

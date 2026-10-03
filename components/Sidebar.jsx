@@ -13,6 +13,9 @@ import FeatureRequestModal from "@/components/FeatureRequestModal";
 import { SPACE_ICON_OPTIONS } from "@/lib/constants";
 import { buildNoteTree, getAncestorIds, normalizeParentId } from "@/lib/noteHierarchy";
 
+// Shared fallback for an empty space, so hooks keyed on currentNotes stay stable.
+const NO_NOTES = Object.freeze([]);
+
 const SIDEBAR_EXPANDED_KEY = "socratic_sidebar_expanded_notes";
 
 // ─── Sidebar ────────────────────────────────────────────────────────
@@ -2022,7 +2025,7 @@ export default function Sidebar({
     [setSpaces, onSelectSpace]
   );
 
-  const currentNotes = (notesBySpace && notesBySpace[activeSpace]) || [];
+  const currentNotes = (notesBySpace && notesBySpace[activeSpace]) || NO_NOTES;
   const currentSpaceObj = spaces.find((s) => s.name === activeSpace) || spaces[0];
 
   // Reset selection when switching spaces

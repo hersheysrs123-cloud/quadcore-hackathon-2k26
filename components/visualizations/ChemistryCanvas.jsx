@@ -641,14 +641,17 @@ function buildEsterification(n) {
 }
 
 function DoubleBond({ from, to }) {
+  // from/to are new arrays every render; memo on the numbers inside them
+  const [fx, fy, fz] = from;
+  const [tx, ty, tz] = to;
   const offsets = useMemo(() => {
-    const a = new THREE.Vector3(...from);
-    const b = new THREE.Vector3(...to);
+    const a = new THREE.Vector3(fx, fy, fz);
+    const b = new THREE.Vector3(tx, ty, tz);
     const axis = b.clone().sub(a).normalize();
     const perp = new THREE.Vector3(0, 0, 1).cross(axis).normalize();
     if (!Number.isFinite(perp.x)) perp.set(0, 1, 0);
     return [perp.clone().multiplyScalar(0.14), perp.clone().multiplyScalar(-0.14)];
-  }, [from[0], from[1], from[2], to[0], to[1], to[2]]);
+  }, [fx, fy, fz, tx, ty, tz]);
 
   return offsets.map((o, i) => (
     <Bond
@@ -663,9 +666,12 @@ function DoubleBond({ from, to }) {
 }
 
 function TripleBond({ from, to }) {
+  // from/to are new arrays every render; memo on the numbers inside them
+  const [fx, fy, fz] = from;
+  const [tx, ty, tz] = to;
   const offsets = useMemo(() => {
-    const a = new THREE.Vector3(...from);
-    const b = new THREE.Vector3(...to);
+    const a = new THREE.Vector3(fx, fy, fz);
+    const b = new THREE.Vector3(tx, ty, tz);
     const axis = b.clone().sub(a).normalize();
     const perp = new THREE.Vector3(0, 0, 1).cross(axis).normalize();
     if (!Number.isFinite(perp.x)) perp.set(0, 1, 0);
@@ -674,7 +680,7 @@ function TripleBond({ from, to }) {
       perp.clone().multiplyScalar(0.22),
       perp.clone().multiplyScalar(-0.22),
     ];
-  }, [from[0], from[1], from[2], to[0], to[1], to[2]]);
+  }, [fx, fy, fz, tx, ty, tz]);
 
   return offsets.map((o, i) => (
     <Bond
