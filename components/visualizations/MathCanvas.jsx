@@ -365,12 +365,6 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
   );
 }
 
-const STATUS_LABEL = {
-  diverged: "diverged",
-  unbounded: "fell off — no minimum",
-  converged: "settled",
-};
-
 export function GradientDescentScene({ params = {} }) {
   const {
     surface = "bowl",
@@ -385,7 +379,7 @@ export function GradientDescentScene({ params = {} }) {
     speed = 1.0,
   } = params || {};
 
-  const [sample, setSample] = useState({ x: startX, z: startZ, loss: 0, slope: 0, steps: 0, status: null });
+  const [, setSample] = useState({ x: startX, z: startZ, loss: 0, slope: 0, steps: 0, status: null });
   const info = SURFACES[surface] ?? SURFACES.bowl;
 
   return (
@@ -473,15 +467,6 @@ const LATHE_SEGMENTS = 96;
 const PROFILE_POINTS = 120;
 
 /** π ∫₀^H r² dy by Simpson's rule — the value the disc sum converges toward. */
-function exactVolume(r, height, panels = 400) {
-  // Substituting u = y/H turns the integral into πH ∫₀¹ r(u)² du.
-  const h = 1 / panels;
-  let sum = r(0) ** 2 + r(1) ** 2;
-  for (let i = 1; i < panels; i += 1) {
-    sum += (i % 2 ? 4 : 2) * r(i * h) ** 2;
-  }
-  return (Math.PI * height * h * sum) / 3;
-}
 
 const DISC_SEGMENTS = 48;
 
@@ -635,9 +620,6 @@ export function SolidOfRevolutionScene({ params = {} }) {
   // make the solid smaller. Scaling the volumes by sweep/360 contradicted the
   // "V = π ∫ r² dy" printed directly above them, so both are now the full
   // solid of revolution and the sweep is labelled for what it is.
-  const exact = exactVolume(info.r, height);
-  const estimate = discs.reduce((sum, d) => sum + Math.PI * d.radius ** 2 * d.thickness, 0);
-  const error = exact > 0 ? Math.abs(estimate - exact) / exact : 0;
 
   return (
     <SceneCanvas camera={{ position: [5.4, 2.6, 6.6], fov: 46 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.45 * speed }}>
@@ -1202,10 +1184,9 @@ export function UnitCircleWaveScene({ params = {} }) {
     spin = false,
   } = params || {};
 
-  const [sample, setSample] = useState({ theta: 0, height: 0, tanVal: 0, overshoot: 0 });
+  const [, setSample] = useState({ theta: 0, height: 0, tanVal: 0, overshoot: 0 });
   const count = Math.round(harmonics);
   const wf = WAVEFORMS[waveform] ?? WAVEFORMS.square;
-  const targetAmp = wf.targetAmp(amplitude);
 
   return (
     <SceneCanvas

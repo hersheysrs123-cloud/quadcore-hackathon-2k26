@@ -271,7 +271,6 @@ describe("bookkeeping", () => {
     const BENCH_Y = -1.9;
     const topY = BENCH_Y + 4.5;
     const drop = 2.2;
-    const S = 2.1;
     const safeHalfHeight = 1.15 / 2;
 
     for (const sheaves of [1, 2, 3, 4, 6]) {

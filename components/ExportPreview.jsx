@@ -78,7 +78,7 @@ export default function ExportPreview({
   const [viewMode, setViewMode] = useState("rendered"); // "rendered" | "source" | "outline"
   const [copied, setCopied] = useState(false);
   const [docxBlob, setDocxBlob] = useState(null);
-  const [docxLoading, setDocxLoading] = useState(false);
+  const [, setDocxLoading] = useState(false);
   const [iframeHeight, setIframeHeight] = useState(null);
 
   const canvasRef = useRef(null);

@@ -5,18 +5,14 @@ import {
   Sparkles,
   Folder,
   Bookmark,
-  Calendar,
   Code,
   FileText,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
   X,
-  Keyboard,
   Layers,
-  Search,
   ArrowRight,
-  Check,
   ListOrdered,
   List,
   CheckSquare,
@@ -28,8 +24,6 @@ import {
   Image as ImageIcon,
   Link as LinkIcon,
   Sliders,
-  Eye,
-  Atom,
   Columns,
   Table as TableIcon,
 } from "lucide-react";
@@ -89,7 +83,7 @@ export default function InteractiveTutorial({
   if (!isOpen) return null;
 
   const step = TUTORIAL_STEPS[currentStep];
-  const StepComponent = step?.render;
+  const StepComponent = step?.Content;
   const isFirst = currentStep === 0;
   const isLast = currentStep === TUTORIAL_STEPS.length - 1;
   const progressPercent = Math.round(((currentStep + 1) / TUTORIAL_STEPS.length) * 100);
@@ -283,7 +277,7 @@ export const TUTORIAL_STEPS = [
     title: "Welcome to SocraticOS — The Active Learning OS",
     description:
       "SocraticOS is built on one core cognitive science principle: rereading is an illusion of competence. True learning happens when you are actively quizzed, interrogated on mechanisms, and forced to retrieve knowledge.",
-    render: () => {
+    Content: () => {
       const [activePillar, setActivePillar] = useState("retrieval");
       return (
         <div className="space-y-4">
@@ -355,7 +349,7 @@ export const TUTORIAL_STEPS = [
     title: "19-Block Notion-Grade Studio, KaTeX & Fonts",
     description:
       "Type '/' on any line to open the 23-item slash menu. Format notes with 19 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
-    render: ({ onNavigateTab }) => {
+    Content: ({ onNavigateTab }) => {
       const [activeCategory, setActiveCategory] = useState("All");
       const [previewFont, setPreviewFont] = useState("sans");
 
@@ -471,7 +465,7 @@ export const TUTORIAL_STEPS = [
     title: "AI Tutor, Explain Panel & Diagnostic Quizzes",
     description:
       "Study side-by-side with your notes without losing context. Open the persistent study drawer to interrogate doubts, get structured 4-part explanations, or run instant quizzes.",
-    render: () => {
+    Content: () => {
       const [aiTab, setAiTab] = useState("quiz");
       const [quizSelected, setQuizSelected] = useState(null);
       const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -627,7 +621,7 @@ export const TUTORIAL_STEPS = [
     title: "Quizzes Studio: 2-Column Exam Runner & 7 Question Types",
     description:
       "Take full-length diagnostic exams synthesized across multiple notes or curriculum docs. Features question matrix navigation, draft auto-saving, rubric grading, and 7 question types.",
-    render: ({ onNavigateTab }) => {
+    Content: ({ onNavigateTab }) => {
       const [activeQType, setActiveQType] = useState("ordering");
       const [steps, setSteps] = useState([
         { id: 2, text: "Ribosome translates mRNA into peptide chain" },
@@ -769,7 +763,7 @@ export const TUTORIAL_STEPS = [
     title: "Space Hub: Per-Space Syllabus Documents & Pedagogy",
     description:
       "Upload full course syllabi (.pdf, .docx, .txt, .md) to strictly anchor AI quizzes within your grade level. Never get penalised for Grade 12 content when you're in Grade 10.",
-    render: ({ onNavigateTab }) => {
+    Content: ({ onNavigateTab }) => {
       const [selectedStandard, setSelectedStandard] = useState("IGCSE");
 
       const standards = {
@@ -859,7 +853,7 @@ export const TUTORIAL_STEPS = [
     title: "50+ Interactive 3D Simulations Across 5 STEM Domains",
     description:
       "Interact with real-time WebGL models featuring OrbitControls, parameter sliders, clinical CT respiratory kinematics, optical benches, and dynamic physics equations.",
-    render: ({ onNavigateTab }) => {
+    Content: ({ onNavigateTab }) => {
       const [domain, setDomain] = useState("all");
 
       const SIMULATIONS = [
@@ -950,7 +944,7 @@ export const TUTORIAL_STEPS = [
     title: "Multi-Timer HUD, Pomodoro Rhythm & Study Calendar",
     description:
       "Keep study momentum going with zero idle CPU timers. Run Pomodoro focus blocks (25m), short breaks (5m), or custom countdowns with animated browser tab pulse notifications (🦆 ↔ ❗️).",
-    render: ({ onNavigateTab }) => {
+    Content: ({ onNavigateTab }) => {
       const [activePhase, setActivePhase] = useState("focus");
 
       const phases = {
@@ -1062,7 +1056,7 @@ export const TUTORIAL_STEPS = [
     title: "Dual-Pane Web Saver & Netscape Bookmark Manager",
     description:
       "Bookmark reference articles and documentation alongside your notes. Organize links in nested drag-and-drop folders, with live Google Favicon resolution and Netscape HTML import/export.",
-    render: ({ onNavigateTab }) => {
+    Content: ({ onNavigateTab }) => {
       const [selectedFolder, setSelectedFolder] = useState("Physics");
 
       const folders = [
@@ -1175,7 +1169,7 @@ export const TUTORIAL_STEPS = [
     title: "Bulk Actions, 24h Auto-Purge Trash & Power Shortcuts",
     description:
       "Bulk select notes to star, duplicate, or move. Restore soft-deleted notes within 24 hours, and navigate the entire OS using global keyboard shortcuts.",
-    render: ({ onOpenCommandPalette, onOpenInstantNote, copiedShortcut, setCopiedShortcut }) => {
+    Content: ({ onOpenCommandPalette, onOpenInstantNote, copiedShortcut, setCopiedShortcut }) => {
       const shortcuts = [
         { key: "Ctrl + K", desc: "Global Command Palette & Search", action: onOpenCommandPalette },
         { key: "Ctrl + I", desc: "75% Quick Note Capture Window", action: onOpenInstantNote },

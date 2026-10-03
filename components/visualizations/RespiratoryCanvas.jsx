@@ -158,7 +158,6 @@ function KinematicVector({ from, to, color, label, visible = true }) {
 
 // ─── Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine T1-T12, Sternum, Clavicles) ─
 const RealisticCTSkeleton = memo(function RealisticCTSkeleton({ breathRef, cutaway = 0, visible = true }) {
-  if (!visible) return null;
   const { scene } = useGLTF("/models/skeleton_ct.glb");
   const groupRef = useRef(null);
   const bonesMapRef = useRef(new Map());
@@ -262,6 +261,8 @@ const RealisticCTSkeleton = memo(function RealisticCTSkeleton({ breathRef, cutaw
     });
   });
 
+  // after every hook, so hiding the bones never changes the hook order
+  if (!visible) return null;
   return (
     <group ref={groupRef} position={[-0.01, -2.66, 0.26]} rotation={[0, 0, 0]} scale={11.2}>
       <primitive object={clonedScene} />

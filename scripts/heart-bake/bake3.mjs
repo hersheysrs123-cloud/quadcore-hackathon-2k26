@@ -85,7 +85,6 @@ const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const hash = (x, y, z) => { const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return s - Math.floor(s); };
 
-const n = frame.n;
 const posB = geo.attributes.position.array;
 const nrmB = geo.attributes.normal.array;
 const colours = new Uint8Array(nv * 4);
@@ -227,9 +226,6 @@ for (const pid of ["lvAnterolateral", "lvLateral", "rvAnterior", "rvPosterior", 
   for (let j = 0; j < a.length; j += 3) { const q = [a[j], a[j + 1], a[j + 2]]; const dd = Math.hypot(...sub(q, vc)); if (dd < bd) { bd = dd; best = q; } }
   papillary[pid] = { tip: best, valve };
 }
-// The tissue in FRONT of the section (outflow tracts, aortic root, pulmonary
-// trunk, great vessels), meshed coarser for a translucent ghost.
-const tissueFull = new Float32Array(fs.readFileSync(`${B}/tissue_full.f32`).buffer.slice(0));
 const GM = Math.floor(N / 2);
 const gmc = new MarchingCubes(GM, scratch, false, false, 1_000_000);
 gmc.isolation = 0;
@@ -276,7 +272,6 @@ function snap(sp, lift = 0.7) {
   }
   return toScene(p);
 }
-const A = Object.fromEntries(["lv", "rv", "la", "ra"].map((k) => [k, Math.cbrt((3 * { lv: 97.9, rv: 117, la: 51.9, ra: 84.6 }[k] * 1000) / (4 * Math.PI)) * SCALE]));
 /** March out from a chamber's centre through its REAL cavity to the wall, then snap onto it. */
 const onWall = (ch, deg, frac = 0.95, z = -0.22) => {
   const c = chamberCentre[ch];
@@ -337,7 +332,6 @@ function addAccessor(array, type, componentType, { normalized = false, target, m
   return accessors.length - 1;
 }
 const FLOAT = 5126, UBYTE = 5121, UINT = 5125, BYTE = 5120;
-const toI8 = (f) => { const q = new Int8Array(f.length); for (let i = 0; i < f.length; i += 1) q[i] = Math.round(Math.max(-1, Math.min(1, f[i])) * 127); return q; };
 const toU8 = (f) => { const q = new Uint8Array(f.length); for (let i = 0; i < f.length; i += 1) q[i] = Math.round(Math.max(0, Math.min(1, f[i])) * 255); return q; };
 // Normals are 4-byte aligned per vertex: pad VEC3 bytes out to VEC4.
 const normals4 = (f) => { const n = f.length / 3; const q = new Int8Array(n * 4); for (let i = 0; i < n; i += 1) { q[i * 4] = Math.round(f[i * 3] * 127); q[i * 4 + 1] = Math.round(f[i * 3 + 1] * 127); q[i * 4 + 2] = Math.round(f[i * 3 + 2] * 127); } return q; };

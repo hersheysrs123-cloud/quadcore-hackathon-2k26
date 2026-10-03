@@ -1087,7 +1087,7 @@ function renderTopicDetailsReadout(topic, params) {
           { color: "#38bdf8", shape: "line", label: "Incident / Refracted / Emergent Ray", note: `${params.wavelength || 520} nm beam` },
           { color: "#fbbf24", shape: "line", label: "Reflected Ray", note: "Fresnel partial reflection / TIR" },
           { color: "#64748b", shape: "dash", label: "Normal Line", note: "Perpendicular (90°) boundary reference" },
-          { color: mediumColour(medium2), shape: "square", label: "Optical Medium Block", note: `Refractive index n = ${n2.toFixed(2)}` },
+          { color: mediumColour(params.medium2 ?? "glass"), shape: "square", label: "Optical Medium Block", note: `Refractive index n = ${n2.toFixed(2)}` },
         ],
       };
       break;
@@ -1364,7 +1364,6 @@ function renderTopicDetailsReadout(topic, params) {
       const flight = simulateFlight(speed, angle, gravity, drag, mass);
       const ideal = idealFlight(speed, angle, gravity);
       const idealRange = ideal.range;
-      const idealApex = ideal.apex;
       const idealTime = ideal.flightTime;
       const dragLoss = idealRange > 0 ? Math.max(0, 1 - flight.range / idealRange) : 0;
 

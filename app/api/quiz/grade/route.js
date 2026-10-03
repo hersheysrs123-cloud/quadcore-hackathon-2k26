@@ -6,11 +6,9 @@ import {
   readJson,
   readUsage,
 } from "@/lib/gemini";
-import { HEATMAP_STATUSES, QUIZ_RESULT_SCHEMA } from "@/lib/schemas";
+import { QUIZ_RESULT_SCHEMA } from "@/lib/schemas";
 import {
   gradeObjectively,
-  fallbackHeatmap,
-  clampScore,
   buildQuizTranscript as buildTranscript,
   normalizeQuizResult as normalizeResult,
 } from "@/lib/aiService";

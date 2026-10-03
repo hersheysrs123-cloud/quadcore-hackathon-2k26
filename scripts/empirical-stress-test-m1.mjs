@@ -10,14 +10,10 @@
  *   7. Lossless Roundtrip Serialization with Complex Formulas
  */
 
-import katex from "katex";
 import {
   cleanZeroWidth,
   renderKatexToStringMemoized,
-  escapeHtml,
-  formatMarkdownInline,
   setBlockDOMFromText,
-  tryAutoFormatInlineCode,
   tryAutoFormatInlineMath,
   handleInlineBoundaryKeyDown,
   setCaretToEnd,
@@ -28,11 +24,8 @@ import {
   isCaretAtBlockStart,
   isCaretAtLogicalEnd,
   isCaretAtBlockEnd,
-  isCaretOnFirstVisualLine,
-  isCaretOnLastVisualLine,
   getBlockTextFromDOM,
   splitBlockDOMAtRange,
-  getSerializedTextFromRange,
 } from "../lib/editorCaret.js";
 
 // ─── 1. SIMULATED DOM ENVIRONMENT ──────────────────────────────────────────
