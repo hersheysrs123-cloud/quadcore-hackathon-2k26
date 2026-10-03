@@ -29,6 +29,9 @@ import {
 import { saveAllSpaces } from "@/lib/storageService";
 import { buildNoteTree, getAncestorIds, normalizeParentId } from "@/lib/noteHierarchy";
 
+// Shared fallback for an empty space, so hooks keyed on notes stay stable.
+const NO_NOTES = Object.freeze([]);
+
 const EXPANDED_KEY = "socratic_sidebar_expanded_notes";
 
 /**
@@ -115,7 +118,7 @@ export default function NotesPanel({
     }
   }, [expanded]);
 
-  const notes = notesBySpace[activeSpace] || [];
+  const notes = notesBySpace[activeSpace] || NO_NOTES;
   const tree = useMemo(() => buildNoteTree(notes), [notes]);
   const currentSpace = spaces.find((s) => s.name === activeSpace) || spaces[0];
 

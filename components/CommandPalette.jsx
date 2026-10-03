@@ -91,7 +91,7 @@ export default function CommandPalette({
     });
 
     return list;
-  }, [isOpen, notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
+  }, [isOpen, notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings, onStartTutorial]);
 
   // Fuzzy filter (memoized)
   const filteredItems = useMemo(() => {

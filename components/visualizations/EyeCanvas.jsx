@@ -395,7 +395,7 @@ function AnteriorChamber({ cutaway, highlight }) {
     pts.push(new THREE.Vector2(mm(semi * 0.99), mm(ANATOMY.pupilPlane - ANATOMY.irisThickness / 2)));
     pts.push(new THREE.Vector2(mm(0.05), mm(ANATOMY.pupilPlane - ANATOMY.irisThickness / 2)));
     return new THREE.LatheGeometry(pts, 52, cut.phiStart, cut.phiLength);
-  }, [cut, maxAngle]);
+  }, [cut, maxAngle, semi]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
@@ -1520,7 +1520,7 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
 
   const toggleLayer = useCallback(
     (key) => setLayers((l) => ({ ...l, [key]: !l[key] })),
-    [],
+    [setLayers],
   );
 
   const reset = useCallback(() => {
@@ -1540,7 +1540,12 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
     setShowRays(true);
     setRefractiveErrorD(0);
     setCorrected(false);
-  }, []);
+    // the setters come from a memo with no dependencies, so this never changes
+  }, [
+    setObjectDistance, setAutoAccommodate, setManualAccommodation, setLogLux, setRayMode, setShowBlur,
+    setShowZonules, setLayers, setCutaway, setShowVessels, setShowMuscles, setShowLabels, setSelectedPart,
+    setShowRays, setRefractiveErrorD, setCorrected,
+  ]);
 
   const demand = accommodationDemand(objectDistance);
   const part = selectedPart ? PART_BY_ID[selectedPart] : null;

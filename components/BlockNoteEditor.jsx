@@ -6723,7 +6723,7 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages]);
+  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages, focusBlock, pushHistorySnapshot]);
 
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
@@ -7651,7 +7651,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave, handleUpdateBlock, trashRemovedSubPages]
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);

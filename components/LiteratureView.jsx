@@ -46,6 +46,9 @@ import PoemLinesModal, { ConfirmDialog } from "@/components/literature/PoemLines
 import EssayPanel from "@/components/literature/EssayPanel";
 import ImportPoemsModal from "@/components/literature/ImportPoemsModal";
 
+// Shared fallback, so the memos keyed on poemList stay stable while loading.
+const NO_POEMS = Object.freeze([]);
+
 /**
  * LiteratureView — the Literature section.
  *
@@ -119,7 +122,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
   );
 
   const loading = poems === undefined;
-  const poemList = poems || [];
+  const poemList = poems || NO_POEMS;
 
   useEffect(() => {
     const saved = loadLiteratureUI();

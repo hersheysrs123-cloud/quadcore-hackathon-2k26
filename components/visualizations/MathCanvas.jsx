@@ -590,7 +590,7 @@ export function SolidOfRevolutionScene({ params = {} }) {
       pts.push(new THREE.Vector2(Math.max(info.r(t), 0.001), t * height - half));
     }
     return new THREE.LatheGeometry(pts, LATHE_SEGMENTS, 0, phiLength);
-  }, [curve, height, phiLength, info]);
+  }, [height, half, phiLength, info]);
 
   useEffect(() => () => lathe.dispose(), [lathe]);
 
@@ -603,7 +603,7 @@ export function SolidOfRevolutionScene({ params = {} }) {
       pts.push([0, t * height - half, info.r(t)]);
     }
     return pts;
-  }, [curve, height, half, info]);
+  }, [height, half, info]);
 
   const discs = useMemo(() => {
     const n = Math.round(slices);
@@ -614,7 +614,7 @@ export function SolidOfRevolutionScene({ params = {} }) {
       const t = (i + 0.5) / n;
       return { y: t * height - half, radius: Math.max(info.r(t), 0.001), thickness: h };
     });
-  }, [curve, height, half, slices, info]);
+  }, [height, half, slices, info]);
 
   // The sweep angle cuts the solid open so you can see inside; it does not
   // make the solid smaller. Scaling the volumes by sweep/360 contradicted the
