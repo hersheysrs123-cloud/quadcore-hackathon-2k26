@@ -83,6 +83,7 @@ A comprehensive record of all bug fixes, edge-case resolutions, and architectura
 76. [Socratic Duck Conversational Bot Removal from Quiz Panel & System Clean-up](#76-socratic-duck-conversational-bot-removal-from-quiz-panel--system-clean-up)
 77. [Bullet & Numbered List Enter-at-Start Prepending & Downward Flow (Specifically First Bullet)](#77-bullet--numbered-list-enter-at-start-prepending--downward-flow-specifically-first-bullet)
 78. [Bullet & List Block Undo / Redo State Machine & Focus Target Overhaul](#78-bullet--list-block-undo--redo-state-machine--focus-target-overhaul)
+79. [Redesigned Shell: Colour Tokens Lost in the Merge, Stranded Bulk Actions & a Dead Settings Control](#redesigned-shell-colour-tokens-lost-in-the-merge-stranded-bulk-actions--a-dead-settings-control)
 
 ---
 
@@ -8344,6 +8345,276 @@ The new module is `lib/latticeGeometry.js`, covered by `tests/unit/lattice-geome
     - Near the poles a set bunches in towards the spindle axis.
     - Organelles keep their distance from the centre.
   - Each scene's `COLOURS` table now names the baked model colours, and the keys use them. Flower tepals are labelled as such in wind mode.
+
+---
+
+## Redesigned Shell: Colour Tokens Lost in the Merge, Stranded Bulk Actions & a Dead Settings Control
+
+Three defects surfaced when the `components/redesign/` shell (nav rail + notes
+panel + top bar + home view) was merged onto `origin/main`. All three share one
+shape: the shell replaced `Sidebar.jsx` as the rendered chrome, but `Sidebar.jsx`
+stayed in the tree, so nothing — not the build, not the test suite — noticed
+that behaviour had stopped being reachable.
+
+### 1. Problem Statement
+
+1. **Eight colour tokens silently stopped existing.** `main` had defined
+   `--color-ink-300`, `--color-ink-750`, `--color-duck-100/200/700` and
+   `--color-gap-300/400` after finding that roughly 270 classes referenced
+   them while Tailwind v4 emitted no CSS at all. The redesign rewrote the
+   `@theme` block around a cooler ramp and carried only `ink-750` across. Every
+   `text-ink-300`, `border-ink-750`, `text-duck-200` and `text-gap-400` in the
+   app would have fallen back to its parent's colour — invisible in a build log
+   and invisible in a diff, because a missing Tailwind colour is not an error.
+2. **Drag-to-reorder and multi-select were unreachable.** `NotesPanel.jsx` said
+   so in its own header comment ("intentionally left out of this prototype").
+   Five handlers in `Workspace.jsx` were left defined but never passed to
+   anything: `handleReorderNotes`, `handleMoveMultipleNotes`,
+   `handleToggleFavoriteMultipleNotes`, `handleDuplicateMultipleNotes`, and the
+   only UI path to `handleDeleteMultipleNotes`.
+3. **The Space Switcher Display setting did nothing.** Settings still rendered
+   its "Dropdown Menu / Grid View" pair, but the old `Sidebar` had owned both
+   the state and the grid. `Workspace` passed no handler, so the control never
+   moved its selection off "Dropdown" and clicking "Grid View" was inert.
+
+### 2. Root Cause
+
+- **A replaced module that still compiles.** `Sidebar.jsx` is still imported —
+  the shell pulls six modals out of it — so every source-scanning guardrail that
+  reads `Sidebar.jsx` kept passing while the component itself was no longer
+  mounted. `tests/unit/multi-note-selection.test.mjs` is the clearest case: it
+  asserts against a file that ships but is not rendered.
+- **Tokens are data, not code.** A `@theme` block is a flat list of custom
+  properties. Rewriting it is a whole-block replacement, so a token that exists
+  on one side and not the other disappears without a conflict marker — the
+  three-way merge saw one hunk, not eight deletions.
+- **A setting split across two components.** `spaceSwitcherLayout` lived
+  entirely inside `Sidebar`: the state, the persistence and the grid render. The
+  redesign took the render surface (`NotesPanel`) and the control surface
+  (`SettingsModal`) into two different places and left the state behind.
+
+### 3. Resolution
+
+1. **Re-stepped, not re-copied (`app/globals.css`).** All eight tokens are
+   defined again in both themes, with values derived from the redesign's ramp
+   rather than lifted from `main`'s — `ink-300` interpolated between the new
+   `ink-200` and `ink-400` (`#bac0cd` dark / `#393e4c` light), `duck-100/200`
+   kept as the *darkest* browns in light mode because they are emphasis-text
+   steps on white, and `gap-300/400` re-stepped so the light variants stay
+   darker than `gap-500`. A sweep over `app/`, `components/` and `lib/` now
+   reports every referenced token as defined.
+2. **Rebuilt against the new panel (`NotesPanel.jsx`).** Drag-to-reorder and
+   multi-select were re-implemented in the redesign's idiom rather than pasted
+   back. Reordering is constrained to one sibling group — a row refuses a drop
+   from a non-sibling with `dropEffect = "none"` — so a sub-page can never be
+   re-parented by a stray drag; dropping below the list sends a top-level note
+   to the end. Multi-select swaps the grip for a checkbox and the row menu for
+   a four-cell bulk bar, and clears itself whenever the space changes or
+   empties, so the bar can never act on a stale selection. Search results are
+   flat and explicitly not reorderable. `BatchDeleteConfirmModal` and
+   `BatchMoveModal` are now exported from `Sidebar.jsx` and reused, matching the
+   four modals the panel already shared.
+3. **Lifted the setting to the component that owns both ends (`Workspace.jsx`).**
+   `spaceSwitcherLayout` is read with `useLiveQuery` from `db.settings` the same
+   way the editor's click-to-append setting is, and passed down to both
+   `SettingsModal` (which sets it) and `NotesPanel` (which renders it).
+   Persistence keys are unchanged — `db.settings.space_switcher_layout` plus the
+   `socraticos_space_switcher_layout` localStorage mirror — so a preference set
+   before the redesign still applies.
+
+### 4. Verification
+
+- `npm run build` — clean, 0 errors.
+- `npm test` — 1,992 unit/integration/e2e tests across 425 suites, plus 34
+  empirical stress tests. 0 failures.
+- Driven in headless Chrome over CDP against the production server: all seven
+  rail sections render; drag-to-reorder changes the order **and survives a
+  reload**; the bulk bar reports `4 of 4 selected` and enables all four actions;
+  the Move modal opens on the selection; switching Settings to Grid View swaps
+  the panel to tiles and persists; Explain, Quiz me and Tutor each open their
+  own drawer; the 3D studio renders all 51 topics under software WebGL. No
+  console errors outside headless-GPU noise.
+
+---
+
+## Redesigned Shell: Rail Items Cut Off on Short Windows, Lost Donate & Feedback Entry Points
+
+### 1. Problem
+
+- **The nav rail could not scroll.** The rail stacks the brand tile, eight
+  sections and five foot tools (about 680px). It had no overflow handling, so on
+  a laptop-height window or a zoomed browser the bottom items (Theme, Settings)
+  were clipped off-screen and could not be reached at all.
+- **Donate and Feedback had no way in.** The redesign dropped the sidebar
+  header that held them. `FeatureRequestModal` still shipped, but nothing
+  rendered it.
+
+### 2. Root cause
+
+The rail is a `flex-col` at `h-full` with `mt-auto` on the foot group. Without
+`min-h-0` and `overflow-y-auto`, the column just overflows its parent. The
+workspace root is `overflow-hidden`, so the overflow is clipped instead of
+scrolling.
+
+### 3. Resolution
+
+1. `NavRail.jsx`: `min-h-0 overflow-y-auto overflow-x-hidden` with the
+   scrollbar hidden. `mt-auto` still pins the foot tools when there is room,
+   and the active-section indicator sits inside the rail's padding, so it is
+   not clipped.
+2. Users can also unpin rail items they do not use via a right-click menu
+   (`socratic_rail_hidden` in localStorage). Settings is locked so the menu
+   can never hide the way back.
+3. `SettingsModal` gained a **Support & Feedback** tab with Donate (disabled
+   when `NEXT_PUBLIC_STRIPE_DONATE_URL` is unset, instead of opening `#` as the
+   old button did) and Feedback, which opens `FeatureRequestModal`. That modal
+   moved from `z-[200]` to `z-[230]` so it stacks above Settings (`z-[210]`).
+
+---
+
+## Workspace Hydration Mismatch: Space Icon Rendered From localStorage
+
+### 1. Problem
+
+Loading `/workspace` threw a React "Hydration failed because the server
+rendered text didn't match the client" error. It pointed at the space
+switcher's icon in `NotesPanel`: the server rendered `📂` and the browser
+rendered the saved space's icon (e.g. `🎓`). React then threw the server HTML
+away and re-rendered the tree on the client.
+
+### 2. Root cause
+
+`Workspace.jsx` initialised `activeSpace` and `spaces` with lazy `useState`
+initialisers that read `localStorage` when `typeof window !== "undefined"`. On
+the server they fell back to the defaults (`SPACES`), and on the client's
+first render they returned the saved values, so the two renders disagreed.
+`NotesPanel`'s expanded-notes set did the same thing with
+`socratic_sidebar_expanded_notes`. The old sidebar used the same initialisers;
+the redesign made the mismatch visible because the active space's icon is now
+the first thing the panel renders.
+
+### 3. Resolution
+
+- `Workspace.jsx`: both states start from the defaults on server and client.
+  The saved values are read by `readStoredActiveSpace()` /
+  `readStoredSpaces()` inside a `useLayoutEffect`, which runs after hydration
+  but before the first paint, so there is no flash of default spaces. The
+  existing Dexie hydration effect still runs afterwards and has the final say.
+- `NotesPanel.jsx`: `expanded` starts empty and the saved set is merged in a
+  `useLayoutEffect`. The save effect is held back (`expandedLoaded` ref) until
+  that load has run, so the empty first render cannot overwrite the stored
+  set.
+
+---
+
+## Timers: Countdown Briefly Shows Extra Seconds on Start, Dead "Extend" Buttons, Skippable Alarms
+
+### 1. Problem
+
+- **Start showed more time than was set.** Pressing Start on a 15:00 Long
+  Break showed `15:11` for up to half a second before dropping to `14:59`. The
+  rail clock, the Home timer card, the Calendar timer widget and the HUD all
+  read the same hook, so all of them did it.
+- **"Extend" on the timer-finished popup did nothing.** It dispatched
+  `socratic_extend_timer`, which nothing listened for.
+- **Recurring alarms could be skipped.** The checker fired only when a check
+  landed inside the alarm's exact minute. Chrome slows a background tab's
+  5-second interval to about once a minute, so a check could jump from
+  `07:59:58` to `08:01:02` and never see `08:00`.
+
+### 2. Root cause
+
+`useGlobalTimer` computes every countdown as `targetEndTime - lastTick`.
+`lastTick` was written only by the 500 ms ticker, and that ticker deliberately
+sleeps while no timer runs. Starting a timer set `targetEndTime` from the real
+`Date.now()`, but the first render subtracted a `lastTick` from whenever the
+ticker last ran. The display was therefore inflated by exactly how long the
+app had been idle, until the first tick 500 ms later corrected it. The same
+staleness (up to a minute) appeared when returning to a throttled background
+tab.
+
+### 3. Resolution
+
+- `lib/timerStore.js`: every store action stamps `lastTick` with the time it
+  ran, so the clock the UI reads is never older than the change it shows. A
+  `visibilitychange` listener runs a tick as soon as the tab is visible again.
+- A new `runFor(id, mins)` action restarts a finished timer for N minutes. The
+  expiry alarm now carries `timerId`, and `AlarmOverlay`'s Extend calls
+  `runFor` directly. The dead window event is gone. `totalSeconds` grows to at
+  least the extension so the progress bar never starts above 100%.
+- `AlarmOverlay.jsx`: each check scans every minute since the previous check,
+  capped at 5 minutes so waking a sleeping laptop does not replay old alarms.
+  The existing per-minute `triggerKey` keeps an alarm from firing twice.
+- Tests: 4 regressions in `tests/unit/timer-store.test.mjs`, all of which fail
+  on the previous code.
+
+Calendar events have no automatic alert (only the manual 🔔 test trigger), so
+they had no clock to go stale.
+
+---
+
+## Calendar Timer Panel: Chooser Started/Paused Timers, Running Timers Hidden; Poem Trash Over Count
+
+### 1. Problem
+
+- In the Calendar tab, the Focus / Short / Long buttons **started or paused**
+  the matching timer instead of choosing it. Clicking "Focus" while Focus ran
+  paused it, and clicking "Short" started a second timer while the display
+  stayed on the first.
+- The panel showed only `primaryTimer` (the active timer ending soonest), so
+  any other running timer was invisible there.
+- "Custom" created a new, unstarted timer on every click. Its minutes field
+  only appeared when a custom timer already happened to be primary, so a
+  first-time user could not reach it.
+- Literature: the poem-row trash icon was drawn on top of the annotation-count
+  pill.
+
+### 2. Root cause
+
+The widget was written for a single timer. It used `useGlobalTimer()`'s
+single-timer helpers (`startTimer(mode)` toggles the first timer of that mode;
+`mode`, `secondsLeft` and `togglePlayPause()` are all `primaryTimer`'s) after
+the store had become multi-timer.
+
+### 3. Resolution
+
+- `StudyTimerWidget` rewritten against the multi-timer API. A chooser
+  (`role="radiogroup"`) lists every timer and only selects; the controls act
+  on `selectedId`, which defaults to the running timer. A "Running now" list
+  shows every active timer. "+ Custom" opens a name + minutes form that
+  creates the timer and starts it, and custom timers can be deleted.
+- `LiteratureView`: the count pill fades out on row hover/focus while the
+  trash fades in, so they swap places instead of stacking.
+
+---
+
+## Lab Kit: Retort-Stand Bases Overlapping the Burner and Each Other
+
+### 1. Problem
+
+- Combustion: the thermocouple's retort-stand base ran through the Bunsen
+  burner's round cast foot, so the two bases looked merged into one.
+- Separation (filtration): the clamp stand's base ran back under the flask and
+  into the first stand's base, so the two plates read as one slab.
+- Separation: the flask's base sat a hair inside the new stand plate.
+
+### 2. Root cause
+
+`RetortStand` lays its base 2.6 out along the arm's side (`baseAngle`). The
+combustion stand stood 3.0 from the burner, so its base reached x = 0.4,
+inside the burner's 0.84 radius foot. In separation, both stands' bases
+pointed at the funnel and overlapped by 0.9. The old thin box plates hid this.
+The lab kit's cast base, with its raised rim, made it obvious. The flask's
+`PLATE_Y` (0.123) matched the old plate, not the kit's (0.132).
+
+### 3. Resolution
+
+- `CombustionFireTriangleCanvas.jsx`: `PROBE_STAND` moved out to x = 3.6.
+  The base now ends at x = 1.0, clear of the burner's foot. The arm reach is
+  the stand's distance, so the probe still sits in the flame.
+- `SeparationTechniquesCanvas.jsx`: the clamp stand's base runs back toward
+  the wall (`baseAngle` pi/2), and `PLATE_Y` is 0.135, just above the kit's
+  plate.
 
 ## Lint: an undeclared variable in two places, and a hook after an early return
 

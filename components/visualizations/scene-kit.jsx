@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useMemo, useEffect } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { createContext, useContext, useMemo, useEffect, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -46,6 +46,156 @@ export function StudioLights({ ambient = 0.55, keyLight = 1.5, rim = PALETTE.sky
       <directionalLight position={[-7, -4, -6]} intensity={0.42} color={rim} />
     </>
   );
+}
+
+/**
+ * Which materials reflect the studio, and how strongly: metal fully, clear
+ * glass enough to catch highlights, everything else not at all. Returns 0 to
+ * leave a material alone. A material can opt out (or set its own strength)
+ * with `userData.envReflect`.
+ */
+export function reflectStrength(m, { metal = 0.75, glass = 1.3 } = {}) {
+  if (!m || !m.isMeshStandardMaterial) return 0;
+  if (typeof m.userData?.envReflect === "number") return m.userData.envReflect;
+  if (m.metalness >= 0.35) return metal;
+  if (m.transparent && m.opacity <= 0.6 && m.roughness <= 0.35) return glass;
+  return 0;
+}
+
+/**
+ * Patch a material so the environment only shows up as reflection. An
+ * envMap normally also lights a surface diffusely (`iblIrradiance`), which
+ * turned half-metal brackets chalky and pale liquids milky; dropping that
+ * term after the maps are sampled leaves the mirror image alone. Chains any
+ * patch the material already has.
+ */
+function reflectionsOnly(m) {
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey;
+  m.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev.call(m, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <lights_fragment_maps>",
+      "#include <lights_fragment_maps>\n\tiblIrradiance = vec3( 0.0 );",
+    );
+  };
+  m.customProgramCacheKey = () => `${prevKey ? prevKey.call(m) : ""}|envReflectOnly`;
+}
+
+/**
+ * The room the lab scenes' metal and glass reflect, built as a small three.js
+ * scene and prefiltered once (no HDRI to download, so it works offline).
+ *
+ * three.js's own RoomEnvironment was tried first: its ceiling is one bright
+ * light panel, so every flat surface facing up (a bench, a stand's base, a
+ * water surface) mirrored it and went white. This studio keeps the overhead
+ * a moderate grey and puts its bright softboxes at the sides and behind, so
+ * curved and upright metal catches crisp highlights while flat tops reflect
+ * a quiet tone. Its floor is near the canvas colour, so undersides stay dark.
+ *
+ * `tone: "light"` is the same studio for a scene set in a bright room (the
+ * static-electricity room with its pale walls and rug): there a chrome dome
+ * mirroring a dark floor read as black, where the real one shows the room.
+ */
+const STUDIO_TONES = {
+  dark: { floor: "#1c2230", wall: "#58616f", top: "#737d8c" },
+  light: { floor: "#9a9184", wall: "#b9bfc8", top: "#cdd2d9" },
+};
+
+function buildStudio(tone = "dark") {
+  const studio = new THREE.Scene();
+  const t = STUDIO_TONES[tone] ?? STUDIO_TONES.dark;
+  // A sphere painted from floor to ceiling: floor, walls, a quiet overhead.
+  const shell = new THREE.SphereGeometry(20, 48, 24);
+  const pos = shell.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  const floor = new THREE.Color(t.floor);
+  const wall = new THREE.Color(t.wall);
+  const top = new THREE.Color(t.top);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i += 1) {
+    const h = pos.getY(i) / 20;
+    if (h < 0) c.copy(wall).lerp(floor, Math.min(1, -h * 2.2));
+    else c.copy(wall).lerp(top, Math.min(1, h * 1.4));
+    col[i * 3] = c.r;
+    col[i * 3 + 1] = c.g;
+    col[i * 3 + 2] = c.b;
+  }
+  shell.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  studio.add(new THREE.Mesh(shell, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  // Softboxes: two tall ones front left and right, a wide one behind and a
+  // thin strip high at the back for a rim on top edges. Brighter than 1, so
+  // the prefiltered reflection keeps a hot core.
+  const box = (w, h, x, y, z, power) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(power, power, power), side: THREE.DoubleSide }));
+    m.position.set(x, y, z);
+    m.lookAt(0, 0, 0);
+    studio.add(m);
+  };
+  box(5, 11, -11, 2, 11, 4.5);
+  box(5, 11, 12, 1, 9, 3.2);
+  box(14, 6, 0, 3, -15, 2.2);
+  box(18, 1.2, 0, 11, -10, 3);
+  return studio;
+}
+
+/**
+ * A studio for metal and glass to reflect. Without one a polished surface
+ * has nothing to mirror: high metalness renders near-black and glass shows no
+ * highlights, which is why the lab scenes had dialled their metals down.
+ *
+ * It is NOT the scene's environment: as scene-wide image-based light it
+ * flooded the walls, benches and labels each scene had balanced its lights
+ * for. It is handed only to the materials `reflectStrength` picks (metal and
+ * clear glass) as their envMap, and as reflection only (`reflectionsOnly`).
+ * New meshes keep mounting as a scene runs, so the scene is re-scanned a few
+ * times a second; a material is looked at once. `metal` and `glass` scale the
+ * two kinds' reflections, `rotation` (radians about y) turns the studio and
+ * `tone` picks the dark or light room (see `buildStudio`).
+ */
+function StudioEnvironment({ metal = 0.75, glass = 1.3, rotation = 0, tone = "dark" }) {
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  const texture = useMemo(() => {
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const studio = buildStudio(tone);
+    const target = pmrem.fromScene(studio, 0.03);
+    studio.traverse((o) => {
+      if (o.isMesh) {
+        o.geometry.dispose();
+        o.material.dispose();
+      }
+    });
+    pmrem.dispose();
+    return target;
+  }, [gl, tone]);
+  const seen = useMemo(() => new WeakSet(), [texture, metal, glass]);
+  const clock = useRef(0);
+
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  useFrame((_, delta) => {
+    clock.current -= delta;
+    if (clock.current > 0) return;
+    clock.current = 0.25;
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m || seen.has(m)) continue;
+        seen.add(m);
+        const k = reflectStrength(m, { metal, glass });
+        if (k <= 0) continue;
+        m.envMap = texture.texture;
+        m.envMapIntensity = k;
+        m.envMapRotation.set(0, rotation, 0);
+        reflectionsOnly(m);
+        m.needsUpdate = true;
+      }
+    });
+  });
+
+  return null;
 }
 
 function PerformanceManager({ autoPauseHidden }) {
@@ -110,6 +260,7 @@ export function SceneCanvas({
   controls,
   fog,
   lights,
+  environment,
   onPointerMissed,
   children,
 }) {
@@ -146,6 +297,7 @@ export function SceneCanvas({
       <color attach="background" args={[CANVAS_BG]} />
       {fog && <fog attach="fog" args={[CANVAS_BG, fog[0], fog[1]]} />}
       <StudioLights {...lights} />
+      {environment ? <StudioEnvironment {...(typeof environment === "object" ? environment : {})} /> : null}
       {children}
       <OrbitControls
         makeDefault
@@ -277,6 +429,131 @@ export function FitCamera({ view, direction = [0, 0.15, 1], fov = 45, margin = 1
       controls.update();
     }
   }, [camera, controls, aspect, cx, cy, cz, width, height, depth, dx, dy, dz, fov, margin]);
+  return null;
+}
+
+const _camTarget = new THREE.Vector3();
+const _camStep = new THREE.Vector3();
+const _camOffset = new THREE.Vector3();
+const _camQuat = new THREE.Quaternion();
+
+/**
+ * A camera that can follow something moving: a scene's "Camera" choice.
+ *
+ *   overview  the scene's own framing. Switching back to it glides the
+ *             camera home to `home` ({ position, target }).
+ *   follow    the orbit target tracks `targetRef`'s world position, and the
+ *             camera moves with it, so the user can still orbit and zoom
+ *             round the moving thing. On entering (and on each `resetKey`)
+ *             it closes in to `distance`, until the user zooms themselves.
+ *   ride      the camera rides on `targetRef`: at `eye` in its local frame,
+ *             looking at `look`, with its up turning with the object (upside
+ *             down at the top of a loop). Orbiting is switched off.
+ *
+ * It owns the orbit target: do not also pass `target` in SceneCanvas's
+ * `controls`, which re-applies it every render and would undo the follow.
+ * `home.target` is set on mount instead.
+ *
+ * Mount it AFTER whatever moves `targetRef`: frame callbacks run in mount
+ * order, and one mounted first reads last frame's position. Riding a fast
+ * car, that put the camera a third of a metre behind the rider's eyes.
+ */
+export function FollowCamera({ mode = "overview", targetRef, distance = 3, home, eye = [0, 1, 0], look = [4, 1, 0], near = 0.02, resetKey = 0 }) {
+  const camera = useThree((st) => st.camera);
+  const controls = useThree((st) => st.controls);
+  const homing = useRef(false);
+  const settling = useRef(false);
+  const saved = useRef(null);
+  const homePos = home?.position;
+  const homeTarget = home?.target;
+
+  // The home framing on mount: SceneCanvas sets the camera's position, this
+  // its target.
+  useEffect(() => {
+    if (!controls || !homeTarget) return;
+    controls.target.set(...homeTarget);
+    controls.update();
+  }, [controls]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The user taking the camera stops any glide in progress.
+  useEffect(() => {
+    if (!controls) return undefined;
+    const stop = () => {
+      homing.current = false;
+      settling.current = false;
+    };
+    controls.addEventListener("start", stop);
+    return () => controls.removeEventListener("start", stop);
+  }, [controls]);
+
+  useEffect(() => {
+    homing.current = mode === "overview";
+    settling.current = mode === "follow";
+  }, [mode, resetKey]);
+
+  // Riding needs a near plane close enough for the car's own nose, the
+  // controls off, and both put back afterwards.
+  useEffect(() => {
+    if (mode !== "ride" || !controls) return undefined;
+    saved.current = { near: camera.near };
+    controls.enabled = false;
+    camera.near = near;
+    camera.updateProjectionMatrix();
+    return () => {
+      camera.near = saved.current.near;
+      camera.up.set(0, 1, 0);
+      camera.updateProjectionMatrix();
+      controls.enabled = true;
+      // back out behind the car rather than staying inside it
+      _camOffset.copy(camera.position).sub(controls.target);
+      if (_camOffset.lengthSq() < distance * distance) {
+        camera.position.copy(controls.target).addScaledVector(_camOffset.normalize(), distance);
+      }
+      camera.lookAt(controls.target);
+    };
+  }, [mode, controls, camera, near, distance]);
+
+  useFrame((_, rawDelta) => {
+    if (!controls) return;
+    const dt = Math.min(rawDelta, 0.1);
+    const obj = targetRef?.current;
+
+    if (mode === "ride" && obj) {
+      obj.updateWorldMatrix(true, false);
+      obj.getWorldQuaternion(_camQuat);
+      camera.position.set(...eye).applyMatrix4(obj.matrixWorld);
+      controls.target.set(...look).applyMatrix4(obj.matrixWorld);
+      camera.up.set(0, 1, 0).applyQuaternion(_camQuat);
+      camera.lookAt(controls.target);
+      return;
+    }
+
+    if (mode === "follow" && obj) {
+      obj.getWorldPosition(_camTarget);
+      // the target eases after the object, and the camera moves with it
+      _camStep.copy(_camTarget).sub(controls.target).multiplyScalar(1 - Math.exp(-dt * 7));
+      controls.target.add(_camStep);
+      camera.position.add(_camStep);
+      if (settling.current) {
+        _camOffset.copy(camera.position).sub(controls.target);
+        const d = _camOffset.length();
+        const next = d + (distance - d) * (1 - Math.exp(-dt * 3));
+        camera.position.copy(controls.target).addScaledVector(_camOffset, next / Math.max(d, 1e-6));
+        if (Math.abs(next - distance) < 0.01 * distance) settling.current = false;
+      }
+      return;
+    }
+
+    if (mode === "overview" && homing.current && homePos && homeTarget) {
+      const a = 1 - Math.exp(-dt * 4);
+      _camTarget.set(...homeTarget);
+      controls.target.lerp(_camTarget, a);
+      _camStep.set(...homePos);
+      camera.position.lerp(_camStep, a);
+      if (camera.position.distanceTo(_camStep) < 0.01 && controls.target.distanceTo(_camTarget) < 0.01) homing.current = false;
+    }
+  });
+
   return null;
 }
 

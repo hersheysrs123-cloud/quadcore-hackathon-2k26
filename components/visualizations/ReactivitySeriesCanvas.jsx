@@ -165,9 +165,8 @@ const SCREW_X = ROD_X + 0.36;
 const ROD_BOTTOM = BAR_DIPPED_Y - 0.55;
 const THREAD_PITCH = 0.09;
 
-// Moderate metalness: with no environment map to reflect, a high value renders
-// the aluminium dark grey instead of bright.
-function Alu({ colour = ALU, metalness = 0.3, roughness = 0.4 }) {
+// Satin aluminium, reflecting the scene's studio environment.
+function Alu({ colour = ALU, metalness = 0.75, roughness = 0.4 }) {
   return <meshStandardMaterial color={colour} metalness={metalness} roughness={roughness} />;
 }
 
@@ -494,15 +493,15 @@ function Strip({ index, solutionKey, modelRef, stripMetal, focus, animSpeed = 1 
   const shown = useRef({ thickness: 1, length: 1, glow: 0 });
   const x = slotX(index, COUNT, SPACING);
   const M = METALS[stripMetal];
-  // Emissive, not just metalness: a metalness of 0.9 with no environment map
-  // has nothing to reflect and renders almost black.
+  // A real metal finish reflecting the studio environment; the strip in the
+  // beaker in focus is lifted a touch.
   const stripMaterial = (
     <meshStandardMaterial
       color={M.colour}
-      metalness={stripMetal === "K" ? 0.35 : 0.6}
-      roughness={stripMetal === "K" ? 0.6 : 0.3}
+      metalness={stripMetal === "K" ? 0.4 : 0.85}
+      roughness={stripMetal === "K" ? 0.6 : 0.32}
       emissive={M.colour}
-      emissiveIntensity={focus ? 0.42 : 0.32}
+      emissiveIntensity={focus ? 0.1 : 0}
     />
   );
 
@@ -877,7 +876,7 @@ export default function ReactivitySeriesCanvas({ params = {}, setParam }) {
   };
 
   return (
-    <SceneCanvas camera={{ position: INITIAL_CAMERA, fov: 46 }} controls={{ minDistance: 5, maxDistance: 34, target: CAMERA_TARGET }}>
+    <SceneCanvas camera={{ position: INITIAL_CAMERA, fov: 46 }} controls={{ minDistance: 5, maxDistance: 34, target: CAMERA_TARGET }} environment>
       <FitCamera />
       <ArmDriver
         modelRef={modelRef}

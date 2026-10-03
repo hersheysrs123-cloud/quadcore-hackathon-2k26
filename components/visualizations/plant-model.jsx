@@ -60,7 +60,7 @@ function unpack(node) {
     }
     g.setAttribute("color", new THREE.BufferAttribute(lin, 4));
   }
-  for (const name of ["_sway", "_uvl", "_cell", "_tube"]) {
+  for (const name of ["_sway", "_uvl", "_cell", "_tube", "_knit"]) {
     if (src.attributes[name]) g.setAttribute(name, src.attributes[name]);
   }
   g.setIndex(src.index);

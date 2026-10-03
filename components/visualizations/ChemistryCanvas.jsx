@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -17,6 +17,7 @@ import {
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
+import { KitPart } from "@/components/visualizations/lab-kit-model";
 import { ATOM_COLOURS, ELEMENTS, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
 import { BOND_COLOUR } from "@/lib/lattices";
@@ -1556,7 +1557,6 @@ function Vapours({ heat, flowing, speed = 1.0 }) {
 
 /** Radiant-section box of the pipe still, and the pieces hung off it. */
 const HEATER = { w: 1.9, h: 2.0, d: 1.5, legs: 0.45, wall: 0.08 };
-const CASING_MAT = { color: "#b8c2cf", roughness: 0.45, metalness: 0.35, emissive: "#b8c2cf", emissiveIntensity: 0.1 };
 const REFRACTORY = "#e0a37a";
 
 /**
@@ -1624,60 +1624,14 @@ function Furnace({ heat, furnaceC, speed, flowing }) {
   return (
     <group>
       <group position={[fx, 0, fz]}>
-        {/* Legs: burners fire upward from underneath, so the box stands clear. */}
-        {[-1, 1].flatMap((sx) =>
-          [-1, 1].map((sz) => (
-            <mesh key={`${sx}${sz}`} position={[sx * (HEATER.w / 2 - 0.1), floor + HEATER.legs / 2, sz * (HEATER.d / 2 - 0.1)]}>
-              <boxGeometry args={[0.12, HEATER.legs, 0.12]} />
-              <meshStandardMaterial {...DARK_MAT} />
-            </mesh>
-          )),
-        )}
-
-        {/* Casing: floor, back, sides and roof — the front is cut away. */}
-        {/* Floor and roof overhang the walls by a hair and the walls stop
-            short of them, so no two faces are coplanar (it z-fought). */}
-        <mesh position={[0, boxBottom + HEATER.wall / 2, 0]}>
-          <boxGeometry args={[HEATER.w + 0.04, HEATER.wall, HEATER.d + 0.04]} />
-          <meshStandardMaterial {...CASING_MAT} />
-        </mesh>
-        <mesh position={[0, boxTop - HEATER.wall / 2, 0]}>
-          <boxGeometry args={[HEATER.w + 0.04, HEATER.wall, HEATER.d + 0.04]} />
-          <meshStandardMaterial {...CASING_MAT} />
-        </mesh>
-        <mesh position={[0, boxMid, -HEATER.d / 2 + HEATER.wall / 2]}>
-          <boxGeometry args={[HEATER.w - 0.01, HEATER.h - 2 * HEATER.wall - 0.01, HEATER.wall]} />
-          <meshStandardMaterial {...CASING_MAT} />
-        </mesh>
-        {[-1, 1].map((sx) => (
-          <mesh key={sx} position={[sx * (HEATER.w / 2 - HEATER.wall / 2), boxMid, 0]}>
-            <boxGeometry args={[HEATER.wall, HEATER.h - 2 * HEATER.wall - 0.01, HEATER.d - 0.01]} />
-            <meshStandardMaterial {...CASING_MAT} />
-          </mesh>
-        ))}
-        {/* Front frame around the cutaway, and vertical stiffeners down the sides. */}
-        {[-1, 1].map((sx) => (
-          <mesh key={`post${sx}`} position={[sx * (HEATER.w / 2 - 0.05), boxMid, HEATER.d / 2 - 0.05]}>
-            <boxGeometry args={[0.12, HEATER.h - 2 * HEATER.wall - 0.01, 0.12]} />
-            <meshStandardMaterial {...DARK_MAT} />
-          </mesh>
-        ))}
-        {[boxBottom + HEATER.wall / 2, boxTop - HEATER.wall / 2].map((y) => (
-          <mesh key={`rail${y}`} position={[0, y, HEATER.d / 2 + 0.03]}>
-            <boxGeometry args={[HEATER.w + 0.08, 0.12, 0.06]} />
-            <meshStandardMaterial {...DARK_MAT} />
-          </mesh>
-        ))}
-        {[-1, 1].flatMap((sx) =>
-          [-0.35, 0.1].map((z) => (
-            // Between the slabs and just outside their overhang: full height,
-            // the rib tops sat on the roof's top face and z-fought.
-            <mesh key={`rib${sx}${z}`} position={[sx * (HEATER.w / 2 + 0.05), boxMid, z]}>
-              <boxGeometry args={[0.05, HEATER.h - 2 * HEATER.wall - 0.01, 0.08]} />
-              <meshStandardMaterial {...DARK_MAT} />
-            </mesh>
-          )),
-        )}
+        {/* Our own furnace (lab kit): the insulated casing cut away at the
+            front, its I-beam legs, stiffeners, front frame, sight-port
+            bezels, convection section and stack. The fire, the lining, the
+            coil and the sight glass stay here — they follow the heat. */}
+        <Suspense fallback={null}>
+          <KitPart name="furnaceCasing" />
+          <KitPart name="furnaceSteel" />
+        </Suspense>
 
         {/* Refractory lining on the back wall, glowing with the fire. */}
         <mesh position={[0, boxMid, -HEATER.d / 2 + HEATER.wall + 0.01]}>
@@ -1729,67 +1683,23 @@ function Furnace({ heat, furnaceC, speed, flowing }) {
             as inspection ports and not as tube ends poking through. */}
         {[boxBottom + 0.6, boxBottom + 1.35].map((y) => (
           <group key={y} position={[HEATER.w / 2 + 0.02, y, -0.58]} rotation={[0, Math.PI / 2, 0]}>
-            <mesh position={[0, 0, 0.02]}>
-              <torusGeometry args={[0.085, 0.03, 10, 24]} />
-              <meshStandardMaterial {...DARK_MAT} />
-            </mesh>
             <mesh position={[0, 0, 0.012]}>
               <circleGeometry args={[0.07, 20]} />
               <meshStandardMaterial color="#2a1206" emissive="#f97316" emissiveIntensity={0.35 + heat * 0.9} toneMapped={false} />
             </mesh>
-            {[0, 1, 2, 3].map((k) => (
-              <mesh key={k} position={[Math.cos((k * Math.PI) / 2 + Math.PI / 4) * 0.13, Math.sin((k * Math.PI) / 2 + Math.PI / 4) * 0.13, 0.02]}>
-                <sphereGeometry args={[0.018, 8, 8]} />
-                <meshStandardMaterial {...DARK_MAT} />
-              </mesh>
-            ))}
           </group>
         ))}
 
-        {/* Convection section and a tapered stack. */}
-        <mesh position={[0, boxTop + 0.004 + convH / 2, -0.1]}>
-          <boxGeometry args={[HEATER.w * 0.62, convH, HEATER.d * 0.7]} />
-          <meshStandardMaterial {...CASING_MAT} />
-        </mesh>
-        <mesh position={[0, convTop + 0.08, -0.1]}>
-          <cylinderGeometry args={[0.34, 0.45, 0.16, 20]} />
-          <meshStandardMaterial {...DARK_MAT} />
-        </mesh>
-        <mesh position={[0, convTop + 0.16 + stackH / 2, -0.1]}>
-          <cylinderGeometry args={[0.2, 0.28, stackH, 20]} />
-          <meshStandardMaterial {...CASING_MAT} />
-        </mesh>
-        {[0.45, 1.25].map((h) => (
-          <mesh key={h} position={[0, convTop + 0.16 + h, -0.1]}>
-            <cylinderGeometry args={[0.27 - h * 0.03, 0.27 - h * 0.03, 0.06, 20]} />
-            <meshStandardMaterial {...DARK_MAT} />
-          </mesh>
-        ))}
       </group>
 
-      {/* Crude-oil storage tank behind the furnace. */}
-      <group position={tankPos}>
-        <mesh position={[0, tankH / 2, 0]}>
-          <cylinderGeometry args={[0.8, 0.8, tankH, 36]} />
-          <meshStandardMaterial color="#9aa6b6" roughness={0.5} metalness={0.3} emissive="#9aa6b6" emissiveIntensity={0.08} />
-        </mesh>
-        {/* Roof dome sits right on the shell's rim, lapping it a hair. */}
-        <mesh position={[0, tankH - 0.005, 0]} scale={[1, 0.22, 1]}>
-          <sphereGeometry args={[0.8, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial {...CASING_MAT} />
-        </mesh>
-        {[0.35, 0.8, 1.25].map((y) => (
-          <mesh key={y} position={[0, y, 0]}>
-            <cylinderGeometry args={[0.815, 0.815, 0.04, 36]} />
-            <meshStandardMaterial {...DARK_MAT} />
-          </mesh>
-        ))}
-        {/* Black band: this is crude oil. */}
-        <mesh position={[0, 0.58, 0]}>
-          <cylinderGeometry args={[0.812, 0.812, 0.3, 36]} />
-          <meshStandardMaterial color="#1f2229" roughness={0.6} />
-        </mesh>
-      </group>
+      {/* Crude-oil storage tank behind the furnace (lab kit): a black band of
+          crude round the shell, wind girders, a caged ladder and a handrail. */}
+      <Suspense fallback={null}>
+        <group position={tankPos}>
+          <KitPart name="tankShell" />
+          <KitPart name="tankSteel" />
+        </group>
+      </Suspense>
       {/* Feed: tank → up → into the convection section's back. */}
       {pipe("feedUp", [tankPos[0] + 0.5, floor + tankH - 0.1, tankPos[2] + 0.45], [tankPos[0] + 0.5, boxTop + convH * 0.5, tankPos[2] + 0.45])}
       {pipe("feedOver", [tankPos[0] + 0.5, boxTop + convH * 0.5, tankPos[2] + 0.45], [tankPos[0] + 0.5, boxTop + convH * 0.5, fz - 0.4])}
@@ -1870,7 +1780,7 @@ export function DistillationScene({ params = {} }) {
   const furnace = furnaceTemperature(heat);
 
   return (
-    <SceneCanvas camera={{ position: DISTIL_CAMERA, fov: 45 }} controls={{ target: [0.1, -0.4, 0] }}>
+    <SceneCanvas environment camera={{ position: DISTIL_CAMERA, fov: 45 }} controls={{ target: [0.1, -0.4, 0] }}>
       {/* Concrete pad. */}
       <mesh position={[-0.3, COLUMN_BOTTOM - 0.95, -0.4]}>
         <boxGeometry args={[13.8, 0.2, 6.5]} />
@@ -2471,8 +2381,6 @@ const CLIP_Y = PLATE.top - 0.12;
 const SUPPLY = { w: 2.5, h: 1.45, d: 1.7, x: TANK.w / 2 + 2.4, z: 0.4, turn: -0.42 };
 const SUPPLY_Y = BENCH_TOP + SUPPLY.h / 2 + 0.06;
 const CURRENT_RANGE = [0.2, 2];
-const CASE_MAT = { color: "#d9dee6", roughness: 0.5, metalness: 0.15, emissive: "#d9dee6", emissiveIntensity: 0.08 };
-const PANEL_MAT = { color: "#2b3240", roughness: 0.6, metalness: 0.2 };
 
 /** A point on the supply's front panel, in world space. */
 function supplyPoint(localX, localY, localZ = SUPPLY.d / 2) {
@@ -2524,106 +2432,39 @@ function CrocClip({ x, colour }) {
 }
 
 /**
- * A bench DC power supply, drawn as one: a light case with a carry handle
- * and vent slots, a dark front panel with a lit current display, a current
- * knob whose pointer follows the slider, a power switch whose lamp shows
- * whether the supply is on, and black (−) and red (+) binding posts.
+ * A bench DC power supply: our own model (the lab kit) — a grey steel cover
+ * with vent slots, a carry handle, a dark front panel with a display bezel, a
+ * rocker switch and black (−) and red (+) binding posts. Here: the lit
+ * current display, the current knob turned to the slider, and the power lamp.
  */
 function PowerSupply({ current, run }) {
-  const knob = useRef(null);
   const turn = -2.3 + ((current - CURRENT_RANGE[0]) / (CURRENT_RANGE[1] - CURRENT_RANGE[0])) * 4.6;
   const front = SUPPLY.d / 2;
   return (
     <group position={[SUPPLY.x, SUPPLY_Y, SUPPLY.z]} rotation={[0, SUPPLY.turn, 0]}>
-      {/* Case, with rubber feet. */}
-      <mesh>
-        <boxGeometry args={[SUPPLY.w, SUPPLY.h, SUPPLY.d]} />
-        <meshStandardMaterial {...CASE_MAT} />
-      </mesh>
-      {[-1, 1].flatMap((sx) =>
-        [-1, 1].map((sz) => (
-          <mesh key={`${sx}${sz}`} position={[sx * (SUPPLY.w / 2 - 0.22), -SUPPLY.h / 2 - 0.03, sz * (SUPPLY.d / 2 - 0.22)]}>
-            <cylinderGeometry args={[0.1, 0.1, 0.06, 12]} />
-            <meshStandardMaterial color="#1f2731" roughness={0.9} />
-          </mesh>
-        )),
-      )}
-      {/* Vent slots on the top and the side. */}
-      {Array.from({ length: 7 }, (_, k) => (
-        <mesh key={`v${k}`} position={[-0.6 + k * 0.2, SUPPLY.h / 2 + 0.003, -0.25]}>
-          <boxGeometry args={[0.08, 0.004, 0.8]} />
-          <meshStandardMaterial color="#5b6472" roughness={0.8} />
-        </mesh>
-      ))}
-      {Array.from({ length: 5 }, (_, k) => (
-        <mesh key={`s${k}`} position={[SUPPLY.w / 2 + 0.003, 0.25 - k * 0.14, -0.1]}>
-          <boxGeometry args={[0.004, 0.05, 0.9]} />
-          <meshStandardMaterial color="#5b6472" roughness={0.8} />
-        </mesh>
-      ))}
-      {/* Carry handle. */}
-      {[-1, 1].map((sx) => (
-        <mesh key={`h${sx}`} position={[sx * 0.75, SUPPLY.h / 2 + 0.14, 0.35]}>
-          <boxGeometry args={[0.08, 0.28, 0.08]} />
-          <meshStandardMaterial color="#39414d" roughness={0.5} />
-        </mesh>
-      ))}
-      <mesh position={[0, SUPPLY.h / 2 + 0.28, 0.35]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.055, 0.055, 1.58, 14]} />
-        <meshStandardMaterial color="#39414d" roughness={0.5} />
-      </mesh>
-
-      {/* Front panel. */}
-      <mesh position={[0, 0, front + 0.005]}>
-        <boxGeometry args={[SUPPLY.w - 0.16, SUPPLY.h - 0.16, 0.01]} />
-        <meshStandardMaterial {...PANEL_MAT} />
-      </mesh>
-      {/* Current display. */}
-      <mesh position={[-0.3, 0.3, front + 0.02]}>
-        <boxGeometry args={[1.2, 0.44, 0.02]} />
+      <Suspense fallback={null}>
+        <KitPart name="psuCase" />
+        <KitPart name="psuTrim" />
+        <KitPart name="psuPostBrass" />
+        <KitPart name="psuPostCaps" />
+        {/* The current knob: its pointer follows the slider. */}
+        <group position={[0.72, 0.28, front + 0.03]} rotation={[0, 0, turn]}>
+          <KitPart name="psuKnob" />
+        </group>
+      </Suspense>
+      {/* Current display, inside its bezel. */}
+      <mesh position={[-0.3, 0.3, front + 0.012]}>
+        <planeGeometry args={[1.22, 0.46]} />
         <meshStandardMaterial color="#0b1a12" emissive={run ? "#16a34a" : "#0b1a12"} emissiveIntensity={run ? 0.35 : 0} roughness={0.2} />
       </mesh>
       <SceneLabel position={[-0.3, 0.3, front + 0.04]} tone={run ? "text-emerald-300" : "text-ink-500"}>
         {run ? `${current.toFixed(2)} A` : "OFF"}
       </SceneLabel>
-      {/* Current knob — its pointer follows the slider. */}
-      <group position={[0.72, 0.28, front + 0.02]} rotation={[Math.PI / 2, 0, 0]}>
-        <mesh>
-          <cylinderGeometry args={[0.2, 0.22, 0.14, 24]} />
-          <meshStandardMaterial color="#1f2731" roughness={0.45} metalness={0.3} />
-        </mesh>
-        <group ref={knob} rotation={[0, turn, 0]}>
-          <mesh position={[0, 0.075, 0.12]}>
-            <boxGeometry args={[0.035, 0.01, 0.13]} />
-            <meshBasicMaterial color="#f8fafc" />
-          </mesh>
-        </group>
-      </group>
-      {/* Power switch and its lamp. */}
-      <mesh position={[0.72, -0.38, front + 0.03]}>
-        <boxGeometry args={[0.24, 0.3, 0.05]} />
-        <meshStandardMaterial color="#1f2731" roughness={0.5} />
-      </mesh>
-      <mesh position={[0.72, -0.12, front + 0.03]}>
+      {/* Power lamp, in its bezel above the switch. */}
+      <mesh position={[0.72, -0.12, front + 0.02]}>
         <sphereGeometry args={[0.045, 12, 12]} />
         <meshStandardMaterial color={run ? "#22c55e" : "#3f1d1d"} emissive={run ? "#22c55e" : "#000000"} emissiveIntensity={run ? 2 : 0} toneMapped={false} />
       </mesh>
-      {/* Binding posts. */}
-      {[
-        { at: NEG_POST, colour: "#1f2229" },
-        { at: POS_POST, colour: "#dc2626" },
-      ].map(({ at, colour }) => (
-        <group key={at[0]} position={[at[0], at[1], front + 0.02]} rotation={[Math.PI / 2, 0, 0]}>
-          <mesh position={[0, 0.05, 0]}>
-            <cylinderGeometry args={[0.11, 0.12, 0.1, 18]} />
-            <meshStandardMaterial color="#c9a24a" metalness={0.7} roughness={0.3} />
-          </mesh>
-          <mesh position={[0, 0.14, 0]}>
-            <cylinderGeometry args={[0.1, 0.1, 0.12, 18]} />
-            <meshStandardMaterial color={colour} roughness={0.5} emissive={colour} emissiveIntensity={0.15} />
-          </mesh>
-        </group>
-      ))}
       <SceneLabel position={[NEG_POST[0], NEG_POST[1] - 0.26, front + 0.05]} tone="text-ink-300">
         −
       </SceneLabel>
@@ -2736,7 +2577,7 @@ export function ElectrolysisScene({ params = {}, setParam }) {
   const copperMat = (colour) => ({ color: colour, emissive: CELL_COLOURS.cathode, emissiveIntensity: 0.35, metalness: 0.8, roughness: 0.3 });
 
   return (
-    <SceneCanvas camera={{ position: [1.7, 3.4, 13.8], fov: 45 }} controls={{ target: [1.7, 0.5, 0] }}>
+    <SceneCanvas environment camera={{ position: [1.7, 3.4, 13.8], fov: 45 }} controls={{ target: [1.7, 0.5, 0] }}>
       {/* Bench. */}
       <mesh position={[1.7, BENCH_TOP - 0.2, 0.2]}>
         <boxGeometry args={[TANK.w + 8.5, 0.4, TANK.d + 3.2]} />

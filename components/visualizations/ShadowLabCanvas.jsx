@@ -781,7 +781,7 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
 
   return (
     <div className="relative h-full w-full bg-ink-950">
-      <SceneCanvas
+      <SceneCanvas environment
         // Framed from BEHIND THE TORCH, looking down the bench. The shadow
         // lands on the face of the screen that points back at the lamp, so a
         // camera parked past the screen — as this one used to be — sees only

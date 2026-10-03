@@ -107,9 +107,11 @@ describe("Nested sub-pages — workspace (Workspace.jsx)", () => {
   it("renders a clickable hierarchy breadcrumb with an overflow menu", () => {
     assert.match(ws, /const breadcrumbPath = useMemo\(/);
     assert.match(ws, /buildBreadcrumbPath\(notesBySpace\[activeSpace\] \|\| \[\], activeNoteObj\.id\)/);
-    assert.match(ws, /data-testid="note-breadcrumb"/);
-    assert.match(ws, /onClick=\{\(\) => handleSelectNote\(n\)\}/);
-    assert.match(ws, /key="breadcrumb-overflow"/);
+    // The breadcrumb itself is rendered by the redesigned top bar.
+    const tb = read("components/redesign/TopBar.jsx");
+    assert.match(tb, /data-testid="note-breadcrumb"/);
+    assert.match(tb, /onSelectNote\?\.\(c\.note\)/);
+    assert.match(tb, /id: "__more"/);
   });
 
   it("re-inserts a card into the parent when a sub-page is restored", () => {

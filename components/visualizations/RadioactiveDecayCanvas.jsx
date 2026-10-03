@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
@@ -13,6 +13,7 @@ import {
   hashRandom,
 } from "@/components/visualizations/scene-kit";
 import { DARK_STEEL, LabBench, PAPER, STEEL } from "@/components/visualizations/lab-bench";
+import { KitPart } from "@/components/visualizations/lab-kit-model";
 import { InstancedPopulation, createPopulation, killParticle, makeRng, setParticleColour, spawnParticle } from "@/components/visualizations/particle-population";
 import { LiveTrace } from "@/components/visualizations/live-trace";
 import {
@@ -379,12 +380,10 @@ function stepTracers(pop, dt, { barrier, fieldOn, rng, onDetect, onAbsorb, onAnn
 // so no two faces ever share a plane (the lower plate used to lie 5 mm
 // above the bench top and flickered against it). Nothing casts a shadow.
 
-const LEAD = { color: "#454c58", roughness: 0.62, metalness: 0.45, emissive: "#454c58", emissiveIntensity: 0.16 };
+const LEAD = { color: "#454c58", roughness: 0.62, metalness: 0.45 };
 const PTFE = { color: "#e9ecef", roughness: 0.5, metalness: 0.02, emissive: "#e9ecef", emissiveIntensity: 0.08 };
 const CASE = { color: "#2b3340", roughness: 0.55, metalness: 0.3, emissive: "#2b3340", emissiveIntensity: 0.18 };
 /** The scaler's light grey instrument case. */
-const COUNTER_CASE = { color: "#b9c2cf", roughness: 0.5, metalness: 0.2, emissive: "#b9c2cf", emissiveIntensity: 0.12 };
-const BRASS_LIKE = { color: "#c9a24a", roughness: 0.32, metalness: 0.6, emissive: "#c9a24a", emissiveIntensity: 0.3 };
 
 /** The yellow trefoil warning sign: three blades a sixth of a turn wide round a hub. */
 function Trefoil({ position, r = 0.2 }) {
@@ -408,34 +407,19 @@ function Trefoil({ position, r = 0.2 }) {
   );
 }
 
-/** The lead castle the sample sits in, open toward the track and the camera. */
+/**
+ * The lead castle the sample sits in, open toward the track and the camera:
+ * our own model (the lab kit), lead bricks laid in staggered courses on a
+ * cast base plate, built to this scene's numbers.
+ */
 function SourceHolder({ Label, parentName, trayTop }) {
   const floor = HOLDER_FLOOR;
   const x0 = HOLDER_BACK_X;
-  const x1 = SOURCE_X + 1.95;
-  const sideLen = x1 - x0;
-  const sideMid = (x0 + x1) / 2;
   return (
     <group>
-      {/* Base plate, its underside a hundredth into the bench. */}
-      <mesh position={[SOURCE_X - 0.2, (floor + 0.01) / 2 - 0.01, 0]}>
-        <boxGeometry args={[4.7, floor + 0.01, HOLDER_HALF_Z * 2 + 0.9]} />
-        <meshStandardMaterial {...LEAD} />
-      </mesh>
-      {/* Back wall — a touch taller and narrower than the side walls, so their faces never meet in one plane. */}
-      <mesh position={[x0, floor + HOLDER_H / 2 - 0.01, 0]}>
-        <boxGeometry args={[0.5, HOLDER_H + 0.04, HOLDER_HALF_Z * 2 + 0.56]} />
-        <meshStandardMaterial {...LEAD} />
-      </mesh>
-      <mesh position={[sideMid, floor + HOLDER_H / 2 - 0.02, -(HOLDER_HALF_Z + 0.25)]}>
-        <boxGeometry args={[sideLen, HOLDER_H, 0.5]} />
-        <meshStandardMaterial {...LEAD} />
-      </mesh>
-      {/* The near wall is a lip, so the sample is in view. */}
-      <mesh position={[sideMid, floor + 0.22, HOLDER_HALF_Z + 0.25]}>
-        <boxGeometry args={[sideLen, 0.46, 0.5]} />
-        <meshStandardMaterial {...LEAD} />
-      </mesh>
+      <Suspense fallback={null}>
+        <KitPart name="leadCastle" />
+      </Suspense>
       <Trefoil position={[SOURCE_X + 1.1, floor + 0.22, HOLDER_HALF_Z + 0.53]} r={0.19} />
       {/* A brass tray on a steel pedestal, raised to just under the heap's bottom layer. */}
       <mesh position={[SOURCE_X, trayTop - 0.03, 0]}>
@@ -462,8 +446,8 @@ function FieldPlates({ on, Label }) {
   const leads = useMemo(() => {
     const curve = (pts) => new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p))).getPoints(24);
     return {
-      red: curve([[mid - 0.3, 0.86, -2.6], [mid - 0.5, 1.9, -2.2], [mid - 0.9, topY + 0.3, -1.6], [mid - 1.0, topY + 0.04, -1.25]]),
-      black: curve([[mid + 0.3, 0.86, -2.6], [mid + 0.5, 1.0, -2.2], [mid + 0.9, lowY - 0.25, -1.6], [mid + 1.0, lowY - 0.04, -1.25]]),
+      red: curve([[mid - 0.3, 0.88, -2.75], [mid - 0.5, 1.9, -2.2], [mid - 0.9, topY + 0.3, -1.6], [mid - 1.0, topY + 0.04, -1.25]]),
+      black: curve([[mid + 0.3, 0.88, -2.75], [mid + 0.5, 1.0, -2.2], [mid + 0.9, lowY - 0.25, -1.6], [mid + 1.0, lowY - 0.04, -1.25]]),
     };
   }, [mid, topY, lowY]);
   const plate = (y, colour) => (
@@ -487,26 +471,16 @@ function FieldPlates({ on, Label }) {
           <meshStandardMaterial {...PTFE} />
         </mesh>
       ))}
-      {/* The supply: case, meter window, knob, two terminals. */}
+      {/* The supply (lab kit): case, meter window bezel, voltage knob, and
+          red and black terminals on top; the meter window lit here. */}
       <group position={[mid, 0, -3.05]}>
-        <mesh position={[0, 0.39, 0]}>
-          <boxGeometry args={[1.5, 0.8, 0.9]} />
-          <meshStandardMaterial {...CASE} />
-        </mesh>
-        <mesh position={[-0.2, 0.44, 0.47]}>
+        <Suspense fallback={null}>
+          <KitPart name="hvSupply" />
+        </Suspense>
+        <mesh position={[-0.2, 0.44, 0.475]}>
           <planeGeometry args={[0.7, 0.3]} />
           <meshBasicMaterial color={on ? "#7f1d1d" : "#1f2530"} toneMapped={false} />
         </mesh>
-        <mesh position={[0.45, 0.44, 0.49]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.1, 0.1, 0.08, 18]} />
-          <meshStandardMaterial {...STEEL} />
-        </mesh>
-        {[[-0.3, "#ef4444"], [0.3, "#111827"]].map(([x, c]) => (
-          <mesh key={x} position={[x, 0.82, 0.45]}>
-            <cylinderGeometry args={[0.06, 0.06, 0.08, 12]} />
-            <meshStandardMaterial color={c} roughness={0.4} />
-          </mesh>
-        ))}
         <Label position={[-0.2, 0.44, 0.5]} tone={on ? "text-rose-300" : "text-ink-500"}>{on ? "2.0 kV" : "0 kV"}</Label>
       </group>
       <Line points={leads.red} color="#ef4444" lineWidth={2} />
@@ -525,7 +499,7 @@ const BARRIER_H = 3.2;
 function Barrier({ barrier, Label }) {
   const b = barrierFor(barrier);
   const t = BARRIER_THICKNESS[barrier] ?? 0.2;
-  const mat = barrier === "paper" ? PAPER : barrier === "aluminium" ? { color: "#c7cfd9", roughness: 0.3, metalness: 0.65, emissive: "#c7cfd9", emissiveIntensity: 0.3 } : { ...LEAD, color: "#59616e", emissive: "#59616e" };
+  const mat = barrier === "paper" ? PAPER : barrier === "aluminium" ? { color: "#c7cfd9", roughness: 0.3, metalness: 0.65, emissive: "#c7cfd9", emissiveIntensity: 0.3 } : { ...LEAD, color: "#59616e" };
   const cy = TRACK_Y + 0.15;
   const bottom = cy - BARRIER_H / 2;
   const rodTop = bottom - 0.05;
@@ -544,10 +518,9 @@ function Barrier({ barrier, Label }) {
         <cylinderGeometry args={[0.06, 0.06, rodTop - 0.1, 10]} />
         <meshStandardMaterial {...STEEL} />
       </mesh>
-      <mesh position={[0, 0.05, 0]}>
-        <boxGeometry args={[0.9, 0.12, 1.3]} />
-        <meshStandardMaterial {...DARK_STEEL} />
-      </mesh>
+      <Suspense fallback={null}>
+        <KitPart name="roundFoot" />
+      </Suspense>
       <Label position={[0, cy + BARRIER_H / 2 + 0.3, 1.2]} tone="text-ink-200">{`${b.label} · ${b.thickness}`}</Label>
     </group>
   );
@@ -619,49 +592,30 @@ function GeigerTube({ gmRef, Label, clicks }) {
   );
   return (
     <group>
+      {/* Our own tube (lab kit): the mica end window in its open collar, a
+          knurled grip, the clamp band, the connector the cable leaves from,
+          and a boss on top for the count LED. */}
       <group position={[GM_X, TRACK_Y, 0]}>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.42, 0.42, 1.7, 28]} />
-          <meshStandardMaterial {...STEEL} />
-        </mesh>
-        {/* The thin mica window, set back inside an open collar. */}
-        <mesh position={[-0.88, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.46, 0.46, 0.08, 28, 1, true]} />
-          <meshStandardMaterial {...DARK_STEEL} side={THREE.DoubleSide} />
-        </mesh>
-        <mesh position={[-0.89, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          <circleGeometry args={[0.36, 28]} />
-          <meshStandardMaterial color="#e2e8f0" emissive="#e2e8f0" emissiveIntensity={0.3} roughness={0.25} />
-        </mesh>
-        {/* Clamp ring and the connector at the back. */}
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[0.44, 0.04, 8, 28]} />
-          <meshStandardMaterial {...DARK_STEEL} />
-        </mesh>
-        <mesh position={[0.94, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.12, 0.12, 0.2, 14]} />
-          <meshStandardMaterial {...BRASS_LIKE} />
-        </mesh>
+        <Suspense fallback={null}>
+          <KitPart name="gmTube" />
+          <KitPart name="gmTrim" />
+        </Suspense>
         <mesh ref={led} position={[0.3, 0.46, 0]}>
           <sphereGeometry args={[0.08, 12, 12]} />
           <meshStandardMaterial color="#34d399" emissive="#34d399" emissiveIntensity={0.2} toneMapped={false} />
         </mesh>
       </group>
-      {/* Stand: rod from the foot up to the clamp ring. */}
-      <mesh position={[GM_X, (0.1 + TRACK_Y - 0.4) / 2, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, TRACK_Y - 0.5, 10]} />
-        <meshStandardMaterial {...DARK_STEEL} />
-      </mesh>
-      <mesh position={[GM_X, 0.05, 0]}>
-        <cylinderGeometry args={[0.45, 0.5, 0.12, 24]} />
-        <meshStandardMaterial {...DARK_STEEL} />
-      </mesh>
-      {/* The counter. */}
+      {/* Stand: a cast foot, a rod and the cradle the tube lies in. */}
+      <Suspense fallback={null}>
+        <group position={[GM_X, 0, 0]}>
+          <KitPart name="gmStand" />
+        </group>
+      </Suspense>
+      {/* The counter (lab kit): its LCD and count LED drawn here. */}
       <group position={counter}>
-        <mesh position={[0, 0.39, 0]}>
-          <boxGeometry args={[1.6, 0.8, 0.9]} />
-          <meshStandardMaterial {...COUNTER_CASE} />
-        </mesh>
+        <Suspense fallback={null}>
+          <KitPart name="scaler" />
+        </Suspense>
         <CounterDisplay position={[-0.15, 0.44, 0.47]} clicks={clicks} />
         <mesh ref={counterLed} position={[0.6, 0.44, 0.47]}>
           <sphereGeometry args={[0.06, 10, 10]} />
@@ -836,7 +790,7 @@ export default function RadioactiveDecayCanvas({ params = {}, setParam }) {
   const detectorRate = defl.direction !== 0 ? 0 : liveRate * throughFraction;
 
   return (
-    <SceneCanvas camera={{ position: [1.9, 6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
+    <SceneCanvas environment camera={{ position: [1.9, 6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
       <FitCamera />
       <LabBench y={BENCH_Y} width={21} depth={9} />
       <group position={[0, BENCH_Y, 0]}>

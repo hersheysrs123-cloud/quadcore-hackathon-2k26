@@ -76,8 +76,9 @@ export default function FeatureRequestModal({ open, onClose }) {
     onClose();
   };
 
+  // z-[230]: this opens from inside Settings (z-[210]), so it must sit above it.
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[230] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-ink-950/80 backdrop-blur-sm transition-opacity"

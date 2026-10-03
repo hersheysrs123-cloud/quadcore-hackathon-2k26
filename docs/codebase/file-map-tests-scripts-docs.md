@@ -26,6 +26,7 @@ quadcore-hackathon-2k26/
 │   │   ├── nested-sub-pages.test.mjs      # Sub-page wiring across editor/workspace/sidebar/storage, exporters & slash-menu ranking
 │   │   ├── physics-solvers.test.mjs      # Refraction (Snell's law), thin lenses, gas laws, chemistry formulas
 │   │   ├── quiz-grading.test.mjs         # Deterministic integer MC grading & fallback heatmap normalizer
+│   │   ├── literature-core.test.mjs      # Poem ranges, overlap segmentation, multi-part annotations, reading-order numbering, line remapping & import sanitising (25 tests)
 │   │   ├── quiz-studio-flow.test.mjs     # 2-column exam runner layout, draft answer auto-saving, and question matrix
 │   │   ├── reformat-note.test.mjs        # Multi-chunk note reformatting and hierarchical block structure generation
 │   │   ├── muscle-mechanics.test.mjs     # Elbow lever torque, volume-preserving bulge, fatigue give-way & tendon strain
@@ -44,6 +45,8 @@ quadcore-hackathon-2k26/
 │   │   ├── pathogens.test.mjs            # Anatomy parts, living checklist, 100 %/0 % efficacy, wall shredding, lytic stages, burst size, host status
 │   │   ├── tube-transit.test.mjs         # Profile bumps, squeeze-to-fit, recycling stream, tube winding vs analytic normals (via three.js)
 │   │   ├── respiratory-mechanics.test.mjs # CT thoracic skeleton kinematics, diaphragm morphing, and Boyle's Law physics
+│   │   ├── fleming-hand.test.mjs          # The motor scene's hand (fleming-hand-model-meta.js, fleming-hand.glb): first finger along B, second along I, thumb along F, a left hand (F along I × B), tips clear of the palm, GLB and hand node present
+│   │   ├── sweater-model.test.mjs         # The static scene's sweater GLB: its four nodes, the _KNIT attribute the stitch shader reads, the chest front the charge signs sit on, the floor it stands on
 │   │   ├── heart-credits.test.mjs         # The heart's BodyParts3D CC BY 4.0 credit (lib/heartCredits.js, the GLB's asset.copyright, the scene); the arm GLB is our own (no BodyParts3D): its seven nodes, the _BEND/_FIBRE/_SEG attributes the shaders read, the contract/stretch/flex morphs, and both arm scenes drawing ModelledArm with no Credits panel
 │   │   ├── shadow-optics.test.mjs        # Shadow geometry: bench bounds, point/broad lamp penumbra, and material transmission
 │   │   ├── space-hub.test.mjs            # Space Hub document uploads, active AI toggles, and pedagogy presets
@@ -57,6 +60,9 @@ quadcore-hackathon-2k26/
 │   │   ├── cell-biology.test.mjs         # Organelle registry, tonicity states, lysis and crenation
 │   │   ├── circuits.test.mjs             # Series / parallel circuit solver
 │   │   ├── coaster-energy.test.mjs       # Loop-the-loop energy budget and g-force
+│   │   ├── coaster-car-model.test.mjs    # The coaster car GLB's nodes, three wheels per corner each against its rail (top, under, outside), the ride camera's eye inside the car at head height
+│   │   ├── lab-kit-model.test.mjs        # The lab kit GLB has every node a scene draws by <KitPart name>, the burner's mouth at lab-bench's flame start, three evenly spaced tripod legs, the supply's posts where its leads start
+│   │   ├── cannon-model.test.mjs         # The cannon GLB's nodes, launch height at the trunnions, a bore wider than the ball with the muzzle at the barrel's front, the carriage clear of the runway
 │   │   ├── combustion.test.mjs           # Bunsen flame profile and fire-triangle model
 │   │   ├── distillation.test.mjs         # Fractions, riser predicate, bitumen never rises
 │   │   ├── dna-helix.test.mjs            # All four bases at every pair count, A–T / C–G bonds
@@ -104,6 +110,11 @@ quadcore-hackathon-2k26/
 │   ├── heart-bake/                       # Offline pipeline (numpy/scipy + three) that builds public/models/heart.glb and heart-model-meta.js from BodyParts3D; see its README
 │   ├── division-model/                   # Blender (Python) build of public/models/division.glb: chromatin territories, nucleolus, nuclear envelope with pores, centrioles (mother with appendages, daughter), pericentriolar material, mitochondrion; reuses plant-model's helpers and GLB writer; see its README
 │   ├── ecosystem-model/                  # Blender (Python) build of public/models/food-chain.glb (oak shoot, looper caterpillar with a loop morph, blue tit, sparrowhawk on a log) and carbon-cycle.glb (broadleaf, spruce, stump, Holstein cow, coal power station); reuses plant-model's helpers and GLB writer; see its README
+│   ├── sweater-model/                    # Blender (Python) build of public/models/sweater.glb: a cable-knit wool sweater on a dress form (SDF body loft with hollow hem, empty flattened sleeves, ribbed collar, cuffs and hem, three rope cables front and back, drape folds), per-vertex _KNIT coordinates for the stitch shader; the form's neck, cap, pole and tripod; see its README
+│   ├── cannon-model/                     # Blender (Python) build of public/models/cannon.glb: a turned bronze barrel (lathe with crisp ring steps), trunnions, vent and dolphins in the barrel's own pivot frame; chamfered oak cheeks, axletrees and transom with per-vertex grain coordinates; iron trucks, cap squares and bolts; its lathe and crisp-edge helpers are shared with coaster-model; see its README
+│   ├── labkit-model/                     # Blender (Python) build of public/models/lab-kit.glb: the shared bench apparatus as lathes and chamfered extrusions in the frames of the components they replace (retort stand, Bunsen burner with an SDF air collar, tripod, bench supply, GM tube, scaler, HV supply, lead-brick castle, circuit bulb/cells/holder/posts/switch/meter, induction meter and lamp, gas tap, hotplate, furnace casing, crude tank); see its README
+│   ├── coaster-model/                    # Blender (Python) build of public/models/coaster-car.glb: the fibreglass shell, seats and four riders (SDF), lap bars, steel chassis and wheel carriers, and one each of the running, upstop and guide wheels (lathes) that the scene copies to every corner; see its README
+│   ├── hand-model/                       # Blender (Python) build of public/models/fleming-hand.glb: a human left hand held in Fleming's left-hand rule, an SDF skin over arm-model's posed hand skeleton (palm spread for this build), meshed in the motor scene's own frame, painted skin, creases and nails, forearm faded by vertex alpha; fleming-hand-model-meta.js gives the fingertip anchors; see its README
 │   ├── flower-model/                     # Blender (Python) build of public/models/flower.glb: the half-flower dissected at z = 0 (SDF body, ovules, nectary and sticky stigma with painted tissue cut faces; parametric petals, sepals, tepals, stamens, feathery stigma), a worker honeybee with wings and pollen loads, spiky and smooth pollen grains; reuses plant-model's helpers and GLB writer; see its README
 │   ├── microbe-model/                    # Blender (Python) build of public/models/microbes.glb: the cut-away E. coli (SDF wall, membrane and cytoplasm shells with painted rims; nucleoid, plasmid, ribosome, pili, flagellar hooks), the T4 phage (capsid with DNA spool, sheath, core, baseplate, tail fibre, low-detail progeny) and penicillin G; reuses plant-model's helpers and GLB writer; see its README
 │   ├── gut-model/                        # Blender (Python) build of public/models/gut.glb: the cut-away oesophagus stored at rest with per-vertex (s, w, fold), the SDF stomach with vessels pressed onto it, chewed and dry boluses; wave_preview.py poses the wave for checking; see its README

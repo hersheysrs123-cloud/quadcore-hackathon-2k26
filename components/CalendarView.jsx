@@ -10,8 +10,14 @@ import {
   deleteAlarm,
   toggleAlarm,
 } from "@/lib/storageService";
-import { Edit3, Trash2, Bell, Plus, Calendar as CalendarIcon, Volume2 } from "lucide-react";
-import { useGlobalTimer } from "@/lib/timerStore";
+import { Edit3, Trash2, Bell, Plus, Pause, Play, RotateCcw, Calendar as CalendarIcon, Volume2 } from "lucide-react";
+import {
+  useGlobalTimer,
+  useTimerStore,
+  clampDurationMins,
+  MIN_TIMER_MINS,
+  MAX_TIMER_MINS,
+} from "@/lib/timerStore";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const EVENT_TYPES = [
@@ -48,159 +54,273 @@ function format24to12(timeStr) {
   return `${hour12}:${minuteStr} ${period}`;
 }
 
-const StudyTimerWidget = memo(function StudyTimerWidget() {
-  const {
-    mode,
-    secondsLeft,
-    isActive,
-    isNearingEnd,
-    percentLeft,
-    customMins,
-    togglePlayPause,
-    resetTimer,
-    startTimer,
-    pausedSecondsLeft,
-  } = useGlobalTimer();
+const MODE_EMOJI = { focus: "🍅", short: "⚡", long: "☕", custom: "⏱️" };
 
-  const [inputCustomMins, setInputCustomMins] = useState(customMins || 10);
+function formatClock(totalSecs) {
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * The Calendar's timer panel.
+ *
+ * Picking a timer only *selects* it; Start / Pause / Reset act on the
+ * selection. (The chooser used to start or pause whichever timer matched
+ * the mode, so clicking "Focus" while it ran paused it.) Every running timer
+ * is listed underneath, so a second one is never hidden behind the first.
+ */
+const StudyTimerWidget = memo(function StudyTimerWidget() {
+  const { timers, activeTimers, primaryTimer, togglePlayPause, resetTimer, deleteTimer } = useGlobalTimer();
+
+  const [selectedId, setSelectedId] = useState(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customMins, setCustomMins] = useState(10);
+
+  // Until the user picks one, follow whatever is running (or Focus).
+  const selected =
+    timers.find((t) => t.id === selectedId) ||
+    timers.find((t) => t.id === primaryTimer?.id) ||
+    timers[0];
 
   function handleCustomSubmit(e) {
     e.preventDefault();
-    const valid = Math.max(1, Math.min(180, Number(inputCustomMins) || 10));
-    startTimer("custom", valid);
+    const mins = clampDurationMins(customMins);
+    const store = useTimerStore.getState();
+    store.addTimer(customTitle.trim() || `Custom (${mins}m)`, mins, "custom");
+    const created = useTimerStore.getState().timers.at(-1);
+    if (created) {
+      store.togglePlayPause(created.id);
+      setSelectedId(created.id);
+    }
+    setCustomTitle("");
+    setCustomOpen(false);
   }
 
-  const mins = Math.floor(secondsLeft / 60);
-  const secs = secondsLeft % 60;
-  const timeFormatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  if (!selected) return null;
+
+  const isStarted = (t) => t.isActive || t.pausedSecondsLeft != null;
+  const startedTimers = timers.filter(isStarted);
+
+  const nearing = selected.isNearingEnd;
+  const startLabel = selected.isActive
+    ? "⏸ Pause"
+    : selected.pausedSecondsLeft != null
+    ? "▶ Resume"
+    : "▶ Start";
 
   return (
-    <div className={`rounded-xl border p-5 shadow-xl transition-colors ${
-      isNearingEnd
-        ? "border-rose-500/60 bg-rose-500/10 ring-2 ring-rose-500/30 animate-pulse"
-        : "border-ink-800 bg-ink-900"
-    }`}>
+    <div
+      className={`rounded-xl border p-5 shadow-xl transition-colors ${
+        nearing ? "border-rose-500/60 bg-rose-500/10 ring-2 ring-rose-500/30" : "border-ink-800 bg-ink-900"
+      }`}
+    >
       <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
         <div className="flex items-center gap-2">
           <span className="text-lg">⏱️</span>
-          <h2 className="text-sm font-semibold text-ink-100">Real-Time Study & Pomodoro Timer</h2>
+          <h2 className="text-sm font-semibold text-ink-100">Study &amp; Pomodoro Timers</h2>
         </div>
-        {secondsLeft === 0 && (
-          <span className="animate-pulse rounded-full border border-duck-400/40 bg-duck-400/20 px-2.5 py-0.5 text-[10px] font-bold text-duck-300">
-            🎉 Session Complete!
-          </span>
-        )}
-        {isNearingEnd && (
-          <span className="animate-bounce rounded-full border border-rose-500/40 bg-rose-500/20 px-2.5 py-0.5 text-[10px] font-bold text-rose-300">
-            ⚠️ Nearing End!
+        {activeTimers.length > 0 && (
+          <span className="rounded-full border border-duck-500/40 bg-duck-500/15 px-2 py-0.5 text-[10px] font-bold text-duck-300">
+            {activeTimers.length} running
           </span>
         )}
       </div>
 
-      <div className="mb-4 flex items-center justify-center gap-1.5 rounded-lg border border-ink-800 bg-ink-950 p-1">
+      {/* Chooser: selects, never starts or pauses. */}
+      <div className="mb-4 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Choose a timer">
+        {timers.map((t) => {
+          const isSel = t.id === selected.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={isSel}
+              onClick={() => {
+                setSelectedId(t.id);
+                setCustomOpen(false);
+              }}
+              title={t.title}
+              className={`flex max-w-[11rem] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                isSel
+                  ? "border-duck-500/50 bg-duck-500/15 text-duck-200"
+                  : "border-ink-800 bg-ink-950 text-ink-400 hover:border-ink-700 hover:text-ink-200"
+              }`}
+            >
+              <span className="shrink-0">{MODE_EMOJI[t.mode] || "⏱️"}</span>
+              <span className="truncate">{t.isDefault ? t.title.replace("Pomodoro ", "") : t.title}</span>
+              {t.isActive && (
+                <span className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-duck-400" aria-label="running" />
+              )}
+            </button>
+          );
+        })}
         <button
           type="button"
-          onClick={() => startTimer("focus")}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-            mode === "focus"
-              ? "border border-amber-500/30 bg-amber-500/20 text-amber-300"
-              : "text-ink-400 hover:text-ink-200"
+          onClick={() => setCustomOpen((v) => !v)}
+          aria-expanded={customOpen}
+          className={`flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            customOpen
+              ? "border-duck-500/50 text-duck-300"
+              : "border-ink-700 text-ink-400 hover:border-duck-500/40 hover:text-duck-300"
           }`}
         >
-          🍅 Focus (25m)
-        </button>
-        <button
-          type="button"
-          onClick={() => startTimer("short")}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-            mode === "short"
-              ? "border border-emerald-500/30 bg-emerald-500/20 text-emerald-300"
-              : "text-ink-400 hover:text-ink-200"
-          }`}
-        >
-          ☕ Short (5m)
-        </button>
-        <button
-          type="button"
-          onClick={() => startTimer("long")}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-            mode === "long"
-              ? "border border-cyan-500/30 bg-cyan-500/20 text-cyan-300"
-              : "text-ink-400 hover:text-ink-200"
-          }`}
-        >
-          🌴 Long (15m)
-        </button>
-        <button
-          type="button"
-          onClick={() => startTimer("custom", inputCustomMins)}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-            mode === "custom"
-              ? "border border-purple-500/30 bg-purple-500/20 text-purple-300"
-              : "text-ink-400 hover:text-ink-200"
-          }`}
-        >
-          ⚙️ Custom
+          <Plus className="h-3 w-3" /> Custom
         </button>
       </div>
 
-      {mode === "custom" && (
-        <form onSubmit={handleCustomSubmit} className="mb-4 flex items-center justify-center gap-2">
-          <label className="text-xs text-ink-400">Duration (mins):</label>
+      {customOpen && (
+        <form
+          onSubmit={handleCustomSubmit}
+          className="mb-4 space-y-2 rounded-lg border border-ink-800 bg-ink-950 p-3"
+        >
           <input
-            type="number"
-            min="1"
-            max="180"
-            value={inputCustomMins}
-            onChange={(e) => setInputCustomMins(e.target.value)}
-            className="w-20 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-center text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+            type="text"
+            value={customTitle}
+            onChange={(e) => setCustomTitle(e.target.value)}
+            placeholder="Name (optional), e.g. Maths past paper"
+            autoFocus
+            className="w-full rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50 focus:outline-none"
           />
-          <button
-            type="submit"
-            className="rounded-md border border-purple-500/40 bg-purple-500/20 px-2 py-1 text-[11px] font-semibold text-purple-300 hover:bg-purple-500/30"
-          >
-            Apply
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={MIN_TIMER_MINS}
+              max={MAX_TIMER_MINS}
+              value={customMins}
+              onChange={(e) => setCustomMins(e.target.value)}
+              aria-label="Duration in minutes"
+              className="w-20 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-center text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+            />
+            <span className="text-xs text-ink-400">minutes</span>
+            <button
+              type="submit"
+              className="ml-auto rounded-md bg-duck-400 px-3 py-1.5 text-xs font-bold text-ink-950 hover:bg-duck-300"
+            >
+              Create &amp; start
+            </button>
+          </div>
         </form>
       )}
 
+      {/* Selected timer */}
       <div className="my-3 text-center">
-        <div className={`font-mono text-5xl font-extrabold tracking-tight tabular-nums ${
-          isNearingEnd ? "text-rose-400" : "text-ink-100"
-        }`}>
-          {timeFormatted}
+        <div className="mb-1 truncate text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+          {MODE_EMOJI[selected.mode] || "⏱️"} {selected.title}
+        </div>
+        <div className="relative flex items-center justify-center">
+          <div
+            className={`font-mono text-5xl font-extrabold tracking-tight tabular-nums ${
+              nearing ? "text-rose-400" : selected.isActive ? "text-ink-100" : "text-ink-300"
+            }`}
+          >
+            {formatClock(selected.secondsLeft)}
+          </div>
+          {isStarted(selected) && (
+            <button
+              type="button"
+              onClick={() => resetTimer(selected.id)}
+              title="Reset to full time"
+              aria-label={`Reset ${selected.title}`}
+              className="ml-3 rounded-lg border border-ink-700 bg-ink-850 p-2 text-ink-400 transition-colors hover:border-ink-600 hover:text-ink-100"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-800">
           <div
-            className={`h-full transition-all duration-300 ease-linear ${
-              isNearingEnd ? "bg-rose-500" : "bg-duck-400"
-            }`}
-            style={{ width: `${percentLeft}%` }}
+            className={`h-full transition-[width] duration-300 ease-linear ${nearing ? "bg-rose-500" : "bg-duck-400"}`}
+            style={{ width: `${selected.percentLeft}%` }}
           />
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-center gap-3">
+      <div className="mt-4 flex items-center justify-center gap-2">
         <button
           type="button"
-          onClick={() => togglePlayPause()}
-          className={`w-28 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-all ${
-            isActive
+          onClick={() => togglePlayPause(selected.id)}
+          className={`w-28 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-colors ${
+            selected.isActive
               ? "border border-rose-500/40 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
               : "bg-duck-400 text-ink-950 hover:bg-duck-300"
           }`}
         >
-          {isActive ? "⏸ Pause" : secondsLeft === 0 ? "🔄 Restart" : pausedSecondsLeft !== null ? "▶ Resume" : "▶ Start"}
+          {startLabel}
         </button>
-
-        <button
-          type="button"
-          onClick={() => resetTimer()}
-          className="rounded-lg border border-ink-700 bg-ink-850 px-3.5 py-2 text-xs font-medium text-ink-400 transition-colors hover:border-ink-600 hover:text-ink-200"
-        >
-          ↺ Reset
-        </button>
+        {!selected.isDefault && (
+          <button
+            type="button"
+            onClick={() => {
+              deleteTimer(selected.id);
+              setSelectedId(null);
+            }}
+            title="Delete this custom timer"
+            className="rounded-lg border border-ink-700 bg-ink-850 p-2 text-ink-500 transition-colors hover:border-rose-500/40 hover:text-rose-400"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
+
+      {/* Every started timer — running or paused — so pausing never hides one. */}
+      {startedTimers.length > 0 && (
+        <div className="mt-5 border-t border-ink-800 pt-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">In progress</p>
+          <ul className="space-y-1.5">
+            {startedTimers.map((t) => (
+              <li
+                key={t.id}
+                className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
+                  t.id === selected.id ? "border-duck-500/40 bg-duck-500/10" : "border-ink-800 bg-ink-950"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(t.id)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-ink-200"
+                  title="Show this timer"
+                >
+                  <span className="shrink-0">{MODE_EMOJI[t.mode] || "⏱️"}</span>
+                  <span className="truncate">{t.title}</span>
+                  {!t.isActive && (
+                    <span className="shrink-0 rounded border border-ink-750 px-1 text-[9px] font-semibold uppercase text-ink-500">
+                      Paused
+                    </span>
+                  )}
+                </button>
+                <span
+                  className={`font-mono text-xs font-bold tabular-nums ${
+                    t.isNearingEnd ? "text-rose-400" : t.isActive ? "text-duck-300" : "text-ink-400"
+                  }`}
+                >
+                  {formatClock(t.secondsLeft)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => togglePlayPause(t.id)}
+                  title={t.isActive ? "Pause" : "Resume"}
+                  aria-label={`${t.isActive ? "Pause" : "Resume"} ${t.title}`}
+                  className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                >
+                  {t.isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resetTimer(t.id)}
+                  title="Reset to full time"
+                  aria-label={`Reset ${t.title}`}
+                  className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 });

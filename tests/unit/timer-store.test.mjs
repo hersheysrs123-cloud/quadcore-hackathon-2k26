@@ -236,3 +236,59 @@ describe("Zustand Timer Store Engine (lib/timerStore.js)", () => {
     assert.strictEqual(secondsRemaining(clearTimer(t), 0), 1800);
   });
 });
+
+// ─── Stale clock on start, and the alarm's "Extend" ─────────────────
+// The UI computes the countdown against `lastTick`, which the ticker only
+// refreshes while a timer runs. Starting from idle used to render the full
+// duration plus however long the ticker had been asleep (15:00 showed 15:11).
+describe("Timer store: live clock on start, and extend-after-alarm", () => {
+  it("shows exactly the set duration the moment a timer starts, even after a long idle", () => {
+    const idleSince = Date.now() - 11_000;
+    useTimerStore.setState({ timers: defaultTimers, lastTick: idleSince });
+    multiTimerStore.togglePlayPause("long_break");
+    const { timers, lastTick } = multiTimerStore.getSnapshot();
+    const t = timers.find((x) => x.id === "long_break");
+    assert.ok(lastTick > idleSince, "starting must refresh the clock the UI reads against");
+    assert.strictEqual(secondsRemaining(t, lastTick), 900, "a 15:00 timer must read 15:00, not 15:11");
+    multiTimerStore.resetTimer("long_break");
+  });
+
+  it("refreshes the clock on every action, not only on start", () => {
+    for (const act of [
+      () => multiTimerStore.resetTimer("short_break"),
+      () => multiTimerStore.togglePin("short_break"),
+      () => multiTimerStore.extendTimer("short_break", 5),
+      () => multiTimerStore.addTimer("x", 3),
+    ]) {
+      useTimerStore.setState({ lastTick: 1 });
+      act();
+      assert.ok(multiTimerStore.getSnapshot().lastTick > 1);
+    }
+    useTimerStore.setState({ timers: defaultTimers, lastTick: Date.now() });
+  });
+
+  it("names the finished timer in its alarm, so Extend can find it", () => {
+    dispatchedEvents = [];
+    useTimerStore.setState({
+      timers: [{ id: "done_t", title: "Short Break", mode: "short", totalSeconds: 300, targetEndTime: Date.now() - 100, pausedSecondsLeft: null, isActive: true, isPinned: false, isDefault: false }],
+      lastTick: Date.now(),
+    });
+    handleStoreTick();
+    assert.strictEqual(dispatchedEvents[0].detail.timerId, "done_t");
+  });
+
+  it("Extend runs the finished timer again for exactly the chosen minutes", () => {
+    useTimerStore.setState({
+      timers: [{ id: "done_t", title: "Short Break", mode: "short", totalSeconds: 300, targetEndTime: null, pausedSecondsLeft: null, isActive: false, isPinned: false, isDefault: false }],
+      lastTick: 0,
+    });
+    multiTimerStore.runFor("done_t", 10);
+    const { timers, lastTick } = multiTimerStore.getSnapshot();
+    const t = timers[0];
+    assert.strictEqual(t.isActive, true);
+    assert.strictEqual(secondsRemaining(t, lastTick), 600);
+    assert.ok(t.totalSeconds >= 600, "progress bar must not start beyond 100%");
+    multiTimerStore.resetTimer("done_t");
+    useTimerStore.setState({ timers: defaultTimers, lastTick: Date.now() });
+  });
+});

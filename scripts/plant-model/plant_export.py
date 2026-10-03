@@ -14,6 +14,8 @@ build collections with a "node" property is merged into that node's mesh.
   _UVL      int16 x2 normalised: leaf coordinates (plant)
   _CELL     uint8 x4 normalised: cell size / 0.4, wall strength, stretch / 8,
             tissue / 255 (the panels' cell shader)
+  _KNIT     float x4: knit coordinates (stitch across, row along, kind,
+            cable height), for the sweater's stitch shader
   morphs    POSITION deltas as sparse accessors, one per shape key
 """
 
@@ -35,7 +37,7 @@ def _arrays(obj):
     tri = np.empty(len(me.loop_triangles) * 3, dtype=np.int64)
     me.loop_triangles.foreach_get("vertices", tri)
     out = {"pos": pl.verts(obj).astype(np.float32), "nrm": pl.normals(obj).astype(np.float32), "idx": tri}
-    for name in ("col", "sway", "uvl", "cell", "tube"):
+    for name in ("col", "sway", "uvl", "cell", "tube", "knit"):
         v = pl.get_attr(obj, name)
         if v is not None:
             out[name] = v
@@ -47,8 +49,8 @@ def _arrays(obj):
     return out
 
 
-WIDTH = {"col": 4, "sway": 2, "uvl": 2, "cell": 4, "tube": 4}
-FILL = {"col": (1, 1, 1, 1), "sway": (0, 0), "uvl": (0, 0), "cell": (0, 0, 0, 0), "tube": (0, 0, 0, 0)}
+WIDTH = {"col": 4, "sway": 2, "uvl": 2, "cell": 4, "tube": 4, "knit": 4}
+FILL = {"col": (1, 1, 1, 1), "sway": (0, 0), "uvl": (0, 0), "cell": (0, 0, 0, 0), "tube": (0, 0, 0, 0), "knit": (0, 0, 0, 0)}
 
 
 def _merge(parts):
@@ -107,6 +109,9 @@ class PlantGlb(armexp.Glb):
         if "tube" in m:
             # the gut's rest coordinates (station, depth into the wall, fold, 0), float
             attrs["_TUBE"] = self.accessor(m["tube"].astype(np.float32), "VEC4", FLOAT, target=34962)
+        if "knit" in m:
+            # the sweater's stitch coordinates (stitch, row, kind, cable height), float
+            attrs["_KNIT"] = self.accessor(m["knit"].astype(np.float32), "VEC4", FLOAT, target=34962)
         big = n >= 65536
         idx = m["idx"].astype(np.uint32 if big else np.uint16)
         prim = {"attributes": attrs, "indices": self.accessor(idx, "SCALAR", armexp.UINT if big else armexp.USHORT, target=34963)}

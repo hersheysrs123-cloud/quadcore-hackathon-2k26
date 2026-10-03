@@ -51,6 +51,8 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
       ? "Notes & Content Blocks"
       : target === "calendar"
       ? "Calendar Events"
+      : target === "literature"
+      ? "Literature Poems & Annotations"
       : "ALL WORKSPACE DATA";
 
   const isConfirmed = userAnswer.trim() === "RESET";
@@ -172,7 +174,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
   );
 }
 
-function SettingsModal({
+export function SettingsModal({
   open,
   onClose,
   theme,
@@ -183,7 +185,9 @@ function SettingsModal({
   onSpaceSwitcherLayoutChange,
   onStartTutorial,
 }) {
-  const [tab, setTab] = useState("general"); // "general" | "ai" | "backup" | "reset"
+  const [tab, setTab] = useState("general"); // "general" | "ai" | "3d" | "backup" | "reset" | "support"
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const donateUrl = process.env.NEXT_PUBLIC_STRIPE_DONATE_URL || "";
   const [resetTarget, setResetTarget] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -463,9 +467,66 @@ function SettingsModal({
           >
             Factory Reset 🚨
           </button>
+
+          <button
+            type="button"
+            onClick={() => setTab("support")}
+            className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
+              tab === "support"
+                ? "border-duck-400 text-duck-300"
+                : "border-transparent text-ink-400 hover:text-ink-200"
+            }`}
+          >
+            Support &amp; Feedback 💛
+          </button>
         </div>
 
         <div className="space-y-6 px-7 py-6 h-[70vh] max-h-[560px] overflow-y-auto">
+          {tab === "support" && (
+            <div className="space-y-4 max-w-2xl mx-auto py-2">
+              <p className="text-xs text-ink-400">
+                SocraticOS is free and runs entirely in your browser. If it helps you study, you can chip in or tell us what to build next.
+              </p>
+
+              <button
+                type="button"
+                disabled={!donateUrl}
+                onClick={() => window.open(donateUrl, "_blank", "noopener,noreferrer")}
+                className="flex w-full items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-left transition-all hover:border-rose-500/40 hover:bg-rose-500/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-ink-800 disabled:hover:bg-ink-850"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400">
+                    <HeartHandshake className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-ink-100">Donate / Support</div>
+                    <div className="text-[11px] text-ink-400">
+                      {donateUrl ? "Opens the donation page in a new tab" : "No donation link is configured (NEXT_PUBLIC_STRIPE_DONATE_URL)"}
+                    </div>
+                  </div>
+                </div>
+                <span className="rounded bg-rose-500/10 px-2 py-1 text-[10px] font-bold uppercase text-rose-400">Donate</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(true)}
+                className="flex w-full items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-left transition-all hover:border-duck-500/40 hover:bg-duck-500/5"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-duck-500/20 bg-duck-500/10 text-duck-400">
+                    <MessageSquare className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-ink-100">Feedback / Feature request</div>
+                    <div className="text-[11px] text-ink-400">Report a bug, suggest a feature, or share an idea</div>
+                  </div>
+                </div>
+                <span className="rounded bg-duck-500/10 px-2 py-1 text-[10px] font-bold uppercase text-duck-400">Send</span>
+              </button>
+            </div>
+          )}
+
           {tab === "ai" && (
             <form onSubmit={handleSaveAI} className="space-y-5 max-w-2xl mx-auto py-2">
               <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-emerald-300">
@@ -1005,6 +1066,21 @@ function SettingsModal({
                   </div>
                   <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Events</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetTarget("literature")}
+                  className="flex items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-xs font-medium text-ink-200 transition-all hover:border-rose-500/40 hover:bg-rose-500/5 hover:text-rose-300"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">📖</span>
+                    <div>
+                      <div className="font-bold text-ink-100">Factory Reset Literature</div>
+                      <div className="text-[11px] text-ink-400 font-normal">Clear all poems and annotations</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-rose-400 font-bold uppercase rounded bg-rose-500/10 px-2 py-1">Clear Poems</span>
+                </button>
               </div>
 
               <div className="border-t border-ink-800 pt-3">
@@ -1147,12 +1223,14 @@ function SettingsModal({
           onClose();
         }}
       />
+
+      <FeatureRequestModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
 }
 
 // ─── Create New Space Modal ─────────────────────────────────────────
-function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
+export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
   const inputRef = useRef(null);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📂");
@@ -1316,7 +1394,7 @@ function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
 }
 
 // ─── Edit Space Modal ───────────────────────────────────────────────
-function EditSpaceModal({
+export function EditSpaceModal({
   open,
   onClose,
   space,
@@ -1506,7 +1584,7 @@ function EditSpaceModal({
 }
 
 // ─── Trash / Temporarily Deleted Notes Modal ────────────────────────
-function TrashModal({
+export function TrashModal({
   open,
   onClose,
   trashNotes = [],
@@ -1641,7 +1719,7 @@ function TrashModal({
 }
 
 // ─── Batch Delete Confirmation Dialog ────────────────────────────────
-function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
+export function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }) {
   if (!open || count === 0) return null;
 
   return (
@@ -1720,7 +1798,7 @@ function BatchDeleteConfirmModal({ open, count, notes = [], onClose, onConfirm }
 }
 
 // ─── Batch Move to Space Modal ──────────────────────────────────────
-function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
+export function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose, onSelectTargetSpace }) {
   if (!open || count === 0) return null;
 
   return (

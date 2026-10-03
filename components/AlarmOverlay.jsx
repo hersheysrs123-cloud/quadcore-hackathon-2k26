@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTimerStore } from "@/lib/timerStore";
 
 // ─── AlarmOverlay ───────────────────────────────────────────────────
 // Features:
@@ -61,43 +62,58 @@ export default function AlarmOverlay() {
   // Real-time Background Alarm Checker (runs every 5s)
   useEffect(() => {
     let intervalId;
+    // Every minute since the last check is examined, not just the current
+    // one. A background tab only runs this about once a minute, so matching
+    // "now" alone could step straight over an alarm's minute. The look-back
+    // is capped so waking a laptop does not replay a morning of alarms.
+    let lastCheckMs = Date.now();
+    const MAX_CATCH_UP_MS = 5 * 60_000;
     async function checkAlarms() {
       if (typeof window === "undefined") return;
       try {
         const { getAlarms } = await import("@/lib/storageService");
         const alarms = await getAlarms();
 
-        const now = new Date();
-        const currentHours = String(now.getHours()).padStart(2, "0");
-        const currentMinutes = String(now.getMinutes()).padStart(2, "0");
-        const currentTimeStr = `${currentHours}:${currentMinutes}`;
-        const currentDay = now.getDay(); // 0 = Sun .. 6 = Sat
-        const dateKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+        const nowMs = Date.now();
+        const fromMs = Math.max(lastCheckMs, nowMs - MAX_CATCH_UP_MS);
+        lastCheckMs = nowMs;
+
+        const minutes = [];
+        const cursor = new Date(fromMs);
+        cursor.setSeconds(0, 0);
+        for (; cursor.getTime() <= nowMs; cursor.setMinutes(cursor.getMinutes() + 1)) {
+          minutes.push(new Date(cursor));
+        }
 
         for (const a of alarms) {
           if (!a.enabled) continue;
           const daysList = Array.isArray(a.days) ? a.days : [0, 1, 2, 3, 4, 5, 6];
 
-          if (a.time === currentTimeStr && daysList.includes(currentDay)) {
-            const triggerKey = `${a.id}_${dateKey}_${currentTimeStr}`;
-            if (!lastTriggeredRef.current.has(triggerKey)) {
-              lastTriggeredRef.current.add(triggerKey);
-
-              // Limit size of set to prevent memory growth
-              if (lastTriggeredRef.current.size > 100) {
-                lastTriggeredRef.current.clear();
+          for (const m of minutes) {
+            const currentTimeStr = `${String(m.getHours()).padStart(2, "0")}:${String(m.getMinutes()).padStart(2, "0")}`;
+            const currentDay = m.getDay(); // 0 = Sun .. 6 = Sat
+            const dateKey = `${m.getFullYear()}-${m.getMonth() + 1}-${m.getDate()}`;
+            if (a.time === currentTimeStr && daysList.includes(currentDay)) {
+              const triggerKey = `${a.id}_${dateKey}_${currentTimeStr}`;
+              if (!lastTriggeredRef.current.has(triggerKey)) {
                 lastTriggeredRef.current.add(triggerKey);
-              }
 
-              window.dispatchEvent(
-                new CustomEvent("socratic_alarm_triggered", {
-                  detail: {
-                    alarmType: "regular_alarm",
-                    title: `Alarm: ${a.title || "Scheduled Study Session"}`,
-                    message: `Scheduled alert for ${a.time}. Take a breath and review!`,
-                  },
-                })
-              );
+                // Limit size of set to prevent memory growth
+                if (lastTriggeredRef.current.size > 100) {
+                  lastTriggeredRef.current.clear();
+                  lastTriggeredRef.current.add(triggerKey);
+                }
+
+                window.dispatchEvent(
+                  new CustomEvent("socratic_alarm_triggered", {
+                    detail: {
+                      alarmType: "regular_alarm",
+                      title: `Alarm: ${a.title || "Scheduled Study Session"}`,
+                      message: `Scheduled alert for ${a.time}. Take a breath and review!`,
+                    },
+                  })
+                );
+              }
             }
           }
         }
@@ -115,9 +131,10 @@ export default function AlarmOverlay() {
   // Listen for socratic_alarm_triggered events
   useEffect(() => {
     function handleAlarmEvent(e) {
-      const { title, message, alarmType } = e.detail || {};
+      const { title, message, alarmType, timerId } = e.detail || {};
       setAlarm({
         alarmType: alarmType || "timer",
+        timerId: timerId || null,
         title: title || "Study Interval Complete!",
         message: message || "Great focus session! Time to take a breather or review.",
       });
@@ -144,14 +161,10 @@ export default function AlarmOverlay() {
     document.title = "SocraticOS — AI-Powered Learning Environment";
   }
 
+  // The timer has already been cleared when its alarm fires, so "extend"
+  // means: run that same timer again for this many minutes.
   function handleExtendTimer(minutes) {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("socratic_extend_timer", {
-          detail: { minutes },
-        })
-      );
-    }
+    if (alarm?.timerId) useTimerStore.getState().runFor(alarm.timerId, minutes);
     handleDismiss();
   }
 

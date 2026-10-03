@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html, Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -13,8 +13,8 @@ import {
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { relaxTo } from "@/components/visualizations/vessel-rack";
+import { KitPart, LAB_KIT } from "@/components/visualizations/lab-kit-model";
 import {
-  BRASS,
   BURNER_MOUTH_Y,
   BunsenBurner,
   DARK_STEEL,
@@ -69,7 +69,12 @@ const MOUTH_Y = BURNER_Y + BURNER_MOUTH_Y;
 const JAR = { radius: cm(8.5), height: cm(20) };
 /** Raised, the jar hangs clear above the tallest (lazy yellow) flame's tip. */
 const JAR_UP_Y = 4.7;
-const PROBE_STAND = [3.0, 0, 0];
+/**
+ * The probe's stand. Its base runs 2.6 back toward the burner under the arm,
+ * so the stand stands far enough out that the base clears the burner's foot
+ * (radius 0.84); the arm is as long as the stand is far.
+ */
+const PROBE_STAND = [3.6, 0, 0];
 const PROBE_Y = MOUTH_Y + 1.35;
 const PROBE_LENGTH = 0.95;
 /** The thermocouple's digital meter, on the bench behind its stand. */
@@ -173,11 +178,12 @@ function GasTap({ modelRef, animSpeed = 1 }) {
   const hose = useMemo(
     () =>
       new THREE.CatmullRomCurve3([
-        new THREE.Vector3(TAP_POS[0] + 0.32, 0.42, TAP_POS[2]),
+        // from the tap's nozzle, along the bench, onto the burner's inlet barb
+        new THREE.Vector3(TAP_POS[0] + 0.38, 0.42, TAP_POS[2]),
         new THREE.Vector3(TAP_POS[0] + 1.1, 0.16, TAP_POS[2] + 0.1),
-        new THREE.Vector3(-1.6, 0.1, 1.05),
-        new THREE.Vector3(-0.85, 0.3, cm(4.6)),
-        new THREE.Vector3(-0.46, 0.33, cm(4.6)),
+        new THREE.Vector3(-1.9, 0.1, 0.9),
+        new THREE.Vector3(-1.35, 0.26, 0.2),
+        new THREE.Vector3(LAB_KIT.burner.inletTip[0] + 0.12, BURNER_Y + LAB_KIT.burner.inletTip[1], 0),
       ]),
     [],
   );
@@ -189,31 +195,17 @@ function GasTap({ modelRef, animSpeed = 1 }) {
   });
   return (
     <group>
-      <group position={TAP_POS}>
-        <mesh position={[0, 0.2, 0]}>
-          <boxGeometry args={[0.5, 0.4, 0.5]} />
-          <meshStandardMaterial {...DARK_STEEL} />
-        </mesh>
-        <mesh position={[0, 0.55, 0]}>
-          <cylinderGeometry args={[0.13, 0.15, 0.3, 14]} />
-          <meshStandardMaterial {...BRASS} />
-        </mesh>
-        <mesh position={[0.22, 0.42, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.07, 0.07, 0.3, 10]} />
-          <meshStandardMaterial {...BRASS} />
-        </mesh>
-        {/* The lever: along +x when open, turned across when shut. */}
-        <group ref={lever} position={[0, 0.72, 0]}>
-          <mesh position={[0.22, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.035, 0.035, 0.46, 8]} />
-            <meshStandardMaterial color="#b91c1c" emissive="#b91c1c" emissiveIntensity={0.3} roughness={0.5} metalness={0.3} />
-          </mesh>
-          <mesh>
-            <sphereGeometry args={[0.07, 12, 12]} />
-            <meshStandardMaterial {...BRASS} />
-          </mesh>
+      {/* Our own bench gas turret (lab kit): the lever along +x, in line with
+          the nozzle, when open, and turned across when shut. */}
+      <Suspense fallback={null}>
+        <group position={TAP_POS}>
+          <KitPart name="gasTurret" />
+          <KitPart name="gasValve" />
+          <group ref={lever} position={[0, 0.72, 0]}>
+            <KitPart name="gasLever" />
+          </group>
         </group>
-      </group>
+      </Suspense>
       <mesh>
         <tubeGeometry args={[hose, 40, 0.06, 8, false]} />
         <meshStandardMaterial {...RUBBER} />
@@ -850,7 +842,7 @@ export default function CombustionFireTriangleCanvas({ params = {}, setParam }) 
   const READOUT_Y = BENCH_Y + JAR_UP_Y + JAR.height * 0.75;
 
   return (
-    <SceneCanvas camera={{ position: [-0.3, 4.5, 18], fov: FOV }} controls={{ minDistance: 4, maxDistance: 32, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
+    <SceneCanvas environment camera={{ position: [-0.3, 4.5, 18], fov: FOV }} controls={{ minDistance: 4, maxDistance: 32, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>
       <FitCamera />
       <CombustionDriver modelRef={modelRef} flameRef={flameRef} collar={collar} tokens={tokens} animSpeed={speed} setParam={setParam} />
 

@@ -159,6 +159,9 @@ function Fluid({ spec }) {
     <group position={[TANK_X, FLOOR_Y, 0]}>
       <mesh position={[0, h / 2, 0]}>
         <boxGeometry args={[w, h, d]} />
+        {/* A body of liquid, not a thin pane: a glass-strength reflection
+            washed its colour out, so it reflects only faintly (mercury, a
+            liquid metal, is a mirror). */}
         <meshPhysicalMaterial
           color={spec.colour}
           transparent
@@ -166,6 +169,7 @@ function Fluid({ spec }) {
           roughness={spec.roughness}
           metalness={spec.metalness}
           depthWrite={false}
+          userData={{ envReflect: spec.metalness > 0.5 ? 1 : 0.35 }}
         />
       </mesh>
       {/* Surface, drawn separately and brighter so the waterline against the
@@ -178,6 +182,7 @@ function Fluid({ spec }) {
           opacity={Math.min(spec.opacity + 0.25, 0.95)}
           roughness={spec.roughness}
           metalness={spec.metalness}
+          userData={{ envReflect: spec.metalness > 0.5 ? 1 : 0.35 }}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -960,7 +965,8 @@ function Gantry() {
       {/* Luminous brushed aluminum table top inlay */}
       <mesh position={[cx, FLOOR_Y + 0.005, 0]} receiveShadow>
         <boxGeometry args={[span + 2.2, 0.015, 6.4]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.5} />
+        {/* A broad flat top mirrors the studio's overhead: brushed, so dull it. */}
+        <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.5} userData={{ envReflect: 0.3 }} />
       </mesh>
     </group>
   );
@@ -1203,7 +1209,7 @@ export default function BuoyancyCanvas({ params = {} }) {
   }, [hookY, topY, solved.apparentWeight]);
 
   return (
-    <SceneCanvas
+    <SceneCanvas environment
       camera={{ position: [-0.9, 2.8, 19.4], fov: 45 }}
       controls={{ minDistance: 6, maxDistance: 38, target: [-0.9, 0.7, 0] }}
       lights={{ ambient: 0.88, keyLight: 1.45 }}

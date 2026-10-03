@@ -97,6 +97,19 @@ export const GRAVITY_OPTIONS = [
   { value: 24.79, label: "Jupiter", title: "24.79 m/s²" },
 ];
 
+/** The projectile scene's camera: its own framing, or following the ball. */
+export const PROJECTILE_CAMERA_OPTIONS = [
+  { value: "overview", label: "Overview", title: "The whole flight" },
+  { value: "follow", label: "Follow ball", title: "Ride alongside the ball" },
+];
+
+/** The coaster's camera: its own framing, chasing the car, or riding in it. */
+export const COASTER_CAMERA_OPTIONS = [
+  { value: "overview", label: "Overview", title: "The whole track" },
+  { value: "follow", label: "Follow car", title: "Chase the car round the track" },
+  { value: "ride", label: "Ride", title: "From the front seat" },
+];
+
 // ─── Chemistry ──────────────────────────────────────────────────────
 
 /**
