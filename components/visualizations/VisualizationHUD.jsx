@@ -23,6 +23,8 @@ import { ATOM_COLOURS, describeAtom } from "@/lib/atomicStructure";
 import { solveColumn } from "@/lib/distillation";
 import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
 import { AMMONIUM_CHLORIDE, describeDiffusion } from "@/lib/diffusion";
+import { BONDING_COLOURS, COVALENT_ROLE_COLOURS, covalentDiagram, ionicFormation } from "@/lib/bonding";
+import { BOHR_PM, ORBITAL_COLOURS, PHASE_COLOURS, describeOrbitals, sup as superscript } from "@/lib/orbitals";
 import { CELL_COLOURS, ELECTROLYTE, formatGasVolume, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
 import { DENATURE_TEMP, ENZYME_COLOURS, OPTIMUM_PH, OPTIMUM_TEMP, solveEnzyme } from "@/lib/enzymes";
 import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, HYDROGEN_BOND_COLOUR, PAIR_BONDS, describeHelix } from "@/lib/dna";
@@ -2023,6 +2025,59 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "bohr": {
       const a = describeAtom(params.element || "Na");
+      if (params.model === "quantum") {
+        // The same table and sampler the cloud is drawn from.
+        const o = describeOrbitals(a.symbol, params.orbital || "all");
+        const f = o.focused;
+        const byShell = ["K", "L", "M", "N"]
+          .map((shell) => o.subshells.filter((s) => s.shell === shell).map((s) => `${s.key}${superscript(s.electrons)}`).join(" "))
+          .filter(Boolean)
+          .join(" | ");
+        readout = {
+          title: `${a.name} · orbitals`,
+          subtitle: o.configuration,
+          rows: [
+            ["Configuration", o.configuration, "gold", "wide"],
+            ["Bohr shells → subshells", `${a.configuration} → ${byShell}`, undefined, "wide"],
+            ...(f
+              ? [
+                  ["Subshell", `${f.key} — ${f.l === 0 ? "one s orbital" : "three p orbitals"}`, "gold"],
+                  ["Electrons", `${f.electrons} of ${f.capacity}`, f.electrons === f.capacity ? "good" : "warn"],
+                  ["Shape", f.shape],
+                  ["Nodes", `${f.nodes.radial} spherical · ${f.nodes.angular} planar`],
+                  ["Effective charge", `+${f.Zeff.toFixed(2)} (Slater) of +${o.Z}`],
+                  ["Most probable radius", `${(f.peakA0 * BOHR_PM).toFixed(0)} pm`],
+                  ...(f.l === 1 ? [["Filling (Hund)", f.occupancy.map((n) => (n === 2 ? "↑↓" : n === 1 ? "↑" : "·")).join("  "), f.occupancy.includes(1) ? "warn" : "good"]] : []),
+                ]
+              : o.focusEmpty
+                ? [["Focus", `${o.focus} is empty in ${a.name}`, "warn"]]
+                : [
+                    ["Outermost", `${o.outermost.key} · Zeff +${o.outermost.Zeff.toFixed(2)}`, "gold"],
+                    ["…most probable radius", `${(o.outermost.peakA0 * BOHR_PM).toFixed(0)} pm`],
+                  ]),
+            ...(o.hund ? [["Unpaired p electrons", `${o.unpairedP} — ${o.hund}`, "warn", "wide"]] : []),
+          ],
+          note: [
+            "Each cloud is |ψ|² sampled from a hydrogen-like wavefunction with Slater's effective nuclear charge — dense where the electron is likely to be, empty at the nodes. The bright dot hops between samples: every place it lands is somewhere a measurement could find the electron.",
+            f && f.l === 1 && f.electrons === 6 ? "A full p subshell adds up to a sphere — the three dumbbells overlap evenly. Pick carbon, nitrogen or oxygen to see the separate lobes, or colour by the sign of ψ." : "",
+            o.fourSBeforeThreeD ? "Notice 4s holds electrons while 3d is still empty: the 4s orbital fills first because it ends up lower in energy for potassium and calcium." : "",
+            "Radii are compressed for the screen — to scale, the 1s cloud would be a speck inside the outer shell.",
+          ]
+            .filter(Boolean)
+            .join(" "),
+          noteTone: "good",
+        };
+        legend = {
+          title: params.showPhase ? "Wavefunction sign" : "Subshell key",
+          items: params.showPhase
+            ? [
+                { color: PHASE_COLOURS.plus, shape: "dot", label: "ψ > 0", note: "the two lobes of a p orbital always have opposite signs" },
+                { color: PHASE_COLOURS.minus, shape: "dot", label: "ψ < 0", note: "and an s orbital changes sign at each node" },
+              ]
+            : o.subshells.map((s) => ({ color: ORBITAL_COLOURS[s.key], shape: "dot", label: `${s.key} · ${s.electrons} e⁻`, note: `${s.shell} shell` })),
+        };
+        break;
+      }
 
       readout = {
         title: `${a.name} atom (${a.symbol})`,
@@ -2155,6 +2210,38 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "lattice": {
       const structure = params.structure || "nacl";
+      if (structure === "ionic") {
+        // The same transfer the scene animates, from lib/bonding.js.
+        const f = ionicFormation(params.compound || "NaCl");
+        const M = f.atoms.find((a) => a.metal);
+        const X = f.atoms.find((a) => !a.metal);
+        readout = {
+          title: `${f.compound.name} · ${f.compound.formula}`,
+          subtitle: "Ionic bonding · electron transfer",
+          rows: [
+            [`${M.symbol} atom → ion`, `${M.shells.join(",")} → ${M.ionSymbol} ${M.ionShells.join(",")}`, "gold"],
+            [`${X.symbol} atom → ion`, `${X.shells.join(",")} → ${X.ionSymbol} ${X.ionShells.join(",")}`, "good"],
+            ["Electrons moved", `${f.electronsMoved} in all`],
+            ["Ion ratio", `${f.cation.count} ${f.cation.ion} : ${f.anion.count} ${f.anion.ion}`],
+            ["Oxidation (metal)", f.halfEquations[0], "gold", "wide"],
+            ["Reduction (non-metal)", f.halfEquations[1], "good", "wide"],
+            ["Overall", f.equation, undefined, "wide"],
+            ["Charges add to", `${f.cation.count} × (+${f.cation.charge}) + ${f.anion.count} × (${f.anion.charge}) = ${f.totalCharge}`, "good", "wide"],
+            ["Lattice", f.compound.rockSalt ? "rock salt — each ion has six neighbours of the other charge" : "a different arrangement from NaCl's, but the same kind of giant ionic lattice", undefined, "wide"],
+          ],
+          note: `The metal loses electrons (oxidation) and the non-metal gains them (reduction) — OIL RIG. Each ion ends with a full outer shell, the same arrangement as a noble gas, and the oppositely charged ions attract in every direction: that attraction, not the transfer itself, is the ionic bond. ${M.charge > 1 || X.charge < -1 ? "Ions with bigger charges attract harder, which is why MgO melts at 2852 °C against NaCl's 801 °C." : "Highly charged ions attract harder: MgO melts at 2852 °C against NaCl's 801 °C."}`,
+          noteTone: "good",
+        };
+        legend = {
+          title: "Dot-and-cross key",
+          items: [
+            { color: BONDING_COLOURS[M.symbol], shape: "dot", label: `● ${M.symbol}'s electrons`, note: "dots — the ones that move are the metal's outer electrons" },
+            { color: BONDING_COLOURS[X.symbol], shape: "dot", label: `✕ ${X.symbol}'s electrons`, note: "crosses — the non-metal's own" },
+            { color: PALETTE.bone, shape: "line", label: "[ ] with a charge", note: "an ion: the brackets enclose a charged particle" },
+          ],
+        };
+        break;
+      }
       const facts = latticeFactsFor(structure);
 
       readout = {
@@ -2255,11 +2342,28 @@ function renderTopicDetailsReadout(topic, params) {
       // so AX₄E₂ read "Octahedral · 5.0° squeeze" against a scene correctly
       // drawing a square planar molecule at 90°.
       const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0), params.preset);
+      // The dot-and-cross view's electron count, from the same lib the scene draws it with.
+      const dc = params.view === "dotcross" && v.molecule ? covalentDiagram(v.molecule.id) : null;
+      const dcRows = !dc
+        ? []
+        : !dc.supported
+          ? [["Dot & cross", dc.reason, "warn", "wide"]]
+          : [
+              ["— DOT & CROSS —", `${dc.centre.symbol} ● · ${dc.ligand.symbol} ✕`, "gold"],
+              [`${dc.centre.symbol} brings`, `${dc.centre.valence} outer electrons`],
+              [`Each ${dc.ligand.symbol} brings`, `${dc.ligand.valence}`],
+              ["Shared pairs", `${dc.sharedPairs} (${dc.bonds} bond${dc.bonds === 1 ? "" : "s"}${dc.order > 1 ? `, each double` : ""})`, "gold"],
+              [`Lone pairs on ${dc.centre.symbol}`, `${dc.centre.lonePairs}`, dc.centre.lonePairs > 0 ? "warn" : undefined],
+              [`Around ${dc.centre.symbol}`, `${dc.centre.electronsAround} electrons`, dc.octet === "full" ? "good" : "warn"],
+              [`Around each ${dc.ligand.symbol}`, `${dc.ligand.electronsAround} — ${dc.ligandFull ? "full" : "not full"}`, dc.ligandFull ? "good" : "bad"],
+              ["Octet", dc.octetNote, dc.octet === "full" ? "good" : "warn", "wide"],
+            ];
 
       readout = {
         title: "VSEPR molecular geometry",
         subtitle: `${v.notation} · steric number ${v.steric}`,
         rows: [
+          ...dcRows,
           ["Bonding pairs (X)", v.bonding, "gold"],
           ["Lone pairs (E)", v.lone, v.lone > 0 ? "warn" : "good"],
           ["Steric number", v.steric],
@@ -2295,7 +2399,14 @@ function renderTopicDetailsReadout(topic, params) {
         noteTone: !v.hasAngle ? "neutral" : v.lone > 0 ? "warn" : "good",
       };
 
-      legend = {
+      legend = dc?.supported ? {
+        title: "Dot-and-cross key",
+        items: [
+          { color: COVALENT_ROLE_COLOURS.centre, shape: "dot", label: `● ${dc.centre.symbol}'s electrons`, note: "and its outer shell" },
+          { color: COVALENT_ROLE_COLOURS.outer, shape: "dot", label: `✕ ${dc.ligand.symbol}'s electrons`, note: "and their outer shells" },
+          { color: BONDING_COLOURS[dc.centre.symbol], shape: "dot", label: `${dc.centre.symbol} nucleus`, note: "with its inner electrons" },
+        ],
+      } : {
         title: "Electron domains key",
         items: [
           // A real molecule is drawn in its elements' colours, a bare AXₙEₘ in gold and sky.

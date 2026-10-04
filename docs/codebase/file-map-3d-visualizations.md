@@ -40,6 +40,10 @@ quadcore-hackathon-2k26/
 │       ├── RespiratoryCanvas.jsx         # Photorealistic CT thorax, lungs & deforming diaphragm driven by shared breath constants, vector arrows, and resizable HUD
 │       ├── tube-transit.jsx              # SHARED: ProfiledTube (in-place ring-stack tube), TubeRings (tori on a profile), TubeFlow (recycling stream)
 │       ├── arm-rig.jsx                   # SHARED: arm kinematics (pose, bone frames, muscle attachment points from ARM_MODEL.landmarks), Dumbbell, JointMarker
+│       ├── CovalentShells.jsx            # VSEPR dot-and-cross view: billboard shells overlapping along the VSEPR bonds, shared pairs in each lens, lone pairs, screen-space pair spreading, assemble animation
+│       ├── IonicFormation.jsx            # Lattice topic's ion formation: dot-and-cross transfer for six compounds, arcs into donor-facing gaps, brackets + charges, rock-salt lattice finale
+│       ├── OrbitalCloud.jsx              # Bohr quantum model: |ψ|² point clouds per subshell, phase colouring, node rings, hopping electron, density-matched 'all' view
+│       ├── electron-shells.jsx           # Shared ShellRing (x–z, x–y or billboard), ElectronMark (dot or billboard cross), Kernel — used by Bohr, ion formation and dot & cross
 │       ├── ChemistryCanvas.jsx           # Bohr atom, organic builder C1-C12, distillation, lattices, electrolysis, VSEPR, energetics + dispatcher for the split-out redox scenes
 │       ├── ReactivitySeriesCanvas.jsx    # 4 beakers (CuSO₄/FeSO₄/AgNO₃/MgSO₄) + gantry dipping arm carrying 4 strips of one metal: solutions recolour, instanced deposit nodules, ion arrive/leave swarm, electron stream, K fizz; pushes liveSeconds
 │       ├── RustingGalvanicCanvas.jsx     # 4-tube rack (water+air / boiled under oil / desiccant+stopper / coupled): nails with crust+flakes biased to the waterline, thinning wrap rings, e⁻ stream + arrow, day scrub/play driver

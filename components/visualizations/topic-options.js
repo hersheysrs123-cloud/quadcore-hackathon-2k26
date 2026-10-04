@@ -18,6 +18,7 @@ import { SOILS } from "@/lib/transpiration";
 import { VECTORS } from "@/lib/pollination";
 import { CONSISTENCIES, ORIENTATIONS } from "@/lib/peristalsis";
 import { MODES as DIVISION_MODES } from "@/lib/cellDivision";
+import { IONIC_COMPOUNDS } from "@/lib/bonding";
 import { MOLECULES } from "@/lib/vseprMolecules";
 import { PATHOLOGIES as CARDIAC_PATHOLOGIES } from "@/lib/cardiacCycle";
 import { ELECTROLYTES, METALS, PARTNERS, SERIES, SOLUTIONS, SOLUTION_ORDER } from "@/lib/redox";
@@ -116,6 +117,9 @@ export const COASTER_CAMERA_OPTIONS = [
  * One button per real molecule. Each writes both pair counts at once, via the
  * control's `patch`, and the scene draws that molecule's measured angles.
  */
+/** The lattice topic's ion-formation compounds, in the order the buttons show them. */
+export const IONIC_COMPOUND_OPTIONS = Object.values(IONIC_COMPOUNDS).map((c) => ({ value: c.key, label: c.formula, title: c.name }));
+
 export const VSEPR_PRESETS = MOLECULES.map((m) => ({
   value: m.id,
   label: m.label,

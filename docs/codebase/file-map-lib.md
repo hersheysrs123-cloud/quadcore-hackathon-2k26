@@ -38,6 +38,8 @@ quadcore-hackathon-2k26/
 │   ├── pathogens.js                      # PURE BIOLOGY: bacterium/phage anatomy, living checklist, antibiotic targets & efficacy, lytic-cycle & penicillin timelines, burst size
 │   ├── tubeTransit.js                    # PURE GEOMETRY: bump profiles, squeeze-to-fit, recycling stream, ring-stack tube vertices & indices
 │   ├── simpleMachines.js                 # PURE PHYSICS: lever classes, block-and-tackle, distance ratio vs MA
+│   ├── bonding.js                        # PURE CHEMISTRY: ionic transfers (who gives which electron to whom, donor-facing gaps, ion shells, charges, half equations) and covalent dot-and-cross counts cross-checked against VSEPR
+│   ├── orbitals.js                       # PURE CHEMISTRY: Aufbau to 4s, Hund occupancy, Slater Zeff, hydrogen-like R_nl, seeded |ψ|² sampler, radial nodes, 90 % radius, display compression
 │   ├── atomicStructure.js                # PURE CHEMISTRY: Bohr shells for H / C / Na / Cl, valence electrons, per-element bonding notes
 │   ├── rigidFit.js                       # Best-fit rigid motion between two point sets (Horn's quaternion method, Jacobi 4×4 eigen) — lays polymerisation monomers over their chain units
 │   ├── organic.js                        # PURE CHEMISTRY: six homologous series (alkane → ester), atom counts, derived formulas & names, hybridisation-driven chain geometry, cracking into a shorter alkane + ethene, esterification, addition polymerisation (repeat unit, poly-name, uses)

@@ -12,12 +12,16 @@ import {
   SceneCanvas,
   SceneLabel,
   VectorArrow,
-  circlePoints,
   clamp,
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { KitPart } from "@/components/visualizations/lab-kit-model";
+import { ElectronMark, ShellRing } from "@/components/visualizations/electron-shells";
+import { IonicFormationScene } from "@/components/visualizations/IonicFormation";
+import { CovalentShells } from "@/components/visualizations/CovalentShells";
+import { OrbitalCloud } from "@/components/visualizations/OrbitalCloud";
+import { describeOrbitals, displayRadius } from "@/lib/orbitals";
 import { ATOM_COLOURS, ELEMENTS, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
 import { BOND_COLOUR } from "@/lib/lattices";
@@ -163,7 +167,6 @@ function Shell({
   const angle = useRef(index * 0.7);
   const meshes = useRef([]);
   const radius = shellRadius(index);
-  const ring = useMemo(() => circlePoints(radius), [radius]);
 
   const rate = 0.9 / Math.pow(index + 1, 1.25); // inner shells sweep faster
   const glow = isValence && highlightValence;
@@ -183,11 +186,10 @@ function Shell({
   return (
     <group rotation={shellTilt(index)}>
       {showRing && (
-        <Line
-          points={ring}
-          color={glow ? ATOM_COLOURS.valence : ATOM_COLOURS.electron}
+        <ShellRing
+          radius={radius}
+          colour={glow ? ATOM_COLOURS.valence : ATOM_COLOURS.electron}
           lineWidth={glow ? 2.8 : 2.2}
-          transparent
           opacity={dimmed ? 0.2 : glow ? 0.95 : 0.85}
           onClick={(e) => {
             e.stopPropagation();
@@ -197,26 +199,19 @@ function Shell({
       )}
 
       {Array.from({ length: electrons }, (_, i) => (
-        <mesh
+        <ElectronMark
           key={i}
           ref={(el) => {
             meshes.current[i] = el;
           }}
+          colour={colour}
+          emissiveIntensity={glow ? 2.4 : 1.2}
+          opacity={dimmed ? 0.16 : 1}
           onClick={(e) => {
             e.stopPropagation();
             onSelect(index);
           }}
-        >
-          <sphereGeometry args={[0.15, 20, 20]} />
-          <meshStandardMaterial
-            color={colour}
-            emissive={colour}
-            emissiveIntensity={glow ? 2.4 : 1.2}
-            transparent
-            opacity={dimmed ? 0.16 : 1}
-            toneMapped={false}
-          />
-        </mesh>
+        />
       ))}
 
       {showLabel && (
@@ -235,26 +230,46 @@ function Shell({
  * a change of shell count, so a user's own zoom survives picking another
  * element of the same period.
  */
-function BohrCameraFit({ outerRadius }) {
+function BohrCameraFit({ outerRadius, quantum = false }) {
   const camera = useThree((s) => s.camera);
+  const aspect = useThree((s) => s.size.width / Math.max(s.size.height, 1));
   useEffect(() => {
     // 12 frames the three-shell atoms (outer radius 4.0) with room for labels.
     // Each extra unit of radius needs ~4 of distance: the summary label hangs
     // below the ring and the camera looks down on it, so it runs out first.
-    const distance = Math.max(12, 12 + (outerRadius - 4) * 4);
+    // A quantum cloud has no floor — hydrogen's lone 1s is small and should fill the view.
+    // It is also fitted to the narrower side of the canvas, so a portrait
+    // panel does not crop the cloud's sides.
+    const tanHalf = Math.tan((camera.fov / 2) * (Math.PI / 180));
+    const half = outerRadius * 1.2 + 0.5;
+    const distance = quantum
+      ? Math.max(half / tanHalf, half / (tanHalf * Math.max(aspect, 0.1))) + 1
+      : Math.max(12, 12 + (outerRadius - 4) * 4);
     camera.position.setLength(distance);
     camera.updateProjectionMatrix();
-  }, [camera, outerRadius]);
+  }, [camera, outerRadius, quantum, aspect]);
   return null;
 }
 
 export function BohrAtomScene({ params = {} }) {
-  const { element: symbol = "C", speed = 1.0, showShells = true, showLabels = true, highlightValence = false, spinNucleus = true } =
-    params || {};
+  const {
+    element: symbol = "C",
+    speed = 1.0,
+    showShells = true,
+    showLabels = true,
+    highlightValence = false,
+    spinNucleus = true,
+    model = "bohr",
+    orbital = "all",
+    showPhase = false,
+  } = params || {};
   const [focused, setFocused] = useState(null);
 
   const element = ELEMENTS[symbol] ?? ELEMENTS.Na;
   const outer = element.shells.length - 1;
+  const quantum = model === "quantum";
+  // The quantum cloud's outermost subshell peaks at its own radius; frame a little past it.
+  const quantumOuter = useMemo(() => displayRadius(describeOrbitals(symbol).outermost.r90A0), [symbol]);
 
   useEffect(() => setFocused(null), [symbol]);
 
@@ -264,7 +279,13 @@ export function BohrAtomScene({ params = {} }) {
       controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed, minDistance: 3.5 }}
       onPointerMissed={() => setFocused(null)}
     >
-      <BohrCameraFit outerRadius={shellRadius(outer)} />
+      <BohrCameraFit outerRadius={quantum ? quantumOuter : shellRadius(outer)} quantum={quantum} />
+      {quantum ? (
+        <LabelsOn.Provider value={showLabels !== false}>
+          <OrbitalCloud symbol={element.symbol} focus={orbital} showPhase={showPhase} speed={speed} Label={ChemLabel} />
+        </LabelsOn.Provider>
+      ) : (
+      <>
       <pointLight position={[0, 0, 0]} color={PALETTE.rose} intensity={12} distance={4} />
       <Nucleus protons={element.protons} neutrons={element.neutrons} spin={spinNucleus} speed={speed} />
 
@@ -286,7 +307,8 @@ export function BohrAtomScene({ params = {} }) {
       <SceneLabel position={[0, -(shellRadius(outer) + 0.9), 0]} accent>
         {element.symbol} · {element.shells.join(",")}
       </SceneLabel>
-
+      </>
+      )}
     </SceneCanvas>
   );
 }
@@ -2462,7 +2484,12 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
   );
 }
 
+/** Ion formation is a different diagram altogether, so it gets its own scene. */
 export function CrystalLatticeScene({ params = {} }) {
+  return params?.structure === "ionic" ? <IonicFormationScene params={params} /> : <LatticeView params={params} />;
+}
+
+function LatticeView({ params = {} }) {
   const { structure = "nacl", slide = 0, showBonds = true, spin = true, speed = 1.0, showLabels = true } = params || {};
 
   const lattice = useMemo(() => {
@@ -3258,6 +3285,8 @@ export function VseprScene({ params = {} }) {
     spin = true,
     speed = 1.0,
     showLabels = true,
+    view = "shape",
+    assemble = 0,
   } = params || {};
 
   // One solve, shared with the Details panel.
@@ -3285,6 +3314,15 @@ export function VseprScene({ params = {} }) {
   return (
     <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
       <LabelsOn.Provider value={showLabels !== false}>
+      {view === "dotcross" && molecule ? (
+        <CovalentShells moleculeId={molecule.id} geometry={geometry} token={assemble} speed={speed} Label={ChemLabel} />
+      ) : (
+      <>
+      {view === "dotcross" && (
+        <ChemLabel position={[0, -2.6, 0]} tone="text-amber-300">
+          No real molecule has these pair counts — pick one of the molecules to see its dot-and-cross diagram
+        </ChemLabel>
+      )}
       <AtomSphere position={[0, 0, 0]} radius={centreStyle.radius} color={centreStyle.colour} emissiveIntensity={0.5} />
       <Halo position={[0, 0, 0]} radius={centreStyle.radius + 0.38} color={centreStyle.colour} opacity={0.08} />
       <ChemLabel position={nameAt} accent>
@@ -3317,6 +3355,8 @@ export function VseprScene({ params = {} }) {
             labelRadius={arcRadius + 0.45 + k * 0.55}
           />
         ))}
+      </>
+      )}
       </LabelsOn.Provider>
     </SceneCanvas>
   );

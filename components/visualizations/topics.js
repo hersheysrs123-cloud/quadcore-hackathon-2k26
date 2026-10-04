@@ -115,6 +115,7 @@ import {
   VSEPR_PRESETS,
   vseprPresetFor,
   REACTION_TYPES,
+  IONIC_COMPOUND_OPTIONS,
   reactionTypeFor,
 } from "@/components/visualizations/topic-options";
 import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
@@ -1597,11 +1598,14 @@ export const TOPICS = [
     id: "bohr",
     category: "chemistry",
     icon: Atom,
-    title: "3D Bohr Atom & Orbital Shells",
-    blurb: "Electron shells of the first twenty elements, hydrogen to calcium",
+    title: "Bohr Atom & Quantum Orbitals",
+    blurb: "Electron shells of the first twenty elements, hydrogen to calcium — and the orbitals they really are",
     syllabus: "Chemistry 2.1 · Atomic structure",
-    keywords: "bohr atom electron shell configuration valence proton neutron isotope ion nucleus",
+    keywords: "bohr atom electron shell configuration valence proton neutron isotope ion nucleus orbital s orbital p orbital subshell 1s 2s 2p 3s 3p 4s aufbau hund's rule probability cloud wavefunction node effective nuclear charge slater quantum",
     defaults: {
+      model: "bohr",
+      orbital: "all",
+      showPhase: false,
       element: "Na",
       speed: 1,
       showShells: true,
@@ -1610,6 +1614,16 @@ export const TOPICS = [
       spinNucleus: true,
     },
     controls: [
+      {
+        type: "choice",
+        key: "model",
+        label: "Model",
+        columns: 2,
+        options: [
+          { value: "bohr", label: "Bohr shells" },
+          { value: "quantum", label: "Quantum orbitals (advanced)" },
+        ],
+      },
       {
         type: "choice",
         key: "element",
@@ -1621,15 +1635,33 @@ export const TOPICS = [
       // No "speed" slider here: the HUD renders a universal Animation Speed
       // slider bound to the same key, and two sliders on one parameter is one
       // too many. The universal one reaches 0 ("paused") too.
-      { type: "toggle", key: "highlightValence", label: "Highlight valence shell" },
-      { type: "toggle", key: "showShells", label: "Show shell paths" },
-      { type: "toggle", key: "showLabels", label: "Show shell labels" },
-      { type: "toggle", key: "spinNucleus", label: "Spin nucleus" },
+      {
+        type: "choice",
+        key: "orbital",
+        label: "Focus on a subshell",
+        columns: 4,
+        when: (p) => p.model === "quantum",
+        options: [
+          { value: "all", label: "All" },
+          { value: "1s", label: "1s" },
+          { value: "2s", label: "2s" },
+          { value: "2p", label: "2p" },
+          { value: "3s", label: "3s" },
+          { value: "3p", label: "3p" },
+          { value: "4s", label: "4s" },
+        ],
+      },
+      { type: "toggle", key: "showPhase", label: "Colour by sign of ψ (+ / −)", when: (p) => p.model === "quantum" },
+      { type: "toggle", key: "highlightValence", label: "Highlight valence shell", when: (p) => p.model !== "quantum" },
+      { type: "toggle", key: "showShells", label: "Show shell paths", when: (p) => p.model !== "quantum" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
+      { type: "toggle", key: "spinNucleus", label: "Spin nucleus", when: (p) => p.model !== "quantum" },
     ],
     concepts: [
       "An atom is a tiny, dense nucleus of protons and neutrons surrounded by electrons in fixed shells (K, L, M …).",
       "For the first twenty elements the shells fill 2, then 8, then 8 — so sodium is 2,8,1 and chlorine is 2,8,7.",
       "The outer shell holds the valence electrons, and reactions happen so atoms reach a full one: Na loses 1 to give Na⁺, Cl gains 1 to give Cl⁻.",
+      "Electrons do not orbit on tracks. Each shell is really a set of orbitals — regions where an electron is likely to be found: K is 1s; L is 2s and three 2p; M is 3s and three 3p (its 3d stays empty until after 4s). An s orbital is a sphere, a p orbital two lobes on opposite sides of the nucleus. Each holds at most two electrons, and three p orbitals fill singly before any pairs up (Hund's rule) — so sodium 2,8,1 is 1s² 2s² 2p⁶ 3s¹.",
     ],
     quiz: [
       {
@@ -1651,6 +1683,18 @@ export const TOPICS = [
         answer: 1,
         explanation:
           "The L shell holds 2n² = 2 × 2² = 8. The K shell below holds only 2, which is why carbon (6 electrons) is written 2,4.",
+      },
+      {
+        question: "Carbon is 1s² 2s² 2p². How are its two 2p electrons arranged?",
+        options: [
+          "One each in two different 2p orbitals, unpaired — Hund's rule",
+          "Paired together in one 2p orbital",
+          "One in a 2p orbital and one in the 3s",
+          "Spread across all three 2p orbitals as two-thirds of an electron each",
+        ],
+        answer: 0,
+        explanation:
+          "Electrons repel, so in a set of equal-energy orbitals they spread out singly before pairing. Carbon's two 2p electrons sit in two different p orbitals with the third empty — which is why a carbon atom has two unpaired electrons before it bonds.",
       },
     ],
   },
@@ -1770,10 +1814,10 @@ export const TOPICS = [
     category: "chemistry",
     icon: Boxes,
     title: "Crystal Lattices",
-    blurb: "NaCl ionic cube, diamond network, graphite sheets, quartz and ice",
+    blurb: "How ions form, then the NaCl ionic cube, diamond network, graphite sheets, quartz and ice",
     syllabus: "Chemistry 3 · Structure & bonding",
-    keywords: "lattice giant ionic covalent nacl sodium chloride diamond graphite allotrope delocalised conductivity quartz silica ice hydrogen bond",
-    defaults: { structure: "nacl", slide: 0, showBonds: true, spin: true, showLabels: true },
+    keywords: "lattice giant ionic covalent nacl sodium chloride diamond graphite allotrope delocalised conductivity quartz silica ice hydrogen bond ionic bonding electron transfer dot and cross ion formation cation anion magnesium oxide magnesium chloride sodium oxide calcium fluoride aluminium oxide",
+    defaults: { structure: "nacl", compound: "NaCl", formIons: 0, slide: 0, showBonds: true, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1786,17 +1830,28 @@ export const TOPICS = [
           { value: "graphite", label: "Graphite" },
           { value: "quartz", label: "Quartz (SiO₂)" },
           { value: "ice", label: "Ice (H₂O)" },
+          { value: "ionic", label: "Ion formation" },
         ],
       },
-      { type: "slider", key: "slide", label: "Layer slide (graphite)", min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
-      { type: "toggle", key: "showBonds", label: "Show bonds" },
-      { type: "toggle", key: "spin", label: "Rotate lattice" },
+      {
+        type: "choice",
+        key: "compound",
+        label: "Ionic compound",
+        columns: 3,
+        when: (p) => p.structure === "ionic",
+        options: IONIC_COMPOUND_OPTIONS,
+      },
+      { type: "action", key: "formIons", label: "Transfer the electrons", icon: Zap, when: (p) => p.structure === "ionic" },
+      { type: "slider", key: "slide", label: "Layer slide (graphite)", min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%`, when: (p) => p.structure !== "ionic" },
+      { type: "toggle", key: "showBonds", label: "Show bonds", when: (p) => p.structure !== "ionic" },
+      { type: "toggle", key: "spin", label: "Rotate lattice", when: (p) => p.structure !== "ionic" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "In sodium chloride, Na⁺ and Cl⁻ alternate in a giant ionic lattice held by strong attraction in every direction — high melting point, conducts only when molten or aqueous.",
       "Diamond is a giant covalent lattice where every carbon bonds to four others tetrahedrally, so it is extremely hard and does not conduct.",
       "Graphite bonds each carbon to only three others in flat hexagonal layers; the spare electron is delocalised (so it conducts) and weak forces between layers let them slide.",
+      "Ions form when a metal atom transfers its outer electrons to a non-metal atom: the metal is left with the full shell beneath (Na 2,8,1 → Na⁺ 2,8) and the non-metal completes its octet (Cl 2,8,7 → Cl⁻ 2,8,8). The charges must add to zero, which fixes the formula — Mg²⁺ needs two Cl⁻ (MgCl₂), two Al³⁺ need three O²⁻ (Al₂O₃).",
     ],
     quiz: [
       {
@@ -1822,6 +1877,18 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Conduction needs charge carriers that can move. The ions exist in the solid but are locked in place; melting frees them to migrate to the electrodes.",
+      },
+      {
+        question: "Magnesium (2,8,2) reacts with chlorine (2,8,7). What is the formula of the compound, and why?",
+        options: [
+          "MgCl₂ — each Mg loses 2 electrons but each Cl can take only 1, so one Mg²⁺ needs two Cl⁻",
+          "MgCl — one atom of each, as in NaCl",
+          "Mg₂Cl — two Mg atoms are needed to fill one Cl",
+          "MgCl₇ — Cl has 7 outer electrons",
+        ],
+        answer: 0,
+        explanation:
+          "Mg → Mg²⁺ + 2e⁻ and Cl + e⁻ → Cl⁻. The two electrons from one magnesium atom go to two chlorine atoms, and the charges balance: (+2) + 2 × (−1) = 0.",
       },
     ],
   },
@@ -1891,8 +1958,10 @@ export const TOPICS = [
     blurb: "Counting electron pairs to predict the shape and the bond angles",
     syllabus: "Chemistry 2.3 · Bonding",
     keywords:
-      "vsepr molecular geometry shape bond angle lone pair bonding pair tetrahedral trigonal planar pyramidal bent linear octahedral seesaw t-shaped square planar polarity dipole methane ammonia water",
+      "vsepr molecular geometry shape bond angle lone pair bonding pair tetrahedral trigonal planar pyramidal bent linear octahedral seesaw t-shaped square planar polarity dipole methane ammonia water covalent bond dot and cross shared pair octet expanded octet incomplete octet double bond",
     defaults: {
+      view: "shape",
+      assemble: 0,
       preset: "CH4",
       bonding: 4,
       lone: 0,
@@ -1903,6 +1972,17 @@ export const TOPICS = [
       showLabels: true,
     },
     controls: [
+      {
+        type: "choice",
+        key: "view",
+        label: "View",
+        columns: 2,
+        options: [
+          { value: "shape", label: "Shape (VSEPR)" },
+          { value: "dotcross", label: "Dot & cross" },
+        ],
+      },
+      { type: "action", key: "assemble", label: "Bring the atoms together", icon: Atom, when: (p) => p.view === "dotcross" },
       {
         type: "choice",
         key: "preset",
@@ -1934,9 +2014,9 @@ export const TOPICS = [
         step: 1,
         patch: (v, params) => ({ lone: v, bonding: Math.min(params.bonding ?? 4, 6 - v), preset: vseprPresetFor(Math.min(params.bonding ?? 4, 6 - v), v) }),
       },
-      { type: "slider", key: "bondLength", label: "Bond length", min: 1.4, max: 2.6, step: 0.05, format: (v) => v.toFixed(2) },
-      { type: "toggle", key: "showLonePairs", label: "Show lone pairs" },
-      { type: "toggle", key: "showAngles", label: "Show bond angle" },
+      { type: "slider", key: "bondLength", label: "Bond length", min: 1.4, max: 2.6, step: 0.05, format: (v) => v.toFixed(2), when: (p) => p.view !== "dotcross" },
+      { type: "toggle", key: "showLonePairs", label: "Show lone pairs", when: (p) => p.view !== "dotcross" },
+      { type: "toggle", key: "showAngles", label: "Show bond angle", when: (p) => p.view !== "dotcross" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
@@ -1944,6 +2024,7 @@ export const TOPICS = [
       "Electron pairs all repel each other, so they arrange themselves as far apart as possible around the central atom. Count the pairs and the electron geometry follows: 2 linear, 3 trigonal planar, 4 tetrahedral, 5 trigonal bipyramidal, 6 octahedral.",
       "A lone pair is held closer to the nucleus than a bonding pair, so it takes up more room and repels harder. Each one squeezes the remaining bond angles by roughly 2–3° — which is why methane is 109.5°, ammonia 107° and water 104.5°.",
       "The shape is named only from where the atoms sit, never the lone pairs. Four electron pairs give a tetrahedral arrangement, but with two lone pairs the molecule is called bent, not tetrahedral.",
+      "A covalent bond is a shared pair of electrons, one from each atom, held between the two nuclei; a double bond is two shared pairs. In a dot-and-cross diagram each atom's electrons get their own mark, so you can count that every shell ends full: 8 around C in CH₄, 2 around each H. Not every atom reaches exactly 8 — boron in BF₃ stops at 6, and sulfur in SF₆ holds 12.",
     ],
     quiz: [
       {
@@ -1965,6 +2046,18 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Six electron pairs give an octahedral arrangement. The two lone pairs take opposite (trans) positions to get as far from each other as possible, leaving the four bonded atoms in one plane — square planar, as in XeF₄.",
+      },
+      {
+        question: "In a dot-and-cross diagram of water, how many electrons are around the oxygen atom, and how many of them are lone-pair electrons?",
+        options: [
+          "8 around O, 4 of them in two lone pairs",
+          "6 around O, none in lone pairs",
+          "8 around O, 2 of them in one lone pair",
+          "4 around O, all in bonds",
+        ],
+        answer: 0,
+        explanation:
+          "Oxygen brings 6 outer electrons and each H brings 1. Two O–H bonds use two shared pairs (4 electrons), and oxygen's other 4 electrons pair up as two lone pairs — 8 in all, a full shell. Those two lone pairs are what bend the molecule to 104.5°.",
       },
     ],
   },

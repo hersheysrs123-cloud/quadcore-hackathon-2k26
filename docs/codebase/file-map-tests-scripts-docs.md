@@ -55,6 +55,8 @@ quadcore-hackathon-2k26/
 │   │   ├── timer-store.test.mjs          # Multi-timer countdown math, duration clamping, pause/resume
 │   │   ├── web-saver.test.mjs            # URL normalization, domain parsing, Netscape HTML export/import round-trips
 │   │   ├── atomic-structure.test.mjs     # Bohr shells and per-element notes
+│   │   ├── bonding.test.mjs              # Ionic charge balance, octets, donor-facing landings; covalent lone pairs = VSEPR's for every molecule
+│   │   ├── orbitals.test.mjs             # Aufbau, Hund, Slater Zeff, analytic node radii, ⟨r⟩ of 1s, cos² p lobes, phase signs
 │   │   ├── buoyancy.test.mjs             # Archimedes solver and vessel geometry
 │   │   ├── carriers.test.mjs             # Charge-carrier paths
 │   │   ├── cell-biology.test.mjs         # Organelle registry, tonicity states, lysis and crenation
