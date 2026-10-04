@@ -9,6 +9,7 @@ import {
   INDICATORS,
   INDICATOR_KEYS,
   SUBSTANCES,
+  SULFURIC_CONC_RANGE,
   acidForms,
   describePH,
   endPoint,
@@ -18,6 +19,7 @@ import {
   indicatorColour,
   particleCounts,
   solvePH,
+  titrationSetup,
   titrationCurve,
   titrationPoint,
 } from "../../lib/acidBase.js";
@@ -88,6 +90,29 @@ describe("a titration", () => {
     assert.equal(endPoint({ acid: "hcl", acidConc: 0.1, base: "ammonia", baseConc: 0.1 }, "methylOrange").suitable, true);
     assert.equal(endPoint({ acid: "hcl", acidConc: 0.1, base: "ammonia", baseConc: 0.1 }, "phenolphthalein").suitable, false);
     assert.equal(endPoint(strong, "universal").suitable, false);
+  });
+
+  it("keeps every end point inside the burette, with room to run past it", () => {
+    for (const acid of ACID_KEYS)
+      for (const c of acid === "sulfuric" ? SULFURIC_CONC_RANGE : ACID_CONC_RANGE)
+        for (const baseConc of BASE_CONC_RANGE) {
+          const setup = titrationSetup({ acid, acidConc: c, sulfuricConc: c, base: "naoh", baseConc });
+          assert.ok(equivalenceVolume(setup) <= BURETTE_VOLUME / 2, `${acid} ${c} ${baseConc}: ${equivalenceVolume(setup)} cm³`);
+        }
+  });
+
+  it("reads sulfuric acid's own slider and clamps the rest", () => {
+    assert.equal(titrationSetup({ acid: "sulfuric", acidConc: 0.1, sulfuricConc: 0.03 }).acidConc, 0.03);
+    assert.equal(titrationSetup({ acid: "sulfuric", acidConc: 0.1 }).acidConc, 0.05);
+    assert.equal(titrationSetup({ acid: "hcl", acidConc: 0.08, sulfuricConc: 0.03 }).acidConc, 0.08);
+    assert.deepEqual(titrationSetup({ acid: "nitric", base: "kOH", acidConc: 5, baseConc: "x" }), { acid: "hcl", acidConc: 0.1, base: "naoh", baseConc: 0.1 });
+  });
+
+  it("phenolphthalein suits sulfuric acid with sodium hydroxide; methyl orange is a little early", () => {
+    const o = titrationSetup({ acid: "sulfuric", base: "naoh" });
+    assert.equal(endPoint(o, "phenolphthalein").suitable, true);
+    const mo = endPoint(o, "methylOrange");
+    assert.ok(mo.error < -0.2 && mo.error > -0.4, `methyl orange ${mo.error}`);
   });
 
   it("is finite at every control setting", () => {

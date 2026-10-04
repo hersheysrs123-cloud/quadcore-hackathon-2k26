@@ -8676,3 +8676,35 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
 
 ### 3. Resolution
 - `InductionScene` keys its `SceneCanvas` by apparatus, with the three views in `INDUCTION_VIEWS`, so each apparatus mounts with its own camera and target.
+
+## Titration: a Leaking Graph Buffer, and Sulfuric Acid Filling the Whole Burette
+
+### 1. Problem
+- The titration graph's traced line leaked GPU memory for as long as the scene stayed open, about 6 KB a frame.
+- Sulfuric acid at the default concentrations (0.1 mol/dm³ acid and alkali) reached equivalence at exactly 50.00 cm³, the whole burette. The run could never pass the end point, and the Details panel called phenolphthalein "the wrong indicator for this pair" because its colour change fell beyond the burette.
+- With sulfuric acid, the notes said any indicator changing between 4 and 10 works, while the verdict line said methyl orange changes early.
+
+### 2. Root cause
+- `TitrationGraph` called `geometry.setAttribute("position", new Float32BufferAttribute(...))` every frame. three.js uploads each new attribute to its own GL buffer and only deletes the buffers of the attributes still on the geometry when it is disposed, so every replaced buffer stayed allocated.
+- Sulfuric acid gives two H⁺ per molecule, so it needs twice the alkali, but it shared the 0.05–0.1 mol/dm³ acid slider.
+- HSO₄⁻ is only a moderately strong acid (Ka 1.2 × 10⁻²). The last of it holds the pH back near equivalence, so methyl orange really does change about 0.3 cm³ early. The engine was right; the notes were not.
+
+### 3. Resolution
+- The graph allocates one buffer (`TRACE_MAX` points) once, writes the curve's points when the curve changes, moves only the live tip each frame, and draws up to it with `setDrawRange`.
+- Sulfuric acid has its own slider, `sulfuricConc`, 0.025–0.05 mol/dm³ (`SULFURIC_CONC_RANGE`), shown only when it is chosen. `titrationSetup(params)` in `lib/acidBase.js` turns the params into one titration for both the scene and the Details panel, clamping each concentration to its range. A test checks that every control setting reaches equivalence within half the burette.
+- The strong-acid note now says an indicator that changes inside the jump lands on the end point. For sulfuric acid it adds that HSO₄⁻ makes methyl orange change about 0.3 cm³ early. The weak-alkali note no longer names methyl orange outright.
+- The scene's fallback defaults (phenolphthalein, predicted curve on) now match the topic's (universal indicator, off).
+
+## Zoom Scenes: Scene Labels Drawn Over the Panels, and Narrow Canvases Cutting Off the Dot-and-Cross and the Electromagnet
+
+### 1. Problem
+- At the alveoli level, scene labels such as "pulmonary arteriole" and "capillary network" were drawn on top of the gas-exchange panel. The same could happen to the zoom ladders in the respiratory and peristalsis scenes.
+- On a narrow canvas (a narrow window, or a wide controls panel), the dot-and-cross diagrams for molecules with five or six outer atoms ran off both sides, and the electromagnet bench lost its power supply off the left edge.
+
+### 2. Root cause
+- `SceneLabel` draws its labels at z-index 0–40 (`zIndexRange`). The respiratory panel, credits button and zoom ladder sat at `z-20`, and the peristalsis ladder at `z-10`, so nearer labels stacked above them.
+- The VSEPR scene and the induction scene place a fixed camera. The dot-and-cross group scales itself to fit a radius of 2.75, but at an aspect of 0.6 the fixed camera only shows about 1.9 either side. The electromagnet bench spans x ≈ −5.3 to 4.
+
+### 3. Resolution
+- The respiratory panel, credits button and zoom ladder, and the peristalsis zoom ladder, now sit at `z-[45]`, above every scene label.
+- The dot-and-cross view mounts `FitCamera` around `FIT_RADIUS` (exported from `CovalentShells.jsx`), and the electromagnet mounts `FitCamera` around `ELECTROMAGNET_FIT`. Both are height-limited on a wide canvas. The electromagnet lands exactly on its old camera, [0.2, 4.9, 9.8], and the dot-and-cross view moves from 7.6 to 7.4 units away. A narrow canvas backs off far enough to show everything.

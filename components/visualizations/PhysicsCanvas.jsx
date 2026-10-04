@@ -9,6 +9,7 @@ import {
   Bond,
   CANVAS_BG,
   DEG,
+  FitCamera,
   FollowCamera,
   Halo,
   PALETTE,
@@ -2517,6 +2518,12 @@ const INDUCTION_VIEWS = {
   electromagnet: { camera: { position: [0.2, 4.9, 9.8], fov: 45 }, target: [-0.2, -0.9, 0.2] },
 };
 
+// The electromagnet bench runs from the supply (x ≈ −5.3) to the card's
+// far compasses (x ≈ 4). On a wide canvas the height decides the distance
+// and this lands exactly on the camera above; a narrow one backs off so the
+// supply stays in view.
+const ELECTROMAGNET_FIT = { cx: -0.2, cy: -0.9, cz: 0.2, width: 10.6, height: 8.94 };
+
 export function InductionScene({ params = {}, setParam }) {
   const apparatus = INDUCTION_VIEWS[params?.apparatus] ? params.apparatus : "generator";
   const view = INDUCTION_VIEWS[apparatus];
@@ -2528,6 +2535,7 @@ export function InductionScene({ params = {}, setParam }) {
         <SolenoidRig params={params} />
       ) : apparatus === "electromagnet" ? (
         <>
+          <FitCamera view={ELECTROMAGNET_FIT} direction={[0.4, 5.8, 9.6]} />
           <LaboratoryBench />
           <ElectromagnetRig params={params} setParam={setParam} />
         </>

@@ -19,6 +19,7 @@ import {
   SUBSTANCES,
   SUBSTANCE_KEYS,
   ACID_BASE_COLOURS,
+  titrationSetup,
   equivalenceVolume,
   indicatorColour,
   particleCounts,
@@ -385,6 +386,7 @@ function IonView({ countsRef, baseKey, speed }) {
   const rnd = () => hashRandom((seed.current += 1) * 1.731);
   const o = useMemo(() => new THREE.Object3D(), []);
   const col = useMemo(() => new THREE.Color(), []);
+  const white = useMemo(() => new THREE.Color("#ffffff"), []);
   const R = INSET.r - 0.12;
   const reactClock = useRef(0);
   const spawn = (kind, at) => {
@@ -496,7 +498,7 @@ function IonView({ countsRef, baseKey, speed }) {
         o.position.set(p.x, p.y, 0.05);
         o.scale.setScalar(st.r * Math.max(p.alpha, 0.001) * (1 + (p.flash ?? 0) * 1.2));
         col.set(st.colour);
-        if (p.flash) col.lerp(new THREE.Color("#ffffff"), p.flash * 0.7);
+        if (p.flash) col.lerp(white, p.flash * 0.7);
         m.setColorAt(i, col);
       }
       o.updateMatrix();
@@ -525,9 +527,19 @@ function IonView({ countsRef, baseKey, speed }) {
 
 // ─── The curve ──────────────────────────────────────────────────────
 
+/** Longest trace the graph's buffer holds: the curve's points plus the live tip. */
+const TRACE_MAX = 640;
+
 function TitrationGraph({ curve, veq, halfPKa, indicator, volumeRef, pHRef, showPredicted, showLabels }) {
   const dot = useRef(null);
-  const geometry = useMemo(() => new THREE.BufferGeometry(), []);
+  // One buffer for the whole run, drawn up to the current point. A new
+  // attribute every frame would leave the old GPU buffers behind.
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRACE_MAX * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    g.setDrawRange(0, 0);
+    return g;
+  }, []);
   const traced = useMemo(() => new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: ACID_BASE_COLOURS.curve })), [geometry]);
   useEffect(
     () => () => {
@@ -536,15 +548,42 @@ function TitrationGraph({ curve, veq, halfPKa, indicator, volumeRef, pHRef, show
     },
     [geometry, traced],
   );
+  // the whole curve, for "show the whole curve in advance"
   const full = useMemo(() => curve.map((p) => [gx(p.v), gy(p.pH), GRAPH.z + 0.02]), [curve]);
+  // the curve's points, written once per curve; each frame only moves the tip
+  const written = useRef({ curve: null, upto: -1 });
   useFrame(() => {
     const v = volumeRef.current;
+    const attr = geometry.attributes.position;
+    const arr = attr.array;
+    const w = written.current;
+    if (w.curve !== curve) {
+      w.curve = curve;
+      w.upto = -1;
+      const n = Math.min(curve.length, TRACE_MAX - 1);
+      for (let i = 0; i < n; i += 1) {
+        arr[i * 3] = gx(curve[i].v);
+        arr[i * 3 + 1] = gy(curve[i].pH);
+        arr[i * 3 + 2] = GRAPH.z + 0.02;
+      }
+    }
     const n = Math.max(2, curve.findIndex((p) => p.v > v));
-    const upto = n < 2 ? curve.length : n;
-    const pts = full.slice(0, upto).flat();
-    pts.push(gx(v), gy(pHRef.current), GRAPH.z + 0.03);
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    geometry.computeBoundingSphere();
+    const upto = Math.min(n < 2 ? curve.length : n, TRACE_MAX - 1);
+    // the live tip goes after the last curve point; whatever it overwrote comes back when the trace grows
+    if (upto !== w.upto) {
+      const back = Math.min(w.upto, curve.length - 1);
+      if (back >= 0) {
+        arr[back * 3] = gx(curve[back].v);
+        arr[back * 3 + 1] = gy(curve[back].pH);
+        arr[back * 3 + 2] = GRAPH.z + 0.02;
+      }
+      w.upto = upto;
+    }
+    arr[upto * 3] = gx(v);
+    arr[upto * 3 + 1] = gy(pHRef.current);
+    arr[upto * 3 + 2] = GRAPH.z + 0.03;
+    geometry.setDrawRange(0, upto + 1);
+    attr.needsUpdate = true;
     if (dot.current) dot.current.position.set(gx(v), gy(pHRef.current), GRAPH.z + 0.05);
   });
   const ind = INDICATORS[indicator];
@@ -579,7 +618,7 @@ function TitrationGraph({ curve, veq, halfPKa, indicator, volumeRef, pHRef, show
           <meshBasicMaterial color="#a78bfa" />
         </mesh>
       )}
-      <primitive object={traced} />
+      <primitive object={traced} frustumCulled={false} />
       <mesh ref={dot}>
         <circleGeometry args={[0.09, 20]} />
         <meshBasicMaterial color={ACID_BASE_COLOURS.curve} />
@@ -624,22 +663,22 @@ function TitrationGraph({ curve, veq, halfPKa, indicator, volumeRef, pHRef, show
 function TitrationBench({ params, setParam }) {
   const {
     speed = 1,
-    acid = "hcl",
-    acidConc = 0.1,
-    base = "naoh",
-    baseConc = 0.1,
-    indicator = "phenolphthalein",
+    acid,
+    acidConc,
+    sulfuricConc,
+    base,
+    baseConc,
+    indicator = "universal",
     tap = "closed",
     addDrop = 0,
     refill = 0,
     showIons = true,
-    showPredicted = true,
+    showPredicted = false,
     showLabels = true,
   } = params;
-  const acidKey = ACIDS[acid] ? acid : "hcl";
-  const baseKey = BASES[base] ? base : "naoh";
-  const indKey = INDICATORS[indicator] ? indicator : "phenolphthalein";
-  const opts = useMemo(() => ({ acid: acidKey, acidConc, base: baseKey, baseConc }), [acidKey, acidConc, baseKey, baseConc]);
+  const indKey = INDICATORS[indicator] ? indicator : "universal";
+  const opts = useMemo(() => titrationSetup({ acid, acidConc, sulfuricConc, base, baseConc }), [acid, acidConc, sulfuricConc, base, baseConc]);
+  const { acid: acidKey, base: baseKey } = opts;
   const curve = useMemo(() => titrationCurve(opts, 500), [opts]);
   const veq = equivalenceVolume(opts);
   const halfPKa = !ACIDS[acidKey].strong ? titrationPoint({ ...opts, volume: veq / 2 }).pH : null;
@@ -740,10 +779,10 @@ function TitrationBench({ params, setParam }) {
         </>
       )}
       <Label position={[0.9, FLASK_TOP + 0.35, 0.6]} tone="text-ink-300">
-        {`${FLASK_VOLUME.toFixed(1)} cm³ ${ACIDS[acidKey].formula} · ${acidConc.toFixed(2)} mol/dm³`}
+        {`${FLASK_VOLUME.toFixed(1)} cm³ ${ACIDS[acidKey].formula} · ${opts.acidConc.toFixed(acidKey === "sulfuric" ? 3 : 2)} mol/dm³`}
       </Label>
       <Label position={[BURETTE_AT[0] - 0.95, buretteY(BU.zeroY - 10 * BU.perCm3), 0]} tone="text-ink-300">
-        {`${BASES[baseKey].formula} · ${baseConc.toFixed(2)} mol/dm³`}
+        {`${BASES[baseKey].formula} · ${opts.baseConc.toFixed(2)} mol/dm³`}
       </Label>
       <Label position={[0, -0.45, ST.d / 2 + 0.3]} tone="text-ink-400">
         {running ? "magnetic stirrer · mixing" : "magnetic stirrer"}

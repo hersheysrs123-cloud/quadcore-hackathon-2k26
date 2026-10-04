@@ -47,3 +47,6 @@
     - `no-undef` is on because Next's preset leaves it off. A name used but never declared is a ReferenceError only when that line runs, so nothing else catches it. Turning it on found two live bugs (see ANTIGRAVITY_BUG_FIXES.md).
     - Hooks must run before any early return. A component that returns `null` for a prop and then calls hooks breaks the moment that prop flips while it is mounted: put the `return null` after the last hook.
     - To keep an unused binding on purpose (a positional destructure, say), prefix it with `_`. Function arguments are not checked.
+16. **three.js buffers that change every frame**:
+    - Never call `geometry.setAttribute(name, new BufferAttribute(...))` in a frame loop. three.js gives each attribute object its own GL buffer and frees only the ones still on the geometry when it is disposed, so every replaced buffer leaks GPU memory. Allocate the largest buffer once, write into its array, set `attr.needsUpdate = true`, and draw part of it with `geometry.setDrawRange` (the titration graph and `live-trace.jsx` both do this). A line whose points move should also set `frustumCulled={false}`, since its bounding sphere is computed once.
+    - Overlays drawn over a canvas (panels, zoom ladders, buttons) must sit above `SceneLabel`'s z-index range, 0–40. Use `z-[45]` or higher, or nearer labels draw on top of the panel.

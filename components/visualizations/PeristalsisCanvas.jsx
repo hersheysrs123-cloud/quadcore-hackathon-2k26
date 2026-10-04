@@ -414,7 +414,7 @@ export default function PeristalsisCanvas({ params = {}, setParam }) {
           </TissueZoom>
         </LabelsOn.Provider>
       </SceneCanvas>
-      <div className="pointer-events-none absolute right-3 top-3 z-10 flex justify-end">
+      <div className="pointer-events-none absolute right-3 top-3 z-[45] flex justify-end">
         <ZoomLadder levels={levels} level={ZOOM_IDS.indexOf(zoomId)} onSelect={setZoom} />
       </div>
     </div>

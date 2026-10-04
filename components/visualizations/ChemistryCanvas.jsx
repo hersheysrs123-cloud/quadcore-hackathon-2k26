@@ -7,6 +7,7 @@ import * as THREE from "three";
 import {
   AtomSphere,
   Bond,
+  FitCamera,
   Halo,
   PALETTE,
   SceneCanvas,
@@ -19,7 +20,7 @@ import {
 import { KitPart } from "@/components/visualizations/lab-kit-model";
 import { ElectronMark, ShellRing } from "@/components/visualizations/electron-shells";
 import { IonicFormationScene } from "@/components/visualizations/IonicFormation";
-import { CovalentShells } from "@/components/visualizations/CovalentShells";
+import { CovalentShells, FIT_RADIUS as COVALENT_FIT_RADIUS } from "@/components/visualizations/CovalentShells";
 import { OrbitalCloud } from "@/components/visualizations/OrbitalCloud";
 import { describeOrbitals, displayRadius } from "@/lib/orbitals";
 import { ATOM_COLOURS, ELEMENTS, SHELL_NAMES } from "@/lib/atomicStructure";
@@ -3316,7 +3317,11 @@ export function VseprScene({ params = {} }) {
     <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
       <LabelsOn.Provider value={showLabels !== false}>
       {view === "dotcross" && molecule ? (
-        <CovalentShells moleculeId={molecule.id} geometry={geometry} token={assemble} speed={speed} Label={ChemLabel} />
+        <>
+          {/* The rings reach further than the shape does: frame them, or a narrow canvas cuts off the outer atoms. */}
+          <FitCamera view={{ width: 2 * COVALENT_FIT_RADIUS + 0.4, height: 2 * COVALENT_FIT_RADIUS + 0.4 }} direction={[0, 1.8, 7.4]} />
+          <CovalentShells moleculeId={molecule.id} geometry={geometry} token={assemble} speed={speed} Label={ChemLabel} />
+        </>
       ) : (
       <>
       {view === "dotcross" && (

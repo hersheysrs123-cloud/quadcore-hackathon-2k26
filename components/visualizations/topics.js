@@ -2801,6 +2801,7 @@ export const TOPICS = [
       focus: "lemon",
       acid: "hcl",
       acidConc: 0.1,
+      sulfuricConc: 0.05,
       base: "naoh",
       baseConc: 0.1,
       tap: "closed",
@@ -2832,7 +2833,18 @@ export const TOPICS = [
         max: 0.1,
         step: 0.01,
         format: (v) => `${v.toFixed(2)} mol/dm³`,
-        when: (p) => p.mode === "titration",
+        when: (p) => p.mode === "titration" && p.acid !== "sulfuric",
+      },
+      {
+        // Two H⁺ per molecule: half the range keeps the end point inside the burette.
+        type: "slider",
+        key: "sulfuricConc",
+        label: "Acid concentration",
+        min: 0.025,
+        max: 0.05,
+        step: 0.005,
+        format: (v) => `${v.toFixed(3)} mol/dm³`,
+        when: (p) => p.mode === "titration" && p.acid === "sulfuric",
       },
       { type: "choice", key: "base", label: "Alkali in the burette", columns: 1, options: AB_BASE_OPTIONS, when: (p) => p.mode === "titration" },
       {

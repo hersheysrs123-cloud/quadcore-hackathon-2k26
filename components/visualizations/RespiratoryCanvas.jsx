@@ -1185,7 +1185,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
       </Canvas>
 
       {/* Top Right Floating Quick-Access Credits Button */}
-      <div className="absolute top-3 right-3 z-20 pointer-events-auto">
+      <div className="absolute top-3 right-3 z-[45] pointer-events-auto">
         <button
           type="button"
           onClick={() => setShowCredits(true)}
@@ -1198,13 +1198,13 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
       </div>
 
       {/* The magnifications, over the canvas */}
-      <div className="absolute top-14 right-3 z-20">
+      <div className="absolute top-14 right-3 z-[45]">
         <ZoomLadder levels={ZOOM_LEVELS} level={zoomIndex} onSelect={setZoom} />
       </div>
 
       {/* ─── Floating Physiological Control HUD ─────────────────────── */}
       <div
-        className="absolute left-3 top-3 bottom-3 z-20 flex flex-col pointer-events-none"
+        className="absolute left-3 top-3 bottom-3 z-[45] flex flex-col pointer-events-none"
         style={{ width: isCollapsed ? "auto" : `${panelWidth}px` }}
       >
         <div className={`relative flex flex-col pointer-events-auto rounded-xl border border-ink-800 bg-ink-900/95 p-3.5 shadow-2xl backdrop-blur-md overflow-hidden transition-all ${

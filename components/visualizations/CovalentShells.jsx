@@ -28,8 +28,8 @@ const START_STRETCH = 1.9;
 const ELECTRON = 0.085;
 /** Half the gap between the two electrons of a pair. */
 const PAIR_HALF = 0.1;
-/** How far the scene can reach before the group is scaled down to fit. */
-const FIT_RADIUS = 2.75;
+/** How far the scene can reach before the group is scaled down to fit. The VSEPR scene frames this radius. */
+export const FIT_RADIUS = 2.75;
 
 const PERIOD = { H: 1, Be: 2, B: 2, C: 2, N: 2, O: 2, F: 2, P: 3, S: 3, Cl: 3, Br: 4, Xe: 5 };
 /** Outer-shell radius drawn for an element: hydrogen's K shell is small, heavier atoms' outer shells bigger. */

@@ -59,7 +59,7 @@ import {
 } from "@/lib/rayOptics";
 import { COIL_AREA, MAGNET_OMEGA, fluxAt, solveInduction } from "@/lib/induction";
 import { CORES, EM_COLOURS, B_PER_CLIP, solveElectromagnet } from "@/lib/electromagnet";
-import { ACIDS, ACID_BASE_COLOURS, BASES, BURETTE_VOLUME, INDICATORS, INDICATOR_WORDS, SUBSTANCES, UNIVERSAL_CHART, describePH, endPoint, equivalenceJump, equivalenceVolume, hydrogenIons, titrationPoint } from "@/lib/acidBase";
+import { ACIDS, ACID_BASE_COLOURS, BASES, BURETTE_VOLUME, INDICATORS, INDICATOR_WORDS, SUBSTANCES, UNIVERSAL_CHART, describePH, endPoint, equivalenceJump, equivalenceVolume, hydrogenIons, titrationPoint, titrationSetup } from "@/lib/acidBase";
 import { FIELD_HALF_X, SCREEN_DISTANCE, fringePosition } from "@/lib/interference";
 import { VIEW_MAX, solveOrbit } from "@/lib/orbit";
 import { idealFlight, simulateFlight } from "@/lib/projectile";
@@ -3026,9 +3026,8 @@ function renderTopicDetailsReadout(topic, params) {
         };
         break;
       }
-      const acidKey = ACIDS[params.acid] ? params.acid : "hcl";
-      const baseKey = BASES[params.base] ? params.base : "naoh";
-      const opts = { acid: acidKey, acidConc: num(params.acidConc, 0.1), base: baseKey, baseConc: num(params.baseConc, 0.1) };
+      const opts = titrationSetup(params);
+      const { acid: acidKey, base: baseKey } = opts;
       const acid = ACIDS[acidKey];
       const base = BASES[baseKey];
       const v = Math.min(BURETTE_VOLUME, Math.max(0, num(params.liveVolume, 0)));
@@ -3057,12 +3056,16 @@ function renderTopicDetailsReadout(topic, params) {
         ],
         note: `${ind.label} ${ep.reason}${ep.suitable ? ", so it is a good choice here" : ", so it is the wrong indicator for this pair"}. ${
           acid.strong && base.strong
-            ? "Strong acid and strong alkali: equivalence is at pH 7 and the jump is so steep that any indicator changing between about 4 and 10 works."
+            ? "Strong acid and strong alkali: equivalence is close to pH 7 and the jump is steep, so an indicator that changes anywhere inside it lands on the end point."
             : !acid.strong && base.strong
               ? "A weak acid: the salt it makes is slightly alkaline, so equivalence is above 7. Half-way there the flask is a buffer and its pH equals the acid's pKa."
               : acid.strong && !base.strong
-                ? "A weak alkali: the salt is slightly acidic, so equivalence is below 7. Methyl orange suits it; phenolphthalein does not."
+                ? "A weak alkali: the salt is slightly acidic, so equivalence is below 7. An indicator that changes on the acid side suits it; phenolphthalein does not."
                 : "A weak acid with a weak alkali barely jumps at all, so no indicator gives a sharp end point. Use a pH meter."
+        }${
+          acid.Ka.length > 1
+            ? " One catch with sulfuric acid: its second H⁺ comes from HSO₄⁻, which is only a moderately strong acid (Ka 1.2 × 10⁻²). The last of it holds the pH back, so the curve starts to rise a little before equivalence and methyl orange changes about 0.3 cm³ early."
+            : ""
         }`,
         noteTone: ep.suitable ? "good" : "warn",
       };
