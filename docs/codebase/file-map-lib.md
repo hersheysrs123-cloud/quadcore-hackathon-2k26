@@ -21,6 +21,8 @@ quadcore-hackathon-2k26/
 │   ├── muscleMechanics.js                # PURE PHYSICS: elbow lever torque, biceps force & moment arm, length–tension, fatigue, tendon strain
 │   ├── reflexArc.js                      # PURE PHYSIOLOGY: reflex-arc stage timing, conduction velocities, synaptic delays, severed-root blocks
 │   ├── transpiration.js                  # PURE PHYSIOLOGY: K⁺/turgor aperture, Tetens VPD, series conductances, cohesion–tension, ABA, cavitation
+│   ├── absorption.js                     # PURE PHYSIOLOGY: nutrients and their routes (blood / lymph), meals, the three foldings (×3 ×10 ×20), coeliac villous atrophy, absorbed fraction
+│   ├── gasExchange.js                    # PURE PHYSIOLOGY: alveolar gas equation, Severinghaus saturation, O₂ loading integrated along the capillary (Hb buffering), CO₂ unloading, altitude / fibrosis / emphysema / exercise
 │   ├── peristalsis.js                    # PURE PHYSIOLOGY: wave/bolus kinematics, consistency & gravity slip, layer activation, lumen features
 │   ├── carbonCycle.js                    # PURE EARTH SCIENCE: GtC/yr fluxes (GPP, respiration Q10, CO₂ fertilisation, fossil, land use, lagging ocean), log forcing, lagged anomaly, pure integrator
 │   ├── foodChain.js                      # PURE ECOLOGY: 10 % trophic transfer, headcounts & viability, ×10 biomagnification & harm thresholds, trophic cascade multipliers
@@ -29,7 +31,9 @@ quadcore-hackathon-2k26/
 │   ├── cellDivision.js                   # PURE BIOLOGY: mitosis (6) & meiosis (11) stage cycles, chromosome/chromatid census per stage, chiasma plan & originAt colour bookkeeping, diversity (4→36 genotypes), divisionPose channels, colchicine arrest
 │   ├── redox.js                          # PURE CHEMISTRY: reactivity series as E°, displacement outcome/rate (τ = 900·e^(−E°cell)) & balanced ionic/molecular equations, solution colour mixing, K-with-water; nail corrosion (both H₂O and O₂ or nothing), electrolyte factor, galvanic couple with anode lifetime
 │   ├── separation.js                     # PURE CHEMISTRY: samples × solvents × stations, closed-form in model time — filtration (retained iff undissolved, first-order flow slowed by the cake), crystallisation (heat → boil → first crystals → flame off → cool for steep solubility curves, to dryness for flat ones), chromatography (front ∝ √t, spot = Rf·front); `stationFit` says whether a station is the right tool for a sample
+│   ├── diffusion.js                      # PURE CHEMISTRY: seeded BGK random walk of two gases (Maxwell speeds ∝ √(T/M), re-thermalised every mean free path), mixing box with partition, NH₃/HCl tube with emission + NH₄Cl deposition, Brownian OU tracer, profile / mixing % / ring position, describeDiffusion
 │   ├── particleModel.js                  # PURE CHEMISTRY: 3 substances (H₂O / Ne / CO₂) with latent heats & Cp; Clausius–Clapeyron boiling/sublimation lines, melting slope (negative for water), triple & critical points; heatingCurve(substance, P) → piecewise T(E) segments; stepThermal integrates energy at HEATING_CONDUCTANCE × gap; describePhase (Solid Lattice / Liquid Flow / Gas Chaos / Supercritical, transitions named by direction), kineticReadout (³⁄₂kT, √(3RT/M)), columnHeights, molarVolumes
+│   ├── acidBase.js                       # PURE CHEMISTRY: substances and their pH, indicators (universal chart or pKa logistic), acids/bases with Ka, exact pH by charge balance (bisection), titration point/curve, equivalence, end point suitability, ion counts for the inset
 │   ├── radioactiveDecay.js               # PURE PHYSICS: 4 modes (²³⁸U α, ¹⁴C β⁻, ¹⁸F β⁺, ⁹⁹ᵐTc γ) as nuclide data; nuclearEquation builds and CHECKS ΣA/ΣZ; stepDecay rolls 1−e^(−λdt) per surviving atom (seedable rng), stamps N₀/2ⁿ times, 1 s count-rate bins; transmission/penetrates per barrier (paper / 5 mm Al / 10 cm Pb, γ attenuated not stopped), deflection by charge sign & mass, formatDuration / realSecondsPerSimSecond (1 t½ = 10 s on screen)
 │   ├── combustion.js                     # PURE CHEMISTRY: collar → air fraction → 300–1400 °C, colour ramp, sootRate/CO, complete vs incomplete equation; stepCombustion(state, {collar, dt, events}) integrates the fire triangle (fuel purge, bell-jar O₂ burn-down to 16%, mist draining a heat reserve, striker on relight, basin soot)
 │   ├── cardiacCycle.js                   # PURE PHYSIOLOGY: 5-stage beat, HR → real stage durations & stepper tempo, EDV/ESV/SV/CO/EF, LV/aortic/atrial pressure, volume, valves, ECG (P-QRS-T / fibrillation), sounds S1/S2/murmur, conduction, Wiggers samples
@@ -37,8 +41,11 @@ quadcore-hackathon-2k26/
 │   ├── pathogens.js                      # PURE BIOLOGY: bacterium/phage anatomy, living checklist, antibiotic targets & efficacy, lytic-cycle & penicillin timelines, burst size
 │   ├── tubeTransit.js                    # PURE GEOMETRY: bump profiles, squeeze-to-fit, recycling stream, ring-stack tube vertices & indices
 │   ├── simpleMachines.js                 # PURE PHYSICS: lever classes, block-and-tackle, distance ratio vs MA
+│   ├── bonding.js                        # PURE CHEMISTRY: ionic transfers (who gives which electron to whom, donor-facing gaps, ion shells, charges, half equations) and covalent dot-and-cross counts cross-checked against VSEPR
+│   ├── orbitals.js                       # PURE CHEMISTRY: Aufbau to 4s, Hund occupancy, Slater Zeff, hydrogen-like R_nl, seeded |ψ|² sampler, radial nodes, 90 % radius, display compression
 │   ├── atomicStructure.js                # PURE CHEMISTRY: Bohr shells for H / C / Na / Cl, valence electrons, per-element bonding notes
-│   ├── organic.js                        # PURE CHEMISTRY: six homologous series (alkane → ester), atom counts, derived formulas & names, hybridisation-driven chain geometry, cracking into a shorter alkane + ethene
+│   ├── rigidFit.js                       # Best-fit rigid motion between two point sets (Horn's quaternion method, Jacobi 4×4 eigen) — lays polymerisation monomers over their chain units
+│   ├── organic.js                        # PURE CHEMISTRY: six homologous series (alkane → ester), atom counts, derived formulas & names, hybridisation-driven chain geometry, cracking into a shorter alkane + ethene, esterification, addition polymerisation (repeat unit, poly-name, uses)
 │   ├── distillation.js                   # PURE CHEMISTRY: the six crude-oil fractions (boiling points, chain lengths, colours), which rise at a given heat; bitumen is the residue and never rises
 │   ├── lattices.js                       # Facts and colour keys for each lattice (the Details panel and the scene share them)
 │   ├── latticeGeometry.js                # PURE GEOMETRY: diamond (ball-cut diamond-cubic), α-quartz (P3₂21 from its Wyckoff sites) and ice Ih (wurtzite O net, H placed by the ice rules via Euler orientation); tested for coordination, lengths and angles
@@ -55,6 +62,7 @@ quadcore-hackathon-2k26/
 │   ├── binaryTree.js                     # PURE CS: BST / AVL insertion, rotations, traversals
 │   ├── rayOptics.js                      # PURE PHYSICS: thin lenses and curved-mirror ray tracing
 │   ├── induction.js                      # PURE PHYSICS: Faraday's law, dynamo EMF, bar-magnet and solenoid
+│   ├── electromagnet.js                  # PURE PHYSICS: an electromagnet's field (finite solenoid × core gain, saturation, remanence), clips held, and the field on the card from rings of current (elliptic integrals)
 │   ├── interference.js                   # PURE PHYSICS: two-source wave interference and double-slit fringes
 │   ├── orbit.js                          # PURE PHYSICS: symplectic leapfrog orbits and the gravity well
 │   ├── projectile.js                     # PURE PHYSICS: ballistic flight with quadratic drag

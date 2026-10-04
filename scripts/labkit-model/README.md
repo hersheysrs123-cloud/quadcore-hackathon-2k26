@@ -13,6 +13,7 @@ It reuses:
 | File | What it does |
 | --- | --- |
 | `labkit.py` | One builder per part. Each returns `(V, F, colours)` in the frame of the three.js component it replaces. The helpers: `turned` (a lathe), `slab` and `block` (chamfered extrusions), `knob` (a fluted extrusion), `rod` and `bar` (round bars), `ring`, `disc_on_cylinder` (a painted patch on a barrel) |
+| `titration.py` | The titration parts: the burette (origin at the tip, 0.16 units per cm³, ticks every 0.1 cm³ and numbers 0–50 made from Blender text, Schellbach stripe), the stopcock key (rotates about x; grip vertical is open), the burette clamp, the magnetic stirrer and bar, the pH meter and probe, and the amber dropper bottle |
 | `build_labkit.py` | `parts` (node name to part), `build` (every part into the `LabKit` collection, plus the Bunsen collar as an SDF), `export` and `build_all` |
 
 ## The parts
@@ -29,6 +30,7 @@ It reuses:
 | Gas tap | `gasTurret`, `gasValve`, `gasLever` | the bench gas taps | combustion, heat transfer |
 | Hotplate | `hotplate`, `hotplateTop` | `HotPlate` | particle model |
 | Furnace | `furnaceCasing`, `furnaceSteel`, `tankShell`, `tankSteel` | the distillation furnace's casing and the crude tank | distillation |
+| Titration | `buretteGlass`, `buretteMarks`, `stopcockKey`, `buretteClamp`, `buretteClampPads`, `stirrerCase`, `stirrerTop`, `stirBar`, `phMeter`, `phProbe`, `phProbeBulb`, `dropperGlass`, `dropperCap` | new parts, built in `titration.py` | acids & bases |
 
 ## Conventions
 

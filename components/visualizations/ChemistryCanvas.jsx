@@ -7,24 +7,30 @@ import * as THREE from "three";
 import {
   AtomSphere,
   Bond,
+  FitCamera,
   Halo,
   PALETTE,
   SceneCanvas,
   SceneLabel,
   VectorArrow,
-  circlePoints,
   clamp,
   hashRandom,
   lerp,
 } from "@/components/visualizations/scene-kit";
 import { KitPart } from "@/components/visualizations/lab-kit-model";
+import { ElectronMark, ShellRing } from "@/components/visualizations/electron-shells";
+import { IonicFormationScene } from "@/components/visualizations/IonicFormation";
+import { CovalentShells, FIT_RADIUS as COVALENT_FIT_RADIUS } from "@/components/visualizations/CovalentShells";
+import { OrbitalCloud } from "@/components/visualizations/OrbitalCloud";
+import { describeOrbitals, displayRadius } from "@/lib/orbitals";
 import { ATOM_COLOURS, ELEMENTS, SHELL_NAMES } from "@/lib/atomicStructure";
 import { FRACTIONS, furnaceTemperature, rises } from "@/lib/distillation";
 import { BOND_COLOUR } from "@/lib/lattices";
 import { diamondFragment, iceFragment, quartzFragment } from "@/lib/latticeGeometry";
 import { CELL_COLOURS, electrodeFor, solveElectrolysis } from "@/lib/electrolysis";
 import { ELEMENT_STYLE, VSEPR_BOND_COLOUR, solveVsepr } from "@/lib/vsepr";
-import { crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isValid, nameFor } from "@/lib/organic";
+import { POLYMER_UNITS, crackProducts, describeMolecule, esterification, formulaFor, isCrackable, isPolymerisable, isValid, nameFor, polymerisation } from "@/lib/organic";
+import { bestFitRigid, rotateByQuaternion } from "@/lib/rigidFit";
 import { solveEnergetics } from "@/lib/energetics";
 import ReactivitySeriesCanvas from "@/components/visualizations/ReactivitySeriesCanvas";
 import RustingGalvanicCanvas from "@/components/visualizations/RustingGalvanicCanvas";
@@ -32,6 +38,7 @@ import SeparationTechniquesCanvas from "@/components/visualizations/SeparationTe
 import CombustionFireTriangleCanvas from "@/components/visualizations/CombustionFireTriangleCanvas";
 import ParticleModelMatterCanvas from "@/components/visualizations/ParticleModelMatterCanvas";
 import RadioactiveDecayCanvas from "@/components/visualizations/RadioactiveDecayCanvas";
+import AcidBaseCanvas from "@/components/visualizations/AcidBaseCanvas";
 
 // Chemistry is written in subscripts everywhere except, until now, here —
 // "C3H8" on screen next to CₙH₂ₙ₊₂ in the same panel reads as a typo.
@@ -162,7 +169,6 @@ function Shell({
   const angle = useRef(index * 0.7);
   const meshes = useRef([]);
   const radius = shellRadius(index);
-  const ring = useMemo(() => circlePoints(radius), [radius]);
 
   const rate = 0.9 / Math.pow(index + 1, 1.25); // inner shells sweep faster
   const glow = isValence && highlightValence;
@@ -182,11 +188,10 @@ function Shell({
   return (
     <group rotation={shellTilt(index)}>
       {showRing && (
-        <Line
-          points={ring}
-          color={glow ? ATOM_COLOURS.valence : ATOM_COLOURS.electron}
+        <ShellRing
+          radius={radius}
+          colour={glow ? ATOM_COLOURS.valence : ATOM_COLOURS.electron}
           lineWidth={glow ? 2.8 : 2.2}
-          transparent
           opacity={dimmed ? 0.2 : glow ? 0.95 : 0.85}
           onClick={(e) => {
             e.stopPropagation();
@@ -196,26 +201,19 @@ function Shell({
       )}
 
       {Array.from({ length: electrons }, (_, i) => (
-        <mesh
+        <ElectronMark
           key={i}
           ref={(el) => {
             meshes.current[i] = el;
           }}
+          colour={colour}
+          emissiveIntensity={glow ? 2.4 : 1.2}
+          opacity={dimmed ? 0.16 : 1}
           onClick={(e) => {
             e.stopPropagation();
             onSelect(index);
           }}
-        >
-          <sphereGeometry args={[0.15, 20, 20]} />
-          <meshStandardMaterial
-            color={colour}
-            emissive={colour}
-            emissiveIntensity={glow ? 2.4 : 1.2}
-            transparent
-            opacity={dimmed ? 0.16 : 1}
-            toneMapped={false}
-          />
-        </mesh>
+        />
       ))}
 
       {showLabel && (
@@ -234,26 +232,46 @@ function Shell({
  * a change of shell count, so a user's own zoom survives picking another
  * element of the same period.
  */
-function BohrCameraFit({ outerRadius }) {
+function BohrCameraFit({ outerRadius, quantum = false }) {
   const camera = useThree((s) => s.camera);
+  const aspect = useThree((s) => s.size.width / Math.max(s.size.height, 1));
   useEffect(() => {
     // 12 frames the three-shell atoms (outer radius 4.0) with room for labels.
     // Each extra unit of radius needs ~4 of distance: the summary label hangs
     // below the ring and the camera looks down on it, so it runs out first.
-    const distance = Math.max(12, 12 + (outerRadius - 4) * 4);
+    // A quantum cloud has no floor — hydrogen's lone 1s is small and should fill the view.
+    // It is also fitted to the narrower side of the canvas, so a portrait
+    // panel does not crop the cloud's sides.
+    const tanHalf = Math.tan((camera.fov / 2) * (Math.PI / 180));
+    const half = outerRadius * 1.2 + 0.5;
+    const distance = quantum
+      ? Math.max(half / tanHalf, half / (tanHalf * Math.max(aspect, 0.1))) + 1
+      : Math.max(12, 12 + (outerRadius - 4) * 4);
     camera.position.setLength(distance);
     camera.updateProjectionMatrix();
-  }, [camera, outerRadius]);
+  }, [camera, outerRadius, quantum, aspect]);
   return null;
 }
 
 export function BohrAtomScene({ params = {} }) {
-  const { element: symbol = "C", speed = 1.0, showShells = true, showLabels = true, highlightValence = false, spinNucleus = true } =
-    params || {};
+  const {
+    element: symbol = "C",
+    speed = 1.0,
+    showShells = true,
+    showLabels = true,
+    highlightValence = false,
+    spinNucleus = true,
+    model = "bohr",
+    orbital = "all",
+    showPhase = false,
+  } = params || {};
   const [focused, setFocused] = useState(null);
 
   const element = ELEMENTS[symbol] ?? ELEMENTS.Na;
   const outer = element.shells.length - 1;
+  const quantum = model === "quantum";
+  // The quantum cloud's outermost subshell peaks at its own radius; frame a little past it.
+  const quantumOuter = useMemo(() => displayRadius(describeOrbitals(symbol).outermost.r90A0), [symbol]);
 
   useEffect(() => setFocused(null), [symbol]);
 
@@ -263,7 +281,13 @@ export function BohrAtomScene({ params = {} }) {
       controls={{ autoRotate: params.spin !== false, autoRotateSpeed: 0.45 * speed, minDistance: 3.5 }}
       onPointerMissed={() => setFocused(null)}
     >
-      <BohrCameraFit outerRadius={shellRadius(outer)} />
+      <BohrCameraFit outerRadius={quantum ? quantumOuter : shellRadius(outer)} quantum={quantum} />
+      {quantum ? (
+        <LabelsOn.Provider value={showLabels !== false}>
+          <OrbitalCloud symbol={element.symbol} focus={orbital} showPhase={showPhase} speed={speed} Label={ChemLabel} />
+        </LabelsOn.Provider>
+      ) : (
+      <>
       <pointLight position={[0, 0, 0]} color={PALETTE.rose} intensity={12} distance={4} />
       <Nucleus protons={element.protons} neutrons={element.neutrons} spin={spinNucleus} speed={speed} />
 
@@ -285,7 +309,8 @@ export function BohrAtomScene({ params = {} }) {
       <SceneLabel position={[0, -(shellRadius(outer) + 0.9), 0]} accent>
         {element.symbol} · {element.shells.join(",")}
       </SceneLabel>
-
+      </>
+      )}
     </SceneCanvas>
   );
 }
@@ -324,6 +349,56 @@ const SPREAD_TETRA_2 = Math.SQRT2;
 const SPREAD_TETRA_3 = 2 * Math.SQRT2;
 // tan(60°): a carbon carrying a double bond is trigonal planar, 120° apart.
 const SPREAD_TRIGONAL = Math.sqrt(3);
+
+/**
+ * Where a carbon's `hydrogens` hydrogens go, given the neighbours it already
+ * has (Vector3s): spread about the bisector pointing away from them, at the
+ * angle its hybridisation sets. `planar` opens them in the drawing plane (a
+ * carbon on a double or triple bond); `trigonal` uses the sp² 120° spread.
+ */
+function hydrogenSites(centre, neighbours, hydrogens, { trigonal = false, planar = false } = {}) {
+  // Bisector of the directions pointing away from every existing neighbour.
+  const away = new THREE.Vector3();
+  neighbours.forEach((nb) => away.add(centre.clone().sub(nb).normalize()));
+  if (away.lengthSq() < 1e-4) away.set(0, 1, 0);
+  away.normalize();
+
+  // Which plane the remaining bonds open into.
+  let side;
+  if (planar) {
+    side = new THREE.Vector3(0, 0, 1).cross(away);
+  } else if (neighbours.length >= 2) {
+    side = new THREE.Vector3()
+      .subVectors(neighbours[0], centre)
+      .cross(new THREE.Vector3().subVectors(neighbours[1], centre));
+  } else {
+    side = new THREE.Vector3(0, 0, 1).cross(away);
+  }
+  if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
+  side.normalize();
+  const up = new THREE.Vector3().crossVectors(away, side).normalize();
+
+  const spread =
+    hydrogens === 1
+      ? 0
+      : trigonal
+        ? SPREAD_TRIGONAL
+        : hydrogens === 3
+          ? SPREAD_TETRA_3
+          : SPREAD_TETRA_2;
+
+  const sites = [];
+  for (let k = 0; k < hydrogens; k += 1) {
+    const phi = hydrogens === 1 ? 0 : (k / hydrogens) * Math.PI * 2;
+    const dir = away
+      .clone()
+      .addScaledVector(side, Math.cos(phi) * spread)
+      .addScaledVector(up, Math.sin(phi) * spread)
+      .normalize();
+    sites.push(centre.clone().addScaledVector(dir, CH_BOND));
+  }
+  return sites;
+}
 
 /**
  * Builds a chain molecule from its family and length. Carbons zig-zag in the
@@ -477,44 +552,7 @@ function buildMolecule(family, carbons) {
     const hydrogens = Math.max(0, 4 - used);
     if (hydrogens === 0) continue;
 
-    // Bisector of the directions pointing away from every existing neighbour.
-    const away = new THREE.Vector3();
-    neighbours.forEach((nb) => away.add(centre.clone().sub(nb).normalize()));
-    if (away.lengthSq() < 1e-4) away.set(0, 1, 0);
-    away.normalize();
-
-    // Which plane the remaining bonds open into.
-    let side;
-    if (doubleHere || tripleHere) {
-      side = new THREE.Vector3(0, 0, 1).cross(away);
-    } else if (neighbours.length >= 2) {
-      side = new THREE.Vector3()
-        .subVectors(neighbours[0], centre)
-        .cross(new THREE.Vector3().subVectors(neighbours[1], centre));
-    } else {
-      side = new THREE.Vector3(0, 0, 1).cross(away);
-    }
-    if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
-    side.normalize();
-    const up = new THREE.Vector3().crossVectors(away, side).normalize();
-
-    const spread =
-      hydrogens === 1
-        ? 0
-        : doubleHere
-          ? SPREAD_TRIGONAL
-          : hydrogens === 3
-            ? SPREAD_TETRA_3
-            : SPREAD_TETRA_2;
-
-    for (let k = 0; k < hydrogens; k += 1) {
-      const phi = hydrogens === 1 ? 0 : (k / hydrogens) * Math.PI * 2;
-      const dir = away
-        .clone()
-        .addScaledVector(side, Math.cos(phi) * spread)
-        .addScaledVector(up, Math.sin(phi) * spread)
-        .normalize();
-      const hPos = centre.clone().addScaledVector(dir, CH_BOND);
+    for (const hPos of hydrogenSites(centre, neighbours, hydrogens, { trigonal: doubleHere, planar: doubleHere || tripleHere })) {
       atoms.push({ el: "H", position: hPos.toArray() });
       bonds.push({ from: centre.toArray(), to: hPos.toArray() });
     }
@@ -1204,6 +1242,359 @@ function Esterification({ carbons, token, speed = 1, info, onStage }) {
   );
 }
 
+// ─── Addition polymerisation ─────────────────────────────────────────
+
+/** Seconds for one run at 1× speed. */
+const POLY_SECONDS = 10;
+/** Stage boundaries, as fractions of the run. */
+const POLY_T = { approach: 0.2, strain: 0.34, open: 0.42, join: 0.8 };
+/** Extra spacing between neighbouring monomers at the start, and at the pause. */
+const POLY_START_GAP = 1.9;
+const POLY_HOLD_GAP = 0.55;
+
+const POLY_STAGES = [
+  "Alkene monomers, each with a C=C — high pressure, heat and a catalyst",
+  "One of the two bonds in each C=C breaks: the double bond opens",
+  "Each opened carbon bonds to the next monomer — new C–C bonds make a chain",
+  "One product, every atom kept, no C=C left — saturated, so bromine water stays orange",
+];
+
+/** Every ordering of `items` — at most 3! here, a carbon's hydrogens. */
+function permutations(items) {
+  if (items.length <= 1) return [items];
+  return items.flatMap((x, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [x, ...rest]));
+}
+
+/**
+ * Addition polymerisation as geometry: POLYMER_UNITS real n-carbon alkenes,
+ * and the chain segment made from exactly their atoms.
+ *
+ * The backbone is a tetrahedral zig-zag lying flat (in x–z), so each repeat
+ * unit's side chain (the n − 2 carbons that were not in the C=C) can stand
+ * straight up from it, zig-zagging about the vertical — a comb that does not
+ * tangle at any chain length. Hydrogens go where `hydrogenSites` puts them,
+ * as in every other molecule here.
+ *
+ * Both molecules list their atoms in the same order — carbons along the
+ * chain, then each carbon's hydrogens in turn — because an addition polymer
+ * keeps every atom. Each monomer is then laid over its place in the chain by
+ * a best-fit rigid motion, hydrogens re-paired to their nearest partner, so
+ * the morph between the two is the chemistry and nothing else: C=C opening,
+ * sp² carbon going tetrahedral.
+ */
+function buildPolymerisation(n, units = POLYMER_UNITS) {
+  const monomer = buildMolecule("alkene", n);
+  const along = 0.8167 * CC_BOND;
+  const across = 0.5772 * CC_BOND;
+  const backbone = (j) => new THREE.Vector3((j - (2 * units - 1) / 2) * along, 0, j % 2 === 0 ? -across / 2 : across / 2);
+
+  // Hydrogen counts per carbon, in chain order: the same for both molecules.
+  const hCounts = Array.from({ length: n }, (_, i) => {
+    if (i === 0) return 2;
+    if (i === 1) return n === 2 ? 2 : 1;
+    return i === n - 1 ? 3 : 2;
+  });
+  const hOwner = hCounts.flatMap((count, c) => Array(count).fill(c));
+  const perUnit = n + hOwner.length;
+
+  const unitsBuilt = [];
+  for (let u = 0; u < units; u += 1) {
+    const ca = backbone(2 * u);
+    const cb = backbone(2 * u + 1);
+    const carbons = [ca, cb];
+    const hydrogens = [];
+    hydrogens.push(...hydrogenSites(ca, [backbone(2 * u - 1), backbone(2 * u + 1)], 2));
+    const cbSites = hydrogenSites(cb, [backbone(2 * u), backbone(2 * u + 2)], 2);
+    if (n === 2) {
+      hydrogens.push(...cbSites);
+    } else {
+      // The side chain takes the upward site; its hydrogen the other.
+      const [upSite, downSite] = cbSites[0].y >= cbSites[1].y ? cbSites : [cbSites[1], cbSites[0]];
+      hydrogens.push(downSite);
+      const dirR = upSite.clone().sub(cb).normalize();
+      // Its mirror in z: alternating the two zig-zags the side chain about
+      // the vertical at 109.47° per carbon.
+      const dirMirror = new THREE.Vector3(dirR.x, dirR.y, -dirR.z);
+      let at = cb;
+      for (let s = 0; s < n - 2; s += 1) {
+        at = at.clone().addScaledVector(s % 2 === 0 ? dirR : dirMirror, CC_BOND);
+        carbons.push(at);
+      }
+      for (let s = 2; s < n; s += 1) {
+        const neighbours = [carbons[s - 1]];
+        if (s < n - 1) neighbours.push(carbons[s + 1]);
+        hydrogens.push(...hydrogenSites(carbons[s], neighbours, s < n - 1 ? 2 : 3));
+      }
+    }
+    unitsBuilt.push([...carbons, ...hydrogens].map((v) => v.toArray()));
+  }
+
+  // Centre the product on its bounding box, as the other molecules are.
+  const all = unitsBuilt.flat();
+  const mid = (k) => (Math.min(...all.map((p) => p[k])) + Math.max(...all.map((p) => p[k]))) / 2;
+  const shift = [mid(0), mid(1), 0];
+  const centre = (p) => [p[0] - shift[0], p[1] - shift[1], p[2] - shift[2]];
+  const productUnits = unitsBuilt.map((pts) => pts.map(centre));
+
+  // Lay each monomer over its unit, re-pairing hydrogens on the same carbon
+  // to whichever partner sits nearest, then fitting again.
+  const weights = Array.from({ length: perUnit }, (_, i) => (i < n ? 3 : 1));
+  const groups = hCounts.map((_, c) => hOwner.map((owner, k) => (owner === c ? n + k : -1)).filter((k) => k >= 0));
+  const fitted = productUnits.map((target) => {
+    let from = monomer.atoms.map((a) => a.position);
+    let fit = bestFitRigid(from, target, weights);
+    for (let pass = 0; pass < 2; pass += 1) {
+      const placed = from.map(fit.apply);
+      const reordered = from.slice();
+      for (const group of groups) {
+        if (group.length < 2) continue;
+        let best = null;
+        for (const perm of permutations(group)) {
+          const cost = group.reduce((sum, slot, i) => sum + new THREE.Vector3(...placed[perm[i]]).distanceToSquared(new THREE.Vector3(...target[slot])), 0);
+          if (!best || cost < best.cost) best = { cost, perm };
+        }
+        group.forEach((slot, i) => {
+          reordered[slot] = from[best.perm[i]];
+        });
+      }
+      from = reordered;
+      fit = bestFitRigid(from, target, weights);
+    }
+    return {
+      start: from.map(fit.apply),
+      // The monomer's own plane, which its π bond is drawn across.
+      normal: rotateByQuaternion(fit.quaternion, [0, 0, 1]),
+    };
+  });
+
+  // Bonds by atom index: the chain, then each hydrogen to its carbon.
+  const atoms = [];
+  const bonds = [];
+  for (let u = 0; u < units; u += 1) {
+    const base = u * perUnit;
+    for (let i = 0; i < perUnit; i += 1) {
+      atoms.push({ el: i < n ? "C" : "H", start: fitted[u].start[i], end: productUnits[u][i], unit: u });
+    }
+    for (let c = 0; c < n - 1; c += 1) {
+      bonds.push({ a: base + c, b: base + c + 1, kind: c === 0 ? "double" : "single", normal: fitted[u].normal });
+    }
+    hOwner.forEach((owner, k) => bonds.push({ a: base + n + k, b: base + owner, kind: "single" }));
+    if (u < units - 1) bonds.push({ a: base + 1, b: base + perUnit, kind: "new" });
+  }
+  // The chain carries on past both ends of the segment drawn.
+  const stubs = [
+    { a: 0, to: centre(backbone(-1).lerp(backbone(0), 0.45).toArray()) },
+    { a: (units - 1) * perUnit + 1, to: centre(backbone(2 * units).lerp(backbone(2 * units - 1), 0.45).toArray()) },
+  ];
+  return { atoms, bonds, stubs, perUnit, units };
+}
+
+/** Where monomer `u` sits along x for a spacing `gap`, centred on the chain. */
+const unitOffset = (u, units, gap) => (u - (units - 1) / 2) * gap;
+
+/**
+ * n alkene → addition polymer, played once per press and then held, so the
+ * chain can be turned and looked at. Only the stage index is React state;
+ * positions are written per frame.
+ */
+function Polymerisation({ carbons, token, speed = 1, spin = true, info, onStage }) {
+  const asm = useMemo(() => buildPolymerisation(carbons), [carbons]);
+  const progress = useRef(-1);
+  const seenToken = useRef(token);
+  const [stage, setStage] = useState(-1);
+  const stageRef = useRef(-1);
+  const groupRef = useRef(null);
+  const atomRefs = useRef([]);
+  const bondRefs = useRef([]);
+  const piRefs = useRef([]);
+  const stubRefs = useRef([]);
+  const scratch = useMemo(
+    () => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), dir: new THREE.Vector3(), off: new THREE.Vector3(), positions: asm.atoms.map(() => new THREE.Vector3()) }),
+    [asm],
+  );
+
+  const report = useCallback(
+    (next) => {
+      if (next === stageRef.current) return;
+      stageRef.current = next;
+      setStage(next);
+      if (typeof onStage === "function") onStage(next);
+    },
+    [onStage],
+  );
+
+  // A press starts a run. The token seen at mount is ignored, so coming back
+  // to the Alkene series does not replay the last press.
+  useEffect(() => {
+    if (token === seenToken.current) return;
+    seenToken.current = token;
+    progress.current = 0;
+    if (groupRef.current) groupRef.current.rotation.y = 0;
+    report(0);
+  }, [token, report]);
+
+  // A new chain length abandons the run, finished or not.
+  useEffect(() => {
+    progress.current = -1;
+    report(-1);
+  }, [carbons, report]);
+
+  useFrame((_, delta) => {
+    const p0 = progress.current;
+    if (p0 < 0) return;
+    const p = Math.min(1, p0 + (delta * Math.max(speed, 0)) / POLY_SECONDS);
+    progress.current = p;
+    // Held square while the chain forms; free to turn once it has.
+    if (groupRef.current && p >= 1 && spin) groupRef.current.rotation.y += delta * 0.35 * speed;
+
+    const gap =
+      p < POLY_T.approach
+        ? lerp(POLY_START_GAP, POLY_HOLD_GAP, span(p, 0, POLY_T.approach))
+        : lerp(POLY_HOLD_GAP, 0, span(p, POLY_T.open, POLY_T.join));
+    const morph = span(p, POLY_T.open, POLY_T.join);
+
+    const { positions, a, b, dir, off } = scratch;
+    asm.atoms.forEach((atom, i) => {
+      const dx = unitOffset(atom.unit, asm.units, gap);
+      const pos = positions[i];
+      pos.set(atom.start[0] + dx, atom.start[1], atom.start[2]);
+      a.set(...atom.end);
+      pos.lerp(a, morph);
+      atomRefs.current[i]?.position.copy(pos);
+    });
+
+    // The C=C: two gold bonds that pulse while one breaks, then one grey.
+    const strained = p >= POLY_T.approach && p < POLY_T.open;
+    const pulse = 0.6 + 0.6 * Math.sin(p * POLY_SECONDS * 14);
+    const opened = span(p, POLY_T.strain, POLY_T.open);
+    const fresh = p < 0.93;
+    asm.bonds.forEach((bond, i) => {
+      const mesh = bondRefs.current[i];
+      if (!mesh) return;
+      a.copy(positions[bond.a]);
+      b.copy(positions[bond.b]);
+      let radius = 1;
+      if (bond.kind === "double") {
+        // The σ bond slides from its double-bond offset to the bond axis.
+        dir.subVectors(b, a).normalize();
+        off.set(...bond.normal).cross(dir).normalize().multiplyScalar(0.14 * (1 - opened));
+        a.add(off);
+        b.add(off);
+        radius = lerp(0.055, 0.075, opened) / 0.075;
+        const gold = opened < 0.5;
+        mesh.material.color.set(gold ? PALETTE.gold : BOND_GREY);
+        mesh.material.emissive.set(gold ? PALETTE.gold : BOND_GREY);
+        mesh.material.emissiveIntensity = gold ? 0.6 : 0.12;
+
+        const pi = piRefs.current[i];
+        if (pi) {
+          pi.visible = opened < 0.99;
+          a.copy(positions[bond.a]).sub(off);
+          b.copy(positions[bond.b]).sub(off);
+          placeBond(pi, a, b, dir);
+          const r = (0.055 / 0.075) * (1 - opened);
+          pi.scale.x = r;
+          pi.scale.z = r;
+          const tone = strained ? PALETTE.rose : PALETTE.gold;
+          pi.material.color.set(tone);
+          pi.material.emissive.set(tone);
+          pi.material.emissiveIntensity = strained ? pulse : 0.6;
+        }
+        a.copy(positions[bond.a]).add(off);
+        b.copy(positions[bond.b]).add(off);
+      } else if (bond.kind === "new") {
+        // The new C–C bond appears once its two carbons are near bonding distance.
+        mesh.visible = p >= POLY_T.open + 0.6 * (POLY_T.join - POLY_T.open);
+        mesh.material.color.set(fresh ? PALETTE.gold : BOND_GREY);
+        mesh.material.emissive.set(fresh ? PALETTE.gold : BOND_GREY);
+        mesh.material.emissiveIntensity = fresh ? 0.9 : 0.12;
+      }
+      placeBond(mesh, a, b, dir);
+      mesh.scale.x = radius;
+      mesh.scale.z = radius;
+    });
+
+    asm.stubs.forEach((stub, i) => {
+      const mesh = stubRefs.current[i];
+      if (!mesh) return;
+      mesh.visible = p >= POLY_T.join;
+      b.set(...stub.to);
+      placeBond(mesh, positions[stub.a], b, dir);
+    });
+
+    report(p < POLY_T.approach ? 0 : p < POLY_T.open ? 1 : p < POLY_T.join ? 2 : 3);
+  });
+
+  if (stage < 0) return null;
+
+  const bondMaterial = <meshStandardMaterial color={BOND_GREY} emissive={BOND_GREY} emissiveIntensity={0.12} roughness={0.4} metalness={0.2} />;
+  const top = Math.max(...asm.atoms.map((atom) => Math.max(atom.start[1], atom.end[1]))) + 0.9;
+
+  return (
+    <group ref={groupRef}>
+      {asm.atoms.map((atom, i) => {
+        const style = ATOM_STYLE[atom.el];
+        return (
+          <mesh
+            key={`a${i}`}
+            position={[atom.start[0] + unitOffset(atom.unit, asm.units, POLY_START_GAP), atom.start[1], atom.start[2]]}
+            ref={(el) => {
+              atomRefs.current[i] = el;
+            }}
+          >
+            <sphereGeometry args={[style.radius, 24, 24]} />
+            <meshStandardMaterial
+              color={style.color}
+              emissive={style.color}
+              emissiveIntensity={atom.el === "C" ? 0.25 : 0.4}
+              roughness={0.28}
+              metalness={0.2}
+            />
+          </mesh>
+        );
+      })}
+      {asm.bonds.map((bond, i) => (
+        <group key={`b${i}`}>
+          <mesh
+            visible={bond.kind !== "new"}
+            ref={(el) => {
+              bondRefs.current[i] = el;
+            }}
+          >
+            <cylinderGeometry args={[0.075, 0.075, 1, 12]} />
+            {bondMaterial}
+          </mesh>
+          {bond.kind === "double" && (
+            <mesh
+              ref={(el) => {
+                piRefs.current[i] = el;
+              }}
+            >
+              <cylinderGeometry args={[0.075, 0.075, 1, 12]} />
+              <meshStandardMaterial color={PALETTE.gold} emissive={PALETTE.gold} emissiveIntensity={0.6} roughness={0.4} metalness={0.2} />
+            </mesh>
+          )}
+        </group>
+      ))}
+      {asm.stubs.map((_, i) => (
+        <mesh
+          key={`s${i}`}
+          visible={false}
+          ref={(el) => {
+            stubRefs.current[i] = el;
+          }}
+        >
+          <cylinderGeometry args={[0.075, 0.02, 1, 12]} />
+          <meshStandardMaterial color={BOND_GREY} emissive={BOND_GREY} emissiveIntensity={0.12} roughness={0.4} metalness={0.2} transparent opacity={0.6} />
+        </mesh>
+      ))}
+      <ChemLabel position={[0, top, 0]} tone={stage >= 3 ? "text-emerald-300" : "text-ink-200"}>
+        {stage >= 3 ? `${info.polymer.name} · ${info.polymer.repeatUnit}` : `${asm.units} × ${info.monomer.formula} · ${info.monomer.name}`}
+      </ChemLabel>
+    </group>
+  );
+}
+
 // The "Show labels" toggle for the scenes in this file: each scene provides
 // its switch inside its canvas (context does not cross the R3F boundary),
 // and ChemLabel renders nothing when it is off.
@@ -1213,7 +1604,7 @@ function ChemLabel(props) {
 }
 
 export function OrganicBuilderScene({ params = {} }) {
-  const { family = "alkane", carbons = 3, crack = 0, esterify = 0, spin = true, speed = 1.0, showLabels = true } = params || {};
+  const { family = "alkane", carbons = 3, crack = 0, esterify = 0, polymerise = 0, spin = true, speed = 1.0, showLabels = true } = params || {};
   const molecule = useMemo(() => buildMolecule(family, carbons), [family, carbons]);
   // The same description the Details panel prints.
   const info = useMemo(() => describeMolecule(family, carbons), [family, carbons]);
@@ -1231,10 +1622,32 @@ export function OrganicBuilderScene({ params = {} }) {
   useEffect(() => setStage(-1), [family, carbons]);
   const reacting = isEster && stage >= 0;
 
+  const canPolymerise = isPolymerisable(family, carbons);
+  const poly = useMemo(() => (canPolymerise ? polymerisation(carbons) : null), [canPolymerise, carbons]);
+  const [polyStage, setPolyStage] = useState(-1);
+  useEffect(() => setPolyStage(-1), [family, carbons]);
+  const polymerising = canPolymerise && polyStage >= 0;
+  const polymerDone = polymerising && polyStage >= 3;
+  const polyBox = useMemo(() => {
+    if (!polymerising) return null;
+    const { atoms } = buildPolymerisation(carbons);
+    const spread = ((POLYMER_UNITS - 1) / 2) * POLY_START_GAP;
+    const reach = (k) => Math.max(...atoms.map((a) => Math.max(Math.abs(a.start[k]), Math.abs(a.end[k]))));
+    return {
+      halfX: reach(0) + spread,
+      halfY: reach(1),
+      swept: Math.max(...atoms.map((a) => Math.hypot(a.end[0], a.end[2]))),
+    };
+  }, [polymerising, carbons]);
+
   // The box the camera keeps in view: the reactants spread out, the two
   // cracked products side by side, or the molecule's swept circle.
   const frame = useMemo(() => {
     const labelRoom = 1.8;
+    if (polyBox) {
+      const r = polymerDone && spin ? polyBox.swept : polyBox.halfX;
+      return { width: 2 * r + 0.6, height: 2 * (polyBox.halfY + 1) + 2 * labelRoom, depth: polymerDone && spin ? 0.35 * r : 1 };
+    }
     if (reacting) {
       return {
         width: 2 * halfWidth(molecule) + 2 * ESTER_START_GAP + 0.6,
@@ -1253,7 +1666,7 @@ export function OrganicBuilderScene({ params = {} }) {
     }
     const r = spin ? spinRadius(molecule) : halfWidth(molecule);
     return { width: 2 * r, height: 2 * halfHeight(molecule) + 2 * labelRoom, depth: spin ? 0.35 * r : 1 };
-  }, [reacting, cracked, cracking, molecule, spin]);
+  }, [polyBox, polymerDone, reacting, cracked, cracking, molecule, spin]);
 
   const bottom = -(frame.height / 2 - 0.9);
 
@@ -1267,20 +1680,25 @@ export function OrganicBuilderScene({ params = {} }) {
         crackToken={crack}
         spin={spin}
         speed={speed}
-        hidden={reacting}
+        hidden={reacting || polymerising}
         cracked={cracked}
         onCrackedChange={setCracked}
       />
       {isEster && (
         <Esterification carbons={carbons} token={esterify} speed={speed} info={ester} onStage={setStage} />
       )}
+      {canPolymerise && (
+        <Polymerisation carbons={carbons} token={polymerise} speed={speed} spin={spin} info={poly} onStage={setPolyStage} />
+      )}
 
       <ChemLabel position={[0, bottom, 0]} accent>
-        {reacting
-          ? ester.equation
-          : cracked && cracking
-            ? cracking.equation
-            : `${molecule.formula} · ${molecule.name}`}
+        {polymerising
+          ? poly.equation
+          : reacting
+            ? ester.equation
+            : cracked && cracking
+              ? cracking.equation
+              : `${molecule.formula} · ${molecule.name}`}
       </ChemLabel>
       {reacting && (
         <ChemLabel
@@ -1288,6 +1706,15 @@ export function OrganicBuilderScene({ params = {} }) {
           tone={stage === 1 ? "text-rose-300" : stage >= 3 ? "text-emerald-300" : "text-ink-300"}
         >
           {`${stage + 1}/5 · ${ESTER_STAGES[stage]}`}
+        </ChemLabel>
+      )}
+      {polymerising && (
+        <ChemLabel
+          // The camera stands well back for a chain, so the line gap scales with the frame.
+          position={[0, bottom - Math.max(0.45, frame.height * 0.07), 0]}
+          tone={polyStage === 1 ? "text-rose-300" : polyStage >= 2 ? "text-emerald-300" : "text-ink-300"}
+        >
+          {`${polyStage + 1}/${POLY_STAGES.length} · ${POLY_STAGES[polyStage]}`}
         </ChemLabel>
       )}
       </LabelsOn.Provider>
@@ -2065,7 +2492,12 @@ function SpinningLattice({ lattice, showBonds, spin, speed = 1.0 }) {
   );
 }
 
+/** Ion formation is a different diagram altogether, so it gets its own scene. */
 export function CrystalLatticeScene({ params = {} }) {
+  return params?.structure === "ionic" ? <IonicFormationScene params={params} /> : <LatticeView params={params} />;
+}
+
+function LatticeView({ params = {} }) {
   const { structure = "nacl", slide = 0, showBonds = true, spin = true, speed = 1.0, showLabels = true } = params || {};
 
   const lattice = useMemo(() => {
@@ -2861,6 +3293,8 @@ export function VseprScene({ params = {} }) {
     spin = true,
     speed = 1.0,
     showLabels = true,
+    view = "shape",
+    assemble = 0,
   } = params || {};
 
   // One solve, shared with the Details panel.
@@ -2888,6 +3322,19 @@ export function VseprScene({ params = {} }) {
   return (
     <SceneCanvas camera={{ position: [0, 1.8, 7.4], fov: 45 }} controls={{ autoRotate: spin, autoRotateSpeed: 0.8 * speed }}>
       <LabelsOn.Provider value={showLabels !== false}>
+      {view === "dotcross" && molecule ? (
+        <>
+          {/* The rings reach further than the shape does: frame them, or a narrow canvas cuts off the outer atoms. */}
+          <FitCamera view={{ width: 2 * COVALENT_FIT_RADIUS + 0.4, height: 2 * COVALENT_FIT_RADIUS + 0.4 }} direction={[0, 1.8, 7.4]} />
+          <CovalentShells moleculeId={molecule.id} geometry={geometry} token={assemble} speed={speed} Label={ChemLabel} />
+        </>
+      ) : (
+      <>
+      {view === "dotcross" && (
+        <ChemLabel position={[0, -2.6, 0]} tone="text-amber-300">
+          No real molecule has these pair counts — pick one of the molecules to see its dot-and-cross diagram
+        </ChemLabel>
+      )}
       <AtomSphere position={[0, 0, 0]} radius={centreStyle.radius} color={centreStyle.colour} emissiveIntensity={0.5} />
       <Halo position={[0, 0, 0]} radius={centreStyle.radius + 0.38} color={centreStyle.colour} opacity={0.08} />
       <ChemLabel position={nameAt} accent>
@@ -2920,6 +3367,8 @@ export function VseprScene({ params = {} }) {
             labelRadius={arcRadius + 0.45 + k * 0.55}
           />
         ))}
+      </>
+      )}
       </LabelsOn.Provider>
     </SceneCanvas>
   );
@@ -3185,6 +3634,7 @@ const SCENES = {
   combustion_fire_triangle: CombustionFireTriangleCanvas,
   particle_model_matter: ParticleModelMatterCanvas,
   radioactive_decay: RadioactiveDecayCanvas,
+  acids_bases: AcidBaseCanvas,
 };
 
 export default function ChemistryCanvas({ topicId, params, setParam, onOpenQuiz }) {

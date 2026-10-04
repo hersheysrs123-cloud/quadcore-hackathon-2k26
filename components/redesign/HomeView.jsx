@@ -406,7 +406,7 @@ export default function HomeView({
           <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-100">
             <Box className="h-4 w-4 text-ink-500" /> Explore in 3D
           </h2>
-          <LinkButton onClick={() => onNavigate?.("3d")}>All 51 models</LinkButton>
+          <LinkButton onClick={() => onNavigate?.("3d")}>All 52 models</LinkButton>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURED_3D.map((id) => {

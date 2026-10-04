@@ -36,6 +36,7 @@ import {
   GitBranch,
   Hexagon,
   Leaf,
+  Link,
   Lightbulb,
   Magnet,
   Microscope,
@@ -79,7 +80,18 @@ import {
   ALGORITHM_OPTIONS,
   AQUEOUS_SOLUTION_OPTIONS,
   BARRIER_OPTIONS,
+  ALTITUDE_OPTIONS,
   BOLUS_CONSISTENCY_OPTIONS,
+  GUT_LINING_OPTIONS,
+  GUT_ZOOM_OPTIONS,
+  LUNG_CONDITION_OPTIONS,
+  ELECTROMAGNET_CORE_OPTIONS,
+  AB_INDICATOR_OPTIONS,
+  AB_SUBSTANCE_OPTIONS,
+  AB_ACID_OPTIONS,
+  AB_BASE_OPTIONS,
+  LUNG_ZOOM_OPTIONS,
+  MEAL_OPTIONS,
   CARDIAC_PATHOLOGY_OPTIONS,
   CIRCUIT_TOPOLOGY_OPTIONS,
   COASTER_CAMERA_OPTIONS,
@@ -114,6 +126,7 @@ import {
   VSEPR_PRESETS,
   vseprPresetFor,
   REACTION_TYPES,
+  IONIC_COMPOUND_OPTIONS,
   reactionTypeFor,
 } from "@/components/visualizations/topic-options";
 import { MAX_DENSITY, MIN_DENSITY, SOLIDS, solidPresetFor } from "@/lib/buoyancy";
@@ -127,6 +140,7 @@ import { CARDIAC_STAGE_OPTIONS, MAX_BPM, MIN_BPM, formatBpm } from "@/lib/cardia
 import { MAX_DAYS, MIN_DAYS, dayLabel } from "@/lib/redox";
 import { COLLAR_MAX, COLLAR_MIN, collarLabel } from "@/lib/combustion";
 import { PRESSURE_MAX_ATM, PRESSURE_MIN_ATM, TEMP_MAX_C, TEMP_MIN_C } from "@/lib/particleModel";
+import { GAS_TEMP_MAX_C, GAS_TEMP_MIN_C } from "@/lib/diffusion";
 import { DEFAULT_ATOMS, MAX_ATOMS, MIN_ATOMS, SIM_HALF_LIFE_S } from "@/lib/radioactiveDecay";
 
 export const CATEGORIES = [
@@ -384,10 +398,10 @@ export const TOPICS = [
     id: "induction",
     category: "physics",
     icon: Zap,
-    title: "Electromagnetic Induction & Faraday's Law",
-    blurb: "Rotating dynamo coil & moving bar magnet with live glowing bulb and galvanometer",
+    title: "Electromagnets & Electromagnetic Induction",
+    blurb: "An electromagnet with filings, compasses and a clip test; a dynamo coil and a bar magnet in a coil, with a live bulb and galvanometer",
     syllabus: "Physics 4.5 · Electromagnetism",
-    keywords: "faraday lenz induction generator emf flux alternating current dynamo coil solenoid bar magnet",
+    keywords: "faraday lenz induction generator emf flux alternating current dynamo coil solenoid bar magnet electromagnet magnetic effect of a current right-hand grip rule soft iron steel core iron filings plotting compass field pattern temporary permanent magnet domains relay",
     defaults: {
       apparatus: "generator",
       speed: 1,
@@ -400,6 +414,11 @@ export const TOPICS = [
       autoOscillate: true,
       magnetStrength: 1.2,
       flipPoles: false,
+      supplyOn: true,
+      coilCurrent: 1.5,
+      emTurns: 300,
+      core: "softIron",
+      reverseCurrent: false,
     },
     controls: [
       {
@@ -409,8 +428,33 @@ export const TOPICS = [
         options: [
           { value: "generator", label: "AC Generator" },
           { value: "solenoid", label: "Bar Magnet & Coil" },
+          { value: "electromagnet", label: "Electromagnet" },
         ],
       },
+      // Electromagnet specific controls
+      { type: "toggle", key: "supplyOn", label: "Power supply on", when: (p) => p.apparatus === "electromagnet" },
+      {
+        type: "slider",
+        key: "coilCurrent",
+        label: "Current I",
+        min: 0,
+        max: 3,
+        step: 0.1,
+        format: (v) => `${v.toFixed(1)} A`,
+        when: (p) => p.apparatus === "electromagnet",
+      },
+      {
+        type: "slider",
+        key: "emTurns",
+        label: "Turns on the coil",
+        min: 100,
+        max: 500,
+        step: 50,
+        format: (v) => `${v} turns`,
+        when: (p) => p.apparatus === "electromagnet",
+      },
+      { type: "choice", key: "core", label: "Core", options: ELECTROMAGNET_CORE_OPTIONS, when: (p) => p.apparatus === "electromagnet" },
+      { type: "toggle", key: "reverseCurrent", label: "Reverse the current (swap the leads)", when: (p) => p.apparatus === "electromagnet" },
       // Generator specific controls
       {
         type: "slider",
@@ -464,8 +508,9 @@ export const TOPICS = [
         max: 8,
         step: 1,
         format: (v) => `${v} turn${v === 1 ? "" : "s"}`,
+        when: (p) => p.apparatus !== "electromagnet",
       },
-      { type: "toggle", key: "showBulb", label: "Demonstration light bulb" },
+      { type: "toggle", key: "showBulb", label: "Demonstration light bulb", when: (p) => p.apparatus !== "electromagnet" },
       { type: "toggle", key: "showFieldLines", label: "Show field lines" },
       { type: "toggle", key: "showCurrent", label: "Show current arrows" },
     ],
@@ -474,6 +519,8 @@ export const TOPICS = [
       "Relative motion is required: A stationary magnet inside a coil produces constant flux (ΔΦ/Δt = 0), yielding zero induced e.m.f.",
       "Lenz's Law: The induced current always flows so as to oppose the change in flux that caused it — an approaching north pole meets an induced north pole at the near end of the coil, and a receding one is held back by an induced south pole.",
       "In an AC generator the flux linking the coil is Φ = BA cos ωt, so ε = NBAω sin ωt: zero when the coil is face-on to the field, greatest when it is edge-on, and reversing every half turn (f = ω/2π).",
+      "A current makes a magnetic field. A coil of wire (a solenoid) has the same field pattern outside as a bar magnet, and its north end follows the right-hand grip rule: curl the fingers of your right hand the way the current goes round, and your thumb points to the north pole. Reverse the current and the poles swap.",
+      "An electromagnet is made stronger by more current, more turns, or an iron core: B = μ₀NI/L for the coil, and the core's domains line up with it and add their own field. Soft iron is used because it loses its magnetism as soon as the current stops (a temporary magnet); steel keeps much of it, which makes it a permanent magnet instead.",
     ],
     quiz: [
       {
@@ -511,6 +558,25 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "By Lenz's law, withdrawing the magnet causes flux to decrease instead of increase, reversing the induced current and deflecting the needle in the opposite direction.",
+      },
+      {
+        question: "Why is the core of an electromagnet in a relay or a scrapyard crane made of soft iron rather than steel?",
+        options: [
+          "Soft iron loses its magnetism when the current is switched off, so the load is released",
+          "Soft iron conducts the current better than steel",
+          "Steel cannot be magnetised at all",
+          "Soft iron makes the field point the other way",
+        ],
+        answer: 0,
+        explanation:
+          "Both are magnetised strongly while the current flows, but soft iron is a temporary magnet: switch off and its domains fall back to random, so the crane drops its load and the relay springs open. Steel would keep much of its magnetism and stay stuck — which is why permanent magnets are made of steel.",
+      },
+      {
+        question: "Looking at one end of a solenoid, the current goes round it anticlockwise. Which pole is that end?",
+        options: ["North", "South", "Neither — the poles are at the sides", "It depends on the core"],
+        answer: 0,
+        explanation:
+          "Right-hand grip rule: curl your fingers the way the current goes and your thumb points along the field, out of the north end. Anticlockwise seen from an end means the field comes out towards you, so that end is north (a memory aid: the arrows on an N drawn on the end run anticlockwise).",
       },
     ],
   },
@@ -1595,11 +1661,14 @@ export const TOPICS = [
     id: "bohr",
     category: "chemistry",
     icon: Atom,
-    title: "3D Bohr Atom & Orbital Shells",
-    blurb: "Electron shells of the first twenty elements, hydrogen to calcium",
+    title: "Bohr Atom & Quantum Orbitals",
+    blurb: "Electron shells of the first twenty elements, hydrogen to calcium — and the orbitals they really are",
     syllabus: "Chemistry 2.1 · Atomic structure",
-    keywords: "bohr atom electron shell configuration valence proton neutron isotope ion nucleus",
+    keywords: "bohr atom electron shell configuration valence proton neutron isotope ion nucleus orbital s orbital p orbital subshell 1s 2s 2p 3s 3p 4s aufbau hund's rule probability cloud wavefunction node effective nuclear charge slater quantum",
     defaults: {
+      model: "bohr",
+      orbital: "all",
+      showPhase: false,
       element: "Na",
       speed: 1,
       showShells: true,
@@ -1608,6 +1677,16 @@ export const TOPICS = [
       spinNucleus: true,
     },
     controls: [
+      {
+        type: "choice",
+        key: "model",
+        label: "Model",
+        columns: 2,
+        options: [
+          { value: "bohr", label: "Bohr shells" },
+          { value: "quantum", label: "Quantum orbitals (advanced)" },
+        ],
+      },
       {
         type: "choice",
         key: "element",
@@ -1619,15 +1698,33 @@ export const TOPICS = [
       // No "speed" slider here: the HUD renders a universal Animation Speed
       // slider bound to the same key, and two sliders on one parameter is one
       // too many. The universal one reaches 0 ("paused") too.
-      { type: "toggle", key: "highlightValence", label: "Highlight valence shell" },
-      { type: "toggle", key: "showShells", label: "Show shell paths" },
-      { type: "toggle", key: "showLabels", label: "Show shell labels" },
-      { type: "toggle", key: "spinNucleus", label: "Spin nucleus" },
+      {
+        type: "choice",
+        key: "orbital",
+        label: "Focus on a subshell",
+        columns: 4,
+        when: (p) => p.model === "quantum",
+        options: [
+          { value: "all", label: "All" },
+          { value: "1s", label: "1s" },
+          { value: "2s", label: "2s" },
+          { value: "2p", label: "2p" },
+          { value: "3s", label: "3s" },
+          { value: "3p", label: "3p" },
+          { value: "4s", label: "4s" },
+        ],
+      },
+      { type: "toggle", key: "showPhase", label: "Colour by sign of ψ (+ / −)", when: (p) => p.model === "quantum" },
+      { type: "toggle", key: "highlightValence", label: "Highlight valence shell", when: (p) => p.model !== "quantum" },
+      { type: "toggle", key: "showShells", label: "Show shell paths", when: (p) => p.model !== "quantum" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
+      { type: "toggle", key: "spinNucleus", label: "Spin nucleus", when: (p) => p.model !== "quantum" },
     ],
     concepts: [
       "An atom is a tiny, dense nucleus of protons and neutrons surrounded by electrons in fixed shells (K, L, M …).",
       "For the first twenty elements the shells fill 2, then 8, then 8 — so sodium is 2,8,1 and chlorine is 2,8,7.",
       "The outer shell holds the valence electrons, and reactions happen so atoms reach a full one: Na loses 1 to give Na⁺, Cl gains 1 to give Cl⁻.",
+      "Electrons do not orbit on tracks. Each shell is really a set of orbitals — regions where an electron is likely to be found: K is 1s; L is 2s and three 2p; M is 3s and three 3p (its 3d stays empty until after 4s). An s orbital is a sphere, a p orbital two lobes on opposite sides of the nucleus. Each holds at most two electrons, and three p orbitals fill singly before any pairs up (Hund's rule) — so sodium 2,8,1 is 1s² 2s² 2p⁶ 3s¹.",
     ],
     quiz: [
       {
@@ -1650,6 +1747,18 @@ export const TOPICS = [
         explanation:
           "The L shell holds 2n² = 2 × 2² = 8. The K shell below holds only 2, which is why carbon (6 electrons) is written 2,4.",
       },
+      {
+        question: "Carbon is 1s² 2s² 2p². How are its two 2p electrons arranged?",
+        options: [
+          "One each in two different 2p orbitals, unpaired — Hund's rule",
+          "Paired together in one 2p orbital",
+          "One in a 2p orbital and one in the 3s",
+          "Spread across all three 2p orbitals as two-thirds of an electron each",
+        ],
+        answer: 0,
+        explanation:
+          "Electrons repel, so in a set of equal-energy orbitals they spread out singly before pairing. Carbon's two 2p electrons sit in two different p orbitals with the third empty — which is why a carbon atom has two unpaired electrons before it bonds.",
+      },
     ],
   },
   {
@@ -1659,8 +1768,8 @@ export const TOPICS = [
     title: "Organic Chemistry & Isomer Builder",
     blurb: "Ball-and-stick alkanes, alkenes, alkynes, alcohols, carboxylic acids & esters",
     syllabus: "Chemistry 14 · Organic chemistry",
-    keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester",
-    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, spin: true, showLabels: true },
+    keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester polymer polymerisation addition polymer poly(ethene) polyethene polythene poly(propene) monomer repeat unit plastic",
+    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, polymerise: 0, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1682,6 +1791,8 @@ export const TOPICS = [
       // and the ester is what the esterification makes.
       { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors, when: (p) => (p.family ?? "alkane") === "alkane" },
       { type: "action", key: "esterify", label: "Form the ester (acid + methanol)", icon: FlaskConical, when: (p) => p.family === "ester" },
+      // Any alkene polymerises; the scene holds the chain until the next change.
+      { type: "action", key: "polymerise", label: "Polymerise (addition)", icon: Link, when: (p) => p.family === "alkene" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
@@ -1689,6 +1800,7 @@ export const TOPICS = [
       "Members of a homologous series share a general formula and differ by CH₂, so their properties change gradually down the series.",
       "Cracking breaks long alkanes into a shorter alkane plus a useful alkene, matching supply to demand for petrol and polymer feedstock.",
       "A carboxylic acid and an alcohol, warmed with a few drops of concentrated sulfuric acid, make an ester and water — a reversible condensation reaction. The acid loses –OH and the alcohol loses H.",
+      "Alkenes join into addition polymers: one bond of each C=C opens and the monomers link into a long saturated chain, –[CH₂–CH₂]ₙ– for poly(ethene). Every atom is kept, so the polymer has the monomer's empirical formula and there is only one product.",
     ],
     quiz: [
       {
@@ -1709,6 +1821,13 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Bromine adds across the C=C double bond, so orange bromine water goes colourless. A saturated alkane leaves it orange. Both burn in air.",
+      },
+      {
+        question: "What is the repeat unit of poly(propene)?",
+        options: ["–[CH₂–CH(CH₃)]ₙ–", "–[CH₂=CH(CH₃)]ₙ–", "–[CH₂–CH₂–CH₂]ₙ–", "–[CH(CH₃)=CH₂]ₙ–"],
+        answer: 0,
+        explanation:
+          "Propene is CH₂=CH–CH₃. In addition polymerisation the C=C opens, so the two carbons that held it become the chain and the –CH₃ hangs off it as a branch. The repeat unit has no double bond left.",
       },
     ],
   },
@@ -1758,10 +1877,10 @@ export const TOPICS = [
     category: "chemistry",
     icon: Boxes,
     title: "Crystal Lattices",
-    blurb: "NaCl ionic cube, diamond network, graphite sheets, quartz and ice",
+    blurb: "How ions form, then the NaCl ionic cube, diamond network, graphite sheets, quartz and ice",
     syllabus: "Chemistry 3 · Structure & bonding",
-    keywords: "lattice giant ionic covalent nacl sodium chloride diamond graphite allotrope delocalised conductivity quartz silica ice hydrogen bond",
-    defaults: { structure: "nacl", slide: 0, showBonds: true, spin: true, showLabels: true },
+    keywords: "lattice giant ionic covalent nacl sodium chloride diamond graphite allotrope delocalised conductivity quartz silica ice hydrogen bond ionic bonding electron transfer dot and cross ion formation cation anion magnesium oxide magnesium chloride sodium oxide calcium fluoride aluminium oxide",
+    defaults: { structure: "nacl", compound: "NaCl", formIons: 0, slide: 0, showBonds: true, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1774,17 +1893,28 @@ export const TOPICS = [
           { value: "graphite", label: "Graphite" },
           { value: "quartz", label: "Quartz (SiO₂)" },
           { value: "ice", label: "Ice (H₂O)" },
+          { value: "ionic", label: "Ion formation" },
         ],
       },
-      { type: "slider", key: "slide", label: "Layer slide (graphite)", min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
-      { type: "toggle", key: "showBonds", label: "Show bonds" },
-      { type: "toggle", key: "spin", label: "Rotate lattice" },
+      {
+        type: "choice",
+        key: "compound",
+        label: "Ionic compound",
+        columns: 3,
+        when: (p) => p.structure === "ionic",
+        options: IONIC_COMPOUND_OPTIONS,
+      },
+      { type: "action", key: "formIons", label: "Transfer the electrons", icon: Zap, when: (p) => p.structure === "ionic" },
+      { type: "slider", key: "slide", label: "Layer slide (graphite)", min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%`, when: (p) => p.structure !== "ionic" },
+      { type: "toggle", key: "showBonds", label: "Show bonds", when: (p) => p.structure !== "ionic" },
+      { type: "toggle", key: "spin", label: "Rotate lattice", when: (p) => p.structure !== "ionic" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "In sodium chloride, Na⁺ and Cl⁻ alternate in a giant ionic lattice held by strong attraction in every direction — high melting point, conducts only when molten or aqueous.",
       "Diamond is a giant covalent lattice where every carbon bonds to four others tetrahedrally, so it is extremely hard and does not conduct.",
       "Graphite bonds each carbon to only three others in flat hexagonal layers; the spare electron is delocalised (so it conducts) and weak forces between layers let them slide.",
+      "Ions form when a metal atom transfers its outer electrons to a non-metal atom: the metal is left with the full shell beneath (Na 2,8,1 → Na⁺ 2,8) and the non-metal completes its octet (Cl 2,8,7 → Cl⁻ 2,8,8). The charges must add to zero, which fixes the formula — Mg²⁺ needs two Cl⁻ (MgCl₂), two Al³⁺ need three O²⁻ (Al₂O₃).",
     ],
     quiz: [
       {
@@ -1810,6 +1940,18 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Conduction needs charge carriers that can move. The ions exist in the solid but are locked in place; melting frees them to migrate to the electrodes.",
+      },
+      {
+        question: "Magnesium (2,8,2) reacts with chlorine (2,8,7). What is the formula of the compound, and why?",
+        options: [
+          "MgCl₂ — each Mg loses 2 electrons but each Cl can take only 1, so one Mg²⁺ needs two Cl⁻",
+          "MgCl — one atom of each, as in NaCl",
+          "Mg₂Cl — two Mg atoms are needed to fill one Cl",
+          "MgCl₇ — Cl has 7 outer electrons",
+        ],
+        answer: 0,
+        explanation:
+          "Mg → Mg²⁺ + 2e⁻ and Cl + e⁻ → Cl⁻. The two electrons from one magnesium atom go to two chlorine atoms, and the charges balance: (+2) + 2 × (−1) = 0.",
       },
     ],
   },
@@ -1879,8 +2021,10 @@ export const TOPICS = [
     blurb: "Counting electron pairs to predict the shape and the bond angles",
     syllabus: "Chemistry 2.3 · Bonding",
     keywords:
-      "vsepr molecular geometry shape bond angle lone pair bonding pair tetrahedral trigonal planar pyramidal bent linear octahedral seesaw t-shaped square planar polarity dipole methane ammonia water",
+      "vsepr molecular geometry shape bond angle lone pair bonding pair tetrahedral trigonal planar pyramidal bent linear octahedral seesaw t-shaped square planar polarity dipole methane ammonia water covalent bond dot and cross shared pair octet expanded octet incomplete octet double bond",
     defaults: {
+      view: "shape",
+      assemble: 0,
       preset: "CH4",
       bonding: 4,
       lone: 0,
@@ -1891,6 +2035,17 @@ export const TOPICS = [
       showLabels: true,
     },
     controls: [
+      {
+        type: "choice",
+        key: "view",
+        label: "View",
+        columns: 2,
+        options: [
+          { value: "shape", label: "Shape (VSEPR)" },
+          { value: "dotcross", label: "Dot & cross" },
+        ],
+      },
+      { type: "action", key: "assemble", label: "Bring the atoms together", icon: Atom, when: (p) => p.view === "dotcross" },
       {
         type: "choice",
         key: "preset",
@@ -1922,9 +2077,9 @@ export const TOPICS = [
         step: 1,
         patch: (v, params) => ({ lone: v, bonding: Math.min(params.bonding ?? 4, 6 - v), preset: vseprPresetFor(Math.min(params.bonding ?? 4, 6 - v), v) }),
       },
-      { type: "slider", key: "bondLength", label: "Bond length", min: 1.4, max: 2.6, step: 0.05, format: (v) => v.toFixed(2) },
-      { type: "toggle", key: "showLonePairs", label: "Show lone pairs" },
-      { type: "toggle", key: "showAngles", label: "Show bond angle" },
+      { type: "slider", key: "bondLength", label: "Bond length", min: 1.4, max: 2.6, step: 0.05, format: (v) => v.toFixed(2), when: (p) => p.view !== "dotcross" },
+      { type: "toggle", key: "showLonePairs", label: "Show lone pairs", when: (p) => p.view !== "dotcross" },
+      { type: "toggle", key: "showAngles", label: "Show bond angle", when: (p) => p.view !== "dotcross" },
       { type: "toggle", key: "spin", label: "Orbit camera" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
@@ -1932,6 +2087,7 @@ export const TOPICS = [
       "Electron pairs all repel each other, so they arrange themselves as far apart as possible around the central atom. Count the pairs and the electron geometry follows: 2 linear, 3 trigonal planar, 4 tetrahedral, 5 trigonal bipyramidal, 6 octahedral.",
       "A lone pair is held closer to the nucleus than a bonding pair, so it takes up more room and repels harder. Each one squeezes the remaining bond angles by roughly 2–3° — which is why methane is 109.5°, ammonia 107° and water 104.5°.",
       "The shape is named only from where the atoms sit, never the lone pairs. Four electron pairs give a tetrahedral arrangement, but with two lone pairs the molecule is called bent, not tetrahedral.",
+      "A covalent bond is a shared pair of electrons, one from each atom, held between the two nuclei; a double bond is two shared pairs. In a dot-and-cross diagram each atom's electrons get their own mark, so you can count that every shell ends full: 8 around C in CH₄, 2 around each H. Not every atom reaches exactly 8 — boron in BF₃ stops at 6, and sulfur in SF₆ holds 12.",
     ],
     quiz: [
       {
@@ -1953,6 +2109,18 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Six electron pairs give an octahedral arrangement. The two lone pairs take opposite (trans) positions to get as far from each other as possible, leaving the four bonded atoms in one plane — square planar, as in XeF₄.",
+      },
+      {
+        question: "In a dot-and-cross diagram of water, how many electrons are around the oxygen atom, and how many of them are lone-pair electrons?",
+        options: [
+          "8 around O, 4 of them in two lone pairs",
+          "6 around O, none in lone pairs",
+          "8 around O, 2 of them in one lone pair",
+          "4 around O, all in bonds",
+        ],
+        answer: 0,
+        explanation:
+          "Oxygen brings 6 outer electrons and each H brings 1. Two O–H bonds use two shared pairs (4 electrons), and oxygen's other 4 electrons pair up as two lone pairs — 8 in all, a full shell. Those two lone pairs are what bend the molecule to 104.5°.",
       },
     ],
   },
@@ -2449,22 +2617,38 @@ export const TOPICS = [
     id: "particle_model_matter",
     category: "chemistry",
     icon: Thermometer,
-    title: "Particle Model of Matter & Phase Changes",
-    blurb: "500 particles on a hotplate under a piston — and the thermometer that stops while they melt and boil",
+    title: "Particle Model: Phase Changes & Diffusion",
+    blurb: "500 particles on a hotplate under a piston — and the thermometer that stops while they melt and boil. Then lift a partition and watch two gases diffuse",
     syllabus: "Chemistry 1.1 · States of matter · grades 6–9",
     keywords:
-      "particle model kinetic theory states of matter solid liquid gas melting boiling freezing condensing sublimation evaporation latent heat fusion vaporisation heating curve plateau temperature kinetic energy intermolecular forces hydrogen bond dispersion pressure piston boiling point clausius clapeyron dry ice supercritical ice floats",
+      "particle model kinetic theory states of matter solid liquid gas melting boiling freezing condensing sublimation evaporation latent heat fusion vaporisation heating curve plateau temperature kinetic energy intermolecular forces hydrogen bond dispersion pressure piston boiling point clausius clapeyron dry ice supercritical ice floats diffusion brownian motion random walk concentration gradient bromine ammonia hydrogen chloride ammonium chloride white ring graham's law molar mass mean free path smoke particle",
     defaults: {
+      mode: "phases",
       temperature: 20,
       pressure: 1,
       substance: "water",
+      experiment: "mixing",
+      gasTemp: 20,
+      release: 0,
+      tracer: true,
       speed: 1,
       showLabels: true,
     },
     controls: [
       {
+        type: "choice",
+        key: "mode",
+        label: "Experiment",
+        columns: 2,
+        options: [
+          { value: "phases", label: "Heating & phases" },
+          { value: "diffusion", label: "Diffusion" },
+        ],
+      },
+      {
         type: "slider",
         key: "temperature",
+        when: (p) => p.mode !== "diffusion",
         label: "Temperature — hotplate / cryocooler setpoint",
         min: TEMP_MIN_C,
         max: TEMP_MAX_C,
@@ -2474,19 +2658,46 @@ export const TOPICS = [
       {
         type: "slider",
         key: "pressure",
+        when: (p) => p.mode !== "diffusion",
         label: "Pressure piston",
         min: PRESSURE_MIN_ATM,
         max: PRESSURE_MAX_ATM,
         step: 0.1,
         format: (v) => `${Number(v).toFixed(1)} atm`,
       },
-      { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3 },
+      { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3, when: (p) => p.mode !== "diffusion" },
+      {
+        type: "choice",
+        key: "experiment",
+        label: "Diffusion experiment",
+        columns: 2,
+        when: (p) => p.mode === "diffusion",
+        options: [
+          { value: "mixing", label: "Bromine into air" },
+          { value: "tube", label: "NH₃ + HCl tube" },
+        ],
+      },
+      {
+        type: "slider",
+        key: "gasTemp",
+        label: "Gas temperature",
+        min: GAS_TEMP_MIN_C,
+        max: GAS_TEMP_MAX_C,
+        step: 5,
+        format: (v) => `${Number(v).toFixed(0)} °C`,
+        when: (p) => p.mode === "diffusion",
+      },
+      // Lifts the partition, or pushes the soaked cotton wool into the tube; a second press starts again.
+      { type: "action", key: "release", label: "Release the gases", icon: Wind, when: (p) => p.mode === "diffusion" },
+      { type: "toggle", key: "tracer", label: "Brownian smoke particle", when: (p) => p.mode === "diffusion" && p.experiment !== "tube" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Everything is made of particles that are always moving, and temperature is a measure of how fast — the average kinetic energy of a particle is proportional to the absolute temperature (³⁄₂ kT). In a solid the particles have only enough energy to vibrate about fixed positions in a regular lattice; in a liquid they have enough to slide past one another but not to escape each other's attraction, so they stay touching; in a gas they have broken free entirely and fly in straight lines between collisions, filling whatever space the piston leaves them. Heating a gas makes its particles hit the walls harder and more often, which is pressure; pushing the piston down squeezes the same particles into less room, which is also pressure.",
       "While a substance melts or boils its temperature does not change. The heating curve shows this as two flat steps: energy is still going in, but it is being spent breaking the attractions between particles — pulling them out of the lattice (the latent heat of fusion, 6.0 kJ per mole for ice) or apart from one another altogether (the latent heat of vaporisation, 40.7 kJ per mole for water) — not on making them move faster. Only when every particle has crossed does the temperature rise again. The boiling step is far longer than the melting step because separating particles completely costs far more than loosening them.",
       "How high those steps sit depends on how strong the attractions are, and where they sit depends on the pressure. Water's hydrogen bonds hold it together to 100 °C; neon's feeble dispersion forces give way at −246 °C, far below anything this hotplate reaches. Raise the pressure and a liquid has to get hotter before its vapour can push back — water boils at 180 °C at 10 atm, which is how a pressure cooker works, and at 81 °C at 0.5 atm on a mountain. Carbon dioxide has no liquid at all at 1 atm: dry ice sublimes straight to gas at −78.5 °C, and only above 5.1 atm can it be a liquid. Ice is the odd one out for another reason — its open hydrogen-bonded lattice takes up 9% more room than the water it melts into, which is why it floats.",
+      "Diffusion is the net spreading of particles from where they are concentrated to where they are not, caused by nothing but their random motion. A gas molecule moves at hundreds of metres a second but collides with another every fraction of a micrometre, so its path is a zig-zag random walk and the gas creeps rather than rushes. Diffusion is faster when the gas is hotter (the particles move faster) and when its particles are lighter: at the same temperature every gas has the same mean kinetic energy, ½mv², so a lighter particle must move faster. That is why the white ring of ammonium chloride forms nearer the hydrochloric acid end of the tube — NH₃ (M = 17) outruns HCl (M = 36.5).",
+      "Brownian motion is the evidence. A smoke or pollen particle is big enough to see but small enough to be knocked about by the invisible molecules hitting it unevenly from all sides, so it jiggles and wanders in a random path with no preferred direction. Robert Brown saw it in pollen grains in 1827; Einstein explained it in 1905 and Perrin's measurements of it were what finally convinced the remaining sceptics that atoms are real.",
     ],
     quiz: [
       {
@@ -2548,6 +2759,162 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "In liquid water molecules tumble past one another and pack closer than the rigid, open hexagonal arrangement hydrogen bonds impose in ice. The same mass takes about 9% more volume as ice — an unusual property (most solids are denser than their liquids, as neon and CO₂ are here) and the reason lakes freeze from the top down.",
+      },
+      {
+        question: "Cotton wool soaked in ammonia solution and in hydrochloric acid are pushed into opposite ends of a long tube at the same moment. Where does the white ring of ammonium chloride form?",
+        options: [
+          "Nearer the hydrochloric acid end — ammonia molecules are lighter, so they move faster and diffuse further in the same time",
+          "Nearer the ammonia end — ammonia is the stronger smelling gas",
+          "Exactly in the middle — both gases are at the same temperature",
+          "Nowhere — the gases cannot meet because they are pushed apart by the air in the tube",
+        ],
+        answer: 0,
+        explanation:
+          "At the same temperature both gases have the same mean kinetic energy, so the lighter NH₃ (M = 17) moves faster than HCl (M = 36.5) and gets further along the tube before they meet. The air slows both by collisions — which is why the ring takes minutes to form, not milliseconds — but it slows them alike.",
+      },
+      {
+        question: "A smoke particle seen under a microscope jiggles about at random. What causes this Brownian motion?",
+        options: [
+          "Air molecules, too small to see, hitting it unevenly from different sides",
+          "Convection currents in the air carrying it in one direction",
+          "The smoke particle has its own energy source",
+          "Light from the microscope pushing it about",
+        ],
+        answer: 0,
+        explanation:
+          "At any instant slightly more molecules hit one side than another, so the particle is shoved in a random direction, then another. Its path has no preferred direction — a current would carry it steadily one way. It is direct evidence that air is made of fast-moving particles.",
+      },
+    ],
+  },
+  {
+    id: "acids_bases",
+    category: "chemistry",
+    icon: FlaskConical,
+    title: "Acids, Bases & Titration",
+    blurb: "The pH scale and indicators, then a burette titration with a live pH curve and the ions neutralising each other",
+    syllabus: "Chemistry 7 · Acids, bases & salts · grades 8–12",
+    keywords:
+      "acid base alkali pH scale indicator universal indicator litmus methyl orange phenolphthalein bromothymol blue neutralisation neutral hydrogen ion hydroxide ion water salt titration burette pipette conical flask end point equivalence point titre titration curve strong acid weak acid ethanoic acid hydrochloric acid sulfuric acid sodium hydroxide ammonia buffer pKa Ka concentration moles",
+    defaults: {
+      mode: "scale",
+      indicator: "universal",
+      focus: "lemon",
+      acid: "hcl",
+      acidConc: 0.1,
+      sulfuricConc: 0.05,
+      base: "naoh",
+      baseConc: 0.1,
+      tap: "closed",
+      addDrop: 0,
+      refill: 0,
+      showIons: true,
+      showPredicted: false,
+      showLabels: true,
+      speed: 1,
+    },
+    controls: [
+      {
+        type: "choice",
+        key: "mode",
+        label: "Experiment",
+        options: [
+          { value: "scale", label: "pH scale & indicators" },
+          { value: "titration", label: "Neutralisation & titration" },
+        ],
+      },
+      { type: "choice", key: "indicator", label: "Indicator", columns: 1, options: AB_INDICATOR_OPTIONS },
+      { type: "choice", key: "focus", label: "Look closer at", columns: 2, options: AB_SUBSTANCE_OPTIONS, when: (p) => p.mode !== "titration" },
+      { type: "choice", key: "acid", label: "Acid in the flask (25.0 cm³)", columns: 1, options: AB_ACID_OPTIONS, when: (p) => p.mode === "titration" },
+      {
+        type: "slider",
+        key: "acidConc",
+        label: "Acid concentration",
+        min: 0.05,
+        max: 0.1,
+        step: 0.01,
+        format: (v) => `${v.toFixed(2)} mol/dm³`,
+        when: (p) => p.mode === "titration" && p.acid !== "sulfuric",
+      },
+      {
+        // Two H⁺ per molecule: half the range keeps the end point inside the burette.
+        type: "slider",
+        key: "sulfuricConc",
+        label: "Acid concentration",
+        min: 0.025,
+        max: 0.05,
+        step: 0.005,
+        format: (v) => `${v.toFixed(3)} mol/dm³`,
+        when: (p) => p.mode === "titration" && p.acid === "sulfuric",
+      },
+      { type: "choice", key: "base", label: "Alkali in the burette", columns: 1, options: AB_BASE_OPTIONS, when: (p) => p.mode === "titration" },
+      {
+        type: "slider",
+        key: "baseConc",
+        label: "Alkali concentration",
+        min: 0.1,
+        max: 0.2,
+        step: 0.01,
+        format: (v) => `${v.toFixed(2)} mol/dm³`,
+        when: (p) => p.mode === "titration",
+      },
+      {
+        type: "choice",
+        key: "tap",
+        label: "Burette tap",
+        options: [
+          { value: "closed", label: "Closed" },
+          { value: "dropwise", label: "Drop by drop" },
+          { value: "open", label: "Open" },
+        ],
+        when: (p) => p.mode === "titration",
+      },
+      { type: "action", key: "addDrop", label: "Add one drop (0.05 cm³)", icon: Droplets, when: (p) => p.mode === "titration" },
+      { type: "action", key: "refill", label: "Refill the burette and start again", icon: RotateCcw, when: (p) => p.mode === "titration" },
+      { type: "toggle", key: "showIons", label: "Show the ions (magnified)", when: (p) => p.mode === "titration" },
+      { type: "toggle", key: "showPredicted", label: "Show the whole curve in advance", when: (p) => p.mode === "titration" },
+      { type: "toggle", key: "showLabels", label: "Show labels" },
+    ],
+    concepts: [
+      "An acid releases hydrogen ions, H⁺, in water; an alkali releases hydroxide ions, OH⁻. pH = −log[H⁺], so each step down the scale is ten times more H⁺: lemon juice at pH 2.4 has about 40,000 times the H⁺ of pure water at 7.",
+      "Indicators are weak acids whose two forms are different colours, so each changes over its own narrow pH range: methyl orange about 3–4.5, bromothymol blue 6–7.6, phenolphthalein 8.2–10. Universal indicator is a mixture that changes gradually through the rainbow, so it shows roughly how acidic a solution is but gives no sharp end point.",
+      "Neutralisation: H⁺ + OH⁻ → H₂O. The other ions (Na⁺, Cl⁻) are spectators and are left as a salt. At the equivalence point the moles of OH⁻ added equal the moles of H⁺ the acid can give, so n = c × V on each side gives an unknown concentration (sulfuric acid gives two H⁺ per molecule, so it needs twice the alkali).",
+      "A titration curve jumps steeply at the equivalence point, and a good indicator changes within that jump. A strong acid with a strong alkali is neutral at equivalence (pH 7); a weak acid with a strong alkali is alkaline there, so phenolphthalein suits it and methyl orange does not; a strong acid with a weak alkali is acidic there, the other way round.",
+      "A weak acid is mostly un-ionised molecules (ethanoic acid at 0.1 mol/dm³ is about 1 % ionised, pH 2.9, not 1). Half-way to equivalence half of it has become its salt, and the mixture is a buffer: its pH equals the acid's pKa (4.76) and hardly moves as more alkali is added.",
+    ],
+    quiz: [
+      {
+        question: "Solution A has pH 3 and solution B has pH 5. How does the concentration of H⁺ in A compare with B?",
+        options: ["100 times greater", "2 times greater", "1.7 times greater", "100 times smaller"],
+        answer: 0,
+        explanation: "pH is a logarithmic scale: each unit is a factor of ten in [H⁺]. Two units lower means 10 × 10 = 100 times more hydrogen ions.",
+      },
+      {
+        question: "25.0 cm³ of 0.100 mol/dm³ hydrochloric acid is titrated with 0.100 mol/dm³ sodium hydroxide. What volume of alkali reaches the equivalence point?",
+        options: ["25.0 cm³", "12.5 cm³", "50.0 cm³", "It depends on the indicator"],
+        answer: 0,
+        explanation: "HCl + NaOH → NaCl + H₂O reacts 1 : 1. Moles of acid = 0.100 × 0.0250 = 0.00250 mol, which needs 0.00250 mol of NaOH: 0.00250 ÷ 0.100 = 0.0250 dm³ = 25.0 cm³. A good indicator changes there; it does not change where equivalence is.",
+      },
+      {
+        question: "Ethanoic acid is titrated with sodium hydroxide. Why is phenolphthalein used rather than methyl orange?",
+        options: [
+          "The pH at equivalence is about 8.7, inside phenolphthalein's range; methyl orange would change far too early",
+          "Methyl orange reacts with ethanoic acid",
+          "Phenolphthalein is cheaper",
+          "Methyl orange only works with alkalis in the flask",
+        ],
+        answer: 0,
+        explanation: "The salt of a weak acid (sodium ethanoate) is slightly alkaline, so the equivalence point is above 7 and the steep jump runs from about 7 to 11. Phenolphthalein (8.2–10) changes inside it. Methyl orange changes around pH 3.7, which this solution passes after only about 2 cm³.",
+      },
+      {
+        question: "In a titration, a drop of alkali turns the solution pink where it lands, but the pink vanishes when the flask is swirled. What does this tell you?",
+        options: [
+          "The end point is close, but has not been reached yet",
+          "The end point has been passed",
+          "The indicator has stopped working",
+          "Too much indicator was added",
+        ],
+        answer: 0,
+        explanation: "Where the drop lands there is briefly excess alkali, so the phenolphthalein turns pink; swirling mixes it into acid that is not yet used up, and the pink goes. Once one drop turns the whole flask pink permanently, the end point has been reached. That is why you go drop by drop near the end.",
       },
     ],
   },
@@ -2945,11 +3312,11 @@ export const TOPICS = [
     id: "respiratory",
     category: "biology",
     icon: Wind,
-    title: "Respiratory Mechanics & Thoracic Physics",
-    blurb: "Thoracic volume expansion, Boyle's law pressure gradients, antagonistic intercostals, and diaphragm mechanics in 3D",
+    title: "Respiratory Mechanics & Gas Exchange",
+    blurb: "Boyle's law and the breathing muscles in the chest — then zoom into the alveoli and the half-micrometre wall the oxygen crosses",
     syllabus: "Biology 11 · Gas Exchange & Respiration",
     keywords:
-      "respiratory system lungs diaphragm external intercostal internal intercostal ribcage sternum inspiration expiration forced expiration Boyle's law tidal volume FRC thoracic cavity mechanics pressure volume airflow",
+      "respiratory system lungs diaphragm external intercostal internal intercostal ribcage sternum inspiration expiration forced expiration Boyle's law tidal volume FRC thoracic cavity mechanics pressure volume airflow alveolus alveoli gas exchange diffusion Fick's law capillary partial pressure oxygen carbon dioxide haemoglobin saturation type I type II pneumocyte surfactant altitude fibrosis emphysema",
     ownHud: true,
     defaults: {
       phase: "inspiration",
@@ -2959,6 +3326,10 @@ export const TOPICS = [
       showAirflow: true,
       showVectors: true,
       showLabels: true,
+      zoom: "lungs",
+      altitude: "sea",
+      condition: "healthy",
+      exercise: false,
     },
     controls: [
       {
@@ -2978,11 +3349,17 @@ export const TOPICS = [
       { type: "toggle", key: "showAirflow", label: "Airway particle flow" },
       { type: "toggle", key: "showVectors", label: "3D motion vectors" },
       { type: "toggle", key: "showLabels", label: "Anatomical labels" },
+      { type: "choice", key: "zoom", label: "Magnification", columns: 3, options: LUNG_ZOOM_OPTIONS },
+      { type: "choice", key: "altitude", label: "Altitude", columns: 1, options: ALTITUDE_OPTIONS, when: (p) => p.zoom && p.zoom !== "lungs" },
+      { type: "choice", key: "condition", label: "Lung", columns: 1, options: LUNG_CONDITION_OPTIONS, when: (p) => p.zoom && p.zoom !== "lungs" },
+      { type: "toggle", key: "exercise", label: "Hard exercise", when: (p) => p.zoom && p.zoom !== "lungs" },
     ],
     concepts: [
       "Inspiration is an active process: External intercostal muscles contract (pulling ribcage up and out) and the diaphragm contracts and flattens downward, expanding thoracic cavity volume.",
       "Boyle's Law ($P_1 V_1 = P_2 V_2$) governs pulmonary ventilation: Thoracic expansion decreases intra-alveolar pressure below atmospheric pressure (negative relative pressure), drawing ambient air into the lungs along the pressure gradient.",
       "Quiet expiration is passive due to elastic recoil of the lungs and chest wall. Forced expiration actively contracts internal intercostals (depressing ribs) and abdominal muscles (forcing diaphragm upward), generating high positive expulsion pressure.",
+      "Breathing only brings air to the alveoli; getting oxygen into the blood is diffusion, and Fick's law says how fast: rate ∝ surface area × difference in partial pressure ÷ thickness. The lungs maximise all three — about 70 m² of alveolar wall, a barrier only ~0.5 µm thick (one flattened type I cell, a fused basement membrane, one endothelial cell), and a steep gradient kept up by ventilation on one side and blood flow on the other. The surfaces are moist, so the gas dissolves to cross, and the surfactant made by type II cells stops the alveoli collapsing.",
+      "Blood takes about 0.75 s to pass an alveolus at rest, but a healthy lung loads it fully in the first ~0.25 s: arriving at PO₂ 5.3 kPa, it leaves at the alveolar 13.3 kPa, 97 % saturated, and gives up CO₂ the other way. Molecules keep crossing in both directions all along; the NET flow is down the gradient, and it stops where the gradient does. That spare two-thirds is the reserve that thin air (altitude), a thickened wall (fibrosis) or a lost area (emphysema) eats into — and exercise, which rushes blood through in a third of the time, is when it runs out.",
     ],
     quiz: [
       {
@@ -3020,6 +3397,30 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "While quiet expiration is passive elastic recoil, forced expiration is an active muscular process where internal intercostals actively depress the ribcage down and inwards, paired with abdominal muscle compression driving the diaphragm upward.",
+      },
+      {
+        question: "Pulmonary fibrosis thickens the wall between the alveolar air and the blood. Why do patients often have normal blood oxygen at rest but become breathless and desaturated on exertion?",
+        options: [
+          "Diffusion is slower across the thicker wall; at rest the blood still has time to load before it leaves the capillary, but in exercise it passes in a third of the time and leaves before it is full",
+          "The thicker wall stops the diaphragm contracting during exercise",
+          "Exercise lowers the oxygen in the alveolar air to zero",
+          "Haemoglobin cannot carry oxygen when the heart beats faster",
+        ],
+        answer: 0,
+        explanation:
+          "By Fick's law the rate of diffusion falls as the barrier thickens. A healthy lung equilibrates in about a third of the 0.75 s transit, so a slower lung can still catch up at rest. Hard exercise cuts the transit to ~0.25 s, the reserve is gone, and the blood leaves the capillary below the alveolar PO₂ — the saturation drops.",
+      },
+      {
+        question: "At the far end of a capillary in a healthy lung, the blood's PO₂ equals the alveolar air's. What is happening to oxygen molecules there?",
+        options: [
+          "They still cross both ways, but equally often, so there is no net movement",
+          "They have all stopped moving",
+          "They cross only from the blood to the air",
+          "They cross only from the air to the blood, but more slowly",
+        ],
+        answer: 0,
+        explanation:
+          "Diffusion is the net result of random movement. Molecules keep crossing in both directions; with equal partial pressures on the two sides the two flows match, so the net flow — which is what 'diffusion down the gradient' describes — is zero.",
       },
     ],
   },
@@ -3204,22 +3605,27 @@ export const TOPICS = [
     id: "peristalsis",
     category: "biology",
     icon: Sandwich,
-    title: "Peristalsis & Digestive Transit",
-    blurb: "Circular and longitudinal smooth muscle squeezing a bolus down the gut — and why it still works upside-down",
+    title: "Peristalsis, Transit & Absorption",
+    blurb: "Circular and longitudinal muscle squeezing a bolus down the gut — then zoom into the small intestine's villi, where the food gets into the blood and lymph",
     syllabus: "Biology 7 · Nutrition & the Alimentary Canal",
     keywords:
-      "peristalsis oesophagus esophagus small intestine bolus chyme swallowing smooth muscle circular muscle longitudinal muscle muscularis contraction relaxation wave gravity antiperistalsis lumen mucosa transit digestive tract alimentary canal segmentation sphincter",
-    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1, showLabels: true },
+      "peristalsis oesophagus esophagus small intestine bolus chyme swallowing smooth muscle circular muscle longitudinal muscle muscularis contraction relaxation wave gravity antiperistalsis lumen mucosa transit digestive tract alimentary canal segmentation sphincter absorption villus villi microvilli brush border lacteal capillary hepatic portal vein glucose amino acids fatty acids glycerol chylomicron lymph plicae circulares enterocyte goblet cell crypt coeliac disease surface area",
+    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1, showLabels: true, zoom: "oesophagus", meal: "balanced", lining: "healthy" },
     controls: [
-      { type: "action", key: "swallow", label: "Trigger swallow — peristaltic wave", icon: Waves },
-      { type: "choice", key: "consistency", label: "Bolus consistency", columns: 1, options: BOLUS_CONSISTENCY_OPTIONS },
-      { type: "choice", key: "orientation", label: "Gravity inversion", columns: 2, options: GRAVITY_ORIENTATION_OPTIONS },
+      { type: "choice", key: "zoom", label: "Magnification", columns: 3, options: GUT_ZOOM_OPTIONS },
+      { type: "action", key: "swallow", label: "Trigger swallow — peristaltic wave", icon: Waves, when: (p) => !p.zoom || p.zoom === "oesophagus" },
+      { type: "choice", key: "consistency", label: "Bolus consistency", columns: 1, options: BOLUS_CONSISTENCY_OPTIONS, when: (p) => !p.zoom || p.zoom === "oesophagus" },
+      { type: "choice", key: "orientation", label: "Gravity inversion", columns: 2, options: GRAVITY_ORIENTATION_OPTIONS, when: (p) => !p.zoom || p.zoom === "oesophagus" },
+      { type: "choice", key: "meal", label: "What was eaten", columns: 1, options: MEAL_OPTIONS, when: (p) => p.zoom && p.zoom !== "oesophagus" },
+      { type: "choice", key: "lining", label: "Lining", columns: 1, options: GUT_LINING_OPTIONS, when: (p) => p.zoom && p.zoom !== "oesophagus" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "The wall of the gut has two layers of smooth muscle at right angles: an inner CIRCULAR layer whose fibres run round the tube, and an outer LONGITUDINAL layer whose fibres run along it. Neither can push — each can only contract and shorten — so moving food is a matter of WHERE each layer is contracting.",
       "Peristalsis is a travelling wave of coordination. Behind the bolus the circular muscle contracts, narrowing the lumen so the food cannot go back; ahead of it the longitudinal muscle contracts and the circular muscle relaxes, shortening and widening that segment to receive the food. The wave then moves on, a few centimetres a second, and the bolus moves with it.",
       "Because the bolus is squeezed along by the wall, gravity is not needed. Food arrives in the stomach of someone lying flat, hanging upside-down, or an astronaut in free fall; a liquid may run ahead of the wave when gravity helps, but when gravity opposes it the closed ring behind the bolus stops it falling back, and it arrives at exactly the wave's speed. Dry or lumpy food needs slower, stronger waves — which is why it should be chewed.",
+      "Digested food is absorbed in the small intestine, and its lining is built for area: circular folds (×3), villi on the folds (×10) and microvilli on every cell of the villi (×20) — about 600 times a smooth tube by the classic estimate, roughly 30 m² measured. Each villus is covered by a single layer of cells, so the food has only one cell to cross, and has a dense capillary network and a central lacteal just beneath it, kept supplied and drained so the gradient stays steep.",
+      "Glucose and amino acids are taken up by active transport (with sodium) and leave the cell into the villus's capillaries, which drain to the hepatic portal vein and the liver. Fatty acids and glycerol diffuse into the cell, are rebuilt into fat and packed into chylomicrons — too big for blood capillaries — and leave into the lacteal, as lymph that joins the blood near the heart. In coeliac disease gluten triggers an immune attack that flattens the villi, and the lost area means much of the food passes on unabsorbed.",
     ],
     quiz: [
       {
@@ -3257,6 +3663,30 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "A compliant bolus takes the shape of the tube and slides on the mucus; a hard one distends the wall, which reflexly recruits stronger, slower contractions (and often a second, 'secondary' peristaltic wave). Chewing and saliva make the bolus something the wave can move easily.",
+      },
+      {
+        question: "Fatty acids and glycerol leave a villus by a different route from glucose. Which, and why?",
+        options: [
+          "Into the lacteal: inside the cell they are rebuilt into fat and packed into chylomicrons, which are too big to enter the blood capillaries",
+          "Into the capillaries, because fat dissolves in blood plasma",
+          "Straight into the hepatic portal vein, because fat must be processed by the liver first",
+          "They are not absorbed at all and pass into the large intestine",
+        ],
+        answer: 0,
+        explanation:
+          "The fatty acids and monoglycerides diffuse into the enterocyte, where they are re-made into triglycerides and coated with protein as chylomicrons. These are far larger than the gaps in a blood capillary's wall but pass easily into the leakier lacteal, so fat travels as lymph and joins the blood at the left subclavian vein — glucose and amino acids go in the capillaries to the liver.",
+      },
+      {
+        question: "In coeliac disease the villi are flattened. Why does this cause weight loss and fatty stools even when the person eats enough?",
+        options: [
+          "The flattened lining has a much smaller surface area, so far less digested food is absorbed and the rest — fat most visibly — passes out in the faeces",
+          "Flattened villi digest food faster, so it is used up before it can be stored",
+          "Without villi, food cannot move along by peristalsis",
+          "The pancreas stops making enzymes when the villi flatten",
+        ],
+        answer: 0,
+        explanation:
+          "Villi multiply the absorbing area about ten-fold and the microvilli on them twenty-fold again. With both worn away, the rate of absorption falls with the area: food passes on unabsorbed, unabsorbed fat makes pale, fatty stools (steatorrhoea), and the person loses weight. A gluten-free diet lets the villi regrow.",
       },
     ],
   },

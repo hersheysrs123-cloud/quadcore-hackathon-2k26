@@ -22,6 +22,9 @@ import { mediumColour } from "@/components/visualizations/media";
 import { ATOM_COLOURS, describeAtom } from "@/lib/atomicStructure";
 import { solveColumn } from "@/lib/distillation";
 import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
+import { AMMONIUM_CHLORIDE, describeDiffusion } from "@/lib/diffusion";
+import { BONDING_COLOURS, COVALENT_ROLE_COLOURS, covalentDiagram, ionicFormation } from "@/lib/bonding";
+import { BOHR_PM, ORBITAL_COLOURS, PHASE_COLOURS, describeOrbitals, sup as superscript } from "@/lib/orbitals";
 import { CELL_COLOURS, ELECTROLYTE, formatGasVolume, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
 import { DENATURE_TEMP, ENZYME_COLOURS, OPTIMUM_PH, OPTIMUM_TEMP, solveEnzyme } from "@/lib/enzymes";
 import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, HYDROGEN_BOND_COLOUR, PAIR_BONDS, describeHelix } from "@/lib/dna";
@@ -55,6 +58,8 @@ import {
   solveRayOptics,
 } from "@/lib/rayOptics";
 import { COIL_AREA, MAGNET_OMEGA, fluxAt, solveInduction } from "@/lib/induction";
+import { CORES, EM_COLOURS, B_PER_CLIP, solveElectromagnet } from "@/lib/electromagnet";
+import { ACIDS, ACID_BASE_COLOURS, BASES, BURETTE_VOLUME, INDICATORS, INDICATOR_WORDS, SUBSTANCES, UNIVERSAL_CHART, describePH, endPoint, equivalenceJump, equivalenceVolume, hydrogenIons, titrationPoint, titrationSetup } from "@/lib/acidBase";
 import { FIELD_HALF_X, SCREEN_DISTANCE, fringePosition } from "@/lib/interference";
 import { VIEW_MAX, solveOrbit } from "@/lib/orbit";
 import { idealFlight, simulateFlight } from "@/lib/projectile";
@@ -100,6 +105,7 @@ import {
   TUBE_LENGTH_CM,
   solvePeristalsis,
 } from "@/lib/peristalsis";
+import { FOLDINGS, GUT_CONDITIONS, MEALS, ROUTES, solveAbsorption } from "@/lib/absorption";
 import {
   BASELINE_FOREST_PCT,
   GTC_PER_PPM,
@@ -1217,6 +1223,65 @@ function renderTopicDetailsReadout(topic, params) {
       const speed = num(params.speed, 1.0);
       const N = num(params.turns, 3);
 
+      if (params?.apparatus === "electromagnet") {
+        // The same engine the scene draws; the scene hands back what the core
+        // has kept (liveRetained), which is history rather than a setting.
+        const core = CORES[params.core] ? params.core : "softIron";
+        const em = solveElectromagnet({
+          turns: num(params.emTurns, 300),
+          current: num(params.coilCurrent, 1.5),
+          reverse: Boolean(params.reverseCurrent),
+          core,
+          on: params.supplyOn !== false,
+          retained: num(params.liveRetained, 0),
+        });
+        const mT = (b) => `${(Math.abs(b) * 1000).toFixed(Math.abs(b) < 0.01 ? 2 : 1)} mT`;
+        const ends = em.north ? (em.north === "right" ? "N right · S left" : "N left · S right") : "no poles";
+        readout = {
+          title: "Electromagnet · Magnetic Effect of a Current",
+          subtitle: "B = μ₀ N I / √(L² + 4R²) · × the core's gain",
+          rows: [
+            ["Supply", em.on ? `${em.current.toFixed(1)} A${em.reverse ? " · reversed" : ""}` : "off", em.on ? "good" : undefined],
+            ["Turns N", em.turns, "gold"],
+            ["Ampere-turns N·I", `${Math.round(em.ampereTurns)} A`],
+            ["Coil alone, centre", mT(em.airT)],
+            ["Core", em.coreLabel],
+            ["With the core, centre", mT(em.centreT), "gold"],
+            ["Core's gain", em.gain ? `×${em.gain.toFixed(1)}` : "—"],
+            ["Poles (right-hand grip)", ends, em.north ? undefined : "bad"],
+            ["Field at the pole", mT(em.poleT)],
+            ["Clips it can hold", `${em.clips} (one per ${(B_PER_CLIP * 1000).toFixed(0)} mT)`, em.clips > 0 ? "good" : "bad"],
+          ],
+          note: !em.on
+            ? em.permanent
+              ? core === "steel"
+                ? `Current off, but the steel keeps about ${Math.round(CORES.steel.remanence * 100)} % of its magnetisation: its domains stay lined up, so it is now a permanent magnet and still holds ${em.clips} clip${em.clips === 1 ? "" : "s"}.`
+                : "Current off: soft iron keeps only a trace of magnetism — its domains fall back to random — so it drops the clips. That is why relays and crane magnets use it."
+              : "No current, no field: the filings drift loose, the compasses swing back to the Earth's north and the clips fall."
+            : em.current <= 0
+              ? "The supply is on but set to 0 A: with no current there is no field. Turn the current up."
+              : core === "air"
+              ? "The coil alone is weak: its field lines the filings up close to it, but it cannot hold a clip. Put a core in it."
+              : `The ${em.coreLabel.toLowerCase()} core multiplies the coil's field about ×${em.gain.toFixed(0)}: its domains turn to line up with the coil's field and add their own. Raise the current or the turns and the field rises in proportion.`,
+          noteTone: em.on ? "good" : em.permanent ? "warn" : "neutral",
+        };
+        legend = {
+          title: "Electromagnet Key",
+          items: [
+            { color: EM_COLOURS.copper, shape: "line", label: "Coil", note: "Each loop drawn stands for 25 turns" },
+            { color: EM_COLOURS.charge, shape: "dot", label: "Charge dots", note: "Conventional current, + to − round the coil" },
+            { color: EM_COLOURS.north, shape: "square", label: "North end", note: "Where the field comes out (right-hand grip rule)" },
+            { color: EM_COLOURS.south, shape: "square", label: "South end", note: "Where it goes back in" },
+            { color: EM_COLOURS.fieldLine, shape: "line", label: "Field lines", note: "Out of the north end, round to the south" },
+            { color: EM_COLOURS.filing, shape: "line", label: "Iron filings", note: "Line up where the field is strong enough" },
+            { color: EM_COLOURS.needleN, shape: "dot", label: "Compass needle (north end)", note: "Points along the field; with no field, to the Earth's north" },
+            { color: EM_COLOURS.clip, shape: "square", label: "Steel clips", note: "Each one hangs from the one above it" },
+            ...(CORES[core].colour ? [{ color: CORES[core].colour, shape: "square", label: `${em.coreLabel} core`, note: "Inset: its domains, random until the field lines them up" }] : []),
+          ],
+        };
+        break;
+      }
+
       if (isSolenoid) {
         const strength = num(params.magnetStrength, 1.2);
         const auto = params.autoOscillate !== false;
@@ -2020,6 +2085,59 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "bohr": {
       const a = describeAtom(params.element || "Na");
+      if (params.model === "quantum") {
+        // The same table and sampler the cloud is drawn from.
+        const o = describeOrbitals(a.symbol, params.orbital || "all");
+        const f = o.focused;
+        const byShell = ["K", "L", "M", "N"]
+          .map((shell) => o.subshells.filter((s) => s.shell === shell).map((s) => `${s.key}${superscript(s.electrons)}`).join(" "))
+          .filter(Boolean)
+          .join(" | ");
+        readout = {
+          title: `${a.name} · orbitals`,
+          subtitle: o.configuration,
+          rows: [
+            ["Configuration", o.configuration, "gold", "wide"],
+            ["Bohr shells → subshells", `${a.configuration} → ${byShell}`, undefined, "wide"],
+            ...(f
+              ? [
+                  ["Subshell", `${f.key} — ${f.l === 0 ? "one s orbital" : "three p orbitals"}`, "gold"],
+                  ["Electrons", `${f.electrons} of ${f.capacity}`, f.electrons === f.capacity ? "good" : "warn"],
+                  ["Shape", f.shape],
+                  ["Nodes", `${f.nodes.radial} spherical · ${f.nodes.angular} planar`],
+                  ["Effective charge", `+${f.Zeff.toFixed(2)} (Slater) of +${o.Z}`],
+                  ["Most probable radius", `${(f.peakA0 * BOHR_PM).toFixed(0)} pm`],
+                  ...(f.l === 1 ? [["Filling (Hund)", f.occupancy.map((n) => (n === 2 ? "↑↓" : n === 1 ? "↑" : "·")).join("  "), f.occupancy.includes(1) ? "warn" : "good"]] : []),
+                ]
+              : o.focusEmpty
+                ? [["Focus", `${o.focus} is empty in ${a.name}`, "warn"]]
+                : [
+                    ["Outermost", `${o.outermost.key} · Zeff +${o.outermost.Zeff.toFixed(2)}`, "gold"],
+                    ["…most probable radius", `${(o.outermost.peakA0 * BOHR_PM).toFixed(0)} pm`],
+                  ]),
+            ...(o.hund ? [["Unpaired p electrons", `${o.unpairedP} — ${o.hund}`, "warn", "wide"]] : []),
+          ],
+          note: [
+            "Each cloud is |ψ|² sampled from a hydrogen-like wavefunction with Slater's effective nuclear charge — dense where the electron is likely to be, empty at the nodes. The bright dot hops between samples: every place it lands is somewhere a measurement could find the electron.",
+            f && f.l === 1 && f.electrons === 6 ? "A full p subshell adds up to a sphere — the three dumbbells overlap evenly. Pick carbon, nitrogen or oxygen to see the separate lobes, or colour by the sign of ψ." : "",
+            o.fourSBeforeThreeD ? "Notice 4s holds electrons while 3d is still empty: the 4s orbital fills first because it ends up lower in energy for potassium and calcium." : "",
+            "Radii are compressed for the screen — to scale, the 1s cloud would be a speck inside the outer shell.",
+          ]
+            .filter(Boolean)
+            .join(" "),
+          noteTone: "good",
+        };
+        legend = {
+          title: params.showPhase ? "Wavefunction sign" : "Subshell key",
+          items: params.showPhase
+            ? [
+                { color: PHASE_COLOURS.plus, shape: "dot", label: "ψ > 0", note: "the two lobes of a p orbital always have opposite signs" },
+                { color: PHASE_COLOURS.minus, shape: "dot", label: "ψ < 0", note: "and an s orbital changes sign at each node" },
+              ]
+            : o.subshells.map((s) => ({ color: ORBITAL_COLOURS[s.key], shape: "dot", label: `${s.key} · ${s.electrons} e⁻`, note: `${s.shell} shell` })),
+        };
+        break;
+      }
 
       readout = {
         title: `${a.name} atom (${a.symbol})`,
@@ -2078,6 +2196,12 @@ function renderTopicDetailsReadout(topic, params) {
           ["Bromine water", m.decolourisesBromine ? "decolourised — orange to clear" : "stays orange — no reaction", m.decolourisesBromine ? "good" : undefined],
           ...(m.functionalGroup ? [["Functional group", m.functionalGroup]] : []),
           ...(m.crackable ? [["Cracking", "long enough to break in two", "gold"]] : []),
+          ...(m.polymer
+            ? [
+                ["Addition polymer", `${m.polymer.name} · ${m.polymer.repeatUnit}`, "gold"],
+                ...(m.polymer.uses ? [["Used for", m.polymer.uses]] : []),
+              ]
+            : []),
         ],
         note: m.valid
           ? m.note
@@ -2146,6 +2270,38 @@ function renderTopicDetailsReadout(topic, params) {
 
     case "lattice": {
       const structure = params.structure || "nacl";
+      if (structure === "ionic") {
+        // The same transfer the scene animates, from lib/bonding.js.
+        const f = ionicFormation(params.compound || "NaCl");
+        const M = f.atoms.find((a) => a.metal);
+        const X = f.atoms.find((a) => !a.metal);
+        readout = {
+          title: `${f.compound.name} · ${f.compound.formula}`,
+          subtitle: "Ionic bonding · electron transfer",
+          rows: [
+            [`${M.symbol} atom → ion`, `${M.shells.join(",")} → ${M.ionSymbol} ${M.ionShells.join(",")}`, "gold"],
+            [`${X.symbol} atom → ion`, `${X.shells.join(",")} → ${X.ionSymbol} ${X.ionShells.join(",")}`, "good"],
+            ["Electrons moved", `${f.electronsMoved} in all`],
+            ["Ion ratio", `${f.cation.count} ${f.cation.ion} : ${f.anion.count} ${f.anion.ion}`],
+            ["Oxidation (metal)", f.halfEquations[0], "gold", "wide"],
+            ["Reduction (non-metal)", f.halfEquations[1], "good", "wide"],
+            ["Overall", f.equation, undefined, "wide"],
+            ["Charges add to", `${f.cation.count} × (+${f.cation.charge}) + ${f.anion.count} × (${f.anion.charge}) = ${f.totalCharge}`, "good", "wide"],
+            ["Lattice", f.compound.rockSalt ? "rock salt — each ion has six neighbours of the other charge" : "a different arrangement from NaCl's, but the same kind of giant ionic lattice", undefined, "wide"],
+          ],
+          note: `The metal loses electrons (oxidation) and the non-metal gains them (reduction) — OIL RIG. Each ion ends with a full outer shell, the same arrangement as a noble gas, and the oppositely charged ions attract in every direction: that attraction, not the transfer itself, is the ionic bond. ${M.charge > 1 || X.charge < -1 ? "Ions with bigger charges attract harder, which is why MgO melts at 2852 °C against NaCl's 801 °C." : "Highly charged ions attract harder: MgO melts at 2852 °C against NaCl's 801 °C."}`,
+          noteTone: "good",
+        };
+        legend = {
+          title: "Dot-and-cross key",
+          items: [
+            { color: BONDING_COLOURS[M.symbol], shape: "dot", label: `● ${M.symbol}'s electrons`, note: "dots — the ones that move are the metal's outer electrons" },
+            { color: BONDING_COLOURS[X.symbol], shape: "dot", label: `✕ ${X.symbol}'s electrons`, note: "crosses — the non-metal's own" },
+            { color: PALETTE.bone, shape: "line", label: "[ ] with a charge", note: "an ion: the brackets enclose a charged particle" },
+          ],
+        };
+        break;
+      }
       const facts = latticeFactsFor(structure);
 
       readout = {
@@ -2246,11 +2402,28 @@ function renderTopicDetailsReadout(topic, params) {
       // so AX₄E₂ read "Octahedral · 5.0° squeeze" against a scene correctly
       // drawing a square planar molecule at 90°.
       const v = solveVsepr(num(params.bonding, 4), num(params.lone, 0), params.preset);
+      // The dot-and-cross view's electron count, from the same lib the scene draws it with.
+      const dc = params.view === "dotcross" && v.molecule ? covalentDiagram(v.molecule.id) : null;
+      const dcRows = !dc
+        ? []
+        : !dc.supported
+          ? [["Dot & cross", dc.reason, "warn", "wide"]]
+          : [
+              ["— DOT & CROSS —", `${dc.centre.symbol} ● · ${dc.ligand.symbol} ✕`, "gold"],
+              [`${dc.centre.symbol} brings`, `${dc.centre.valence} outer electrons`],
+              [`Each ${dc.ligand.symbol} brings`, `${dc.ligand.valence}`],
+              ["Shared pairs", `${dc.sharedPairs} (${dc.bonds} bond${dc.bonds === 1 ? "" : "s"}${dc.order > 1 ? `, each double` : ""})`, "gold"],
+              [`Lone pairs on ${dc.centre.symbol}`, `${dc.centre.lonePairs}`, dc.centre.lonePairs > 0 ? "warn" : undefined],
+              [`Around ${dc.centre.symbol}`, `${dc.centre.electronsAround} electrons`, dc.octet === "full" ? "good" : "warn"],
+              [`Around each ${dc.ligand.symbol}`, `${dc.ligand.electronsAround} — ${dc.ligandFull ? "full" : "not full"}`, dc.ligandFull ? "good" : "bad"],
+              ["Octet", dc.octetNote, dc.octet === "full" ? "good" : "warn", "wide"],
+            ];
 
       readout = {
         title: "VSEPR molecular geometry",
         subtitle: `${v.notation} · steric number ${v.steric}`,
         rows: [
+          ...dcRows,
           ["Bonding pairs (X)", v.bonding, "gold"],
           ["Lone pairs (E)", v.lone, v.lone > 0 ? "warn" : "good"],
           ["Steric number", v.steric],
@@ -2286,7 +2459,14 @@ function renderTopicDetailsReadout(topic, params) {
         noteTone: !v.hasAngle ? "neutral" : v.lone > 0 ? "warn" : "good",
       };
 
-      legend = {
+      legend = dc?.supported ? {
+        title: "Dot-and-cross key",
+        items: [
+          { color: COVALENT_ROLE_COLOURS.centre, shape: "dot", label: `● ${dc.centre.symbol}'s electrons`, note: "and its outer shell" },
+          { color: COVALENT_ROLE_COLOURS.outer, shape: "dot", label: `✕ ${dc.ligand.symbol}'s electrons`, note: "and their outer shells" },
+          { color: BONDING_COLOURS[dc.centre.symbol], shape: "dot", label: `${dc.centre.symbol} nucleus`, note: "with its inner electrons" },
+        ],
+      } : {
         title: "Electron domains key",
         items: [
           // A real molecule is drawn in its elements' colours, a bare AXₙEₘ in gold and sky.
@@ -2671,6 +2851,61 @@ function renderTopicDetailsReadout(topic, params) {
 
 
     case "particle_model_matter": {
+      if (params.mode === "diffusion") {
+        // The random walk lives in lib/diffusion.js; the scene pushes what it measured.
+        const ringFrac = num(params.liveRingFrac, -1);
+        const d = describeDiffusion({
+          experiment: params.experiment,
+          tempC: num(params.gasTemp, 20),
+          time: num(params.liveDiffTime, 0),
+          mixPct: num(params.liveMixPct, 0),
+          ring: ringFrac >= 0 ? ringFrac : null,
+          deposits: num(params.liveDeposits, 0),
+          released: params.liveReleased === true,
+          tracer: params.tracer === true,
+        });
+        const tube = d.experiment === "tube";
+        const lighter = d.faster;
+        const heavier = d.slower;
+        readout = {
+          title: tube ? "Diffusion · NH₃ meets HCl" : "Diffusion · bromine into air",
+          subtitle: d.released ? `${d.time.toFixed(1)} s since release · ${d.tempC.toFixed(0)} °C` : tube ? "cotton wool out — press Release" : "partition in — press Release",
+          rows: [
+            [`${d.left.formula} speed (r.m.s.)`, `${d.left.vRms.toFixed(0)} m/s`, "gold"],
+            [`${d.right.formula} speed (r.m.s.)`, `${d.right.vRms.toFixed(0)} m/s`, "gold"],
+            ["Faster gas", `${lighter.formula} · ${d.speedRatio.toFixed(2)}×`, "good"],
+            ["Why", `lighter (M ${lighter.M} vs ${heavier.M}), same mean KE, so v = √(3RT/M) is higher`, undefined, "wide"],
+            ...(tube
+              ? [
+                  ["White ring", d.ring === null ? (d.released ? "not formed yet" : "—") : `${Math.round(d.ring * 100)}% from NH₃ end`, d.ring === null ? undefined : "good"],
+                  ["NH₄Cl formed", `${d.deposits} pairs`],
+                  ["Speed-ratio estimate", `${Math.round(d.estimateRing * 100)}% — if each front moved at its own speed; a random-walk front advances as √(Dt), so the real ring sits nearer the middle`, undefined, "wide"],
+                  ["Equation", d.equation, "gold", "wide"],
+                ]
+              : [
+                  ["Mixed", d.released ? `${Math.round(d.mixPct)}%` : "0% · partition in", d.mixPct > 60 ? "good" : undefined],
+                  ["Net movement", "high → low conc."],
+                  ...(d.tracer ? [["Smoke particle", `${d.smokeVRms.toFixed(0)} m/s r.m.s. here — a real one is far heavier and slower, drawn light so its jiggle shows`, "warn", "wide"]] : []),
+                ]),
+            ["Hotter gas", "diffuses faster"],
+          ],
+          note: tube
+            ? `Neither gas is pushed: each particle zig-zags at random, hitting air molecules millions of times a second, and the gases spread from the cotton wool down their concentration gradients. ${lighter.formula} is lighter than ${heavier.formula}, so at the same temperature it moves faster and gets further — the ring forms nearer the ${heavier.formula} end.`
+            : `Nothing pushes the bromine across: each particle moves at random, but there are more of them on the left to wander right than on the right to wander left, so the net movement is from high to low concentration until both are spread evenly. Air, being lighter, gets across faster than the bromine does.${d.tracer ? " The smoke particle is shoved unevenly by the invisible molecules — Brownian motion." : ""}`,
+          noteTone: "good",
+        };
+        legend = {
+          title: "Particle Key",
+          items: [
+            { color: d.left.colour, shape: "dot", label: `${d.left.label} (${d.left.formula})`, note: d.left.note },
+            { color: d.right.colour, shape: "dot", label: `${d.right.label} (${d.right.formula})`, note: d.right.note },
+            ...(tube ? [{ color: AMMONIUM_CHLORIDE.colour, shape: "dot", label: "Ammonium chloride (NH₄Cl)", note: "white solid, on the glass" }] : []),
+            ...(d.tracer ? [{ color: "#a8a29e", shape: "dot", label: "Smoke particle", note: "gold trail is its random path" }] : []),
+            { color: d.left.colour, shape: "square", label: "Profile bars", note: "how many of each gas in that slice" },
+          ],
+        };
+        break;
+      }
       const substance = typeof params.substance === "string" ? params.substance : "water";
       const S = substanceFor(substance);
       const setpoint = num(params.temperature, 20);
@@ -2736,6 +2971,116 @@ function renderTopicDetailsReadout(topic, params) {
           { color: S.colour.gas, shape: "dot", label: "Gas", note: "free flight at √T speed, wall collisions" },
           { color: "#fb7185", shape: "line", label: "Flat step", note: "latent heat — temperature held" },
           { color: "#f97316", shape: "square", label: "Hotplate glow", note: "orange heating · blue cooling" },
+        ],
+      };
+      break;
+    }
+
+    case "acids_bases": {
+      // The same engine the scene draws: lib/acidBase.js. The scene hands
+      // back how much alkali has run in (liveVolume), which is a running
+      // total rather than a setting.
+      const indKey = INDICATORS[params.indicator] ? params.indicator : "universal";
+      const ind = INDICATORS[indKey];
+      const words = INDICATOR_WORDS[indKey];
+      const sci = (x) => {
+        const e = Math.floor(Math.log10(x));
+        const m = x / Math.pow(10, e);
+        return `${m.toFixed(1)} × 10${String(e).replace("-", "⁻").replace(/[0-9]/g, (d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d])}`;
+      };
+      if (params.mode !== "titration") {
+        const key = SUBSTANCES[params.focus] ? params.focus : "lemon";
+        const sub = SUBSTANCES[key];
+        const ions = hydrogenIons(sub.pH);
+        const side = sub.pH < 6.75 ? words.acid : sub.pH > 7.25 ? words.alkali : words.neutral;
+        const times = ions.timesWater;
+        readout = {
+          title: "The pH Scale & Indicators",
+          subtitle: `${sub.label} · pH ${sub.pH.toFixed(1)} · ${describePH(sub.pH)}`,
+          rows: [
+            ["pH", sub.pH.toFixed(1), sub.pH < 7 ? "bad" : sub.pH > 7 ? "gold" : "good"],
+            ["[H⁺]", `${sci(ions.h)} mol/dm³`],
+            ["[OH⁻]", `${sci(ions.oh)} mol/dm³`],
+            ["Compared with pure water", times >= 1 ? `${times >= 10 ? Math.round(times).toLocaleString("en-GB") : times.toFixed(1)}× the H⁺` : `${Math.round(1 / times).toLocaleString("en-GB")}× less H⁺`, "wide"],
+            ["Indicator", ind.label],
+            ["Its colour here", side],
+            ["Changes between", ind.chart ? "gradually, pH 0–14" : `pH ${ind.range[0]} and ${ind.range[1]}`],
+          ],
+          note: `${sub.note}. Each step down the pH scale is ten times more hydrogen ions. ${ind.chart ? "Universal indicator is a mixture of indicators, so it runs through the whole rainbow and tells you roughly how acidic or alkaline a solution is." : `${ind.label} is a weak acid whose two forms are different colours: ${words.acid} below its range and ${words.alkali} above it. It says which side of pH ${((ind.range[0] + ind.range[1]) / 2).toFixed(1)} a solution is, and no more.`}`,
+          noteTone: "neutral",
+        };
+        legend = {
+          title: "pH Scale Key",
+          items: ind.chart
+            ? [
+                { color: UNIVERSAL_CHART[1], shape: "square", label: "Strongly acidic (pH 0–3)", note: "Red: stomach acid, lemon juice" },
+                { color: UNIVERSAL_CHART[7], shape: "square", label: "Neutral (pH 7)", note: "Green: pure water" },
+                { color: UNIVERSAL_CHART[13], shape: "square", label: "Strongly alkaline (pH 11–14)", note: "Purple: oven cleaner" },
+              ]
+            : [
+                ...(ind.acid ? [{ color: ind.acid, shape: "square", label: `Below pH ${ind.range[0]}`, note: `${words.acid}: the acid form` }] : []),
+                { color: ind.alkali, shape: "square", label: `Above pH ${ind.range[1]}`, note: `${words.alkali}: the alkaline form` },
+              ],
+        };
+        break;
+      }
+      const opts = titrationSetup(params);
+      const { acid: acidKey, base: baseKey } = opts;
+      const acid = ACIDS[acidKey];
+      const base = BASES[baseKey];
+      const v = Math.min(BURETTE_VOLUME, Math.max(0, num(params.liveVolume, 0)));
+      const pt = titrationPoint({ ...opts, volume: v });
+      const veq = equivalenceVolume(opts);
+      const ep = endPoint(opts, indKey);
+      const jump = equivalenceJump(opts);
+      const pKa = acid.strong ? null : -Math.log10(acid.Ka[0]);
+      const stage = Math.abs(v - veq) < 0.03 ? "at the equivalence point" : v < veq ? `${(veq - v).toFixed(2)} cm³ before equivalence` : `${(v - veq).toFixed(2)} cm³ past equivalence`;
+      const colourNow = pt.pH < (ind.chart ? 6.75 : ind.range[0]) ? words.acid : pt.pH > (ind.chart ? 7.25 : ind.range[1]) ? words.alkali : ind.chart ? words.neutral : "changing";
+      readout = {
+        title: "Titration · Neutralisation",
+        subtitle: `${acid.formula} in the flask, ${base.formula} from the burette · H⁺ + OH⁻ → H₂O`,
+        rows: [
+          ["Alkali added", `${v.toFixed(2)} cm³`, "gold"],
+          ["pH in the flask", pt.pH.toFixed(2), pt.pH < 6.5 ? "bad" : pt.pH > 7.5 ? "gold" : "good"],
+          ["[H⁺]", `${sci(pt.h)} mol/dm³`],
+          ["Acid's H⁺ to neutralise", `${(pt.molesAcid * acid.Ka.length * 1000).toFixed(3)} mmol`],
+          ["OH⁻ added", `${(pt.molesBase * 1000).toFixed(3)} mmol`],
+          ["Equivalence volume", veq <= BURETTE_VOLUME ? `${veq.toFixed(2)} cm³` : "beyond the burette"],
+          ["Where it is", stage, Math.abs(v - veq) < 0.03 ? "good" : undefined, "wide"],
+          ["pH at equivalence", `${jump.atEquivalence.toFixed(2)} (jump ${jump.before.toFixed(1)} → ${jump.after.toFixed(1)} over two drops)`, undefined, "wide"],
+          ...(pKa !== null ? [["Buffer (half-way)", `pH = pKa = ${pKa.toFixed(2)} at ${(veq / 2).toFixed(2)} cm³`, undefined, "wide"]] : []),
+          ["Indicator", `${ind.label} · ${colourNow}`],
+          ["Its end point", ep.volume !== null ? `${ep.volume.toFixed(2)} cm³` : "none", ep.suitable ? "good" : "bad"],
+        ],
+        note: `${ind.label} ${ep.reason}${ep.suitable ? ", so it is a good choice here" : ", so it is the wrong indicator for this pair"}. ${
+          acid.strong && base.strong
+            ? "Strong acid and strong alkali: equivalence is close to pH 7 and the jump is steep, so an indicator that changes anywhere inside it lands on the end point."
+            : !acid.strong && base.strong
+              ? "A weak acid: the salt it makes is slightly alkaline, so equivalence is above 7. Half-way there the flask is a buffer and its pH equals the acid's pKa."
+              : acid.strong && !base.strong
+                ? "A weak alkali: the salt is slightly acidic, so equivalence is below 7. An indicator that changes on the acid side suits it; phenolphthalein does not."
+                : "A weak acid with a weak alkali barely jumps at all, so no indicator gives a sharp end point. Use a pH meter."
+        }${
+          acid.Ka.length > 1
+            ? " One catch with sulfuric acid: its second H⁺ comes from HSO₄⁻, which is only a moderately strong acid (Ka 1.2 × 10⁻²). The last of it holds the pH back, so the curve starts to rise a little before equivalence and methyl orange changes about 0.3 cm³ early."
+            : ""
+        }`,
+        noteTone: ep.suitable ? "good" : "warn",
+      };
+      legend = {
+        title: "Titration Key",
+        items: [
+          { color: ACID_BASE_COLOURS.hydrogen, shape: "dot", label: "H⁺ (H₃O⁺)", note: "What makes it acidic" },
+          { color: ACID_BASE_COLOURS.hydroxide, shape: "dot", label: "OH⁻", note: "From the alkali; meets H⁺ to make water" },
+          { color: ACID_BASE_COLOURS.water, shape: "dot", label: "H₂O", note: "Made by each neutralisation (flashes white)" },
+          { color: ACID_BASE_COLOURS.cation, shape: "dot", label: base.cation, note: base.strong ? "Spectator ion from the alkali" : "Made when NH₃ takes an H⁺" },
+          { color: ACID_BASE_COLOURS.anion, shape: "dot", label: acid.anion, note: acid.strong ? "Spectator ion from the acid" : "The weak acid's ion, made as it is neutralised" },
+          ...(!acid.strong ? [{ color: ACID_BASE_COLOURS.acidMolecule, shape: "dot", label: acid.formula, note: "Un-ionised weak acid: most of it, at first" }] : []),
+          ...(acid.Ka.length > 1 ? [{ color: ACID_BASE_COLOURS.partAnion, shape: "dot", label: "HSO₄⁻", note: "Sulfuric acid with one H⁺ still to give" }] : []),
+          ...(!base.strong ? [{ color: ACID_BASE_COLOURS.freeBase, shape: "dot", label: "NH₃", note: "Ammonia in excess, after equivalence" }] : []),
+          { color: ACID_BASE_COLOURS.curve, shape: "line", label: "Titration curve", note: "Traced as the alkali runs in" },
+          { color: ACID_BASE_COLOURS.equivalence, shape: "dash", label: "Equivalence point", note: "Moles of OH⁻ = moles of H⁺ the acid can give" },
+          ...(pKa !== null ? [{ color: ACID_BASE_COLOURS.buffer, shape: "dot", label: "Half-equivalence", note: "pH = pKa: the buffer region" }] : []),
         ],
       };
       break;
@@ -3223,6 +3568,44 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "peristalsis": {
+      if (params.zoom === "intestine" || params.zoom === "villus") {
+        // Zoomed into the small intestine: absorption, from the same engine the scene draws.
+        const meal = MEALS[params.meal] ? params.meal : "balanced";
+        const lining = GUT_CONDITIONS[params.lining] ? params.lining : "healthy";
+        const a = solveAbsorption({ meal, condition: lining });
+        const coeliac = lining === "coeliac";
+        const pct = (v) => `${Math.round(v * 100)} %`;
+        readout = {
+          title: "Absorption · Small Intestine",
+          subtitle: `${a.meal.label} · ${a.condition.label}`,
+          rows: [
+            ["— SURFACE AREA —", `×${Math.round(a.area)} a flat tube`, coeliac ? "warn" : "gold", "wide"],
+            ...FOLDINGS.map((f) => [f.label, `×${a.condition.factors[f.key]}${a.condition.factors[f.key] < f.factor ? ` (healthy ×${f.factor})` : ""}`, a.condition.factors[f.key] < f.factor ? "bad" : undefined]),
+            ["Measured area", `≈ ${a.areaM2.toFixed(a.areaM2 < 10 ? 1 : 0)} m²`, coeliac ? "warn" : undefined],
+            ["Villus height", coeliac ? `${pct(a.villusHeight)} of normal · stubs` : "about 0.5 mm"],
+            ["Absorbed here", pct(a.absorbed), coeliac ? "bad" : "good"],
+            ["— WHERE IT GOES —", "", "gold"],
+            ...a.nutrients.map((n) => [n.label, `${pct(n.share)} → ${n.route === "blood" ? "capillary" : "lacteal"}`, n.route === "blood" ? undefined : "gold"]),
+            ["Into the blood", `${pct(a.toBlood)} · ${ROUTES.blood.next}`, "good", "wide"],
+            ["Into the lymph", `${pct(a.toLymph)} · ${ROUTES.lymph.next}`, "good", "wide"],
+            ["Passed on unabsorbed", pct(1 - a.absorbed), coeliac ? "bad" : undefined],
+          ],
+          note: coeliac
+            ? `Gluten has set off an immune attack on the lining: the villi are worn to stubs and the brush border is damaged, so the area is ×${Math.round(a.area)} instead of ×600 and only about ${pct(a.absorbed)} of the food is taken up here. The rest passes on — fat most visibly, as pale fatty stools — which is why untreated coeliac disease causes weight loss and anaemia. On a gluten-free diet the villi grow back.`
+            : `Each villus has one layer of cells between the food and the blood, a capillary net and a lacteal just under it, and the microvilli on every cell multiply its area twenty-fold. Glucose and amino acids are pumped in with sodium and leave into the capillaries for the liver; fatty acids diffuse in, are rebuilt into fat, packed into chylomicrons and leave into the lacteal as lymph.`,
+          noteTone: coeliac ? "warn" : "neutral",
+        };
+        legend = {
+          title: "Absorption Key",
+          items: [
+            ...a.nutrients.map((n) => ({ color: n.colour, shape: "dot", label: n.label, note: `${n.across}; then ${n.out}` })),
+            { color: ROUTES.lymph.colour, shape: "dot", label: "Chylomicron", note: "Fat re-made inside the cell, coated in protein: too big for a blood capillary" },
+            { color: ROUTES.blood.colour, shape: "line", label: "Blood capillary", note: `Under the epithelium, all round the villus → ${ROUTES.blood.next}` },
+            { color: ROUTES.lymph.colour, shape: "line", label: "Lacteal", note: `The lymph vessel up the middle → ${ROUTES.lymph.next}` },
+          ],
+        };
+        break;
+      }
       const consistency = CONSISTENCIES[params.consistency] ? params.consistency : "soft";
       const orientation = ORIENTATIONS[params.orientation] ? params.orientation : "upright";
       const p = solvePeristalsis({ consistency, orientation });

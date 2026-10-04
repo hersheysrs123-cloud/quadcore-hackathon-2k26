@@ -31,10 +31,13 @@ COL = "LabKit"
 def _kit():
     import cannon
     import labkit
+    import titration
 
     importlib.reload(pl)
     importlib.reload(cannon)
     importlib.reload(labkit)
+    importlib.reload(titration)
+    labkit.titration = titration
     return labkit
 
 
@@ -76,6 +79,16 @@ def parts(lk):
     out["hotplate"], out["hotplateTop"] = lk.hotplate()
     out["furnaceCasing"], out["furnaceSteel"] = lk.furnace()
     out["tankShell"], out["tankSteel"] = lk.crude_tank()
+    t = lk.titration
+    out["buretteGlass"] = t.burette_glass()
+    out["buretteMarks"] = t.burette_marks()
+    out["stopcockKey"] = t.stopcock_key()
+    out["buretteClamp"], out["buretteClampPads"] = t.burette_clamp()
+    out["stirrerCase"], out["stirrerTop"] = t.stirrer()
+    out["stirBar"] = t.stir_bar()
+    out["phMeter"] = t.ph_meter()
+    out["phProbe"], out["phProbeBulb"] = t.ph_probe()
+    out["dropperGlass"], out["dropperCap"] = t.dropper_bottle()
     return out
 
 
@@ -113,6 +126,7 @@ def anchors(lk):
         "tripod": {"legAngles": [round(a, 5) for a in lk.T_LEG_ANGLES], "legRadius": round(lk.T_LEG_R, 4), "ringR": round(lk.T_RING_R, 4)},
         "psu": {"knobAt": list(lk.PSU_KNOB_AT), "posts": {k: list(v) for k, v in lk.PSU_POSTS.items()}},
         "gm": {"radius": lk.GM_R, "length": lk.GM_L},
+        **lk.titration.anchors(),
     }
 
 

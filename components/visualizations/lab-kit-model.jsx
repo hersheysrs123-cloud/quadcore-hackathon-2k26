@@ -27,6 +27,11 @@ import { LAB_KIT_MODEL } from "@/components/visualizations/lab-kit-model-meta";
 //             switchHandle, meterCase
 //   induction galvoCase, galvoBezel, lampHolder, lampCap, lampGlass
 //   gas       gasTurret, gasValve, gasLever (turns about y at its hub)
+//   titration buretteGlass, buretteMarks (graduations and Schellbach
+//             stripe), stopcockKey (turns about x at meta.burette.stopcockY),
+//             buretteClamp, buretteClampPads, stirrerCase, stirrerTop,
+//             stirBar (spins about y), phMeter, phProbe, phProbeBulb,
+//             dropperGlass, dropperCap
 //
 // Anything a slider stretches — stand rods and arms, a ring's radius, a
 // flame, a display, a needle — stays in three.js beside these.
@@ -46,6 +51,7 @@ const FINISH = {
   plastic: { roughness: 0.45, metalness: 0.05 },
   porcelain: { roughness: 0.22, metalness: 0.02 },
   glass: { roughness: 0.04, metalness: 0, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide },
+  amberGlass: { roughness: 0.08, metalness: 0, transparent: true, opacity: 0.82, side: THREE.DoubleSide },
 };
 
 const NODE_FINISH = {
@@ -95,6 +101,19 @@ const NODE_FINISH = {
   gasTurret: "enamel",
   gasValve: "brass",
   gasLever: "plastic",
+  buretteGlass: "glass",
+  buretteMarks: "enamel",
+  stopcockKey: "plastic",
+  buretteClamp: "painted",
+  buretteClampPads: "plastic",
+  stirrerCase: "enamel",
+  stirrerTop: "porcelain",
+  stirBar: "plastic",
+  phMeter: "plastic",
+  phProbe: "plastic",
+  phProbeBulb: "glass",
+  dropperGlass: "amberGlass",
+  dropperCap: "plastic",
 };
 
 /** A part's material: its finish, tinted by `color` and `shade`, lit by `emissive`. */

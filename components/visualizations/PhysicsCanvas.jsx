@@ -9,6 +9,7 @@ import {
   Bond,
   CANVAS_BG,
   DEG,
+  FitCamera,
   FollowCamera,
   Halo,
   PALETTE,
@@ -52,6 +53,7 @@ import { usePackedModel } from "@/components/visualizations/plant-model";
 import { FLEMING_HAND } from "@/components/visualizations/fleming-hand-model-meta";
 import { CANNON, CannonModel } from "@/components/visualizations/cannon-model";
 import { KitPart } from "@/components/visualizations/lab-kit-model";
+import { Bobbin, ElectromagnetRig } from "@/components/visualizations/ElectromagnetRig";
 import ShadowLabCanvas from "@/components/visualizations/ShadowLabCanvas";
 import InclineFrictionCanvas from "@/components/visualizations/InclineFrictionCanvas";
 import HookesLawCanvas from "@/components/visualizations/HookesLawCanvas";
@@ -2159,11 +2161,6 @@ function helixPoint(a, turns) {
   ];
 }
 
-// Half the length of the bobbin the coil is wound on, and the flange radius.
-const BOBBIN_HALF = 0.75;
-const BOBBIN_BORE = 0.9;
-const BOBBIN_FLANGE = 1.18;
-
 /**
  * Solenoid Assembly Sub-Rig (Inside Canvas)
  */
@@ -2212,22 +2209,6 @@ function SolenoidRig({ params = {} }) {
     return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), steps * 2, 0.05, 10, false);
   }, [safeTurns, span]);
   useEffect(() => () => helix.dispose(), [helix]);
-
-  const flange = useMemo(
-    () =>
-      new THREE.LatheGeometry(
-        [
-          new THREE.Vector2(BOBBIN_BORE, -0.04),
-          new THREE.Vector2(BOBBIN_FLANGE, -0.04),
-          new THREE.Vector2(BOBBIN_FLANGE, 0.04),
-          new THREE.Vector2(BOBBIN_BORE, 0.04),
-          new THREE.Vector2(BOBBIN_BORE, -0.04),
-        ],
-        48,
-      ),
-    [],
-  );
-  useEffect(() => () => flange.dispose(), [flange]);
 
   useFrame((_, delta) => {
     const step = Math.min(delta, 0.05);
@@ -2368,29 +2349,9 @@ function SolenoidRig({ params = {} }) {
           </group>
         ))}
 
-        {/* Bobbin: a clear tube between two flanges, standing on a post under each */}
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[BOBBIN_BORE, BOBBIN_BORE, BOBBIN_HALF * 2, 40, 1, true]} />
-          <meshPhysicalMaterial
-            color="#e2e8f0"
-            transparent
-            opacity={0.2}
-            roughness={0.1}
-            transmission={0.85}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        {[-BOBBIN_HALF, BOBBIN_HALF].map((fx) => (
-          <group key={fx}>
-            <mesh geometry={flange} position={[fx, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <meshStandardMaterial color="#cbd5e1" metalness={0.5} roughness={0.35} />
-            </mesh>
-            <mesh position={[fx, -(BOBBIN_FLANGE + 3.5) / 2, 0]}>
-              <cylinderGeometry args={[0.09, 0.09, 3.5 - BOBBIN_FLANGE, 16]} />
-              <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
-            </mesh>
-          </group>
-        ))}
+        {/* Bobbin: a clear tube between two flanges, standing on a post under each
+            (shared with the electromagnet) */}
+        <Bobbin />
 
         {/* The winding */}
         <mesh geometry={helix}>
@@ -2556,20 +2517,34 @@ function SolenoidRig({ params = {} }) {
   );
 }
 
-export function InductionScene({ params = {} }) {
-  const isSolenoid = params?.apparatus === "solenoid";
+const INDUCTION_VIEWS = {
+  generator: { camera: { position: [4.8, 1.5, 14.0], fov: 45 }, target: [0, -0.2, 0.4] },
+  solenoid: { camera: { position: [0, 1.8, 13.5], fov: 45 }, target: [0, -0.4, 0.4] },
+  // from above, so the filings and compasses on the sheet read
+  electromagnet: { camera: { position: [0.2, 4.9, 9.8], fov: 45 }, target: [-0.2, -0.9, 0.2] },
+};
+
+// The electromagnet bench runs from the supply (x ≈ −5.3) to the card's
+// far compasses (x ≈ 4). On a wide canvas the height decides the distance
+// and this lands exactly on the camera above; a narrow one backs off so the
+// supply stays in view.
+const ELECTROMAGNET_FIT = { cx: -0.2, cy: -0.9, cz: 0.2, width: 10.6, height: 8.94 };
+
+export function InductionScene({ params = {}, setParam }) {
+  const apparatus = INDUCTION_VIEWS[params?.apparatus] ? params.apparatus : "generator";
+  const view = INDUCTION_VIEWS[apparatus];
 
   return (
-    <SceneCanvas environment
-      camera={
-        isSolenoid
-          ? { position: [0, 1.8, 13.5], fov: 45 }
-          : { position: [4.8, 1.5, 14.0], fov: 45 }
-      }
-      controls={{ target: isSolenoid ? [0, -0.4, 0.4] : [0, -0.2, 0.4] }}
-    >
-      {isSolenoid ? (
+    // keyed, so each apparatus opens on its own camera
+    <SceneCanvas key={apparatus} environment camera={view.camera} controls={{ target: view.target }}>
+      {apparatus === "solenoid" ? (
         <SolenoidRig params={params} />
+      ) : apparatus === "electromagnet" ? (
+        <>
+          <FitCamera view={ELECTROMAGNET_FIT} direction={[0.4, 5.8, 9.6]} />
+          <LaboratoryBench />
+          <ElectromagnetRig params={params} setParam={setParam} />
+        </>
       ) : (
         <GeneratorRig params={params} />
       )}

@@ -8636,6 +8636,79 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
   - Removed the unused imports, variables and dead helpers. `const [x, setX] = useState()` with only the setter used became `const [, setX]`, which keeps behaviour. In `media-caption-input.test.mjs` two flags were set but never asserted; the test now asserts that ArrowDown and Enter from a caption input do not exit or add a block.
   - Turned off `react/no-unescaped-entities`: it only flags apostrophes in JSX prose, which React escapes anyway. 72 `react-hooks/exhaustive-deps` and 6 `@next/next/no-img-element` findings stay as warnings, for review case by case.
 
+## Peristalsis Villus: the Foot Z-Fighting with the Floor, a Red Cell Bulging Through the Cut, and a Meal Control That Changed Nothing on Screen
+
+### 1. Problem
+- At the villus level, pink smears flickered round the villus's base on the white floor. They were worst in coeliac disease, when the stub is widened.
+- At the lining level, "What was eaten" changed nothing visible. The chyme was one colour, and the meal only changed the mix of molecules at the villus level, which is hard to spot.
+
+### 2. Root cause
+- `villus_field` (`scripts/villus-model/villus.py`) gives the villus a flat skirt at y = 0, 1.5 units round its base, to seal the seam where it stands on the floor. The floor's top is also at y = 0, so the two faces were coplanar and z-fought. The coeliac squash scales the villus by 1.45 in x and z about y = 0, which widens the skirt and leaves it in the same plane.
+- `Chyme` drew every speck in one tan colour, whatever the meal.
+
+### 3. Resolution
+- `VillusLevel` sinks the squash group 0.15 (1.5 µm) into the floor. The skirt now lies under the floor's top, and the villus's sides still pass through it (its solid reaches y = −0.6), so no gap opens.
+- Each `Chyme` speck is now one of the meal's foods, in the meal's shares and the key's colours, with fat droplets 1.35× larger. The specks are bigger (0.05), and the chyme callout names the meal.
+- A red blob also flickered on the cut face at the top of the villus's intact base. It was a red cell. The front capillaries are removed in the cut-away middle storey, and `VillusBlood` hid a cell only once its centre was above the cut (`y > midCut`). A cell of radius 0.36 just under the cut therefore bulged up through the face, flattened into a disc by the coeliac squash. Cells are now hidden from a radius below the bottom cut to a radius above the top one (`RBC_R`).
+- `MEALS` gains a `note`, which the villus level shows as a caption ("mostly fat, so half of it goes into the lacteal as chylomicrons"); the coeliac caption replaces it when the villus is a stub.
+
+## Particle Model: Solid CO₂ Standing Up Through the Piston
+
+### 1. Problem
+- Cool carbon dioxide (or neon) to a solid and the top layers of the lattice sat on top of the piston plate. The plate cut through the solid.
+
+### 2. Root cause
+- The lattice is always drawn as eight layers of 64 particles, spaced by the substance's `solidExpansion`. The model's piston height (`columnHeights`) is `liquidHeight × solidExpansion` plus a headspace, and that does not know how tall the drawn lattice packs.
+- For dense solids, CO₂ (0.78) and neon (0.84), the lattice stood about 0.25 taller than the model's column.
+- `ParticleDriver` already kept the gas below `max(piston, contents + 2.5 r)`, but `Column` drew the plate at the model's raw `heights.piston`.
+
+### 3. Resolution
+- The driver now keeps one drawn height, `heights.drawn`: the model's piston, never below the contents' top plus clearance. It rises at once when the contents grow, and relaxes back down over 0.2 s.
+- The column, the gas's ceiling and `livePistonPct` all read it. Checked with CO₂ at −100 °C: the plate's underside now clears the top particles by 0.18, where before it was 0.38 below them.
+
+## Induction: Every Apparatus Opened on the First One's Camera
+
+### 1. Problem
+- Switching apparatus kept the camera of whichever one the scene first opened on. The bar-magnet rig was framed by the dynamo's camera, and the other way round.
+
+### 2. Root cause
+- `SceneCanvas` passes `camera` to the R3F `Canvas`, which reads it only when it mounts. `InductionScene` switched the camera prop but kept the same canvas.
+
+### 3. Resolution
+- `InductionScene` keys its `SceneCanvas` by apparatus, with the three views in `INDUCTION_VIEWS`, so each apparatus mounts with its own camera and target.
+
+## Titration: a Leaking Graph Buffer, and Sulfuric Acid Filling the Whole Burette
+
+### 1. Problem
+- The titration graph's traced line leaked GPU memory for as long as the scene stayed open, about 6 KB a frame.
+- Sulfuric acid at the default concentrations (0.1 mol/dm³ acid and alkali) reached equivalence at exactly 50.00 cm³, the whole burette. The run could never pass the end point, and the Details panel called phenolphthalein "the wrong indicator for this pair" because its colour change fell beyond the burette.
+- With sulfuric acid, the notes said any indicator changing between 4 and 10 works, while the verdict line said methyl orange changes early.
+
+### 2. Root cause
+- `TitrationGraph` called `geometry.setAttribute("position", new Float32BufferAttribute(...))` every frame. three.js uploads each new attribute to its own GL buffer and only deletes the buffers of the attributes still on the geometry when it is disposed, so every replaced buffer stayed allocated.
+- Sulfuric acid gives two H⁺ per molecule, so it needs twice the alkali, but it shared the 0.05–0.1 mol/dm³ acid slider.
+- HSO₄⁻ is only a moderately strong acid (Ka 1.2 × 10⁻²). The last of it holds the pH back near equivalence, so methyl orange really does change about 0.3 cm³ early. The engine was right; the notes were not.
+
+### 3. Resolution
+- The graph allocates one buffer (`TRACE_MAX` points) once, writes the curve's points when the curve changes, moves only the live tip each frame, and draws up to it with `setDrawRange`.
+- Sulfuric acid has its own slider, `sulfuricConc`, 0.025–0.05 mol/dm³ (`SULFURIC_CONC_RANGE`), shown only when it is chosen. `titrationSetup(params)` in `lib/acidBase.js` turns the params into one titration for both the scene and the Details panel, clamping each concentration to its range. A test checks that every control setting reaches equivalence within half the burette.
+- The strong-acid note now says an indicator that changes inside the jump lands on the end point. For sulfuric acid it adds that HSO₄⁻ makes methyl orange change about 0.3 cm³ early. The weak-alkali note no longer names methyl orange outright.
+- The scene's fallback defaults (phenolphthalein, predicted curve on) now match the topic's (universal indicator, off).
+
+## Zoom Scenes: Scene Labels Drawn Over the Panels, and Narrow Canvases Cutting Off the Dot-and-Cross and the Electromagnet
+
+### 1. Problem
+- At the alveoli level, scene labels such as "pulmonary arteriole" and "capillary network" were drawn on top of the gas-exchange panel. The same could happen to the zoom ladders in the respiratory and peristalsis scenes.
+- On a narrow canvas (a narrow window, or a wide controls panel), the dot-and-cross diagrams for molecules with five or six outer atoms ran off both sides, and the electromagnet bench lost its power supply off the left edge.
+
+### 2. Root cause
+- `SceneLabel` draws its labels at z-index 0–40 (`zIndexRange`). The respiratory panel, credits button and zoom ladder sat at `z-20`, and the peristalsis ladder at `z-10`, so nearer labels stacked above them.
+- The VSEPR scene and the induction scene place a fixed camera. The dot-and-cross group scales itself to fit a radius of 2.75, but at an aspect of 0.6 the fixed camera only shows about 1.9 either side. The electromagnet bench spans x ≈ −5.3 to 4.
+
+### 3. Resolution
+- The respiratory panel, credits button and zoom ladder, and the peristalsis zoom ladder, now sit at `z-[45]`, above every scene label.
+- The dot-and-cross view mounts `FitCamera` around `FIT_RADIUS` (exported from `CovalentShells.jsx`), and the electromagnet mounts `FitCamera` around `ELECTROMAGNET_FIT`. Both are height-limited on a wide canvas. The electromagnet lands exactly on its old camera, [0.2, 4.9, 9.8], and the dot-and-cross view moves from 7.6 to 7.4 units away. A narrow canvas backs off far enough to show everything.
+
 ## Lint: the remaining hook-dependency warnings, and a double-saved bookmark
 
 - **Problem:**

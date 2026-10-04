@@ -17,7 +17,12 @@ import { PATHWAYS, STIMULI } from "@/lib/reflexArc";
 import { SOILS } from "@/lib/transpiration";
 import { VECTORS } from "@/lib/pollination";
 import { CONSISTENCIES, ORIENTATIONS } from "@/lib/peristalsis";
+import { GUT_CONDITIONS, MEALS } from "@/lib/absorption";
+import { ALTITUDES, LUNG_CONDITIONS } from "@/lib/gasExchange";
+import { CORES as ELECTROMAGNET_CORES } from "@/lib/electromagnet";
+import { ACIDS as AB_ACIDS, BASES as AB_BASES, INDICATORS as AB_INDICATORS, SUBSTANCES as AB_SUBSTANCES } from "@/lib/acidBase";
 import { MODES as DIVISION_MODES } from "@/lib/cellDivision";
+import { IONIC_COMPOUNDS } from "@/lib/bonding";
 import { MOLECULES } from "@/lib/vseprMolecules";
 import { PATHOLOGIES as CARDIAC_PATHOLOGIES } from "@/lib/cardiacCycle";
 import { ELECTROLYTES, METALS, PARTNERS, SERIES, SOLUTIONS, SOLUTION_ORDER } from "@/lib/redox";
@@ -116,6 +121,9 @@ export const COASTER_CAMERA_OPTIONS = [
  * One button per real molecule. Each writes both pair counts at once, via the
  * control's `patch`, and the scene draws that molecule's measured angles.
  */
+/** The lattice topic's ion-formation compounds, in the order the buttons show them. */
+export const IONIC_COMPOUND_OPTIONS = Object.values(IONIC_COMPOUNDS).map((c) => ({ value: c.key, label: c.formula, title: c.name }));
+
 export const VSEPR_PRESETS = MOLECULES.map((m) => ({
   value: m.id,
   label: m.label,
@@ -322,6 +330,41 @@ export const GRAVITY_ORIENTATION_OPTIONS = Object.entries(ORIENTATIONS).map(([va
   label: o.label,
   title: o.gravitySign > 0 ? "Gravity helps the bolus along" : "Gravity opposes it — the wave has to do all the work",
 }));
+
+/** The peristalsis scene's magnifications (tissue-zoom.jsx). */
+export const GUT_ZOOM_OPTIONS = [
+  { value: "oesophagus", label: "Gut", title: "The oesophagus and stomach: the swallow" },
+  { value: "intestine", label: "Lining", title: "The small intestine's lining: folds and villi, ×10" },
+  { value: "villus", label: "Villus", title: "One villus cut open: where food gets into the blood and lymph" },
+];
+
+export const MEAL_OPTIONS = Object.entries(MEALS).map(([value, m]) => ({ value, label: m.label }));
+
+export const GUT_LINING_OPTIONS = Object.entries(GUT_CONDITIONS).map(([value, c]) => ({ value, label: c.label }));
+
+// ─── Gas exchange ───────────────────────────────────────────────────
+
+/** The respiratory scene's magnifications (tissue-zoom.jsx). */
+export const LUNG_ZOOM_OPTIONS = [
+  { value: "lungs", label: "Chest", title: "The lungs, ribs and diaphragm" },
+  { value: "alveoli", label: "Alveoli", title: "An alveolar sac and its capillary net" },
+  { value: "barrier", label: "Barrier", title: "One septum cut open: the half-micrometre the oxygen crosses" },
+];
+
+export const ALTITUDE_OPTIONS = Object.entries(ALTITUDES).map(([value, a]) => ({ value, label: a.label }));
+
+export const LUNG_CONDITION_OPTIONS = Object.entries(LUNG_CONDITIONS).map(([value, c]) => ({ value, label: c.label }));
+
+// ─── Acids, bases and titration ─────────────────────────────────────
+
+export const AB_INDICATOR_OPTIONS = Object.entries(AB_INDICATORS).map(([value, i]) => ({ value, label: i.label }));
+export const AB_SUBSTANCE_OPTIONS = Object.entries(AB_SUBSTANCES).map(([value, s]) => ({ value, label: `${s.label} · ${s.pH}` }));
+export const AB_ACID_OPTIONS = Object.entries(AB_ACIDS).map(([value, a]) => ({ value, label: `${a.label} (${a.formula})` }));
+export const AB_BASE_OPTIONS = Object.entries(AB_BASES).map(([value, b]) => ({ value, label: `${b.label} (${b.formula})` }));
+
+// ─── Electromagnet ──────────────────────────────────────────────────
+
+export const ELECTROMAGNET_CORE_OPTIONS = Object.entries(ELECTROMAGNET_CORES).map(([value, c]) => ({ value, label: c.label }));
 
 // ─── Pollination ────────────────────────────────────────────────────
 
