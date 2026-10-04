@@ -59,6 +59,7 @@ import {
 } from "@/lib/rayOptics";
 import { COIL_AREA, MAGNET_OMEGA, fluxAt, solveInduction } from "@/lib/induction";
 import { CORES, EM_COLOURS, B_PER_CLIP, solveElectromagnet } from "@/lib/electromagnet";
+import { ACIDS, ACID_BASE_COLOURS, BASES, BURETTE_VOLUME, INDICATORS, INDICATOR_WORDS, SUBSTANCES, UNIVERSAL_CHART, describePH, endPoint, equivalenceJump, equivalenceVolume, hydrogenIons, titrationPoint } from "@/lib/acidBase";
 import { FIELD_HALF_X, SCREEN_DISTANCE, fringePosition } from "@/lib/interference";
 import { VIEW_MAX, solveOrbit } from "@/lib/orbit";
 import { idealFlight, simulateFlight } from "@/lib/projectile";
@@ -2972,6 +2973,113 @@ function renderTopicDetailsReadout(topic, params) {
           { color: S.colour.gas, shape: "dot", label: "Gas", note: "free flight at √T speed, wall collisions" },
           { color: "#fb7185", shape: "line", label: "Flat step", note: "latent heat — temperature held" },
           { color: "#f97316", shape: "square", label: "Hotplate glow", note: "orange heating · blue cooling" },
+        ],
+      };
+      break;
+    }
+
+    case "acids_bases": {
+      // The same engine the scene draws: lib/acidBase.js. The scene hands
+      // back how much alkali has run in (liveVolume), which is a running
+      // total rather than a setting.
+      const indKey = INDICATORS[params.indicator] ? params.indicator : "universal";
+      const ind = INDICATORS[indKey];
+      const words = INDICATOR_WORDS[indKey];
+      const sci = (x) => {
+        const e = Math.floor(Math.log10(x));
+        const m = x / Math.pow(10, e);
+        return `${m.toFixed(1)} × 10${String(e).replace("-", "⁻").replace(/[0-9]/g, (d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d])}`;
+      };
+      if (params.mode !== "titration") {
+        const key = SUBSTANCES[params.focus] ? params.focus : "lemon";
+        const sub = SUBSTANCES[key];
+        const ions = hydrogenIons(sub.pH);
+        const side = sub.pH < 6.75 ? words.acid : sub.pH > 7.25 ? words.alkali : words.neutral;
+        const times = ions.timesWater;
+        readout = {
+          title: "The pH Scale & Indicators",
+          subtitle: `${sub.label} · pH ${sub.pH.toFixed(1)} · ${describePH(sub.pH)}`,
+          rows: [
+            ["pH", sub.pH.toFixed(1), sub.pH < 7 ? "bad" : sub.pH > 7 ? "gold" : "good"],
+            ["[H⁺]", `${sci(ions.h)} mol/dm³`],
+            ["[OH⁻]", `${sci(ions.oh)} mol/dm³`],
+            ["Compared with pure water", times >= 1 ? `${times >= 10 ? Math.round(times).toLocaleString("en-GB") : times.toFixed(1)}× the H⁺` : `${Math.round(1 / times).toLocaleString("en-GB")}× less H⁺`, "wide"],
+            ["Indicator", ind.label],
+            ["Its colour here", side],
+            ["Changes between", ind.chart ? "gradually, pH 0–14" : `pH ${ind.range[0]} and ${ind.range[1]}`],
+          ],
+          note: `${sub.note}. Each step down the pH scale is ten times more hydrogen ions. ${ind.chart ? "Universal indicator is a mixture of indicators, so it runs through the whole rainbow and tells you roughly how acidic or alkaline a solution is." : `${ind.label} is a weak acid whose two forms are different colours: ${words.acid} below its range and ${words.alkali} above it. It says which side of pH ${((ind.range[0] + ind.range[1]) / 2).toFixed(1)} a solution is, and no more.`}`,
+          noteTone: "neutral",
+        };
+        legend = {
+          title: "pH Scale Key",
+          items: ind.chart
+            ? [
+                { color: UNIVERSAL_CHART[1], shape: "square", label: "Strongly acidic (pH 0–3)", note: "Red: stomach acid, lemon juice" },
+                { color: UNIVERSAL_CHART[7], shape: "square", label: "Neutral (pH 7)", note: "Green: pure water" },
+                { color: UNIVERSAL_CHART[13], shape: "square", label: "Strongly alkaline (pH 11–14)", note: "Purple: oven cleaner" },
+              ]
+            : [
+                ...(ind.acid ? [{ color: ind.acid, shape: "square", label: `Below pH ${ind.range[0]}`, note: `${words.acid}: the acid form` }] : []),
+                { color: ind.alkali, shape: "square", label: `Above pH ${ind.range[1]}`, note: `${words.alkali}: the alkaline form` },
+              ],
+        };
+        break;
+      }
+      const acidKey = ACIDS[params.acid] ? params.acid : "hcl";
+      const baseKey = BASES[params.base] ? params.base : "naoh";
+      const opts = { acid: acidKey, acidConc: num(params.acidConc, 0.1), base: baseKey, baseConc: num(params.baseConc, 0.1) };
+      const acid = ACIDS[acidKey];
+      const base = BASES[baseKey];
+      const v = Math.min(BURETTE_VOLUME, Math.max(0, num(params.liveVolume, 0)));
+      const pt = titrationPoint({ ...opts, volume: v });
+      const veq = equivalenceVolume(opts);
+      const ep = endPoint(opts, indKey);
+      const jump = equivalenceJump(opts);
+      const pKa = acid.strong ? null : -Math.log10(acid.Ka[0]);
+      const stage = Math.abs(v - veq) < 0.03 ? "at the equivalence point" : v < veq ? `${(veq - v).toFixed(2)} cm³ before equivalence` : `${(v - veq).toFixed(2)} cm³ past equivalence`;
+      const colourNow = pt.pH < (ind.chart ? 6.75 : ind.range[0]) ? words.acid : pt.pH > (ind.chart ? 7.25 : ind.range[1]) ? words.alkali : ind.chart ? words.neutral : "changing";
+      readout = {
+        title: "Titration · Neutralisation",
+        subtitle: `${acid.formula} in the flask, ${base.formula} from the burette · H⁺ + OH⁻ → H₂O`,
+        rows: [
+          ["Alkali added", `${v.toFixed(2)} cm³`, "gold"],
+          ["pH in the flask", pt.pH.toFixed(2), pt.pH < 6.5 ? "bad" : pt.pH > 7.5 ? "gold" : "good"],
+          ["[H⁺]", `${sci(pt.h)} mol/dm³`],
+          ["Acid's H⁺ to neutralise", `${(pt.molesAcid * acid.Ka.length * 1000).toFixed(3)} mmol`],
+          ["OH⁻ added", `${(pt.molesBase * 1000).toFixed(3)} mmol`],
+          ["Equivalence volume", veq <= BURETTE_VOLUME ? `${veq.toFixed(2)} cm³` : "beyond the burette"],
+          ["Where it is", stage, Math.abs(v - veq) < 0.03 ? "good" : undefined, "wide"],
+          ["pH at equivalence", `${jump.atEquivalence.toFixed(2)} (jump ${jump.before.toFixed(1)} → ${jump.after.toFixed(1)} over two drops)`, undefined, "wide"],
+          ...(pKa !== null ? [["Buffer (half-way)", `pH = pKa = ${pKa.toFixed(2)} at ${(veq / 2).toFixed(2)} cm³`, undefined, "wide"]] : []),
+          ["Indicator", `${ind.label} · ${colourNow}`],
+          ["Its end point", ep.volume !== null ? `${ep.volume.toFixed(2)} cm³` : "none", ep.suitable ? "good" : "bad"],
+        ],
+        note: `${ind.label} ${ep.reason}${ep.suitable ? ", so it is a good choice here" : ", so it is the wrong indicator for this pair"}. ${
+          acid.strong && base.strong
+            ? "Strong acid and strong alkali: equivalence is at pH 7 and the jump is so steep that any indicator changing between about 4 and 10 works."
+            : !acid.strong && base.strong
+              ? "A weak acid: the salt it makes is slightly alkaline, so equivalence is above 7. Half-way there the flask is a buffer and its pH equals the acid's pKa."
+              : acid.strong && !base.strong
+                ? "A weak alkali: the salt is slightly acidic, so equivalence is below 7. Methyl orange suits it; phenolphthalein does not."
+                : "A weak acid with a weak alkali barely jumps at all, so no indicator gives a sharp end point. Use a pH meter."
+        }`,
+        noteTone: ep.suitable ? "good" : "warn",
+      };
+      legend = {
+        title: "Titration Key",
+        items: [
+          { color: ACID_BASE_COLOURS.hydrogen, shape: "dot", label: "H⁺ (H₃O⁺)", note: "What makes it acidic" },
+          { color: ACID_BASE_COLOURS.hydroxide, shape: "dot", label: "OH⁻", note: "From the alkali; meets H⁺ to make water" },
+          { color: ACID_BASE_COLOURS.water, shape: "dot", label: "H₂O", note: "Made by each neutralisation (flashes white)" },
+          { color: ACID_BASE_COLOURS.cation, shape: "dot", label: base.cation, note: base.strong ? "Spectator ion from the alkali" : "Made when NH₃ takes an H⁺" },
+          { color: ACID_BASE_COLOURS.anion, shape: "dot", label: acid.anion, note: acid.strong ? "Spectator ion from the acid" : "The weak acid's ion, made as it is neutralised" },
+          ...(!acid.strong ? [{ color: ACID_BASE_COLOURS.acidMolecule, shape: "dot", label: acid.formula, note: "Un-ionised weak acid: most of it, at first" }] : []),
+          ...(acid.Ka.length > 1 ? [{ color: ACID_BASE_COLOURS.partAnion, shape: "dot", label: "HSO₄⁻", note: "Sulfuric acid with one H⁺ still to give" }] : []),
+          ...(!base.strong ? [{ color: ACID_BASE_COLOURS.freeBase, shape: "dot", label: "NH₃", note: "Ammonia in excess, after equivalence" }] : []),
+          { color: ACID_BASE_COLOURS.curve, shape: "line", label: "Titration curve", note: "Traced as the alkali runs in" },
+          { color: ACID_BASE_COLOURS.equivalence, shape: "dash", label: "Equivalence point", note: "Moles of OH⁻ = moles of H⁺ the acid can give" },
+          ...(pKa !== null ? [{ color: ACID_BASE_COLOURS.buffer, shape: "dot", label: "Half-equivalence", note: "pH = pKa: the buffer region" }] : []),
         ],
       };
       break;

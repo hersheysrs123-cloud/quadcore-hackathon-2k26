@@ -59,6 +59,7 @@ quadcore-hackathon-2k26/
 │       ├── CombustionFireTriangleCanvas.jsx # Detailed Bunsen (rotating collar, needle valve, tap + hose, heat shield, thermocouple that swings clear), bell jar on a hoist, spray-bottle mist + steam, instanced soot, cold basin on tongs → display cradle, in-scene fire triangle
 │       ├── DiffusionLab.jsx              # Particle model's diffusion mode: bromine/air box with lifting partition + Brownian smoke trail, NH₃/HCl tube with cotton plugs and NH₄Cl ring, concentration-profile bars, one instanced population
 │       ├── ParticleModelMatterCanvas.jsx # Mode switch (phases ↔ DiffusionLab); phases: 500 instanced particles in a sealed glass column: lattice / pool / gas driven by the energy-state thermal model, hotplate-cryocooler glow, piston on a rod, thermometer + setpoint tick, KE gauge, in-scene heating curve with ΔH_fus / ΔH_vap plateau labels and a frame-loop marker
+│       ├── AcidBaseCanvas.jsx            # Acids, bases & titration: pH-scale mode (11 indicator-coloured tubes, painted pH bar) and titration mode (lab-kit burette on a stand, stopcock, stirrer, flask, pH meter, ion inset, traced titration curve); pushes liveVolume
 │       ├── RadioactiveDecayCanvas.jsx    # Up to 10 000 instanced nuclei in a lead holder (colour flips on decay), ring-buffered radiation tracers (α/β⁻/β⁺/γ/ν) through charged plates → barrier → GM tube, live decay-curve trace vs dashed N₀e^(−λt), half-life stamp lines, nuclear equation with A/Z check
 │       ├── particle-population.jsx       # SHARED ENGINE: createPopulation (typed arrays at capacity), spawn/kill/colour helpers, flushPopulation (writes only scale + translation into instanceMatrix, colour into instanceColor, only when dirty), InstancedPopulation (one InstancedMesh; disposes mesh + geometry + material on unmount so instance buffers are freed), makeRng / gaussian
 │       ├── live-trace.jsx                # SHARED: LiveTrace — a THREE.Line over a preallocated position buffer, grown via ref.push with drawRange + updateRanges; no React re-render, no geometry rebuild
@@ -96,7 +97,7 @@ quadcore-hackathon-2k26/
 │       ├── MathCanvas.jsx                # Gradient descent on loss surfaces (smooth 60fps direct-ref tangent vector & non-occluded surface-subdivided trail), solids of revolution (flush 1.0 thickness & high-contrast gold/bronze layers), unit circle & Fourier series (multi-waveform Fourier synthesis, tangent geometry & 3D phase helix)
 │       ├── media.js                      # Refractive index presets (air, water, glass, diamond, perspex)
 │       ├── topic-options.js              # Presets and options for VSEPR, 3D sorting, surface functions, and revolution curves
-│       ├── topics.js                     # Topic registry: category, controls schema, concepts & quiz for all 51 topics with speed: 1 defaults
+│       ├── topics.js                     # Topic registry: category, controls schema, concepts & quiz for all 52 topics with speed: 1 defaults
 │       ├── scene-kit.jsx                 # Shared lighting, SceneCanvas, SceneLabel, NoLabel, LabelsOn + ToggleLabel (labels toggle via context), Callout (leader-line labels), FitCamera (frames a VIEW box at any aspect), arrows & bonds
 │       └── VisualizationHUD.jsx          # Resizable HUD control overlays, universal animation speed slider (0.1×–3×), camera reset & quiz overlays
 ```

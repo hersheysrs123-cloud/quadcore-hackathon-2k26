@@ -1,6 +1,6 @@
 # SocraticOS
 
-> **quadcore-hackathon-2k26** — a study workspace where your notes quiz you back: block-based notes, 51 interactive 3D science simulations, and a Socratic AI tutor.
+> **quadcore-hackathon-2k26** — a study workspace where your notes quiz you back: block-based notes, 52 interactive 3D science simulations, and a Socratic AI tutor.
 
 Built on one premise: **rereading is not studying**. Take notes, explore the concept in real-time 3D, ask the tutor, get quizzed on it, and watch a sub-topic mastery heatmap fill in over time.
 
@@ -18,7 +18,7 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000) for the landing page or go straight to [/workspace](http://localhost:3000/workspace).
 
-`GOOGLE_API_KEY` is the only required key (free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)); you can also paste a key into the in-app Settings modal, where it stays in your browser's IndexedDB. Without a key the notes editor, all 51 simulations, timers, export/import and the mastery heatmap work normally offline; only the AI features report a missing key.
+`GOOGLE_API_KEY` is the only required key (free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)); you can also paste a key into the in-app Settings modal, where it stays in your browser's IndexedDB. Without a key the notes editor, all 52 simulations, timers, export/import and the mastery heatmap work normally offline; only the AI features report a missing key.
 
 ---
 
@@ -31,7 +31,7 @@ Open [localhost:3000](http://localhost:3000) for the landing page or go straight
 | ⚙️ **Spaces** | Space Hub: per-space syllabus documents, academic level, examiner persona and question rigour, fed to every AI feature |
 | 🧑‍🏫 **AI** | Tutor chat grounded in your syllabus and open note, structured Explain breakdowns, note reformatter |
 | 🎯 **Quizzes** | Quizzes Studio with 7 question types (MCQ, multi-select, value input, code, step ordering, short answer, essay), resumable runs, review reports and a Solid / Shaky / Gap mastery heatmap |
-| 🧪 **3D Studio** | 51 simulations across five subjects, each with live controls, a Details tab and a colour key (below) |
+| 🧪 **3D Studio** | 52 simulations across five subjects, each with live controls, a Details tab and a colour key (below) |
 | ⏱️ **Focus** | Multi-timer HUD (Pomodoro, breaks, custom), study calendar, recurring alarms |
 | 📖 **Literature** | Annotate poems with overlapping close-reading analysis (stacked underlines, numbered markers, one note across several phrases), a Normal/Test recall mode, a line editor that keeps annotations attached, per-poem intro and conclusion, JSON backups |
 | 🔖 **Web Saver** | Bookmark folders per space with favicons; Netscape HTML import/export |
@@ -54,12 +54,12 @@ The full tour is in [docs/FEATURES.md](docs/FEATURES.md).
 | `Ctrl/Cmd + E` | Literature: attach analysis to the words you have selected in a poem |
 | `Alt + T` | Literature: switch between Normal and Test mode |
 
-## 🧪 3D Studio — 51 Topics
+## 🧪 3D Studio — 52 Topics
 
 | Subject | Topics |
 | :--- | :--- |
 | ⚛️ **Physics** (17) | Refraction · Motor effect · Lenses & mirrors · Electromagnets & induction · Static electricity · Gas laws · Projectile motion · Wave interference · Orbits · Shadows · Incline & friction · Hooke's law · Simple machines · Energy conservation (loop-the-loop) · Circuits · Buoyancy · Heat transfer |
-| 🧪 **Chemistry** (13) | Bohr atom · Organic builder · Fractional distillation · Crystal lattices · Electrolysis · VSEPR · Reaction energetics · Separation techniques · Combustion & fire triangle · Particle model · Radioactive decay · Reactivity series · Rusting & galvanic protection |
+| 🧪 **Chemistry** (14) | Bohr atom · Organic builder · Fractional distillation · Crystal lattices · Electrolysis · VSEPR · Reaction energetics · Separation techniques · Combustion & fire triangle · Particle model · Acids, bases & titration · Radioactive decay · Reactivity series · Rusting & galvanic protection |
 | 🧬 **Biology** (16) | Cell explorer · DNA · Enzymes · Protein folding · Human eye · Respiratory mechanics & gas exchange · Reflex arc · Antagonistic muscles · Transpiration · Peristalsis & absorption · Carbon cycle · Food chains · Flower pollination · Bacteria vs virus · Mitosis & meiosis · Cardiac cycle |
 | 💻 **Computer Science** (2) | Binary search / AVL tree · Sorting algorithms |
 | 📐 **Mathematics** (3) | Gradient descent · Solids of revolution · Unit circle & Fourier synthesis |

@@ -274,7 +274,7 @@ function Loop() {
 }
 
 const TOOLS = [
-  { icon: "◫", title: "3D Lab", body: "51 interactive models across physics, chemistry, biology, CS and maths. Every one can be explained and quizzed." },
+  { icon: "◫", title: "3D Lab", body: "52 interactive models across physics, chemistry, biology, CS and maths. Every one can be explained and quizzed." },
   { icon: "▦", title: "Calendar & timers", body: "Study schedule, Pomodoro sprints and alarms, all stored locally." },
   { icon: "◎", title: "Quiz Studio", body: "Build custom quizzes from one note or many, then track your results." },
   { icon: "▤", title: "Saved links", body: "Bookmarks with folders and notes, importable from your browser." },

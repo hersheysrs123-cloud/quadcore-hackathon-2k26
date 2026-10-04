@@ -48,7 +48,7 @@ quadcore-hackathon-2k26/
 │   ├── ScoreRing.jsx                     # Animated SVG score dial with status coloring
 │   ├── Sidebar.jsx                       # Spaces selector (Grid & Dropdown views with EditSpaceModal), note list, multi-note bulk toolbar, 24h trash drawer, Settings modal & Typed RESET modal
 │   ├── SpaceHubView.jsx                  # Dedicated Space Hub dashboard: per-space curriculum docs with active toggles, space renaming, 26 emoji presets & AI pedagogy settings
-│   ├── ThreeDView.jsx                    # 3D studio container with 51 interactive scientific simulations across 5 STEM domains, TopicSelectorDropdown & resizable HUD
+│   ├── ThreeDView.jsx                    # 3D studio container with 52 interactive scientific simulations across 5 STEM domains, TopicSelectorDropdown & resizable HUD
 │   ├── WebSaverView.jsx                  # Dual-pane Website Saver & Folder Manager with drag-and-drop tree & grid/list views
 │   ├── Workspace.jsx                     # Central workspace layout, top HUD header, space state & global shortcuts
 │   │

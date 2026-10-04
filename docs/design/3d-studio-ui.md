@@ -137,5 +137,6 @@ Lab scenes opt into `SceneCanvas`'s `environment`, a procedural studio that meta
   - plastic: roughness 0.45, metalness 0.05
   - porcelain: roughness 0.22
   - glass: roughness 0.04, opacity 0.2, double-sided, no depth write
+  - amber glass: roughness 0.08, opacity 0.82, double-sided (the indicator dropper bottle)
   - Binding-post caps are white and tinted by the `color` prop.
 

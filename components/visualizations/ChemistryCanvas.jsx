@@ -37,6 +37,7 @@ import SeparationTechniquesCanvas from "@/components/visualizations/SeparationTe
 import CombustionFireTriangleCanvas from "@/components/visualizations/CombustionFireTriangleCanvas";
 import ParticleModelMatterCanvas from "@/components/visualizations/ParticleModelMatterCanvas";
 import RadioactiveDecayCanvas from "@/components/visualizations/RadioactiveDecayCanvas";
+import AcidBaseCanvas from "@/components/visualizations/AcidBaseCanvas";
 
 // Chemistry is written in subscripts everywhere except, until now, here —
 // "C3H8" on screen next to CₙH₂ₙ₊₂ in the same panel reads as a typo.
@@ -3622,6 +3623,7 @@ const SCENES = {
   combustion_fire_triangle: CombustionFireTriangleCanvas,
   particle_model_matter: ParticleModelMatterCanvas,
   radioactive_decay: RadioactiveDecayCanvas,
+  acids_bases: AcidBaseCanvas,
 };
 
 export default function ChemistryCanvas({ topicId, params, setParam, onOpenQuiz }) {
