@@ -36,6 +36,7 @@ import {
   GitBranch,
   Hexagon,
   Leaf,
+  Link,
   Lightbulb,
   Magnet,
   Microscope,
@@ -127,6 +128,7 @@ import { CARDIAC_STAGE_OPTIONS, MAX_BPM, MIN_BPM, formatBpm } from "@/lib/cardia
 import { MAX_DAYS, MIN_DAYS, dayLabel } from "@/lib/redox";
 import { COLLAR_MAX, COLLAR_MIN, collarLabel } from "@/lib/combustion";
 import { PRESSURE_MAX_ATM, PRESSURE_MIN_ATM, TEMP_MAX_C, TEMP_MIN_C } from "@/lib/particleModel";
+import { GAS_TEMP_MAX_C, GAS_TEMP_MIN_C } from "@/lib/diffusion";
 import { DEFAULT_ATOMS, MAX_ATOMS, MIN_ATOMS, SIM_HALF_LIFE_S } from "@/lib/radioactiveDecay";
 
 export const CATEGORIES = [
@@ -1659,8 +1661,8 @@ export const TOPICS = [
     title: "Organic Chemistry & Isomer Builder",
     blurb: "Ball-and-stick alkanes, alkenes, alkynes, alcohols, carboxylic acids & esters",
     syllabus: "Chemistry 14 · Organic chemistry",
-    keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester",
-    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, spin: true, showLabels: true },
+    keywords: "organic alkane alkene alkyne alcohol acid ester homologous series cracking saturated unsaturated bromine ethanol methane carboxylic ester polymer polymerisation addition polymer poly(ethene) polyethene polythene poly(propene) monomer repeat unit plastic",
+    defaults: { family: "alkane", carbons: 3, crack: 0, esterify: 0, polymerise: 0, spin: true, showLabels: true },
     controls: [
       {
         type: "choice",
@@ -1682,6 +1684,8 @@ export const TOPICS = [
       // and the ester is what the esterification makes.
       { type: "action", key: "crack", label: "Trigger cracking", icon: Scissors, when: (p) => (p.family ?? "alkane") === "alkane" },
       { type: "action", key: "esterify", label: "Form the ester (acid + methanol)", icon: FlaskConical, when: (p) => p.family === "ester" },
+      // Any alkene polymerises; the scene holds the chain until the next change.
+      { type: "action", key: "polymerise", label: "Polymerise (addition)", icon: Link, when: (p) => p.family === "alkene" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
@@ -1689,6 +1693,7 @@ export const TOPICS = [
       "Members of a homologous series share a general formula and differ by CH₂, so their properties change gradually down the series.",
       "Cracking breaks long alkanes into a shorter alkane plus a useful alkene, matching supply to demand for petrol and polymer feedstock.",
       "A carboxylic acid and an alcohol, warmed with a few drops of concentrated sulfuric acid, make an ester and water — a reversible condensation reaction. The acid loses –OH and the alcohol loses H.",
+      "Alkenes join into addition polymers: one bond of each C=C opens and the monomers link into a long saturated chain, –[CH₂–CH₂]ₙ– for poly(ethene). Every atom is kept, so the polymer has the monomer's empirical formula and there is only one product.",
     ],
     quiz: [
       {
@@ -1709,6 +1714,13 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "Bromine adds across the C=C double bond, so orange bromine water goes colourless. A saturated alkane leaves it orange. Both burn in air.",
+      },
+      {
+        question: "What is the repeat unit of poly(propene)?",
+        options: ["–[CH₂–CH(CH₃)]ₙ–", "–[CH₂=CH(CH₃)]ₙ–", "–[CH₂–CH₂–CH₂]ₙ–", "–[CH(CH₃)=CH₂]ₙ–"],
+        answer: 0,
+        explanation:
+          "Propene is CH₂=CH–CH₃. In addition polymerisation the C=C opens, so the two carbons that held it become the chain and the –CH₃ hangs off it as a branch. The repeat unit has no double bond left.",
       },
     ],
   },
@@ -2449,22 +2461,38 @@ export const TOPICS = [
     id: "particle_model_matter",
     category: "chemistry",
     icon: Thermometer,
-    title: "Particle Model of Matter & Phase Changes",
-    blurb: "500 particles on a hotplate under a piston — and the thermometer that stops while they melt and boil",
+    title: "Particle Model: Phase Changes & Diffusion",
+    blurb: "500 particles on a hotplate under a piston — and the thermometer that stops while they melt and boil. Then lift a partition and watch two gases diffuse",
     syllabus: "Chemistry 1.1 · States of matter · grades 6–9",
     keywords:
-      "particle model kinetic theory states of matter solid liquid gas melting boiling freezing condensing sublimation evaporation latent heat fusion vaporisation heating curve plateau temperature kinetic energy intermolecular forces hydrogen bond dispersion pressure piston boiling point clausius clapeyron dry ice supercritical ice floats",
+      "particle model kinetic theory states of matter solid liquid gas melting boiling freezing condensing sublimation evaporation latent heat fusion vaporisation heating curve plateau temperature kinetic energy intermolecular forces hydrogen bond dispersion pressure piston boiling point clausius clapeyron dry ice supercritical ice floats diffusion brownian motion random walk concentration gradient bromine ammonia hydrogen chloride ammonium chloride white ring graham's law molar mass mean free path smoke particle",
     defaults: {
+      mode: "phases",
       temperature: 20,
       pressure: 1,
       substance: "water",
+      experiment: "mixing",
+      gasTemp: 20,
+      release: 0,
+      tracer: true,
       speed: 1,
       showLabels: true,
     },
     controls: [
       {
+        type: "choice",
+        key: "mode",
+        label: "Experiment",
+        columns: 2,
+        options: [
+          { value: "phases", label: "Heating & phases" },
+          { value: "diffusion", label: "Diffusion" },
+        ],
+      },
+      {
         type: "slider",
         key: "temperature",
+        when: (p) => p.mode !== "diffusion",
         label: "Temperature — hotplate / cryocooler setpoint",
         min: TEMP_MIN_C,
         max: TEMP_MAX_C,
@@ -2474,19 +2502,46 @@ export const TOPICS = [
       {
         type: "slider",
         key: "pressure",
+        when: (p) => p.mode !== "diffusion",
         label: "Pressure piston",
         min: PRESSURE_MIN_ATM,
         max: PRESSURE_MAX_ATM,
         step: 0.1,
         format: (v) => `${Number(v).toFixed(1)} atm`,
       },
-      { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3 },
+      { type: "choice", key: "substance", label: "Substance", options: SUBSTANCE_OPTIONS, columns: 3, when: (p) => p.mode !== "diffusion" },
+      {
+        type: "choice",
+        key: "experiment",
+        label: "Diffusion experiment",
+        columns: 2,
+        when: (p) => p.mode === "diffusion",
+        options: [
+          { value: "mixing", label: "Bromine into air" },
+          { value: "tube", label: "NH₃ + HCl tube" },
+        ],
+      },
+      {
+        type: "slider",
+        key: "gasTemp",
+        label: "Gas temperature",
+        min: GAS_TEMP_MIN_C,
+        max: GAS_TEMP_MAX_C,
+        step: 5,
+        format: (v) => `${Number(v).toFixed(0)} °C`,
+        when: (p) => p.mode === "diffusion",
+      },
+      // Lifts the partition, or pushes the soaked cotton wool into the tube; a second press starts again.
+      { type: "action", key: "release", label: "Release the gases", icon: Wind, when: (p) => p.mode === "diffusion" },
+      { type: "toggle", key: "tracer", label: "Brownian smoke particle", when: (p) => p.mode === "diffusion" && p.experiment !== "tube" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "Everything is made of particles that are always moving, and temperature is a measure of how fast — the average kinetic energy of a particle is proportional to the absolute temperature (³⁄₂ kT). In a solid the particles have only enough energy to vibrate about fixed positions in a regular lattice; in a liquid they have enough to slide past one another but not to escape each other's attraction, so they stay touching; in a gas they have broken free entirely and fly in straight lines between collisions, filling whatever space the piston leaves them. Heating a gas makes its particles hit the walls harder and more often, which is pressure; pushing the piston down squeezes the same particles into less room, which is also pressure.",
       "While a substance melts or boils its temperature does not change. The heating curve shows this as two flat steps: energy is still going in, but it is being spent breaking the attractions between particles — pulling them out of the lattice (the latent heat of fusion, 6.0 kJ per mole for ice) or apart from one another altogether (the latent heat of vaporisation, 40.7 kJ per mole for water) — not on making them move faster. Only when every particle has crossed does the temperature rise again. The boiling step is far longer than the melting step because separating particles completely costs far more than loosening them.",
       "How high those steps sit depends on how strong the attractions are, and where they sit depends on the pressure. Water's hydrogen bonds hold it together to 100 °C; neon's feeble dispersion forces give way at −246 °C, far below anything this hotplate reaches. Raise the pressure and a liquid has to get hotter before its vapour can push back — water boils at 180 °C at 10 atm, which is how a pressure cooker works, and at 81 °C at 0.5 atm on a mountain. Carbon dioxide has no liquid at all at 1 atm: dry ice sublimes straight to gas at −78.5 °C, and only above 5.1 atm can it be a liquid. Ice is the odd one out for another reason — its open hydrogen-bonded lattice takes up 9% more room than the water it melts into, which is why it floats.",
+      "Diffusion is the net spreading of particles from where they are concentrated to where they are not, caused by nothing but their random motion. A gas molecule moves at hundreds of metres a second but collides with another every fraction of a micrometre, so its path is a zig-zag random walk and the gas creeps rather than rushes. Diffusion is faster when the gas is hotter (the particles move faster) and when its particles are lighter: at the same temperature every gas has the same mean kinetic energy, ½mv², so a lighter particle must move faster. That is why the white ring of ammonium chloride forms nearer the hydrochloric acid end of the tube — NH₃ (M = 17) outruns HCl (M = 36.5).",
+      "Brownian motion is the evidence. A smoke or pollen particle is big enough to see but small enough to be knocked about by the invisible molecules hitting it unevenly from all sides, so it jiggles and wanders in a random path with no preferred direction. Robert Brown saw it in pollen grains in 1827; Einstein explained it in 1905 and Perrin's measurements of it were what finally convinced the remaining sceptics that atoms are real.",
     ],
     quiz: [
       {
@@ -2548,6 +2603,30 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "In liquid water molecules tumble past one another and pack closer than the rigid, open hexagonal arrangement hydrogen bonds impose in ice. The same mass takes about 9% more volume as ice — an unusual property (most solids are denser than their liquids, as neon and CO₂ are here) and the reason lakes freeze from the top down.",
+      },
+      {
+        question: "Cotton wool soaked in ammonia solution and in hydrochloric acid are pushed into opposite ends of a long tube at the same moment. Where does the white ring of ammonium chloride form?",
+        options: [
+          "Nearer the hydrochloric acid end — ammonia molecules are lighter, so they move faster and diffuse further in the same time",
+          "Nearer the ammonia end — ammonia is the stronger smelling gas",
+          "Exactly in the middle — both gases are at the same temperature",
+          "Nowhere — the gases cannot meet because they are pushed apart by the air in the tube",
+        ],
+        answer: 0,
+        explanation:
+          "At the same temperature both gases have the same mean kinetic energy, so the lighter NH₃ (M = 17) moves faster than HCl (M = 36.5) and gets further along the tube before they meet. The air slows both by collisions — which is why the ring takes minutes to form, not milliseconds — but it slows them alike.",
+      },
+      {
+        question: "A smoke particle seen under a microscope jiggles about at random. What causes this Brownian motion?",
+        options: [
+          "Air molecules, too small to see, hitting it unevenly from different sides",
+          "Convection currents in the air carrying it in one direction",
+          "The smoke particle has its own energy source",
+          "Light from the microscope pushing it about",
+        ],
+        answer: 0,
+        explanation:
+          "At any instant slightly more molecules hit one side than another, so the particle is shoved in a random direction, then another. Its path has no preferred direction — a current would carry it steadily one way. It is direct evidence that air is made of fast-moving particles.",
       },
     ],
   },

@@ -22,6 +22,7 @@ import { mediumColour } from "@/components/visualizations/media";
 import { ATOM_COLOURS, describeAtom } from "@/lib/atomicStructure";
 import { solveColumn } from "@/lib/distillation";
 import { ORGANIC_COLOURS, describeMolecule } from "@/lib/organic";
+import { AMMONIUM_CHLORIDE, describeDiffusion } from "@/lib/diffusion";
 import { CELL_COLOURS, ELECTROLYTE, formatGasVolume, formatRunTime, solveElectrolysis } from "@/lib/electrolysis";
 import { DENATURE_TEMP, ENZYME_COLOURS, OPTIMUM_PH, OPTIMUM_TEMP, solveEnzyme } from "@/lib/enzymes";
 import { BACKBONE_COLOURS, BASE_CLASS, BASE_COLOURS, BASE_NAMES, BASE_PAIRS_PER_TURN, COMPLEMENT, HYDROGEN_BOND_COLOUR, PAIR_BONDS, describeHelix } from "@/lib/dna";
@@ -2080,6 +2081,12 @@ function renderTopicDetailsReadout(topic, params) {
           ["Bromine water", m.decolourisesBromine ? "decolourised — orange to clear" : "stays orange — no reaction", m.decolourisesBromine ? "good" : undefined],
           ...(m.functionalGroup ? [["Functional group", m.functionalGroup]] : []),
           ...(m.crackable ? [["Cracking", "long enough to break in two", "gold"]] : []),
+          ...(m.polymer
+            ? [
+                ["Addition polymer", `${m.polymer.name} · ${m.polymer.repeatUnit}`, "gold"],
+                ...(m.polymer.uses ? [["Used for", m.polymer.uses]] : []),
+              ]
+            : []),
         ],
         note: m.valid
           ? m.note
@@ -2673,6 +2680,61 @@ function renderTopicDetailsReadout(topic, params) {
 
 
     case "particle_model_matter": {
+      if (params.mode === "diffusion") {
+        // The random walk lives in lib/diffusion.js; the scene pushes what it measured.
+        const ringFrac = num(params.liveRingFrac, -1);
+        const d = describeDiffusion({
+          experiment: params.experiment,
+          tempC: num(params.gasTemp, 20),
+          time: num(params.liveDiffTime, 0),
+          mixPct: num(params.liveMixPct, 0),
+          ring: ringFrac >= 0 ? ringFrac : null,
+          deposits: num(params.liveDeposits, 0),
+          released: params.liveReleased === true,
+          tracer: params.tracer === true,
+        });
+        const tube = d.experiment === "tube";
+        const lighter = d.faster;
+        const heavier = d.slower;
+        readout = {
+          title: tube ? "Diffusion · NH₃ meets HCl" : "Diffusion · bromine into air",
+          subtitle: d.released ? `${d.time.toFixed(1)} s since release · ${d.tempC.toFixed(0)} °C` : tube ? "cotton wool out — press Release" : "partition in — press Release",
+          rows: [
+            [`${d.left.formula} speed (r.m.s.)`, `${d.left.vRms.toFixed(0)} m/s`, "gold"],
+            [`${d.right.formula} speed (r.m.s.)`, `${d.right.vRms.toFixed(0)} m/s`, "gold"],
+            ["Faster gas", `${lighter.formula} · ${d.speedRatio.toFixed(2)}×`, "good"],
+            ["Why", `lighter (M ${lighter.M} vs ${heavier.M}), same mean KE, so v = √(3RT/M) is higher`, undefined, "wide"],
+            ...(tube
+              ? [
+                  ["White ring", d.ring === null ? (d.released ? "not formed yet" : "—") : `${Math.round(d.ring * 100)}% from NH₃ end`, d.ring === null ? undefined : "good"],
+                  ["NH₄Cl formed", `${d.deposits} pairs`],
+                  ["Speed-ratio estimate", `${Math.round(d.estimateRing * 100)}% — if each front moved at its own speed; a random-walk front advances as √(Dt), so the real ring sits nearer the middle`, undefined, "wide"],
+                  ["Equation", d.equation, "gold", "wide"],
+                ]
+              : [
+                  ["Mixed", d.released ? `${Math.round(d.mixPct)}%` : "0% · partition in", d.mixPct > 60 ? "good" : undefined],
+                  ["Net movement", "high → low conc."],
+                  ...(d.tracer ? [["Smoke particle", `${d.smokeVRms.toFixed(0)} m/s r.m.s. here — a real one is far heavier and slower, drawn light so its jiggle shows`, "warn", "wide"]] : []),
+                ]),
+            ["Hotter gas", "diffuses faster"],
+          ],
+          note: tube
+            ? `Neither gas is pushed: each particle zig-zags at random, hitting air molecules millions of times a second, and the gases spread from the cotton wool down their concentration gradients. ${lighter.formula} is lighter than ${heavier.formula}, so at the same temperature it moves faster and gets further — the ring forms nearer the ${heavier.formula} end.`
+            : `Nothing pushes the bromine across: each particle moves at random, but there are more of them on the left to wander right than on the right to wander left, so the net movement is from high to low concentration until both are spread evenly. Air, being lighter, gets across faster than the bromine does.${d.tracer ? " The smoke particle is shoved unevenly by the invisible molecules — Brownian motion." : ""}`,
+          noteTone: "good",
+        };
+        legend = {
+          title: "Particle Key",
+          items: [
+            { color: d.left.colour, shape: "dot", label: `${d.left.label} (${d.left.formula})`, note: d.left.note },
+            { color: d.right.colour, shape: "dot", label: `${d.right.label} (${d.right.formula})`, note: d.right.note },
+            ...(tube ? [{ color: AMMONIUM_CHLORIDE.colour, shape: "dot", label: "Ammonium chloride (NH₄Cl)", note: "white solid, on the glass" }] : []),
+            ...(d.tracer ? [{ color: "#a8a29e", shape: "dot", label: "Smoke particle", note: "gold trail is its random path" }] : []),
+            { color: d.left.colour, shape: "square", label: "Profile bars", note: "how many of each gas in that slice" },
+          ],
+        };
+        break;
+      }
       const substance = typeof params.substance === "string" ? params.substance : "water";
       const S = substanceFor(substance);
       const setpoint = num(params.temperature, 20);

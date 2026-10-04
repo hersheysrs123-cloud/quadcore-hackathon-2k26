@@ -76,8 +76,10 @@ quadcore-hackathon-2k26/
 │   │   ├── hookes-law.test.mjs           # Elastic limit, plastic branch, permanent set
 │   │   ├── incline-forces.test.mjs       # Weight resolution, friction, angle of repose
 │   │   ├── lattices.test.mjs             # Coordination numbers, quartz tetrahedra, ice angles
-│   │   ├── organic-chemistry.test.mjs    # Formulas, names, geometry, cracking balance
+│   │   ├── organic-chemistry.test.mjs    # Formulas, names, geometry, cracking balance, polymerisation repeat units
 │   │   ├── particle-model.test.mjs       # Phase boundaries, latent heats, r.m.s. speed
+│   │   ├── diffusion.test.mjs            # Partition holds, mixing, lighter/hotter faster, NH₄Cl ring nearer HCl, confinement, readout
+│   │   ├── rigid-fit.test.mjs            # Best-fit rotation recovery, never a reflection
 │   │   ├── protein-folding.test.mjs      # Folding window and denaturation
 │   │   ├── radioactive-decay.test.mjs    # Nuclear equations and half-life statistics
 │   │   ├── separation.test.mjs           # Filtration, crystallisation, chromatography Rf, right-tool verdicts

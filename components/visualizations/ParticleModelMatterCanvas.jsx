@@ -15,6 +15,7 @@ import { relaxTo } from "@/components/visualizations/vessel-rack";
 import { DARK_STEEL, GLASS, LabBench, STEEL, THICK_GLASS } from "@/components/visualizations/lab-bench";
 import { KitPart } from "@/components/visualizations/lab-kit-model";
 import { InstancedPopulation, createPopulation, mixParticleColour, spawnParticle } from "@/components/visualizations/particle-population";
+import DiffusionLab from "@/components/visualizations/DiffusionLab";
 import {
   CONTAINER,
   C_TO_K,
@@ -589,7 +590,15 @@ const NoLabel = () => null;
 
 // ─── The scene ──────────────────────────────────────────────────────
 
+/**
+ * The topic's two modes share one canvas slot: heating and phase changes
+ * (this file), or diffusion and Brownian motion (`DiffusionLab.jsx`).
+ */
 export default function ParticleModelMatterCanvas({ params = {}, setParam }) {
+  return params?.mode === "diffusion" ? <DiffusionLab params={params} setParam={setParam} /> : <PhaseLab params={params} setParam={setParam} />;
+}
+
+function PhaseLab({ params = {}, setParam }) {
   const {
     temperature = 20,
     pressure = 1,

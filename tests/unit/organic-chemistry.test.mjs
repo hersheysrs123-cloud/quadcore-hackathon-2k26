@@ -280,3 +280,42 @@ describe("esterification — acid + methanol ⇌ methyl ester + water", () => {
     assert.match(e.catalyst, /H₂SO₄/);
   });
 });
+
+describe("addition polymerisation — n alkene → –[CH₂–CH(R)]ₙ–", async () => {
+  const { POLYMER_UNITS, isPolymerisable, polymerisation } = await import("../../lib/organic.js");
+
+  it("applies to every alkene and to nothing else", () => {
+    every((family, n) => {
+      assert.equal(isPolymerisable(family, n), family === "alkene" && n >= 2, `${family} ${n}`);
+      assert.equal(polymerisation(n) === null, !isPolymerisable("alkene", n));
+    });
+  });
+
+  it("keeps every atom: the polymer's empirical formula is the monomer's", () => {
+    for (let n = 2; n <= MAX_CARBONS; n += 1) {
+      const p = polymerisation(n);
+      assert.equal(p.polymer.empirical, `(${formulaFor("alkene", n)})ₙ`);
+      assert.equal(p.sideCarbons, n - 2);
+      assert.equal(p.units, POLYMER_UNITS);
+    }
+  });
+
+  it("writes the repeat units the syllabus uses", () => {
+    assert.equal(polymerisation(2).polymer.repeatUnit, "–[CH₂–CH₂]ₙ–");
+    assert.equal(polymerisation(3).polymer.repeatUnit, "–[CH₂–CH(CH₃)]ₙ–");
+    assert.equal(polymerisation(4).polymer.repeatUnit, "–[CH₂–CH(C₂H₅)]ₙ–");
+    assert.equal(polymerisation(2).polymer.name, "poly(ethene)");
+    assert.equal(polymerisation(3).wordEquation, "n propene → poly(propene)");
+  });
+
+  it("leaves no C=C, so the polymer does not decolourise bromine water", () => {
+    assert.equal(polymerisation(2).decolourisesBromine, false);
+    assert.ok(!polymerisation(5).polymer.repeatUnit.includes("="));
+  });
+
+  it("is what the readout reports for an alkene, and only an alkene", () => {
+    assert.equal(describeMolecule("alkene", 3).polymer.name, "poly(propene)");
+    assert.equal(describeMolecule("alkane", 3).polymer, null);
+    assert.equal(describeMolecule("alkene", 1).polymer, null);
+  });
+});
