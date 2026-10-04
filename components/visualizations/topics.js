@@ -85,6 +85,7 @@ import {
   GUT_LINING_OPTIONS,
   GUT_ZOOM_OPTIONS,
   LUNG_CONDITION_OPTIONS,
+  ELECTROMAGNET_CORE_OPTIONS,
   LUNG_ZOOM_OPTIONS,
   MEAL_OPTIONS,
   CARDIAC_PATHOLOGY_OPTIONS,
@@ -393,10 +394,10 @@ export const TOPICS = [
     id: "induction",
     category: "physics",
     icon: Zap,
-    title: "Electromagnetic Induction & Faraday's Law",
-    blurb: "Rotating dynamo coil & moving bar magnet with live glowing bulb and galvanometer",
+    title: "Electromagnets & Electromagnetic Induction",
+    blurb: "An electromagnet with filings, compasses and a clip test; a dynamo coil and a bar magnet in a coil, with a live bulb and galvanometer",
     syllabus: "Physics 4.5 · Electromagnetism",
-    keywords: "faraday lenz induction generator emf flux alternating current dynamo coil solenoid bar magnet",
+    keywords: "faraday lenz induction generator emf flux alternating current dynamo coil solenoid bar magnet electromagnet magnetic effect of a current right-hand grip rule soft iron steel core iron filings plotting compass field pattern temporary permanent magnet domains relay",
     defaults: {
       apparatus: "generator",
       speed: 1,
@@ -409,6 +410,11 @@ export const TOPICS = [
       autoOscillate: true,
       magnetStrength: 1.2,
       flipPoles: false,
+      supplyOn: true,
+      coilCurrent: 1.5,
+      emTurns: 300,
+      core: "softIron",
+      reverseCurrent: false,
     },
     controls: [
       {
@@ -418,8 +424,33 @@ export const TOPICS = [
         options: [
           { value: "generator", label: "AC Generator" },
           { value: "solenoid", label: "Bar Magnet & Coil" },
+          { value: "electromagnet", label: "Electromagnet" },
         ],
       },
+      // Electromagnet specific controls
+      { type: "toggle", key: "supplyOn", label: "Power supply on", when: (p) => p.apparatus === "electromagnet" },
+      {
+        type: "slider",
+        key: "coilCurrent",
+        label: "Current I",
+        min: 0,
+        max: 3,
+        step: 0.1,
+        format: (v) => `${v.toFixed(1)} A`,
+        when: (p) => p.apparatus === "electromagnet",
+      },
+      {
+        type: "slider",
+        key: "emTurns",
+        label: "Turns on the coil",
+        min: 100,
+        max: 500,
+        step: 50,
+        format: (v) => `${v} turns`,
+        when: (p) => p.apparatus === "electromagnet",
+      },
+      { type: "choice", key: "core", label: "Core", options: ELECTROMAGNET_CORE_OPTIONS, when: (p) => p.apparatus === "electromagnet" },
+      { type: "toggle", key: "reverseCurrent", label: "Reverse the current (swap the leads)", when: (p) => p.apparatus === "electromagnet" },
       // Generator specific controls
       {
         type: "slider",
@@ -473,8 +504,9 @@ export const TOPICS = [
         max: 8,
         step: 1,
         format: (v) => `${v} turn${v === 1 ? "" : "s"}`,
+        when: (p) => p.apparatus !== "electromagnet",
       },
-      { type: "toggle", key: "showBulb", label: "Demonstration light bulb" },
+      { type: "toggle", key: "showBulb", label: "Demonstration light bulb", when: (p) => p.apparatus !== "electromagnet" },
       { type: "toggle", key: "showFieldLines", label: "Show field lines" },
       { type: "toggle", key: "showCurrent", label: "Show current arrows" },
     ],
@@ -483,6 +515,8 @@ export const TOPICS = [
       "Relative motion is required: A stationary magnet inside a coil produces constant flux (ΔΦ/Δt = 0), yielding zero induced e.m.f.",
       "Lenz's Law: The induced current always flows so as to oppose the change in flux that caused it — an approaching north pole meets an induced north pole at the near end of the coil, and a receding one is held back by an induced south pole.",
       "In an AC generator the flux linking the coil is Φ = BA cos ωt, so ε = NBAω sin ωt: zero when the coil is face-on to the field, greatest when it is edge-on, and reversing every half turn (f = ω/2π).",
+      "A current makes a magnetic field. A coil of wire (a solenoid) has the same field pattern outside as a bar magnet, and its north end follows the right-hand grip rule: curl the fingers of your right hand the way the current goes round, and your thumb points to the north pole. Reverse the current and the poles swap.",
+      "An electromagnet is made stronger by more current, more turns, or an iron core: B = μ₀NI/L for the coil, and the core's domains line up with it and add their own field. Soft iron is used because it loses its magnetism as soon as the current stops (a temporary magnet); steel keeps much of it, which makes it a permanent magnet instead.",
     ],
     quiz: [
       {
@@ -520,6 +554,25 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "By Lenz's law, withdrawing the magnet causes flux to decrease instead of increase, reversing the induced current and deflecting the needle in the opposite direction.",
+      },
+      {
+        question: "Why is the core of an electromagnet in a relay or a scrapyard crane made of soft iron rather than steel?",
+        options: [
+          "Soft iron loses its magnetism when the current is switched off, so the load is released",
+          "Soft iron conducts the current better than steel",
+          "Steel cannot be magnetised at all",
+          "Soft iron makes the field point the other way",
+        ],
+        answer: 0,
+        explanation:
+          "Both are magnetised strongly while the current flows, but soft iron is a temporary magnet: switch off and its domains fall back to random, so the crane drops its load and the relay springs open. Steel would keep much of its magnetism and stay stuck — which is why permanent magnets are made of steel.",
+      },
+      {
+        question: "Looking at one end of a solenoid, the current goes round it anticlockwise. Which pole is that end?",
+        options: ["North", "South", "Neither — the poles are at the sides", "It depends on the core"],
+        answer: 0,
+        explanation:
+          "Right-hand grip rule: curl your fingers the way the current goes and your thumb points along the field, out of the north end. Anticlockwise seen from an end means the field comes out towards you, so that end is north (a memory aid: the arrows on an N drawn on the end run anticlockwise).",
       },
     ],
   },

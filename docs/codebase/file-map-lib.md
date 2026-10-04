@@ -61,6 +61,7 @@ quadcore-hackathon-2k26/
 │   ├── binaryTree.js                     # PURE CS: BST / AVL insertion, rotations, traversals
 │   ├── rayOptics.js                      # PURE PHYSICS: thin lenses and curved-mirror ray tracing
 │   ├── induction.js                      # PURE PHYSICS: Faraday's law, dynamo EMF, bar-magnet and solenoid
+│   ├── electromagnet.js                  # PURE PHYSICS: an electromagnet's field (finite solenoid × core gain, saturation, remanence), clips held, and the field on the card from rings of current (elliptic integrals)
 │   ├── interference.js                   # PURE PHYSICS: two-source wave interference and double-slit fringes
 │   ├── orbit.js                          # PURE PHYSICS: symplectic leapfrog orbits and the gravity well
 │   ├── projectile.js                     # PURE PHYSICS: ballistic flight with quadratic drag

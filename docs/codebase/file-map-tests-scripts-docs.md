@@ -73,6 +73,7 @@ quadcore-hackathon-2k26/
 │   │   ├── electrolysis.test.mjs         # Faraday's law and cell arithmetic
 │   │   ├── electrolysis-electrodes.test.mjs # Copper vs graphite electrode behaviour
 │   │   ├── electrostatics.test.mjs       # Coulomb force, induction, leakage
+│   │   ├── electromagnet.test.mjs        # Coil field ∝ NI, core gain, clips, poles, soft iron vs steel remanence, the ring field and traced lines
 │   │   ├── energetics.test.mjs           # Energy profile, Arrhenius factor, catalyst effect
 │   │   ├── enzymes.test.mjs              # Rate curve is single-valued; denaturation temperature
 │   │   ├── eye-refractive-error.test.mjs # Short and long sight, far / near points, correcting lens

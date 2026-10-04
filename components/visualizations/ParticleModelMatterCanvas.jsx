@@ -126,7 +126,14 @@ function ParticleDriver({ modelRef, substance, pressureAtm, setpointC, animSpeed
     const poolBottom = blockTop + (nS > 0 ? 0.05 : 0);
     const poolTop = poolBottom + Math.max(h.liquid, nL > 0 ? radius * 2.2 : 0);
     const gasFloor = nL > 0 ? poolTop : blockTop;
-    const pistonY = Math.max(h.piston + FLOOR_Y, gasFloor + radius * 2.5);
+    // The piston as drawn, and as the gas meets it. The model's column
+    // heights do not know how tall the lattice really packs (eight layers
+    // of 64 whatever the substance), so a dense solid such as CO₂ stood up
+    // through a plate drawn at the model's height. It never sits inside what
+    // is below it: it rises at once, and settles back down gently.
+    const clear = gasFloor + radius * 2.5 - FLOOR_Y;
+    h.drawn = Math.max(h.piston, clear, relaxTo(h.drawn ?? h.piston, Math.max(h.piston, clear), 0.2, dt));
+    const pistonY = FLOOR_Y + h.drawn;
     const vibration = 0.02 + 0.075 * Math.sqrt(TK / 300);
     const gasSpeed = GAS_SPEED_AT_300K * Math.sqrt(TK / 300);
     const relax = 1 - Math.exp(-dt / 0.28);
@@ -247,7 +254,7 @@ function ParticleDriver({ modelRef, substance, pressureAtm, setpointC, animSpeed
       liveFraction: Math.round(s.fraction * 100) / 100,
       liveEnergyKJ: Math.round((s.energy / 1000) * 100) / 100,
       liveHeating: Math.round(s.heating),
-      livePistonPct: Math.round((h.piston / CONTAINER.maxHeight) * 100),
+      livePistonPct: Math.round((h.drawn / CONTAINER.maxHeight) * 100),
     };
     for (const [key, value] of Object.entries(next)) {
       if (pushed.current.values[key] !== value) {
@@ -320,7 +327,7 @@ function Column({ heightsRef }) {
   const piston = useRef(null);
   const rod = useRef(null);
   useFrame(() => {
-    const y = FLOOR_Y + heightsRef.current.piston;
+    const y = FLOOR_Y + (heightsRef.current.drawn ?? heightsRef.current.piston);
     if (piston.current) piston.current.position.y = y;
     if (rod.current) {
       const top = FLOOR_Y + GLASS_HEIGHT + 0.9;
@@ -618,7 +625,7 @@ function PhaseLab({ params = {}, setParam }) {
   if (modelRef.current === null) {
     modelRef.current = { state: { ...createThermalState(substance, pressureAtm, setpointC), tempC: setpointC, phase: "liquid", fraction: 0 } };
   }
-  const heightsRef = useRef({ solid: 0, liquid: CONTAINER.liquidHeight, piston: CONTAINER.liquidHeight + CONTAINER.minHeadspace });
+  const heightsRef = useRef({ solid: 0, liquid: CONTAINER.liquidHeight, piston: CONTAINER.liquidHeight + CONTAINER.minHeadspace, drawn: CONTAINER.liquidHeight + CONTAINER.minHeadspace });
 
   // One population for the life of the scene; the substance only changes how it is driven.
   const population = useMemo(() => createPopulation(PARTICLE_COUNT), []);
@@ -649,7 +656,7 @@ function PhaseLab({ params = {}, setParam }) {
   const ke = kineticReadout(substance, tempC);
   const heating = liveHeating > 50 ? "heating" : liveHeating < -50 ? "cooling" : "holding";
   const Label = showLabels ? SceneLabel : NoLabel;
-  const pistonPct = livePistonPct === null || livePistonPct === undefined ? Math.round((heightsRef.current.piston / CONTAINER.maxHeight) * 100) : livePistonPct;
+  const pistonPct = livePistonPct === null || livePistonPct === undefined ? Math.round((heightsRef.current.drawn / CONTAINER.maxHeight) * 100) : livePistonPct;
 
   return (
     <SceneCanvas environment camera={{ position: [2.2, 5.6, 20], fov: FOV }} controls={{ minDistance: 5, maxDistance: 36, target: [VIEW.cx, (VIEW.top + VIEW.bottom) / 2, 0] }}>

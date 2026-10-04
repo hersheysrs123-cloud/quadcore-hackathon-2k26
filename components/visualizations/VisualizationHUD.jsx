@@ -58,6 +58,7 @@ import {
   solveRayOptics,
 } from "@/lib/rayOptics";
 import { COIL_AREA, MAGNET_OMEGA, fluxAt, solveInduction } from "@/lib/induction";
+import { CORES, EM_COLOURS, B_PER_CLIP, solveElectromagnet } from "@/lib/electromagnet";
 import { FIELD_HALF_X, SCREEN_DISTANCE, fringePosition } from "@/lib/interference";
 import { VIEW_MAX, solveOrbit } from "@/lib/orbit";
 import { idealFlight, simulateFlight } from "@/lib/projectile";
@@ -1222,6 +1223,65 @@ function renderTopicDetailsReadout(topic, params) {
       const isSolenoid = params?.apparatus === "solenoid";
       const speed = num(params.speed, 1.0);
       const N = num(params.turns, 3);
+
+      if (params?.apparatus === "electromagnet") {
+        // The same engine the scene draws; the scene hands back what the core
+        // has kept (liveRetained), which is history rather than a setting.
+        const core = CORES[params.core] ? params.core : "softIron";
+        const em = solveElectromagnet({
+          turns: num(params.emTurns, 300),
+          current: num(params.coilCurrent, 1.5),
+          reverse: Boolean(params.reverseCurrent),
+          core,
+          on: params.supplyOn !== false,
+          retained: num(params.liveRetained, 0),
+        });
+        const mT = (b) => `${(Math.abs(b) * 1000).toFixed(Math.abs(b) < 0.01 ? 2 : 1)} mT`;
+        const ends = em.north ? (em.north === "right" ? "N right · S left" : "N left · S right") : "no poles";
+        readout = {
+          title: "Electromagnet · Magnetic Effect of a Current",
+          subtitle: "B = μ₀ N I / √(L² + 4R²) · × the core's gain",
+          rows: [
+            ["Supply", em.on ? `${em.current.toFixed(1)} A${em.reverse ? " · reversed" : ""}` : "off", em.on ? "good" : undefined],
+            ["Turns N", em.turns, "gold"],
+            ["Ampere-turns N·I", `${Math.round(em.ampereTurns)} A`],
+            ["Coil alone, centre", mT(em.airT)],
+            ["Core", em.coreLabel],
+            ["With the core, centre", mT(em.centreT), "gold"],
+            ["Core's gain", em.gain ? `×${em.gain.toFixed(1)}` : "—"],
+            ["Poles (right-hand grip)", ends, em.north ? undefined : "bad"],
+            ["Field at the pole", mT(em.poleT)],
+            ["Clips it can hold", `${em.clips} (one per ${(B_PER_CLIP * 1000).toFixed(0)} mT)`, em.clips > 0 ? "good" : "bad"],
+          ],
+          note: !em.on
+            ? em.permanent
+              ? core === "steel"
+                ? `Current off, but the steel keeps about ${Math.round(CORES.steel.remanence * 100)} % of its magnetisation: its domains stay lined up, so it is now a permanent magnet and still holds ${em.clips} clip${em.clips === 1 ? "" : "s"}.`
+                : "Current off: soft iron keeps only a trace of magnetism — its domains fall back to random — so it drops the clips. That is why relays and crane magnets use it."
+              : "No current, no field: the filings drift loose, the compasses swing back to the Earth's north and the clips fall."
+            : em.current <= 0
+              ? "The supply is on but set to 0 A: with no current there is no field. Turn the current up."
+              : core === "air"
+              ? "The coil alone is weak: its field lines the filings up close to it, but it cannot hold a clip. Put a core in it."
+              : `The ${em.coreLabel.toLowerCase()} core multiplies the coil's field about ×${em.gain.toFixed(0)}: its domains turn to line up with the coil's field and add their own. Raise the current or the turns and the field rises in proportion.`,
+          noteTone: em.on ? "good" : em.permanent ? "warn" : "neutral",
+        };
+        legend = {
+          title: "Electromagnet Key",
+          items: [
+            { color: EM_COLOURS.copper, shape: "line", label: "Coil", note: "Each loop drawn stands for 25 turns" },
+            { color: EM_COLOURS.charge, shape: "dot", label: "Charge dots", note: "Conventional current, + to − round the coil" },
+            { color: EM_COLOURS.north, shape: "square", label: "North end", note: "Where the field comes out (right-hand grip rule)" },
+            { color: EM_COLOURS.south, shape: "square", label: "South end", note: "Where it goes back in" },
+            { color: EM_COLOURS.fieldLine, shape: "line", label: "Field lines", note: "Out of the north end, round to the south" },
+            { color: EM_COLOURS.filing, shape: "line", label: "Iron filings", note: "Line up where the field is strong enough" },
+            { color: EM_COLOURS.needleN, shape: "dot", label: "Compass needle (north end)", note: "Points along the field; with no field, to the Earth's north" },
+            { color: EM_COLOURS.clip, shape: "square", label: "Steel clips", note: "Each one hangs from the one above it" },
+            ...(CORES[core].colour ? [{ color: CORES[core].colour, shape: "square", label: `${em.coreLabel} core`, note: "Inset: its domains, random until the field lines them up" }] : []),
+          ],
+        };
+        break;
+      }
 
       if (isSolenoid) {
         const strength = num(params.magnetStrength, 1.2);

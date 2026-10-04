@@ -8651,3 +8651,28 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
 - Each `Chyme` speck is now one of the meal's foods, in the meal's shares and the key's colours, with fat droplets 1.35× larger. The specks are bigger (0.05), and the chyme callout names the meal.
 - A red blob also flickered on the cut face at the top of the villus's intact base. It was a red cell. The front capillaries are removed in the cut-away middle storey, and `VillusBlood` hid a cell only once its centre was above the cut (`y > midCut`). A cell of radius 0.36 just under the cut therefore bulged up through the face, flattened into a disc by the coeliac squash. Cells are now hidden from a radius below the bottom cut to a radius above the top one (`RBC_R`).
 - `MEALS` gains a `note`, which the villus level shows as a caption ("mostly fat, so half of it goes into the lacteal as chylomicrons"); the coeliac caption replaces it when the villus is a stub.
+
+## Particle Model: Solid CO₂ Standing Up Through the Piston
+
+### 1. Problem
+- Cool carbon dioxide (or neon) to a solid and the top layers of the lattice sat on top of the piston plate. The plate cut through the solid.
+
+### 2. Root cause
+- The lattice is always drawn as eight layers of 64 particles, spaced by the substance's `solidExpansion`. The model's piston height (`columnHeights`) is `liquidHeight × solidExpansion` plus a headspace, and that does not know how tall the drawn lattice packs.
+- For dense solids, CO₂ (0.78) and neon (0.84), the lattice stood about 0.25 taller than the model's column.
+- `ParticleDriver` already kept the gas below `max(piston, contents + 2.5 r)`, but `Column` drew the plate at the model's raw `heights.piston`.
+
+### 3. Resolution
+- The driver now keeps one drawn height, `heights.drawn`: the model's piston, never below the contents' top plus clearance. It rises at once when the contents grow, and relaxes back down over 0.2 s.
+- The column, the gas's ceiling and `livePistonPct` all read it. Checked with CO₂ at −100 °C: the plate's underside now clears the top particles by 0.18, where before it was 0.38 below them.
+
+## Induction: Every Apparatus Opened on the First One's Camera
+
+### 1. Problem
+- Switching apparatus kept the camera of whichever one the scene first opened on. The bar-magnet rig was framed by the dynamo's camera, and the other way round.
+
+### 2. Root cause
+- `SceneCanvas` passes `camera` to the R3F `Canvas`, which reads it only when it mounts. `InductionScene` switched the camera prop but kept the same canvas.
+
+### 3. Resolution
+- `InductionScene` keys its `SceneCanvas` by apparatus, with the three views in `INDUCTION_VIEWS`, so each apparatus mounts with its own camera and target.

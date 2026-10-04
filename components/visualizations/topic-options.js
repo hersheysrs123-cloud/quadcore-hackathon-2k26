@@ -19,6 +19,7 @@ import { VECTORS } from "@/lib/pollination";
 import { CONSISTENCIES, ORIENTATIONS } from "@/lib/peristalsis";
 import { GUT_CONDITIONS, MEALS } from "@/lib/absorption";
 import { ALTITUDES, LUNG_CONDITIONS } from "@/lib/gasExchange";
+import { CORES as ELECTROMAGNET_CORES } from "@/lib/electromagnet";
 import { MODES as DIVISION_MODES } from "@/lib/cellDivision";
 import { IONIC_COMPOUNDS } from "@/lib/bonding";
 import { MOLECULES } from "@/lib/vseprMolecules";
@@ -352,6 +353,10 @@ export const LUNG_ZOOM_OPTIONS = [
 export const ALTITUDE_OPTIONS = Object.entries(ALTITUDES).map(([value, a]) => ({ value, label: a.label }));
 
 export const LUNG_CONDITION_OPTIONS = Object.entries(LUNG_CONDITIONS).map(([value, c]) => ({ value, label: c.label }));
+
+// ─── Electromagnet ──────────────────────────────────────────────────
+
+export const ELECTROMAGNET_CORE_OPTIONS = Object.entries(ELECTROMAGNET_CORES).map(([value, c]) => ({ value, label: c.label }));
 
 // ─── Pollination ────────────────────────────────────────────────────
 
