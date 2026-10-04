@@ -3167,6 +3167,7 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             className="flex items-center gap-3 min-w-0 flex-1 group/link"
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink-850 border border-ink-750 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts */}
               <img
                 src={`https://www.google.com/s2/favicons?domain=${formattedUrl}&sz=64`}
                 alt="favicon"
@@ -3657,6 +3658,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                 className="w-full max-h-[28rem] rounded-xl border border-ink-800 bg-ink-950 object-contain shadow"
               />
             ) : (
+              // eslint-disable-next-line @next/next/no-img-element -- user media: any URL or an uploaded data: URL, which next/image cannot take
               <img
                 src={formattedUrl}
                 alt={block.content || "Media"}
@@ -6721,7 +6723,7 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages]);
+  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages, focusBlock, pushHistorySnapshot]);
 
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
@@ -7649,7 +7651,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave, handleUpdateBlock, trashRemovedSubPages]
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);

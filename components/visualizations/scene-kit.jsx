@@ -169,7 +169,11 @@ function StudioEnvironment({ metal = 0.75, glass = 1.3, rotation = 0, tone = "da
     pmrem.dispose();
     return target;
   }, [gl, tone]);
-  const seen = useMemo(() => new WeakSet(), [texture, metal, glass]);
+  // Materials already given their reflection. The dependencies are reset keys,
+  // not inputs: a new studio, strength or rotation starts a fresh set, so the
+  // frame loop below re-applies them to every material.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const seen = useMemo(() => new WeakSet(), [texture, metal, glass, rotation]);
   const clock = useRef(0);
 
   useEffect(() => () => texture.dispose(), [texture]);
@@ -373,7 +377,10 @@ export function ToggleLabel(props) {
  * right-column one starts there, so neither runs back over the model.
  */
 export function Callout({ anchor, at, side = "right", children, tone = "text-ink-200", accent = false, color = "#c6cfdf" }) {
-  const points = useMemo(() => [anchor, at], [anchor[0], anchor[1], anchor[2], at[0], at[1], at[2]]);
+  // anchor and at are new arrays every render; the memo keys on the numbers in them
+  const [ax, ay, az] = anchor;
+  const [tx, ty, tz] = at;
+  const points = useMemo(() => [[ax, ay, az], [tx, ty, tz]], [ax, ay, az, tx, ty, tz]);
   if (!useContext(LabelsOn)) return null;
   return (
     <group>
@@ -581,11 +588,14 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 /** Orientation + midpoint for a segment, shared by Bond and VectorArrow. */
 function useSegment(from = [0, 0, 0], to = [0, 1, 0]) {
+  // Arrays are fresh objects on every render, so depend on the numbers.
+  const fromArr = Array.isArray(from) ? from : [0, 0, 0];
+  const toArr = Array.isArray(to) ? to : [0, 1, 0];
+  const fx = fromArr[0] ?? 0, fy = fromArr[1] ?? 0, fz = fromArr[2] ?? 0;
+  const tx = toArr[0] ?? 0, ty = toArr[1] ?? 0, tz = toArr[2] ?? 0;
   return useMemo(() => {
-    const fromArr = Array.isArray(from) ? from : [0, 0, 0];
-    const toArr = Array.isArray(to) ? to : [0, 1, 0];
-    const a = new THREE.Vector3(fromArr[0] ?? 0, fromArr[1] ?? 0, fromArr[2] ?? 0);
-    const b = new THREE.Vector3(toArr[0] ?? 0, toArr[1] ?? 0, toArr[2] ?? 0);
+    const a = new THREE.Vector3(fx, fy, fz);
+    const b = new THREE.Vector3(tx, ty, tz);
     const delta = new THREE.Vector3().subVectors(b, a);
     const length = delta.length();
     const direction = length > 1e-6 ? delta.clone().normalize() : UP.clone();
@@ -596,8 +606,7 @@ function useSegment(from = [0, 0, 0], to = [0, 1, 0]) {
       quaternion: new THREE.Quaternion().setFromUnitVectors(UP, direction),
       midpoint: new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5),
     };
-    // Arrays are fresh objects on every render, so depend on the numbers.
-  }, [from?.[0], from?.[1], from?.[2], to?.[0], to?.[1], to?.[2]]);
+  }, [fx, fy, fz, tx, ty, tz]);
 }
 
 export function Bond({

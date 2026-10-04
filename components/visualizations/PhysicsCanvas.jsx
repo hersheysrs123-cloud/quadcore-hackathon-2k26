@@ -268,16 +268,21 @@ export function RefractionScene({ params = {} }) {
     : along(exit, [Math.sin(r), Math.cos(r)], 1.5);
 
   // Lateral displacement, drawn perpendicular between the two parallel rays.
+  // entry, exit and incidentDir are new arrays every render, so the memo keys
+  // on the numbers in them (entry is [0, y, 0] and exit is [x, y, 0]).
+  const [exitX, exitY] = exit;
+  const entryY = entry[1];
+  const [dirX, dirY] = incidentDir;
   const displacement = useMemo(() => {
     // d goes negative when the block is the less dense medium — the ray shifts
     // the other way. Magnitude is what gets measured, so compare on abs.
     if (tir || Math.abs(lateral) < 0.05) return null;
-    const dir = new THREE.Vector3(incidentDir[0], incidentDir[1], 0);
-    const q = new THREE.Vector3(...along(exit, incidentDir, RAY_LENGTH * 0.62));
-    const u = q.clone().sub(new THREE.Vector3(...entry));
+    const dir = new THREE.Vector3(dirX, dirY, 0);
+    const q = new THREE.Vector3(...along([exitX, exitY, 0], [dirX, dirY], RAY_LENGTH * 0.62));
+    const u = q.clone().sub(new THREE.Vector3(0, entryY, 0));
     const foot = q.clone().sub(u.clone().sub(dir.clone().multiplyScalar(u.dot(dir))));
     return { from: foot.toArray(), to: q.toArray() };
-  }, [tir, lateral, exit[0], exit[1], incidentDir[0], incidentDir[1], entry[1]]);
+  }, [tir, lateral, exitX, exitY, dirX, dirY, entryY]);
 
   const photonPath = tir
     ? [incidentStart, entry, reflectedEnd]
@@ -727,6 +732,16 @@ const TIP_GAP = 0.25;
 // points, so the force arrow and its label stay in frame either way up.
 const HAND_SHIFT = 0.6;
 
+// Each vector leaves from just past its fingertip, so the hand stays clear.
+function fingertipStart(key, bSign, iSign) {
+  const { tip, dir } = FLEMING_HAND.anchors[key];
+  return turnHandPoint(
+    [tip[0] + dir[0] * TIP_GAP, tip[1] + dir[1] * TIP_GAP, tip[2] + dir[2] * TIP_GAP],
+    bSign,
+    iSign,
+  );
+}
+
 export function MotorEffectScene({ params = {} }) {
   const {
     current = 1.0,
@@ -754,18 +769,9 @@ export function MotorEffectScene({ params = {} }) {
   const currentDir = [0, 0, iSign];
   const forceDir = [0, fSign, 0];
 
-  // Each vector leaves from just past its fingertip, so the hand stays clear.
-  const startFor = (key) => {
-    const { tip, dir } = FLEMING_HAND.anchors[key];
-    return turnHandPoint(
-      [tip[0] + dir[0] * TIP_GAP, tip[1] + dir[1] * TIP_GAP, tip[2] + dir[2] * TIP_GAP],
-      bSign,
-      iSign,
-    );
-  };
-  const fieldStart = useMemo(() => startFor("field"), [bSign, iSign]);
-  const currentStart = useMemo(() => startFor("current"), [bSign, iSign]);
-  const forceStart = useMemo(() => startFor("force"), [bSign, iSign]);
+  const fieldStart = useMemo(() => fingertipStart("field", bSign, iSign), [bSign, iSign]);
+  const currentStart = useMemo(() => fingertipStart("current", bSign, iSign), [bSign, iSign]);
+  const forceStart = useMemo(() => fingertipStart("force", bSign, iSign), [bSign, iSign]);
 
   const AXIS = 4.2;
   const end = (start, dir, len) => [

@@ -78,6 +78,7 @@ export default function CommandPalette({
         title: bm.title || bm.url || "Saved Link",
         subtitle: `${bm.spaceId || "School"} · ${bm.url}`,
         icon: bm.favicon ? (
+          // eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts
           <img src={bm.favicon} alt="" className="w-4 h-4 object-contain rounded-xs" />
         ) : (
           <Globe size={16} className="text-duck-400" />
@@ -90,7 +91,7 @@ export default function CommandPalette({
     });
 
     return list;
-  }, [isOpen, notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings]);
+  }, [isOpen, notesBySpace, bookmarks, setActiveSpace, setActiveNoteId, setActiveTab, onOpenSettings, onStartTutorial]);
 
   // Fuzzy filter (memoized)
   const filteredItems = useMemo(() => {

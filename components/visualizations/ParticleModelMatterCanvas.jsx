@@ -388,13 +388,20 @@ function Column({ heightsRef }) {
   );
 }
 
+// The thermometer's scale is fixed, so its geometry and ticks are worked out once.
+const THERMO_BOTTOM = FLOOR_Y + 0.4;
+const THERMO_HEIGHT = 5.6;
+const thermoY = (c) =>
+  THERMO_BOTTOM + (clamp(c, TEMP_MIN_C, TEMP_MAX_C) - TEMP_MIN_C) / (TEMP_MAX_C - TEMP_MIN_C) * THERMO_HEIGHT;
+const THERMO_TICKS = [-100, 0, 100, 200, 250].map((c) => ({ c, y: thermoY(c) }));
+
 /** A thermometer beside the column — the sample's temperature, with a tick for the hotplate's setpoint. */
 function Thermometer({ modelRef, setpointC, Label = SceneLabel }) {
   const column = useRef(null);
   const tick = useRef(null);
-  const bottom = FLOOR_Y + 0.4;
-  const height = 5.6;
-  const yOf = (c) => bottom + (clamp(c, TEMP_MIN_C, TEMP_MAX_C) - TEMP_MIN_C) / (TEMP_MAX_C - TEMP_MIN_C) * height;
+  const bottom = THERMO_BOTTOM;
+  const height = THERMO_HEIGHT;
+  const yOf = thermoY;
   useFrame(() => {
     const s = modelRef.current.state;
     const y = yOf(s.tempC);
@@ -407,7 +414,7 @@ function Thermometer({ modelRef, setpointC, Label = SceneLabel }) {
     }
     if (tick.current) tick.current.position.y = yOf(setpointC);
   });
-  const ticks = useMemo(() => [-100, 0, 100, 200, 250].map((c) => ({ c, y: yOf(c) })), []);
+  const ticks = THERMO_TICKS;
   return (
     <group position={[THERMO_X, 0, 0.6]}>
       {/* A weighted foot and a stem, so the thermometer stands rather than floats. */}

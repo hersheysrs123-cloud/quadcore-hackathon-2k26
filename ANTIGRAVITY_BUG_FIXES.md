@@ -8708,3 +8708,21 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
 ### 3. Resolution
 - The respiratory panel, credits button and zoom ladder, and the peristalsis zoom ladder, now sit at `z-[45]`, above every scene label.
 - The dot-and-cross view mounts `FitCamera` around `FIT_RADIUS` (exported from `CovalentShells.jsx`), and the electromagnet mounts `FitCamera` around `ELECTROMAGNET_FIT`. Both are height-limited on a wide canvas. The electromagnet lands exactly on its old camera, [0.2, 4.9, 9.8], and the dot-and-cross view moves from 7.6 to 7.4 units away. A narrow canvas backs off far enough to show everything.
+
+## Lint: the remaining hook-dependency warnings, and a double-saved bookmark
+
+- **Problem:**
+  - In Saved, pressing Ctrl+Enter twice in quick succession in the Add Bookmark dialog saved the bookmark twice.
+  - `npm run lint` still reported 90 warnings: 83 `react-hooks/exhaustive-deps` findings, 6 `@next/next/no-img-element` findings and one anonymous default export.
+- **Root cause:**
+  - The Ctrl+Enter path skipped the `isSaving` check that disables the Save button. The keydown listener was also re-subscribed only when six form fields changed, so it held an old copy of `handleSubmit`. A check inside `handleSubmit` would have read a stale `isSaving` anyway.
+  - Most hook warnings were correct code the linter could not read: memos keyed on `from[0]`, `size[1]` and the like, because props such as `from` are new arrays every render. Others listed only some of what a hook read, which was harmless only because the unlisted values happened to change at the same time as listed ones.
+  - Latent, not observed: `ExplainPanel`'s `load` did not list `spaceId`, which picks the syllabus the explanation is written against. `ExportPreview`'s `note?.blocks || []` would loop the DOCX build, which sets state, for a note without `blocks`. `Workspace` gives every note a `blocks` array when it loads notes, so the loop never fired. Reproduced by stripping `blocks` from a note in IndexedDB: the old code settled too.
+- **Resolution:**
+  - `handleSubmit` returns early while `isSaving`, and is a `useCallback` the keyboard effect lists, declared above it. Checked in the browser: two quick Ctrl+Enter presses saved 2 bookmarks before the fix and 1 after.
+  - Memos unpack their array props into numbers first (`const [fx, fy, fz] = from;`) and list those. This cleared all 35 "complex expression" warnings in the 3D scenes with no change in behaviour.
+  - `|| []` fallbacks that feed hooks use one module-level `Object.freeze([])`, in `ExportPreview`, `LiteratureView`, `Sidebar` and `NotesPanel`.
+  - Handlers that effects call (`QuizStudioView`, `InteractiveTutorial`, `EssayPanel`) are `useCallback`s and are listed. Functions that read only constants moved to module level (`thermoY`, `fingertipStart`). `VisualizationHUD`'s graph scales are `useCallback`s, which also removed three `eslint-disable` comments.
+  - Three dependencies are left out on purpose, each with a comment saying why. `QuizPanel` would retry a failed quiz forever. `ExplainPanel` would refetch on every keystroke. `StudioEnvironment` uses its dependencies as reset keys, and it now also resets on `rotation`.
+  - User-supplied images (favicons, media blocks, `data:` URLs) stay `<img>` with a disable comment: `next/image` only loads allow-listed hosts.
+  - Lint is at 0 errors and 0 warnings. All 51 3D scenes load in the browser with no page errors. Alkene and alkyne bonds, the Hooke's law plastic branch and unload line, the eye reset, the tutorial keys, the command palette and the DOCX preview were each checked by hand.

@@ -23,6 +23,11 @@ import {
   Layers,
 } from "lucide-react";
 
+// One shared fallback: a fresh [] every render would re-run every memo and
+// effect below on each render, and the DOCX build, which sets state, would
+// loop. Workspace passes blocks on every note today, so this is a guard.
+const NO_BLOCKS = Object.freeze([]);
+
 const FORMAT_CONFIGS = {
   docx: {
     id: "docx",
@@ -99,7 +104,7 @@ export default function ExportPreview({
   }, [activeFormat, viewMode]);
 
   const title = note?.title || "Untitled Note";
-  const blocks = note?.blocks || [];
+  const blocks = note?.blocks || NO_BLOCKS;
   const emoji = note?.emoji || "📝";
 
   const currentCfg = FORMAT_CONFIGS[activeFormat] || FORMAT_CONFIGS.md;

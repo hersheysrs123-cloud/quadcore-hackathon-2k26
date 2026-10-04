@@ -651,6 +651,8 @@ export default function InclineFrictionCanvas({ params = {} }) {
   const [live, setLive] = useState({ position: 0, velocity: 0 });
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const trace = useRollingTrace(4000, 30, [[0, 0]]);
+  // `trace` is a new object every render, but push and reset are stable
+  const { push: pushTrace, reset: resetTrace } = trace;
 
   const frame = useMemo(() => slopeFrame(rampAngle), [rampAngle]);
 
@@ -663,9 +665,10 @@ export default function InclineFrictionCanvas({ params = {} }) {
   // switches from static to kinetic in the diagram at the same instant the
   // block starts to move rather than a frame later. Pressed against an end
   // stop, the stop's push is part of it (lib/inclineForces.js).
+  const { position: livePosition, velocity: liveVelocity } = live;
   const solved = useMemo(
-    () => solveMotion(options, live),
-    [options, live.velocity, live.position],
+    () => solveMotion(options, { position: livePosition, velocity: liveVelocity }),
+    [options, livePosition, liveVelocity],
   );
 
   const scale = useForceScale(
@@ -674,14 +677,14 @@ export default function InclineFrictionCanvas({ params = {} }) {
   );
 
   const onTrace = useCallback(
-    (t, v, dt) => trace.push(t, v, dt),
-    [trace.push],
+    (t, v, dt) => pushTrace(t, v, dt),
+    [pushTrace],
   );
   const onSample = useCallback((motion) => setLive({ ...motion }), []);
 
   // Wiping the trace happens from BlockMotion's reset (below), alongside the
   // clock. `trace.reset` and `trace.push` are stable, so this stays stable.
-  const onReset = useCallback(() => trace.reset([[0, 0]]), [trace.reset]);
+  const onReset = useCallback(() => resetTrace([[0, 0]]), [resetTrace]);
 
   const b = RAMP_WORLD * Math.cos(frame.radians);
   const h = RAMP_WORLD * Math.sin(frame.radians);
