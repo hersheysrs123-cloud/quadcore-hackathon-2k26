@@ -80,7 +80,13 @@ import {
   ALGORITHM_OPTIONS,
   AQUEOUS_SOLUTION_OPTIONS,
   BARRIER_OPTIONS,
+  ALTITUDE_OPTIONS,
   BOLUS_CONSISTENCY_OPTIONS,
+  GUT_LINING_OPTIONS,
+  GUT_ZOOM_OPTIONS,
+  LUNG_CONDITION_OPTIONS,
+  LUNG_ZOOM_OPTIONS,
+  MEAL_OPTIONS,
   CARDIAC_PATHOLOGY_OPTIONS,
   CIRCUIT_TOPOLOGY_OPTIONS,
   COASTER_CAMERA_OPTIONS,
@@ -3117,11 +3123,11 @@ export const TOPICS = [
     id: "respiratory",
     category: "biology",
     icon: Wind,
-    title: "Respiratory Mechanics & Thoracic Physics",
-    blurb: "Thoracic volume expansion, Boyle's law pressure gradients, antagonistic intercostals, and diaphragm mechanics in 3D",
+    title: "Respiratory Mechanics & Gas Exchange",
+    blurb: "Boyle's law and the breathing muscles in the chest — then zoom into the alveoli and the half-micrometre wall the oxygen crosses",
     syllabus: "Biology 11 · Gas Exchange & Respiration",
     keywords:
-      "respiratory system lungs diaphragm external intercostal internal intercostal ribcage sternum inspiration expiration forced expiration Boyle's law tidal volume FRC thoracic cavity mechanics pressure volume airflow",
+      "respiratory system lungs diaphragm external intercostal internal intercostal ribcage sternum inspiration expiration forced expiration Boyle's law tidal volume FRC thoracic cavity mechanics pressure volume airflow alveolus alveoli gas exchange diffusion Fick's law capillary partial pressure oxygen carbon dioxide haemoglobin saturation type I type II pneumocyte surfactant altitude fibrosis emphysema",
     ownHud: true,
     defaults: {
       phase: "inspiration",
@@ -3131,6 +3137,10 @@ export const TOPICS = [
       showAirflow: true,
       showVectors: true,
       showLabels: true,
+      zoom: "lungs",
+      altitude: "sea",
+      condition: "healthy",
+      exercise: false,
     },
     controls: [
       {
@@ -3150,11 +3160,17 @@ export const TOPICS = [
       { type: "toggle", key: "showAirflow", label: "Airway particle flow" },
       { type: "toggle", key: "showVectors", label: "3D motion vectors" },
       { type: "toggle", key: "showLabels", label: "Anatomical labels" },
+      { type: "choice", key: "zoom", label: "Magnification", columns: 3, options: LUNG_ZOOM_OPTIONS },
+      { type: "choice", key: "altitude", label: "Altitude", columns: 1, options: ALTITUDE_OPTIONS, when: (p) => p.zoom && p.zoom !== "lungs" },
+      { type: "choice", key: "condition", label: "Lung", columns: 1, options: LUNG_CONDITION_OPTIONS, when: (p) => p.zoom && p.zoom !== "lungs" },
+      { type: "toggle", key: "exercise", label: "Hard exercise", when: (p) => p.zoom && p.zoom !== "lungs" },
     ],
     concepts: [
       "Inspiration is an active process: External intercostal muscles contract (pulling ribcage up and out) and the diaphragm contracts and flattens downward, expanding thoracic cavity volume.",
       "Boyle's Law ($P_1 V_1 = P_2 V_2$) governs pulmonary ventilation: Thoracic expansion decreases intra-alveolar pressure below atmospheric pressure (negative relative pressure), drawing ambient air into the lungs along the pressure gradient.",
       "Quiet expiration is passive due to elastic recoil of the lungs and chest wall. Forced expiration actively contracts internal intercostals (depressing ribs) and abdominal muscles (forcing diaphragm upward), generating high positive expulsion pressure.",
+      "Breathing only brings air to the alveoli; getting oxygen into the blood is diffusion, and Fick's law says how fast: rate ∝ surface area × difference in partial pressure ÷ thickness. The lungs maximise all three — about 70 m² of alveolar wall, a barrier only ~0.5 µm thick (one flattened type I cell, a fused basement membrane, one endothelial cell), and a steep gradient kept up by ventilation on one side and blood flow on the other. The surfaces are moist, so the gas dissolves to cross, and the surfactant made by type II cells stops the alveoli collapsing.",
+      "Blood takes about 0.75 s to pass an alveolus at rest, but a healthy lung loads it fully in the first ~0.25 s: arriving at PO₂ 5.3 kPa, it leaves at the alveolar 13.3 kPa, 97 % saturated, and gives up CO₂ the other way. Molecules keep crossing in both directions all along; the NET flow is down the gradient, and it stops where the gradient does. That spare two-thirds is the reserve that thin air (altitude), a thickened wall (fibrosis) or a lost area (emphysema) eats into — and exercise, which rushes blood through in a third of the time, is when it runs out.",
     ],
     quiz: [
       {
@@ -3192,6 +3208,30 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "While quiet expiration is passive elastic recoil, forced expiration is an active muscular process where internal intercostals actively depress the ribcage down and inwards, paired with abdominal muscle compression driving the diaphragm upward.",
+      },
+      {
+        question: "Pulmonary fibrosis thickens the wall between the alveolar air and the blood. Why do patients often have normal blood oxygen at rest but become breathless and desaturated on exertion?",
+        options: [
+          "Diffusion is slower across the thicker wall; at rest the blood still has time to load before it leaves the capillary, but in exercise it passes in a third of the time and leaves before it is full",
+          "The thicker wall stops the diaphragm contracting during exercise",
+          "Exercise lowers the oxygen in the alveolar air to zero",
+          "Haemoglobin cannot carry oxygen when the heart beats faster",
+        ],
+        answer: 0,
+        explanation:
+          "By Fick's law the rate of diffusion falls as the barrier thickens. A healthy lung equilibrates in about a third of the 0.75 s transit, so a slower lung can still catch up at rest. Hard exercise cuts the transit to ~0.25 s, the reserve is gone, and the blood leaves the capillary below the alveolar PO₂ — the saturation drops.",
+      },
+      {
+        question: "At the far end of a capillary in a healthy lung, the blood's PO₂ equals the alveolar air's. What is happening to oxygen molecules there?",
+        options: [
+          "They still cross both ways, but equally often, so there is no net movement",
+          "They have all stopped moving",
+          "They cross only from the blood to the air",
+          "They cross only from the air to the blood, but more slowly",
+        ],
+        answer: 0,
+        explanation:
+          "Diffusion is the net result of random movement. Molecules keep crossing in both directions; with equal partial pressures on the two sides the two flows match, so the net flow — which is what 'diffusion down the gradient' describes — is zero.",
       },
     ],
   },
@@ -3376,22 +3416,27 @@ export const TOPICS = [
     id: "peristalsis",
     category: "biology",
     icon: Sandwich,
-    title: "Peristalsis & Digestive Transit",
-    blurb: "Circular and longitudinal smooth muscle squeezing a bolus down the gut — and why it still works upside-down",
+    title: "Peristalsis, Transit & Absorption",
+    blurb: "Circular and longitudinal muscle squeezing a bolus down the gut — then zoom into the small intestine's villi, where the food gets into the blood and lymph",
     syllabus: "Biology 7 · Nutrition & the Alimentary Canal",
     keywords:
-      "peristalsis oesophagus esophagus small intestine bolus chyme swallowing smooth muscle circular muscle longitudinal muscle muscularis contraction relaxation wave gravity antiperistalsis lumen mucosa transit digestive tract alimentary canal segmentation sphincter",
-    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1, showLabels: true },
+      "peristalsis oesophagus esophagus small intestine bolus chyme swallowing smooth muscle circular muscle longitudinal muscle muscularis contraction relaxation wave gravity antiperistalsis lumen mucosa transit digestive tract alimentary canal segmentation sphincter absorption villus villi microvilli brush border lacteal capillary hepatic portal vein glucose amino acids fatty acids glycerol chylomicron lymph plicae circulares enterocyte goblet cell crypt coeliac disease surface area",
+    defaults: { swallow: 0, consistency: "soft", orientation: "upright", speed: 1, showLabels: true, zoom: "oesophagus", meal: "balanced", lining: "healthy" },
     controls: [
-      { type: "action", key: "swallow", label: "Trigger swallow — peristaltic wave", icon: Waves },
-      { type: "choice", key: "consistency", label: "Bolus consistency", columns: 1, options: BOLUS_CONSISTENCY_OPTIONS },
-      { type: "choice", key: "orientation", label: "Gravity inversion", columns: 2, options: GRAVITY_ORIENTATION_OPTIONS },
+      { type: "choice", key: "zoom", label: "Magnification", columns: 3, options: GUT_ZOOM_OPTIONS },
+      { type: "action", key: "swallow", label: "Trigger swallow — peristaltic wave", icon: Waves, when: (p) => !p.zoom || p.zoom === "oesophagus" },
+      { type: "choice", key: "consistency", label: "Bolus consistency", columns: 1, options: BOLUS_CONSISTENCY_OPTIONS, when: (p) => !p.zoom || p.zoom === "oesophagus" },
+      { type: "choice", key: "orientation", label: "Gravity inversion", columns: 2, options: GRAVITY_ORIENTATION_OPTIONS, when: (p) => !p.zoom || p.zoom === "oesophagus" },
+      { type: "choice", key: "meal", label: "What was eaten", columns: 1, options: MEAL_OPTIONS, when: (p) => p.zoom && p.zoom !== "oesophagus" },
+      { type: "choice", key: "lining", label: "Lining", columns: 1, options: GUT_LINING_OPTIONS, when: (p) => p.zoom && p.zoom !== "oesophagus" },
       { type: "toggle", key: "showLabels", label: "Show labels" },
     ],
     concepts: [
       "The wall of the gut has two layers of smooth muscle at right angles: an inner CIRCULAR layer whose fibres run round the tube, and an outer LONGITUDINAL layer whose fibres run along it. Neither can push — each can only contract and shorten — so moving food is a matter of WHERE each layer is contracting.",
       "Peristalsis is a travelling wave of coordination. Behind the bolus the circular muscle contracts, narrowing the lumen so the food cannot go back; ahead of it the longitudinal muscle contracts and the circular muscle relaxes, shortening and widening that segment to receive the food. The wave then moves on, a few centimetres a second, and the bolus moves with it.",
       "Because the bolus is squeezed along by the wall, gravity is not needed. Food arrives in the stomach of someone lying flat, hanging upside-down, or an astronaut in free fall; a liquid may run ahead of the wave when gravity helps, but when gravity opposes it the closed ring behind the bolus stops it falling back, and it arrives at exactly the wave's speed. Dry or lumpy food needs slower, stronger waves — which is why it should be chewed.",
+      "Digested food is absorbed in the small intestine, and its lining is built for area: circular folds (×3), villi on the folds (×10) and microvilli on every cell of the villi (×20) — about 600 times a smooth tube by the classic estimate, roughly 30 m² measured. Each villus is covered by a single layer of cells, so the food has only one cell to cross, and has a dense capillary network and a central lacteal just beneath it, kept supplied and drained so the gradient stays steep.",
+      "Glucose and amino acids are taken up by active transport (with sodium) and leave the cell into the villus's capillaries, which drain to the hepatic portal vein and the liver. Fatty acids and glycerol diffuse into the cell, are rebuilt into fat and packed into chylomicrons — too big for blood capillaries — and leave into the lacteal, as lymph that joins the blood near the heart. In coeliac disease gluten triggers an immune attack that flattens the villi, and the lost area means much of the food passes on unabsorbed.",
     ],
     quiz: [
       {
@@ -3429,6 +3474,30 @@ export const TOPICS = [
         answer: 0,
         explanation:
           "A compliant bolus takes the shape of the tube and slides on the mucus; a hard one distends the wall, which reflexly recruits stronger, slower contractions (and often a second, 'secondary' peristaltic wave). Chewing and saliva make the bolus something the wave can move easily.",
+      },
+      {
+        question: "Fatty acids and glycerol leave a villus by a different route from glucose. Which, and why?",
+        options: [
+          "Into the lacteal: inside the cell they are rebuilt into fat and packed into chylomicrons, which are too big to enter the blood capillaries",
+          "Into the capillaries, because fat dissolves in blood plasma",
+          "Straight into the hepatic portal vein, because fat must be processed by the liver first",
+          "They are not absorbed at all and pass into the large intestine",
+        ],
+        answer: 0,
+        explanation:
+          "The fatty acids and monoglycerides diffuse into the enterocyte, where they are re-made into triglycerides and coated with protein as chylomicrons. These are far larger than the gaps in a blood capillary's wall but pass easily into the leakier lacteal, so fat travels as lymph and joins the blood at the left subclavian vein — glucose and amino acids go in the capillaries to the liver.",
+      },
+      {
+        question: "In coeliac disease the villi are flattened. Why does this cause weight loss and fatty stools even when the person eats enough?",
+        options: [
+          "The flattened lining has a much smaller surface area, so far less digested food is absorbed and the rest — fat most visibly — passes out in the faeces",
+          "Flattened villi digest food faster, so it is used up before it can be stored",
+          "Without villi, food cannot move along by peristalsis",
+          "The pancreas stops making enzymes when the villi flatten",
+        ],
+        answer: 0,
+        explanation:
+          "Villi multiply the absorbing area about ten-fold and the microvilli on them twenty-fold again. With both worn away, the rate of absorption falls with the area: food passes on unabsorbed, unabsorbed fat makes pale, fatty stools (steatorrhoea), and the person loses weight. A gluten-free diet lets the villi regrow.",
       },
     ],
   },

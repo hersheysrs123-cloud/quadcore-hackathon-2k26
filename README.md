@@ -60,7 +60,7 @@ The full tour is in [docs/FEATURES.md](docs/FEATURES.md).
 | :--- | :--- |
 | ⚛️ **Physics** (17) | Refraction · Motor effect · Lenses & mirrors · Induction · Static electricity · Gas laws · Projectile motion · Wave interference · Orbits · Shadows · Incline & friction · Hooke's law · Simple machines · Energy conservation (loop-the-loop) · Circuits · Buoyancy · Heat transfer |
 | 🧪 **Chemistry** (13) | Bohr atom · Organic builder · Fractional distillation · Crystal lattices · Electrolysis · VSEPR · Reaction energetics · Separation techniques · Combustion & fire triangle · Particle model · Radioactive decay · Reactivity series · Rusting & galvanic protection |
-| 🧬 **Biology** (16) | Cell explorer · DNA · Enzymes · Protein folding · Human eye · Respiratory mechanics · Reflex arc · Antagonistic muscles · Transpiration · Peristalsis · Carbon cycle · Food chains · Flower pollination · Bacteria vs virus · Mitosis & meiosis · Cardiac cycle |
+| 🧬 **Biology** (16) | Cell explorer · DNA · Enzymes · Protein folding · Human eye · Respiratory mechanics & gas exchange · Reflex arc · Antagonistic muscles · Transpiration · Peristalsis & absorption · Carbon cycle · Food chains · Flower pollination · Bacteria vs virus · Mitosis & meiosis · Cardiac cycle |
 | 💻 **Computer Science** (2) | Binary search / AVL tree · Sorting algorithms |
 | 📐 **Mathematics** (3) | Gradient descent · Solids of revolution · Unit circle & Fourier synthesis |
 

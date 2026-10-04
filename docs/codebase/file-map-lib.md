@@ -21,6 +21,8 @@ quadcore-hackathon-2k26/
 │   ├── muscleMechanics.js                # PURE PHYSICS: elbow lever torque, biceps force & moment arm, length–tension, fatigue, tendon strain
 │   ├── reflexArc.js                      # PURE PHYSIOLOGY: reflex-arc stage timing, conduction velocities, synaptic delays, severed-root blocks
 │   ├── transpiration.js                  # PURE PHYSIOLOGY: K⁺/turgor aperture, Tetens VPD, series conductances, cohesion–tension, ABA, cavitation
+│   ├── absorption.js                     # PURE PHYSIOLOGY: nutrients and their routes (blood / lymph), meals, the three foldings (×3 ×10 ×20), coeliac villous atrophy, absorbed fraction
+│   ├── gasExchange.js                    # PURE PHYSIOLOGY: alveolar gas equation, Severinghaus saturation, O₂ loading integrated along the capillary (Hb buffering), CO₂ unloading, altitude / fibrosis / emphysema / exercise
 │   ├── peristalsis.js                    # PURE PHYSIOLOGY: wave/bolus kinematics, consistency & gravity slip, layer activation, lumen features
 │   ├── carbonCycle.js                    # PURE EARTH SCIENCE: GtC/yr fluxes (GPP, respiration Q10, CO₂ fertilisation, fossil, land use, lagging ocean), log forcing, lagged anomaly, pure integrator
 │   ├── foodChain.js                      # PURE ECOLOGY: 10 % trophic transfer, headcounts & viability, ×10 biomagnification & harm thresholds, trophic cascade multipliers

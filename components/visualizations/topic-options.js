@@ -17,6 +17,8 @@ import { PATHWAYS, STIMULI } from "@/lib/reflexArc";
 import { SOILS } from "@/lib/transpiration";
 import { VECTORS } from "@/lib/pollination";
 import { CONSISTENCIES, ORIENTATIONS } from "@/lib/peristalsis";
+import { GUT_CONDITIONS, MEALS } from "@/lib/absorption";
+import { ALTITUDES, LUNG_CONDITIONS } from "@/lib/gasExchange";
 import { MODES as DIVISION_MODES } from "@/lib/cellDivision";
 import { IONIC_COMPOUNDS } from "@/lib/bonding";
 import { MOLECULES } from "@/lib/vseprMolecules";
@@ -326,6 +328,30 @@ export const GRAVITY_ORIENTATION_OPTIONS = Object.entries(ORIENTATIONS).map(([va
   label: o.label,
   title: o.gravitySign > 0 ? "Gravity helps the bolus along" : "Gravity opposes it — the wave has to do all the work",
 }));
+
+/** The peristalsis scene's magnifications (tissue-zoom.jsx). */
+export const GUT_ZOOM_OPTIONS = [
+  { value: "oesophagus", label: "Gut", title: "The oesophagus and stomach: the swallow" },
+  { value: "intestine", label: "Lining", title: "The small intestine's lining: folds and villi, ×10" },
+  { value: "villus", label: "Villus", title: "One villus cut open: where food gets into the blood and lymph" },
+];
+
+export const MEAL_OPTIONS = Object.entries(MEALS).map(([value, m]) => ({ value, label: m.label }));
+
+export const GUT_LINING_OPTIONS = Object.entries(GUT_CONDITIONS).map(([value, c]) => ({ value, label: c.label }));
+
+// ─── Gas exchange ───────────────────────────────────────────────────
+
+/** The respiratory scene's magnifications (tissue-zoom.jsx). */
+export const LUNG_ZOOM_OPTIONS = [
+  { value: "lungs", label: "Chest", title: "The lungs, ribs and diaphragm" },
+  { value: "alveoli", label: "Alveoli", title: "An alveolar sac and its capillary net" },
+  { value: "barrier", label: "Barrier", title: "One septum cut open: the half-micrometre the oxygen crosses" },
+];
+
+export const ALTITUDE_OPTIONS = Object.entries(ALTITUDES).map(([value, a]) => ({ value, label: a.label }));
+
+export const LUNG_CONDITION_OPTIONS = Object.entries(LUNG_CONDITIONS).map(([value, c]) => ({ value, label: c.label }));
 
 // ─── Pollination ────────────────────────────────────────────────────
 

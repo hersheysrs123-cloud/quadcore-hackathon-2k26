@@ -103,6 +103,7 @@ import {
   TUBE_LENGTH_CM,
   solvePeristalsis,
 } from "@/lib/peristalsis";
+import { FOLDINGS, GUT_CONDITIONS, MEALS, ROUTES, solveAbsorption } from "@/lib/absorption";
 import {
   BASELINE_FOREST_PCT,
   GTC_PER_PPM,
@@ -3398,6 +3399,44 @@ function renderTopicDetailsReadout(topic, params) {
     }
 
     case "peristalsis": {
+      if (params.zoom === "intestine" || params.zoom === "villus") {
+        // Zoomed into the small intestine: absorption, from the same engine the scene draws.
+        const meal = MEALS[params.meal] ? params.meal : "balanced";
+        const lining = GUT_CONDITIONS[params.lining] ? params.lining : "healthy";
+        const a = solveAbsorption({ meal, condition: lining });
+        const coeliac = lining === "coeliac";
+        const pct = (v) => `${Math.round(v * 100)} %`;
+        readout = {
+          title: "Absorption · Small Intestine",
+          subtitle: `${a.meal.label} · ${a.condition.label}`,
+          rows: [
+            ["— SURFACE AREA —", `×${Math.round(a.area)} a flat tube`, coeliac ? "warn" : "gold", "wide"],
+            ...FOLDINGS.map((f) => [f.label, `×${a.condition.factors[f.key]}${a.condition.factors[f.key] < f.factor ? ` (healthy ×${f.factor})` : ""}`, a.condition.factors[f.key] < f.factor ? "bad" : undefined]),
+            ["Measured area", `≈ ${a.areaM2.toFixed(a.areaM2 < 10 ? 1 : 0)} m²`, coeliac ? "warn" : undefined],
+            ["Villus height", coeliac ? `${pct(a.villusHeight)} of normal · stubs` : "about 0.5 mm"],
+            ["Absorbed here", pct(a.absorbed), coeliac ? "bad" : "good"],
+            ["— WHERE IT GOES —", "", "gold"],
+            ...a.nutrients.map((n) => [n.label, `${pct(n.share)} → ${n.route === "blood" ? "capillary" : "lacteal"}`, n.route === "blood" ? undefined : "gold"]),
+            ["Into the blood", `${pct(a.toBlood)} · ${ROUTES.blood.next}`, "good", "wide"],
+            ["Into the lymph", `${pct(a.toLymph)} · ${ROUTES.lymph.next}`, "good", "wide"],
+            ["Passed on unabsorbed", pct(1 - a.absorbed), coeliac ? "bad" : undefined],
+          ],
+          note: coeliac
+            ? `Gluten has set off an immune attack on the lining: the villi are worn to stubs and the brush border is damaged, so the area is ×${Math.round(a.area)} instead of ×600 and only about ${pct(a.absorbed)} of the food is taken up here. The rest passes on — fat most visibly, as pale fatty stools — which is why untreated coeliac disease causes weight loss and anaemia. On a gluten-free diet the villi grow back.`
+            : `Each villus has one layer of cells between the food and the blood, a capillary net and a lacteal just under it, and the microvilli on every cell multiply its area twenty-fold. Glucose and amino acids are pumped in with sodium and leave into the capillaries for the liver; fatty acids diffuse in, are rebuilt into fat, packed into chylomicrons and leave into the lacteal as lymph.`,
+          noteTone: coeliac ? "warn" : "neutral",
+        };
+        legend = {
+          title: "Absorption Key",
+          items: [
+            ...a.nutrients.map((n) => ({ color: n.colour, shape: "dot", label: n.label, note: `${n.across}; then ${n.out}` })),
+            { color: ROUTES.lymph.colour, shape: "dot", label: "Chylomicron", note: "Fat re-made inside the cell, coated in protein: too big for a blood capillary" },
+            { color: ROUTES.blood.colour, shape: "line", label: "Blood capillary", note: `Under the epithelium, all round the villus → ${ROUTES.blood.next}` },
+            { color: ROUTES.lymph.colour, shape: "line", label: "Lacteal", note: `The lymph vessel up the middle → ${ROUTES.lymph.next}` },
+          ],
+        };
+        break;
+      }
       const consistency = CONSISTENCIES[params.consistency] ? params.consistency : "soft";
       const orientation = ORIENTATIONS[params.orientation] ? params.orientation : "upright";
       const p = solvePeristalsis({ consistency, orientation });

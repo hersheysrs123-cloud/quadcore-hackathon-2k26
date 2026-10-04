@@ -8635,3 +8635,19 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
   - The tutorial's step functions are keyed `Content` instead of `render`. They were already mounted as components (`<StepComponent />`), but the hooks rule only treats capitalised names as components.
   - Removed the unused imports, variables and dead helpers. `const [x, setX] = useState()` with only the setter used became `const [, setX]`, which keeps behaviour. In `media-caption-input.test.mjs` two flags were set but never asserted; the test now asserts that ArrowDown and Enter from a caption input do not exit or add a block.
   - Turned off `react/no-unescaped-entities`: it only flags apostrophes in JSX prose, which React escapes anyway. 72 `react-hooks/exhaustive-deps` and 6 `@next/next/no-img-element` findings stay as warnings, for review case by case.
+
+## Peristalsis Villus: the Foot Z-Fighting with the Floor, a Red Cell Bulging Through the Cut, and a Meal Control That Changed Nothing on Screen
+
+### 1. Problem
+- At the villus level, pink smears flickered round the villus's base on the white floor. They were worst in coeliac disease, when the stub is widened.
+- At the lining level, "What was eaten" changed nothing visible. The chyme was one colour, and the meal only changed the mix of molecules at the villus level, which is hard to spot.
+
+### 2. Root cause
+- `villus_field` (`scripts/villus-model/villus.py`) gives the villus a flat skirt at y = 0, 1.5 units round its base, to seal the seam where it stands on the floor. The floor's top is also at y = 0, so the two faces were coplanar and z-fought. The coeliac squash scales the villus by 1.45 in x and z about y = 0, which widens the skirt and leaves it in the same plane.
+- `Chyme` drew every speck in one tan colour, whatever the meal.
+
+### 3. Resolution
+- `VillusLevel` sinks the squash group 0.15 (1.5 µm) into the floor. The skirt now lies under the floor's top, and the villus's sides still pass through it (its solid reaches y = −0.6), so no gap opens.
+- Each `Chyme` speck is now one of the meal's foods, in the meal's shares and the key's colours, with fat droplets 1.35× larger. The specks are bigger (0.05), and the chyme callout names the meal.
+- A red blob also flickered on the cut face at the top of the villus's intact base. It was a red cell. The front capillaries are removed in the cut-away middle storey, and `VillusBlood` hid a cell only once its centre was above the cut (`y > midCut`). A cell of radius 0.36 just under the cut therefore bulged up through the face, flattened into a disc by the coeliac squash. Cells are now hidden from a radius below the bottom cut to a radius above the top one (`RBC_R`).
+- `MEALS` gains a `note`, which the villus level shows as a caption ("mostly fat, so half of it goes into the lacteal as chylomicrons"); the coeliac caption replaces it when the villus is a stub.

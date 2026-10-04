@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import {
-  FitCamera,
   LabelsOn,
   PALETTE,
   SceneCanvas,
@@ -28,6 +27,10 @@ import {
   orientationFor,
   transitAt,
 } from "@/lib/peristalsis";
+import { GUT_CONDITIONS, MEALS, solveAbsorption } from "@/lib/absorption";
+import { TissueZoom, ZoomHotspot, ZoomLadder } from "@/components/visualizations/tissue-zoom";
+import { VILLUS_VIEW, VillusLevel, WALL_FOCUS, WALL_VIEW, WallLevel } from "@/components/visualizations/VillusLevels";
+import { VILLUS_GLB } from "@/components/visualizations/villus-model";
 
 // ─── Peristalsis ────────────────────────────────────────────────────
 // Our own oesophagus and stomach (scripts/gut-model, in Blender), the tube
@@ -335,45 +338,91 @@ function Gut({ live, consistency, showLabels }) {
 /** The whole tube, pharynx to stomach, with the gravity arrow beside it. */
 const PERISTALSIS_VIEW = { cx: 0.7, cy: 0, width: 8.8, height: 12.6, depth: 2.5 };
 
+/** The cut duodenum leaving the stomach, cm in the gut's frame: where the dive into the lining goes. */
+const DUODENUM_CM = [-5.9, -30.8, 1.2];
+
+/** The dive's target in the world: the gut is centred, scaled, and turned over when inverted. */
+const duodenumWorld = (inverted) => {
+  const x = DUODENUM_CM[0] * SCALE;
+  const y = DUODENUM_CM[1] * SCALE + GUT_MID_CM * SCALE;
+  return inverted ? [-x, -y, DUODENUM_CM[2] * SCALE] : [x, y, DUODENUM_CM[2] * SCALE];
+};
+
+const ZOOM_IDS = ["oesophagus", "intestine", "villus"];
+
+/** The three magnifications; each label is the width of the field of view. */
+const zoomLevels = (inverted) => [
+  { id: "oesophagus", label: "Gut", magnification: "40 cm", hint: "The oesophagus and stomach", view: PERISTALSIS_VIEW, direction: [0.06, 0.05, 1], focus: duodenumWorld(inverted), minDistance: 5, maxDistance: 28 },
+  { id: "intestine", label: "Lining", magnification: "1.4 cm", hint: "The small intestine's folds and villi", view: WALL_VIEW, direction: [0.28, 0.62, 1], focus: WALL_FOCUS },
+  { id: "villus", label: "Villus", magnification: "0.8 mm", hint: "One villus cut open", view: VILLUS_VIEW, direction: [0.42, 0.2, 1] },
+];
+
 export default function PeristalsisCanvas({ params = {}, setParam }) {
-  const { swallow = 0, consistency = "soft", orientation = "upright", speed = 1, showLabels = true } = params || {};
+  const { swallow = 0, consistency = "soft", orientation = "upright", speed = 1, showLabels = true, zoom = "oesophagus", meal = "balanced", lining = "healthy" } = params || {};
   const cKey = CONSISTENCIES[consistency] ? consistency : "soft";
   const oKey = ORIENTATIONS[orientation] ? orientation : "upright";
+  const zoomId = ZOOM_IDS.includes(zoom) ? zoom : "oesophagus";
+  const levels = useMemo(() => zoomLevels(oKey === "inverted"), [oKey]);
+  const absorption = useMemo(
+    () => solveAbsorption({ meal: MEALS[meal] ? meal : "balanced", condition: GUT_CONDITIONS[lining] ? lining : "healthy" }),
+    [meal, lining],
+  );
+  const setZoom = (id) => setParam?.("zoom", id);
 
   // Everything the frame loop shares, in one mutable bag.
   const live = useRef({ phase: "idle", state: null, presence: 0, arrival: 0, flip: 0 });
 
   return (
-    <SceneCanvas
-      camera={{ position: [0.8, 0.4, 12.5], fov: 46 }}
-      controls={{ minDistance: 5, maxDistance: 28 }}
-      lights={{ ambient: 0.68, keyLight: 1.25, rim: PALETTE.rose }}
-    >
-      <FitCamera view={PERISTALSIS_VIEW} direction={[0.06, 0.05, 1]} fov={46} />
-      <LabelsOn.Provider value={showLabels !== false}>
-      <PeristalsisDriver trigger={swallow} consistency={cKey} orientation={oKey} speed={speed} live={live} setParam={setParam} />
+    <div className="relative h-full w-full">
+      <SceneCanvas
+        camera={{ position: [0.8, 0.4, 12.5], fov: 46 }}
+        controls={{ minDistance: 5, maxDistance: 28 }}
+        lights={{ ambient: 0.68, keyLight: 1.25, rim: PALETTE.rose }}
+      >
+        <LabelsOn.Provider value={showLabels !== false}>
+          <PeristalsisDriver trigger={swallow} consistency={cKey} orientation={oKey} speed={speed} live={live} setParam={setParam} />
+          <TissueZoom level={ZOOM_IDS.indexOf(zoomId)} levels={levels} fov={46} ringColour="#fda4af">
+            {(lvl) =>
+              lvl === 0 ? (
+                <>
+                  <FlipGroup live={live}>
+                    {/* The gut is modelled in cm with the mouth end at the origin; centre it. */}
+                    <group position={[0, GUT_MID_CM * SCALE, 0]} scale={SCALE}>
+                      <Suspense fallback={null}>
+                        <Gut live={live} consistency={cKey} showLabels={showLabels !== false} />
+                      </Suspense>
+                      <ZoomHotspot position={DUODENUM_CM} radius={1.25} label="into the small intestine" colour="#fda4af" onZoom={() => setZoom("intestine")} />
+                    </group>
+                  </FlipGroup>
 
-      <FlipGroup live={live}>
-        {/* The gut is modelled in cm with the mouth end at the origin; centre it. */}
-        <group position={[0, GUT_MID_CM * SCALE, 0]} scale={SCALE}>
-          <Suspense fallback={null}>
-            <Gut live={live} consistency={cKey} showLabels={showLabels !== false} />
-          </Suspense>
-        </group>
-      </FlipGroup>
-
-      {/* Gravity, fixed to the world: always straight down. */}
-      <VectorArrow from={[3.4, 1.4, 0]} to={[3.4, -0.4, 0]} color={COLOURS.gravity} radius={0.05} headLength={0.32} headRadius={0.14} label={showLabels ? "g" : undefined} labelOffset={0.35} />
-      <ToggleLabel position={[3.4, 2.0, 0]} tone={oKey === "inverted" ? "text-amber-300" : "text-ink-400"}>
-        {oKey === "inverted" ? "upside-down · the wave still delivers" : "right-side up"}
-      </ToggleLabel>
-      </LabelsOn.Provider>
-
-    </SceneCanvas>
+                  {/* Gravity, fixed to the world: always straight down. */}
+                  <VectorArrow from={[3.4, 1.4, 0]} to={[3.4, -0.4, 0]} color={COLOURS.gravity} radius={0.05} headLength={0.32} headRadius={0.14} label={showLabels ? "g" : undefined} labelOffset={0.35} />
+                  <ToggleLabel position={[3.4, 2.0, 0]} tone={oKey === "inverted" ? "text-amber-300" : "text-ink-400"}>
+                    {oKey === "inverted" ? "upside-down · the wave still delivers" : "right-side up"}
+                  </ToggleLabel>
+                </>
+              ) : lvl === 1 ? (
+                <Suspense fallback={null}>
+                  <WallLevel solved={absorption} speed={speed} showLabels={showLabels !== false} onZoom={() => setZoom("villus")} />
+                </Suspense>
+              ) : (
+                <Suspense fallback={null}>
+                  <VillusLevel solved={absorption} speed={speed} showLabels={showLabels !== false} />
+                </Suspense>
+              )
+            }
+          </TissueZoom>
+        </LabelsOn.Provider>
+      </SceneCanvas>
+      <div className="pointer-events-none absolute right-3 top-3 z-10 flex justify-end">
+        <ZoomLadder levels={levels} level={ZOOM_IDS.indexOf(zoomId)} onSelect={setZoom} />
+      </div>
+    </div>
   );
 }
 
 useGLTF.preload(GUT_GLB);
+useGLTF.preload(VILLUS_GLB);
 
 /** Rotates its children about z by the live flip angle. */
 function FlipGroup({ live, children }) {

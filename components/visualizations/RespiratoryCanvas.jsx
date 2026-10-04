@@ -18,7 +18,6 @@ import {
 import {
   CANVAS_BG,
   Callout,
-  FitCamera,
   PALETTE,
   VectorArrow,
   WebGLCleanup,
@@ -37,11 +36,17 @@ import {
   breathAt,
   restingState,
 } from "@/lib/respiratory";
+import { ALTITUDES, LUNG_CONDITIONS, solveGasExchange } from "@/lib/gasExchange";
+import { TissueZoom, ZoomHotspot, ZoomLadder } from "@/components/visualizations/tissue-zoom";
+import { ACINUS_VIEW, AcinusLevel, SEPTUM_VIEW, SeptumLevel, acinusFocus } from "@/components/visualizations/AlveolusLevels";
+import { ALVEOLI_GLB } from "@/components/visualizations/alveoli-model";
+import { GasExchangePanel } from "@/components/visualizations/gas-exchange-panel";
 
 // Preload the photorealistic medical 3D GLB assets
 if (typeof window !== "undefined") {
   useGLTF.preload("/models/lung.glb");
   useGLTF.preload("/models/skeleton_ct.glb");
+  useGLTF.preload(ALVEOLI_GLB);
 }
 
 /**
@@ -910,6 +915,20 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
 /** The thorax from the hyoid to below the diaphragm, plus the two label columns. */
 const THORAX_VIEW = { cx: 0, cy: 1.85, cz: 0.2, width: 7.2, height: 4.3, depth: 2.2 };
 
+/** Where the dive into the alveoli goes: the front of the right lung's lower lobe. */
+const LUNG_FOCUS = [-1.12, 1.42, 0.98];
+
+/**
+ * The three magnifications (tissue-zoom.jsx). Each label is the width of the
+ * field of view, which is honest whatever the size of the screen.
+ */
+const ZOOM_LEVELS = [
+  { id: "lungs", label: "Chest", magnification: "30 cm", hint: "The lungs, ribs and diaphragm", view: THORAX_VIEW, direction: [0, 0.02, 1], focus: LUNG_FOCUS, minDistance: 3, maxDistance: 16 },
+  { id: "alveoli", label: "Alveoli", magnification: "1 mm", hint: "An alveolar sac and its capillaries", view: ACINUS_VIEW, direction: [0.32, 0.12, 1], focus: acinusFocus() },
+  { id: "barrier", label: "Air–blood barrier", magnification: "30 µm", hint: "One septum, cut open through a capillary", view: SEPTUM_VIEW, direction: [0.2, 0.16, 1] },
+];
+const ZOOM_IDS = ZOOM_LEVELS.map((l) => l.id);
+
 // ─── Main 3D Respiratory Scene Container ──────────────────────────────
 export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   const [phase, setPhase] = useState(RESPIRATORY_PHASES.INSPIRATION);
@@ -927,6 +946,15 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
   // and back keeps it.
   const showLabels = params?.showLabels !== false;
   const setShowLabels = useCallback((value) => setParam?.("showLabels", value), [setParam]);
+  // The zoom and the gas-exchange settings live in params too, so the tutor sees them.
+  const zoom = ZOOM_IDS.includes(params?.zoom) ? params.zoom : "lungs";
+  const zoomIndex = ZOOM_IDS.indexOf(zoom);
+  const setZoom = useCallback((id) => setParam?.("zoom", id), [setParam]);
+  const altitude = ALTITUDES[params?.altitude] ? params.altitude : "sea";
+  const condition = LUNG_CONDITIONS[params?.condition] ? params.condition : "healthy";
+  const exercise = params?.exercise === true;
+  const gas = useMemo(() => solveGasExchange({ altitude, condition, exercise }), [altitude, condition, exercise]);
+  const animSpeed = Number.isFinite(params?.speed) ? params.speed : 1;
   const [showCredits, setShowCredits] = useState(false);
 
   // Close credits modal on Escape key press
@@ -1084,51 +1112,68 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         <pointLight position={[0, 1.5, 3.5]} intensity={0.9} color="#ffffff" />
 
         <FrameController onFrame={handleFrameUpdate} />
-        <FitCamera view={THORAX_VIEW} direction={[0, 0.02, 1]} fov={42} />
 
-        {/* 1. Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine, Sternum, Clavicles) */}
-        {showBones && (
-          <Suspense fallback={null}>
-            <RealisticCTSkeleton
-              breathRef={shown}
-              cutaway={cutaway}
-              visible={showBones}
-            />
-          </Suspense>
-        )}
+        <TissueZoom level={zoomIndex} levels={ZOOM_LEVELS} fov={42} ringColour="#7dd3fc">
+          {(lvl) =>
+            lvl === 0 ? (
+              <>
+                {/* 1. Real CT-Scanned Thoracic Skeleton (Ribs 1-12, Spine, Sternum, Clavicles) */}
+                {showBones && (
+                  <Suspense fallback={null}>
+                    <RealisticCTSkeleton
+                      breathRef={shown}
+                      cutaway={cutaway}
+                      visible={showBones}
+                    />
+                  </Suspense>
+                )}
 
-        {/* 2. Ribcage kinematics (the intercostal geometry has been removed) */}
-        {showVectors && <RibcageKinematicVectors expansion={expansion} showLabels={showLabels} />}
+                {/* 2. Ribcage kinematics (the intercostal geometry has been removed) */}
+                {showVectors && <RibcageKinematicVectors expansion={expansion} showLabels={showLabels} />}
 
-        {/* 3. Sculpted Muscular Diaphragm Dome with Central Tendon & Hiatuses */}
-        {showDiaphragm && (
-          <>
-            <SculptedDiaphragmDome
-              breathRef={shown}
-              isContracted={phase === RESPIRATORY_PHASES.INSPIRATION}
-              cutaway={cutaway}
-              muscleTexture={muscleTexture}
-              tendonTexture={tendonTexture}
-            />
-            {showVectors && <DiaphragmVector expansion={expansion} showLabels={showLabels} />}
-          </>
-        )}
+                {/* 3. Sculpted Muscular Diaphragm Dome with Central Tendon & Hiatuses */}
+                {showDiaphragm && (
+                  <>
+                    <SculptedDiaphragmDome
+                      breathRef={shown}
+                      isContracted={phase === RESPIRATORY_PHASES.INSPIRATION}
+                      cutaway={cutaway}
+                      muscleTexture={muscleTexture}
+                      tendonTexture={tendonTexture}
+                    />
+                    {showVectors && <DiaphragmVector expansion={expansion} showLabels={showLabels} />}
+                  </>
+                )}
 
-        {/* 4. Photorealistic Medical Scanned Lungs */}
-        {showLungs && (
-          <Suspense fallback={null}>
-            <PhotorealisticMedicalLungs
-              breathRef={shown}
-              cutaway={cutaway}
-            />
-          </Suspense>
-        )}
+                {/* 4. Photorealistic Medical Scanned Lungs */}
+                {showLungs && (
+                  <Suspense fallback={null}>
+                    <PhotorealisticMedicalLungs
+                      breathRef={shown}
+                      cutaway={cutaway}
+                    />
+                  </Suspense>
+                )}
 
-        {/* 5. Dynamic Airway Particle Streams */}
-        {showAirflow && <AirwayParticleStream flowRate={flowRate} active={true} />}
+                {/* 5. Dynamic Airway Particle Streams */}
+                {showAirflow && <AirwayParticleStream flowRate={flowRate} active={true} />}
 
-        {/* 6. 3D Anatomical Labels */}
-        <AnatomicalLabels visible={showLabels} />
+                {/* 6. 3D Anatomical Labels */}
+                <AnatomicalLabels visible={showLabels} />
+
+                <ZoomHotspot position={LUNG_FOCUS} radius={0.22} label="zoom into the alveoli" onZoom={() => setZoom("alveoli")} />
+              </>
+            ) : lvl === 1 ? (
+              <Suspense fallback={null}>
+                <AcinusLevel solved={gas} breathRef={shown} speed={animSpeed} showLabels={showLabels} focus={ZOOM_LEVELS[1].focus} onZoom={() => setZoom("barrier")} />
+              </Suspense>
+            ) : (
+              <Suspense fallback={null}>
+                <SeptumLevel solved={gas} speed={animSpeed} showLabels={showLabels} />
+              </Suspense>
+            )
+          }
+        </TissueZoom>
 
         <OrbitControls
           makeDefault
@@ -1136,7 +1181,6 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           dampingFactor={0.08}
           minDistance={3.0}
           maxDistance={16}
-          target={[THORAX_VIEW.cx, THORAX_VIEW.cy, THORAX_VIEW.cz]}
         />
       </Canvas>
 
@@ -1151,6 +1195,11 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           <Info className="h-3.5 w-3.5 text-duck-400" />
           <span>Credits</span>
         </button>
+      </div>
+
+      {/* The magnifications, over the canvas */}
+      <div className="absolute top-14 right-3 z-20">
+        <ZoomLadder levels={ZOOM_LEVELS} level={zoomIndex} onSelect={setZoom} />
       </div>
 
       {/* ─── Floating Physiological Control HUD ─────────────────────── */}
@@ -1222,6 +1271,39 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           {/* Scrollable Content */}
           {!isCollapsed && (
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar">
+            {/* 0. Zoomed in: the gas exchange, first */}
+            {zoom !== "lungs" && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-300">
+                    Gas exchange · Fick&apos;s law
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoom("lungs")}
+                    className="rounded-md border border-ink-700 bg-ink-800 px-2 py-0.5 text-[10px] font-semibold text-ink-300 hover:text-ink-100"
+                  >
+                    ← back to the chest
+                  </button>
+                </div>
+                <GasExchangePanel solved={gas} altitude={altitude} condition={condition} exercise={exercise} setParam={setParam} />
+              </div>
+            )}
+
+            {zoom === "lungs" && (
+              <button
+                type="button"
+                onClick={() => setZoom("alveoli")}
+                className="flex w-full items-center justify-between rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-left text-xs font-semibold text-sky-200 transition-colors hover:bg-sky-500/20"
+              >
+                <span>
+                  Zoom into the alveoli
+                  <span className="block text-[10px] font-normal text-sky-300/80">where the oxygen gets into the blood</span>
+                </span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+
             {/* 1. Phase Selector */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -1404,6 +1486,18 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                     airFlowRateLps: flowRate.toFixed(2),
                     bpm,
                     cutawayPercent: Math.round(cutaway * 100),
+                    zoom,
+                    ...(zoom !== "lungs"
+                      ? {
+                          altitude: ALTITUDES[altitude].label,
+                          lung: LUNG_CONDITIONS[condition].label,
+                          exercise,
+                          alveolarPO2kPa: gas.pao2.toFixed(1),
+                          endCapillaryPO2kPa: gas.endPo2.toFixed(1),
+                          arterialSaturationPercent: Math.round(gas.endSat * 100),
+                          equilibratedAfterS: gas.equilibratedAt === null ? "never" : gas.equilibratedAt.toFixed(2),
+                        }
+                      : {}),
                   };
                   onOpenQuiz(respiratoryTopic, liveParams);
                 }}
