@@ -330,6 +330,21 @@ export default function NotesPanel({
             />
           )}
 
+          {/* The chevron slot comes first, so its empty space on a note with no
+              sub-pages sits at the edge, not between the hover controls. */}
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={() => toggleExpanded(n.id)}
+              aria-label={isOpen ? "Collapse sub-pages" : "Expand sub-pages"}
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-500 hover:bg-ink-700 hover:text-ink-200"
+            >
+              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </button>
+          ) : (
+            <span className="h-5 w-5 shrink-0" aria-hidden="true" />
+          )}
+
           {isMultiSelecting ? (
             <button
               type="button"
@@ -365,20 +380,6 @@ export default function NotesPanel({
             </div>
           ) : null}
 
-          {hasChildren ? (
-            <button
-              type="button"
-              onClick={() => toggleExpanded(n.id)}
-              aria-label={isOpen ? "Collapse sub-pages" : "Expand sub-pages"}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-500 hover:bg-ink-700 hover:text-ink-200"
-            >
-              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
-          ) : (
-            <span className="h-5 w-5 shrink-0" aria-hidden="true" />
-          )}
-          {/* Right before the name, so the empty chevron slot of a note with no
-              sub-pages does not open a gap between the + and the title. */}
           {!isMultiSelecting && (
             <button
               type="button"
