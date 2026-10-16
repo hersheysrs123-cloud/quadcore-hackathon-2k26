@@ -3,6 +3,7 @@ import {
   errorPayload,
   generate,
   hasApiKey,
+  normalizeHistory,
   readText,
   readUsage,
 } from "@/lib/gemini";
@@ -132,7 +133,9 @@ export async function POST(request) {
     academicLevel,
   } = body ?? {};
 
-  if (!Array.isArray(messages) || messages.length === 0) {
+  // Same trimming as the browser path: open and end on a learner turn.
+  const history = normalizeHistory(messages);
+  if (history.length === 0) {
     return NextResponse.json({ error: "`messages` array is required." }, { status: 400 });
   }
 
@@ -159,7 +162,7 @@ export async function POST(request) {
   try {
     const payload = await generate({
       system,
-      messages,
+      messages: history,
       temperature: 0.5,
     });
 
