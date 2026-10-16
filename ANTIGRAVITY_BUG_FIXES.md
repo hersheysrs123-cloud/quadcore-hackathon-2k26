@@ -8726,3 +8726,19 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
   - Three dependencies are left out on purpose, each with a comment saying why. `QuizPanel` would retry a failed quiz forever. `ExplainPanel` would refetch on every keystroke. `StudioEnvironment` uses its dependencies as reset keys, and it now also resets on `rotation`.
   - User-supplied images (favicons, media blocks, `data:` URLs) stay `<img>` with a disable comment: `next/image` only loads allow-listed hosts.
   - Lint is at 0 errors and 0 warnings. All 51 3D scenes load in the browser with no page errors. Alkene and alkyne bonds, the Hooke's law plastic branch and unload line, the eye reset, the tutorial keys, the command palette and the DOCX preview were each checked by hand.
+
+## Audit batch 4: HTML export preview could reach the app, and the export printed some values unescaped
+
+- **Problem:**
+  - The HTML export preview iframe was sandboxed with `allow-same-origin allow-scripts`. A script inside the exported page could reach the app's own window, IndexedDB and localStorage, and could remove the iframe's sandbox.
+  - The exported page printed a callout's icon and the note's emoji without escaping. The preview's fallback page printed the title the same way.
+  - Site-block links and media sources kept any scheme, so a `javascript:` URL in a site block became a live link in the downloaded page.
+  - Each reload of the preview added another ResizeObserver and wheel listener and never removed them.
+- **Root cause:** The preview read the frame's document directly (`contentDocument`) to size it and forward wheel scrolling, which needs `allow-same-origin`. `blockToHtmlFragment` and `blocksToHTMLLossy` interpolated `block.calloutIcon` and `emoji` raw, and escaped URLs without checking their scheme.
+- **Resolution:**
+  - **Preview sandbox:** the iframe is now `sandbox="allow-scripts"`, an opaque origin.
+  - **Height and scrolling:** `lib/previewBridge.js` adds a small script to the preview copy only. It posts the page height (on load and on every resize) and wheel deltas to the parent. `ExportPreview` accepts a message only from that iframe's window with the preview's token, clamps the numbers, and removes its one listener on unmount.
+  - **Escaping:** the callout icon, emoji and fallback title are escaped.
+  - **URLs:** `safeExportUrl` allows http(s) and mailto, bare and relative URLs, and `data:` images, audio and video for media. It reads the scheme with whitespace removed, as browsers do, so `java\nscript:` is caught.
+  - **Tests:** `tests/unit/export-sandbox.test.mjs` (12).
+  - **Checked in the browser** with the Calculus note's HTML preview: the parent's access to the frame's document is now blocked, and the frame sized itself to the page (4359 px, growing to 4407 px as KaTeX finished laying out). KaTeX equations render inside the sandbox, and wheel scrolling over the frame scrolls the dialog.
