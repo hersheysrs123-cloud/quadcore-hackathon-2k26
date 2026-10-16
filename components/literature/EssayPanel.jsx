@@ -23,13 +23,7 @@ export default function EssayPanel({ poem, tab, onTabChange, onSave, onClose }) 
   const pendingRef = useRef(null);
 
   const key = `${poem?.id || ""}:${tab}`;
-  const keyRef = useRef(key);
-
-  useEffect(() => {
-    keyRef.current = key;
-    setValue(poem ? poem[tab] || "" : "");
-    pendingRef.current = null;
-  }, [key, poem, tab]);
+  const shownKeyRef = useRef(null);
 
   // Latest onSave, so the stable flush below (and the unmount flush) never
   // calls an outdated copy.
@@ -48,6 +42,23 @@ export default function EssayPanel({ poem, tab, onTabChange, onSave, onClose }) 
     pendingRef.current = null;
     onSaveRef.current(pending.poemId, pending.field, pending.value);
   }, []);
+
+  /* `poem` comes from a live query, so it is a new object every time any of
+     its fields is written, including by this panel's own debounced save. A
+     new poem or tab saves what was typed for the old one, then shows the new
+     text. The same poem and tab only take the stored text when nothing is
+     waiting to be saved: otherwise the echo of a save would overwrite what
+     was typed after it. */
+  useEffect(() => {
+    const stored = poem ? poem[tab] || "" : "";
+    if (shownKeyRef.current !== key) {
+      flush();
+      shownKeyRef.current = key;
+      setValue(stored);
+    } else if (!pendingRef.current) {
+      setValue(stored);
+    }
+  }, [key, poem, tab, flush]);
 
   useEffect(() => flush, [flush]); // flush whatever is in flight when unmounting
 

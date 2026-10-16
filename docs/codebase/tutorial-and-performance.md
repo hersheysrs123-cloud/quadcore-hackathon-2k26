@@ -21,7 +21,7 @@
 
 ### ⚡ L. Performance & Runtime Optimization Architecture
 - **$O(1)$ Block-Level Re-render Isolation**: `EditorBlock` and heavy child containers are wrapped in `React.memo` with custom comparator guards, ensuring single-character edits in one block never cause full-document re-renders across other blocks.
-- **KaTeX LRU String Memoization**: Math pills and block equations use an in-memory LRU Map cache (`renderKatexToStringMemoized`) to avoid redundant KaTeX lexing/AST rebuilds on identical LaTeX formulas.
+- **KaTeX LRU String Memoization**: Math pills and block equations use an in-memory LRU Map cache (`renderKatexToStringMemoized`) to avoid redundant KaTeX lexing/AST rebuilds on identical LaTeX formulas. It renders with `trust: katexTrust`, which allows only the `reflect-flip` class and `http`/`https`/`mailto` links (see gotcha 17 in [gotchas-general.md](gotchas-general.md)).
 - **Singleton Timer Store Clock & Auto-Sleep**: Multi-timer polling is consolidated into a single external store ticker (`multiTimerStore`), running only 1 shared timer interval when active and automatically clearing intervals when all timers are idle (0% idle background CPU usage).
 - **IndexedDB Query Batching**: Settings and bulk database lookups use `db.settings.bulkGet(...)` instead of sequential single-key round-trips.
 - **Calendar & UI Memoization**: Month cell grids and timer sub-widgets in `CalendarView.jsx` are wrapped in `useMemo` and `memo` to prevent recalculations on unrelated state updates.
