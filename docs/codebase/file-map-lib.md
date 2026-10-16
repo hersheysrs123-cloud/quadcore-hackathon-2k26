@@ -6,7 +6,7 @@
 quadcore-hackathon-2k26/
 ├── lib/
 │   ├── aiService.js                      # Isomorphic client-side AI service coordinating Gemini API & user keys
-│   ├── backup.js                         # .socratic JSON workspace & space backup packager with folder/bookmark support
+│   ├── backup.js                         # .socratic backups (v2): every store + space list; pure buildBackup / planImport (restore vs. copy-into-space with id remapping, scoped overwrite) and the IndexedDB wrappers
 │   ├── blocks.js                         # Text extractors, concept mappers & slash-menu relevance ranking (`rankSlashItems`)
 │   ├── buoyancy.js                       # PURE PHYSICS: Archimedes' principle, material vs envelope volume, fluid densities, waterline integration, hull displacement & apparent weight
 │   ├── constants.js                      # Default SPACES definition (School, Personal, Misc, Journal)

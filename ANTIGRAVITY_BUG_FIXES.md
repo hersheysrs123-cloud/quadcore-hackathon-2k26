@@ -8726,3 +8726,24 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
   - Three dependencies are left out on purpose, each with a comment saying why. `QuizPanel` would retry a failed quiz forever. `ExplainPanel` would refetch on every keystroke. `StudioEnvironment` uses its dependencies as reset keys, and it now also resets on `rotation`.
   - User-supplied images (favicons, media blocks, `data:` URLs) stay `<img>` with a disable comment: `next/image` only loads allow-listed hosts.
   - Lint is at 0 errors and 0 warnings. All 51 3D scenes load in the browser with no page errors. Alkene and alkyne bonds, the Hooke's law plastic branch and unload line, the eye reset, the tutorial keys, the command palette and the DOCX preview were each checked by hand.
+
+## Audit batch 3: .socratic backups lost five stores, and importing into another space moved the originals
+
+- **Problem:**
+  - A `.socratic` backup did not contain quizzes, quiz trash, space syllabus documents, space AI settings, Literature poems, app settings or custom spaces. Restoring one silently lost all of them, and notes from a custom space came back into a space that no longer existed, so they never showed.
+  - Importing a backup into a different space moved the original notes there instead of copying them. The backup's ids were reused, so `bulkPut` rewrote the existing rows with the new `spaceId`.
+  - "Overwrite" was ignored for a single-space import. A one-space backup restored with overwrite cleared every space.
+- **Root cause:** `lib/backup.js` was written for Dexie v5 and never updated for the v6–v9 stores. It listed seven tables by hand in export, import and clear. Import with a target space only changed `spaceId`, and kept every id. The overwrite branch ran only when not reassigning, and always cleared whole tables.
+- **Resolution:**
+  - Rewrote `lib/backup.js` around one `BACKUP_TABLES` map (13 stores, each with how its rows belong to a space) and two pure functions, `buildBackup` and `planImport`.
+  - Format `socratic-backup-v2` carries every store and the space list; v1 files still import. The Gemini API key is never exported or imported.
+  - Saved bookmarks/folders, alarms and app settings are workspace-wide. They travel only in an all-spaces backup and are restored, never copied into one space.
+  - "Original Spaces" restores rows with their ids and re-creates their spaces (`saveAllSpaces`).
+  - Importing into a space copies. Ids already in use get a fresh suffix, and `parentId`, page blocks' `pageId`, quiz `noteId`/`noteIds` and session `noteId` are remapped to the copies.
+  - Overwrite clears only the target space, or the backup's own space, unless it is an all-spaces restore. Rows that are not records are dropped.
+  - Tests: `tests/unit/backup.test.mjs` (21).
+  - Checked in the browser on the dev server, with a test quiz, a syllabus document, app settings with a placeholder key, and a custom "Lab" space with a note:
+    - The all-spaces export held all of them, with no key.
+    - After deleting them and the Lab space, "Original Spaces" restored every one, Lab with its icon.
+    - Exporting School and importing into Personal left the four School notes in School and created four copies in Personal, with the quiz copy pointing at the copied note.
+    - The test data was removed afterwards.
