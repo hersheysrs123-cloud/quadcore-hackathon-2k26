@@ -14,7 +14,7 @@ quadcore-hackathon-2k26/
 │   ├── demoNotes.js                      # 7 comprehensive seeded notes across all 4 spaces with full 19-block suites
 │   ├── editorCaret.js                    # Notion-grade caret navigation, visual line calculations, inline math compilation & boundary traversal
 │   ├── coasterEnergy.js                  # PURE PHYSICS: coaster track builder, energy budget, rail force & g-force
-│   ├── exportImport.js                   # Full export/import engine for Netscape HTML Bookmarks, PDF, DOCX, HTML, MD, TXT
+│   ├── exportImport.js                   # Full export/import engine for Netscape HTML Bookmarks, PDF, DOCX, HTML, MD, TXT; safeExportUrl for exported hrefs/srcs
 │   ├── eyeOptics.js                      # PURE PHYSICS: Gullstrand schematic eye, accommodation & pupil reflex
 │   ├── hookesLaw.js                      # PURE PHYSICS: Hooke's law, elastic limit, plastic branch & permanent set
 │   ├── inclineForces.js                  # PURE PHYSICS: weight resolution, static/kinetic friction & angle of repose
@@ -80,6 +80,7 @@ quadcore-hackathon-2k26/
 │   ├── literatureService.js              # Dexie CRUD for db.poems, JSON import/export, one-time legacy-localStorage adoption & sample seeding, UI prefs
 │   ├── noteEcho.js                       # Tells the editor's own saved title/banner/emoji from changes made elsewhere (rememberSent, isExternalPropChange)
 │   ├── noteHierarchy.js                  # Pure, cycle-safe nested sub-page helpers (tree build, descendants, ancestors/breadcrumbs, deep tree clone, restore parent resolution)
+│   ├── previewBridge.js                  # postMessage bridge for the sandboxed HTML export preview: adds the height/wheel reporter to the preview copy, validates messages (source window + token)
 │   ├── storageService.js                 # Dexie CRUD service for notes (subtree-cascading trash/restore/move), folders, bookmarks, trash, calendar, alarms, quizzes, space documents, extractSyllabusTextFromFile & reset (space rename/delete and factory reset also cover db.poems)
 │   ├── syntaxHighlighter.js              # PrismJS-powered AST tokenizer & syntax highlighter for 10 programming languages
 │   ├── timerStore.js                     # Reactive Zustand multi-timer store with persist middleware, legacy migration & 0% idle CPU auto-sleep ticker

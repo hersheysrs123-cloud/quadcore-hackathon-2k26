@@ -9,6 +9,8 @@ import {
   getNormalizedTableData,
 } from "@/lib/exportImport";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { escapeHtml } from "@/lib/editorCaret";
+import { addPreviewBridge, readPreviewMessage } from "@/lib/previewBridge";
 import {
   Download,
   ArrowLeft,
@@ -124,7 +126,7 @@ export default function ExportPreview({
     try {
       return blocksToHTMLLossy(blocks, title, emoji);
     } catch {
-      return `<!DOCTYPE html><html><body><h1>${title}</h1></body></html>`;
+      return `<!DOCTYPE html><html><body><h1>${escapeHtml(title)}</h1></body></html>`;
     }
   }, [blocks, title, emoji]);
 
@@ -157,53 +159,24 @@ export default function ExportPreview({
     };
   }, [activeFormat, blocks, title, emoji]);
 
-  // Handle iframe dynamic height and mouse wheel forwarding
-  const handleIframeLoad = (e) => {
-    try {
-      const iframe = e?.target || iframeRef.current;
-      if (!iframe) return;
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) return;
+  // The preview iframe is sandboxed without allow-same-origin, so it cannot
+  // touch the app and the app cannot read it. Its page reports its own height
+  // (also after KaTeX and fonts load) and wheel movement by postMessage; see
+  // lib/previewBridge.js. Only the preview copy carries that script: copy,
+  // source view, size and download all use htmlContent.
+  const previewToken = useMemo(() => `pv_${Math.random().toString(36).slice(2)}`, []);
+  const previewHtml = useMemo(() => addPreviewBridge(htmlContent, previewToken), [htmlContent, previewToken]);
 
-      const updateHeight = () => {
-        try {
-          const docEl = doc.documentElement;
-          const body = doc.body;
-          const contentH = Math.max(
-            docEl ? docEl.scrollHeight : 0,
-            body ? body.scrollHeight : 0,
-            560
-          );
-          if (contentH > 100) {
-            setIframeHeight(contentH + 24);
-          }
-        } catch {}
-      };
-
-      updateHeight();
-
-      // Forward wheel events from inside the iframe to the canvas scroll container
-      try {
-        const handleWheel = (we) => {
-          if (canvasRef.current) {
-            canvasRef.current.scrollTop += we.deltaY;
-          }
-        };
-        doc.removeEventListener("wheel", handleWheel);
-        doc.addEventListener("wheel", handleWheel, { passive: true });
-      } catch {}
-
-      // Observe dynamic content changes (e.g. KaTeX math equations or font loading)
-      if (typeof window !== "undefined" && window.ResizeObserver && doc.body) {
-        const ro = new ResizeObserver(() => {
-          updateHeight();
-        });
-        ro.observe(doc.body);
-      }
-    } catch (err) {
-      console.warn("ExportPreview iframe resize handler:", err);
-    }
-  };
+  useEffect(() => {
+    const onMessage = (event) => {
+      const data = readPreviewMessage(event, iframeRef.current?.contentWindow, previewToken);
+      if (!data) return;
+      if (data.height !== undefined) setIframeHeight(Math.max(data.height, 560) + 24);
+      if (data.wheel !== undefined && canvasRef.current) canvasRef.current.scrollTop += data.wheel;
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [previewToken]);
 
   // Compute file metadata
   const stats = useMemo(() => {
@@ -544,9 +517,8 @@ export default function ExportPreview({
                   <iframe
                     ref={iframeRef}
                     title="Exported HTML Web Page Preview"
-                    srcDoc={htmlContent}
-                    sandbox="allow-same-origin allow-scripts"
-                    onLoad={handleIframeLoad}
+                    srcDoc={previewHtml}
+                    sandbox="allow-scripts"
                     style={{
                       minHeight: "560px",
                       height: iframeHeight ? `${iframeHeight}px` : "auto",
