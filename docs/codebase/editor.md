@@ -130,9 +130,11 @@
 
 - **Debounced Auto-Save & Unmount Flush Engine**:
   - All block mutations automatically trigger a 400ms debounced save (`triggerDebouncedSave`).
-  - `performSave` packages complete note payloads (`id`, `spaceId`, `title`, `blocks`, `banner`, `fontStyle`, `fullWidth`, `isLocked`, `isFavorite`, `emoji`).
-  - `BlockNoteEditor` maintains an unmount cleanup effect that immediately flushes dirty state with explicit note and space IDs upon space switching or navigation, preventing data loss.
-  - `Workspace.jsx` maintains an active `editorBlocksRef` to guarantee that manual saves (`Ctrl+S`, `NoteMenu`, favorite toggles) never overwrite live editor content with stale initial state.
+  - `performSave` packages the note payload (`id`, `spaceId`, `title`, `blocks`, `banner`, `fontStyle`, `fullWidth`, `isLocked`, `emoji`). It never sends `isFavorite`: the editor has no star, so `handleSaveNote` keeps the stored value.
+  - Saves go through `sendSave`, which calls the latest `onSaveNote` via `onSaveNoteRef` (a debounced save fires up to 400 ms after it was scheduled) and records each saved `title`, `banner` and `emoji`.
+  - **Outside changes to the open note** (rename from the notes panel, banner or emoji set elsewhere) reach the editor as new `initialTitle` / `initialBanner` / `initialEmoji` props. The editor adopts a value only if it is not one it saved itself (`isExternalPropChange` in `lib/noteEcho.js`), so the echo of its own save never undoes typing that came after it.
+  - `BlockNoteEditor` maintains an unmount cleanup effect (it runs only on unmount) that immediately flushes dirty state with explicit note and space IDs upon space switching or navigation, preventing data loss.
+  - Ctrl+S is handled by the editor alone. `Workspace.jsx`'s listener only blocks the browser's Save dialog. `handleSaveNote` fills any field the caller leaves out from the target note's stored values, and `saveNote` does the same for `banner`, `emoji` and `isFavorite`.
 
 - **High-Performance Lasso / Marquee Multi-Block Selection**:
   - Document-anchored selection box (`absolute` coordinate space) with 60/120fps `requestAnimationFrame` loop.

@@ -78,6 +78,7 @@ quadcore-hackathon-2k26/
 │   ├── shadowOptics.js                   # Geometric shadow formation solver, bench constraints, umbra/penumbra, signed 3D rotation projection & materials
 │   ├── literature.js                     # Pure poem/annotation logic: ranges, overlap segmentation, reading-order numbering, line remapping, import sanitising (no DOM, no Dexie)
 │   ├── literatureService.js              # Dexie CRUD for db.poems, JSON import/export, one-time legacy-localStorage adoption & sample seeding, UI prefs
+│   ├── noteEcho.js                       # Tells the editor's own saved title/banner/emoji from changes made elsewhere (rememberSent, isExternalPropChange)
 │   ├── noteHierarchy.js                  # Pure, cycle-safe nested sub-page helpers (tree build, descendants, ancestors/breadcrumbs, deep tree clone, restore parent resolution)
 │   ├── storageService.js                 # Dexie CRUD service for notes (subtree-cascading trash/restore/move), folders, bookmarks, trash, calendar, alarms, quizzes, space documents, extractSyllabusTextFromFile & reset (space rename/delete and factory reset also cover db.poems)
 │   ├── syntaxHighlighter.js              # PrismJS-powered AST tokenizer & syntax highlighter for 10 programming languages
