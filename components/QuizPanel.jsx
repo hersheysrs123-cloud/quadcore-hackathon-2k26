@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import ScoreRing from "@/components/ScoreRing";
-import { quizGenerate, quizGrade, shouldUseClientAI } from "@/lib/aiService";
+import { effectiveAnswer, isAnswerGiven, quizGenerate, quizGrade, shouldUseClientAI } from "@/lib/aiService";
 import { getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
 import { CheckSquare, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import MathText from "@/components/MathText";
@@ -157,6 +157,9 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
   }, [index, phase, scrollRef]);
 
   async function submit() {
+    // A new quiz (new concept, or regenerate) bumps genSeqRef; grading for the
+    // old one must not land on it.
+    const seq = genSeqRef.current;
     setPhase("grading");
     setError(null);
 
@@ -167,7 +170,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
         concept,
         noteContent,
         questions: quiz.questions,
-        responses: quiz.questions.map((_, i) => ({ answer: answers[i] })),
+        responses: quiz.questions.map((q, i) => ({ answer: effectiveAnswer(q, answers[i]) })),
         syllabus: enabled ? syllabus : "",
         spaceId,
         aiPersona: spaceConfig?.aiPersona || "examiner",
@@ -180,6 +183,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
         ? await quizGrade(payload)
         : await postJson("/api/quiz/grade", payload);
 
+      if (genSeqRef.current !== seq) return;
       setResult(data.result);
       setPhase("review");
       onComplete?.({
@@ -190,6 +194,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
         heatmap: data.result.heatmap,
       });
     } catch (err) {
+      if (genSeqRef.current !== seq) return;
       setError(err.message);
       setPhase("answering");
     }
@@ -228,15 +233,9 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
 
   const question = quiz.questions[index];
   const total = quiz.questions.length;
-  const isFilled = (val) => {
-    if (val === undefined || val === null) return false;
-    if (Array.isArray(val)) return val.length > 0;
-    return String(val).trim().length > 0;
-  };
-
-  const answered = isFilled(answers[index]);
+  const answered = isAnswerGiven(question, answers[index]);
   const isLast = index === total - 1;
-  const answeredCount = quiz.questions.filter((_, i) => isFilled(answers[i])).length;
+  const answeredCount = quiz.questions.filter((q, i) => isAnswerGiven(q, answers[i])).length;
   const grading = phase === "grading";
 
   return (
@@ -252,13 +251,13 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
           </span>
         </div>
         <div className="flex gap-1" aria-hidden="true">
-          {quiz.questions.map((_, i) => (
+          {quiz.questions.map((q, i) => (
             <span
               key={i}
               className={`h-1 flex-1 rounded-full transition-colors ${
                 i === index
                   ? "bg-duck-400"
-                  : isFilled(answers[i])
+                  : isAnswerGiven(q, answers[i])
                     ? "bg-duck-500/40"
                     : "bg-ink-800"
               }`}

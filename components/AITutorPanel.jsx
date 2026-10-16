@@ -26,6 +26,11 @@ export default function AITutorPanel({
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const lastConceptRef = useRef(null);
+  // Bumped whenever the conversation is reset (cleared, or a new topic), so a
+  // reply still in flight for the old conversation is dropped, not appended.
+  const chatEpochRef = useRef(0);
+  // The question whose send failed, for "Try again".
+  const failedQueryRef = useRef(null);
 
   // Load space settings and curriculum state whenever space changes
   useEffect(() => {
@@ -49,6 +54,10 @@ export default function AITutorPanel({
     if (!open) return;
     if (messages.length === 0 || lastConceptRef.current !== concept) {
       lastConceptRef.current = concept;
+      chatEpochRef.current += 1;
+      failedQueryRef.current = null;
+      setLoading(false);
+      setError(null);
       const topicName = concept || "your current notes";
       setMessages([
         {
@@ -78,16 +87,22 @@ export default function AITutorPanel({
   }, [input]);
 
   const handleSend = useCallback(
-    async (textToSend) => {
+    async (textToSend, { retry = false } = {}) => {
       const query = (textToSend !== undefined ? textToSend : input).trim();
       if (!query || loading) return;
 
+      const epoch = chatEpochRef.current;
+      // A retry sends the failed question again in place of its first copy,
+      // which is still the last message on screen.
+      const last = messages[messages.length - 1];
+      const base = retry && last?.role === "user" && last.content === query ? messages.slice(0, -1) : messages;
       const userMsg = { role: "user", content: query };
-      const updatedMessages = [...messages, userMsg];
+      const updatedMessages = [...base, userMsg];
       setMessages(updatedMessages);
-      setInput("");
+      if (!retry) setInput("");
       setLoading(true);
       setError(null);
+      failedQueryRef.current = null;
 
       try {
         // Wire format: convert roles for Gemini
@@ -107,11 +122,14 @@ export default function AITutorPanel({
           academicLevel: spaceInfo?.academicLevel,
         });
 
+        if (chatEpochRef.current !== epoch) return;
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
       } catch (err) {
+        if (chatEpochRef.current !== epoch) return;
+        failedQueryRef.current = query;
         setError(err.message || "Could not reach AI Tutor. Check your connection or API key.");
       } finally {
-        setLoading(false);
+        if (chatEpochRef.current === epoch) setLoading(false);
       }
     },
     [input, loading, messages, concept, noteContent, spaceId, spaceName, spaceInfo],
@@ -132,6 +150,10 @@ export default function AITutorPanel({
 
   const handleClearHistory = () => {
     if (confirm("Clear tutor chat history for this session?")) {
+      chatEpochRef.current += 1;
+      failedQueryRef.current = null;
+      setLoading(false);
+      setError(null);
       setMessages([
         {
           role: "assistant",
@@ -332,7 +354,10 @@ export default function AITutorPanel({
           )}
 
           {error && (
-            <DrawerError message={error} onRetry={() => handleSend()} />
+            <DrawerError
+              message={error}
+              onRetry={() => failedQueryRef.current && handleSend(failedQueryRef.current, { retry: true })}
+            />
           )}
         </div>
       </div>

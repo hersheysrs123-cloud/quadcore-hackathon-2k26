@@ -8808,3 +8808,26 @@ An outside audit listed 45 findings. Each was checked against the code; this bat
   - **URLs:** `safeExportUrl` allows http(s) and mailto, bare and relative URLs, and `data:` images, audio and video for media. It reads the scheme with whitespace removed, as browsers do, so `java\nscript:` is caught.
   - **Tests:** `tests/unit/export-sandbox.test.mjs` (12).
   - **Checked in the browser** with the Calculus note's HTML preview: the parent's access to the frame's document is now blocked, and the frame sized itself to the page (4359 px, growing to 4407 px as KaTeX finished laying out). KaTeX equations render inside the sandbox, and wheel scrolling over the frame scrolls the dialog.
+
+## Audit batch 5: LaTeX lost in AI replies, untouched quiz answers graded as skipped, tutor retry and stale replies
+
+- **Problem:**
+  - An AI reply containing a single-backslash LaTeX command not on a fixed list (`\sqrt`, `\pi`, `\cdot`, `\lambda`…) failed as a whole: "Gemini returned malformed JSON". `\tan`, `\textbf`, `\tilde`, `\forall` and `\binom` parsed into a tab or form feed plus the rest of the name. A line break followed by the word "u" came back as a literal `\nu`.
+  - In both quiz screens, a step-ordering question left in the order shown, or code left as the starter code, was sent as blank and graded as skipped, even when the order shown was right.
+  - The AI tutor's "Try again" did nothing: the input had already been cleared, so the retry sent an empty question. A reply arriving after "Clear Chat" or a topic change was appended to the new conversation. The canned greeting was sent to Gemini as the conversation's first turn, though `normalizeHistory` existed for exactly that and was never called.
+  - In the note quiz drawer, grading that finished after a new quiz was generated wrote its result over the new quiz.
+- **Root cause:** `repairJsonLatexEscapes` doubled backslashes only before a hard-coded list of names, matched with `\b`. Without a repair, JSON rejects `\s`, `\p` and `\c`, and turns `\t`, `\f` and `\b` into control characters. The quiz screens sent `answers[i]`, which stays `undefined` until the learner moves a step or types. `handleSend()` read the cleared input, and nothing tied a reply to the conversation it was asked in. `QuizPanel.submit` had no sequence check.
+- **Resolution:**
+  - **LaTeX repair:** a lone backslash is doubled before:
+    - any letter JSON has no escape for;
+    - `\b`, `\f` or `\r` followed by a letter;
+    - `\u` not followed by four hex digits;
+    - `\t` or `\n` followed by a listed command name, as a whole word.
+  - **Quiz answers:** `effectiveAnswer` and `isAnswerGiven` (in `lib/aiService.js`) give the on-screen answer for submitting and counting. Separately, multi-select answers whose boxes were all unticked again no longer count as quiz progress.
+  - **Tutor:** "Try again" re-sends the failed question in place of its first copy. A conversation counter, bumped by Clear Chat and topic changes, drops replies to an old conversation. History is trimmed with `normalizeHistory` in `tutorChat` and in the route.
+  - **Quiz drawer:** `QuizPanel.submit` checks `genSeqRef`.
+  - **Tests:** `tests/unit/json-latex-repair.test.mjs` (7) and `tests/unit/quiz-tutor-fixes.test.mjs` (12). `npm test`: 2305 of 2305 pass.
+  - **Checked in the browser,** with the tutor and grading requests stubbed in the page:
+    - A failed tutor question, then "Try again": the question was sent again, shown once, and answered; both requests opened on the learner's turn.
+    - A reply that landed 2.5 s after "Clear Chat" did not appear.
+    - A Quiz Studio quiz with an untouched step ordering and untouched starter code showed 2 / 2 answered, and the grading request carried the order shown and the starter code. The test quiz was removed afterwards.

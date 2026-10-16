@@ -34,7 +34,7 @@ import {
   getSyllabusStatement,
   getSpaceSettings,
 } from "@/lib/storageService";
-import { shouldUseClientAI, quizGrade } from "@/lib/aiService";
+import { shouldUseClientAI, quizGrade, effectiveAnswer, isAnswerGiven } from "@/lib/aiService";
 import { editorBlocksToText } from "@/lib/blocks";
 import ScoreRing from "@/components/ScoreRing";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
@@ -337,9 +337,11 @@ export default function QuizStudioView({
       const answersToSave = updatedAnswers !== undefined ? updatedAnswers : answersRef.current;
       const targetIdx = typeof targetIndex === "number" ? targetIndex : indexRef.current;
 
-      const answeredKeys = Object.keys(answersToSave || {}).filter(
-        (k) => answersToSave[k] !== undefined && answersToSave[k] !== ""
-      );
+      // A multi-select whose boxes were all unticked again ([]) is not progress.
+      const answeredKeys = Object.keys(answersToSave || {}).filter((k) => {
+        const v = answersToSave[k];
+        return v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
+      });
       const newStatus = answeredKeys.length > 0 ? "in_progress" : (active.status || "pending");
 
       await saveQuiz({
@@ -676,7 +678,7 @@ export default function QuizStudioView({
         concept: takingQuiz.title || takingQuiz.noteTitle || "Study Quiz",
         noteContent,
         questions: takingQuiz.questions,
-        responses: takingQuiz.questions.map((_, i) => ({ answer: quizAnswers[i] ?? "" })),
+        responses: takingQuiz.questions.map((q, i) => ({ answer: effectiveAnswer(q, quizAnswers[i]) ?? "" })),
         syllabus: syllabusEnabled ? syllabus : "",
         spaceId: activeSpace,
         aiPersona: spaceConfig?.aiPersona || "examiner",
@@ -754,13 +756,8 @@ export default function QuizStudioView({
     const total = takingQuiz.questions.length;
     const currentQ = takingQuiz.questions[quizIndex];
     const isLast = quizIndex === total - 1;
-    const isAnswerFilled = (val) => {
-      if (val === undefined || val === null || val === "") return false;
-      if (Array.isArray(val)) return val.length > 0;
-      return true;
-    };
-    const answeredCount = takingQuiz.questions.filter((_, i) => isAnswerFilled(quizAnswers[i])).length;
-    const currentIsAnswered = isAnswerFilled(quizAnswers[quizIndex]);
+    const answeredCount = takingQuiz.questions.filter((q, i) => isAnswerGiven(q, quizAnswers[i])).length;
+    const currentIsAnswered = isAnswerGiven(currentQ, quizAnswers[quizIndex]);
     const progressPercent = total > 0 ? Math.round((answeredCount / total) * 100) : 0;
 
     return (
@@ -1242,7 +1239,7 @@ export default function QuizStudioView({
                 <div className="grid grid-cols-5 gap-2">
                   {takingQuiz.questions.map((q, i) => {
                     const isCurrent = i === quizIndex;
-                    const isAnswered = quizAnswers[i] !== undefined && quizAnswers[i] !== "";
+                    const isAnswered = isAnswerGiven(q, quizAnswers[i]);
                     return (
                       <button
                         key={i}
@@ -1799,7 +1796,7 @@ export default function QuizStudioView({
                   const questionCount = quiz.questions?.length || 0;
                   const draftCount = quiz.draftAnswers
                     ? Object.keys(quiz.draftAnswers).filter(
-                        (k) => quiz.draftAnswers[k] !== undefined && quiz.draftAnswers[k] !== ""
+                        (k) => quiz.draftAnswers[k] !== undefined && quiz.draftAnswers[k] !== "" && !(Array.isArray(quiz.draftAnswers[k]) && quiz.draftAnswers[k].length === 0)
                       ).length
                     : 0;
                   const hasDraft = !isCompleted && draftCount > 0;
