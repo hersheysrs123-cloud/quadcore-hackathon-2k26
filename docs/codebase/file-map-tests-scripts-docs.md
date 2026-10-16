@@ -12,6 +12,7 @@ quadcore-hackathon-2k26/
 │   │   ├── bullet-number-heading-fixes.test.mjs # Bullet/number list indentation, hierarchical sub-bullets & heading enter flow
 │   │   ├── editor-marquee-click.test.mjs # Marquee multi-block selection and click-to-append boundary guards
 │   │   ├── export-import.test.mjs        # Markdown, HTML, DOCX, TXT lossless round-trips & blob generation
+│   │   ├── export-sandbox.test.mjs        # HTML export escaping (callout icon, emoji), safeExportUrl schemes, preview bridge script and message checks
 │   │   ├── export-preview.test.mjs       # Interactive pre-download export preview formatting and scroll mechanics
 │   │   ├── eye-optics.test.mjs           # Eye optical model: Gullstrand equivalent power, accommodation, and retina focus
 │   │   ├── inline-math-navigation.test.mjs # Seamless block navigation, math pill boundary traversal & auto-compilation
@@ -22,6 +23,8 @@ quadcore-hackathon-2k26/
 │   │   ├── math-text.test.mjs            # KaTeX math rendering, chemical formula parsing, and fallback safety
 │   │   ├── multi-note-selection.test.mjs # Multi-note selection, bulk actions, and confirmation modals
 │   │   ├── note-persistence-flow.test.mjs # Debounced save, unmount flush, and font/width persistence
+│   │   ├── note-echo.test.mjs            # Saved-value history and the echo vs. outside-change decision for the open note's title, banner and emoji
+│   │   ├── backup.test.mjs               # .socratic v2: every store, no API key, one-space filtering, v1 import, restore vs. copy with id remapping, overwrite scope, space list merge
 │   │   ├── json-latex-repair.test.mjs    # Single-backslash LaTeX in Gemini JSON: any command parses, escape-letter commands stay commands, real \n / \t and \uXXXX untouched
 │   │   ├── quiz-tutor-fixes.test.mjs     # effectiveAnswer / isAnswerGiven for untouched step ordering and starter code; tutor history trimming
 │   │   ├── note-hierarchy.test.mjs        # Nested sub-page helpers: tree/descendants/ancestors, cycles & orphans, deep clone, restore semantics
@@ -31,6 +34,7 @@ quadcore-hackathon-2k26/
 │   │   ├── literature-core.test.mjs      # Poem ranges, overlap segmentation, multi-part annotations, reading-order numbering, line remapping & import sanitising (25 tests)
 │   │   ├── quiz-studio-flow.test.mjs     # 2-column exam runner layout, draft answer auto-saving, and question matrix
 │   │   ├── reformat-note.test.mjs        # Multi-chunk note reformatting and hierarchical block structure generation
+│   │   ├── security-and-grading-fixes.test.mjs # Link-href quote escaping, KaTeX trust allowlist, `$` replacement patterns, linear heading regexes, misconception text, value_input tolerance, quiz level line & count caps
 │   │   ├── muscle-mechanics.test.mjs     # Elbow lever torque, volume-preserving bulge, fatigue give-way & tendon strain
 │   │   ├── reflex-arc.test.mjs           # Reflex stage timing, threshold & severed-root blocks, contraction clock
 │   │   ├── transpiration.test.mjs        # Guard-cell aperture, VPD & conductances, xylem tension, drought closure & cavitation

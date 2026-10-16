@@ -8727,6 +8727,88 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
   - User-supplied images (favicons, media blocks, `data:` URLs) stay `<img>` with a disable comment: `next/image` only loads allow-listed hosts.
   - Lint is at 0 errors and 0 warnings. All 51 3D scenes load in the browser with no page errors. Alkene and alkyne bonds, the Hooke's law plastic branch and unload line, the eye reset, the tutorial keys, the command palette and the DOCX preview were each checked by hand.
 
+## Audit batch 1: inline HTML injection, KaTeX trust, grading and prompt fixes
+
+An outside audit listed 45 findings. Each was checked against the code; this batch fixes the real ones that need only a few lines each.
+
+- **Problem:**
+  - A Markdown link such as `[x](https://a.com/"onmouseover="...)` in a note (an imported file, pasted Markdown or an AI reply) added an event handler to the editor's live DOM.
+  - A formula such as `\href{javascript:alert(1)}{x}` or `\htmlStyle{position:fixed;inset:0}{x}` rendered as a working `javascript:` link or a full-screen overlay, everywhere math is shown.
+  - Inline code or a link containing `$'`, `$&` or `$$` came out garbled: `` `a$'b` `` rendered as `a postb`, with the rest of the line pasted inside the code. The HTML export had the same fault.
+  - A heading made of many `* ` pairs froze the tab during Markdown import or note reformatting (5.5 s at 26 pairs, doubling with each pair).
+  - The Explain panel showed every misconception with an empty explanation under it.
+  - A `value_input` answer that started with the same digit as the expected answer was marked correct: `1/9` for `1/2`, `2` for `2x + 5`, `10` for `10^5`. The grader was told this as established fact.
+  - Quizzes for an IB, AP, university or olympiad space were still calibrated to Cambridge IGCSE Grade 10.
+  - The Golgi apparatus in the cell scene showed no secretory vesicles.
+  - A syllabus named `SYLLABUS.PDF` or `.DOCX` was stored as raw binary text.
+  - `/api/quiz/generate` accepted any question count (say 100000 MCQs), and a `NEXT_PUBLIC_GOOGLE_API_KEY`, if one were ever set, would have been built into the client bundle.
+- **Root cause:**
+  - `escapeHtml` in `lib/editorCaret.js` escaped `&`, `<` and `>` but not quotes, and its output is placed inside `href="..."` and `data-formula="..."`.
+  - `renderKatexToStringMemoized` passed `trust: true`, which allows every HTML-producing KaTeX command. It was there only so `\reflectbox` could use `\htmlClass{reflect-flip}`.
+  - Tokens were restored with `processed.replace(token, html)`. With a string replacement, `$'`, `$&`, `` $` `` and `$$` are replacement patterns.
+  - `/^(\*+|\#+|\s*)+/` and `/(\*+|\s*)+$/` nest a quantifier around a branch that can match nothing, so a failing match backtracks exponentially (`lib/aiService.js` twice each, `lib/exportImport.js` four times each).
+  - `EXPLAIN_SCHEMA` asks Gemini for `whyItsWrong`, but `normalizeExplanation` copied `m.correction`, which the model never sends.
+  - `gradeObjectively` compared `parseFloat` of both answers, and `parseFloat` reads only the leading number.
+  - The quiz prompt (client and route) printed the chosen level and then a fixed "Calibrate to Cambridge IGCSE Grade 10" line.
+  - The vesicle meshes used `geo.vesicle`, which does not exist; the geometry is `geo.bud`. An undefined geometry draws nothing.
+  - `extractSyllabusTextFromFile` checked `fileName.endsWith(".pdf")` without lower-casing.
+  - Counts were only clamped below (`Math.max(0, n)`); `getEffectiveApiKey` fell back to `process.env.NEXT_PUBLIC_GOOGLE_API_KEY` in the browser.
+- **Resolution:**
+  - `escapeHtml` also escapes `"` and `'`, and the formula in `data-formula` goes through it.
+  - KaTeX renders with `trust: katexTrust`, which allows `\htmlClass` only for `reflect-flip` and `\href` / `\url` only to `http`, `https` and `mailto`. `\reflectbox` still works.
+  - Every token restore in `formatMarkdownInline` and `formatInlineMarkdownForHtml` uses a function replacer, `() => html`.
+  - The regexes are now `/^[*#\s]+/` and `/[*\s]+$/`, which strip the same characters in linear time.
+  - Misconceptions read `m.whyItsWrong`, falling back to `m.correction`.
+  - Tolerance applies only when both answers are a number followed by the same remainder (`splitLeadingNumber`): `9.81 m/s^2` still matches `9.8 m/s^2`; anything else is left to the model rather than declared correct.
+  - `quizLevelDirective(level)` writes the level line for both paths, with calibration text for each level.
+  - The vesicles use `geo.bud`.
+  - The file name is lower-cased before the extension checks.
+  - `quizCount` clamps each requested count to `QUIZ_TYPE_MAX`, the Create Quiz form's own caps, in both paths. The browser no longer reads any env key; the routes use `GOOGLE_API_KEY` only (`.env.local` already used that name).
+  - `tests/unit/security-and-grading-fixes.test.mjs` covers each fix with the original failing input, and that `\reflectbox` still renders. Checked in the browser: the Golgi's pale-yellow vesicles show around the stack, and disappear again with the old line put back; the Calculus demo note renders all seven equations, with `'` and `<` in formulas intact; no console errors. `npm test`: 2307 of 2307 pass.
+
+## Audit batch 2: open-note title and favourite reverted, double Ctrl+S, essay edits lost
+
+- **Problem:** Starring or renaming the open note from the notes panel or a menu was undone by the editor's next autosave. Ctrl+S right after typing a title could save the old title. In Literature, an essay edit typed just after a debounced save could be overwritten by that save's echo, and switching poem or tab could drop the last 350 ms of typing.
+- **Root cause:** `BlockNoteEditor` read `title`, `banner`, `emoji` and `isFavorite` from props once on mount and sent them with every save; its debounced save also called the `onSaveNote` it closed over. `Workspace` had its own Ctrl+S listener that saved `activeNoteObj` (up to a debounce old) alongside the editor's save. `handleSaveNote` filled missing fields from the active note even when saving a different note, and `saveNote` reset `banner`, `emoji` and `isFavorite` on partial saves. `EssayPanel` reset its text on every new `poem` object from the live query.
+- **Resolution:** The editor no longer sends `isFavorite`. It remembers the values it has sent (`lib/noteEcho.js`) and adopts a prop change only when the value is not one of them. Saves go through `onSaveNoteRef`, and the unmount flush runs only on unmount. The Workspace Ctrl+S listener only blocks the browser dialog. `handleSaveNote` and `saveNote` fall back to the target note's stored values. `EssayPanel` flushes before switching poem or tab and re-reads the stored text only when nothing is pending. Tests: `tests/unit/note-echo.test.mjs`. Checked in the browser: unstarring the open note then typing kept it unstarred; renaming it from the notes panel updated the editor title and the next autosave kept the new name. Typing into the title and pressing Ctrl+S at once saved the new title. In the essay panel, keystrokes timed 2–15 ms after a debounced save were dropped by the old code (`R352abc…` stored as `52abc…`) and all kept by the new one, at every delay from 352 to 380 ms. `npm test`: 2293 of 2293 pass (one earlier run failed a shadow-optics size check that passed 13 times on its own and on the full rerun; it is unrelated to this change).
+
+## Audit batch 3: .socratic backups lost five stores, and importing into another space moved the originals
+
+- **Problem:**
+  - A `.socratic` backup did not contain quizzes, quiz trash, space syllabus documents, space AI settings, Literature poems, app settings or custom spaces. Restoring one silently lost all of them, and notes from a custom space came back into a space that no longer existed, so they never showed.
+  - Importing a backup into a different space moved the original notes there instead of copying them. The backup's ids were reused, so `bulkPut` rewrote the existing rows with the new `spaceId`.
+  - "Overwrite" was ignored for a single-space import. A one-space backup restored with overwrite cleared every space.
+- **Root cause:** `lib/backup.js` was written for Dexie v5 and never updated for the v6–v9 stores. It listed seven tables by hand in export, import and clear. Import with a target space only changed `spaceId`, and kept every id. The overwrite branch ran only when not reassigning, and always cleared whole tables.
+- **Resolution:**
+  - Rewrote `lib/backup.js` around one `BACKUP_TABLES` map (13 stores, each with how its rows belong to a space) and two pure functions, `buildBackup` and `planImport`.
+  - Format `socratic-backup-v2` carries every store and the space list; v1 files still import. The Gemini API key is never exported or imported.
+  - Saved bookmarks/folders, alarms and app settings are workspace-wide. They travel only in an all-spaces backup and are restored, never copied into one space.
+  - "Original Spaces" restores rows with their ids and re-creates their spaces (`saveAllSpaces`).
+  - Importing into a space copies. Ids already in use get a fresh suffix, and `parentId`, page blocks' `pageId`, quiz `noteId`/`noteIds` and session `noteId` are remapped to the copies.
+  - Overwrite clears only the target space, or the backup's own space, unless it is an all-spaces restore. Rows that are not records are dropped.
+  - Tests: `tests/unit/backup.test.mjs` (21).
+  - Checked in the browser on the dev server, with a test quiz, a syllabus document, app settings with a placeholder key, and a custom "Lab" space with a note:
+    - The all-spaces export held all of them, with no key.
+    - After deleting them and the Lab space, "Original Spaces" restored every one, Lab with its icon.
+    - Exporting School and importing into Personal left the four School notes in School and created four copies in Personal, with the quiz copy pointing at the copied note.
+    - The test data was removed afterwards.
+
+## Audit batch 4: HTML export preview could reach the app, and the export printed some values unescaped
+
+- **Problem:**
+  - The HTML export preview iframe was sandboxed with `allow-same-origin allow-scripts`. A script inside the exported page could reach the app's own window, IndexedDB and localStorage, and could remove the iframe's sandbox.
+  - The exported page printed a callout's icon and the note's emoji without escaping. The preview's fallback page printed the title the same way.
+  - Site-block links and media sources kept any scheme, so a `javascript:` URL in a site block became a live link in the downloaded page.
+  - Each reload of the preview added another ResizeObserver and wheel listener and never removed them.
+- **Root cause:** The preview read the frame's document directly (`contentDocument`) to size it and forward wheel scrolling, which needs `allow-same-origin`. `blockToHtmlFragment` and `blocksToHTMLLossy` interpolated `block.calloutIcon` and `emoji` raw, and escaped URLs without checking their scheme.
+- **Resolution:**
+  - **Preview sandbox:** the iframe is now `sandbox="allow-scripts"`, an opaque origin.
+  - **Height and scrolling:** `lib/previewBridge.js` adds a small script to the preview copy only. It posts the page height (on load and on every resize) and wheel deltas to the parent. `ExportPreview` accepts a message only from that iframe's window with the preview's token, clamps the numbers, and removes its one listener on unmount.
+  - **Escaping:** the callout icon, emoji and fallback title are escaped.
+  - **URLs:** `safeExportUrl` allows http(s) and mailto, bare and relative URLs, and `data:` images, audio and video for media. It reads the scheme with whitespace removed, as browsers do, so `java\nscript:` is caught.
+  - **Tests:** `tests/unit/export-sandbox.test.mjs` (12).
+  - **Checked in the browser** with the Calculus note's HTML preview: the parent's access to the frame's document is now blocked, and the frame sized itself to the page (4359 px, growing to 4407 px as KaTeX finished laying out). KaTeX equations render inside the sandbox, and wheel scrolling over the frame scrolls the dialog.
+
 ## Audit batch 5: LaTeX lost in AI replies, untouched quiz answers graded as skipped, tutor retry and stale replies
 
 - **Problem:**

@@ -908,13 +908,22 @@ export default function Workspace() {
       const targetSpace = noteToSave?.spaceId || noteToSave?.space || activeNoteObj?.spaceId || activeNoteObj?.space || activeSpace;
       
       const isTargetActive = !noteToSave?.id || targetNoteId === activeNoteObj?.id;
+
+      const existingTarget = (notesBySpace[targetSpace] || []).find((n) => n.id === targetNoteId)
+        || findNoteAcrossSpaces(notesBySpace, targetNoteId)?.note
+        || null;
+      // A field the caller leaves out keeps the TARGET note's value. These
+      // used to come from the active note, so a partial save of any other
+      // note copied the open note's title, favourite, banner and emoji.
+      const base = existingTarget || (isTargetActive ? activeNoteObj : null) || {};
+
       const currentBlocks = isTargetActive && editorBlocksRef.current && editorBlocksRef.current.length > 0
         ? editorBlocksRef.current
-        : (activeNoteObj?.blocks || []);
+        : (base.blocks || []);
 
       const updatedTitle = noteToSave?.title !== undefined
         ? noteToSave.title
-        : (activeNoteObj?.title || "Untitled Note");
+        : (base.title || "Untitled Note");
 
       const updatedBlocks = noteToSave?.blocks !== undefined
         ? noteToSave.blocks
@@ -922,31 +931,27 @@ export default function Workspace() {
 
       const updatedBanner = noteToSave?.banner !== undefined
         ? noteToSave.banner
-        : (activeNoteObj?.banner ?? null);
+        : (base.banner ?? null);
 
       const updatedFav = noteToSave?.isFavorite !== undefined
         ? Boolean(noteToSave.isFavorite)
-        : Boolean(activeNoteObj?.isFavorite);
+        : Boolean(base.isFavorite);
 
       const updatedEmoji = noteToSave?.emoji !== undefined
         ? noteToSave.emoji
-        : (activeNoteObj?.emoji || "📝");
+        : (base.emoji || "📝");
 
       const updatedFontStyle = noteToSave?.fontStyle !== undefined
         ? noteToSave.fontStyle
-        : (activeNoteObj?.fontStyle || "sans");
+        : (base.fontStyle || "sans");
 
       const updatedFullWidth = noteToSave?.fullWidth !== undefined
         ? Boolean(noteToSave.fullWidth)
-        : Boolean(activeNoteObj?.fullWidth);
+        : Boolean(base.fullWidth);
 
       const updatedIsLocked = noteToSave?.isLocked !== undefined
         ? Boolean(noteToSave.isLocked)
-        : Boolean(activeNoteObj?.isLocked);
-
-      const existingTarget = (notesBySpace[targetSpace] || []).find((n) => n.id === targetNoteId)
-        || findNoteAcrossSpaces(notesBySpace, targetNoteId)?.note
-        || null;
+        : Boolean(base.isLocked);
 
       const targetOrder = noteToSave?.order !== undefined
         ? noteToSave.order
@@ -975,7 +980,7 @@ export default function Workspace() {
         isFavorite: updatedFav,
         emoji: updatedEmoji,
         order: targetOrder,
-        createdAt: noteToSave?.createdAt || activeNoteObj?.createdAt || now,
+        createdAt: noteToSave?.createdAt || base.createdAt || now,
         updatedAt: now,
       };
 
@@ -1007,17 +1012,20 @@ export default function Workspace() {
     [activeNoteObj, activeNoteId, activeSpace, notesBySpace]
   );
 
-  // Bind global Ctrl+S shortcut to save note
+  // Ctrl+S only stops the browser's "Save page" dialog here. The open
+  // editor saves the note on its own Ctrl+S listener, from its live title and
+  // blocks. A second save from here used activeNoteObj, up to one debounce
+  // old, and whichever write landed last won, so a just-typed title could
+  // revert.
   useEffect(() => {
     function handleSaveShortcut(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        handleSaveNote();
       }
     }
     window.addEventListener("keydown", handleSaveShortcut);
     return () => window.removeEventListener("keydown", handleSaveShortcut);
-  }, [handleSaveNote]);
+  }, []);
 
   const handleToggleFavoriteNote = useCallback(
     async (targetNote) => {
@@ -2004,7 +2012,6 @@ export default function Workspace() {
               initialTitle={activeNoteObj?.title || ""}
               initialBlocks={activeNoteObj?.blocks}
               initialBanner={activeNoteObj?.banner}
-              initialFavorite={activeNoteObj?.isFavorite}
               initialEmoji={activeNoteObj?.emoji}
               initialFontStyle={activeNoteObj?.fontStyle || "sans"}
               initialFullWidth={Boolean(activeNoteObj?.fullWidth)}
