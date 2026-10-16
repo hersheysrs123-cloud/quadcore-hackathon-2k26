@@ -20,7 +20,7 @@
       - 🗑️ **Delete to Trash (Mandatory Confirmation)**: Opens `BatchDeleteConfirmModal` showing note count, previewing titles with emojis, and providing 24h recovery info before confirming move to Trash.
 - **Command Palette (`Ctrl+K` / `Cmd+K`)** (`components/CommandPalette.jsx`): Global fuzzy search for notes across all spaces, navigation views (Notes, Calendar, 3D Studio, Mastery Dashboard), and settings. Lazy item indexing executes strictly when open.
 - **Compact Instant Note Capture (`Ctrl+I` / `Cmd+I`)** (`components/InstantNoteModal.jsx` & `components/Sidebar.jsx`): Integrated directly into the Global Tools icon grid (`⚡`) for immediate drafting with `Ctrl+Enter` quick save to the **"Misc"** space (or user-selected space).
-- **Quick Save (`Ctrl+S`)**: Explicit keyboard shortcut to instantly save the active note.
+- **Quick Save (`Ctrl+S`)**: Explicit keyboard shortcut to instantly save the active note. The open editor does the save from its live title and blocks; the workspace listener only stops the browser's Save page dialog.
 
 ---
 

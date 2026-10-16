@@ -14,6 +14,7 @@ import { reformatNoteContent } from "@/lib/aiService";
 import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow } from "@/lib/exportImport";
 import { formatNumberMarker, rankSlashItems } from "@/lib/blocks";
 import { findNoteAcrossSpaces, hasPageBlockFor, diffRemovedPageIds } from "@/lib/noteHierarchy";
+import { isExternalPropChange, rememberSent } from "@/lib/noteEcho";
 
 
 
@@ -5634,7 +5635,6 @@ export default function BlockNoteEditor({
   initialTitle = "",
   initialBlocks,
   initialBanner = null,
-  initialFavorite = false,
   initialEmoji = null,
   initialFontStyle = "sans",
   initialFullWidth = false,
@@ -5656,7 +5656,6 @@ export default function BlockNoteEditor({
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [banner, setBanner] = useState(initialBanner);
-  const [isFavorite] = useState(initialFavorite);
   const [emoji, setEmoji] = useState(initialEmoji);
   const [fontStyle, setFontStyle] = useState(initialFontStyle || "sans");
   const [fullWidth, setFullWidth] = useState(Boolean(initialFullWidth));
@@ -5729,7 +5728,6 @@ export default function BlockNoteEditor({
   const spaceIdRef = useRef(spaceId);
   const titleRef = useRef(title);
   const bannerRef = useRef(banner);
-  const isFavoriteRef = useRef(isFavorite);
   const emojiRef = useRef(emoji);
   const fontStyleRef = useRef(fontStyle);
   const fullWidthRef = useRef(fullWidth);
@@ -5933,10 +5931,6 @@ export default function BlockNoteEditor({
   }, [banner]);
 
   useEffect(() => {
-    isFavoriteRef.current = isFavorite;
-  }, [isFavorite]);
-
-  useEffect(() => {
     emojiRef.current = emoji;
   }, [emoji]);
 
@@ -5964,6 +5958,28 @@ export default function BlockNoteEditor({
     isLockedRef.current = isLocked;
   }, [isLocked]);
 
+  // The latest onSaveNote. A debounced save fires up to 400 ms after it was
+  // scheduled, and the unmount flush runs after the last render, so both
+  // must call the current copy rather than the one they closed over.
+  const onSaveNoteRef = useRef(onSaveNote);
+  useEffect(() => {
+    onSaveNoteRef.current = onSaveNote;
+  }, [onSaveNote]);
+
+  // Values this editor has saved, so their echo coming back as props is not
+  // mistaken for a rename made elsewhere (see lib/noteEcho.js).
+  const sentRef = useRef({ title: [initialTitle || ""], banner: [initialBanner ?? null], emoji: [initialEmoji ?? null] });
+
+  // isFavorite is deliberately not sent: the editor has no star of its own,
+  // and the copy it held from mount unstarred a note starred in the sidebar.
+  const sendSave = useCallback((payload) => {
+    const sent = sentRef.current;
+    sent.title = rememberSent(sent.title, payload.title);
+    sent.banner = rememberSent(sent.banner, payload.banner ?? null);
+    sent.emoji = rememberSent(sent.emoji, payload.emoji ?? null);
+    onSaveNoteRef.current?.(payload);
+  }, []);
+
   const performSave = useCallback(
     (overrides = {}) => {
       isDirtyRef.current = false;
@@ -5971,21 +5987,44 @@ export default function BlockNoteEditor({
         clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = null;
       }
-      onSaveNote?.({
+      sendSave({
         id: overrides.id || noteIdRef.current,
         spaceId: overrides.spaceId || spaceIdRef.current,
         title: overrides.title !== undefined ? overrides.title : titleRef.current,
         blocks: overrides.blocks !== undefined ? overrides.blocks : blocksRef.current,
         banner: overrides.banner !== undefined ? overrides.banner : bannerRef.current,
-        isFavorite: overrides.isFavorite !== undefined ? overrides.isFavorite : isFavoriteRef.current,
         emoji: overrides.emoji !== undefined ? overrides.emoji : emojiRef.current,
         fontStyle: overrides.fontStyle !== undefined ? overrides.fontStyle : fontStyleRef.current,
         fullWidth: overrides.fullWidth !== undefined ? overrides.fullWidth : fullWidthRef.current,
         isLocked: overrides.isLocked !== undefined ? overrides.isLocked : isLockedRef.current,
       });
     },
-    [onSaveNote]
+    [sendSave]
   );
+
+  // A rename, banner or emoji change made outside the editor while the note is
+  // open (notes panel, command palette, page menu) is adopted here; otherwise
+  // the next autosave wrote the old value straight back.
+  useEffect(() => {
+    const next = initialTitle || "";
+    if (!isExternalPropChange(next, titleRef.current, sentRef.current.title)) return;
+    titleRef.current = next;
+    setTitle(next);
+  }, [initialTitle]);
+
+  useEffect(() => {
+    const next = initialBanner ?? null;
+    if (!isExternalPropChange(next, bannerRef.current, sentRef.current.banner)) return;
+    bannerRef.current = next;
+    setBanner(next);
+  }, [initialBanner]);
+
+  useEffect(() => {
+    const next = initialEmoji ?? null;
+    if (!isExternalPropChange(next, emojiRef.current, sentRef.current.emoji)) return;
+    emojiRef.current = next;
+    setEmoji(next);
+  }, [initialEmoji]);
 
   const triggerDebouncedSave = useCallback(
     (overrides = {}) => {
@@ -5999,7 +6038,9 @@ export default function BlockNoteEditor({
     [performSave]
   );
 
-  // Flush pending changes on unmount for this exact noteId & spaceId
+  // Flush pending changes on unmount for this exact noteId & spaceId. Runs
+  // only on unmount: keyed on onSaveNote it also fired after every save,
+  // because the workspace makes a new onSaveNote whenever its notes change.
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
@@ -6008,13 +6049,12 @@ export default function BlockNoteEditor({
       }
       if (isDirtyRef.current) {
         isDirtyRef.current = false;
-        onSaveNote?.({
+        sendSave({
           id: noteIdRef.current,
           spaceId: spaceIdRef.current,
           title: titleRef.current,
           blocks: blocksRef.current,
           banner: bannerRef.current,
-          isFavorite: isFavoriteRef.current,
           emoji: emojiRef.current,
           fontStyle: fontStyleRef.current,
           fullWidth: fullWidthRef.current,
@@ -6022,7 +6062,7 @@ export default function BlockNoteEditor({
         });
       }
     };
-  }, [onSaveNote]);
+  }, [sendSave]);
 
   // Editor-level Ctrl+S / Cmd+S shortcut to immediately save the active note
   useEffect(() => {
