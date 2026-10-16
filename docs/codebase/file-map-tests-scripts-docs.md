@@ -30,6 +30,7 @@ quadcore-hackathon-2k26/
 │   │   ├── literature-core.test.mjs      # Poem ranges, overlap segmentation, multi-part annotations, reading-order numbering, line remapping & import sanitising (25 tests)
 │   │   ├── quiz-studio-flow.test.mjs     # 2-column exam runner layout, draft answer auto-saving, and question matrix
 │   │   ├── reformat-note.test.mjs        # Multi-chunk note reformatting and hierarchical block structure generation
+│   │   ├── security-and-grading-fixes.test.mjs # Link-href quote escaping, KaTeX trust allowlist, `$` replacement patterns, linear heading regexes, misconception text, value_input tolerance, quiz level line & count caps
 │   │   ├── muscle-mechanics.test.mjs     # Elbow lever torque, volume-preserving bulge, fatigue give-way & tendon strain
 │   │   ├── reflex-arc.test.mjs           # Reflex stage timing, threshold & severed-root blocks, contraction clock
 │   │   ├── transpiration.test.mjs        # Guard-cell aperture, VPD & conductances, xylem tension, drought closure & cavitation

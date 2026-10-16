@@ -869,7 +869,7 @@ export function Golgi({ selected, onSelect, showLabel, speed = 1.0 }) {
 
       <group ref={budRef}>
         {buds.map((_, i) => (
-          <mesh key={i} geometry={geo.vesicle}>
+          <mesh key={i} geometry={geo.bud}>
             <DenseMaterial
               color="#fde68a"
               roughness={0.4}

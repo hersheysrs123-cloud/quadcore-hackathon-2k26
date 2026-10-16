@@ -1,6 +1,6 @@
 # Developer gotchas — general
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Gotchas 1–14: theme flash, hydration, seeding, WebGL cleanup, print/PDF, error boundaries and more. Per-scene gotchas are in [gotchas-3d-physics-scenes.md](gotchas-3d-physics-scenes.md).
+> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Gotchas 1–17: theme flash, hydration, seeding, WebGL cleanup, print/PDF, error boundaries, ESLint, per-frame buffers, HTML strings and more. Per-scene gotchas are in [gotchas-3d-physics-scenes.md](gotchas-3d-physics-scenes.md).
 
 ## ⚙️ 6. Critical Developer Gotchas & Best Practices
 
@@ -58,3 +58,8 @@
 16. **three.js buffers that change every frame**:
     - Never call `geometry.setAttribute(name, new BufferAttribute(...))` in a frame loop. three.js gives each attribute object its own GL buffer and frees only the ones still on the geometry when it is disposed, so every replaced buffer leaks GPU memory. Allocate the largest buffer once, write into its array, set `attr.needsUpdate = true`, and draw part of it with `geometry.setDrawRange` (the titration graph and `live-trace.jsx` both do this). A line whose points move should also set `frustumCulled={false}`, since its bounding sphere is computed once.
     - Overlays drawn over a canvas (panels, zoom ladders, buttons) must sit above `SceneLabel`'s z-index range, 0–40. Use `z-[45]` or higher, or nearer labels draw on top of the panel.
+17. **Building HTML strings for `innerHTML` (`lib/editorCaret.js`, `lib/exportImport.js`)**:
+    - `escapeHtml` must escape `"` and `'` as well as `&`, `<` and `>`: its output also goes inside attribute values (`href="..."`, `data-formula="..."`). Escaping only the three text characters let a `"` in a Markdown link URL end the `href` and add an `onmouseover` handler.
+    - Put a token back with a function replacer, `processed.replace(token, () => html)`. A string replacement reads `$&`, `$'`, `` $` `` and `$$` as patterns, so code or a link containing them pasted other parts of the line into the output.
+    - Never pass `trust: true` to KaTeX. `katexTrust` in `lib/editorCaret.js` allows `\htmlClass{reflect-flip}` (behind `\reflectbox`) and `\href` / `\url` to `http`, `https` and `mailto` only. With `true`, any formula could add a `javascript:` link or `\htmlStyle` to the page.
+    - A regex that cleans text from a note or a model must not nest a quantifier around a branch that can match nothing, such as `(\*+|\s*)+$`. It backtracks exponentially: 26 `* ` pairs took 5.5 s. Use a character class, `[*\s]+$`.
