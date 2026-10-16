@@ -321,13 +321,6 @@ export default function QuizStudioView({
   const takingQuizRef = useRef(takingQuiz);
   takingQuizRef.current = takingQuiz;
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, []);
-
   // Auto-save quiz draft progress to IndexedDB
   const persistQuizProgress = useCallback(async (updatedAnswers, targetIndex) => {
     const active = takingQuizRef.current;
@@ -356,6 +349,19 @@ export default function QuizStudioView({
       setSaveStatus("saved");
     }
   }, []);
+
+  // Leaving the quiz flushes a pending draft save instead of dropping it,
+  // which lost the last answers given within the 350 ms debounce.
+  useEffect(
+    () => () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+        persistQuizProgress();
+      }
+    },
+    [persistQuizProgress]
+  );
 
   const mathInputRef = useRef(null);
 
@@ -633,6 +639,11 @@ export default function QuizStudioView({
   // Submit quiz for grading
   const handleSubmitQuiz = async () => {
     if (!takingQuiz || !takingQuiz.questions?.length) return;
+    // A draft save still pending must not land after the "completed" one.
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
 
     setIsGrading(true);
     setGradingError(null);

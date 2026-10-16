@@ -8831,3 +8831,68 @@ An outside audit listed 45 findings. Each was checked against the code; this bat
     - A failed tutor question, then "Try again": the question was sent again, shown once, and answered; both requests opened on the learner's turn.
     - A reply that landed 2.5 s after "Clear Chat" did not appear.
     - A Quiz Studio quiz with an untouched step ordering and untouched starter code showed 2 / 2 answered, and the grading request carried the order shown and the starter code. The test quiz was removed afterwards.
+
+## Audit batch 6: low-priority cleanup
+
+Small faults from the audit, each checked against the code first.
+
+- **Duplicate sample poem.**
+  - *Problem:* a first visit to Literature could plant the Ozymandias sample twice; two copies were found on the dev server, created one millisecond apart.
+  - *Root cause:* `initLiteratureData` runs from a mount effect, and React's development double mount can run it twice at once. Both runs saw "not seeded, no poems" before either wrote, and the sample's ids were random.
+  - *Resolution:* concurrent calls share one run, and the sample is written with fixed ids (`poem_sample_0`).
+- **Sample poem after a factory reset.**
+  - *Problem:* the Literature sample came back after a factory reset.
+  - *Root cause:* `localStorage.clear()` dropped its seeded flag.
+  - *Resolution:* `factoryResetWorkspace` sets the flag again, as it already did for demo notes.
+- **Renaming or deleting a space.**
+  - *Problem:* calendar events and trashed quizzes were left under the old name or under a space that no longer existed.
+  - *Root cause:* `renameSpace` and `deleteSpace` skipped the `calendarEvents` and `quizTrash` stores.
+  - *Resolution:* `renameSpace` moves them and `deleteSpace` removes them.
+- **Space Hub tagline.**
+  - *Problem:* typing the tagline reloaded the whole Space Hub on every keystroke, and could put an older tagline back into the box.
+  - *Root cause:* `loadSpaceData` listed the space list as a dependency, and each keystroke updates that list.
+  - *Resolution:* `loadSpaceData` reads the space list through a ref, so it reloads only when the active space changes.
+- **Alarm chimes.**
+  - *Problem:* each chime opened an audio output that was never closed. Snoozing a second alarm cancelled the first one's snooze, a snoozed alarm came back as "event", and pending snoozes outlived the overlay.
+  - *Root cause:* every chime created its own `AudioContext`, and the overlay kept a single snooze timer.
+  - *Resolution:* one shared `AudioContext`; every snooze is tracked in a set and cleared on unmount, and the alarm type is kept.
+- **Timer `startTimer`.**
+  - *Problem:* calling it on a running timer paused it.
+  - *Root cause:* it toggled play/pause.
+  - *Resolution:* it only starts a timer. Nothing calls it today.
+- **Literature guards.**
+  - *Problem:* `rangeText` threw on a poem with no lines. `PoemCanvas` threw a `SyntaxError` when an imported annotation id contained a quote.
+  - *Root cause:* `rangeText` clamped to line -1 and read its length. `PoemCanvas` put the id unescaped into a quoted attribute selector.
+  - *Resolution:* `rangeText` returns "" for a poem with no lines, and `PoemCanvas` escapes ids with `CSS.escape`.
+- **Zoom hotspot cursor.**
+  - *Problem:* clicking a zoom hotspot left the page cursor stuck on `zoom-in`.
+  - *Root cause:* zooming unmounts the hotspot before its pointer-out handler runs.
+  - *Resolution:* the hotspot resets the cursor when it unmounts while hovered.
+- **3D scene cleanup.**
+  - *Problem:* a shared material compiled a new shader program each time a scene remounted, and textures on meshes with several materials were never disposed.
+  - *Root cause:* `reflectionsOnly` re-wrapped the material on every mount. `WebGLCleanup` called `dispose()` on the material array itself, which threw.
+  - *Resolution:* `reflectionsOnly` patches a material once (`userData.envReflectOnly`), and `WebGLCleanup` disposes each material in an array and only real textures.
+- **Global error page.**
+  - *Problem:* the global error page rendered unstyled.
+  - *Root cause:* it replaces the root layout but did not import `globals.css`.
+  - *Resolution:* it imports the stylesheet.
+- **Browser bookmark import.**
+  - *Problem:* `javascript:` bookmarklets and script icons came in as Saved bookmarks.
+  - *Root cause:* the Netscape HTML import did not validate URLs.
+  - *Resolution:* links go through `normalizeUrl` (bookmarklets are skipped), and only http(s) and `data:image` icons are kept.
+- **Quiz Studio drafts.**
+  - *Problem:* leaving a quiz dropped answers given within the last 350 ms, and a pending draft save could land after submitting.
+  - *Root cause:* the unmount cleanup cancelled the debounced draft save instead of running it, and submitting did not cancel a pending save.
+  - *Resolution:* leaving flushes the draft, and Submit cancels any pending draft save.
+- **Checked:**
+  - *Unit tests:* two `rangeText` cases in `tests/unit/literature-core.test.mjs`.
+  - *Browser, Literature:* after clearing poems and the seeded flag, a first visit planted exactly one sample, `poem_sample_0`.
+  - *Browser, Space Hub:* a quickly typed tagline was kept whole and stored. Renaming Misc moved a test event and a trashed quiz with it. Deleting a test space removed both, and its settings.
+  - *Browser, alarms:* three chimes created one `AudioContext`.
+  - *Browser, Saved import:* a file with one link and two bookmarklets (one split by a line break) imported only the link, with a normal favicon in place of a `javascript:` icon.
+  - *Browser, hotspot:* hovering set `zoom-in`, and after clicking it, the cursor was back to normal at the alveoli level.
+  - *Cleanup:* all test data was removed.
+- **Left as is:**
+  - The `-H 0.0.0.0` dev and start binding, which lets other devices on the network reach the dev server.
+  - Security headers in `next.config.mjs`.
+  - Moving `renameSpace` and `deleteSpace` into one transaction each.

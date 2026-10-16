@@ -9,6 +9,11 @@ import {
   trimRange,
 } from "@/lib/literature";
 
+/** An annotation id made safe inside a quoted attribute selector. An imported
+ *  poem can carry any string as an id, and a quote in one made querySelector
+ *  throw. */
+const cssId = (id) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/["\\]/g, "\\$&"));
+
 /**
  * PoemCanvas — the poem itself, plus the browser-selection → poem-range
  * mapping that everything else in the Literature section depends on.
@@ -178,12 +183,12 @@ const PoemCanvas = forwardRef(function PoemCanvas(
         const root = rootRef.current;
         if (!root) return null;
         const node =
-          root.querySelector(`.lit-seg[data-ids~="${annId}"]`) ||
-          root.querySelector(`.lit-marker[data-id="${annId}"]`);
+          root.querySelector(`.lit-seg[data-ids~="${cssId(annId)}"]`) ||
+          root.querySelector(`.lit-marker[data-id="${cssId(annId)}"]`);
         return node ? node.getBoundingClientRect() : null;
       },
       scrollToAnnotation(annId) {
-        const node = rootRef.current?.querySelector(`.lit-seg[data-ids~="${annId}"]`);
+        const node = rootRef.current?.querySelector(`.lit-seg[data-ids~="${cssId(annId)}"]`);
         if (node) node.scrollIntoView({ block: "center", behavior: "smooth" });
         return Boolean(node);
       },

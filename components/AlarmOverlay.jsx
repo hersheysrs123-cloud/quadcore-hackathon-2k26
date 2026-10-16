@@ -26,10 +26,18 @@ function setFavicon(url) {
   link.href = url;
 }
 
+// One AudioContext for every chime. A new one per chime was never closed,
+// and each open context holds an audio output stream.
+let chimeContext = null;
+
 function playAlarmChime() {
   if (typeof window === "undefined") return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!chimeContext || chimeContext.state === "closed") chimeContext = new AudioCtx();
+    const ctx = chimeContext;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const now = ctx.currentTime;
     // Pleasant C-major triad gentle bell chime
     [523.25, 659.25, 783.99].forEach((freq, i) => {
@@ -51,7 +59,16 @@ function playAlarmChime() {
 
 export default function AlarmOverlay() {
   const [alarm, setAlarm] = useState(null);
-  const snoozeTimerRef = useRef(null);
+  // Every pending snooze, so snoozing a second alarm keeps the first one's.
+  const snoozeTimersRef = useRef(new Set());
+
+  useEffect(() => {
+    const timers = snoozeTimersRef.current;
+    return () => {
+      timers.forEach((id) => clearTimeout(id));
+      timers.clear();
+    };
+  }, []);
   const lastTriggeredRef = useRef(new Set());
 
   // Set default Duck favicon on mount
@@ -169,16 +186,16 @@ export default function AlarmOverlay() {
   }
 
   function handleSnoozeEvent(minutes) {
-    if (snoozeTimerRef.current) clearTimeout(snoozeTimerRef.current);
     const ms = minutes * 60 * 1000;
     const currentAlarm = alarm;
 
-    snoozeTimerRef.current = setTimeout(() => {
+    const id = setTimeout(() => {
+      snoozeTimersRef.current.delete(id);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("socratic_alarm_triggered", {
             detail: {
-              alarmType: "event",
+              alarmType: currentAlarm?.alarmType || "event",
               title: currentAlarm?.title || "Snoozed Event Alert",
               message: `Snoozed alert (${minutes} mins) for scheduled event.`,
             },
@@ -186,6 +203,7 @@ export default function AlarmOverlay() {
         );
       }
     }, ms);
+    snoozeTimersRef.current.add(id);
 
     handleDismiss();
   }
