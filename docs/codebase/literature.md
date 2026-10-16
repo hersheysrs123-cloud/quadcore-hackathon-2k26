@@ -140,7 +140,7 @@ segments and hovering must not re-render the canvas.
 | `components/literature/AnalysisPanel.jsx` | The side panel — an *index* in Normal mode, the recall surface in Test mode |
 | `components/literature/AnnotationPopover.jsx` | Three popovers in one shell: `view`, `choose` (several annotations on the same words) and `edit` (multi-phrase chips) |
 | `components/literature/PoemLinesModal.jsx` | The line editor, and the `lineMap` that keeps annotations attached. Also exports `ConfirmDialog` |
-| `components/literature/EssayPanel.jsx` | Intro/Conclusion, debounced 350 ms with a flush on blur, tab change and unmount |
+| `components/literature/EssayPanel.jsx` | Intro/Conclusion, debounced 350 ms with a flush on blur, tab change, poem change and unmount; a new `poem` object for the same poem and tab only replaces the text when nothing is waiting to be saved |
 
 ### Popover lifecycle gotchas
 
