@@ -7,7 +7,7 @@ import {
   readUsage,
 } from "@/lib/gemini";
 import { QUIZ_SCHEMA } from "@/lib/schemas";
-import { normalizeQuiz } from "@/lib/aiService";
+import { normalizeQuiz, QUIZ_TYPE_MAX, quizCount, quizLevelDirective } from "@/lib/aiService";
 
 export const dynamic = "force-dynamic";
 
@@ -114,9 +114,7 @@ export async function POST(request) {
     standard: "DISTRACTOR TOUGHNESS & RIGOR: STANDARD. Balanced distractors representing realistic student errors without trick phrasing.",
   }[strictness] || "";
 
-  const effectiveAcademicLevel = academicLevel || "igcse_grade_10";
-  const academicLevelPrompt = `ACADEMIC STANDARD: ${effectiveAcademicLevel.toUpperCase()}.
-Calibrate question depth, expected mathematical precision (e.g. 3 significant figures for IGCSE), and terminology strictly to Cambridge IGCSE Grade 10 standards (Mathematics 0580/0607, Computer Science 0478, Sciences).`;
+  const academicLevelPrompt = quizLevelDirective(academicLevel || "igcse_grade_10");
 
   const countsSpecified =
     mcqCount !== undefined ||
@@ -127,13 +125,13 @@ Calibrate question depth, expected mathematical precision (e.g. 3 significant fi
     shortAnswerCount !== undefined ||
     longAnswerCount !== undefined;
 
-  const numMCQ = Number.isInteger(Number(mcqCount)) ? Math.max(0, Number(mcqCount)) : (countsSpecified ? 0 : 3);
-  const numMulti = Number.isInteger(Number(multiSelectCount)) ? Math.max(0, Number(multiSelectCount)) : (countsSpecified ? 0 : 1);
-  const numValue = Number.isInteger(Number(valueInputCount)) ? Math.max(0, Number(valueInputCount)) : (countsSpecified ? 0 : 2);
-  const numStep = Number.isInteger(Number(stepOrderingCount)) ? Math.max(0, Number(stepOrderingCount)) : (countsSpecified ? 0 : 1);
-  const numCode = Number.isInteger(Number(codeInputCount)) ? Math.max(0, Number(codeInputCount)) : 0;
-  const numShort = Number.isInteger(Number(shortAnswerCount)) ? Math.max(0, Number(shortAnswerCount)) : (countsSpecified ? 0 : 1);
-  const numLong = Number.isInteger(Number(longAnswerCount)) ? Math.max(0, Number(longAnswerCount)) : 0;
+  const numMCQ = quizCount(mcqCount, QUIZ_TYPE_MAX.mcq, countsSpecified ? 0 : 3);
+  const numMulti = quizCount(multiSelectCount, QUIZ_TYPE_MAX.multiSelect, countsSpecified ? 0 : 1);
+  const numValue = quizCount(valueInputCount, QUIZ_TYPE_MAX.valueInput, countsSpecified ? 0 : 2);
+  const numStep = quizCount(stepOrderingCount, QUIZ_TYPE_MAX.stepOrdering, countsSpecified ? 0 : 1);
+  const numCode = quizCount(codeInputCount, QUIZ_TYPE_MAX.codeInput, 0);
+  const numShort = quizCount(shortAnswerCount, QUIZ_TYPE_MAX.shortAnswer, countsSpecified ? 0 : 1);
+  const numLong = quizCount(longAnswerCount, QUIZ_TYPE_MAX.longAnswer, 0);
   const totalCount = numMCQ + numMulti + numValue + numStep + numCode + numShort + numLong;
 
   const distributionPrompt = countsSpecified

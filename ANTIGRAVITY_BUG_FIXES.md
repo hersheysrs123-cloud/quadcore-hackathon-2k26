@@ -8726,3 +8726,42 @@ The lab kit's cast base, with its raised rim, made it obvious. The flask's
   - Three dependencies are left out on purpose, each with a comment saying why. `QuizPanel` would retry a failed quiz forever. `ExplainPanel` would refetch on every keystroke. `StudioEnvironment` uses its dependencies as reset keys, and it now also resets on `rotation`.
   - User-supplied images (favicons, media blocks, `data:` URLs) stay `<img>` with a disable comment: `next/image` only loads allow-listed hosts.
   - Lint is at 0 errors and 0 warnings. All 51 3D scenes load in the browser with no page errors. Alkene and alkyne bonds, the Hooke's law plastic branch and unload line, the eye reset, the tutorial keys, the command palette and the DOCX preview were each checked by hand.
+
+## Audit batch 1: inline HTML injection, KaTeX trust, grading and prompt fixes
+
+An outside audit listed 45 findings. Each was checked against the code; this batch fixes the real ones that need only a few lines each.
+
+- **Problem:**
+  - A Markdown link such as `[x](https://a.com/"onmouseover="...)` in a note (an imported file, pasted Markdown or an AI reply) added an event handler to the editor's live DOM.
+  - A formula such as `\href{javascript:alert(1)}{x}` or `\htmlStyle{position:fixed;inset:0}{x}` rendered as a working `javascript:` link or a full-screen overlay, everywhere math is shown.
+  - Inline code or a link containing `$'`, `$&` or `$$` came out garbled: `` `a$'b` `` rendered as `a postb`, with the rest of the line pasted inside the code. The HTML export had the same fault.
+  - A heading made of many `* ` pairs froze the tab during Markdown import or note reformatting (5.5 s at 26 pairs, doubling with each pair).
+  - The Explain panel showed every misconception with an empty explanation under it.
+  - A `value_input` answer that started with the same digit as the expected answer was marked correct: `1/9` for `1/2`, `2` for `2x + 5`, `10` for `10^5`. The grader was told this as established fact.
+  - Quizzes for an IB, AP, university or olympiad space were still calibrated to Cambridge IGCSE Grade 10.
+  - The Golgi apparatus in the cell scene showed no secretory vesicles.
+  - A syllabus named `SYLLABUS.PDF` or `.DOCX` was stored as raw binary text.
+  - `/api/quiz/generate` accepted any question count (say 100000 MCQs), and a `NEXT_PUBLIC_GOOGLE_API_KEY`, if one were ever set, would have been built into the client bundle.
+- **Root cause:**
+  - `escapeHtml` in `lib/editorCaret.js` escaped `&`, `<` and `>` but not quotes, and its output is placed inside `href="..."` and `data-formula="..."`.
+  - `renderKatexToStringMemoized` passed `trust: true`, which allows every HTML-producing KaTeX command. It was there only so `\reflectbox` could use `\htmlClass{reflect-flip}`.
+  - Tokens were restored with `processed.replace(token, html)`. With a string replacement, `$'`, `$&`, `` $` `` and `$$` are replacement patterns.
+  - `/^(\*+|\#+|\s*)+/` and `/(\*+|\s*)+$/` nest a quantifier around a branch that can match nothing, so a failing match backtracks exponentially (`lib/aiService.js` twice each, `lib/exportImport.js` four times each).
+  - `EXPLAIN_SCHEMA` asks Gemini for `whyItsWrong`, but `normalizeExplanation` copied `m.correction`, which the model never sends.
+  - `gradeObjectively` compared `parseFloat` of both answers, and `parseFloat` reads only the leading number.
+  - The quiz prompt (client and route) printed the chosen level and then a fixed "Calibrate to Cambridge IGCSE Grade 10" line.
+  - The vesicle meshes used `geo.vesicle`, which does not exist; the geometry is `geo.bud`. An undefined geometry draws nothing.
+  - `extractSyllabusTextFromFile` checked `fileName.endsWith(".pdf")` without lower-casing.
+  - Counts were only clamped below (`Math.max(0, n)`); `getEffectiveApiKey` fell back to `process.env.NEXT_PUBLIC_GOOGLE_API_KEY` in the browser.
+- **Resolution:**
+  - `escapeHtml` also escapes `"` and `'`, and the formula in `data-formula` goes through it.
+  - KaTeX renders with `trust: katexTrust`, which allows `\htmlClass` only for `reflect-flip` and `\href` / `\url` only to `http`, `https` and `mailto`. `\reflectbox` still works.
+  - Every token restore in `formatMarkdownInline` and `formatInlineMarkdownForHtml` uses a function replacer, `() => html`.
+  - The regexes are now `/^[*#\s]+/` and `/[*\s]+$/`, which strip the same characters in linear time.
+  - Misconceptions read `m.whyItsWrong`, falling back to `m.correction`.
+  - Tolerance applies only when both answers are a number followed by the same remainder (`splitLeadingNumber`): `9.81 m/s^2` still matches `9.8 m/s^2`; anything else is left to the model rather than declared correct.
+  - `quizLevelDirective(level)` writes the level line for both paths, with calibration text for each level.
+  - The vesicles use `geo.bud`.
+  - The file name is lower-cased before the extension checks.
+  - `quizCount` clamps each requested count to `QUIZ_TYPE_MAX`, the Create Quiz form's own caps, in both paths. The browser no longer reads any env key; the routes use `GOOGLE_API_KEY` only (`.env.local` already used that name).
+  - `tests/unit/security-and-grading-fixes.test.mjs` covers each fix with the original failing input, and that `\reflectbox` still renders. Checked in the browser: the Golgi's pale-yellow vesicles show around the stack, and disappear again with the old line put back; the Calculus demo note renders all seven equations, with `'` and `<` in formulas intact; no console errors. `npm test`: 2307 of 2307 pass.
