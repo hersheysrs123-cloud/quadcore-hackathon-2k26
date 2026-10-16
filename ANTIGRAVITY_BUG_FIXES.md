@@ -8771,3 +8771,24 @@ An outside audit listed 45 findings. Each was checked against the code; this bat
 - **Problem:** Starring or renaming the open note from the notes panel or a menu was undone by the editor's next autosave. Ctrl+S right after typing a title could save the old title. In Literature, an essay edit typed just after a debounced save could be overwritten by that save's echo, and switching poem or tab could drop the last 350 ms of typing.
 - **Root cause:** `BlockNoteEditor` read `title`, `banner`, `emoji` and `isFavorite` from props once on mount and sent them with every save; its debounced save also called the `onSaveNote` it closed over. `Workspace` had its own Ctrl+S listener that saved `activeNoteObj` (up to a debounce old) alongside the editor's save. `handleSaveNote` filled missing fields from the active note even when saving a different note, and `saveNote` reset `banner`, `emoji` and `isFavorite` on partial saves. `EssayPanel` reset its text on every new `poem` object from the live query.
 - **Resolution:** The editor no longer sends `isFavorite`. It remembers the values it has sent (`lib/noteEcho.js`) and adopts a prop change only when the value is not one of them. Saves go through `onSaveNoteRef`, and the unmount flush runs only on unmount. The Workspace Ctrl+S listener only blocks the browser dialog. `handleSaveNote` and `saveNote` fall back to the target note's stored values. `EssayPanel` flushes before switching poem or tab and re-reads the stored text only when nothing is pending. Tests: `tests/unit/note-echo.test.mjs`. Checked in the browser: unstarring the open note then typing kept it unstarred; renaming it from the notes panel updated the editor title and the next autosave kept the new name. Typing into the title and pressing Ctrl+S at once saved the new title. In the essay panel, keystrokes timed 2–15 ms after a debounced save were dropped by the old code (`R352abc…` stored as `52abc…`) and all kept by the new one, at every delay from 352 to 380 ms. `npm test`: 2293 of 2293 pass (one earlier run failed a shadow-optics size check that passed 13 times on its own and on the full rerun; it is unrelated to this change).
+
+## Audit batch 3: .socratic backups lost five stores, and importing into another space moved the originals
+
+- **Problem:**
+  - A `.socratic` backup did not contain quizzes, quiz trash, space syllabus documents, space AI settings, Literature poems, app settings or custom spaces. Restoring one silently lost all of them, and notes from a custom space came back into a space that no longer existed, so they never showed.
+  - Importing a backup into a different space moved the original notes there instead of copying them. The backup's ids were reused, so `bulkPut` rewrote the existing rows with the new `spaceId`.
+  - "Overwrite" was ignored for a single-space import. A one-space backup restored with overwrite cleared every space.
+- **Root cause:** `lib/backup.js` was written for Dexie v5 and never updated for the v6–v9 stores. It listed seven tables by hand in export, import and clear. Import with a target space only changed `spaceId`, and kept every id. The overwrite branch ran only when not reassigning, and always cleared whole tables.
+- **Resolution:**
+  - Rewrote `lib/backup.js` around one `BACKUP_TABLES` map (13 stores, each with how its rows belong to a space) and two pure functions, `buildBackup` and `planImport`.
+  - Format `socratic-backup-v2` carries every store and the space list; v1 files still import. The Gemini API key is never exported or imported.
+  - Saved bookmarks/folders, alarms and app settings are workspace-wide. They travel only in an all-spaces backup and are restored, never copied into one space.
+  - "Original Spaces" restores rows with their ids and re-creates their spaces (`saveAllSpaces`).
+  - Importing into a space copies. Ids already in use get a fresh suffix, and `parentId`, page blocks' `pageId`, quiz `noteId`/`noteIds` and session `noteId` are remapped to the copies.
+  - Overwrite clears only the target space, or the backup's own space, unless it is an all-spaces restore. Rows that are not records are dropped.
+  - Tests: `tests/unit/backup.test.mjs` (21).
+  - Checked in the browser on the dev server, with a test quiz, a syllabus document, app settings with a placeholder key, and a custom "Lab" space with a note:
+    - The all-spaces export held all of them, with no key.
+    - After deleting them and the Lab space, "Original Spaces" restored every one, Lab with its icon.
+    - Exporting School and importing into Personal left the four School notes in School and created four copies in Personal, with the quiz copy pointing at the copied note.
+    - The test data was removed afterwards.

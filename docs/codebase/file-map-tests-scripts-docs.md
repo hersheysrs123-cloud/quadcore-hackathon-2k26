@@ -23,6 +23,7 @@ quadcore-hackathon-2k26/
 │   │   ├── multi-note-selection.test.mjs # Multi-note selection, bulk actions, and confirmation modals
 │   │   ├── note-persistence-flow.test.mjs # Debounced save, unmount flush, and font/width persistence
 │   │   ├── note-echo.test.mjs            # Saved-value history and the echo vs. outside-change decision for the open note's title, banner and emoji
+│   │   ├── backup.test.mjs               # .socratic v2: every store, no API key, one-space filtering, v1 import, restore vs. copy with id remapping, overwrite scope, space list merge
 │   │   ├── note-hierarchy.test.mjs        # Nested sub-page helpers: tree/descendants/ancestors, cycles & orphans, deep clone, restore semantics
 │   │   ├── nested-sub-pages.test.mjs      # Sub-page wiring across editor/workspace/sidebar/storage, exporters & slash-menu ranking
 │   │   ├── physics-solvers.test.mjs      # Refraction (Snell's law), thin lenses, gas laws, chemistry formulas
