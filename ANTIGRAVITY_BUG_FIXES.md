@@ -8831,3 +8831,106 @@ An outside audit listed 45 findings. Each was checked against the code; this bat
     - A failed tutor question, then "Try again": the question was sent again, shown once, and answered; both requests opened on the learner's turn.
     - A reply that landed 2.5 s after "Clear Chat" did not appear.
     - A Quiz Studio quiz with an untouched step ordering and untouched starter code showed 2 / 2 answered, and the grading request carried the order shown and the starter code. The test quiz was removed afterwards.
+
+## Audit batch 6: low-priority cleanup
+
+Small faults from the audit, each checked against the code first.
+
+- **Duplicate sample poem.**
+  - *Problem:* a first visit to Literature could plant the Ozymandias sample twice; two copies were found on the dev server, created one millisecond apart.
+  - *Root cause:* `initLiteratureData` runs from a mount effect, and React's development double mount can run it twice at once. Both runs saw "not seeded, no poems" before either wrote, and the sample's ids were random.
+  - *Resolution:* concurrent calls share one run, and the sample is written with fixed ids (`poem_sample_0`).
+- **Sample poem after a factory reset.**
+  - *Problem:* the Literature sample came back after a factory reset.
+  - *Root cause:* `localStorage.clear()` dropped its seeded flag.
+  - *Resolution:* `factoryResetWorkspace` sets the flag again, as it already did for demo notes.
+- **Renaming or deleting a space.**
+  - *Problem:* calendar events and trashed quizzes were left under the old name or under a space that no longer existed.
+  - *Root cause:* `renameSpace` and `deleteSpace` skipped the `calendarEvents` and `quizTrash` stores.
+  - *Resolution:* `renameSpace` moves them and `deleteSpace` removes them.
+- **Space Hub tagline.**
+  - *Problem:* typing the tagline reloaded the whole Space Hub on every keystroke, and could put an older tagline back into the box.
+  - *Root cause:* `loadSpaceData` listed the space list as a dependency, and each keystroke updates that list.
+  - *Resolution:* `loadSpaceData` reads the space list through a ref, so it reloads only when the active space changes.
+- **Alarm chimes.**
+  - *Problem:* each chime opened an audio output that was never closed. Snoozing a second alarm cancelled the first one's snooze, a snoozed alarm came back as "event", and pending snoozes outlived the overlay.
+  - *Root cause:* every chime created its own `AudioContext`, and the overlay kept a single snooze timer.
+  - *Resolution:* one shared `AudioContext`; every snooze is tracked in a set and cleared on unmount, and the alarm type is kept.
+- **Timer `startTimer`.**
+  - *Problem:* calling it on a running timer paused it.
+  - *Root cause:* it toggled play/pause.
+  - *Resolution:* it only starts a timer. Nothing calls it today.
+- **Literature guards.**
+  - *Problem:* `rangeText` threw on a poem with no lines. `PoemCanvas` threw a `SyntaxError` when an imported annotation id contained a quote.
+  - *Root cause:* `rangeText` clamped to line -1 and read its length. `PoemCanvas` put the id unescaped into a quoted attribute selector.
+  - *Resolution:* `rangeText` returns "" for a poem with no lines, and `PoemCanvas` escapes ids with `CSS.escape`.
+- **Zoom hotspot cursor.**
+  - *Problem:* clicking a zoom hotspot left the page cursor stuck on `zoom-in`.
+  - *Root cause:* zooming unmounts the hotspot before its pointer-out handler runs.
+  - *Resolution:* the hotspot resets the cursor when it unmounts while hovered.
+- **3D scene cleanup.**
+  - *Problem:* a shared material compiled a new shader program each time a scene remounted, and textures on meshes with several materials were never disposed.
+  - *Root cause:* `reflectionsOnly` re-wrapped the material on every mount. `WebGLCleanup` called `dispose()` on the material array itself, which threw.
+  - *Resolution:* `reflectionsOnly` patches a material once (`userData.envReflectOnly`), and `WebGLCleanup` disposes each material in an array and only real textures.
+- **Global error page.**
+  - *Problem:* the global error page rendered unstyled.
+  - *Root cause:* it replaces the root layout but did not import `globals.css`.
+  - *Resolution:* it imports the stylesheet.
+- **Browser bookmark import.**
+  - *Problem:* `javascript:` bookmarklets and script icons came in as Saved bookmarks.
+  - *Root cause:* the Netscape HTML import did not validate URLs.
+  - *Resolution:* links go through `normalizeUrl` (bookmarklets are skipped), and only http(s) and `data:image` icons are kept.
+- **Quiz Studio drafts.**
+  - *Problem:* leaving a quiz dropped answers given within the last 350 ms, and a pending draft save could land after submitting.
+  - *Root cause:* the unmount cleanup cancelled the debounced draft save instead of running it, and submitting did not cancel a pending save.
+  - *Resolution:* leaving flushes the draft, and Submit cancels any pending draft save.
+- **Checked:**
+  - *Unit tests:* two `rangeText` cases in `tests/unit/literature-core.test.mjs`.
+  - *Browser, Literature:* after clearing poems and the seeded flag, a first visit planted exactly one sample, `poem_sample_0`.
+  - *Browser, Space Hub:* a quickly typed tagline was kept whole and stored. Renaming Misc moved a test event and a trashed quiz with it. Deleting a test space removed both, and its settings.
+  - *Browser, alarms:* three chimes created one `AudioContext`.
+  - *Browser, Saved import:* a file with one link and two bookmarklets (one split by a line break) imported only the link, with a normal favicon in place of a `javascript:` icon.
+  - *Browser, hotspot:* hovering set `zoom-in`, and after clicking it, the cursor was back to normal at the alveoli level.
+  - *Cleanup:* all test data was removed.
+- **Left as is:**
+  - The `-H 0.0.0.0` dev and start binding, which lets other devices on the network reach the dev server.
+  - Security headers in `next.config.mjs`.
+  - Moving `renameSpace` and `deleteSpace` into one transaction each.
+
+## Audit: the remaining minor items (BUG-15, 19, 21, 25, 26)
+
+- **Reformat turned prose into maths.**
+  - *Problem:* AI Reformat made a paragraph such as "$$a$$ is the area and $$b$$ is the base" into a broken display-maths block.
+  - *Root cause:* any text block that started or ended with `$$` counted as one formula.
+  - *Resolution:* `looksLikeDisplayMath` only accepts a block that is one `$$…$$` formula, has a single dangling `$$`, or is bare LaTeX opening on a command. The AI and offline paths both use it.
+- **Reformat token usage.**
+  - *Problem:* reformatting a long note reported no token usage.
+  - *Root cause:* the multi-part path declared `totalUsage` and never added to it.
+  - *Resolution:* each part's usage is added up.
+- **Bold ending in a space.**
+  - *Problem:* bolding "word " (with its trailing space) came back as literal `**word **` after a re-render.
+  - *Root cause:* the renderer, like Markdown, ignores a marker with a space just inside it, and the DOM serialiser put the space there.
+  - *Resolution:* `wrapMarker` moves edge spaces outside `**` and `*`.
+- **Note tree cycle breaker.**
+  - *Problem:* with a corrupt parent loop (A ↔ B), an ordinary child of A could be pulled out to the top level.
+  - *Root cause:* the cycle was broken at whichever unreachable note came first, which could be a note hanging below the loop.
+  - *Resolution:* `buildNoteTree` climbs parents until a note repeats and breaks the loop there.
+- **Poem selection past the edge.**
+  - *Problem:* a drag that ended just past the last line (or started above the first) selected nothing.
+  - *Root cause:* a range whose common ancestor sat above the poem was thrown away.
+  - *Resolution:* the range is clipped to the poem first.
+- **Sub-pages on undo and redo.**
+  - *Problem:* undoing a "/page" left the new sub-page alive with no card, and redoing a card deletion after restoring the page left it alive with no card.
+  - *Root cause:* undo and redo replaced the blocks without the Trash step the other deletion paths take.
+  - *Resolution:* undo and redo trash any sub-page whose card they remove. Undoing a deletion still brings the card back with its Restore button.
+- **3D scene re-renders.**
+  - *Problem:* the gradient-descent and epicycle scenes re-rendered every 120–160 ms into state nothing read, and the generator re-rendered ten times a second.
+  - *Root cause:* sampling callbacks were wired to discarded `useState` setters, and the generator stored every e.m.f. sample for an arrow that only needs its sign.
+  - *Resolution:* the scenes no longer pass those callbacks. The descent ball re-renders only when its status changes, and the generator only when the current reverses or stops.
+- **Pulley rope.**
+  - *Problem:* raising the number of ropes cut the rope line short, and each frame allocated new vectors.
+  - *Root cause:* three.js's `setFromPoints` never grows an existing buffer.
+  - *Resolution:* the rope geometry is keyed on the rope count, and the vectors are reused.
+- **Not changed:** `moveFolder` cycles (nothing calls it) and the Trash expiry (expired notes are purged on the next read).
+- **Checked:** 11 cases in `tests/unit/audit-minor-fixes.test.mjs`.
+- **Left as is:** the `-H 0.0.0.0` binding stays, by choice, so the app can be used from a phone on the same network.

@@ -44,6 +44,15 @@ describe("Literature — range extraction & trimming", () => {
     );
   });
 
+  it("returns nothing for a poem with no lines instead of throwing", () => {
+    assert.equal(rangeText([], { startLine: 0, startChar: 0, endLine: 2, endChar: 5 }), "");
+    assert.equal(rangeText(undefined, { startLine: 0, startChar: 0, endLine: 0, endChar: 1 }), "");
+  });
+
+  it("treats a missing line inside a range as empty", () => {
+    assert.equal(rangeText(["ab", undefined, "cd"], { startLine: 0, startChar: 1, endLine: 2, endChar: 1 }), "b\n\nc");
+  });
+
   it("shaves whitespace off both ends of a selection", () => {
     assert.deepEqual(trimRange(lines, { startLine: 0, startChar: 3, endLine: 0, endChar: 16 }), {
       startLine: 0,

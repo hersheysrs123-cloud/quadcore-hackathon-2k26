@@ -6553,6 +6553,8 @@ export default function BlockNoteEditor({
           setFutureBlocks(futureBlocksRef.current);
           setBlocks(clonedPrevious);
           performSave({ blocks: clonedPrevious });
+          // Undoing a "/page" removes its card: the sub-page follows it to the Trash.
+          trashRemovedSubPages(currentBlocks, clonedPrevious);
 
           const currentSelected = selectedIdRef.current;
           let targetBlock = null;
@@ -6600,6 +6602,8 @@ export default function BlockNoteEditor({
           setPastBlocks(pastBlocksRef.current);
           setBlocks(clonedNext);
           performSave({ blocks: clonedNext });
+          // Redoing a card deletion trashes the sub-page again, even if it was restored in between.
+          trashRemovedSubPages(currentBlocks, clonedNext);
 
           const currentSelected = selectedIdRef.current;
           let targetBlock = null;
@@ -6633,7 +6637,7 @@ export default function BlockNoteEditor({
     };
     window.addEventListener("keydown", handleGlobalUndoRedo);
     return () => window.removeEventListener("keydown", handleGlobalUndoRedo);
-  }, [focusBlock, performSave]);
+  }, [focusBlock, performSave, trashRemovedSubPages]);
 
   // Multi-Block Selection Keyboard Shortcuts: Ctrl+A, Ctrl+C, Ctrl+X, Delete/Backspace
 

@@ -9,6 +9,11 @@ import {
   trimRange,
 } from "@/lib/literature";
 
+/** An annotation id made safe inside a quoted attribute selector. An imported
+ *  poem can carry any string as an id, and a quote in one made querySelector
+ *  throw. */
+const cssId = (id) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/["\\]/g, "\\$&"));
+
 /**
  * PoemCanvas — the poem itself, plus the browser-selection → poem-range
  * mapping that everything else in the Literature section depends on.
@@ -120,9 +125,15 @@ const PoemCanvas = forwardRef(function PoemCanvas(
     if (!poem || !rootRef.current) return null;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
-    const r = sel.getRangeAt(0);
-    const cac = r.commonAncestorContainer;
-    if (cac !== rootRef.current && !rootRef.current.contains(cac)) return null;
+    const r = sel.getRangeAt(0).cloneRange();
+    if (!r.intersectsNode(rootRef.current)) return null;
+    /* A drag that runs past the first or last line ends outside the poem.
+       Clip the range to the poem rather than dropping the selection. */
+    const whole = document.createRange();
+    whole.selectNodeContents(rootRef.current);
+    if (r.compareBoundaryPoints(Range.START_TO_START, whole) < 0) r.setStart(whole.startContainer, whole.startOffset);
+    if (r.compareBoundaryPoints(Range.END_TO_END, whole) > 0) r.setEnd(whole.endContainer, whole.endOffset);
+    if (r.collapsed) return null;
     const a = resolveEdge(r.startContainer, r.startOffset, false);
     const b = resolveEdge(r.endContainer, r.endOffset, true);
     if (!a || !b) return null;
@@ -178,12 +189,12 @@ const PoemCanvas = forwardRef(function PoemCanvas(
         const root = rootRef.current;
         if (!root) return null;
         const node =
-          root.querySelector(`.lit-seg[data-ids~="${annId}"]`) ||
-          root.querySelector(`.lit-marker[data-id="${annId}"]`);
+          root.querySelector(`.lit-seg[data-ids~="${cssId(annId)}"]`) ||
+          root.querySelector(`.lit-marker[data-id="${cssId(annId)}"]`);
         return node ? node.getBoundingClientRect() : null;
       },
       scrollToAnnotation(annId) {
-        const node = rootRef.current?.querySelector(`.lit-seg[data-ids~="${annId}"]`);
+        const node = rootRef.current?.querySelector(`.lit-seg[data-ids~="${cssId(annId)}"]`);
         if (node) node.scrollIntoView({ block: "center", behavior: "smooth" });
         return Boolean(node);
       },

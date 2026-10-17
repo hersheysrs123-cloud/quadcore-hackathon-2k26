@@ -70,6 +70,11 @@ export function reflectStrength(m, { metal = 0.75, glass = 1.3 } = {}) {
  * patch the material already has.
  */
 function reflectionsOnly(m) {
+  // Once per material: a module-level material shared by scenes was patched
+  // again on every remount, growing its cache key and compiling a new shader
+  // program each time.
+  if (m.userData.envReflectOnly) return;
+  m.userData.envReflectOnly = true;
   const prev = m.onBeforeCompile;
   const prevKey = m.customProgramCacheKey;
   m.onBeforeCompile = (shader, renderer) => {
@@ -232,15 +237,19 @@ export function WebGLCleanup() {
           scene.traverse((object) => {
             try {
               if (object.geometry) object.geometry.dispose();
-              if (object.material) {
+              // A mesh can carry an array of materials; calling dispose() on
+              // the array threw and left their textures undisposed.
+              const mats = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
+              for (const mat of mats) {
+                if (!mat) continue;
                 // Dispose all texture maps
-                for (const key in object.material) {
-                  const value = object.material[key];
-                  if (value && typeof value.dispose === 'function') {
+                for (const key in mat) {
+                  const value = mat[key];
+                  if (value && value.isTexture && typeof value.dispose === 'function') {
                     value.dispose();
                   }
                 }
-                object.material.dispose();
+                mat.dispose();
               }
             } catch (_) {
               // Safe geometry/material disposal

@@ -137,7 +137,8 @@ const scratchQuat = new THREE.Quaternion();
  * the ball's transform, so the simulation never costs a React render.
  * The direction indicator updates directly on Three.js objects at full 60 FPS,
  * completely eliminating React reconciliation stutter and lag.
- * `onSample` lifts the readout numbers at 6 Hz for the 2D HUD.
+ * `onSample` (optional) lifts the readout numbers at 6 Hz for a 2D HUD; the
+ * scene itself no longer passes one, since nothing displayed them.
  */
 function DescentRunner({ surface, rate, momentum, startX, startZ, running, resetKey, showGradient, onSample, speed = 1 }) {
   const ball = useRef(null);
@@ -150,6 +151,8 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
   const indicatorHead = useRef(null);
 
   const walker = useRef({ x: 0, z: 0, vx: 0, vz: 0, steps: 0, count: 0, stepAcc: 0, sampleAcc: 0, dead: null, startLoss: 0 });
+  // Only the ball colour depends on render, so only a status change re-renders.
+  const [status, setStatus] = useState(null);
 
   const { f, grad } = SURFACES[surface];
 
@@ -168,6 +171,7 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
       dead: null,
       startLoss,
     };
+    setStatus(null);
     trail[0] = startX;
     trail[1] = drawHeight(startLoss) + 0.08;
     trail[2] = startZ;
@@ -288,8 +292,10 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
       }
     }
 
+    if (w.dead !== status) setStatus(w.dead);
+
     w.sampleAcc += step;
-    if (w.sampleAcc >= 0.16) {
+    if (onSample && w.sampleAcc >= 0.16) {
       w.sampleAcc = 0;
       const [gx, gz] = grad(w.x, w.z);
       onSample({
@@ -303,7 +309,6 @@ function DescentRunner({ surface, rate, momentum, startX, startZ, running, reset
     }
   });
 
-  const status = walker.current.dead;
   const ballColour =
     status === "diverged" || status === "unbounded"
       ? PALETTE.rose
@@ -379,7 +384,6 @@ export function GradientDescentScene({ params = {} }) {
     speed = 1.0,
   } = params || {};
 
-  const [, setSample] = useState({ x: startX, z: startZ, loss: 0, slope: 0, steps: 0, status: null });
   const info = SURFACES[surface] ?? SURFACES.bowl;
 
   return (
@@ -409,7 +413,6 @@ export function GradientDescentScene({ params = {} }) {
         running={running}
         resetKey={reset}
         showGradient={showGradient}
-        onSample={setSample}
         speed={params.speed ?? 1}
       />
 
@@ -980,7 +983,7 @@ function Epicycles({
     }
 
     c.sampleAcc += step;
-    if (c.sampleAcc >= 0.12) {
+    if (onSample && c.sampleAcc >= 0.12) {
       c.sampleAcc = 0;
       const theta = c.theta % (Math.PI * 2);
       onSample({ theta, height: py, tanVal: Math.abs(tanVal) < 50 ? tanVal : undefined, overshoot });
@@ -1184,7 +1187,6 @@ export function UnitCircleWaveScene({ params = {} }) {
     spin = false,
   } = params || {};
 
-  const [, setSample] = useState({ theta: 0, height: 0, tanVal: 0, overshoot: 0 });
   const count = Math.round(harmonics);
   const wf = WAVEFORMS[waveform] ?? WAVEFORMS.square;
 
@@ -1210,7 +1212,6 @@ export function UnitCircleWaveScene({ params = {} }) {
         showCos={showCos}
         showTangent={showTangent}
         showHelix={showHelix}
-        onSample={setSample}
       />
 
       <SceneLabel position={[CIRCLE_X, -3.1, 0]} accent>

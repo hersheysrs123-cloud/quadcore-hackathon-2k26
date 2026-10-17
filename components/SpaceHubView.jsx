@@ -124,6 +124,14 @@ export default function SpaceHubView({
     setRenameError("");
   }, [activeSpace]);
 
+  // The space list, read through a ref: typing a tagline updates the list on
+  // every keystroke, and listing it as a dependency reloaded the whole hub
+  // (and could put an older tagline back into the box) each time.
+  const spacesRef = useRef(spaces);
+  useEffect(() => {
+    spacesRef.current = spaces;
+  }, [spaces]);
+
   // Load documents and space settings when activeSpace changes
   const loadSpaceData = useCallback(async () => {
     if (!activeSpace) return;
@@ -134,7 +142,7 @@ export default function SpaceHubView({
         getSpaceSettings(activeSpace),
       ]);
       setDocuments(docs);
-      const currentSpaceObj = spaces.find((s) => s.name === activeSpace);
+      const currentSpaceObj = spacesRef.current.find((s) => s.name === activeSpace);
       setSettings({
         academicLevel: savedSettings?.academicLevel || "general",
         aiPersona: savedSettings?.aiPersona || "examiner",
@@ -148,7 +156,7 @@ export default function SpaceHubView({
     } finally {
       setLoadingDocs(false);
     }
-  }, [activeSpace, spaces]);
+  }, [activeSpace]);
 
   useEffect(() => {
     loadSpaceData();

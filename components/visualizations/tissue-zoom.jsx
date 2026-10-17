@@ -249,6 +249,18 @@ export function TissueZoom({ level, levels, fov = 42, children, ringColour, onSh
 export function ZoomHotspot({ position, radius = 0.4, label, colour = "#7dd3fc", onZoom }) {
   const ring = useRef(null);
   const [hover, setHover] = useState(false);
+  // Clicking zooms in, which unmounts the hotspot before onPointerOut can
+  // run, so the zoom-in cursor stuck on the whole page.
+  const hoverRef = useRef(false);
+  useEffect(() => {
+    hoverRef.current = hover;
+  }, [hover]);
+  useEffect(
+    () => () => {
+      if (hoverRef.current) document.body.style.cursor = "";
+    },
+    []
+  );
   const points = useMemo(() => Array.from({ length: 65 }, (_, i) => [Math.cos((i / 64) * Math.PI * 2) * radius, Math.sin((i / 64) * Math.PI * 2) * radius, 0]), [radius]);
   useFrame(({ clock }) => {
     if (!ring.current) return;

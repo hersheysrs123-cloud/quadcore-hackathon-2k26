@@ -1,5 +1,9 @@
 "use client";
 
+// global-error replaces the root layout, so it brings its own stylesheet;
+// without it every class below rendered unstyled.
+import "./globals.css";
+
 export default function GlobalError({ error, reset }) {
   return (
     <html lang="en">

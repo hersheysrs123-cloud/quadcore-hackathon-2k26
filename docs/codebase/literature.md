@@ -100,6 +100,11 @@ guard, `prefix_timestamp_random` ids).
 2. Otherwise, if there are no poems at all, the Ozymandias sample is planted.
 
 Both steps are flag-guarded, so deleting the sample does not make it grow back.
+Calls made while one is running share it (the view calls this from a mount
+effect, and two overlapping runs used to plant two samples), and the sample is
+written with fixed ids (`poem_sample_0`), so a repeat overwrites rather than
+adds. `factoryResetWorkspace("all")` sets the flag again after clearing
+localStorage, so the sample does not come back after a reset either.
 
 UI preferences (mode, tab, selected poem, panel open) live in
 `localStorage["socratic_literature_ui"]`, not Dexie: they are per-browser, not
@@ -124,8 +129,9 @@ The rendered DOM is a **contract**, not an implementation detail:
   part of the line's character count, shifting every offset after them and
   making them selectable.
 
-`getSelectionRange()` resolves both selection edges to `{line, char}` and runs
-the result through `trimRange`. Hover/open classes are applied **imperatively**
+`getSelectionRange()` first clips the selection to the poem (a drag that runs
+past the first or last line ends outside it), then resolves both edges to
+`{line, char}` and runs the result through `trimRange`. Hover/open classes are applied **imperatively**
 in an effect rather than through render props: a long poem has hundreds of
 segments and hovering must not re-render the canvas.
 
