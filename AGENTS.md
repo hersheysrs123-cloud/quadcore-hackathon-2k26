@@ -1,10 +1,10 @@
 # SocraticOS Assistant Rules & Documentation Maintenance Directives
 
-Whenever you make changes to the codebase (features, components, architecture, design tokens, bug fixes), you must maintain documentation integrity by updating the relevant documentation files as part of your task.
+Documentation must match the code, but update it **once per branch, not after every change**. Do the docs pass when the work on a branch is finished: right before opening a PR, or when the user asks for it. Don't touch docs mid-task unless the user asks. A docs pass covers every change on the branch, so check `git diff main...HEAD` to see what needs documenting.
 
 ---
 
-## 📋 Mandatory Documentation Rules for All Tasks
+## 📋 Documentation Rules (apply during the end-of-branch docs pass)
 
 ### 1. Codebase Architecture & Feature Changes (`CODEBASE_SUMMARY.md` & `README.md`)
 - The technical reference is split by topic. `CODEBASE_SUMMARY.md` is only the index; the detail lives in `docs/codebase/`.
@@ -24,7 +24,9 @@ Whenever you make changes to the codebase (features, components, architecture, d
   - **UPDATE [`ANTIGRAVITY_BUG_FIXES.md`](ANTIGRAVITY_BUG_FIXES.md)** documenting the root cause, problem statement, and resolution.
 
 ### 4. Build & Production Server Protocol (`npm run build` & `npm run start`)
-- When you want to run `npm run build`:
+- **Only run `npm run build` when it's actually needed**: before opening a PR, when the user asks, or to debug a build-only failure. For routine changes, run `npm run lint` or the relevant tests instead, or check in the dev server.
+- When reading build output, look at the end and any errors only (e.g. `tail` it). Don't read the whole log.
+- When you do run `npm run build`:
   1. First check if a server on port 3000 is running.
   2. If active, terminate/kill the server process on port 3000 to prevent Next.js lock/cache corruption.
   3. Execute `npm run build` as a background task.
