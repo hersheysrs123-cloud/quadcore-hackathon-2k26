@@ -63,3 +63,7 @@
     - Put a token back with a function replacer, `processed.replace(token, () => html)`. A string replacement reads `$&`, `$'`, `` $` `` and `$$` as patterns, so code or a link containing them pasted other parts of the line into the output.
     - Never pass `trust: true` to KaTeX. `katexTrust` in `lib/editorCaret.js` allows `\htmlClass{reflect-flip}` (behind `\reflectbox`) and `\href` / `\url` to `http`, `https` and `mailto` only. With `true`, any formula could add a `javascript:` link or `\htmlStyle` to the page.
     - A regex that cleans text from a note or a model must not nest a quantifier around a branch that can match nothing, such as `(\*+|\s*)+$`. It backtracks exponentially: 26 `* ` pairs took 5.5 s. Use a character class, `[*\s]+$`.
+18. **Response headers (`next.config.mjs`)**:
+    - Every route sends `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. The export preview is a `srcdoc` iframe, so the frame rule does not touch it.
+    - There is no Content-Security-Policy yet. KaTeX, the 3D models (`.glb`, HDR maps, workers), the export preview's inline script and user-supplied favicons all need allowing, so add one only after testing each of those under it.
+    - Header changes need a dev-server restart.

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { formatMarkdownInline, wrapMarker } from "../../lib/editorCaret.js";
 import { buildNoteTree } from "../../lib/noteHierarchy.js";
 import { looksLikeDisplayMath, normalizeReformattedPayload } from "../../lib/aiService.js";
+import { generateNetscapeBookmarksHtml } from "../../lib/exportImport.js";
 
 /**
  * The last minor items from the Gemini audit (BUG-19, BUG-25): reformat
@@ -90,5 +91,20 @@ describe("Note tree — cycle breaking", () => {
     const seen = [...ids(roots)];
     for (const list of childrenOf.values()) seen.push(...ids(list));
     assert.deepEqual(seen.sort(), ["A", "B", "C", "D", "R"]);
+  });
+});
+
+describe("Bookmark export — folder loops", () => {
+  it("finishes when a folder ends up inside itself", () => {
+    // Two rows sharing an id: the second hangs below the first, so the first's
+    // children include itself again.
+    const folders = [
+      { id: "f1", name: "Top", parentId: null },
+      { id: "f1", name: "Copy", parentId: "f1" },
+    ];
+    const bookmarks = [{ id: "b1", title: "Kept", url: "https://example.com", folderId: "f1" }];
+    const { html } = generateNetscapeBookmarksHtml(bookmarks, folders, "All");
+    assert.match(html, /Top/);
+    assert.match(html, /https:\/\/example\.com/);
   });
 });

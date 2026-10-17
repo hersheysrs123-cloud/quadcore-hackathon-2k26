@@ -12,7 +12,7 @@ quadcore-hackathon-2k26/
 │   │   ├── bullet-number-heading-fixes.test.mjs # Bullet/number list indentation, hierarchical sub-bullets & heading enter flow
 │   │   ├── editor-marquee-click.test.mjs # Marquee multi-block selection and click-to-append boundary guards
 │   │   ├── export-import.test.mjs        # Markdown, HTML, DOCX, TXT lossless round-trips & blob generation
-│   │   ├── audit-minor-fixes.test.mjs     # Reformat display-maths detection, bold/italic edge spaces, note-tree cycle breaking
+│   │   ├── audit-minor-fixes.test.mjs     # Reformat display-maths detection, bold/italic edge spaces, note-tree cycle breaking, bookmark export folder loops
 │   │   ├── export-sandbox.test.mjs        # HTML export escaping (callout icon, emoji), safeExportUrl schemes, preview bridge script and message checks
 │   │   ├── export-preview.test.mjs       # Interactive pre-download export preview formatting and scroll mechanics
 │   │   ├── eye-optics.test.mjs           # Eye optical model: Gullstrand equivalent power, accommodation, and retina focus
