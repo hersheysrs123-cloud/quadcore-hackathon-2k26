@@ -129,8 +129,9 @@ The rendered DOM is a **contract**, not an implementation detail:
   part of the line's character count, shifting every offset after them and
   making them selectable.
 
-`getSelectionRange()` resolves both selection edges to `{line, char}` and runs
-the result through `trimRange`. Hover/open classes are applied **imperatively**
+`getSelectionRange()` first clips the selection to the poem (a drag that runs
+past the first or last line ends outside it), then resolves both edges to
+`{line, char}` and runs the result through `trimRange`. Hover/open classes are applied **imperatively**
 in an effect rather than through render props: a long poem has hundreds of
 segments and hovering must not re-render the canvas.
 

@@ -125,9 +125,15 @@ const PoemCanvas = forwardRef(function PoemCanvas(
     if (!poem || !rootRef.current) return null;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
-    const r = sel.getRangeAt(0);
-    const cac = r.commonAncestorContainer;
-    if (cac !== rootRef.current && !rootRef.current.contains(cac)) return null;
+    const r = sel.getRangeAt(0).cloneRange();
+    if (!r.intersectsNode(rootRef.current)) return null;
+    /* A drag that runs past the first or last line ends outside the poem.
+       Clip the range to the poem rather than dropping the selection. */
+    const whole = document.createRange();
+    whole.selectNodeContents(rootRef.current);
+    if (r.compareBoundaryPoints(Range.START_TO_START, whole) < 0) r.setStart(whole.startContainer, whole.startOffset);
+    if (r.compareBoundaryPoints(Range.END_TO_END, whole) > 0) r.setEnd(whole.endContainer, whole.endOffset);
+    if (r.collapsed) return null;
     const a = resolveEdge(r.startContainer, r.startOffset, false);
     const b = resolveEdge(r.endContainer, r.endOffset, true);
     if (!a || !b) return null;

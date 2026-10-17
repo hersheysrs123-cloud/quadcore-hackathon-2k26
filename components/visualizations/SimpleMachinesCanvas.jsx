@@ -615,6 +615,8 @@ function Pulley({ solved, running, speed, loadN }) {
   const lowerGroupRef = useRef(null);
   const pullHandleRef = useRef(null);
   const ropeGeomRef = useRef(null);
+  // Reused every frame rather than allocating a fresh Vector3 per rope point.
+  const ropeVecs = useRef([]);
 
   useFrame((_, rawDelta) => {
     if (running && speed > 0) {
@@ -637,7 +639,11 @@ function Pulley({ solved, running, speed, loadN }) {
 
     if (ropeGeomRef.current) {
       const pts = generateRopePoints(n, topY, lowerY, spread, sheaveR, pullX, pullY);
-      ropeGeomRef.current.setFromPoints(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+      const vecs = ropeVecs.current;
+      while (vecs.length < pts.length) vecs.push(new THREE.Vector3());
+      vecs.length = pts.length;
+      pts.forEach(([x, y, z], i) => vecs[i].set(x, y, z));
+      ropeGeomRef.current.setFromPoints(vecs);
     }
   });
 
@@ -813,7 +819,8 @@ function Pulley({ solved, running, speed, loadN }) {
 
       {/* ── Native Three.js Line with In-Place BufferGeometry ── */}
       <line>
-        <bufferGeometry ref={ropeGeomRef} />
+        {/* setFromPoints never grows an existing buffer, so a new rope count needs a new geometry. */}
+        <bufferGeometry key={n} ref={ropeGeomRef} />
         <lineBasicMaterial color={ENERGY_COLOURS.workIn} linewidth={2.6} />
       </line>
 

@@ -1790,7 +1790,7 @@ function GeneratorRig({ params = {} }) {
   } = params || {};
 
   const safeTurns = safeTurnsOf(turns);
-  const [emfNow, setEmfNow] = useState(0);
+  const [arrow, setArrow] = useState(0);
   const angleRef = useRef(0);
 
   const coil = useRef(null);
@@ -1799,7 +1799,6 @@ function GeneratorRig({ params = {} }) {
   const fluxPlane = useRef(null);
   const currentPhase = useRef(0);
   const currentDots = useRef([]);
-  const sampleClock = useRef(0);
 
   const w = COIL_W;
   const hh = COIL_H;
@@ -1883,17 +1882,13 @@ function GeneratorRig({ params = {} }) {
       });
     }
 
-    sampleClock.current += step;
-    if (sampleClock.current > 0.1) {
-      sampleClock.current = 0;
-      setEmfNow(emf);
-    }
+    // Steady arrows would be right for half a turn and wrong for the other half:
+    // these follow the sign of the e.m.f. and go out while it passes through zero.
+    // Only a change of direction re-renders, not every e.m.f. sample.
+    const nextArrow = Math.abs(emf) < Math.max(0.05, 0.04 * peak) ? 0 : Math.sign(emf);
+    if (nextArrow !== arrow) setArrow(nextArrow);
   });
 
-  // Steady arrows would be right for half a turn and wrong for the other half:
-  // these follow the sign of the e.m.f. and go out while it passes through zero.
-  const arrow =
-    Math.abs(emfNow) < Math.max(0.05, 0.04 * peak) ? 0 : Math.sign(emfNow);
   const arrowZ = winding.zSpan / 2 + 0.2;
 
   return (

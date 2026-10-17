@@ -8896,3 +8896,41 @@ Small faults from the audit, each checked against the code first.
   - The `-H 0.0.0.0` dev and start binding, which lets other devices on the network reach the dev server.
   - Security headers in `next.config.mjs`.
   - Moving `renameSpace` and `deleteSpace` into one transaction each.
+
+## Audit: the remaining minor items (BUG-15, 19, 21, 25, 26)
+
+- **Reformat turned prose into maths.**
+  - *Problem:* AI Reformat made a paragraph such as "$$a$$ is the area and $$b$$ is the base" into a broken display-maths block.
+  - *Root cause:* any text block that started or ended with `$$` counted as one formula.
+  - *Resolution:* `looksLikeDisplayMath` only accepts a block that is one `$$…$$` formula, has a single dangling `$$`, or is bare LaTeX opening on a command. The AI and offline paths both use it.
+- **Reformat token usage.**
+  - *Problem:* reformatting a long note reported no token usage.
+  - *Root cause:* the multi-part path declared `totalUsage` and never added to it.
+  - *Resolution:* each part's usage is added up.
+- **Bold ending in a space.**
+  - *Problem:* bolding "word " (with its trailing space) came back as literal `**word **` after a re-render.
+  - *Root cause:* the renderer, like Markdown, ignores a marker with a space just inside it, and the DOM serialiser put the space there.
+  - *Resolution:* `wrapMarker` moves edge spaces outside `**` and `*`.
+- **Note tree cycle breaker.**
+  - *Problem:* with a corrupt parent loop (A ↔ B), an ordinary child of A could be pulled out to the top level.
+  - *Root cause:* the cycle was broken at whichever unreachable note came first, which could be a note hanging below the loop.
+  - *Resolution:* `buildNoteTree` climbs parents until a note repeats and breaks the loop there.
+- **Poem selection past the edge.**
+  - *Problem:* a drag that ended just past the last line (or started above the first) selected nothing.
+  - *Root cause:* a range whose common ancestor sat above the poem was thrown away.
+  - *Resolution:* the range is clipped to the poem first.
+- **Sub-pages on undo and redo.**
+  - *Problem:* undoing a "/page" left the new sub-page alive with no card, and redoing a card deletion after restoring the page left it alive with no card.
+  - *Root cause:* undo and redo replaced the blocks without the Trash step the other deletion paths take.
+  - *Resolution:* undo and redo trash any sub-page whose card they remove. Undoing a deletion still brings the card back with its Restore button.
+- **3D scene re-renders.**
+  - *Problem:* the gradient-descent and epicycle scenes re-rendered every 120–160 ms into state nothing read, and the generator re-rendered ten times a second.
+  - *Root cause:* sampling callbacks were wired to discarded `useState` setters, and the generator stored every e.m.f. sample for an arrow that only needs its sign.
+  - *Resolution:* the scenes no longer pass those callbacks. The descent ball re-renders only when its status changes, and the generator only when the current reverses or stops.
+- **Pulley rope.**
+  - *Problem:* raising the number of ropes cut the rope line short, and each frame allocated new vectors.
+  - *Root cause:* three.js's `setFromPoints` never grows an existing buffer.
+  - *Resolution:* the rope geometry is keyed on the rope count, and the vectors are reused.
+- **Not changed:** `moveFolder` cycles (nothing calls it) and the Trash expiry (expired notes are purged on the next read).
+- **Checked:** 11 cases in `tests/unit/audit-minor-fixes.test.mjs`.
+- **Left as is:** the `-H 0.0.0.0` binding stays, by choice, so the app can be used from a phone on the same network.
