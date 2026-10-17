@@ -12,11 +12,11 @@ SocraticOS operates entirely local-first using **Dexie.js** (IndexedDB database 
    - *Fields*: `id`, `spaceId`, `parentId` (`null` for top-level notes; the id of the note that embeds this one as a `page` card otherwise — always in the same space as the parent), `title`, `blocks` (Array of 20 block objects), `banner`, `emoji`, `fontStyle`, `fullWidth`, `isLocked`, `isFavorite`, `order` (position within its sibling group), `createdAt`, `updatedAt`
 2. `folders`: Web Saver folder hierarchies.
    - *Index*: `id, parentId, spaceId, name, createdAt`
-   - *Fields*: `id`, `parentId`, `spaceId`, `name`, `createdAt`
+   - *Fields*: `id`, `parentId`, `spaceId`, `name`, `createdAt`. `moveFolder` refuses to put a folder inside itself or its own descendant.
 3. `bookmarks`: Web Saver bookmark records.
    - *Index*: `id, folderId, spaceId, url, title, favicon, notes, tags, createdAt`
    - *Fields*: `id`, `folderId`, `spaceId`, `url`, `title`, `favicon`, `notes`, `tags` (Array of strings), `createdAt`
-4. `trash`: Soft-deleted notes pending 24-hour auto-purge.
+4. `trash`: Soft-deleted notes pending 24-hour auto-purge. Expired rows are deleted whenever the Trash is read (`getTrashNotes`), which the workspace also does every minute.
    - *Index*: `id, parentId, deletedAt`
    - *Fields*: Complete note document + `deletedAt` ISO timestamp (a trashed subtree shares one `deletedAt`, so it expires together)
 5. `calendarEvents`: Scheduled study events.

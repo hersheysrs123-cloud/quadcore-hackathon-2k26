@@ -596,6 +596,9 @@ export default function Workspace() {
           return !isNaN(ts) && now - ts < TWENTY_FOUR_HOURS_MS;
         })
       );
+      // Reading the Trash deletes its expired rows, so they leave the database
+      // when they leave the screen rather than on the next reload.
+      getTrashNotes().catch((err) => console.error("Error purging trash:", err));
     }, 60000);
     return () => clearInterval(interval);
   }, [mounted]);

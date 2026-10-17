@@ -8934,3 +8934,21 @@ Small faults from the audit, each checked against the code first.
 - **Not changed:** `moveFolder` cycles (nothing calls it) and the Trash expiry (expired notes are purged on the next read).
 - **Checked:** 11 cases in `tests/unit/audit-minor-fixes.test.mjs`.
 - **Left as is:** the `-H 0.0.0.0` binding stays, by choice, so the app can be used from a phone on the same network.
+
+## Audit follow-up: response headers, folder loops and Trash expiry
+
+- **Response headers.**
+  - *Problem:* the app sent no hardening headers, so another site could frame it, and links out sent the full URL as the referrer.
+  - *Resolution:* `next.config.mjs` adds `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` to every route. A Content-Security-Policy is left for later.
+- **Folder loops.**
+  - *Problem:* a folder could be moved inside its own descendant, and the bookmark export recursed forever when a folder appeared below itself.
+  - *Root cause:* `moveFolder` only refused a folder becoming its own parent, and `renderFolder` had no visited set.
+  - *Resolution:* `moveFolder` walks up from the target and refuses the move if it meets the folder. The export renders each folder id once.
+- **Trash expiry.**
+  - *Problem:* notes older than 24 hours left the Trash drawer but stayed in IndexedDB until the next reload.
+  - *Root cause:* the one-minute timer only filtered React state.
+  - *Resolution:* the timer also reads the Trash through `getTrashNotes`, which deletes expired rows.
+- **Checked:**
+  - *Unit test:* a folder loop case in `tests/unit/audit-minor-fixes.test.mjs`.
+  - *Browser:* a page fetch on the dev server returned all three headers. The workspace and Saved loaded with no new console errors.
+
