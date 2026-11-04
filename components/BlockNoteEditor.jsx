@@ -881,6 +881,9 @@ function SlashMenu({ onSelect, onClose, filter = "", title = "Block type", searc
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+      } else if (filtered.length === 0) {
+        // Nothing to pick: leave arrows and Enter to the text field.
+        return;
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIdx((i) => (i + 1) % filtered.length);
@@ -1594,7 +1597,10 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
 
   const handleSave = () => {
     setIsEditing(false);
-    onUpdateBlock(block.id, { content: formula.trim() });
+    const next = formula.trim();
+    if (next !== (block.content ?? "")) {
+      onUpdateBlock(block.id, { content: next }, false, true);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -1688,6 +1694,13 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           }
         }
       }}
+      onBlur={(e) => {
+        // Clicking or tabbing away from the block commits the formula, so it
+        // is never left unsaved in an editor that stays open.
+        if (isEditing && !e.currentTarget.contains(e.relatedTarget)) {
+          handleSave();
+        }
+      }}
       id={`math_${block.id}`}
       className="group/mathblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 cursor-pointer outline-none focus:ring-1 focus:ring-duck-400/40"
     >
@@ -1740,6 +1753,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             </div>
             <textarea
               ref={textareaRef}
+              data-native-undo="true"
               value={formula}
               onChange={(e) => setFormula(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -1990,7 +2004,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         // Dedent 2 spaces if possible
         if (start >= 2 && val.substring(start - 2, start) === "  ") {
           const newVal = val.substring(0, start - 2) + val.substring(end);
-          onUpdateBlock(block.id, { content: newVal }, false);
+          onUpdateBlock(block.id, { content: newVal }, false, "coalesce");
           setTimeout(() => {
             if (textareaRef.current) {
               textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start - 2;
@@ -2000,7 +2014,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
       } else {
         // Indent 2 spaces
         const newVal = val.substring(0, start) + "  " + val.substring(end);
-        onUpdateBlock(block.id, { content: newVal }, false);
+        onUpdateBlock(block.id, { content: newVal }, false, "coalesce");
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
@@ -2015,7 +2029,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         e.preventDefault();
         const indent = match[1];
         const newVal = val.substring(0, start) + "\n" + indent + val.substring(start);
-        onUpdateBlock(block.id, { content: newVal }, false);
+        onUpdateBlock(block.id, { content: newVal }, false, "coalesce");
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 1 + indent.length;
@@ -2202,7 +2216,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             value={codeText}
             readOnly={isLocked}
             wrap="off"
-            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false)}
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false, "coalesce")}
             onKeyDown={handleKeyDown}
             onScroll={handleScroll}
             onClick={(e) => e.stopPropagation()}
@@ -2970,7 +2984,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                         value={head}
                         isHeader={true}
                         placeholder={`Header ${colIdx + 1}`}
-                        onChange={(val) => handleCellChange(0, colIdx, val, true)}
+                        onChange={(val) => handleCellChange(0, colIdx, val, true, "coalesce")}
                         onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
                         onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
                         onMathClick={handleMathClick}
@@ -3060,7 +3074,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                         value={row[colIdx] || ""}
                         isHeader={false}
                         placeholder="..."
-                        onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
+                        onChange={(val) => handleCellChange(rowIdx, colIdx, val, false, "coalesce")}
                         onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
                         onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
                         onMathClick={handleMathClick}
@@ -3674,7 +3688,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
             type="text"
             data-media-caption="true"
             value={block.content || ""}
-            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false, "coalesce")}
             onKeyDown={(e) => {
               e.stopPropagation();
               if (e.key === "Enter") {
@@ -4096,13 +4110,13 @@ function ColumnsBlock({
   const handleTitleChange = (idx, val) => {
     if (isLocked) return;
     const newCols = localCols.map((col, i) => (i === idx ? { ...col, title: val } : col));
-    updateAndPersist(newCols, currentCount, false);
+    updateAndPersist(newCols, currentCount, false, "coalesce");
   };
 
   const handleContentChange = (idx, val) => {
     if (isLocked) return;
     const newCols = localCols.map((col, i) => (i === idx ? { ...col, content: val } : col));
-    updateAndPersist(newCols, currentCount, false);
+    updateAndPersist(newCols, currentCount, false, "coalesce");
   };
 
   const handleMathClick = (mathPill, colIdx, fieldType, targetEl) => {
@@ -4348,10 +4362,15 @@ const EditorBlock = memo(function EditorBlock({
     const text = getBlockTextFromDOM(contentRef.current);
     onChange(block.id, text);
 
+    // Like Notion, "/" only opens the menu at the start of the line or after
+    // whitespace (so "km/h", "and/or" and URLs stay plain text), and the menu
+    // closes once the query matches nothing so Enter makes a new line again.
     const lastSlashIndex = text.lastIndexOf("/");
-    if (lastSlashIndex !== -1) {
+    const slashStartsCommand =
+      lastSlashIndex === 0 || (lastSlashIndex > 0 && /\s/.test(text[lastSlashIndex - 1]));
+    if (slashStartsCommand) {
       const filterText = text.slice(lastSlashIndex + 1);
-      if (!/\s/.test(filterText)) {
+      if (!/\s/.test(filterText) && (filterText === "" || rankSlashItems(SLASH_COMMAND_ITEMS, filterText).length > 0)) {
         setSlashOpen(true);
         setSlashFilter(filterText);
         return;
@@ -5087,7 +5106,7 @@ const EditorBlock = memo(function EditorBlock({
             type="checkbox"
             disabled={isLocked}
             checked={Boolean(block.checked)}
-            onChange={(e) => onUpdateBlock(block.id, { checked: e.target.checked })}
+            onChange={(e) => onUpdateBlock(block.id, { checked: e.target.checked }, false, true)}
             className={`mt-1 h-4 w-4 rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0 ${
               isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
@@ -5115,7 +5134,7 @@ const EditorBlock = memo(function EditorBlock({
             <span className="hidden print:inline-block font-bold text-xs text-amber-600 shrink-0 ml-1 mr-1.5 mt-0.5">▼</span>
             <button
               type="button"
-              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
+              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false }, false, true)}
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden cursor-pointer mt-0.5 select-none"
               title={block.open === false ? "Expand Section" : "Collapse Section"}
             >
@@ -5136,7 +5155,7 @@ const EditorBlock = memo(function EditorBlock({
             />
             <button
               type="button"
-              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
+              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false }, false, true)}
               className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-ink-500 hover:text-duck-300 px-2 py-0.5 rounded border border-ink-800 hover:border-duck-500/40 bg-ink-950 transition-colors print:hidden cursor-pointer select-none"
               title={block.open === false ? "Click to expand" : "Click to collapse"}
             >
@@ -5153,7 +5172,7 @@ const EditorBlock = memo(function EditorBlock({
                 value={block.details ?? block.toggleContent ?? ""}
                 readOnly={isLocked}
                 onChange={(e) => {
-                  onUpdateBlock(block.id, { details: e.target.value });
+                  onUpdateBlock(block.id, { details: e.target.value }, false, "coalesce");
                   e.target.style.height = "auto";
                   e.target.style.height = `${Math.max(48, e.target.scrollHeight)}px`;
                 }}
@@ -5244,7 +5263,7 @@ const EditorBlock = memo(function EditorBlock({
                       key={icon}
                       type="button"
                       onClick={() => {
-                        onUpdateBlock(block.id, { calloutIcon: icon });
+                        onUpdateBlock(block.id, { calloutIcon: icon }, false, true);
                         setShowIconPicker(false);
                       }}
                       className="p-1 text-base hover:bg-ink-800 rounded cursor-pointer"
@@ -6533,14 +6552,33 @@ export default function BlockNoteEditor({
 
       if (!inEditor) return;
 
+      // Plain inputs (note title, URL and caption fields) and the math formula
+      // box keep the browser's own text undo instead of undoing a block edit.
+      if (activeEl && (activeEl.tagName === "INPUT" || activeEl.dataset?.nativeUndo === "true")) return;
+
       const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey;
       const isRedo =
         ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") ||
         ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey);
 
+      // Table cells and column fields skip their DOM sync while focused, so
+      // blur them before the undo lands and put the caret back afterwards.
+      const restoreCellId =
+        (isUndo || isRedo) && activeEl?.isContentEditable && /^(tbl|col)_/.test(activeEl.id || "")
+          ? activeEl.id
+          : null;
+      const restoreCellFocus = () => {
+        if (!restoreCellId) return false;
+        const cell = document.getElementById(restoreCellId);
+        if (!cell) return false;
+        setCaretToEnd(cell);
+        return true;
+      };
+
       if (isUndo) {
         if (pastBlocksRef.current.length > 0) {
           e.preventDefault();
+          if (restoreCellId) activeEl.blur();
           const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
           const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
           const clonedPrevious = JSON.parse(JSON.stringify(previous));
@@ -6582,14 +6620,22 @@ export default function BlockNoteEditor({
           if (targetBlock) {
             selectedIdRef.current = targetBlock.id;
             setSelectedId(targetBlock.id);
-            requestAnimationFrame(() => {
-              focusBlock(targetBlock, "end");
-            });
+            if (restoreCellId) {
+              // Wait for the table/columns block to re-render the cell first.
+              setTimeout(() => {
+                if (!restoreCellFocus()) focusBlock(targetBlock, "end");
+              }, 60);
+            } else {
+              requestAnimationFrame(() => {
+                focusBlock(targetBlock, "end");
+              });
+            }
           }
         }
       } else if (isRedo) {
         if (futureBlocksRef.current.length > 0) {
           e.preventDefault();
+          if (restoreCellId) activeEl.blur();
           const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
           const next = futureBlocksRef.current[0];
           const clonedNext = JSON.parse(JSON.stringify(next));
@@ -6628,9 +6674,16 @@ export default function BlockNoteEditor({
           if (targetBlock) {
             selectedIdRef.current = targetBlock.id;
             setSelectedId(targetBlock.id);
-            requestAnimationFrame(() => {
-              focusBlock(targetBlock, "end");
-            });
+            if (restoreCellId) {
+              // Wait for the table/columns block to re-render the cell first.
+              setTimeout(() => {
+                if (!restoreCellFocus()) focusBlock(targetBlock, "end");
+              }, 60);
+            } else {
+              requestAnimationFrame(() => {
+                focusBlock(targetBlock, "end");
+              });
+            }
           }
         }
       }
@@ -6698,39 +6751,15 @@ export default function BlockNoteEditor({
           return;
         }
 
-        // Enter on Selected Blocks
+        // Enter on Selected Blocks: like Notion, start editing the (last)
+        // selected block with the caret at its end. Nothing is deleted.
         if (e.key === "Enter" && !isInput) {
           e.preventDefault();
-          pushHistorySnapshot();
-          setBlocks((prev) => {
-            let lastSelectedIdx = -1;
-            prev.forEach((b, i) => {
-              if (effectiveIds.has(b.id)) lastSelectedIdx = i;
-            });
-            
-            let insertIdxInNext = 0;
-            for (let i = 0; i <= lastSelectedIdx; i++) {
-              if (!effectiveIds.has(prev[i].id)) insertIdxInNext++;
-            }
-
-            const next = prev.filter((b) => !effectiveIds.has(b.id));
-            const newBlock = createBlock("text", "");
-            next.splice(insertIdxInNext, 0, newBlock);
-
-            blocksRef.current = next;
-            triggerDebouncedSave({ blocks: next });
-
-            selectedIdRef.current = newBlock.id;
-            setSelectedId(newBlock.id);
-
-            setTimeout(() => {
-              const el = blockRefs.current[newBlock.id]?.current;
-              el?.focus();
-            }, 50);
-            return next;
-          });
+          const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
+          const target = selected[selected.length - 1];
           setSelectedBlockIds(new Set());
           selectedBlockIdsRef.current = new Set();
+          if (target) focusBlock(target, "end");
           return;
         }
 
@@ -6844,7 +6873,13 @@ export default function BlockNoteEditor({
 
   const handleUpdateBlock = useCallback(
     (id, patch, shouldSaveNote = false, recordHistory = false) => {
-      if (recordHistory) {
+      // recordHistory: true = its own undo step (checkbox, toggle, icon);
+      // "coalesce" = typing, grouped into one step like handleChange does.
+      if (recordHistory === "coalesce") {
+        if (Date.now() - lastHistoryPush.current > 600) {
+          pushHistorySnapshot();
+        }
+      } else if (recordHistory) {
         pushHistorySnapshot();
       }
       setBlocks((prev) => {
@@ -7068,6 +7103,26 @@ export default function BlockNoteEditor({
       const html = e.clipboardData?.getData("text/html");
       const text = e.clipboardData?.getData("text/plain") || "";
       if (!html && !text) return;
+
+      // Table cells and column fields keep their own text: paste stays inside
+      // the field as plain text and goes through its normal input handler, so
+      // it is saved instead of being split into new blocks or lost on blur.
+      const fieldEl = e.target?.closest?.('[contenteditable="true"][id^="tbl_"], [contenteditable="true"][id^="col_"]');
+      if (fieldEl) {
+        e.preventDefault();
+        if (isLockedRef.current) return;
+        const clean = text.replace(/\r\n?/g, "\n");
+        const multiLine = /_content$/.test(fieldEl.id);
+        if (multiLine) {
+          clean.split("\n").forEach((line, i) => {
+            if (i > 0) document.execCommand("insertLineBreak");
+            if (line) document.execCommand("insertText", false, line);
+          });
+        } else {
+          document.execCommand("insertText", false, clean.replace(/\s*\n\s*/g, " ").trim());
+        }
+        return;
+      }
 
       // 1. Check if clipboard contains structured/rich HTML (from Google Docs, Web pages, etc.)
       let parsedBlocks = [];
