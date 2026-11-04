@@ -6303,7 +6303,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [clickToAppend, focusBlock, handleGlobalMouseMove, triggerDebouncedSave]
+    [commitBlocks, clickToAppend, focusBlock, handleGlobalMouseMove, triggerDebouncedSave]
   );
 
   const handleEditorMouseDown = (e) => {
@@ -6522,7 +6522,7 @@ export default function BlockNoteEditor({
         return next;
       });
     },
-    [pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const handleTitleChange = useCallback(
@@ -6789,7 +6789,7 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages, focusBlock, pushHistorySnapshot]);
+  }, [commitBlocks, selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages, focusBlock, pushHistorySnapshot]);
 
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
@@ -6920,7 +6920,7 @@ export default function BlockNoteEditor({
         return next;
       });
     },
-    [performSave, pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, performSave, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const recordHistorySnapshot = useCallback(() => {
@@ -7076,7 +7076,7 @@ export default function BlockNoteEditor({
         }, 30);
       });
     },
-    [focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const handleAddBefore = useCallback((beforeId, content = "", typeToUse = "text", extraProps = {}, focusTarget = "original") => {
@@ -7123,7 +7123,7 @@ export default function BlockNoteEditor({
         }, 20);
       });
     }
-  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
+  }, [commitBlocks, focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
 
   /**
    * Tab / Shift+Tab: nest or un-nest a block together with its children. A
@@ -7356,7 +7356,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [selectedId, handleChange, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, selectedId, handleChange, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const headings = useMemo(() => {
