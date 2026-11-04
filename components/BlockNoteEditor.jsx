@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { flushSync } from "react-dom";
 import { useOnClickOutside } from "usehooks-ts";
 import { Lock, Sparkles, AlertCircle } from "lucide-react";
 import "katex/dist/katex.min.css";
@@ -11,8 +12,18 @@ import {
   tokenizeCode,
 } from "@/lib/syntaxHighlighter";
 import { reformatNoteContent } from "@/lib/aiService";
-import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow } from "@/lib/exportImport";
-import { formatNumberMarker, rankSlashItems } from "@/lib/blocks";
+import { getNormalizedTableData, getNormalizedColumnsData, parseMarkdownTableRow, numberedIndentLevel, foldToggleChildren } from "@/lib/exportImport";
+import {
+  formatNumberMarker,
+  matchSlashItems,
+  MAX_BLOCK_LEVEL,
+  blockLevel,
+  getSubtreeEnd,
+  getHiddenBlockIds,
+  withDescendantIds,
+  shiftBlockLevels,
+  migrateToggleDetails,
+} from "@/lib/blocks";
 import { findNoteAcrossSpaces, hasPageBlockFor, diffRemovedPageIds } from "@/lib/noteHierarchy";
 import { isExternalPropChange, rememberSent } from "@/lib/noteEcho";
 
@@ -139,6 +150,17 @@ function createBlock(type = "text", content = "", extra = {}) {
   return { id: extra.id || makeId(), type, content, ...extra };
 }
 
+// New tables and column layouts start empty, like Notion: the "Header 1" /
+// "Column 1 Title" hints are placeholders, not text you have to delete.
+function blankTableData() {
+  const norm = getNormalizedTableData(null, "");
+  return { ...norm, headers: norm.headers.map(() => "") };
+}
+
+function blankColumnsData(count = 2) {
+  return getNormalizedColumnsData(null, "", count).map((c) => ({ ...c, title: "" }));
+}
+
 // Matches how blocksToMarkdown writes a callout: "> <icon> <text>" or standard emoji/icon
 const CALLOUT_QUOTE_RE = /^>\s*(\p{Extended_Pictographic}️?)\s*(.*)$/u;
 const OBSIDIAN_CALLOUT_RE = /^>\s*\[!(NOTE|INFO|TIP|WARNING|IMPORTANT|CAUTION|DANGER|QUESTION|HELP|FAQ|SUMMARY|SUCCESS)\](?:\s+(.*))?$/i;
@@ -175,10 +197,15 @@ function blockToMarkdown(block) {
       const indent = "  ".repeat(Math.max(0, Math.min(4, Number(block.level) || 0)));
       return `${indent}- ${content}`;
     }
-    case "number":
-      return `1. ${content}`;
-    case "todo":
-      return block.checked ? `[x] ${content}` : `[ ] ${content}`;
+    case "number": {
+      // Nested items are indented three spaces per level ("1. " is 3 wide).
+      const indent = "   ".repeat(Math.max(0, Math.min(4, Number(block.level) || 0)));
+      return `${indent}1. ${content}`;
+    }
+    case "todo": {
+      const indent = "  ".repeat(Math.max(0, Math.min(4, Number(block.level) || 0)));
+      return block.checked ? `${indent}- [x] ${content}` : `${indent}- [ ] ${content}`;
+    }
     case "toggle": {
       const details = block.details ?? block.toggleContent ?? "";
       return details ? `<details>\n<summary>${content}</summary>\n${details}\n</details>` : `<details>\n<summary>${content}</summary>\n</details>`;
@@ -711,8 +738,12 @@ function parseMarkdownToBlocks(rawText) {
     const taskMatch = trimmed.match(/^[-*+]?\s*\[([ xX])\]\s*(.*)$/);
 
     if (taskMatch) {
+      const todoLevel = Math.min(4, Math.floor((line.match(/^(\s*)/)[1] || "").replace(/\t/g, "  ").length / 2));
       resultBlocks.push(
-        createBlock("todo", taskMatch[2].trim(), { checked: taskMatch[1].toLowerCase() === "x" })
+        createBlock("todo", taskMatch[2].trim(), {
+          checked: taskMatch[1].toLowerCase() === "x",
+          ...(todoLevel > 0 ? { level: todoLevel } : {}),
+        })
       );
       continue;
     }
@@ -742,7 +773,8 @@ function parseMarkdownToBlocks(rawText) {
 
     // 8. Numbered list items
     else if (/^\d+\.\s/.test(trimmed)) {
-      resultBlocks.push(createBlock("number", trimmed.replace(/^\d+\.\s/, "").trim()));
+      const numberLevel = numberedIndentLevel((line.match(/^(\s*)/)[1] || "").replace(/\t/g, "  ").length);
+      resultBlocks.push(createBlock("number", trimmed.replace(/^\d+\.\s/, "").trim(), numberLevel > 0 ? { level: numberLevel } : {}));
     }
     // 9. Obsidian / GitHub Style Callouts
     else if (OBSIDIAN_CALLOUT_RE.test(line)) {
@@ -835,19 +867,19 @@ const SLASH_COMMAND_ITEMS = [
   { type: "columns", columnCount: 3, label: "3 Columns", icon: "⫽3", description: "3 side-by-side equal columns", keywords: ["3", "3 columns", "3 cols", "three", "column", "columns", "split", "compare", "grid", "col"] },
   { type: "columns", columnCount: 4, label: "4 Columns", icon: "⫽4", description: "4 side-by-side equal columns", keywords: ["4", "4 columns", "4 cols", "four", "column", "columns", "split", "compare", "grid", "col"] },
   { type: "columns", columnCount: 5, label: "5 Columns", icon: "⫽5", description: "5 side-by-side equal columns", keywords: ["5", "5 columns", "5 cols", "five", "column", "columns", "split", "compare", "grid", "col"] },
-  { type: "bullet", label: "Bullet List", icon: "•", description: "Bulleted list item", keywords: ["bullet", "list", "ul"] },
-  { type: "number", label: "Numbered List", icon: "1.", description: "Numbered list item", keywords: ["number", "numbered", "list", "ol"] },
-  { type: "todo", label: "To-Do List", icon: "☑", description: "Track tasks with a checkbox", keywords: ["todo", "task", "checkbox", "check"] },
+  { type: "bullet", label: "Bullet List", icon: "•", description: "Bulleted list item", keywords: ["bullet", "list", "ul", "bulleted list", "bullets"] },
+  { type: "number", label: "Numbered List", icon: "1.", description: "Numbered list item", keywords: ["number", "numbered", "list", "ol", "numbered list", "ordered list"] },
+  { type: "todo", label: "To-Do List", icon: "☑", description: "Track tasks with a checkbox", keywords: ["todo", "to do", "to-do", "to do list", "task", "checkbox", "check"] },
   { type: "toggle", label: "Toggle List", icon: "▶", description: "Collapsible text container", keywords: ["toggle", "collapse", "dropdown", "details"] },
   { type: "callout", label: "Callout Box", icon: "💡", description: "Highlighted callout frame", keywords: ["callout", "note", "box", "alert", "tip"] },
   { type: "table", label: "Table", icon: "▦", description: "Insert an interactive grid table", keywords: ["table", "grid", "matrix", "rows", "cols"] },
   { type: "quote", label: "Quote", icon: "“", description: "Capture quotes & citations", keywords: ["quote", "blockquote", "citation"] },
-  { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer", keywords: ["math", "latex", "equation", "formula", "katex"] },
+  { type: "math", label: "Math Equation", icon: "∑", description: "LaTeX formula block & KaTeX renderer", keywords: ["math", "latex", "equation", "block equation", "formula", "katex"] },
   { type: "inlinemath", label: "Inline Equation", icon: "ƒ(x)", description: "Insert inline LaTeX formula ($x$)", keywords: ["inline", "inlinemath", "fx", "math", "formula"] },
   { type: "divider", label: "Divider", icon: "―", description: "Visual horizontal line", keywords: ["divider", "hr", "line", "separator"] },
   { type: "site", label: "Site Bookmark Embed", icon: "🌐", description: "Clickable website card", keywords: ["site", "bookmark", "link", "url", "web", "website"] },
   { type: "media", label: "Image / YouTube Video", icon: "🎬", description: "Embed YouTube video or upload image", keywords: ["media", "image", "photo", "picture", "youtube", "yt", "video", "embed"] },
-  { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax", keywords: ["code", "snippet", "javascript", "python", "syntax"] },
+  { type: "code", label: "Code Snippet", icon: "</>", description: "Code block with syntax", keywords: ["code", "code block", "snippet", "javascript", "python", "syntax"] },
 ];
 
 // ─── Slash-Command Menu ─────────────────────────────────────────────
@@ -869,7 +901,7 @@ function SlashMenu({ onSelect, onClose, filter = "", title = "Block type", searc
   const filtered = useMemo(() => {
     const q = effectiveFilter.trim().toLowerCase();
     if (!q) return SLASH_COMMAND_ITEMS;
-    return rankSlashItems(SLASH_COMMAND_ITEMS, q);
+    return matchSlashItems(SLASH_COMMAND_ITEMS, q);
   }, [effectiveFilter]);
 
   useEffect(() => {
@@ -881,6 +913,9 @@ function SlashMenu({ onSelect, onClose, filter = "", title = "Block type", searc
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+      } else if (filtered.length === 0) {
+        // Nothing to pick: leave arrows and Enter to the text field.
+        return;
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIdx((i) => (i + 1) % filtered.length);
@@ -1594,7 +1629,10 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
 
   const handleSave = () => {
     setIsEditing(false);
-    onUpdateBlock(block.id, { content: formula.trim() });
+    const next = formula.trim();
+    if (next !== (block.content ?? "")) {
+      onUpdateBlock(block.id, { content: next }, false, true);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -1688,6 +1726,20 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           }
         }
       }}
+      onFocus={(e) => {
+        // An empty equation opens its editor as soon as it is focused (e.g.
+        // right after "/math"), like Notion.
+        if (e.target === e.currentTarget && !isLocked && !isEditing && !(block.content ?? "").trim()) {
+          setIsEditing(true);
+        }
+      }}
+      onBlur={(e) => {
+        // Clicking or tabbing away from the block commits the formula, so it
+        // is never left unsaved in an editor that stays open.
+        if (isEditing && !e.currentTarget.contains(e.relatedTarget)) {
+          handleSave();
+        }
+      }}
       id={`math_${block.id}`}
       className="group/mathblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 cursor-pointer outline-none focus:ring-1 focus:ring-duck-400/40"
     >
@@ -1714,7 +1766,11 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           }}
           className={`flex items-center text-duck-300 ${isOverflowing ? "min-w-max pr-6" : "max-w-full justify-center"}`}
         >
-          <KaTeXRender formula={formula || "E = mc^2"} displayMode={true} />
+          {formula ? (
+            <KaTeXRender formula={formula} displayMode={true} />
+          ) : (
+            <span className="text-sm italic text-ink-500">Add a TeX equation…</span>
+          )}
         </div>
 
         {/* Scroll hint indicator when overflowing */}
@@ -1740,6 +1796,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             </div>
             <textarea
               ref={textareaRef}
+              data-native-undo="true"
               value={formula}
               onChange={(e) => setFormula(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -1990,7 +2047,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         // Dedent 2 spaces if possible
         if (start >= 2 && val.substring(start - 2, start) === "  ") {
           const newVal = val.substring(0, start - 2) + val.substring(end);
-          onUpdateBlock(block.id, { content: newVal }, false);
+          onUpdateBlock(block.id, { content: newVal }, false, "coalesce");
           setTimeout(() => {
             if (textareaRef.current) {
               textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start - 2;
@@ -2000,7 +2057,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
       } else {
         // Indent 2 spaces
         const newVal = val.substring(0, start) + "  " + val.substring(end);
-        onUpdateBlock(block.id, { content: newVal }, false);
+        onUpdateBlock(block.id, { content: newVal }, false, "coalesce");
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
@@ -2015,7 +2072,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         e.preventDefault();
         const indent = match[1];
         const newVal = val.substring(0, start) + "\n" + indent + val.substring(start);
-        onUpdateBlock(block.id, { content: newVal }, false);
+        onUpdateBlock(block.id, { content: newVal }, false, "coalesce");
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 1 + indent.length;
@@ -2202,7 +2259,7 @@ function CodeBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             value={codeText}
             readOnly={isLocked}
             wrap="off"
-            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false)}
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false, "coalesce")}
             onKeyDown={handleKeyDown}
             onScroll={handleScroll}
             onClick={(e) => e.stopPropagation()}
@@ -2613,8 +2670,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
 
   const addColumn = () => {
     if (isLocked) return;
-    const colNumber = tableData.headers.length + 1;
-    const newHeaders = [...tableData.headers, `Column ${colNumber}`];
+    const newHeaders = [...tableData.headers, ""];
     const newRows = tableData.rows.map((r) => (Array.isArray(r) ? [...r, ""] : [""]));
     updateAndSave({ ...tableData, headers: newHeaders, rows: newRows }, true);
   };
@@ -2970,7 +3026,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                         value={head}
                         isHeader={true}
                         placeholder={`Header ${colIdx + 1}`}
-                        onChange={(val) => handleCellChange(0, colIdx, val, true)}
+                        onChange={(val) => handleCellChange(0, colIdx, val, true, "coalesce")}
                         onKeyDown={(e) => handleCellKeyDown(e, 0, colIdx, true)}
                         onDelete={tableData.headers.length > 1 ? () => removeColumn(colIdx) : null}
                         onMathClick={handleMathClick}
@@ -3060,7 +3116,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                         value={row[colIdx] || ""}
                         isHeader={false}
                         placeholder="..."
-                        onChange={(val) => handleCellChange(rowIdx, colIdx, val, false)}
+                        onChange={(val) => handleCellChange(rowIdx, colIdx, val, false, "coalesce")}
                         onKeyDown={(e) => handleCellKeyDown(e, rowIdx, colIdx, false)}
                         onDelete={colIdx === tableData.headers.length - 1 && tableData.rows.length > 1 ? () => removeRow(rowIdx) : null}
                         onMathClick={handleMathClick}
@@ -3089,7 +3145,9 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
   const handleEmbed = (e) => {
     e?.preventDefault?.();
     if (urlInput.trim()) {
-      onUpdateBlock(block.id, { url: urlInput.trim() }, true);
+      onUpdateBlock(block.id, { url: urlInput.trim() }, true, true);
+      // The URL field goes away once embedded: keep focus on the card.
+      setTimeout(() => document.getElementById(`site_${block.id}`)?.focus(), 30);
     }
   };
 
@@ -3391,7 +3449,9 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
       setMediaError(false);
       const detectedYt = getYouTubeEmbedInfo(rawUrl);
       const chosenKind = detectedYt ? "youtube" : mediaKind === "youtube" ? "video" : mediaKind;
-      onUpdateBlock(block.id, { url: rawUrl, mediaKind: chosenKind }, true);
+      onUpdateBlock(block.id, { url: rawUrl, mediaKind: chosenKind }, true, true);
+      // The URL field goes away once embedded: keep focus on the card.
+      setTimeout(() => document.getElementById(`media_${block.id}`)?.focus(), 30);
     }
   };
 
@@ -3412,8 +3472,10 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
             fileName: file.name,
             content: block.content || file.name,
           },
+          true,
           true
         );
+        setTimeout(() => document.getElementById(`media_${block.id}`)?.focus(), 30);
       }
     };
     reader.readAsDataURL(file);
@@ -3674,7 +3736,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
             type="text"
             data-media-caption="true"
             value={block.content || ""}
-            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value })}
+            onChange={(e) => onUpdateBlock(block.id, { content: e.target.value }, false, "coalesce")}
             onKeyDown={(e) => {
               e.stopPropagation();
               if (e.key === "Enter") {
@@ -4096,13 +4158,13 @@ function ColumnsBlock({
   const handleTitleChange = (idx, val) => {
     if (isLocked) return;
     const newCols = localCols.map((col, i) => (i === idx ? { ...col, title: val } : col));
-    updateAndPersist(newCols, currentCount, false);
+    updateAndPersist(newCols, currentCount, false, "coalesce");
   };
 
   const handleContentChange = (idx, val) => {
     if (isLocked) return;
     const newCols = localCols.map((col, i) => (i === idx ? { ...col, content: val } : col));
-    updateAndPersist(newCols, currentCount, false);
+    updateAndPersist(newCols, currentCount, false, "coalesce");
   };
 
   const handleMathClick = (mathPill, colIdx, fieldType, targetEl) => {
@@ -4299,6 +4361,9 @@ const EditorBlock = memo(function EditorBlock({
   onSelectHeading,
   onExitDown,
   onExitUp,
+  onIndent,
+  hasChildren = false,
+  isHidden = false,
 }) {
   const contentRef = useRef(null);
   const [slashOpen, setSlashOpen] = useState(false);
@@ -4314,17 +4379,6 @@ const EditorBlock = memo(function EditorBlock({
   const [selectedMathNode, setSelectedMathNode] = useState(null);
   const [popoverFormula, setPopoverFormula] = useState("");
   const [mathPopoverOpen, setMathPopoverOpen] = useState(false);
-
-  const toggleTextareaRef = useRef(null);
-  const toggleDetailsVal = block.details ?? block.toggleContent ?? "";
-
-  useEffect(() => {
-    if (block.type === "toggle" && toggleTextareaRef.current) {
-      const el = toggleTextareaRef.current;
-      el.style.height = "auto";
-      el.style.height = `${Math.max(48, el.scrollHeight)}px`;
-    }
-  }, [block.type, block.open, toggleDetailsVal]);
 
   useEffect(() => {
     if (registerRef && contentRef.current) {
@@ -4348,10 +4402,16 @@ const EditorBlock = memo(function EditorBlock({
     const text = getBlockTextFromDOM(contentRef.current);
     onChange(block.id, text);
 
+    // Like Notion, "/" only opens the menu at the start of the line or after
+    // whitespace (so "km/h", "and/or" and URLs stay plain text), and the menu
+    // closes once the query matches nothing so Enter makes a new line again.
     const lastSlashIndex = text.lastIndexOf("/");
-    if (lastSlashIndex !== -1) {
+    const slashStartsCommand =
+      lastSlashIndex === 0 || (lastSlashIndex > 0 && /\s/.test(text[lastSlashIndex - 1]));
+    if (slashStartsCommand) {
       const filterText = text.slice(lastSlashIndex + 1);
-      if (!/\s/.test(filterText)) {
+      // Spaces are allowed ("/2 columns", "/to do") while something still matches.
+      if (!/^\s/.test(filterText) && (filterText === "" || matchSlashItems(SLASH_COMMAND_ITEMS, filterText).length > 0)) {
         setSlashOpen(true);
         setSlashFilter(filterText);
         return;
@@ -4372,7 +4432,10 @@ const EditorBlock = memo(function EditorBlock({
       { prefix: "[] ", type: "todo", checked: false },
       { prefix: "[x] ", type: "todo", checked: true },
       { prefix: "[X] ", type: "todo", checked: true },
-      { prefix: "> ", type: "quote" },
+      // Notion: "> " starts a toggle, '" ' a quote.
+      { prefix: "> ", type: "toggle" },
+      { prefix: '" ', type: "quote" },
+      { prefix: "\u201C ", type: "quote" },
       { prefix: "💡 ", type: "callout" },
       { prefix: ">! ", type: "callout" },
       { prefix: "---", type: "divider" },
@@ -4448,11 +4511,29 @@ const EditorBlock = memo(function EditorBlock({
 
       onChange(block.id, newText);
       onUpdateBlock(block.id, { content: newText }, true);
-      if (contentRef.current) {
-        setBlockDOMFromText(contentRef.current, newText);
-      }
       setSlashOpen(false);
       setSlashFilter("");
+      if (contentRef.current) {
+        setBlockDOMFromText(contentRef.current, newText);
+        // Like Notion: put the caret right after the new formula and open its
+        // editor so the formula can be typed straight away.
+        const textBefore = lastSlashIndex !== -1 ? text.slice(0, lastSlashIndex) : text + " ";
+        const formulasBefore = (textBefore.match(/\$[^$\n]+\$/g) || []).length;
+        const mathNode = contentRef.current.querySelectorAll(".katex-inline-node")[formulasBefore];
+        if (mathNode) {
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.setStartAfter(mathNode);
+          range.collapse(true);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+          setSelectedMathNode(mathNode);
+          setPopoverFormula("f(x)");
+          setMathPopoverOpen(true);
+        } else {
+          setCaretToEnd(contentRef.current);
+        }
+      }
       return;
     }
 
@@ -4467,7 +4548,7 @@ const EditorBlock = memo(function EditorBlock({
 
       onUpdateBlock?.(block.id, {
         columnCount: initialCount,
-        columnsData: getNormalizedColumnsData(null, "", initialCount),
+        columnsData: blankColumnsData(initialCount),
       });
     }
 
@@ -4478,7 +4559,7 @@ const EditorBlock = memo(function EditorBlock({
       }
       onChangeType(block.id, type, {
         columnCount: initialCount,
-        columnsData: getNormalizedColumnsData(null, "", initialCount),
+        columnsData: blankColumnsData(initialCount),
       });
     } else {
       const textBefore = text.slice(0, lastSlashIndex).trimEnd();
@@ -4492,7 +4573,7 @@ const EditorBlock = memo(function EditorBlock({
       if (onAddAfter) {
         onAddAfter(block.id, "", type, {
           columnCount: initialCount,
-          columnsData: getNormalizedColumnsData(null, "", initialCount),
+          columnsData: blankColumnsData(initialCount),
         });
         if (textAfter) {
           setTimeout(() => {
@@ -4530,7 +4611,7 @@ const EditorBlock = memo(function EditorBlock({
     const count = extra?.columnCount || 2;
     const extraProps =
       type === "columns"
-        ? { columnCount: count, columnsData: getNormalizedColumnsData(null, "", count) }
+        ? { columnCount: count, columnsData: blankColumnsData(count) }
         : {};
 
     if (isEmptyText && type !== "text") {
@@ -4640,70 +4721,50 @@ const EditorBlock = memo(function EditorBlock({
       }
     }
 
+    // Ctrl+A once selects this block's text; pressing it again (or on an
+    // empty block) selects every block, like Notion.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a" && contentRef.current) {
+      const el = contentRef.current;
+      const sel = window.getSelection();
+      const whole = document.createRange();
+      whole.selectNodeContents(el);
+      const isEmpty = !cleanZeroWidth(el.textContent || "").trim();
+      const allSelected =
+        sel && sel.rangeCount > 0 && !sel.isCollapsed && sel.getRangeAt(0).toString() === whole.toString();
+      if (isEmpty || allSelected) {
+        e.preventDefault();
+        sel?.removeAllRanges();
+        el.blur();
+        setSelectedBlockIds?.(new Set(allBlocks.map((b) => b.id)));
+        return;
+      }
+    }
+
     handleInlineBoundaryKeyDown(e);
 
     if (slashOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter")) {
       return;
     }
 
-    // Sub-bullet Tab / Shift+Tab indentation & unindentation for bullet & numbered lists
-    if (e.key === "Tab" && (block.type === "bullet" || block.type === "number")) {
+    // Tab / Shift+Tab nest or un-nest any block (with its children), like
+    // Notion. Shift+Tab on an empty top-level list item turns it into text.
+    if (e.key === "Tab") {
       e.preventDefault();
-      const currentLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
       const currentText = contentRef.current ? getBlockTextFromDOM(contentRef.current) : (block.content || "");
-      if (!e.shiftKey) {
-        if (currentLevel < 4) {
-          onUpdateBlock?.(block.id, { level: currentLevel + 1, content: currentText }, false, true);
+      if (currentText !== (block.content || "")) onChange(block.id, currentText);
+      if (e.shiftKey && blockLevel(block) === 0) {
+        if ((block.type === "bullet" || block.type === "number") && !currentText.trim()) {
+          onChangeType?.(block.id, "text");
         }
-      } else {
-        if (currentLevel > 0) {
-          onUpdateBlock?.(block.id, { level: currentLevel - 1, content: currentText }, false, true);
-        } else {
-          if (!currentText.trim()) {
-            onChangeType?.(block.id, "text");
-          }
-        }
+        return;
       }
-      return;
-    }
-
-    // BUG-TAB-01: Soft tab indentation / outdent without losing focus
-    if (e.key === "Tab" && block.type !== "code" && block.type !== "table" && block.type !== "bullet" && block.type !== "number") {
-      e.preventDefault();
-      const sel = window.getSelection();
-      if (!sel || !sel.rangeCount || !contentRef.current) return;
-      const range = sel.getRangeAt(0);
-
-      if (!e.shiftKey) {
-        const textNode = document.createTextNode("  ");
-        range.deleteContents();
-        range.insertNode(textNode);
-        range.setStartAfter(textNode);
-        range.setEndAfter(textNode);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        const updated = getBlockTextFromDOM(contentRef.current);
-        onChange(block.id, updated);
-      } else {
-        const fullText = getBlockTextFromDOM(contentRef.current);
-        if (fullText.startsWith("  ")) {
-          const newText = fullText.slice(2);
-          setBlockDOMFromText(contentRef.current, newText);
-          setCaretToStart(contentRef.current);
-          onChange(block.id, newText);
-        } else if (fullText.startsWith(" ")) {
-          const newText = fullText.slice(1);
-          setBlockDOMFromText(contentRef.current, newText);
-          setCaretToStart(contentRef.current);
-          onChange(block.id, newText);
-        }
-      }
+      onIndent?.(block.id, e.shiftKey ? -1 : 1);
       return;
     }
 
     if (e.key === "Enter" && !e.shiftKey && block.type !== "code") {
       e.preventDefault();
-      
+
       const sel = window.getSelection();
       let textBefore = block.content || "";
       let textAfter = "";
@@ -4714,6 +4775,7 @@ const EditorBlock = memo(function EditorBlock({
         textBefore = split.textBefore;
         textAfter = split.textAfter;
       }
+      const level = blockLevel(block);
 
       // Notion behavior: Pressing enter at the start of a heading block keeps heading intact,
       // shifts heading and all blocks below down, and inserts a new empty block above
@@ -4724,7 +4786,7 @@ const EditorBlock = memo(function EditorBlock({
             onChangeType?.(block.id, "text");
             return;
           }
-          onAddBefore?.(block.id, "", "text", {}, "original");
+          onAddBefore?.(block.id, "", "text", level > 0 ? { level } : {}, "original");
           return;
         }
       }
@@ -4735,34 +4797,34 @@ const EditorBlock = memo(function EditorBlock({
         const isListAtStart = cleanZeroWidth(textBefore).length === 0 || (contentRef.current && isCaretAtLogicalStart(contentRef.current));
         if (isListAtStart) {
           if (cleanZeroWidth(textAfter).length > 0) {
-            onAddBefore?.(block.id, "", block.type, { level: block.level || 0 }, "original");
+            onAddBefore?.(block.id, "", block.type, { level }, "original");
             return;
           }
         }
       }
 
-      // Empty list / callout / quote block exit:
-      if (["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type) && !textBefore.trim() && !textAfter.trim()) {
-        if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
-          onUpdateBlock?.(block.id, { level: (block.level || 0) - 1 }, false, true);
-          return;
-        }
+      const isEmpty = !textBefore.trim() && !textAfter.trim();
+
+      // Empty nested block: step out one level first (Notion).
+      if (isEmpty && level > 0 && ["text", "bullet", "number"].includes(block.type)) {
+        onIndent?.(block.id, -1);
+        return;
+      }
+
+      // Empty list / callout / quote / toggle: turn back into plain text.
+      if (isEmpty && ["bullet", "number", "todo", "toggle", "callout", "quote"].includes(block.type)) {
         onChangeType?.(block.id, "text");
         return;
       }
 
-      // If in a toggle heading and at the end of the text, expand toggle (if collapsed) and focus details
+      // Toggle title, caret at the end: an open toggle gets a first block
+      // inside it; a collapsed one gets a new toggle after its contents.
       if (block.type === "toggle" && !textAfter.trim()) {
         if (block.open === false) {
-          onUpdateBlock?.(block.id, { open: true });
+          onAddAfter(block.id, "", "toggle", { level, open: false }, null, { afterSubtree: true });
+        } else {
+          onAddAfter(block.id, "", "text", { level: Math.min(MAX_BLOCK_LEVEL, level + 1) });
         }
-        setTimeout(() => {
-          const detailsEl = document.getElementById(`toggle_details_${block.id}`);
-          if (detailsEl) {
-            detailsEl.focus();
-            detailsEl.setSelectionRange(0, 0);
-          }
-        }, 30);
         return;
       }
 
@@ -4773,17 +4835,14 @@ const EditorBlock = memo(function EditorBlock({
 
       // Pressing Enter in headings, callouts, quotes, and toggles spawns a standard paragraph text block below
       const nextType = ["h1", "h2", "h3", "h4", "callout", "quote", "toggle"].includes(block.type) ? "text" : block.type;
-      
+
       // Clean redundant leading bullet markers if inheriting list type
       if (["bullet", "number", "todo"].includes(nextType)) {
         textAfter = textAfter.replace(/^(\*|-|\u2022|\d+\.|\\[[ xX]?\\])\s+/, "");
       }
 
-      const extraProps = nextType === "todo" 
-        ? { checked: false } 
-        : (nextType === "bullet" || nextType === "number") 
-          ? { level: block.level || 0 } 
-          : {};
+      // The new block stays at the same nesting level.
+      const extraProps = nextType === "todo" ? { checked: false, level } : { level };
 
       // Atomically split block in a single history snapshot
       onAddAfter(block.id, textAfter, nextType, extraProps, textBefore);
@@ -4839,16 +4898,24 @@ const EditorBlock = memo(function EditorBlock({
     <div
       data-block-id={block.id}
       data-block-type={block.type}
+      data-level={blockLevel(block) || undefined}
+      // Nested blocks shift right (with their gutter controls), like Notion.
+      style={blockLevel(block) > 0 ? { marginLeft: `${blockLevel(block) * 1.5}rem` } : undefined}
       className={`group relative rounded-lg px-2.5 py-1.5 transition-all ${
+        // Inside a collapsed toggle: hidden on screen, still printed.
+        isHidden ? "hidden print:block " : ""
+      }${
         isMultiSelected
           ? "bg-duck-500/20 border border-duck-400/60 shadow-md ring-1 ring-duck-400/40"
           : isSelected
             ? "bg-ink-900/60"
             : "hover:bg-ink-900/30"
       } ${
-        isDragTarget
-          ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-duck-400"
-          : ""
+        isDragTarget === "after"
+          ? "after:absolute after:-bottom-px after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-duck-400"
+          : isDragTarget
+            ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-duck-400"
+            : ""
       }`}
       onClick={(e) => {
         onSelect(block.id);
@@ -4867,7 +4934,9 @@ const EditorBlock = memo(function EditorBlock({
       onDragOver={(e) => {
         if (isLocked) return;
         e.preventDefault();
-        dragHandlers?.onDragOver(block.id);
+        // Lower half of a block drops below it, so a block can reach the end.
+        const rect = e.currentTarget.getBoundingClientRect();
+        dragHandlers?.onDragOver(block.id, e.clientY > rect.top + rect.height / 2 ? "after" : "before");
       }}
       onDrop={(e) => {
         if (isLocked) return;
@@ -4975,7 +5044,9 @@ const EditorBlock = memo(function EditorBlock({
       )}
 
       {/* ─── Render Specific Block Types ─────────────────── */}
-
+      {/* Keyed by type so a type change gets a fresh element: React would
+          otherwise reuse the old contentEditable node and keep its text. */}
+      <Fragment key={block.type}>
       {/* 1. Divider */}
       {block.type === "divider" ? (
         <div
@@ -5023,10 +5094,7 @@ const EditorBlock = memo(function EditorBlock({
         (() => {
           const bulletLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
           return (
-            <div
-              className="flex items-start gap-2.5 transition-all"
-              style={bulletLevel > 0 ? { paddingLeft: `${bulletLevel * 1.5}rem` } : undefined}
-            >
+            <div className="flex items-start gap-2.5 transition-all">
               {bulletLevel === 0 ? (
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-400" />
               ) : bulletLevel === 1 ? (
@@ -5057,10 +5125,7 @@ const EditorBlock = memo(function EditorBlock({
         (() => {
           const numberLevel = Math.max(0, Math.min(4, Number(block.level) || 0));
           return (
-            <div
-              className="flex items-start gap-2.5 transition-all"
-              style={numberLevel > 0 ? { paddingLeft: `${numberLevel * 1.5}rem` } : undefined}
-            >
+            <div className="flex items-start gap-2.5 transition-all">
               <span className="mt-0.5 min-w-5 shrink-0 font-mono text-sm font-semibold text-ink-400 select-none">
                 {blockLabel || `${blockNumber || 1}.`}
               </span>
@@ -5087,7 +5152,7 @@ const EditorBlock = memo(function EditorBlock({
             type="checkbox"
             disabled={isLocked}
             checked={Boolean(block.checked)}
-            onChange={(e) => onUpdateBlock(block.id, { checked: e.target.checked })}
+            onChange={(e) => onUpdateBlock(block.id, { checked: e.target.checked }, false, true)}
             className={`mt-1 h-4 w-4 rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0 ${
               isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
@@ -5110,16 +5175,17 @@ const EditorBlock = memo(function EditorBlock({
         </div>
       ) : block.type === "toggle" ? (
         /* 6. Toggle / Collapsible Dropdown Block */
-        <div className="group/toggleblk my-1 rounded-xl border border-ink-800 bg-ink-900/60 p-2.5 shadow-sm space-y-2 transition-all">
+        <div className="group/toggleblk space-y-1 transition-all">
           <div className="flex items-start gap-2 print:gap-1">
             <span className="hidden print:inline-block font-bold text-xs text-amber-600 shrink-0 ml-1 mr-1.5 mt-0.5">▼</span>
             <button
               type="button"
-              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-850 text-xs font-bold text-duck-400 transition-transform active:scale-95 hover:border-duck-500/40 hover:bg-duck-500/10 print:hidden cursor-pointer mt-0.5 select-none"
-              title={block.open === false ? "Expand Section" : "Collapse Section"}
+              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false }, false, true)}
+              aria-expanded={block.open !== false}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs text-ink-400 transition-colors hover:bg-ink-800 hover:text-duck-300 print:hidden cursor-pointer mt-0.5 select-none"
+              title={block.open === false ? "Expand" : "Collapse"}
             >
-              {block.open === false ? "▶" : "▼"}
+              <span className={`inline-block transition-transform ${block.open === false ? "" : "rotate-90"}`}>▶</span>
             </button>
             <Tag
               ref={contentRef}
@@ -5130,88 +5196,24 @@ const EditorBlock = memo(function EditorBlock({
               onKeyDown={handleKeyDown}
               onFocus={() => onSelect(block.id)}
               data-placeholder={placeholders.toggle}
-              className={`min-h-[1.5em] flex-1 font-semibold text-ink-100 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
+              className={`min-h-[1.5em] flex-1 font-medium text-ink-100 outline-none ${typeStyles.toggle} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
                 isLocked ? "cursor-default select-text" : ""
               }`}
             />
-            <button
-              type="button"
-              onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false })}
-              className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-ink-500 hover:text-duck-300 px-2 py-0.5 rounded border border-ink-800 hover:border-duck-500/40 bg-ink-950 transition-colors print:hidden cursor-pointer select-none"
-              title={block.open === false ? "Click to expand" : "Click to collapse"}
-            >
-              {block.open === false ? "Collapsed" : "Expanded"}
-            </button>
           </div>
 
-          {/* 1. Screen Interactive Textarea: Shown only when open on screen */}
-          {block.open !== false && (
-            <div className="ml-7 rounded-lg border-l-2 border-duck-500/40 bg-ink-850/70 p-3 text-xs leading-relaxed text-ink-200 animate-fade-in print:hidden">
-              <textarea
-                ref={toggleTextareaRef}
-                id={`toggle_details_${block.id}`}
-                value={block.details ?? block.toggleContent ?? ""}
-                readOnly={isLocked}
-                onChange={(e) => {
-                  onUpdateBlock(block.id, { details: e.target.value });
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${Math.max(48, e.target.scrollHeight)}px`;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    const start = e.target.selectionStart;
-                    const val = e.target.value || "";
-                    const isLastLine = !val.substring(start).includes("\n");
-                    if (isLastLine && start === val.length) {
-                      e.preventDefault();
-                      onExitDown?.(block.id);
-                    }
-                  } else if (e.key === "ArrowUp") {
-                    const start = e.target.selectionStart;
-                    const val = e.target.value || "";
-                    const isFirstLine = !val.substring(0, start).includes("\n");
-                    if (isFirstLine && start === 0) {
-                      e.preventDefault();
-                      if (contentRef.current) {
-                        setCaretToEnd(contentRef.current);
-                      } else {
-                        onExitUp?.(block.id);
-                      }
-                    }
-                  } else if (e.key === "ArrowLeft") {
-                    if (e.target.selectionStart === 0 && e.target.selectionEnd === 0) {
-                      e.preventDefault();
-                      if (contentRef.current) {
-                        setCaretToEnd(contentRef.current);
-                      } else {
-                        onExitUp?.(block.id);
-                      }
-                    }
-                  } else if (e.key === "ArrowRight") {
-                    const val = e.target.value || "";
-                    if (e.target.selectionStart === val.length && e.target.selectionEnd === val.length) {
-                      e.preventDefault();
-                      onExitDown?.(block.id);
-                    }
-                  } else if (e.key === "Enter" && (e.shiftKey || e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    onAddAfter(block.id, "", "text");
-                  }
-                }}
-                placeholder="Add collapsible details, deep dive text, or code breakdown here..."
-                rows={1}
-                className={`w-full bg-transparent font-sans text-xs text-ink-200 placeholder:text-ink-600 focus:outline-none resize-none overflow-hidden min-h-[3rem] ${
-                  isLocked ? "cursor-default" : ""
-                }`}
-              />
-            </div>
-          )}
-
-          {/* 2. Print-Only Details Container: ALWAYS rendered in DOM for every toggle block, unconditionally visible in print/PDF */}
-          {(Boolean(block.details) || Boolean(block.toggleContent)) && (
-            <div className="toggle-print-details hidden print:block text-xs text-ink-900 whitespace-pre-wrap leading-relaxed font-sans">
-              {block.details ?? block.toggleContent ?? ""}
-            </div>
+          {/* An open toggle with nothing inside offers a spot to add a block. */}
+          {block.open !== false && !hasChildren && !isLocked && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddAfter(block.id, "", "text", { level: Math.min(MAX_BLOCK_LEVEL, blockLevel(block) + 1) });
+              }}
+              className="ml-8 block text-left text-xs text-ink-600 hover:text-ink-400 print:hidden cursor-text"
+            >
+              Empty toggle. Click or press Enter to add a block inside.
+            </button>
           )}
         </div>
       ) : block.type === "callout" ? (
@@ -5244,7 +5246,7 @@ const EditorBlock = memo(function EditorBlock({
                       key={icon}
                       type="button"
                       onClick={() => {
-                        onUpdateBlock(block.id, { calloutIcon: icon });
+                        onUpdateBlock(block.id, { calloutIcon: icon }, false, true);
                         setShowIconPicker(false);
                       }}
                       className="p-1 text-base hover:bg-ink-800 rounded cursor-pointer"
@@ -5339,6 +5341,7 @@ const EditorBlock = memo(function EditorBlock({
           className={`min-h-[1.5em] outline-none ${typeStyles[block.type] ?? typeStyles.text} empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)]`}
         />
       )}
+      </Fragment>
 
       {/* Bottom Insertion Dropzone for effortless clicking below complex/container blocks */}
       {!isLocked && !EXCLUDED_DROPZONE_TYPES.has(block.type) && (
@@ -5683,7 +5686,7 @@ export default function BlockNoteEditor({
 
   const [blocks, setBlocks] = useState(() =>
     initialBlocks && initialBlocks.length > 0
-      ? initialBlocks
+      ? migrateToggleDetails(initialBlocks, makeId)
       : [{ id: "blk_default_init_0", type: "text", content: "" }]
   );
   const [selectedId, setSelectedId] = useState(null);
@@ -5737,6 +5740,30 @@ export default function BlockNoteEditor({
   const futureBlocksRef = useRef(futureBlocks);
   const saveTimeoutRef = useRef(null);
   const isDirtyRef = useRef(false);
+
+  // Applies a block-list change outside React's render phase: the updater
+  // runs once against the always-current blocksRef, so the saves, focus moves
+  // and sub-page trashing inside it never fire during another component's
+  // render (React's "Cannot update a component while rendering" warning).
+  const commitBlocks = useCallback((updater) => {
+    const prev = blocksRef.current;
+    const next = updater(prev);
+    if (next !== prev) {
+      blocksRef.current = next;
+      setBlocks(next);
+    }
+    return next;
+  }, []);
+
+  // Nearest block above/below that is not hidden inside a collapsed toggle.
+  const findVisibleNeighbor = useCallback((fromIdx, dir) => {
+    const list = blocksRef.current;
+    const hidden = getHiddenBlockIds(list);
+    for (let i = fromIdx + dir; i >= 0 && i < list.length; i += dir) {
+      if (!hidden.has(list[i].id)) return list[i];
+    }
+    return null;
+  }, []);
 
   const registerRef = useCallback((id, ref) => {
     blockRefs.current[id] = ref;
@@ -5875,17 +5902,6 @@ export default function BlockNoteEditor({
         if (cardEl) {
           cardEl.focus();
           return true;
-        }
-      }
-
-      // 7. Toggle Block
-      if (block.type === "toggle") {
-        if (position === "end" && block.open !== false) {
-          const textarea = document.querySelector(`[data-block-id="${block.id}"] textarea`);
-          if (textarea) {
-            setCaretToEnd(textarea);
-            return true;
-          }
         }
       }
 
@@ -6156,6 +6172,8 @@ export default function BlockNoteEditor({
         if (!id) continue;
 
         const elRect = el.getBoundingClientRect();
+        // Blocks hidden inside a collapsed toggle have no box: never select them.
+        if (elRect.width === 0 && elRect.height === 0) continue;
         const elTop = elRect.top - updatedEditorRect.top;
         const elBottom = elTop + elRect.height;
         const elLeft = elRect.left - updatedEditorRect.left;
@@ -6273,7 +6291,7 @@ export default function BlockNoteEditor({
         const lastBlock = blocksRef.current[blocksRef.current.length - 1];
         if (!lastBlock || (lastBlock.content !== "" && lastBlock.content !== undefined)) {
           const newBlock = createBlock("text", "");
-          setBlocks((prev) => {
+          commitBlocks((prev) => {
             const next = [...prev, newBlock];
             triggerDebouncedSave({ blocks: next });
             return next;
@@ -6285,7 +6303,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [clickToAppend, focusBlock, handleGlobalMouseMove, triggerDebouncedSave]
+    [commitBlocks, clickToAppend, focusBlock, handleGlobalMouseMove, triggerDebouncedSave]
   );
 
   const handleEditorMouseDown = (e) => {
@@ -6457,40 +6475,33 @@ export default function BlockNoteEditor({
   }, [onRegisterInsertPageBlock, performSave, pushHistorySnapshot]);
 
   // Drag-to-reorder, driven by each block's ⠿ handle.
+  const moveSubtreeRef = useRef(null);
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  const [dragOverPos, setDragOverPos] = useState("before");
 
   const dragHandlers = useMemo(
     () => ({
       dragging,
       onDragStart: setDragging,
-      onDragOver: (id) => setDragOver((current) => (current === id ? current : id)),
+      onDragOver: (id, pos = "before") => {
+        setDragOver((current) => (current === id ? current : id));
+        setDragOverPos((current) => (current === pos ? current : pos));
+      },
       onDragEnd: () => {
         setDragging(null);
         setDragOver(null);
       },
       onDrop: () => {
+        // The dragged block moves with its nested children (see moveSubtree).
         if (dragging && dragOver && dragging !== dragOver) {
-          pushHistorySnapshot();
+          moveSubtreeRef.current?.(dragging, dragOver, dragOverPos);
         }
-        setBlocks((prev) => {
-          if (!dragging || !dragOver || dragging === dragOver) return prev;
-          const from = prev.findIndex((b) => b.id === dragging);
-          const to = prev.findIndex((b) => b.id === dragOver);
-          if (from === -1 || to === -1) return prev;
-          const next = [...prev];
-          const [moved] = next.splice(from, 1);
-          const insertAt = from < to ? to - 1 : to;
-          next.splice(insertAt, 0, moved);
-          blocksRef.current = next;
-          performSave({ blocks: next });
-          return next;
-        });
         setDragging(null);
         setDragOver(null);
       },
     }),
-    [dragging, dragOver, performSave, pushHistorySnapshot],
+    [dragging, dragOver, dragOverPos],
   );
 
   useEffect(() => {
@@ -6504,14 +6515,14 @@ export default function BlockNoteEditor({
       if (now - lastHistoryPush.current > 600) {
         pushHistorySnapshot();
       }
-      setBlocks((prev) => {
+      commitBlocks((prev) => {
         const next = prev.map((b) => (b.id === id ? { ...b, content } : b));
         blocksRef.current = next;
         triggerDebouncedSave({ blocks: next });
         return next;
       });
     },
-    [pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const handleTitleChange = useCallback(
@@ -6533,14 +6544,33 @@ export default function BlockNoteEditor({
 
       if (!inEditor) return;
 
+      // Plain inputs (note title, URL and caption fields) and the math formula
+      // box keep the browser's own text undo instead of undoing a block edit.
+      if (activeEl && (activeEl.tagName === "INPUT" || activeEl.dataset?.nativeUndo === "true")) return;
+
       const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey;
       const isRedo =
         ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") ||
         ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey);
 
+      // Table cells and column fields skip their DOM sync while focused, so
+      // blur them before the undo lands and put the caret back afterwards.
+      const restoreCellId =
+        (isUndo || isRedo) && activeEl?.isContentEditable && /^(tbl|col)_/.test(activeEl.id || "")
+          ? activeEl.id
+          : null;
+      const restoreCellFocus = () => {
+        if (!restoreCellId) return false;
+        const cell = document.getElementById(restoreCellId);
+        if (!cell) return false;
+        setCaretToEnd(cell);
+        return true;
+      };
+
       if (isUndo) {
         if (pastBlocksRef.current.length > 0) {
           e.preventDefault();
+          if (restoreCellId) activeEl.blur();
           const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
           const previous = pastBlocksRef.current[pastBlocksRef.current.length - 1];
           const clonedPrevious = JSON.parse(JSON.stringify(previous));
@@ -6582,14 +6612,22 @@ export default function BlockNoteEditor({
           if (targetBlock) {
             selectedIdRef.current = targetBlock.id;
             setSelectedId(targetBlock.id);
-            requestAnimationFrame(() => {
-              focusBlock(targetBlock, "end");
-            });
+            if (restoreCellId) {
+              // Wait for the table/columns block to re-render the cell first.
+              setTimeout(() => {
+                if (!restoreCellFocus()) focusBlock(targetBlock, "end");
+              }, 60);
+            } else {
+              requestAnimationFrame(() => {
+                focusBlock(targetBlock, "end");
+              });
+            }
           }
         }
       } else if (isRedo) {
         if (futureBlocksRef.current.length > 0) {
           e.preventDefault();
+          if (restoreCellId) activeEl.blur();
           const currentBlocks = JSON.parse(JSON.stringify(blocksRef.current));
           const next = futureBlocksRef.current[0];
           const clonedNext = JSON.parse(JSON.stringify(next));
@@ -6628,9 +6666,16 @@ export default function BlockNoteEditor({
           if (targetBlock) {
             selectedIdRef.current = targetBlock.id;
             setSelectedId(targetBlock.id);
-            requestAnimationFrame(() => {
-              focusBlock(targetBlock, "end");
-            });
+            if (restoreCellId) {
+              // Wait for the table/columns block to re-render the cell first.
+              setTimeout(() => {
+                if (!restoreCellFocus()) focusBlock(targetBlock, "end");
+              }, 60);
+            } else {
+              requestAnimationFrame(() => {
+                focusBlock(targetBlock, "end");
+              });
+            }
           }
         }
       }
@@ -6659,9 +6704,10 @@ export default function BlockNoteEditor({
         return;
       }
 
+      // A selected block brings its nested children along (copy, cut, delete).
       const effectiveIds =
         selectedBlockIds && selectedBlockIds.size > 0
-          ? selectedBlockIds
+          ? withDescendantIds(blocksRef.current, selectedBlockIds)
           : null;
 
       if (effectiveIds && effectiveIds.size > 0) {
@@ -6669,7 +6715,7 @@ export default function BlockNoteEditor({
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
           e.preventDefault();
           const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
-          const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
+          const md = foldToggleChildren(selected).map((b) => blockToMarkdown(b)).join("\n\n");
           navigator.clipboard.writeText(md);
           return;
         }
@@ -6678,10 +6724,10 @@ export default function BlockNoteEditor({
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
           e.preventDefault();
           const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
-          const md = selected.map((b) => blockToMarkdown(b)).join("\n\n");
+          const md = foldToggleChildren(selected).map((b) => blockToMarkdown(b)).join("\n\n");
           navigator.clipboard.writeText(md);
           pushHistorySnapshot();
-          setBlocks((prev) => {
+          commitBlocks((prev) => {
             const next = prev.filter((b) => !effectiveIds.has(b.id));
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
             blocksRef.current = safeNext;
@@ -6698,39 +6744,15 @@ export default function BlockNoteEditor({
           return;
         }
 
-        // Enter on Selected Blocks
+        // Enter on Selected Blocks: like Notion, start editing the (last)
+        // selected block with the caret at its end. Nothing is deleted.
         if (e.key === "Enter" && !isInput) {
           e.preventDefault();
-          pushHistorySnapshot();
-          setBlocks((prev) => {
-            let lastSelectedIdx = -1;
-            prev.forEach((b, i) => {
-              if (effectiveIds.has(b.id)) lastSelectedIdx = i;
-            });
-            
-            let insertIdxInNext = 0;
-            for (let i = 0; i <= lastSelectedIdx; i++) {
-              if (!effectiveIds.has(prev[i].id)) insertIdxInNext++;
-            }
-
-            const next = prev.filter((b) => !effectiveIds.has(b.id));
-            const newBlock = createBlock("text", "");
-            next.splice(insertIdxInNext, 0, newBlock);
-
-            blocksRef.current = next;
-            triggerDebouncedSave({ blocks: next });
-
-            selectedIdRef.current = newBlock.id;
-            setSelectedId(newBlock.id);
-
-            setTimeout(() => {
-              const el = blockRefs.current[newBlock.id]?.current;
-              el?.focus();
-            }, 50);
-            return next;
-          });
+          const selected = blocksRef.current.filter((b) => effectiveIds.has(b.id));
+          const target = selected[selected.length - 1];
           setSelectedBlockIds(new Set());
           selectedBlockIdsRef.current = new Set();
+          if (target) focusBlock(target, "end");
           return;
         }
 
@@ -6740,7 +6762,7 @@ export default function BlockNoteEditor({
           e.stopPropagation();
           pushHistorySnapshot();
           let focusTarget = null;
-          setBlocks((prev) => {
+          commitBlocks((prev) => {
             const firstSelectedIdx = prev.findIndex((b) => effectiveIds.has(b.id));
             const next = prev.filter((b) => !effectiveIds.has(b.id));
             const safeNext = next.length > 0 ? next : [createBlock("text", "")];
@@ -6767,13 +6789,16 @@ export default function BlockNoteEditor({
 
     window.addEventListener("keydown", handleMultiBlockKeydown);
     return () => window.removeEventListener("keydown", handleMultiBlockKeydown);
-  }, [selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages, focusBlock, pushHistorySnapshot]);
+  }, [commitBlocks, selectedBlockIds, selectedId, triggerDebouncedSave, trashRemovedSubPages, focusBlock, pushHistorySnapshot]);
 
   const handleChangeType = useCallback((id, type, extraOrCaret = "start") => {
     const extra = typeof extraOrCaret === "object" && extraOrCaret !== null ? extraOrCaret : {};
     const caretTarget = typeof extraOrCaret === "string" ? extraOrCaret : "start";
     pushHistorySnapshot();
-    setBlocks((prev) => {
+    // Render the new block type right away (not on the next frame) and focus
+    // it in the same keystroke, so letters typed straight after a shortcut
+    // like "- " land in the new block instead of being dropped.
+    flushSync(() => commitBlocks((prev) => {
       const next = prev.map((b) => {
         if (b.id !== id) return b;
         if (type === "code") {
@@ -6786,7 +6811,11 @@ export default function BlockNoteEditor({
           };
         }
         if (type === "table") {
-          const norm = getNormalizedTableData(b.tableData, b.content);
+          // A single line of text can't hold a table: start a blank one.
+          const norm =
+            !b.tableData && !String(b.content || "").includes("\n")
+              ? blankTableData()
+              : getNormalizedTableData(b.tableData, b.content);
           return {
             ...b,
             type: "table",
@@ -6829,25 +6858,51 @@ export default function BlockNoteEditor({
       blocksRef.current = next;
       triggerDebouncedSave({ blocks: next });
       return next;
-    });
+    }));
     selectedIdRef.current = id;
     setSelectedId(id);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const targetBlock = blocksRef.current.find((b) => b.id === id);
-        if (targetBlock) {
-          focusBlock(targetBlock, caretTarget);
-        }
-      }, 15);
-    });
-  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
+
+    // Like Notion, a new divider leaves you typing on the line below it
+    // (reusing an empty line that is already there).
+    if (type === "divider") {
+      const list = blocksRef.current;
+      const idx = list.findIndex((b) => b.id === id);
+      const after = list[idx + 1];
+      if (after && after.type === "text" && !cleanZeroWidth(after.content || "").trim()) {
+        focusBlock(after, "start");
+        return;
+      }
+      const lineBelow = createBlock("text", "");
+      flushSync(() =>
+        commitBlocks((prev) => {
+          const next = [...prev];
+          next.splice(idx + 1, 0, lineBelow);
+          triggerDebouncedSave({ blocks: next });
+          return next;
+        })
+      );
+      focusBlock(lineBelow, "start");
+      return;
+    }
+
+    const targetBlock = blocksRef.current.find((b) => b.id === id);
+    if (targetBlock) {
+      focusBlock(targetBlock, caretTarget);
+    }
+  }, [commitBlocks, focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
 
   const handleUpdateBlock = useCallback(
     (id, patch, shouldSaveNote = false, recordHistory = false) => {
-      if (recordHistory) {
+      // recordHistory: true = its own undo step (checkbox, toggle, icon);
+      // "coalesce" = typing, grouped into one step like handleChange does.
+      if (recordHistory === "coalesce") {
+        if (Date.now() - lastHistoryPush.current > 600) {
+          pushHistorySnapshot();
+        }
+      } else if (recordHistory) {
         pushHistorySnapshot();
       }
-      setBlocks((prev) => {
+      commitBlocks((prev) => {
         const next = prev.map((b) => {
           if (b.id !== id) return b;
           const updated = { ...b, ...patch };
@@ -6865,7 +6920,7 @@ export default function BlockNoteEditor({
         return next;
       });
     },
-    [performSave, pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, performSave, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const recordHistorySnapshot = useCallback(() => {
@@ -6876,11 +6931,16 @@ export default function BlockNoteEditor({
     (id) => {
       pushHistorySnapshot();
       let focusTarget = null;
-      setBlocks((prev) => {
+      commitBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
-        const next = prev.filter((b) => b.id !== id);
+        if (idx === -1) return prev;
+        // Like Notion, deleting a block also deletes what is nested inside it.
+        const end = getSubtreeEnd(prev, idx);
+        const next = [...prev.slice(0, idx), ...prev.slice(end)];
         const safeNext = next.length > 0 ? next : [createBlock("text", "")];
-        const targetIdx = Math.max(0, Math.min(idx > 0 ? idx - 1 : 0, safeNext.length - 1));
+        const hidden = getHiddenBlockIds(safeNext);
+        let targetIdx = Math.max(0, Math.min(idx > 0 ? idx - 1 : 0, safeNext.length - 1));
+        while (targetIdx > 0 && hidden.has(safeNext[targetIdx].id)) targetIdx -= 1;
         focusTarget = safeNext[targetIdx];
         blocksRef.current = safeNext;
         performSave({ blocks: safeNext });
@@ -6895,47 +6955,82 @@ export default function BlockNoteEditor({
         });
       }
     },
-    [focusBlock, performSave, pushHistorySnapshot, trashRemovedSubPages]
+    [commitBlocks, focusBlock, performSave, pushHistorySnapshot, trashRemovedSubPages]
   );
 
   const handleDuplicateBlock = useCallback(
     (id) => {
       pushHistorySnapshot();
-      setBlocks((prev) => {
+      commitBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === id);
         if (idx === -1) return prev;
-        const orig = prev[idx];
-        const copy = {
-          ...JSON.parse(JSON.stringify(orig)),
-          id: Math.random().toString(36).slice(2, 10),
-        };
-        const next = [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+        // Copy the block with its nested children, placed after all of them.
+        // Sub-page cards are left out: a sub-page lives in exactly one card.
+        const end = getSubtreeEnd(prev, idx);
+        const copies = prev
+          .slice(idx, end)
+          .filter((b, i) => i === 0 || b.type !== "page")
+          .map((b) => ({ ...JSON.parse(JSON.stringify(b)), id: makeId() }));
+        const next = [...prev.slice(0, end), ...copies, ...prev.slice(end)];
         blocksRef.current = next;
         performSave({ blocks: next });
         return next;
       });
     },
-    [performSave, pushHistorySnapshot]
+    [commitBlocks, performSave, pushHistorySnapshot]
   );
 
-  const handleMoveBlock = useCallback(
-    (fromIndex, toIndex) => {
+  /**
+   * Moves a block (with its nested children) so it lands before `targetId`
+   * ("before") or after the target's own children ("after"), taking the
+   * target's nesting level. Used by Move up/down and drag-and-drop.
+   */
+  const moveSubtree = useCallback(
+    (id, targetId, position) => {
+      const prev = blocksRef.current;
+      const from = prev.findIndex((b) => b.id === id);
+      const targetIdx = prev.findIndex((b) => b.id === targetId);
+      if (from === -1 || targetIdx === -1 || id === targetId) return false;
+      const end = getSubtreeEnd(prev, from);
+      if (targetIdx > from && targetIdx < end) return false; // into itself
+      const moving = prev.slice(from, end);
+      const rest = [...prev.slice(0, from), ...prev.slice(end)];
+      const tIdx = rest.findIndex((b) => b.id === targetId);
+      const insertAt = position === "after" ? getSubtreeEnd(rest, tIdx) : tIdx;
+      const shifted = shiftBlockLevels(moving, blockLevel(rest[tIdx]) - blockLevel(moving[0]));
+      const next = [...rest.slice(0, insertAt), ...shifted, ...rest.slice(insertAt)];
+      if (next.every((b, i) => b === prev[i])) return false;
       pushHistorySnapshot();
-      setBlocks((prev) => {
-        if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev;
-        const next = [...prev];
-        const [moved] = next.splice(fromIndex, 1);
-        next.splice(toIndex, 0, moved);
-        blocksRef.current = next;
-        performSave({ blocks: next });
-        return next;
-      });
+      commitBlocks(() => next);
+      performSave({ blocks: next });
+      return true;
     },
-    [performSave, pushHistorySnapshot]
+    [commitBlocks, performSave, pushHistorySnapshot]
+  );
+
+  moveSubtreeRef.current = moveSubtree;
+
+  const handleMoveBlock = useCallback(
+    (id, dir) => {
+      const prev = blocksRef.current;
+      const idx = prev.findIndex((b) => b.id === id);
+      if (idx === -1) return;
+      if (dir < 0) {
+        const above = findVisibleNeighbor(idx, -1);
+        if (above) moveSubtree(id, above.id, "before");
+      } else {
+        const end = getSubtreeEnd(prev, idx);
+        const hidden = getHiddenBlockIds(prev);
+        let j = end;
+        while (j < prev.length && hidden.has(prev[j].id)) j += 1;
+        if (j < prev.length) moveSubtree(id, prev[j].id, "after");
+      }
+    },
+    [findVisibleNeighbor, moveSubtree]
   );
 
   const handleAddAfter = useCallback(
-    (afterId, content = "", typeToInherit = null, extraProps = {}, splitBeforeContent = null) => {
+    (afterId, content = "", typeToInherit = null, extraProps = {}, splitBeforeContent = null, { afterSubtree = false } = {}) => {
       pushHistorySnapshot();
       
       const currentBlock = blocksRef.current.find((b) => b.id === afterId);
@@ -6956,16 +7051,19 @@ export default function BlockNoteEditor({
       const count = extraProps?.columnCount || 2;
       const extra =
         newType === "columns"
-          ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
+          ? { columnCount: count, columnsData: extraProps?.columnsData || blankColumnsData(count) }
           : { ...defaultExtra, ...(extraProps || {}) };
+      if (newType === "table" && !extra.tableData) extra.tableData = blankTableData();
       const newBlock = createBlock(newType, content, extra);
-      setBlocks((prev) => {
+      commitBlocks((prev) => {
         const idx = prev.findIndex((b) => b.id === afterId);
         const next = [...prev];
         if (splitBeforeContent !== null && idx !== -1) {
           next[idx] = { ...next[idx], content: splitBeforeContent };
         }
-        next.splice(idx + 1, 0, newBlock);
+        // afterSubtree: go below the block's nested children (e.g. a collapsed toggle).
+        const insertAt = idx === -1 ? next.length : afterSubtree ? getSubtreeEnd(prev, idx) : idx + 1;
+        next.splice(insertAt, 0, newBlock);
         blocksRef.current = next;
         triggerDebouncedSave({ blocks: next });
         return next;
@@ -6978,7 +7076,7 @@ export default function BlockNoteEditor({
         }, 30);
       });
     },
-    [focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const handleAddBefore = useCallback((beforeId, content = "", typeToUse = "text", extraProps = {}, focusTarget = "original") => {
@@ -6987,10 +7085,11 @@ export default function BlockNoteEditor({
     const count = extraProps?.columnCount || 2;
     const extra =
       typeToUse === "columns"
-        ? { columnCount: count, columnsData: extraProps?.columnsData || getNormalizedColumnsData(null, "", count) }
+        ? { columnCount: count, columnsData: extraProps?.columnsData || blankColumnsData(count) }
         : { ...(extraProps || {}) };
+    if (typeToUse === "table" && !extra.tableData) extra.tableData = blankTableData();
     const newBlock = createBlock(typeToUse, content, extra);
-    setBlocks((prev) => {
+    commitBlocks((prev) => {
       const idx = prev.findIndex((b) => b.id === beforeId);
       const next = [...prev];
       if (idx !== -1) {
@@ -7024,31 +7123,78 @@ export default function BlockNoteEditor({
         }, 20);
       });
     }
-  }, [focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
+  }, [commitBlocks, focusBlock, pushHistorySnapshot, triggerDebouncedSave]);
+
+  /**
+   * Tab / Shift+Tab: nest or un-nest a block together with its children. A
+   * block can go at most one level deeper than the visible block above it.
+   * Indenting under a collapsed toggle opens the toggle so the block stays
+   * in view.
+   */
+  const handleIndent = useCallback(
+    (id, delta) => {
+      const prev = blocksRef.current;
+      const idx = prev.findIndex((b) => b.id === id);
+      if (idx === -1 || !delta) return;
+      const level = blockLevel(prev[idx]);
+      let target = level + delta;
+      const above = findVisibleNeighbor(idx, -1);
+      if (delta > 0) {
+        if (!above) return;
+        target = Math.min(target, blockLevel(above) + 1, MAX_BLOCK_LEVEL);
+      }
+      target = Math.max(0, target);
+      if (target === level) return;
+      const end = getSubtreeEnd(prev, idx);
+      pushHistorySnapshot();
+      const next = [
+        ...prev.slice(0, idx),
+        ...shiftBlockLevels(prev.slice(idx, end), target - level),
+        ...prev.slice(end),
+      ];
+      if (delta > 0) {
+        // Open any collapsed toggle the block now sits inside.
+        let need = target;
+        for (let i = idx - 1; i >= 0 && need > 0; i--) {
+          const lv = blockLevel(next[i]);
+          if (lv < need) {
+            if (next[i].type === "toggle" && next[i].open === false) next[i] = { ...next[i], open: true };
+            need = lv;
+          }
+        }
+      }
+      flushSync(() => commitBlocks(() => next));
+      triggerDebouncedSave({ blocks: next });
+      const moved = next[idx];
+      const el = blockRefs.current[moved.id]?.current;
+      if (!el || !el.contains(document.activeElement)) focusBlock(moved, "end");
+    },
+    [commitBlocks, findVisibleNeighbor, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+  );
 
   const handleExitDown = useCallback(
     (blockId) => {
       const idx = blocksRef.current.findIndex((b) => b.id === blockId);
       if (idx === -1) return false;
-      if (idx < blocksRef.current.length - 1) {
-        const nextBlock = blocksRef.current[idx + 1];
+      const nextBlock = findVisibleNeighbor(idx, 1);
+      if (nextBlock) {
         focusBlock(nextBlock, "start");
         return true;
       }
       return false;
     },
-    [focusBlock]
+    [focusBlock, findVisibleNeighbor]
   );
 
   const handleExitUp = useCallback(
     (blockId) => {
       const idx = blocksRef.current.findIndex((b) => b.id === blockId);
       if (idx === -1) return;
-      if (idx > 0) {
-        const prevBlock = blocksRef.current[idx - 1];
+      const prevBlock = findVisibleNeighbor(idx, -1);
+      if (prevBlock) {
         focusBlock(prevBlock, "end");
-      } else if (idx === 0) {
-        // Exiting UP from Block 0 -> Focus Note Title input!
+      } else {
+        // Exiting UP from the first block -> Focus Note Title input!
         if (noteTitleInputRef.current) {
           noteTitleInputRef.current.focus();
           const len = noteTitleInputRef.current.value?.length || 0;
@@ -7056,7 +7202,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [focusBlock]
+    [focusBlock, findVisibleNeighbor]
   );
 
   // Smart Markdown, Google Docs HTML & Plain Text Paste Handler
@@ -7068,6 +7214,26 @@ export default function BlockNoteEditor({
       const html = e.clipboardData?.getData("text/html");
       const text = e.clipboardData?.getData("text/plain") || "";
       if (!html && !text) return;
+
+      // Table cells and column fields keep their own text: paste stays inside
+      // the field as plain text and goes through its normal input handler, so
+      // it is saved instead of being split into new blocks or lost on blur.
+      const fieldEl = e.target?.closest?.('[contenteditable="true"][id^="tbl_"], [contenteditable="true"][id^="col_"]');
+      if (fieldEl) {
+        e.preventDefault();
+        if (isLockedRef.current) return;
+        const clean = text.replace(/\r\n?/g, "\n");
+        const multiLine = /_content$/.test(fieldEl.id);
+        if (multiLine) {
+          clean.split("\n").forEach((line, i) => {
+            if (i > 0) document.execCommand("insertLineBreak");
+            if (line) document.execCommand("insertText", false, line);
+          });
+        } else {
+          document.execCommand("insertText", false, clean.replace(/\s*\n\s*/g, " ").trim());
+        }
+        return;
+      }
 
       // 1. Check if clipboard contains structured/rich HTML (from Google Docs, Web pages, etc.)
       let parsedBlocks = [];
@@ -7093,10 +7259,13 @@ export default function BlockNoteEditor({
         }
       }
 
+      // Pasted toggles carry their contents as text: turn it into nested blocks.
+      parsedBlocks = migrateToggleDetails(parsedBlocks, makeId);
+
       if (parsedBlocks.length > 0) {
         e.preventDefault();
         pushHistorySnapshot();
-        setBlocks((prev) => {
+        commitBlocks((prev) => {
           const activeIdx = prev.findIndex((b) => b.id === (selectedIdRef.current || selectedId));
           let next;
           if (activeIdx !== -1) {
@@ -7115,7 +7284,8 @@ export default function BlockNoteEditor({
               textAfter = fullText.slice(textBefore.length + textSelected.length);
             }
 
-            const blocksToInsert = parsedBlocks.map((b) => ({ ...b }));
+            // Pasted blocks keep their own nesting, shifted to the line's level.
+            const blocksToInsert = shiftBlockLevels(parsedBlocks, blockLevel(activeBlock)).map((b) => ({ ...b }));
             if (activeBlock && ["bullet", "number", "todo"].includes(activeBlock.type)) {
               if (blocksToInsert.length > 0 && blocksToInsert[0].type === "text") {
                 blocksToInsert[0].type = activeBlock.type;
@@ -7175,7 +7345,7 @@ export default function BlockNoteEditor({
 
             if (blockId) {
               handleChange(blockId, fullText);
-              setBlocks((prev) => {
+              commitBlocks((prev) => {
                 const next = prev.map((b) => (b.id === blockId ? { ...b, content: fullText } : b));
                 blocksRef.current = next;
                 triggerDebouncedSave({ blocks: next });
@@ -7186,7 +7356,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [selectedId, handleChange, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
+    [commitBlocks, selectedId, handleChange, focusBlock, pushHistorySnapshot, triggerDebouncedSave]
   );
 
   const headings = useMemo(() => {
@@ -7316,7 +7486,9 @@ export default function BlockNoteEditor({
       });
 
       if (res?.reformatted) {
-        const { title: newTitle, emoji: newEmoji, blocks: newBlocks } = res.reformatted;
+        const { title: newTitle, emoji: newEmoji } = res.reformatted;
+        // AI output may put toggle contents in `details`: make them nested blocks.
+        const newBlocks = migrateToggleDetails(res.reformatted.blocks, makeId);
 
         if (newBlocks && newBlocks.length > 0) {
           blocksRef.current = newBlocks;
@@ -7413,7 +7585,7 @@ export default function BlockNoteEditor({
         if (block.type !== "text" && (isAtStart || isDomEmpty)) {
           if ((block.type === "bullet" || block.type === "number") && (block.level || 0) > 0) {
             e.preventDefault();
-            handleUpdateBlock(blockId, { level: (block.level || 0) - 1 }, false, true);
+            handleIndent(blockId, -1);
             return;
           }
           e.preventDefault();
@@ -7429,16 +7601,25 @@ export default function BlockNoteEditor({
           return;
         }
 
+        // 1b. A nested paragraph with text: Backspace at its start steps it
+        // out one level before any merging (Notion).
+        if (block.type === "text" && isAtStart && !isDomEmpty && blockLevel(block) > 0) {
+          e.preventDefault();
+          handleIndent(blockId, -1);
+          return;
+        }
+
         // 2. EMPTY PLAIN TEXT BLOCK DELETION:
         // When Backspace is pressed on an empty plain text line, delete the empty line itself
         // and cleanly place the caret at the end of the block above (never deleting the block above)!
         if (block.type === "text" && isDomEmpty) {
           if (blocks.length > 1) {
             e.preventDefault();
-            const prevBlock = idx > 0 ? blocks[idx - 1] : (blocks[1] || null);
+            const above = findVisibleNeighbor(idx, -1);
+            const prevBlock = above || findVisibleNeighbor(idx, 1);
             
             pushHistorySnapshot();
-            setBlocks((prev) => {
+            commitBlocks((prev) => {
               const next = prev.filter((b) => b.id !== blockId);
               blocksRef.current = next;
               triggerDebouncedSave({ blocks: next });
@@ -7447,9 +7628,9 @@ export default function BlockNoteEditor({
 
             if (prevBlock) {
               selectedIdRef.current = prevBlock.id;
-              focusBlock(prevBlock, idx > 0 ? "end" : "start");
+              focusBlock(prevBlock, above ? "end" : "start");
               requestAnimationFrame(() => {
-                focusBlock(prevBlock, idx > 0 ? "end" : "start");
+                focusBlock(prevBlock, above ? "end" : "start");
               });
             }
             return;
@@ -7462,8 +7643,9 @@ export default function BlockNoteEditor({
         }
 
         // 3. MERGE PLAIN TEXT BLOCK OR STEP INTO PREVIOUS SPECIAL BLOCK (at offset 0, idx > 0):
-        if (el && isAtStart && idx > 0 && block.type === "text") {
-          const prevBlock = blocks[idx - 1];
+        const visibleAbove = idx > 0 ? findVisibleNeighbor(idx, -1) : null;
+        if (el && isAtStart && visibleAbove && block.type === "text") {
+          const prevBlock = visibleAbove;
           const mergeableTypes = ["text", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "quote", "callout"];
           if (mergeableTypes.includes(prevBlock.type)) {
             e.preventDefault();
@@ -7484,7 +7666,7 @@ export default function BlockNoteEditor({
               setCaretAtOffset(targetEl, domCaretOffset);
             }
 
-            setBlocks((prev) => {
+            commitBlocks((prev) => {
               const next = prev.filter((b) => b.id !== blockId);
               const targetIdx = next.findIndex((b) => b.id === prevBlock.id);
               if (targetIdx !== -1) {
@@ -7534,14 +7716,15 @@ export default function BlockNoteEditor({
               
               if (textAfter.length === 0) {
                 const idx = blocks.findIndex((b) => b.id === blockId);
-                if (idx !== -1 && idx < blocks.length - 1) {
+                const visibleBelow = idx !== -1 ? findVisibleNeighbor(idx, 1) : null;
+                if (visibleBelow) {
                   const block = blocks[idx];
-                  const targetBlock = blocks[idx + 1];
+                  const targetBlock = visibleBelow;
                   // 1. Standalone embed block (divider, site, media, canvas): delete it!
                   if (standaloneEmbedTypes.includes(targetBlock?.type)) {
                     e.preventDefault();
                     pushHistorySnapshot();
-                    setBlocks((prev) => {
+                    commitBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
                       blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
@@ -7554,7 +7737,7 @@ export default function BlockNoteEditor({
                   if (targetBlock?.type === "text" && (!targetBlock.content || cleanZeroWidth(targetBlock.content).length === 0)) {
                     e.preventDefault();
                     pushHistorySnapshot();
-                    setBlocks((prev) => {
+                    commitBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
                       blocksRef.current = next;
                       triggerDebouncedSave({ blocks: next });
@@ -7576,7 +7759,7 @@ export default function BlockNoteEditor({
                     setBlockDOMFromText(el, mergedContent, block.type);
                     setCaretAtOffset(el, domCaretOffset);
 
-                    setBlocks((prev) => {
+                    commitBlocks((prev) => {
                       const next = prev.filter((b) => b.id !== targetBlock.id);
                       const targetIdx = next.findIndex((b) => b.id === blockId);
                       if (targetIdx !== -1) {
@@ -7612,9 +7795,8 @@ export default function BlockNoteEditor({
         if (e.altKey) {
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
-          if (idx > 0) {
-            focusBlock(blocks[idx - 1], "end");
-          }
+          const above = findVisibleNeighbor(idx, -1);
+          if (above) focusBlock(above, "end");
           return;
         }
 
@@ -7633,9 +7815,8 @@ export default function BlockNoteEditor({
         if (e.altKey) {
           e.preventDefault();
           const idx = blocks.findIndex((b) => b.id === blockId);
-          if (idx < blocks.length - 1) {
-            focusBlock(blocks[idx + 1], "start");
-          }
+          const below = findVisibleNeighbor(idx, 1);
+          if (below) focusBlock(below, "start");
           return;
         }
 
@@ -7645,20 +7826,10 @@ export default function BlockNoteEditor({
           if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
             if (isCaretOnLastVisualLine(el, range)) {
-              // BUG-TOG-01: If this is an open toggle block, step down into its details textarea!
-              const currentBlock = blocks.find((b) => b.id === blockId);
-              if (currentBlock?.type === "toggle" && currentBlock.open !== false) {
-                const detailsEl = document.getElementById(`toggle_details_${blockId}`);
-                if (detailsEl) {
-                  e.preventDefault();
-                  detailsEl.focus();
-                  detailsEl.setSelectionRange(0, 0);
-                  return;
-                }
-              }
-
+              // An open toggle's contents are the next blocks, so this also
+              // steps into the toggle; hidden blocks are skipped.
               const idx = blocks.findIndex((b) => b.id === blockId);
-              if (idx < blocks.length - 1) {
+              if (findVisibleNeighbor(idx, 1)) {
                 e.preventDefault();
                 handleExitDown(blockId);
               }
@@ -7685,9 +7856,9 @@ export default function BlockNoteEditor({
             const range = sel.getRangeAt(0);
             if (isCaretAtBlockEnd(el, range)) {
               const idx = blocks.findIndex((b) => b.id === blockId);
-              if (idx < blocks.length - 1) {
+              const nextBlock = findVisibleNeighbor(idx, 1);
+              if (nextBlock) {
                 e.preventDefault();
-                const nextBlock = blocks[idx + 1];
                 focusBlock(nextBlock, "start");
               }
             }
@@ -7695,7 +7866,7 @@ export default function BlockNoteEditor({
         }
       }
     },
-    [blocks, handleChangeType, handleExitDown, handleExitUp, focusBlock, pushHistorySnapshot, triggerDebouncedSave, handleUpdateBlock, trashRemovedSubPages]
+    [blocks, commitBlocks, findVisibleNeighbor, handleChangeType, handleExitDown, handleExitUp, handleIndent, focusBlock, pushHistorySnapshot, triggerDebouncedSave, trashRemovedSubPages]
   );
 
   const activeBannerPreset = BANNER_PRESETS.find((b) => b.id === banner);
@@ -8102,7 +8273,7 @@ export default function BlockNoteEditor({
                 }
               }
             }}
-            placeholder="Untitled Note"
+            placeholder="Untitled"
             className={`w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem] ${
               isLocked ? "cursor-default select-text" : ""
             }`}
@@ -8113,8 +8284,11 @@ export default function BlockNoteEditor({
         <div className="space-y-2 pl-8">
           {(() => {
             let numberCounters = [0];
+            const hiddenIds = getHiddenBlockIds(blocks);
             return blocks.map((block, index) => {
               let blockNumberLabel = null;
+              const level = blockLevel(block);
+              const hasChildren = index + 1 < blocks.length && blockLevel(blocks[index + 1]) > level;
               if (block.type === "number") {
                 const level = Math.max(0, Math.min(4, Number(block.level) || 0));
                 numberCounters = numberCounters.slice(0, level + 1);
@@ -8124,7 +8298,8 @@ export default function BlockNoteEditor({
                 numberCounters[level] += 1;
                 blockNumberLabel = formatNumberMarker(level, numberCounters[level]);
               } else {
-                numberCounters = [0];
+                // A nested child doesn't break the numbering of the list it sits in.
+                numberCounters = level > 0 ? numberCounters.slice(0, level) : [0];
               }
 
               return (
@@ -8145,8 +8320,8 @@ export default function BlockNoteEditor({
                   onUpdateBlock={handleUpdateBlock}
                   onDelete={handleDeleteBlock}
                   onDuplicate={() => handleDuplicateBlock(block.id)}
-                  onMoveUp={() => handleMoveBlock(index, index - 1)}
-                  onMoveDown={() => handleMoveBlock(index, index + 1)}
+                  onMoveUp={() => handleMoveBlock(block.id, -1)}
+                  onMoveDown={() => handleMoveBlock(block.id, 1)}
                   onKeyDown={handleKeyDown}
                   onAddBefore={handleAddBefore}
                   onAddAfter={handleAddAfter}
@@ -8154,7 +8329,7 @@ export default function BlockNoteEditor({
                   onQuizBlock={onQuizBlock}
                   onSwitchTab={onSwitchTab}
                   dragHandlers={dragHandlers}
-                  isDragTarget={dragOver === block.id && dragging !== block.id}
+                  isDragTarget={dragOver === block.id && dragging !== block.id ? dragOverPos : false}
                   isMultiSelected={selectedBlockIds.has(block.id)}
                   isLocked={isLocked}
                   allBlocks={blocks}
@@ -8168,6 +8343,9 @@ export default function BlockNoteEditor({
                   onSaveNote={() => performSave()}
                   onExitDown={handleExitDown}
                   onExitUp={handleExitUp}
+                  onIndent={handleIndent}
+                  hasChildren={hasChildren}
+                  isHidden={hiddenIds.has(block.id)}
                 />
               );
             });

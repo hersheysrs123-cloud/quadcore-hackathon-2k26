@@ -7,6 +7,7 @@ import {
   blocksToPlainText,
   blocksToDocxBlob,
   getNormalizedTableData,
+  foldToggleChildren,
 } from "@/lib/exportImport";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { escapeHtml } from "@/lib/editorCaret";
@@ -106,7 +107,8 @@ export default function ExportPreview({
   }, [activeFormat, viewMode]);
 
   const title = note?.title || "Untitled Note";
-  const blocks = note?.blocks || NO_BLOCKS;
+  // Toggle contents are nested blocks in the editor; fold them into their toggle.
+  const blocks = useMemo(() => foldToggleChildren(note?.blocks || NO_BLOCKS), [note?.blocks]);
   const emoji = note?.emoji || "📝";
 
   const currentCfg = FORMAT_CONFIGS[activeFormat] || FORMAT_CONFIGS.md;
