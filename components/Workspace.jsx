@@ -398,7 +398,7 @@ export default function Workspace() {
             if (!spaceMap[sp]) spaceMap[sp] = [];
             spaceMap[sp].push({
               id: n.id,
-              title: n.title || "Untitled Note",
+              title: n.title || "",
               space: sp,
               spaceId: sp,
               banner: n.banner || null,
@@ -926,7 +926,7 @@ export default function Workspace() {
 
       const updatedTitle = noteToSave?.title !== undefined
         ? noteToSave.title
-        : (base.title || "Untitled Note");
+        : (base.title || "");
 
       const updatedBlocks = noteToSave?.blocks !== undefined
         ? noteToSave.blocks
@@ -1448,7 +1448,7 @@ export default function Workspace() {
         if (!spaceMap[noteSp]) spaceMap[noteSp] = [];
         spaceMap[noteSp].push({
           id: n.id,
-          title: n.title || "Untitled Note",
+          title: n.title || "",
           space: noteSp,
           spaceId: noteSp,
           banner: n.banner || null,
@@ -1503,7 +1503,9 @@ export default function Workspace() {
     const now = new Date().toISOString();
     const newNote = {
       id: `n_${Date.now()}`,
-      title: "Untitled Note",
+      // Empty like Notion: the editor shows "Untitled" as a placeholder and
+      // lists fall back to "Untitled Note".
+      title: "",
       space: activeSpace,
       spaceId: activeSpace,
       parentId: null,
@@ -1586,7 +1588,7 @@ export default function Workspace() {
       const now = new Date().toISOString();
       const child = {
         id: `n_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        title: "Untitled Note",
+        title: "",
         space: targetSpace,
         spaceId: targetSpace,
         parentId,

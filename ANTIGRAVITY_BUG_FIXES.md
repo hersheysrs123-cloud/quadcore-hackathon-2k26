@@ -8952,3 +8952,40 @@ Small faults from the audit, each checked against the code first.
   - *Unit test:* a folder loop case in `tests/unit/audit-minor-fixes.test.mjs`.
   - *Browser:* a page fetch on the dev server returned all three headers. The workspace and Saved loaded with no new console errors.
 
+
+## Block editor audit: 25 Notion-parity bugs
+
+Found by driving every block in a headless browser. Each item was reproduced first and re-checked after the fix.
+
+- **Slash menu on any "/".**
+  - *Problem:* "km/h" + Enter inserted a Heading 1, "and/or" + Enter a math block; "/zzz" or a URL + Enter did nothing.
+  - *Root cause:* the menu opened for the last "/" anywhere in the line and stayed open (invisible, still catching Enter) when nothing matched.
+  - *Resolution:* "/" opens the menu only at the line start or after a space, and the menu closes once nothing matches. Spaces are allowed while something still matches (`/2 columns`, `/to do`); multi-word queries only match from the start of a name (`matchSlashItems`), so a sentence after "/" never hits a loose keyword.
+- **Undo inside tables, columns, code and toggles.**
+  - *Problem:* Ctrl+Z after typing in a cell, column or code block deleted the whole block; checking a to-do could not be undone.
+  - *Root cause:* `handleUpdateBlock` only recorded history when asked, and those editors never asked.
+  - *Resolution:* `recordHistory: "coalesce"` groups typing like paragraph typing; checks, toggle open/close and callout icons are their own step. Undo blurs a focused cell first so it redraws, then puts the caret back.
+- **Paste into a cell or column.** Stays in that field as plain text through its normal input path; it used to vanish on blur or spill into new blocks.
+- **Math formula lost.** The formula saves when focus leaves the block, not only on Enter.
+- **Enter on selected blocks.** Starts editing the last selected block instead of erasing the selection.
+- **Ctrl+Z in the title, URL and caption fields and the formula box.** Uses the browser's text undo instead of undoing a block edit.
+- **Drag to the end.** The lower half of a block drops below it.
+- **New tables and columns.** Start empty with placeholder hints instead of literal "Column 1" text.
+- **Inline equation from "/".** Caret lands after the formula and its editor opens.
+- **Divider shortcut.** `---` leaves the caret on a new line below. A type change now remounts the block element (`<Fragment key={block.type}>`), which also stops React reusing the old contentEditable node and its text.
+- **React "Cannot update a component while rendering" warning.**
+  - *Root cause:* saves and focus moves ran inside `setBlocks` updaters.
+  - *Resolution:* `commitBlocks` runs the updater once against `blocksRef` outside render, then sets state.
+- **Letters dropped after a shortcut.** `handleChangeType` renders with `flushSync` and focuses in the same keystroke instead of ~20 ms later.
+- **Notion shortcuts.** `> ` makes a toggle and `" ` a quote. Pasted Markdown `> ` is still a quote.
+- **New notes.** Start with an empty title and an "Untitled" placeholder; `saveNote` and the workspace loaders keep an empty title empty, and lists still show "Untitled Note".
+- **Math placeholder.** An empty equation shows "Add a TeX equation…" (not E=mc²) and opens its editor when focused.
+- **Ctrl+A twice** selects every block. **Embeds** keep focus on the card after a URL is embedded.
+- **Nesting (Tab) and toggles that hold blocks.**
+  - *Problem:* Tab only indented lists; toggles held a plain textarea.
+  - *Resolution:* any block can carry `level` (0–4). Tab / Shift+Tab nest or un-nest a block with its children, no deeper than one level under the block above. A toggle's contents are the blocks after it with a deeper level; collapsing hides them on screen but they still print. Enter at the end of an open toggle adds its first child, on a collapsed toggle a new toggle after its contents. Arrows, Backspace and Delete skip hidden blocks; delete, duplicate, move and drag act on the whole sub-tree; numbering continues across nested children.
+  - *Migration:* `migrateToggleDetails` turns old `details` text into nested blocks when a note opens, on paste and on AI reformat. Exporters and the export preview call `foldToggleChildren`, which folds nested blocks back into `details`, so every export format is unchanged.
+- **Markdown nesting.** Numbered items and to-dos keep their level when copied, exported and pasted (`numberedIndentLevel`).
+- **Checked:**
+  - *Unit tests:* 12 cases in `tests/unit/nested-blocks.test.mjs`.
+  - *Browser:* every item above re-run in Playwright, including a reload of a note with a collapsed toggle.
