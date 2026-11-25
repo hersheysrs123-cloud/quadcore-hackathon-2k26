@@ -17,7 +17,7 @@ quadcore-hackathon-2k26/
 │   │   ├── export-preview.test.mjs       # Interactive pre-download export preview formatting and scroll mechanics
 │   │   ├── eye-optics.test.mjs           # Eye optical model: Gullstrand equivalent power, accommodation, and retina focus
 │   │   ├── inline-math-navigation.test.mjs # Seamless block navigation, math pill boundary traversal & auto-compilation
-│   │   ├── interactive-tutorial.test.mjs # 9-step tutorial metadata, 19-block registry, and interactive state tests
+│   │   ├── interactive-tutorial.test.mjs # 9-step tutorial metadata, 20-block registry, and interactive state tests
 │   │   ├── markdown-bullets-formatting.test.mjs # Markdown nested bold/italic compiler and bullet prefix preservation
 │   │   ├── mastery-analytics.test.mjs    # Mastery rollup algorithms, trends, and weakest-first sorting
 │   │   ├── math-question-types.test.mjs  # Value input, step ordering, and code input evaluation math

@@ -27,7 +27,7 @@ import {
   Columns,
   Table as TableIcon,
 } from "lucide-react";
-import { ALL_19_BLOCKS as RAW_BLOCKS } from "@/lib/tutorialData.js";
+import { ALL_BLOCKS as RAW_BLOCKS } from "@/lib/tutorialData.js";
 
 /**
  * 🎓 SocraticOS Interactive Onboarding & Feature Mastery Guide
@@ -238,9 +238,10 @@ export default function InteractiveTutorial({
   );
 }
 
-// ─── 19 Notion Editor Block Registry ─────────────────────────────────
+// ─── 20 Notion Editor Block Registry ─────────────────────────────────
 const BLOCK_ICON_MAP = {
   text: FileText,
+  page: FileText,
   h1: Layers,
   h2: Layers,
   h3: Layers,
@@ -261,7 +262,7 @@ const BLOCK_ICON_MAP = {
   site: LinkIcon,
 };
 
-export const ALL_19_BLOCKS = RAW_BLOCKS.map((b) => ({
+export const ALL_BLOCKS = RAW_BLOCKS.map((b) => ({
   ...b,
   icon: BLOCK_ICON_MAP[b.type] || FileText,
 }));
@@ -340,22 +341,22 @@ export const TUTORIAL_STEPS = [
     },
   },
 
-  // ── Step 2: 19-Block Editor, Math & Typography
+  // ── Step 2: 20-Block Editor, Math & Typography
   {
     id: "editor",
     category: "Note Taking Studio",
-    shortTitle: "19 Blocks",
+    shortTitle: "20 Blocks",
     badgeEmoji: "✍️",
-    title: "19-Block Notion-Grade Studio, KaTeX & Fonts",
+    title: "20-Block Notion-Grade Studio, KaTeX & Fonts",
     description:
-      "Type '/' on any line to open the 23-item slash menu. Format notes with 19 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
+      "Type '/' on any line to open the 23-item slash menu. Format notes with 20 distinct block types, drag the 6-dots handle (⠿) to reorder, add cover banners, and write formulas like $E=mc^2$.",
     Content: ({ onNavigateTab }) => {
       const [activeCategory, setActiveCategory] = useState("All");
       const [previewFont, setPreviewFont] = useState("sans");
 
       const filteredBlocks = useMemo(() => {
-        if (activeCategory === "All") return ALL_19_BLOCKS;
-        return ALL_19_BLOCKS.filter((b) => b.cat === activeCategory);
+        if (activeCategory === "All") return ALL_BLOCKS;
+        return ALL_BLOCKS.filter((b) => b.cat === activeCategory);
       }, [activeCategory]);
 
       return (
@@ -439,7 +440,7 @@ export const TUTORIAL_STEPS = [
 
           {/* Direct Editor Jump Button */}
           <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-950/60">
-            <span className="text-xs text-ink-300">Try out the 19-block editor on your current notes:</span>
+            <span className="text-xs text-ink-300">Try out the 20-block editor on your current notes:</span>
             <button
               type="button"
               onClick={() => {

@@ -28,7 +28,7 @@
 - **Draggable 6-Dots Handles (`⠿`) & Context Formatting**: Hovering blocks displays aligned insert (`+`, opens a searchable *Insert below* menu including **Page**), delete (`🗑️`) and draggable `⠿` handles. Context popovers feature:
   - ✨ **Explain** / 🦆 **Quiz me** for that specific block.
   - **Inline Text Formatting**: Bold (`B`), Italic (`I`), Underline (`U`), Strikethrough (`S`), LaTeX Math ($x$).
-  - 🔄 **Turn Into Submenu**: Convert block into any of the 19 block types.
+  - 🔄 **Turn Into Submenu**: Convert block into any of the 19 convertible block types (every type except sub-page, which is created via `/page`).
   - 📋 **Duplicate Block**, ⬆️/⬇️ **Move Up/Down**, 📄 **Copy Content**.
 - **Cover Banners**: Full horizontal width note headers with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*).
 - **Custom Emoji Picker & Star Favorites (`⭐`)**: Assign note emojis and toggle star favorites to pin notes in the sidebar.
@@ -203,7 +203,7 @@ A comprehensive suite of 52 real-time interactive 3D STEM simulations built usin
 ### 🎓 12. Interactive Onboarding Tutorial & Feature Walkthrough
 - **9 Interactive Chapters Covering 100+ Capabilities** ([`InteractiveTutorial.jsx`](../components/InteractiveTutorial.jsx)):
   - **Philosophy & 100% Local-First Architecture**: Active retrieval vs rereading, 13-table Dexie.js v9 storage, and spaces workflow with interactive concept cards.
-  - **19-Block Editor & KaTeX Studio**: Interactive category filter across all 19 block types and live typography font switcher (`Default Sans`, `Classic Serif`, `Developer Mono`).
+  - **20-Block Editor & KaTeX Studio**: Interactive category filter across all 20 block types and live typography font switcher (`Default Sans`, `Classic Serif`, `Developer Mono`).
   - **AI Study Suite**: Interactive 3-way drawer preview (AI Tutor Socratic chat, Explain Panel structured breakdown, and an **interactive live mini-quiz** with real-time feedback).
   - **Quizzes Studio & 7 Question Types**: Interactive question type explorer and live step-ordering puzzle.
   - **Space Hub & Curriculum Grounding**: Interactive academic standard simulator (IGCSE, IB, AP, University).
@@ -222,7 +222,7 @@ SocraticOS features an interactive onboarding walkthrough (`components/Interacti
 
 - **9 Comprehensive Interactive Chapters**:
   1. **Philosophy & Active Retrieval**: Core cognitive science foundations and 100% local-first storage model.
-  2. **19-Block Notion-Grade Studio**: Slash menu (`/`), 6-dots drag handles, KaTeX equations, and live 3-font typography switcher (`sans`, `serif`, `mono`).
+  2. **20-Block Notion-Grade Studio**: Slash menu (`/`), 6-dots drag handles, KaTeX equations, and live 3-font typography switcher (`sans`, `serif`, `mono`).
   3. **AI Study Suite**: Structured Explain Panel (4-part breakdown) and live interactive mini-quiz sandbox with instant grading.
   4. **Quizzes Studio**: 2-column test runner, draft answer persistence, 7 question types, and interactive step ordering puzzle.
   5. **Space Hub & Document Grounding**: Multi-discipline spaces, custom syllabus uploads, and interactive curriculum standard personas.

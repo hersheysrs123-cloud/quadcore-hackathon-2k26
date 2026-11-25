@@ -8989,3 +8989,9 @@ Found by driving every block in a headless browser. Each item was reproduced fir
 - **Checked:**
   - *Unit tests:* 12 cases in `tests/unit/nested-blocks.test.mjs`.
   - *Browser:* every item above re-run in Playwright, including a reload of a note with a collapsed toggle.
+
+## Tutorial and docs said 19 block types; the editor has 20
+
+- *Problem:* The onboarding tutorial ("19 Blocks", "Try out the 19-block editor") and several docs said 19 block types, while the README, editor docs and `FEATURES.md` said 20. The tutorial's block grid also left out the sub-page block.
+- *Root cause:* The registry in `lib/tutorialData.js` was written before sub-pages (`page`) existed and was named `ALL_19_BLOCKS`, so it was never updated when `page` was added. The editor's own `BLOCK_TYPES` list (the Turn Into menu) also has 19 entries because `page` is created separately through `/page`, which made the old number look right.
+- *Resolution:* Added a `page` entry ("Sub-Page", `/page`, Containers) to the registry, renamed it to `ALL_BLOCKS` so the count isn't part of the name, and updated the tutorial labels, the unit test (`tests/unit/interactive-tutorial.test.mjs` now expects 20, including `page`) and the docs. The Turn Into line in `FEATURES.md` still says 19 and now explains that every type except sub-page can be converted to.

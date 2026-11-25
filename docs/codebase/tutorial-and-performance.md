@@ -5,7 +5,7 @@
 ### 🎓 K. Interactive Onboarding Tutorial Subsystem (`components/InteractiveTutorial.jsx` & `lib/tutorialData.js`)
 - **9 Interactive Chapters Covering 100+ Features**:
   1. `philosophy`: Active Retrieval vs rereading illusion, 100% local-first IndexedDB (Dexie.js v8), and Spaces architecture with interactive concept selector.
-  2. `editor`: 19-block Notion-grade studio, 23-item slash menu (`/`), 6-dots handle (`⠿`), KaTeX LaTeX equations, table row/col drag handles, and interactive 3-font typography switcher (`sans`, `serif`, `mono`).
+  2. `editor`: 20-block Notion-grade studio, 23-item slash menu (`/`), 6-dots handle (`⠿`), KaTeX LaTeX equations, table row/col drag handles, and interactive 3-font typography switcher (`sans`, `serif`, `mono`).
   3. `ai_suite`: Persistent side-by-side study drawers with tabbed preview of the Explain Panel (4-part breakdown) and an **interactive live mini-quiz** with real-time answer checking, feedback, and mastery heatmap explanation.
   4. `quizzes`: Dedicated Quizzes Studio 2-column exam runner, question matrix, draft auto-save, comprehensive review reports, 7 question types, and an **interactive step-ordering puzzle**.
   5. `spacehub`: Space Hub per-space syllabus doc uploads (.pdf, .docx, .txt, .md), active AI toggles, and an **interactive curriculum standard selector** (IGCSE, IB, AP, University) previewing AI personas and distractor strictness in real time.
