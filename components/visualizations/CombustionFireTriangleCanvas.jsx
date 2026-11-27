@@ -358,7 +358,7 @@ function FireTrianglePoster({ status, Label }) {
           );
         })}
       </group>
-      <Label position={[0, POSTER_SIZE[1] / 2 + 0.3, 0.1]} accent={allGood} tone={allGood ? "text-duck-300" : "text-rose-300"}>
+      <Label position={[0, POSTER_SIZE[1] / 2 + 0.3, 0.1]} accent={allGood} tone={allGood ? "text-brand-300" : "text-rose-300"}>
         {allGood ? "fire triangle — all three sides" : "a side is missing — no flame"}
       </Label>
     </group>

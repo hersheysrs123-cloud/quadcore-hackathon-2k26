@@ -791,7 +791,7 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
       <div>
         <div className="flex items-center justify-between text-[11px] mb-1">
           <span className="text-ink-400 font-medium">Thorax Volume</span>
-          <span className="font-mono font-bold text-duck-300 tabular-nums">{volume.toFixed(2)} L</span>
+          <span className="font-mono font-bold text-brand-300 tabular-nums">{volume.toFixed(2)} L</span>
         </div>
         <div className="relative h-4 w-full rounded-md bg-ink-950 border border-ink-800 overflow-hidden">
           <div
@@ -800,7 +800,7 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
             title="Resting FRC (2.8 L)"
           />
           <div
-            className="h-full rounded-sm bg-gradient-to-r from-duck-500 via-emerald-400 to-sky-400 transition-all duration-75"
+            className="h-full rounded-sm bg-gradient-to-r from-brand-500 via-emerald-400 to-sky-400 transition-all duration-75"
             style={{ width: `${volPct}%` }}
           />
         </div>
@@ -850,7 +850,7 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
           <span className="text-ink-400 font-medium">Air Flow Rate (V̇)</span>
           <span
             className={`font-mono font-bold tabular-nums ${
-              flowRate < -0.05 ? "text-sky-300" : flowRate > 0.05 ? "text-duck-300" : "text-ink-300"
+              flowRate < -0.05 ? "text-sky-300" : flowRate > 0.05 ? "text-brand-300" : "text-ink-300"
             }`}
           >
             {flowRate > 0 ? `+${flowRate.toFixed(2)}` : flowRate.toFixed(2)} L/s
@@ -865,14 +865,14 @@ function PhysicsGaugesHUD({ volume, pressure, flowRate, extTension, intTension }
             />
           ) : (
             <div
-              className="absolute top-0 bottom-0 bg-duck-400 transition-all duration-75"
+              className="absolute top-0 bottom-0 bg-brand-400 transition-all duration-75"
               style={{ left: `${flowZeroPct}%`, width: `${Math.max(0, flowPct - flowZeroPct)}%` }}
             />
           )}
         </div>
         <div className="flex justify-between text-[9px] text-ink-500 font-mono mt-0.5">
           <span className="text-sky-400">Inspiration (Inflow)</span>
-          <span className="text-duck-400">Expiration (Outflow)</span>
+          <span className="text-brand-400">Expiration (Outflow)</span>
         </div>
       </div>
 
@@ -1189,10 +1189,10 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
         <button
           type="button"
           onClick={() => setShowCredits(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-ink-800/90 bg-ink-900/90 px-2.5 py-1.5 text-xs font-semibold text-ink-300 shadow-xl backdrop-blur-md transition-all hover:border-duck-500/50 hover:bg-ink-850 hover:text-duck-300 cursor-pointer"
+          className="flex items-center gap-1.5 rounded-lg border border-ink-800/90 bg-ink-900/90 px-2.5 py-1.5 text-xs font-semibold text-ink-300 shadow-xl backdrop-blur-md transition-all hover:border-brand-500/50 hover:bg-ink-850 hover:text-brand-300 cursor-pointer"
           title="3D Model Attribution & Open Source Licenses"
         >
-          <Info className="h-3.5 w-3.5 text-duck-400" />
+          <Info className="h-3.5 w-3.5 text-brand-400" />
           <span>Credits</span>
         </button>
       </div>
@@ -1213,7 +1213,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
           {/* Header */}
           <div className={`flex items-center justify-between gap-3 ${!isCollapsed ? "border-b border-ink-800 pb-2.5 mb-3" : ""}`}>
             <div className="flex items-center gap-2 min-w-0">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-duck-500/30 bg-duck-500/10 text-sm">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-500/10 text-sm">
                 🫁
               </span>
               <div className="min-w-0">
@@ -1234,12 +1234,12 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                 onClick={() => setShowCredits((prev) => !prev)}
                 className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
                   showCredits
-                    ? "border-duck-500/50 bg-duck-500/20 text-duck-300"
+                    ? "border-brand-500/50 bg-brand-500/20 text-brand-300"
                     : "border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200 hover:border-ink-600"
                 }`}
                 title="View 3D Model Credits & Open Source Licenses"
               >
-                <Info className="h-3 w-3 text-duck-400" />
+                <Info className="h-3 w-3 text-brand-400" />
                 <span className="hidden sm:inline">Credits</span>
               </button>
 
@@ -1248,7 +1248,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                 onClick={() => setAutoLoop(!autoLoop)}
                 className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all ${
                   autoLoop
-                    ? "border-duck-500/50 bg-duck-500/20 text-duck-300"
+                    ? "border-brand-500/50 bg-brand-500/20 text-brand-300"
                     : "border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200"
                 }`}
                 title={autoLoop ? "Pause auto breathing loop" : "Start auto breathing loop"}
@@ -1311,8 +1311,8 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   Breathing Phase
                 </span>
                 {autoLoop && (
-                  <span className="flex items-center gap-1 text-[10px] font-mono text-duck-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-duck-400 animate-pulse" />
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-brand-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" />
                     Auto Breathing
                   </span>
                 )}
@@ -1327,7 +1327,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
                     phase === RESPIRATORY_PHASES.INSPIRATION
-                      ? "border-duck-500 bg-duck-500/20 text-duck-300 shadow-sm"
+                      ? "border-brand-500 bg-brand-500/20 text-brand-300 shadow-sm"
                       : "border-ink-800 bg-ink-850/60 text-ink-400 hover:bg-ink-800"
                   }`}
                 >
@@ -1342,7 +1342,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   }}
                   className={`rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-all ${
                     phase === RESPIRATORY_PHASES.QUIET_EXPIRATION
-                      ? "border-duck-500 bg-duck-500/20 text-duck-300 shadow-sm"
+                      ? "border-brand-500 bg-brand-500/20 text-brand-300 shadow-sm"
                       : "border-ink-800 bg-ink-850/60 text-ink-400 hover:bg-ink-800"
                   }`}
                 >
@@ -1370,7 +1370,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
 
             {/* 2. Real-Time Physics Gauges */}
             <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-2.5">
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-duck-400 mb-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-brand-400 mb-2">
                 <Gauge className="h-3 w-3" />
                 <span>Live Thoracic Physics Gauges</span>
               </div>
@@ -1451,7 +1451,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   <button
                     type="button"
                     onClick={() => setShowCredits(true)}
-                    className="text-duck-400 hover:text-duck-300 hover:underline font-semibold cursor-pointer"
+                    className="text-brand-400 hover:text-brand-300 hover:underline font-semibold cursor-pointer"
                   >
                     View Credits & Licenses →
                   </button>
@@ -1501,7 +1501,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                   };
                   onOpenQuiz(respiratoryTopic, liveParams);
                 }}
-                className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-duck-400 to-duck-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-duck-300 hover:to-duck-400 shadow-md hover:shadow-duck-500/20 active:scale-[0.99] cursor-pointer"
+                className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-brand-400 to-brand-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-brand-300 hover:to-brand-400 shadow-md hover:shadow-brand-500/20 active:scale-[0.99] cursor-pointer"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <Sparkles className="h-4 w-4 shrink-0 text-ink-950" strokeWidth={2.25} />
@@ -1527,7 +1527,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
             >
               <div
                 className={`h-12 w-1 rounded-full transition-all ${
-                  isResizing ? "bg-duck-400 scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80"
+                  isResizing ? "bg-brand-400 scale-y-110" : "bg-ink-700/50 group-hover:bg-brand-400/80"
                 }`}
               />
             </div>
@@ -1550,7 +1550,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-3 border-b border-ink-800 px-5 py-4 shrink-0 bg-ink-900">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-duck-500/40 bg-duck-500/10 text-duck-400 shadow-inner">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/40 bg-brand-500/10 text-brand-400 shadow-inner">
                   <Info className="h-5 w-5" />
                 </div>
                 <div>
@@ -1580,15 +1580,15 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
             {/* Scrollable Content */}
             <div className="overflow-y-auto px-5 py-4 space-y-3.5 no-scrollbar">
               {/* Notice Banner */}
-              <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-3 text-xs text-ink-200 leading-relaxed">
+              <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-3 text-xs text-ink-200 leading-relaxed">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold text-duck-300">Open Source & Commercial Rights Notice</p>
+                  <p className="font-semibold text-brand-300">Open Source & Commercial Rights Notice</p>
                   <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded">
                     Commercial Use Permitted
                   </span>
                 </div>
                 <p className="text-ink-300 text-[11px] leading-relaxed">
-                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-duck-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm is 100% original SocraticOS code.
+                  Both the <strong className="text-ink-100">3D Thoracic CT Skeleton</strong> and <strong className="text-ink-100">Medical Lungs</strong> models were originally published under the <strong className="text-emerald-300">Creative Commons Attribution 4.0 International (CC-BY-4.0)</strong> license. CC-BY-4.0 explicitly grants the right to adapt and use the models for <strong className="text-brand-300">any purpose, including commercial applications</strong>, as long as appropriate author attribution is preserved. The diaphragm is 100% original Learnory code.
                 </p>
               </div>
 
@@ -1655,7 +1655,7 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
                             href={item.repoUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 font-semibold text-duck-400 hover:text-duck-300 hover:underline text-[10px]"
+                            className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:text-brand-300 hover:underline text-[10px]"
                           >
                             <span>GitHub</span>
                             <ExternalLink className="h-2.5 w-2.5" />
@@ -1678,11 +1678,11 @@ export default function RespiratoryCanvas({ params, setParam, onOpenQuiz }) {
 
             {/* Modal Footer */}
             <div className="flex items-center justify-between border-t border-ink-800 px-5 py-3 shrink-0 bg-ink-900">
-              <span className="text-[11px] text-ink-500">SocraticOS 3D Anatomy Engine</span>
+              <span className="text-[11px] text-ink-500">Learnory 3D Anatomy Engine</span>
               <button
                 type="button"
                 onClick={() => setShowCredits(false)}
-                className="rounded-lg bg-duck-500 px-4 py-1.5 text-xs font-bold text-ink-950 transition-all hover:bg-duck-400 shadow-sm active:scale-98 cursor-pointer"
+                className="rounded-lg bg-brand-500 px-4 py-1.5 text-xs font-bold text-ink-950 transition-all hover:bg-brand-400 shadow-sm active:scale-98 cursor-pointer"
               >
                 Close Credits
               </button>

@@ -370,7 +370,7 @@ function InclineGripBar({ solved, surface, rampAngle }) {
   return (
     <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-300">
           Static Grip Capacity
         </span>
         <span
@@ -482,7 +482,7 @@ function InclineVelocityGraph({ tracePoints, tMax, vMin, vMax, latest, markerLab
   return (
     <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-300">
           Velocity Trace v(t)
         </span>
         <span className="font-mono text-[10px] text-ink-400">t = {latestTime.toFixed(2)} s</span>
@@ -589,7 +589,7 @@ function InclineStatsGrid({ solved, live, mass, surface, appliedForce, rampAngle
   return (
     <div className="rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2">
       <div className="flex items-center justify-between border-b border-ink-800/80 pb-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-duck-300">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-300">
           Forces & Dynamics
         </span>
         <span className="font-mono text-[9.5px] text-ink-500">
@@ -606,7 +606,7 @@ function InclineStatsGrid({ solved, live, mass, surface, appliedForce, rampAngle
             <span
               className={`font-mono text-xs font-bold ${
                 s.tone === "accent"
-                  ? "text-duck-300"
+                  ? "text-brand-300"
                   : s.tone === "gold"
                   ? "text-amber-300"
                   : s.tone === "sky"
@@ -967,7 +967,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
             className="absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-3 py-1.5 text-xs font-semibold text-ink-200 backdrop-blur shadow-lg transition-all hover:bg-ink-800 hover:text-white"
             title="Open Telemetry Sidebar"
           >
-            <Activity className="h-3.5 w-3.5 text-duck-300" />
+            <Activity className="h-3.5 w-3.5 text-brand-300" />
             <span>Telemetry</span>
           </button>
         )}
@@ -978,7 +978,7 @@ export default function InclineFrictionCanvas({ params = {} }) {
         <aside className="relative flex h-full w-[320px] shrink-0 flex-col border-l border-ink-800 bg-ink-900/95 backdrop-blur-md z-10 overflow-y-auto p-3.5 space-y-3 shadow-2xl">
           <div className="flex items-center justify-between pb-1 border-b border-ink-800/70">
             <div className="flex items-center gap-1.5">
-              <Activity className="h-4 w-4 text-duck-300" />
+              <Activity className="h-4 w-4 text-brand-300" />
               <span className="text-xs font-bold uppercase tracking-wider text-ink-100">
                 Telemetry & Analytics
               </span>

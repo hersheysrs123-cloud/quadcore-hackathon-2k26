@@ -247,7 +247,7 @@ export function HudPanel({ title, icon: Icon, action, children, className = "" }
     >
       {title && (
         <div className="mb-3 flex items-center gap-2">
-          {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-duck-400" strokeWidth={2} />}
+          {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-brand-400" strokeWidth={2} />}
           <span className="flex-1 truncate text-[11px] font-medium uppercase tracking-wider text-ink-500">
             {title}
           </span>
@@ -265,7 +265,7 @@ export function Slider({ label, value, onChange, min, max, step = 1, format }) {
     <label className="block">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="text-[11px] text-ink-400">{label}</span>
-        <span className="text-[11px] font-medium tabular-nums text-duck-300">
+        <span className="text-[11px] font-medium tabular-nums text-brand-300">
           {format ? format(safeValue) : safeValue}
         </span>
       </div>
@@ -277,7 +277,7 @@ export function Slider({ label, value, onChange, min, max, step = 1, format }) {
         value={safeValue}
         onChange={(e) => onChange(Number(e.target.value))}
         suppressHydrationWarning
-        className="w-full cursor-pointer accent-duck-400"
+        className="w-full cursor-pointer accent-brand-400"
       />
     </label>
   );
@@ -296,7 +296,7 @@ export function Toggle({ label, checked, onChange }) {
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <span
         className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
-          checked ? "bg-duck-500" : "bg-ink-700"
+          checked ? "bg-brand-500" : "bg-ink-700"
         }`}
       >
         <span
@@ -327,7 +327,7 @@ export function Choice({ options, value, onChange, columns = 2 }) {
             suppressHydrationWarning
             className={`truncate rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors ${
               active
-                ? "border-duck-500/60 bg-duck-500/15 text-duck-300"
+                ? "border-brand-500/60 bg-brand-500/15 text-brand-300"
                 : "border-ink-700 bg-ink-850 text-ink-400 hover:border-ink-600 hover:text-ink-200"
             }`}
           >
@@ -349,7 +349,7 @@ export function HudButton({
   type = "button",
 }) {
   const variants = {
-    primary: "border-transparent bg-duck-400 font-medium text-ink-950 hover:bg-duck-300",
+    primary: "border-transparent bg-brand-400 font-medium text-ink-950 hover:bg-brand-300",
     ghost: "border-ink-700 bg-ink-850 text-ink-200 hover:border-ink-600 hover:bg-ink-800",
     danger: "border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
   };
@@ -379,7 +379,7 @@ export function HudButton({
 const TONES = {
   default: "text-ink-100",
   neutral: "text-ink-100",
-  gold: "text-duck-300",
+  gold: "text-brand-300",
   good: "text-emerald-400",
   warn: "text-amber-400",
   bad: "text-rose-400",
@@ -530,7 +530,7 @@ function StageStepper({ control, params, setParam, value, emit }) {
           suppressHydrationWarning
           className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${
             playing
-              ? "border-duck-500/60 bg-duck-500/15 text-duck-300"
+              ? "border-brand-500/60 bg-brand-500/15 text-brand-300"
               : "border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-600 hover:text-ink-100"
           }`}
         >
@@ -572,13 +572,13 @@ function StageStepper({ control, params, setParam, value, emit }) {
               suppressHydrationWarning
               className={`flex items-center gap-1 truncate rounded-md border px-1.5 py-1 text-left text-[10.5px] font-medium transition-colors ${
                 active
-                  ? "border-duck-500/60 bg-duck-500/15 text-duck-300"
+                  ? "border-brand-500/60 bg-brand-500/15 text-brand-300"
                   : ok
                     ? "border-ink-700 bg-ink-850 text-ink-400 hover:border-ink-600 hover:text-ink-200"
                     : "border-ink-800 bg-ink-900 text-ink-600 line-through decoration-rose-500/60"
               }`}
             >
-              <span className={`shrink-0 font-mono text-[9px] ${active ? "text-duck-400" : "text-ink-600"}`}>{i + 1}</span>
+              <span className={`shrink-0 font-mono text-[9px] ${active ? "text-brand-400" : "text-ink-600"}`}>{i + 1}</span>
               <span className="truncate">{text}</span>
             </button>
           );
@@ -712,14 +712,14 @@ function HookesLawSidebarGraph({ params }) {
     : solved.yielding
     ? { label: "Plastic Yielding", badge: "bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse" }
     : solved.yielded
-    ? { label: `Set: ${(solved.permanentSet * 100).toFixed(1)}cm`, badge: "bg-duck-500/20 text-duck-300 border-duck-500/40" }
+    ? { label: `Set: ${(solved.permanentSet * 100).toFixed(1)}cm`, badge: "bg-brand-500/20 text-brand-300 border-brand-500/40" }
     : { label: "Hooke's Law (F=kx)", badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" };
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-950/70 p-2.5 space-y-2 shadow-inner">
       <div className="flex items-center justify-between">
         <span
-          className="text-[11px] font-bold uppercase tracking-wider text-duck-300"
+          className="text-[11px] font-bold uppercase tracking-wider text-brand-300"
           style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}
         >
           Force–Extension F(x)
@@ -995,7 +995,7 @@ function HookesLawSidebarGraph({ params }) {
         <div className="flex flex-col bg-ink-900/60 rounded px-1 py-0.5 border border-ink-800/50">
           <span className="text-[7.5px] uppercase tracking-wider text-ink-500 font-sans">Extension (x)</span>
           <span
-            className="text-[9.5px] font-bold text-duck-300 truncate"
+            className="text-[9.5px] font-bold text-brand-300 truncate"
             style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
           >
             {(solved.extension * 100).toFixed(1)} cm
@@ -1010,7 +1010,7 @@ function HookesLawSidebarGraph({ params }) {
                 : solved.yielding
                 ? "text-amber-400"
                 : solved.yielded
-                ? "text-duck-300"
+                ? "text-brand-300"
                 : "text-emerald-400"
             }`}
             style={{ fontFamily: "'JetBrains Mono', monospace", fontVariantNumeric: "tabular-nums" }}
@@ -4313,7 +4313,7 @@ function renderTopicDetailsReadout(topic, params) {
       {/* ─── Right-Sidebar Live Readout Section ─── */}
       <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-2.5 space-y-2">
         <div className="flex items-center justify-between border-b border-ink-800/80 pb-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-duck-300">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-300">
             {readout.title}
           </span>
           <span className="text-[9.5px] font-mono text-ink-500">{readout.subtitle}</span>
@@ -4476,7 +4476,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-ink-800 px-3.5 py-2.5 shrink-0">
           <div className="flex min-w-0 items-center gap-2">
-            {topic.icon && <topic.icon className="h-4 w-4 shrink-0 text-duck-400" strokeWidth={2} />}
+            {topic.icon && <topic.icon className="h-4 w-4 shrink-0 text-brand-400" strokeWidth={2} />}
             <span className="truncate text-xs font-semibold uppercase tracking-wider text-ink-300">
               {topic.title}
             </span>
@@ -4502,7 +4502,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                 onClick={() => setActiveTab("controls")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
                   activeTab === "controls"
-                    ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
+                    ? "border border-brand-500/40 bg-brand-500/20 text-brand-300 shadow-sm"
                     : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
                 }`}
               >
@@ -4515,7 +4515,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                 onClick={() => setActiveTab("details")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
                   activeTab === "details"
-                    ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
+                    ? "border border-brand-500/40 bg-brand-500/20 text-brand-300 shadow-sm"
                     : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
                 }`}
               >
@@ -4655,7 +4655,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                 {/* Syllabus & Overview */}
                 <div className="rounded-lg border border-ink-800 bg-ink-950/50 p-2.5 space-y-1.5">
                   {topic.syllabus && (
-                    <span className="inline-block rounded border border-duck-500/30 bg-duck-500/10 px-2 py-0.5 text-[10px] font-mono text-duck-300">
+                    <span className="inline-block rounded border border-brand-500/30 bg-brand-500/10 px-2 py-0.5 text-[10px] font-mono text-brand-300">
                       {topic.syllabus}
                     </span>
                   )}
@@ -4675,7 +4675,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                       className="flex w-full items-center justify-between gap-2 text-left"
                     >
                       <div className="flex items-center gap-2">
-                        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-duck-400" strokeWidth={2} />
+                        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-brand-400" strokeWidth={2} />
                         <span className="text-xs font-semibold text-ink-100">
                           Key Concepts (toggle)
                         </span>
@@ -4684,7 +4684,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                         <span
                           className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors ${
                             keyConceptsOpen
-                              ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                              ? "border border-brand-500/40 bg-brand-500/20 text-brand-300"
                               : "bg-ink-800 text-ink-400"
                           }`}
                         >
@@ -4703,7 +4703,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                       <div className="mt-2.5 space-y-2 border-t border-ink-800/80 pt-2.5">
                         {topic.concepts.map((concept, i) => (
                           <div key={i} className="flex items-start gap-2">
-                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-duck-500/20 text-[9px] font-mono font-bold text-duck-400">
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-500/20 text-[9px] font-mono font-bold text-brand-400">
                               {i + 1}
                             </span>
                             <p className="text-[11px] leading-relaxed text-ink-300">
@@ -4724,7 +4724,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
                   <button
                     type="button"
                     onClick={() => onOpenQuiz(topic, params)}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-duck-400 to-duck-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-duck-300 hover:to-duck-400 shadow-md hover:shadow-duck-500/20 active:scale-[0.99] cursor-pointer"
+                    className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-brand-400 to-brand-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-brand-300 hover:to-brand-400 shadow-md hover:shadow-brand-500/20 active:scale-[0.99] cursor-pointer"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <Sparkles className="h-4 w-4 shrink-0 text-ink-950" strokeWidth={2.25} />
@@ -4748,7 +4748,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
         >
           <div
             className={`h-14 w-1 rounded-full transition-all ${
-              isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+              isResizing ? "bg-brand-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-brand-400/80 group-hover:h-20"
             }`}
           />
         </div>
@@ -4756,7 +4756,7 @@ export function VisualizationHUD({ topic, params, setParam, setParams, onReset, 
         {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
         <div
           onPointerDown={handleResizePointerDown}
-          className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+          className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-brand-400 select-none"
           title="Drag to resize panel width"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">
@@ -4828,7 +4828,7 @@ export function QuizOverlay({ topic, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="mt-4 rounded-lg bg-duck-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-duck-300"
+            className="mt-4 rounded-lg bg-brand-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-brand-300"
           >
             Back to the model
           </button>
@@ -4872,7 +4872,7 @@ export function QuizOverlay({ topic, onClose }) {
 
         {finished ? (
           <div className="px-5 py-8 text-center">
-            <p className="text-4xl font-semibold tabular-nums text-duck-400">
+            <p className="text-4xl font-semibold tabular-nums text-brand-400">
               {correct}
               <span className="text-lg text-ink-500"> / {topic.quiz.length}</span>
             </p>
@@ -4894,7 +4894,7 @@ export function QuizOverlay({ topic, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-duck-400 px-4 py-2 text-sm font-medium text-ink-950 transition-colors hover:bg-duck-300"
+                className="rounded-lg bg-brand-400 px-4 py-2 text-sm font-medium text-ink-950 transition-colors hover:bg-brand-300"
               >
                 Back to the model
               </button>
@@ -4907,7 +4907,7 @@ export function QuizOverlay({ topic, onClose }) {
                 <span
                   key={i}
                   className={`h-1 flex-1 rounded-full ${
-                    i < index ? "bg-duck-500" : i === index ? "bg-duck-400" : "bg-ink-800"
+                    i < index ? "bg-brand-500" : i === index ? "bg-brand-400" : "bg-ink-800"
                   }`}
                 />
               ))}
@@ -4968,7 +4968,7 @@ export function QuizOverlay({ topic, onClose }) {
                 type="button"
                 onClick={next}
                 disabled={picked === null}
-                className="rounded-lg bg-duck-400 px-4 py-2 text-sm font-medium text-ink-950 transition-opacity disabled:opacity-30"
+                className="rounded-lg bg-brand-400 px-4 py-2 text-sm font-medium text-ink-950 transition-opacity disabled:opacity-30"
               >
                 {isLast ? "See result" : "Next question"}
               </button>

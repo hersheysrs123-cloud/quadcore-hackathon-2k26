@@ -1,6 +1,6 @@
 # File map — components/visualizations/
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Every 3D scene, shared kit and the topic registry.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Every 3D scene, shared kit and the topic registry.
 
 ```
 quadcore-hackathon-2k26/

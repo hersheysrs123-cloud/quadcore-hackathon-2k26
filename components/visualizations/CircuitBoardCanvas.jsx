@@ -349,7 +349,7 @@ function Bulb({ position, bulb, ohms, showBands = true }) {
 
       {/* The unscrewed label sits on the side away from the floating bulb, and
           low, so it neither hides the bulb nor stacks up under the title. */}
-      <SceneLabel position={[removed ? -0.62 : 0, 1.0, 0]} tone={bulb?.lit ? "text-duck-300" : "text-ink-400"}>
+      <SceneLabel position={[removed ? -0.62 : 0, 1.0, 0]} tone={bulb?.lit ? "text-brand-300" : "text-ink-400"}>
         {removed
           ? `bulb ${bulb?.id ?? "?"} — unscrewed`
           : `${bulb?.id ?? "?"} · ${((bulb?.brightness ?? 0) * 100).toFixed(0)}% brightness`}

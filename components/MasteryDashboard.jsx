@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import ScoreRing from "@/components/ScoreRing";
+import { MalloIcon } from "@/components/brand/Brand";
 import { ChevronDown } from "lucide-react";
 import {
   STATUS,
@@ -104,7 +105,7 @@ export default function MasteryDashboard({
               <select
                 value={selectedSpace}
                 onChange={(e) => handleSpaceChange(e.target.value)}
-                className="rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none cursor-pointer appearance-none shadow-sm transition-all hover:border-ink-600"
+                className="rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-brand-500/50 focus:outline-none cursor-pointer appearance-none shadow-sm transition-all hover:border-ink-600"
                 title="Filter mastery by space"
               >
                 {(spaces && spaces.length > 0 ? spaces : [{ name: activeSpace, icon: "📁" }]).map((s) => (
@@ -199,7 +200,7 @@ export default function MasteryDashboard({
                   type="button"
                   onClick={() => group.noteId && onOpenNote(group.noteId)}
                   disabled={!group.noteId}
-                  className="min-w-0 truncate text-left text-[13px] font-medium text-ink-200 transition-colors hover:text-duck-300 disabled:hover:text-ink-200"
+                  className="min-w-0 truncate text-left text-[13px] font-medium text-ink-200 transition-colors hover:text-brand-300 disabled:hover:text-ink-200"
                 >
                   {group.title}
                 </button>
@@ -267,16 +268,16 @@ export default function MasteryDashboard({
                     <button
                       type="button"
                       onClick={() => onStudy(topic, "explain")}
-                      className="rounded-lg border border-ink-700 px-2.5 py-1.5 text-[11px] text-ink-300 transition-colors hover:border-duck-500/50 hover:text-duck-300"
+                      className="rounded-lg border border-ink-700 px-2.5 py-1.5 text-[11px] text-ink-300 transition-colors hover:border-brand-500/50 hover:text-brand-300"
                     >
                       ✨ Explain
                     </button>
                     <button
                       type="button"
                       onClick={() => onStudy(topic, "quiz")}
-                      className="rounded-lg border border-ink-700 px-2.5 py-1.5 text-[11px] text-ink-300 transition-colors hover:border-duck-500/50 hover:text-duck-300"
+                      className="rounded-lg border border-ink-700 px-2.5 py-1.5 text-[11px] text-ink-300 transition-colors hover:border-brand-500/50 hover:text-brand-300"
                     >
-                      🦆 Retest
+                      <span className="inline-flex items-center gap-1"><MalloIcon className="h-3.5 w-3.5" /> Retest</span>
                     </button>
                   </div>
                 </li>
@@ -300,7 +301,7 @@ export default function MasteryDashboard({
                   className="text-sm"
                   title={session.mode === "quiz" ? "Quick quiz" : "Socratic session"}
                 >
-                  {session.mode === "quiz" ? "📋" : "🦆"}
+                  {session.mode === "quiz" ? "📋" : <MalloIcon className="h-4 w-4" />}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13px] text-ink-200">
                   {session.concept}
@@ -390,7 +391,7 @@ function Cell({ topic, onStudy }) {
         type="button"
         onClick={() => onStudy?.(topic, "explain")}
         title="Click to explain this topic with AI"
-        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition-all ${status.chip} hover:scale-[1.02] hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-duck-400`}
+        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition-all ${status.chip} hover:scale-[1.02] hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-brand-400`}
       >
         <span aria-hidden="true">{status.shape}</span>
         <span className="max-w-[11rem] truncate font-medium">{topic.subtopic}</span>
@@ -404,7 +405,7 @@ function Cell({ topic, onStudy }) {
           {status.label} — {status.blurb}
         </span>
         <span className="mt-1 block">{topic.feedback}</span>
-        <span className="mt-1.5 block text-[9px] text-duck-400 font-medium">Click to Explain →</span>
+        <span className="mt-1.5 block text-[9px] text-brand-400 font-medium">Click to Explain →</span>
       </span>
     </span>
   );
@@ -453,7 +454,7 @@ function EmptyState({ notes = [], spaceName = "this space", onStudy }) {
           Your mastery map for {displayName} is empty
         </h2>
         <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-ink-400">
-          Every time the Duck quizzes you, it grades each sub-topic separately
+          Every time Mallo quizzes you, it grades each sub-topic separately
           and drops the result here. After a few sessions this page becomes the
           honest answer to “what should I revise?” — not what you read most, but
           what you couldn’t explain.
@@ -470,7 +471,7 @@ function EmptyState({ notes = [], spaceName = "this space", onStudy }) {
                   <button
                     type="button"
                     onClick={() => onStudy?.({ noteId: note.id, noteTitle: note.title, space: note.space }, "quiz")}
-                    className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-3 text-left transition-colors hover:border-duck-500/40 cursor-pointer"
+                    className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-4 py-3 text-left transition-colors hover:border-brand-500/40 cursor-pointer"
                   >
                     <span className="text-lg leading-none">{note.emoji || "📝"}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-ink-200">
@@ -489,9 +490,9 @@ function EmptyState({ notes = [], spaceName = "this space", onStudy }) {
             <button
               type="button"
               onClick={() => onStudy?.({ space: spaceName === "all" ? "School" : spaceName }, "quiz")}
-              className="inline-flex items-center gap-2 rounded-xl bg-duck-400 px-4 py-2.5 text-xs font-bold text-ink-950 shadow-md hover:bg-duck-300 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-400 px-4 py-2.5 text-xs font-bold text-ink-950 shadow-md hover:bg-brand-300 transition-colors cursor-pointer"
             >
-              <span>🦆</span>
+              <MalloIcon className="h-4 w-4" />
               <span>Start a Quiz</span>
             </button>
           </div>

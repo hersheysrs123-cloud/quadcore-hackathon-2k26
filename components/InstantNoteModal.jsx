@@ -89,7 +89,7 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote, spa
                 </span>
               </h2>
               <p className="text-xs text-ink-500">
-                Jot down quick thoughts instantly · Saved under <strong className="text-duck-300">Misc</strong>
+                Jot down quick thoughts instantly · Saved under <strong className="text-brand-300">Misc</strong>
               </p>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote, spa
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Note Title…"
-            className="w-full border-b border-ink-800 bg-transparent pb-2 text-2xl font-bold tracking-tight text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+            className="w-full border-b border-ink-800 bg-transparent pb-2 text-2xl font-bold tracking-tight text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
           />
 
           {/* Quick Idea Text Area */}
@@ -120,7 +120,7 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote, spa
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Type your quick idea or thoughts here… Press Ctrl+Enter to save."
-            className="flex-1 w-full resize-none rounded-xl border border-ink-800 bg-ink-950 p-4 text-sm leading-relaxed text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none shadow-inner"
+            className="flex-1 w-full resize-none rounded-xl border border-ink-800 bg-ink-950 p-4 text-sm leading-relaxed text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none shadow-inner"
           />
         </div>
 
@@ -131,7 +131,7 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote, spa
             <select
               value={space}
               onChange={(e) => setSpace(e.target.value)}
-              className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs text-ink-200 focus:border-duck-500 focus:outline-none"
+              className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs text-ink-200 focus:border-brand-500 focus:outline-none"
             >
               {spaces.map(sp => (
                 <option key={sp.name} value={sp.name}>{sp.name} {sp.name === 'Misc' ? '(Instant Notes)' : ''}</option>
@@ -156,7 +156,7 @@ export default function InstantNoteModal({ open, onClose, onSaveInstantNote, spa
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-duck-400 px-5 py-2 text-xs font-bold text-ink-950 shadow-lg shadow-amber-500/10 transition-all hover:brightness-110 active:scale-95"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-brand-400 px-5 py-2 text-xs font-bold text-ink-950 shadow-lg shadow-amber-500/10 transition-all hover:brightness-110 active:scale-95"
             >
               <span>⚡</span>
               <span>Save Instant Note</span>

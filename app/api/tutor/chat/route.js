@@ -10,7 +10,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const TUTOR_PERSONA = `You are the personal AI Tutor inside SocraticOS, an intelligent study workspace.
+const TUTOR_PERSONA = `You are the personal AI Tutor inside Learnory, an intelligent study workspace.
 
 Your mission is to help the learner resolve doubts, understand difficult concepts, work through step-by-step problem derivations, and master their subjects.
 

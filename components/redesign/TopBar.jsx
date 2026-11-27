@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, GraduationCap, Maximize2, PanelLeft, Sparkles } from "lucide-react";
+import { MalloIcon } from "@/components/brand/Brand";
 
 const SECTION_TITLES = {
   home: "Home",
@@ -63,7 +64,7 @@ export default function TopBar({
             type="button"
             onClick={onTogglePanel}
             title={panelOpen ? "Hide notes panel" : "Show notes panel"}
-            className={`rounded-lg p-1.5 transition-colors hover:bg-ink-800 hover:text-ink-100 ${panelOpen ? "text-ink-400" : "text-duck-400"}`}
+            className={`rounded-lg p-1.5 transition-colors hover:bg-ink-800 hover:text-ink-100 ${panelOpen ? "text-ink-400" : "text-brand-400"}`}
           >
             <PanelLeft className="h-4 w-4" />
           </button>
@@ -97,7 +98,7 @@ export default function TopBar({
               <>
                 {c.emoji && <span className="shrink-0 text-sm leading-none">{c.emoji}</span>}
                 <span className={`truncate ${last ? "font-semibold text-ink-100" : "text-ink-400"}`}>{c.label}</span>
-                {last && c.note?.isFavorite && <span className="shrink-0 text-xs text-duck-400">★</span>}
+                {last && c.note?.isFavorite && <span className="shrink-0 text-xs text-brand-400">★</span>}
               </>
             );
             return (
@@ -155,9 +156,9 @@ export default function TopBar({
               disabled={!canStudyNote}
               onClick={onQuiz}
               title={canStudyNote ? "Quiz me on this note" : "Open a note first"}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400 px-2.5 py-1.5 text-xs font-semibold text-ink-950 transition-colors hover:bg-duck-300 disabled:pointer-events-none disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400 px-2.5 py-1.5 text-xs font-semibold text-ink-950 transition-colors hover:bg-brand-300 disabled:pointer-events-none disabled:opacity-40"
             >
-              <span aria-hidden="true">🦆</span>
+              <MalloIcon className="h-4 w-4" />
               <span className="hidden lg:inline">Quiz me</span>
             </button>
             <button

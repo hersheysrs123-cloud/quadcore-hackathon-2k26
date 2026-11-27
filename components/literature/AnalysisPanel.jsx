@@ -61,14 +61,14 @@ export default function AnalysisPanel({
                 }}
                 className={`group cursor-pointer rounded-xl border px-2.5 py-2 transition-colors outline-none ${
                   isOpen
-                    ? "border-duck-500/50 bg-ink-850"
+                    ? "border-brand-500/50 bg-ink-850"
                     : isHot
                     ? "border-ink-700 bg-ink-850"
                     : "border-ink-800 bg-ink-850/50 hover:border-ink-700 hover:bg-ink-850"
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <span className="mt-0.5 shrink-0 rounded-md border border-duck-500/30 bg-duck-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-duck-300">
+                  <span className="mt-0.5 shrink-0 rounded-md border border-brand-500/30 bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-brand-300">
                     {n}
                   </span>
                   <div className="min-w-0 flex-1 font-note-serif text-[13px] leading-snug text-ink-200">

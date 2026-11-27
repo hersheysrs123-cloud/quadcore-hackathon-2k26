@@ -1272,7 +1272,7 @@ function IrisViewport({ solved, animate, expanded }) {
       </SceneCanvas>
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-2 py-1.5">
         <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ink-300">Iris · front view</span>
-        <span className="rounded bg-ink-900/80 px-1.5 py-0.5 text-[9.5px] font-mono text-duck-300">
+        <span className="rounded bg-ink-900/80 px-1.5 py-0.5 text-[9.5px] font-mono text-brand-300">
           {solved.iris.diameterMm.toFixed(2)} mm
         </span>
       </div>
@@ -1730,8 +1730,8 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
                   />
                   <div className="flex items-center justify-between gap-1.5 text-ink-500">
                     <Moon className="h-3.5 w-3.5 shrink-0" />
-                    <div className="h-px flex-1 bg-gradient-to-r from-sky-900 via-ink-600 to-duck-400" />
-                    <Sun className="h-3.5 w-3.5 shrink-0 text-duck-400" />
+                    <div className="h-px flex-1 bg-gradient-to-r from-sky-900 via-ink-600 to-brand-400" />
+                    <Sun className="h-3.5 w-3.5 shrink-0 text-brand-400" />
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     {LIGHT_PRESETS.map((preset) => (
@@ -1914,7 +1914,7 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
             >
               <div
                 className={`h-14 w-1 rounded-full transition-all ${
-                  isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+                  isResizing ? "bg-brand-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-brand-400/80 group-hover:h-20"
                 }`}
               />
             </div>
@@ -1922,7 +1922,7 @@ export default function EyeCanvas({ params, setParam, onOpenQuiz }) {
             {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
             <div
               onPointerDown={handleResizePointerDown}
-              className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+              className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-brand-400 select-none"
               title="Drag to resize panel width"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">

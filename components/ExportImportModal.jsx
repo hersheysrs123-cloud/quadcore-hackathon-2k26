@@ -66,8 +66,8 @@ export default function ExportImportModal({
   const formats = [
     {
       id: "socratic",
-      name: "Socratic Package (.socratic)",
-      ext: ".socratic",
+      name: "Learnory Backup (.learnory)",
+      ext: ".learnory",
       icon: "📦",
       description: "Space or full workspace backup file containing notes & metadata",
       badge: "Space Backup",
@@ -254,7 +254,7 @@ export default function ExportImportModal({
             {/* Preview Top Header with Close */}
             <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/80 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-brand-500/30 bg-brand-500/10 text-brand-300">
                   <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div>
@@ -274,8 +274,8 @@ export default function ExportImportModal({
             </div>
 
             {toastMessage && (
-              <div className="mx-4 sm:mx-6 mt-3 rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-2 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2 shrink-0">
-                <Sparkles className="h-4 w-4 shrink-0 text-duck-300" />
+              <div className="mx-4 sm:mx-6 mt-3 rounded-xl border border-brand-500/40 bg-brand-500/10 px-4 py-2 text-xs font-semibold text-brand-200 animate-fade-in flex items-center gap-2 shrink-0">
+                <Sparkles className="h-4 w-4 shrink-0 text-brand-300" />
                 <span>{toastMessage}</span>
               </div>
             )}
@@ -297,12 +297,12 @@ export default function ExportImportModal({
             {/* Header */}
             <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3 sm:px-6 sm:py-3.5 bg-ink-950/60 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-brand-500/30 bg-brand-500/10 text-brand-300">
                   <FileType className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div>
                   <h2 className="text-sm sm:text-base font-bold text-ink-100">Note Import & Export</h2>
-                  <p className="text-[11px] sm:text-xs text-ink-400">.socratic Space Backups, PDF, Word, HTML, TXT & MD</p>
+                  <p className="text-[11px] sm:text-xs text-ink-400">.learnory Space Backups, PDF, Word, HTML, TXT & MD</p>
                 </div>
               </div>
               <button
@@ -321,7 +321,7 @@ export default function ExportImportModal({
                 onClick={() => setTab("export")}
                 className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
                   tab === "export"
-                    ? "border-duck-400 text-duck-300"
+                    ? "border-brand-400 text-brand-300"
                     : "border-transparent text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -334,7 +334,7 @@ export default function ExportImportModal({
                 onClick={() => setTab("import")}
                 className={`flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2 text-xs font-semibold transition-colors ${
                   tab === "import"
-                    ? "border-duck-400 text-duck-300"
+                    ? "border-brand-400 text-brand-300"
                     : "border-transparent text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -346,8 +346,8 @@ export default function ExportImportModal({
             {/* Modal Body */}
             <div className="p-4 sm:p-5 md:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               {toastMessage && (
-                <div className="rounded-xl border border-duck-500/40 bg-duck-500/10 px-4 py-2.5 text-xs font-semibold text-duck-200 animate-fade-in flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 shrink-0 text-duck-300" />
+                <div className="rounded-xl border border-brand-500/40 bg-brand-500/10 px-4 py-2.5 text-xs font-semibold text-brand-200 animate-fade-in flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 shrink-0 text-brand-300" />
                   <span>{toastMessage}</span>
                 </div>
               )}
@@ -364,7 +364,7 @@ export default function ExportImportModal({
                           {activeNote?.title || "Untitled Note"}
                         </h3>
                         <p className="text-[11px] sm:text-xs text-ink-400 truncate">
-                          Current Space: <span className="text-duck-300 font-medium">{activeSpace || "School"}</span> • Blocks: {(activeNote?.blocks || []).length}
+                          Current Space: <span className="text-brand-300 font-medium">{activeSpace || "School"}</span> • Blocks: {(activeNote?.blocks || []).length}
                         </p>
                       </div>
                     </div>
@@ -373,14 +373,14 @@ export default function ExportImportModal({
                     </span>
                   </div>
 
-                  {/* Space Picker for .socratic Package Export */}
+                  {/* Space Picker for .learnory Backup Export */}
                   {exportFormat === "socratic" && (
-                    <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-3 sm:p-3.5 space-y-2 animate-fade-in">
-                      <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-duck-300 flex items-center gap-1.5">
+                    <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-3 sm:p-3.5 space-y-2 animate-fade-in">
+                      <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-brand-300 flex items-center gap-1.5">
                         <Package className="h-3.5 w-3.5" />
-                        <span>Choose Space to Export (.socratic):</span>
+                        <span>Choose Space to Export (.learnory):</span>
                       </label>
-                      <p className="text-[11px] text-duck-200/80 leading-relaxed">
+                      <p className="text-[11px] text-brand-200/80 leading-relaxed">
                         Select a single space to export its notes or choose &quot;All Spaces&quot; to export your full workspace backup.
                       </p>
                       <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
@@ -391,7 +391,7 @@ export default function ExportImportModal({
                             onClick={() => setExportSpace(sp.name)}
                             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
                               exportSpace === sp.name
-                                ? "border-duck-400 bg-duck-500/30 text-duck-200 shadow-sm"
+                                ? "border-brand-400 bg-brand-500/30 text-brand-200 shadow-sm"
                                 : "border-ink-700 bg-ink-900/60 text-ink-300 hover:bg-ink-800 hover:text-ink-100"
                             }`}
                           >
@@ -415,7 +415,7 @@ export default function ExportImportModal({
                           onClick={() => setExportFormat(fmt.id)}
                           className={`flex items-start gap-2.5 sm:gap-3 rounded-xl border p-2.5 sm:p-3 text-left transition-all ${
                             exportFormat === fmt.id
-                              ? "border-duck-500/60 bg-duck-500/15 shadow-sm"
+                              ? "border-brand-500/60 bg-brand-500/15 shadow-sm"
                               : "border-ink-800 bg-ink-950/40 hover:border-ink-700 hover:bg-ink-850/40"
                           }`}
                         >
@@ -425,7 +425,7 @@ export default function ExportImportModal({
                               <span className="font-bold text-xs text-ink-100">{fmt.name}</span>
                               <div className="flex items-center gap-1 shrink-0">
                                 {fmt.hasPreview && (
-                                  <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-duck-500/20 text-duck-300 border border-duck-500/30">
+                                  <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30">
                                     Preview
                                   </span>
                                 )}
@@ -445,16 +445,16 @@ export default function ExportImportModal({
 
                   {/* Preview Ready Banner for previewable formats */}
                   {PREVIEWABLE_FORMATS.includes(exportFormat) && (
-                    <div className="flex items-center justify-between rounded-xl border border-duck-500/40 bg-duck-500/10 p-3 sm:p-3.5 animate-fade-in">
+                    <div className="flex items-center justify-between rounded-xl border border-brand-500/40 bg-brand-500/10 p-3 sm:p-3.5 animate-fade-in">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-duck-500/20 text-duck-300 shrink-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 shrink-0">
                           <Eye className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-duck-200 truncate">
+                          <h4 className="text-xs font-bold text-brand-200 truncate">
                             Export Preview Ready
                           </h4>
-                          <p className="text-[11px] text-duck-300/80 truncate">
+                          <p className="text-[11px] text-brand-300/80 truncate">
                             Inspect layout, formatting & content before downloading ({exportFormat.toUpperCase()})
                           </p>
                         </div>
@@ -462,7 +462,7 @@ export default function ExportImportModal({
                       <button
                         type="button"
                         onClick={() => setIsPreviewOpen(true)}
-                        className="flex items-center gap-1.5 rounded-lg border border-duck-500/50 bg-duck-500/20 px-3 py-1.5 text-xs font-bold text-duck-200 hover:bg-duck-500/30 transition-colors shrink-0 ml-2 shadow-xs"
+                        className="flex items-center gap-1.5 rounded-lg border border-brand-500/50 bg-brand-500/20 px-3 py-1.5 text-xs font-bold text-brand-200 hover:bg-brand-500/30 transition-colors shrink-0 ml-2 shadow-xs"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         <span>Preview File</span>
@@ -489,7 +489,7 @@ export default function ExportImportModal({
                         onClick={() => setImportSpace("Original")}
                         className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
                           importSpace === "Original"
-                            ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
+                            ? "border-brand-500/60 bg-brand-500/20 text-brand-300"
                             : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
                         }`}
                       >
@@ -504,7 +504,7 @@ export default function ExportImportModal({
                           onClick={() => setImportSpace(space.name)}
                           className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all ${
                             importSpace === space.name
-                              ? "border-duck-500/60 bg-duck-500/20 text-duck-300"
+                              ? "border-brand-500/60 bg-brand-500/20 text-brand-300"
                               : "border-ink-800 bg-ink-950/40 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
                           }`}
                         >
@@ -522,21 +522,21 @@ export default function ExportImportModal({
                     onClick={() => fileInputRef.current?.click()}
                     className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center cursor-pointer transition-all ${
                       selectedFile
-                        ? "border-duck-400 bg-duck-500/10"
-                        : "border-ink-700 bg-ink-950/50 hover:border-duck-500/50 hover:bg-ink-850/50"
+                        ? "border-brand-400 bg-brand-500/10"
+                        : "border-ink-700 bg-ink-950/50 hover:border-brand-500/50 hover:bg-ink-850/50"
                     }`}
                   >
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".socratic,.json,.docx,.html,.htm,.txt,.md,.markdown"
+                      accept=".learnory,.socratic,.json,.docx,.html,.htm,.txt,.md,.markdown"
                       onChange={handleFileChange}
                       className="hidden"
                     />
 
                     {selectedFile ? (
                       <div className="space-y-2">
-                        <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-duck-500/20 text-duck-300 text-xl sm:text-2xl">
+                        <div className="mx-auto flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-500/20 text-brand-300 text-xl sm:text-2xl">
                           📄
                         </div>
                         <div>
@@ -556,7 +556,7 @@ export default function ExportImportModal({
                             Click to browse or drop your note / space backup file here
                           </p>
                           <p className="text-[11px] sm:text-xs text-ink-400 mt-1">
-                            Supports <span className="text-duck-300 font-semibold">.socratic, .docx, .html, .txt, .md</span> files
+                            Supports <span className="text-brand-300 font-semibold">.learnory, .socratic, .docx, .html, .txt, .md</span> files
                           </p>
                         </div>
                       </div>
@@ -590,7 +590,7 @@ export default function ExportImportModal({
                   type="button"
                   onClick={handleExport}
                   disabled={isProcessing}
-                  className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
+                  className="inline-flex items-center gap-2 rounded-xl border border-brand-500/40 bg-brand-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-brand-400 disabled:opacity-50 transition-all shadow-md"
                 >
                   {PREVIEWABLE_FORMATS.includes(exportFormat) ? (
                     <>
@@ -617,7 +617,7 @@ export default function ExportImportModal({
                   type="button"
                   onClick={handleImport}
                   disabled={isProcessing || !selectedFile}
-                  className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md"
+                  className="inline-flex items-center gap-2 rounded-xl border border-brand-500/40 bg-brand-500 px-4 sm:px-5 py-2 text-xs font-bold text-ink-950 hover:bg-brand-400 disabled:opacity-50 transition-all shadow-md"
                 >
                   <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span>{isProcessing ? "Importing..." : "Import File to Workspace"}</span>

@@ -13,9 +13,9 @@ export { normalizeReformattedNote };
 
 export const dynamic = "force-dynamic";
 
-const REFORMAT_PERSONA = `You are the Master Note Architect & Academic Structural Classifier in SocraticOS.
+const REFORMAT_PERSONA = `You are the Master Note Architect & Academic Structural Classifier in Learnory.
 
-Your task is to take the learner's note and restructure it into clean, appropriately-typed SocraticOS blocks while preserving knowledge fidelity and repairing formatting errors.
+Your task is to take the learner's note and restructure it into clean, appropriately-typed Learnory blocks while preserving knowledge fidelity and repairing formatting errors.
 
 CRITICAL DIRECTIVES:
 1. CONTENT & KNOWLEDGE FIDELITY (DO NOT CHANGE MEANING):
@@ -30,7 +30,7 @@ CRITICAL DIRECTIVES:
    - Fix broken/unbalanced braces (e.g. '$I^A I^o}$' -> '$I^A I^o$'), missing backslashes ('frac{a}{b}' -> '\\frac{a}{b}'), and KaTeX syntax errors.
 
 3. MARKDOWN & INLINE FORMATTING PRESERVATION (DO NOT STRIP FORMATTING):
-   - Bullets and all SocraticOS blocks natively support rich inline Markdown identification for bold, italic, strikethrough, inline code, and LaTeX.
+   - Bullets and all Learnory blocks natively support rich inline Markdown identification for bold, italic, strikethrough, inline code, and LaTeX.
    - DO NOT strip out leading or inner formatting symbols for bold (**bold** or __bold__), italic (*italic* or _italic_), strikethrough/crossout (~~crossout~~), inline code (\`code\`), or LaTeX ($formula$) inside 'bullet' blocks, 'text' paragraphs, or ANY other blocks.
    - In 'bullet' blocks, ONLY strip the literal list prefix (such as a leading '- ' or '* ' followed by whitespace that indicated the bullet item in raw markdown). NEVER strip formatting markers from the bullet content (e.g. '- **Important Rule**: details' becomes '**Important Rule**: details', '- *Key Note*' becomes '*Key Note*', '- \`variable\`' becomes '\`variable\`', '- $f(x) = 0$' becomes '$f(x) = 0$').
    - In normal 'text' blocks and any other blocks, strictly do NOT strip bold, italic, strikethrough, or code markers. Preserve all emphasis symbols.
@@ -121,7 +121,7 @@ export async function POST(request) {
       messages: [
         {
           role: "user",
-          content: `Please read and intelligently reformat this note into clean, structured SocraticOS blocks with clear headings, callouts, math formulas, toggles, and checklists while preserving all detail.`,
+          content: `Please read and intelligently reformat this note into clean, structured Learnory blocks with clear headings, callouts, math formulas, toggles, and checklists while preserving all detail.`,
         },
       ],
       temperature: 0.3,

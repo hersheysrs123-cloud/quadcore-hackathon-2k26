@@ -883,7 +883,7 @@ function SimpleMachinesSidebar({ solved, loadN, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700/70 pb-2.5">
           <div className="flex items-center gap-2">
-            <Scale className="h-4 w-4 text-duck-400" />
+            <Scale className="h-4 w-4 text-brand-400" />
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
                 Work & Mechanical Advantage
@@ -984,7 +984,7 @@ function SimpleMachinesSidebar({ solved, loadN, onClose }) {
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg border border-slate-700/60 bg-slate-800/60 p-2 text-center">
                 <div className="text-[10px] uppercase tracking-wider text-slate-400">Mech. Adv.</div>
-                <div className="mt-0.5 text-sm font-bold text-duck-300 font-mono">
+                <div className="mt-0.5 text-sm font-bold text-brand-300 font-mono">
                   {solved.mechanicalAdvantage.toFixed(2)}×
                 </div>
                 <div className="text-[9px] text-slate-400 font-mono">F_load / F_effort</div>
@@ -1339,7 +1339,7 @@ export default function SimpleMachinesCanvas({ params = {} }) {
           className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800"
           title="Open the work and advantage panel"
         >
-          <Scale className="h-3.5 w-3.5 text-duck-300" />
+          <Scale className="h-3.5 w-3.5 text-brand-300" />
           <span>Work &amp; advantage</span>
         </button>
       )}

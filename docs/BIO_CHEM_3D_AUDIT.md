@@ -394,7 +394,7 @@ The root cause is X1: the panel is a second implementation. The full fix is Phas
 const TONES = {
   default: "text-ink-100",
   neutral: "text-ink-100",   // alias — used by respiratory and others
-  gold:    "text-duck-300",
+  gold:    "text-brand-300",
   good:    "text-emerald-400",
   warn:    "text-amber-400",
   bad:     "text-rose-400",

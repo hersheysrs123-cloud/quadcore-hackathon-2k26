@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Drawer, { DrawerError } from "@/components/Drawer";
+import { MalloIcon } from "@/components/brand/Brand";
 import { explainConcept, shouldUseClientAI } from "@/lib/aiService";
 import { FormattedInline } from "@/components/MarkdownRenderer";
 
 /**
  * The teaching half of the app.
  *
- * Where the Duck refuses to answer, this panel answers properly: a one-line
+ * Where Mallo refuses to answer, this panel answers properly: a one-line
  * summary, the mechanism in order, an analogy with its own limits marked, the
  * misconceptions most likely to bite, a worked example, and questions that
  * hand straight over to the quiz.
@@ -112,7 +113,7 @@ export default function ExplainPanel({
           <div className="animate-fade-up space-y-7">
             {/* TL;DR */}
             <section>
-              <div className="rounded-xl border border-duck-500/25 bg-duck-500/5 px-4 py-3.5 text-[15px] font-medium leading-relaxed text-ink-100">
+              <div className="rounded-xl border border-brand-500/25 bg-brand-500/5 px-4 py-3.5 text-[15px] font-medium leading-relaxed text-ink-100">
                 <FormattedInline text={explanation.tldr} />
               </div>
             </section>
@@ -123,7 +124,7 @@ export default function ExplainPanel({
                 <ol className="space-y-3.5">
                   {explanation.keyIdeas.map((idea, i) => (
                     <li key={i} className="flex gap-3">
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink-800 text-[11px] font-semibold tabular-nums text-duck-300">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink-800 text-[11px] font-semibold tabular-nums text-brand-300">
                         {i + 1}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -203,7 +204,7 @@ export default function ExplainPanel({
 
                         return (
                           <li key={i} className="flex gap-2.5 text-[13px] leading-relaxed">
-                            <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-duck-400 mt-0.5">
+                            <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-brand-400 mt-0.5">
                               {String(i + 1).padStart(2, "0")}
                             </span>
                             <div className="flex-1 space-y-0.5 min-w-0">
@@ -224,7 +225,7 @@ export default function ExplainPanel({
                     </ol>
                   )}
                   {explanation.workedExample.takeaway && (
-                    <div className="mt-3 pt-2.5 border-t border-ink-800 flex items-start gap-2 text-xs text-duck-300 bg-duck-500/5 rounded-lg p-2.5 border border-duck-500/20">
+                    <div className="mt-3 pt-2.5 border-t border-ink-800 flex items-start gap-2 text-xs text-brand-300 bg-brand-500/5 rounded-lg p-2.5 border border-brand-500/20">
                       <span className="shrink-0 font-bold">💡 Takeaway:</span>
                       <span className="text-ink-200">
                         <FormattedInline text={explanation.workedExample.takeaway} />
@@ -244,7 +245,7 @@ export default function ExplainPanel({
                       key={i}
                       className="flex gap-2.5 text-[13px] leading-relaxed text-ink-300"
                     >
-                      <span aria-hidden="true" className="text-duck-500">
+                      <span aria-hidden="true" className="text-brand-500">
                         ?
                       </span>
                       <span>
@@ -256,9 +257,10 @@ export default function ExplainPanel({
                 <button
                   type="button"
                   onClick={onQuiz}
-                  className="mt-4 w-full rounded-xl bg-duck-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-duck-300"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-brand-300"
                 >
-                  🦆 Test me on this
+                  <MalloIcon className="h-5 w-5" />
+                  Test me on this
                 </button>
                 <p className="mt-2 text-center text-[11px] text-ink-600">
                   Reading it is not knowing it.

@@ -27,7 +27,7 @@ const HeadingCheckboxItem = memo(function HeadingCheckboxItem({
     <label
       className={`flex items-start gap-2.5 rounded-lg border p-2.5 transition-colors cursor-pointer select-none ${
         isChecked
-          ? "bg-duck-500/10 border-duck-500/40 text-ink-100 shadow-xs"
+          ? "bg-brand-500/10 border-brand-500/40 text-ink-100 shadow-xs"
           : "bg-ink-900/60 border-ink-800 text-ink-300 hover:border-ink-700 hover:bg-ink-800"
       }`}
     >
@@ -36,7 +36,7 @@ const HeadingCheckboxItem = memo(function HeadingCheckboxItem({
         checked={isChecked}
         onChange={() => onToggle(heading.displayLabel)}
         disabled={disabled}
-        className="mt-0.5 h-4 w-4 shrink-0 rounded border-ink-600 bg-ink-800 text-duck-500 focus:ring-duck-400 focus:ring-offset-0 cursor-pointer accent-duck-500"
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-ink-600 bg-ink-800 text-brand-500 focus:ring-brand-400 focus:ring-offset-0 cursor-pointer accent-brand-500"
       />
       <span
         className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${badgeStyle}`}
@@ -45,7 +45,7 @@ const HeadingCheckboxItem = memo(function HeadingCheckboxItem({
       </span>
       <div className="flex-1 min-w-0">
         {showNoteTitle && (
-          <span className="block text-[10px] text-duck-400 font-medium truncate mb-0.5">
+          <span className="block text-[10px] text-brand-400 font-medium truncate mb-0.5">
             📄 {heading.noteTitle}
           </span>
         )}
@@ -453,7 +453,7 @@ export default function CreateQuizModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-ink-800 bg-ink-900/90">
           <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-duck-500/10 text-duck-400 border border-duck-500/20 text-lg">
+            <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20 text-lg">
               🎯
             </span>
             <div>
@@ -478,14 +478,14 @@ export default function CreateQuizModal({
         {/* Form Body */}
         <form onSubmit={handleGenerate} className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 sm:py-6 space-y-6">
           {syllabusEnabled && syllabusStatement && (
-            <div className="p-3 text-xs bg-duck-500/10 border border-duck-500/30 rounded-xl flex items-center justify-between gap-3 text-duck-200">
+            <div className="p-3 text-xs bg-brand-500/10 border border-brand-500/30 rounded-xl flex items-center justify-between gap-3 text-brand-200">
               <div className="flex items-center gap-2 truncate">
                 <span className="text-sm shrink-0">🎓</span>
                 <span className="truncate">
                   <strong>Syllabus Bound:</strong> {syllabusStatement}
                 </span>
               </div>
-              <span className="text-[10px] text-duck-400 font-mono shrink-0">Settings ⚙️</span>
+              <span className="text-[10px] text-brand-400 font-mono shrink-0">Settings ⚙️</span>
             </div>
           )}
 
@@ -506,7 +506,7 @@ export default function CreateQuizModal({
                 value={selectedSpace}
                 onChange={(e) => handleSpaceChange(e.target.value)}
                 disabled={generating}
-                className="w-full px-3 py-2 text-xs font-medium bg-ink-850 text-ink-100 border border-ink-700 rounded-xl focus:border-duck-500/60 focus:outline-none"
+                className="w-full px-3 py-2 text-xs font-medium bg-ink-850 text-ink-100 border border-ink-700 rounded-xl focus:border-brand-500/60 focus:outline-none"
               >
                 {Object.keys(notesBySpace).map((s) => (
                   <option key={s} value={s}>
@@ -522,7 +522,7 @@ export default function CreateQuizModal({
                   Source Note{selectedNotes.length > 1 ? "s" : ""}
                 </label>
                 {currentNotes.length > 0 && (
-                  <span className="text-[10px] font-bold text-duck-300 bg-duck-500/15 border border-duck-500/30 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold text-brand-300 bg-brand-500/15 border border-brand-500/30 px-1.5 py-0.5 rounded-full">
                     {selectedNoteIds.length} of {currentNotes.length} selected
                   </span>
                 )}
@@ -534,7 +534,7 @@ export default function CreateQuizModal({
                   type="button"
                   onClick={() => setIsNotePickerOpen((prev) => !prev)}
                   disabled={generating || currentNotes.length === 0}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium bg-ink-850 text-ink-100 border border-ink-700 rounded-xl hover:border-ink-600 focus:border-duck-500/60 focus:outline-none transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium bg-ink-850 text-ink-100 border border-ink-700 rounded-xl hover:border-ink-600 focus:border-brand-500/60 focus:outline-none transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     {currentNotes.length === 0 ? (
@@ -577,14 +577,14 @@ export default function CreateQuizModal({
                           value={noteSearchQuery}
                           onChange={(e) => setNoteSearchQuery(e.target.value)}
                           placeholder="Filter notes..."
-                          className="w-full pl-7 pr-2.5 py-1 text-[11px] text-ink-100 bg-ink-850 border border-ink-750 rounded-lg placeholder:text-ink-500 focus:outline-none focus:border-duck-500/60"
+                          className="w-full pl-7 pr-2.5 py-1 text-[11px] text-ink-100 bg-ink-850 border border-ink-750 rounded-lg placeholder:text-ink-500 focus:outline-none focus:border-brand-500/60"
                         />
                       </div>
                       <div className="flex items-center gap-1 text-[10px] shrink-0 font-semibold">
                         <button
                           type="button"
                           onClick={handleSelectAllNotes}
-                          className="text-duck-400 hover:text-duck-300 hover:underline px-1 py-0.5"
+                          className="text-brand-400 hover:text-brand-300 hover:underline px-1 py-0.5"
                         >
                           All
                         </button>
@@ -613,7 +613,7 @@ export default function CreateQuizModal({
                               key={n.id}
                               className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer select-none transition-colors ${
                                 isSelected
-                                  ? "bg-duck-500/10 border border-duck-500/30 text-ink-100"
+                                  ? "bg-brand-500/10 border border-brand-500/30 text-ink-100"
                                   : "hover:bg-ink-850 text-ink-300 border border-transparent"
                               }`}
                             >
@@ -621,7 +621,7 @@ export default function CreateQuizModal({
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleNote(n.id)}
-                                className="h-3.5 w-3.5 rounded border-ink-600 bg-ink-800 text-duck-500 focus:ring-0 cursor-pointer accent-duck-500"
+                                className="h-3.5 w-3.5 rounded border-ink-600 bg-ink-800 text-brand-500 focus:ring-0 cursor-pointer accent-brand-500"
                               />
                               <span className="shrink-0">{n.emoji || "📝"}</span>
                               <span className="flex-1 truncate font-medium">
@@ -676,7 +676,7 @@ export default function CreateQuizModal({
               onChange={(e) => setCustomTitle(e.target.value)}
               placeholder="e.g. Optics & Wave Optics Diagnostic"
               disabled={generating}
-              className="w-full px-3.5 py-2 text-xs text-ink-100 bg-ink-850 border border-ink-700 rounded-xl placeholder:text-ink-500 focus:border-duck-500/60 focus:outline-none"
+              className="w-full px-3.5 py-2 text-xs text-ink-100 bg-ink-850 border border-ink-700 rounded-xl placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
             />
           </div>
 
@@ -702,7 +702,7 @@ export default function CreateQuizModal({
                   disabled={generating}
                   className={`p-2.5 rounded-xl border text-left transition-all ${
                     scope === opt.id
-                      ? "bg-duck-500/10 border-duck-500/60 text-duck-300 font-semibold"
+                      ? "bg-brand-500/10 border-brand-500/60 text-brand-300 font-semibold"
                       : "bg-ink-850 border-ink-800 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                   }`}
                 >
@@ -722,7 +722,7 @@ export default function CreateQuizModal({
                         <span className="text-xs font-bold text-ink-200">
                           Select Section Headings
                         </span>
-                        <span className="rounded-full bg-duck-500/20 px-2 py-0.5 text-[10px] font-extrabold text-duck-300 border border-duck-500/30">
+                        <span className="rounded-full bg-brand-500/20 px-2 py-0.5 text-[10px] font-extrabold text-brand-300 border border-brand-500/30">
                           {selectedHeadings.length} of {headings.length} selected
                         </span>
                       </div>
@@ -731,7 +731,7 @@ export default function CreateQuizModal({
                           type="button"
                           onClick={() => setSelectedHeadings(headings.map((h) => h.displayLabel))}
                           disabled={generating}
-                          className="text-duck-400 hover:text-duck-300 hover:underline font-semibold"
+                          className="text-brand-400 hover:text-brand-300 hover:underline font-semibold"
                         >
                           Select All
                         </button>
@@ -765,7 +765,7 @@ export default function CreateQuizModal({
 
                     {/* Helper Hint */}
                     <p className="pt-1.5 border-t border-ink-800/80 text-[11px] text-ink-400 flex items-center gap-1.5 leading-relaxed">
-                      <span className="text-duck-400 shrink-0">💡</span>
+                      <span className="text-brand-400 shrink-0">💡</span>
                       <span>
                         <strong className="text-ink-300 font-semibold">Tip:</strong> Choose your main headings. Selecting subheadings is not required since the full note is provided to the AI.
                       </span>
@@ -780,7 +780,7 @@ export default function CreateQuizModal({
                     <button
                       type="button"
                       onClick={() => setScope("whole")}
-                      className="shrink-0 px-2.5 py-1 rounded-lg bg-duck-400/15 text-duck-300 hover:bg-duck-400/25 border border-duck-500/30 text-[11px] font-semibold transition-colors not-italic"
+                      className="shrink-0 px-2.5 py-1 rounded-lg bg-brand-400/15 text-brand-300 hover:bg-brand-400/25 border border-brand-500/30 text-[11px] font-semibold transition-colors not-italic"
                     >
                       Switch to {selectedNotes.length > 1 ? "All Selected Notes" : "Whole Note"}
                     </button>
@@ -797,7 +797,7 @@ export default function CreateQuizModal({
                   onChange={(e) => setCustomFocus(e.target.value)}
                   placeholder="e.g. Total Internal Reflection & Critical Angle equations"
                   disabled={generating}
-                  className="w-full px-3.5 py-2 text-xs text-ink-100 bg-ink-850 border border-ink-700 rounded-xl placeholder:text-ink-500 focus:border-duck-500/60 focus:outline-none"
+                  className="w-full px-3.5 py-2 text-xs text-ink-100 bg-ink-850 border border-ink-700 rounded-xl placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
                 />
               </div>
             )}
@@ -822,7 +822,7 @@ export default function CreateQuizModal({
                   disabled={generating}
                   className={`p-2.5 rounded-xl border text-left transition-all ${
                     difficulty === d.id
-                      ? "bg-duck-500/10 border-duck-500/60 text-duck-300 font-semibold shadow-xs"
+                      ? "bg-brand-500/10 border-brand-500/60 text-brand-300 font-semibold shadow-xs"
                       : "bg-ink-850 border-ink-800 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                   }`}
                 >
@@ -847,7 +847,7 @@ export default function CreateQuizModal({
                   Tailor question formats for math derivations, coding, or objective recall
                 </p>
               </div>
-              <span className="self-start sm:self-auto text-xs font-bold text-duck-300 bg-duck-500/15 px-2.5 py-0.5 rounded-full border border-duck-500/30">
+              <span className="self-start sm:self-auto text-xs font-bold text-brand-300 bg-brand-500/15 px-2.5 py-0.5 rounded-full border border-brand-500/30">
                 {totalQuestions} Total Questions
               </span>
             </div>
@@ -860,28 +860,28 @@ export default function CreateQuizModal({
               <button
                 type="button"
                 onClick={() => applyDistributionPreset("igcse")}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-brand-500/20 text-ink-200 hover:text-brand-300 border border-ink-700 hover:border-brand-500/40 transition-colors"
               >
                 🎓 IGCSE Gr.10 STEM (8 Qs)
               </button>
               <button
                 type="button"
                 onClick={() => applyDistributionPreset("math")}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-brand-500/20 text-ink-200 hover:text-brand-300 border border-ink-700 hover:border-brand-500/40 transition-colors"
               >
                 🧮 Pure Math & Derivations (8 Qs)
               </button>
               <button
                 type="button"
                 onClick={() => applyDistributionPreset("cs")}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-brand-500/20 text-ink-200 hover:text-brand-300 border border-ink-700 hover:border-brand-500/40 transition-colors"
               >
                 💻 Computer Science (8 Qs)
               </button>
               <button
                 type="button"
                 onClick={() => applyDistributionPreset("quick")}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-duck-500/20 text-ink-200 hover:text-duck-300 border border-ink-700 hover:border-duck-500/40 transition-colors"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-ink-800 hover:bg-brand-500/20 text-ink-200 hover:text-brand-300 border border-ink-700 hover:border-brand-500/40 transition-colors"
               >
                 ⚡ Quick 5 MCQ
               </button>
@@ -889,7 +889,7 @@ export default function CreateQuizModal({
 
             {/* 1. Mathematics & Science Reasoning */}
             <div className="space-y-2 pt-1">
-              <p className="text-[10px] font-bold text-duck-400 uppercase tracking-wider">
+              <p className="text-[10px] font-bold text-brand-400 uppercase tracking-wider">
                 🧮 Mathematics & Science Reasoning
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -986,7 +986,7 @@ export default function CreateQuizModal({
             type="button"
             onClick={handleGenerate}
             disabled={generating || selectedNotes.length === 0 || totalQuestions === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-duck-400 text-ink-950 text-xs font-bold shadow-md hover:bg-duck-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-400 text-ink-950 text-xs font-bold shadow-md hover:bg-brand-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {generating ? (
               <>
@@ -1035,7 +1035,7 @@ const QuestionCountSlider = memo(function QuestionCountSlider({
               else onChange(Math.max(0, Math.min(max, val)));
             }}
             disabled={disabled}
-            className="w-12 px-1.5 py-0.5 text-center text-xs font-black text-duck-300 bg-duck-500/10 border border-duck-500/30 rounded-lg focus:outline-none focus:border-duck-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text"
+            className="w-12 px-1.5 py-0.5 text-center text-xs font-black text-brand-300 bg-brand-500/10 border border-brand-500/30 rounded-lg focus:outline-none focus:border-brand-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text"
           />
           <span className="text-[10px] font-semibold text-ink-500">/ {max}</span>
         </div>
@@ -1057,7 +1057,7 @@ const QuestionCountSlider = memo(function QuestionCountSlider({
         />
         <div className="flex items-center justify-between text-[10px] text-ink-500 font-medium px-0.5 select-none">
           <span>0</span>
-          <span className={value > 0 ? "text-duck-400 font-bold" : "text-ink-500"}>
+          <span className={value > 0 ? "text-brand-400 font-bold" : "text-ink-500"}>
             {value} {value === 1 ? "question" : "questions"}
           </span>
           <span>{max}</span>

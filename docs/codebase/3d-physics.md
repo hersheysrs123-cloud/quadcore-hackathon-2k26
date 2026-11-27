@@ -1,6 +1,6 @@
 # 3D studio — Physics scenes
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Refraction, motor effect, lenses, induction, gas laws, projectile, interference, orbits, shadows, incline, Hooke's law, simple machines, roller coaster, circuits, static electricity, buoyancy, heat transfer.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Refraction, motor effect, lenses, induction, gas laws, projectile, interference, orbits, shadows, incline, Hooke's law, simple machines, roller coaster, circuits, static electricity, buoyancy, heat transfer.
 
 1. **Physics Engine** (`PhysicsCanvas.jsx` & `ShadowLabCanvas.jsx`):
    - **Wave Refraction & Snell's Law** (`refraction`): Multi-medium light ray refraction, critical angle calculation, total internal reflection, Fresnel reflection rays, and lateral displacement.

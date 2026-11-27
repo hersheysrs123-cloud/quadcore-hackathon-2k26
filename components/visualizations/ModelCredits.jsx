@@ -17,11 +17,11 @@ export default function ModelCredits({ credit: c }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`pointer-events-auto flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all ${
-          open ? "border-duck-500/50 bg-duck-500/20 text-duck-300" : "border-ink-700 bg-ink-900/85 text-ink-400 hover:border-ink-600 hover:text-ink-200"
+          open ? "border-brand-500/50 bg-brand-500/20 text-brand-300" : "border-ink-700 bg-ink-900/85 text-ink-400 hover:border-ink-600 hover:text-ink-200"
         }`}
         title="3D model credits and licence"
       >
-        <Info className="h-3 w-3 text-duck-400" />
+        <Info className="h-3 w-3 text-brand-400" />
         Credits
       </button>
       {open && (
@@ -30,10 +30,10 @@ export default function ModelCredits({ credit: c }) {
           <p className="mb-2">{c.attribution}.</p>
           <p className="mb-2 text-ink-400">{c.changes}</p>
           <div className="flex flex-wrap gap-x-3 gap-y-1">
-            <a className="text-duck-300 underline-offset-2 hover:underline" href={c.sourceUrl} target="_blank" rel="noreferrer">
+            <a className="text-brand-300 underline-offset-2 hover:underline" href={c.sourceUrl} target="_blank" rel="noreferrer">
               {c.source} source
             </a>
-            <a className="text-duck-300 underline-offset-2 hover:underline" href={c.licenseUrlCc} target="_blank" rel="noreferrer">
+            <a className="text-brand-300 underline-offset-2 hover:underline" href={c.licenseUrlCc} target="_blank" rel="noreferrer">
               {c.license} · commercial use allowed with credit
             </a>
           </div>

@@ -1,6 +1,6 @@
 # File map — app/ and components/
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Every file under `app/` and the top-level `components/`. The 3D scene files are in [file-map-3d-visualizations.md](file-map-3d-visualizations.md).
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Every file under `app/` and the top-level `components/`. The 3D scene files are in [file-map-3d-visualizations.md](file-map-3d-visualizations.md).
 
 ```
 quadcore-hackathon-2k26/
@@ -14,6 +14,7 @@ quadcore-hackathon-2k26/
 │   ├── error.jsx                         # App Router root error boundary
 │   ├── global-error.jsx                  # App Router HTML/root error boundary
 │   ├── globals.css                       # Tailwind v4 tokens, light/dark themes, print stylesheet, KaTeX styles
+│   ├── icon.svg                          # Favicon: the gold "L" Learnory mark (Next serves it as /icon.svg)
 │   ├── layout.js                         # Root layout, metadata & pre-paint theme bootstrap script
 │   ├── not-found.jsx                     # App Router 404 not found page
 │   ├── page.js                           # Marketing landing page (Server Component, CSS-only animations)
@@ -26,13 +27,15 @@ quadcore-hackathon-2k26/
 │   ├── AddBookmarkModal.jsx              # Quick add/edit bookmark modal with instant URL normalization & live favicon
 │   ├── AlarmOverlay.jsx                  # Calming glassmorphic study break modal with gentle chime & snooze controls
 │   ├── BlockNoteEditor.jsx               # 20-block Notion-style editor with slash menu, 6-dots handles, covers & stats
+│   ├── brand/
+│   │   └── Brand.jsx                     # LearnoryMark (gold "L" logo), LearnoryLogo (mark + wordmark) and MalloIcon (the marshmallow quiz character); hook-free SVG, safe in server components
 │   ├── CalendarView.jsx                  # Study schedule calendar, month navigation, agenda, Pomodoro integration & alarms
 │   ├── CommandPalette.jsx                # Ctrl+K global fuzzy search modal for notes, bookmarks, views, and settings
 │   ├── ConfidenceHeatmap.jsx             # Per-session sub-topic confidence heatmap (Solid / Shaky / Gap)
 │   ├── CreateQuizModal.jsx               # Custom AI Quiz creator modal (difficulty, 7 question types, multi-note scope)
 │   ├── Drawer.jsx                        # Non-blocking persistent side-by-side study sidebar container for Explain, Quiz & AI Tutor
 │   ├── ExplainPanel.jsx                  # Structured LLM explanation sidebar (TL;DR, mechanism, analogies, misconceptions)
-│   ├── ExportImportModal.jsx             # Multi-format export/import modal (.socratic, HTML Bookmarks, PDF, DOCX, HTML, TXT, MD)
+│   ├── ExportImportModal.jsx             # Multi-format export/import modal (.learnory backups, HTML Bookmarks, PDF, DOCX, HTML, TXT, MD)
 │   ├── ExportPreview.jsx                 # High-fidelity document export preview for Word (.docx), HTML (.html), Plain Text (.txt), and Markdown (.md)
 │   ├── FeatureRequestModal.jsx           # User feedback & feature request submission modal
 │   ├── GlobalTimerHUD.jsx                # Unified header multi-timer dropdown with Pomodoro, breaks & custom timers

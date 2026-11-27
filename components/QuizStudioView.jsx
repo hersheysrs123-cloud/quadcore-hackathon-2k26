@@ -191,13 +191,13 @@ function SourceNotesModal({ quiz, onClose, onSelectNote, setActiveTab }) {
         {/* Modal Header */}
         <div className="flex items-start justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-duck-500/10 border border-duck-500/20 text-duck-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
               📚
             </div>
             <div>
               <h3 id="source-notes-dialog-title" className="text-base font-bold text-ink-100 flex items-center gap-2">
                 <span>Source Notes</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-duck-500/10 border border-duck-500/20 text-duck-400 font-semibold">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-semibold">
                   {notes.length} notes
                 </span>
               </h3>
@@ -225,7 +225,7 @@ function SourceNotesModal({ quiz, onClose, onSelectNote, setActiveTab }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search notes..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-ink-850 border border-ink-750 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-400 focus:outline-none"
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-ink-850 border border-ink-750 text-xs text-ink-100 placeholder:text-ink-500 focus:border-brand-400 focus:outline-none"
             />
           </div>
         )}
@@ -250,7 +250,7 @@ function SourceNotesModal({ quiz, onClose, onSelectNote, setActiveTab }) {
                   setActiveTab?.("notes");
                   onClose();
                 }}
-                className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-duck-400 hover:text-ink-950 hover:bg-duck-400 border border-duck-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-brand-400 hover:text-ink-950 hover:bg-brand-400 border border-brand-500/30 transition-all flex items-center gap-1 cursor-pointer"
                 title={`Open "${note.title}" in notes tab`}
               >
                 <span>Open</span>
@@ -755,7 +755,7 @@ export default function QuizStudioView({
 
   const difficultyColors = {
     easy: "border-solid-500/30 bg-solid-500/10 text-solid-400",
-    medium: "border-duck-500/30 bg-duck-500/10 text-duck-300",
+    medium: "border-brand-500/30 bg-brand-500/10 text-brand-300",
     hard: "border-gap-500/30 bg-gap-500/10 text-gap-400",
     mastery: "border-purple-500/30 bg-purple-500/10 text-purple-300",
   };
@@ -802,18 +802,18 @@ export default function QuizStudioView({
             <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-ink-400 bg-ink-850 px-2.5 py-1 rounded-full border border-ink-800">
               {saveStatus === "saving" ? (
                 <>
-                  <div className="w-2 h-2 border-2 border-duck-400 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-2 h-2 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
                   <span className="text-ink-400">Saving...</span>
                 </>
               ) : (
                 <>
-                  <Check size={11} className="text-duck-400" />
+                  <Check size={11} className="text-brand-400" />
                   <span className="text-ink-300">Progress saved</span>
                 </>
               )}
             </div>
 
-            <div className="text-xs font-semibold px-2.5 py-1 rounded-full bg-duck-500/10 border border-duck-500/30 text-duck-300">
+            <div className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-300">
               {answeredCount} / {total} answered
             </div>
 
@@ -842,7 +842,7 @@ export default function QuizStudioView({
               {/* Question Meta Row */}
               <div className="flex items-center justify-between gap-4 pb-1">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold uppercase tracking-wider text-duck-400">
+                  <span className="text-sm font-bold uppercase tracking-wider text-brand-400">
                     Question {quizIndex + 1} of {total}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full border border-ink-700 bg-ink-850 text-xs font-medium text-ink-300">
@@ -874,14 +874,14 @@ export default function QuizStudioView({
                           onClick={() => handlePickOption(quizIndex, oi)}
                           className={`group flex w-full items-start gap-4 p-4 md:p-4.5 rounded-xl border text-left text-sm leading-relaxed transition-all cursor-pointer ${
                             picked
-                              ? "border-duck-400/90 bg-duck-400/10 text-ink-100 shadow-[0_0_20px_rgba(240,192,74,0.12)]"
+                              ? "border-brand-400/90 bg-brand-400/10 text-ink-100 shadow-[0_0_20px_rgba(240,192,74,0.12)]"
                               : "border-ink-800 bg-ink-850/70 text-ink-300 hover:border-ink-700 hover:bg-ink-800/80 hover:text-ink-100"
                           }`}
                         >
                           <span
                             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold mt-0.5 transition-colors ${
                               picked
-                                ? "border-duck-400 bg-duck-400 text-ink-950 shadow-xs"
+                                ? "border-brand-400 bg-brand-400 text-ink-950 shadow-xs"
                                 : "border-ink-700 text-ink-400 bg-ink-800 group-hover:border-ink-600 group-hover:text-ink-200"
                             }`}
                           >
@@ -903,7 +903,7 @@ export default function QuizStudioView({
                 {currentQ.type === "multi_select" && (
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center justify-between text-xs text-ink-400 pb-1">
-                      <span className="flex items-center gap-1.5 font-medium text-duck-300">
+                      <span className="flex items-center gap-1.5 font-medium text-brand-300">
                         <CheckSquare size={14} />
                         <span>Select all options that apply:</span>
                       </span>
@@ -922,14 +922,14 @@ export default function QuizStudioView({
                           onClick={() => handleToggleMultiOption(quizIndex, oi)}
                           className={`group flex w-full items-start gap-4 p-4 md:p-4.5 rounded-xl border text-left text-sm leading-relaxed transition-all cursor-pointer ${
                             isSelected
-                              ? "border-duck-400/90 bg-duck-400/10 text-ink-100 shadow-[0_0_20px_rgba(240,192,74,0.12)]"
+                              ? "border-brand-400/90 bg-brand-400/10 text-ink-100 shadow-[0_0_20px_rgba(240,192,74,0.12)]"
                               : "border-ink-800 bg-ink-850/70 text-ink-300 hover:border-ink-700 hover:bg-ink-800/80 hover:text-ink-100"
                           }`}
                         >
                           <span
                             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold mt-0.5 transition-colors ${
                               isSelected
-                                ? "border-duck-400 bg-duck-400 text-ink-950 shadow-xs"
+                                ? "border-brand-400 bg-brand-400 text-ink-950 shadow-xs"
                                 : "border-ink-700 text-ink-400 bg-ink-800 group-hover:border-ink-600 group-hover:text-ink-200"
                             }`}
                           >
@@ -953,7 +953,7 @@ export default function QuizStudioView({
                     {/* Virtual Symbol Keyboard Tray */}
                     <div className="p-3.5 rounded-xl bg-ink-850/90 border border-ink-750 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-duck-400 flex items-center gap-1.5">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-brand-400 flex items-center gap-1.5">
                           <Calculator size={13} />
                           <span>Virtual Math Symbols & Functions</span>
                         </span>
@@ -966,7 +966,7 @@ export default function QuizStudioView({
                             type="button"
                             onClick={() => insertMathSymbol(sym.snippet)}
                             title={sym.desc}
-                            className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-ink-900 border border-ink-700 hover:border-duck-400/60 hover:bg-duck-500/15 text-duck-300 hover:text-duck-200 transition-colors cursor-pointer shadow-xs active:scale-95"
+                            className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-ink-900 border border-ink-700 hover:border-brand-400/60 hover:bg-brand-500/15 text-brand-300 hover:text-brand-200 transition-colors cursor-pointer shadow-xs active:scale-95"
                           >
                             {sym.label}
                           </button>
@@ -985,14 +985,14 @@ export default function QuizStudioView({
                         value={quizAnswers[quizIndex] ?? ""}
                         onChange={(e) => handleAnswerTextChange(quizIndex, e.target.value)}
                         placeholder="e.g. 12.5, 3/4, 2x + 5, or \frac{-b \pm \sqrt{D}}{2a}"
-                        className="w-full px-4 py-3.5 rounded-xl bg-ink-850/90 border border-ink-700 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
+                        className="w-full px-4 py-3.5 rounded-xl bg-ink-850/90 border border-ink-700 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/50"
                       />
                     </div>
 
                     {/* Live KaTeX Preview Card */}
                     <div className="p-4 rounded-xl bg-ink-900/90 border border-ink-800 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] text-ink-400 font-medium">
-                        <span className="flex items-center gap-1.5 text-duck-400 font-semibold">
+                        <span className="flex items-center gap-1.5 text-brand-400 font-semibold">
                           <span>✨</span>
                           <span>Live Formatted Math Preview</span>
                         </span>
@@ -1023,14 +1023,14 @@ export default function QuizStudioView({
                   return (
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between text-xs text-ink-400 pb-1">
-                        <span className="flex items-center gap-1.5 text-duck-300 font-medium">
+                        <span className="flex items-center gap-1.5 text-brand-300 font-medium">
                           <span>🧩</span>
                           <span>Use the ▲ / ▼ arrows to arrange the steps into the correct logical derivation order:</span>
                         </span>
                         <button
                           type="button"
                           onClick={() => handleResetSteps(quizIndex)}
-                          className="text-[11px] text-ink-400 hover:text-duck-300 hover:underline flex items-center gap-1"
+                          className="text-[11px] text-ink-400 hover:text-brand-300 hover:underline flex items-center gap-1"
                         >
                           <RotateCcw size={11} />
                           <span>Reset Order</span>
@@ -1043,7 +1043,7 @@ export default function QuizStudioView({
                             key={si}
                             className="flex items-center gap-3 p-3.5 rounded-xl border border-ink-800 bg-ink-850/80 hover:border-ink-700 transition-colors"
                           >
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-duck-500/10 border border-duck-500/30 text-xs font-bold text-duck-300">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 border border-brand-500/30 text-xs font-bold text-brand-300">
                               {si + 1}
                             </span>
                             <div className="flex-1 text-sm font-medium text-ink-100">
@@ -1054,7 +1054,7 @@ export default function QuizStudioView({
                                 type="button"
                                 onClick={() => handleMoveStep(quizIndex, si, si - 1)}
                                 disabled={si === 0}
-                                className="p-1.5 rounded-lg border border-ink-700 text-ink-400 hover:text-duck-300 hover:bg-ink-800 hover:border-duck-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                className="p-1.5 rounded-lg border border-ink-700 text-ink-400 hover:text-brand-300 hover:bg-ink-800 hover:border-brand-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 title="Move Up"
                               >
                                 <ChevronUp size={15} />
@@ -1063,7 +1063,7 @@ export default function QuizStudioView({
                                 type="button"
                                 onClick={() => handleMoveStep(quizIndex, si, si + 1)}
                                 disabled={si === currentSteps.length - 1}
-                                className="p-1.5 rounded-lg border border-ink-700 text-ink-400 hover:text-duck-300 hover:bg-ink-800 hover:border-duck-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                className="p-1.5 rounded-lg border border-ink-700 text-ink-400 hover:text-brand-300 hover:bg-ink-800 hover:border-brand-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 title="Move Down"
                               >
                                 <ChevronDown size={15} />
@@ -1081,7 +1081,7 @@ export default function QuizStudioView({
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-duck-300 bg-duck-500/10 border border-duck-500/30 px-2.5 py-1 rounded-lg">
+                        <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-brand-300 bg-brand-500/10 border border-brand-500/30 px-2.5 py-1 rounded-lg">
                           <Code size={13} />
                           <span>{currentQ.language || "python"}</span>
                         </span>
@@ -1091,7 +1091,7 @@ export default function QuizStudioView({
                         <button
                           type="button"
                           onClick={() => handleAnswerTextChange(quizIndex, currentQ.starterCode)}
-                          className="text-[11px] text-ink-400 hover:text-duck-300 hover:underline flex items-center gap-1"
+                          className="text-[11px] text-ink-400 hover:text-brand-300 hover:underline flex items-center gap-1"
                         >
                           <RotateCcw size={11} />
                           <span>Reset Starter Code</span>
@@ -1099,7 +1099,7 @@ export default function QuizStudioView({
                       )}
                     </div>
 
-                    <div className="relative rounded-xl border border-ink-750 bg-ink-950 overflow-hidden shadow-inner focus-within:border-duck-400 focus-within:ring-1 focus-within:ring-duck-400/50">
+                    <div className="relative rounded-xl border border-ink-750 bg-ink-950 overflow-hidden shadow-inner focus-within:border-brand-400 focus-within:ring-1 focus-within:ring-brand-400/50">
                       <textarea
                         rows={12}
                         value={
@@ -1123,7 +1123,7 @@ export default function QuizStudioView({
                         }}
                         placeholder="# Write your algorithm or code solution here..."
                         spellCheck={false}
-                        className="w-full p-4 bg-transparent text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:outline-none resize-y leading-relaxed selection:bg-duck-500/30"
+                        className="w-full p-4 bg-transparent text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:outline-none resize-y leading-relaxed selection:bg-brand-500/30"
                       />
                     </div>
                     <div className="flex items-center justify-between text-xs text-ink-400 px-1">
@@ -1143,7 +1143,7 @@ export default function QuizStudioView({
                       value={quizAnswers[quizIndex] ?? ""}
                       onChange={(e) => handleAnswerTextChange(quizIndex, e.target.value)}
                       placeholder="Explain the mechanism or principle in your own words..."
-                      className="w-full p-5 rounded-xl bg-ink-850/80 border border-ink-700 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50 resize-y leading-relaxed"
+                      className="w-full p-5 rounded-xl bg-ink-850/80 border border-ink-700 text-sm text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/50 resize-y leading-relaxed"
                     />
                     <p className="text-xs text-ink-400 flex items-center gap-1.5">
                       <span>💡</span>
@@ -1160,7 +1160,7 @@ export default function QuizStudioView({
                       value={quizAnswers[quizIndex] ?? ""}
                       onChange={(e) => handleAnswerTextChange(quizIndex, e.target.value)}
                       placeholder="Write a structured, detailed answer discussing key mechanisms, derivations, and implications..."
-                      className="w-full p-5 rounded-xl bg-ink-850/80 border border-ink-700 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50 resize-y leading-relaxed"
+                      className="w-full p-5 rounded-xl bg-ink-850/80 border border-ink-700 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/50 resize-y leading-relaxed"
                     />
                     <div className="flex items-center justify-between text-xs text-ink-400 px-1">
                       <span>💡 Evaluated on depth, structural reasoning, and rubric coverage.</span>
@@ -1184,7 +1184,7 @@ export default function QuizStudioView({
                   type="button"
                   onClick={handleSubmitQuiz}
                   disabled={isGrading || answeredCount === 0}
-                  className="w-full py-3 px-4 rounded-xl bg-duck-400 text-ink-950 text-xs font-bold shadow-md hover:bg-duck-300 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-3 px-4 rounded-xl bg-brand-400 text-ink-950 text-xs font-bold shadow-md hover:bg-brand-300 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isGrading ? (
                     <>
@@ -1204,7 +1204,7 @@ export default function QuizStudioView({
                   onClick={() => handleSelectQuestionIndex(quizIndex + 1)}
                   className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     currentIsAnswered
-                      ? "bg-duck-400 text-ink-950 hover:bg-duck-300 shadow-md"
+                      ? "bg-brand-400 text-ink-950 hover:bg-brand-300 shadow-md"
                       : "bg-ink-800 text-ink-200 hover:bg-ink-750 hover:text-ink-100 border border-ink-700"
                   }`}
                 >
@@ -1242,7 +1242,7 @@ export default function QuizStudioView({
               <div className="pt-2 space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-ink-200">Questions</span>
-                  <span className="text-[11px] text-duck-400 font-semibold font-mono">
+                  <span className="text-[11px] text-brand-400 font-semibold font-mono">
                     {answeredCount} / {total} answered
                   </span>
                 </div>
@@ -1259,7 +1259,7 @@ export default function QuizStudioView({
                         title={`Jump to Question ${i + 1} (${q.type.replace("_", " ")})`}
                         className={`h-9 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer relative ${
                           isCurrent
-                            ? "bg-duck-400 text-ink-950 font-black ring-2 ring-duck-300 ring-offset-2 ring-offset-ink-900 shadow-md scale-105 z-1"
+                            ? "bg-brand-400 text-ink-950 font-black ring-2 ring-brand-300 ring-offset-2 ring-offset-ink-900 shadow-md scale-105 z-1"
                             : isAnswered
                             ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30"
                             : "bg-ink-850 border border-ink-800 text-ink-400 hover:bg-ink-800 hover:text-ink-200 hover:border-ink-700"
@@ -1277,7 +1277,7 @@ export default function QuizStudioView({
                 {/* Matrix Legend */}
                 <div className="flex items-center justify-between text-[11px] text-ink-400 pt-1.5 px-1 border-t border-ink-800/60">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-duck-400 inline-block shrink-0 shadow-[0_0_6px_rgba(240,192,74,0.6)]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-brand-400 inline-block shrink-0 shadow-[0_0_6px_rgba(240,192,74,0.6)]" />
                     <span className="text-ink-300 font-medium">Current</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -1302,7 +1302,7 @@ export default function QuizStudioView({
                 </div>
                 <div className="w-full bg-ink-800 h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-duck-400 h-full rounded-full transition-all duration-300"
+                    className="bg-brand-400 h-full rounded-full transition-all duration-300"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -1315,11 +1315,11 @@ export default function QuizStudioView({
                     type="button"
                     onClick={handleSubmitQuiz}
                     disabled={isGrading || answeredCount === 0}
-                    className="w-full py-2.5 px-4 rounded-xl bg-duck-400/20 border border-duck-400/40 text-duck-300 hover:bg-duck-400 hover:text-ink-950 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-full py-2.5 px-4 rounded-xl bg-brand-400/20 border border-brand-400/40 text-brand-300 hover:bg-brand-400 hover:text-ink-950 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {isGrading ? (
                       <>
-                        <div className="w-3.5 h-3.5 border-2 border-duck-300 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-3.5 h-3.5 border-2 border-brand-300 border-t-transparent rounded-full animate-spin" />
                         <span>Grading...</span>
                       </>
                     ) : (
@@ -1393,7 +1393,7 @@ export default function QuizStudioView({
             <button
               type="button"
               onClick={() => setReviewingQuiz(null)}
-              className="px-4 py-2 rounded-xl bg-duck-400 text-ink-950 text-xs font-bold hover:bg-duck-300 transition-colors"
+              className="px-4 py-2 rounded-xl bg-brand-400 text-ink-950 text-xs font-bold hover:bg-brand-300 transition-colors"
             >
               Done
             </button>
@@ -1410,7 +1410,7 @@ export default function QuizStudioView({
                 <span className="text-lg font-bold text-ink-100">
                   {res.correctCount ?? 0} of {res.totalCount ?? reviewingQuiz.questions.length} Correct
                 </span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-duck-500/10 text-duck-400 border border-duck-500/20">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
                   {res.score}% Score
                 </span>
               </div>
@@ -1554,9 +1554,9 @@ export default function QuizStudioView({
                     )}
 
                     {ans.type === "value_input" && (
-                      <div className="p-3 rounded-lg bg-duck-500/10 border border-duck-500/30 flex items-start gap-2">
-                        <span className="text-duck-400 shrink-0 font-bold">Expected Value:</span>
-                        <span className="text-duck-200 font-medium">
+                      <div className="p-3 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-start gap-2">
+                        <span className="text-brand-400 shrink-0 font-bold">Expected Value:</span>
+                        <span className="text-brand-200 font-medium">
                           <MathText text={ans.expectedAnswer || "—"} />
                           {ans.tolerance ? (
                             <span className="text-ink-400 ml-1 font-mono text-[11px]">(±{ans.tolerance})</span>
@@ -1566,20 +1566,20 @@ export default function QuizStudioView({
                     )}
 
                     {ans.type === "code_input" && (
-                      <div className="p-3 rounded-lg bg-duck-500/10 border border-duck-500/30 flex flex-col gap-1.5">
-                        <span className="text-duck-400 font-bold">
+                      <div className="p-3 rounded-lg bg-brand-500/10 border border-brand-500/30 flex flex-col gap-1.5">
+                        <span className="text-brand-400 font-bold">
                           Model Solution / Rubric {ans.language ? `(${ans.language})` : ""}:
                         </span>
-                        <pre className="p-2.5 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-duck-200 overflow-x-auto whitespace-pre">
+                        <pre className="p-2.5 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-brand-200 overflow-x-auto whitespace-pre">
                           <code>{ans.expectedAnswer || "# No reference code"}</code>
                         </pre>
                       </div>
                     )}
 
                     {ans.expectedAnswer && !["multiple_choice", "multi_select", "step_ordering", "value_input", "code_input"].includes(ans.type) && (
-                      <div className="p-3 rounded-lg bg-duck-500/10 border border-duck-500/30 flex items-start gap-2">
-                        <span className="text-duck-400 shrink-0 font-bold">Model Rubric:</span>
-                        <span className="text-duck-200 font-medium">
+                      <div className="p-3 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-start gap-2">
+                        <span className="text-brand-400 shrink-0 font-bold">Model Rubric:</span>
+                        <span className="text-brand-200 font-medium">
                           <MathText text={ans.expectedAnswer} />
                         </span>
                       </div>
@@ -1587,7 +1587,7 @@ export default function QuizStudioView({
 
                     {ans.feedback && (
                       <div className="mt-2 text-xs text-ink-300 border-t border-ink-800/80 pt-2.5 leading-relaxed">
-                        <span className="text-duck-400 mr-1 font-semibold">💡 Feedback:</span>
+                        <span className="text-brand-400 mr-1 font-semibold">💡 Feedback:</span>
                         <MathText text={ans.feedback} />
                       </div>
                     )}
@@ -1609,7 +1609,7 @@ export default function QuizStudioView({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-4 border-b border-ink-800 bg-ink-900/90">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-duck-500/10 border border-duck-500/20 text-duck-400 flex items-center justify-center text-xl shadow-xs">
+          <div className="w-10 h-10 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center text-xl shadow-xs">
             🎯
           </div>
           <div>
@@ -1629,7 +1629,7 @@ export default function QuizStudioView({
           <button
             type="button"
             onClick={() => setIsCreateOpen(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-duck-400 text-ink-950 text-xs font-bold shadow-md hover:bg-duck-300 transition-all"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand-400 text-ink-950 text-xs font-bold shadow-md hover:bg-brand-300 transition-all"
           >
             <Plus size={16} />
             <span>Create New Quiz</span>
@@ -1674,14 +1674,14 @@ export default function QuizStudioView({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter quizzes..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-ink-850 border border-ink-800 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/60 focus:outline-none"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-ink-850 border border-ink-800 text-xs text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
             />
           </div>
 
           <select
             value={difficultyFilter}
             onChange={(e) => setDifficultyFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-xl bg-ink-850 border border-ink-800 text-xs font-medium text-ink-200 focus:border-duck-500/60 focus:outline-none"
+            className="px-3 py-1.5 rounded-xl bg-ink-850 border border-ink-800 text-xs font-medium text-ink-200 focus:border-brand-500/60 focus:outline-none"
           >
             <option value="all">All Difficulties</option>
             <option value="easy">🟢 Easy</option>
@@ -1751,7 +1751,7 @@ export default function QuizStudioView({
                       <button
                         type="button"
                         onClick={() => recoverQuiz(item.id)}
-                        className="flex items-center gap-1 text-xs text-duck-400 hover:text-duck-300 font-semibold cursor-pointer"
+                        className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 font-semibold cursor-pointer"
                       >
                         <RotateCcw size={13} />
                         <span>Restore</span>
@@ -1782,7 +1782,7 @@ export default function QuizStudioView({
           <div>
             {filteredQuizzes.length === 0 ? (
               <div className="text-center py-20 border border-dashed border-ink-800 rounded-3xl space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-ink-900 border border-ink-800 text-duck-400 flex items-center justify-center text-2xl mx-auto shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-ink-900 border border-ink-800 text-brand-400 flex items-center justify-center text-2xl mx-auto shadow-sm">
                   🎯
                 </div>
                 <h3 className="text-sm font-bold text-ink-200">No quizzes found</h3>
@@ -1794,7 +1794,7 @@ export default function QuizStudioView({
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-duck-400 text-ink-950 text-xs font-bold hover:bg-duck-300 shadow-md transition-colors mt-2"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-400 text-ink-950 text-xs font-bold hover:bg-brand-300 shadow-md transition-colors mt-2"
                 >
                   <Plus size={15} />
                   <span>Create Quiz</span>
@@ -1855,15 +1855,15 @@ export default function QuizStudioView({
                             <button
                               type="button"
                               onClick={() => setViewingSourceNotesQuiz(quiz)}
-                              className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-ink-850/90 hover:bg-ink-800 border border-ink-750 hover:border-duck-500/40 text-xs font-medium text-ink-300 hover:text-duck-300 transition-all cursor-pointer group/src shadow-xs"
+                              className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-ink-850/90 hover:bg-ink-800 border border-ink-750 hover:border-brand-500/40 text-xs font-medium text-ink-300 hover:text-brand-300 transition-all cursor-pointer group/src shadow-xs"
                               title="Click to view all source notes"
                             >
-                              <span className="text-duck-400 font-semibold flex items-center gap-1">
+                              <span className="text-brand-400 font-semibold flex items-center gap-1">
                                 <span>📚</span>
                                 <span>{quiz.noteIds.length} notes</span>
                               </span>
                               <span className="text-ink-600 group-hover/src:text-ink-400">•</span>
-                              <span className="text-[11px] text-ink-400 group-hover/src:text-duck-300 flex items-center gap-0.5">
+                              <span className="text-[11px] text-ink-400 group-hover/src:text-brand-300 flex items-center gap-0.5">
                                 <span>View notes</span>
                                 <ChevronRight size={12} />
                               </span>
@@ -1876,7 +1876,7 @@ export default function QuizStudioView({
                               onSelectNote?.({ id: quiz.noteId, title: quiz.noteTitle });
                               setActiveTab?.("notes");
                             }}
-                            className="text-xs text-ink-400 hover:text-duck-300 transition-colors flex items-center gap-1.5 text-left group/note truncate max-w-full"
+                            className="text-xs text-ink-400 hover:text-brand-300 transition-colors flex items-center gap-1.5 text-left group/note truncate max-w-full"
                             title="Open note in editor"
                           >
                             <span>📝</span>
@@ -1931,8 +1931,8 @@ export default function QuizStudioView({
                             <span>In Progress ({draftCount}/{questionCount})</span>
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-duck-400 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-duck-400 animate-pulse" />
+                          <span className="text-xs font-semibold text-brand-400 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
                             Ready to Take
                           </span>
                         )}
@@ -1978,7 +1978,7 @@ export default function QuizStudioView({
                             <button
                               type="button"
                               onClick={() => handleStartQuiz(quiz, false)}
-                              className="px-4 py-1.5 rounded-xl bg-duck-400 hover:bg-duck-300 text-xs font-bold text-ink-950 shadow-sm transition-colors cursor-pointer"
+                              className="px-4 py-1.5 rounded-xl bg-brand-400 hover:bg-brand-300 text-xs font-bold text-ink-950 shadow-sm transition-colors cursor-pointer"
                             >
                               Take Quiz
                             </button>

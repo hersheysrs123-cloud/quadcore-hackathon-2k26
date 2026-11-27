@@ -228,7 +228,7 @@ export default function PoemLinesModal({ open, poem, onClose, onSave, onDelete }
                 }
               }}
               placeholder="Poem title — e.g. Remember — Christina Rossetti"
-              className="w-full rounded-xl border border-ink-750 bg-ink-850 px-3 py-2 text-sm text-ink-100 outline-none transition-colors placeholder:text-ink-600 focus:border-duck-500/50 focus:ring-2 focus:ring-duck-400/20"
+              className="w-full rounded-xl border border-ink-750 bg-ink-850 px-3 py-2 text-sm text-ink-100 outline-none transition-colors placeholder:text-ink-600 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-400/20"
             />
           </div>
 
@@ -258,7 +258,7 @@ export default function PoemLinesModal({ open, poem, onClose, onSave, onDelete }
                     }}
                     onKeyDown={(e) => handleKeyDown(e, i, e.currentTarget)}
                     onPaste={(e) => handlePaste(e, i, e.currentTarget)}
-                    className={`lit-line-input min-w-0 flex-1 rounded-lg border border-transparent px-2.5 py-1.5 font-note-serif text-[15px] text-ink-100 outline-none transition-colors hover:border-ink-800 focus:border-duck-500/50 focus:bg-ink-850 focus:ring-2 focus:ring-duck-400/20 ${
+                    className={`lit-line-input min-w-0 flex-1 rounded-lg border border-transparent px-2.5 py-1.5 font-note-serif text-[15px] text-ink-100 outline-none transition-colors hover:border-ink-800 focus:border-brand-500/50 focus:bg-ink-850 focus:ring-2 focus:ring-brand-400/20 ${
                       row.text.trim() === "" ? "bg-ink-850/40" : "bg-ink-850"
                     }`}
                   />
@@ -352,7 +352,7 @@ export default function PoemLinesModal({ open, poem, onClose, onSave, onDelete }
               const built = buildResult();
               onSave({ title: title.trim() || "Untitled poem", ...built });
             }}
-            className="rounded-xl bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-colors hover:bg-duck-300"
+            className="rounded-xl bg-brand-400 px-4 py-2 text-xs font-bold text-ink-950 transition-colors hover:bg-brand-300"
           >
             Save
           </button>

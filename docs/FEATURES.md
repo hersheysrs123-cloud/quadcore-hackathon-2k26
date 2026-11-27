@@ -1,6 +1,6 @@
-# SocraticOS — Full Feature Guide
+# Learnory — Full Feature Guide
 
-> The long-form tour of everything SocraticOS does, for people using or evaluating it. The short overview is the [README](../README.md); the technical reference is [CODEBASE_SUMMARY.md](../CODEBASE_SUMMARY.md) and the design specs are in [DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md).
+> The long-form tour of everything Learnory does, for people using or evaluating it. The short overview is the [README](../README.md); the technical reference is [CODEBASE_SUMMARY.md](../CODEBASE_SUMMARY.md) and the design specs are in [DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md).
 
 ## ✨ Key Features & Capabilities
 
@@ -26,11 +26,11 @@
 - **External Smart Paste & Google Docs Sanitizer**: Automatically converts pasted rich HTML from lecture slides, Google Docs, Notion, and web pages into structured blocks (preserving bold, italics, headings, lists, tables, and embeds) without DOM corruption or foreign style pollution.
 - **In-Context Slash Menu (`/`)**: Typing `/` triggers a relevance-ranked block-type selector directly underneath the active line, supporting quick filters like `/page`, `/columns`, `/2 columns`, `/3 columns`, `/4 columns`, `/5 columns`, `/split`, `/compare`, `/youtube`, `/video`, `/math`, `/table`.
 - **Draggable 6-Dots Handles (`⠿`) & Context Formatting**: Hovering blocks displays aligned insert (`+`, opens a searchable *Insert below* menu including **Page**), delete (`🗑️`) and draggable `⠿` handles. Context popovers feature:
-  - ✨ **Explain** / 🦆 **Quiz me** for that specific block.
+  - ✨ **Explain** / **Quiz me** (Mallo icon) for that specific block.
   - **Inline Text Formatting**: Bold (`B`), Italic (`I`), Underline (`U`), Strikethrough (`S`), LaTeX Math ($x$).
   - 🔄 **Turn Into Submenu**: Convert block into any of the 19 convertible block types (every type except sub-page, which is created via `/page`).
   - 📋 **Duplicate Block**, ⬆️/⬇️ **Move Up/Down**, 📄 **Copy Content**.
-- **Cover Banners**: Full horizontal width note headers with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*).
+- **Cover Banners**: Full horizontal width note headers with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Learnory Gold*).
 - **Custom Emoji Picker & Star Favorites (`⭐`)**: Assign note emojis and toggle star favorites to pin notes in the sidebar.
 - **Real-Time Note Stats**: Live character count, word count, total block count, and estimated reading time aggregated across block text, toggle details, and LaTeX formulas.
 - **Auto-Note Instantiation & Click-to-Append**: Typing inside an empty space automatically instantiates a new note; clicking blank space below blocks appends a new paragraph.
@@ -145,9 +145,10 @@ A comprehensive suite of 52 real-time interactive 3D STEM simulations built usin
 ### ⏱️ 6. Unified Multi-Timer HUD & Calming Study Break Alerts
 - **Unified Global Timer HUD** ([`GlobalTimerHUD.jsx`](../components/GlobalTimerHUD.jsx)): Header dropdown managing Pomodoro Focus (25m), Short Break (5m), Long Break (15m), and custom duration timers simultaneously with live countdown rings and play/pause controls.
 - **Study Calendar & Schedule** ([`CalendarView.jsx`](../components/CalendarView.jsx)): Event scheduling, month navigation, space tagging, 24-hour time picker, and custom recurring alarm integration.
-- **Calming Study Break & Timer Alert** ([`AlarmOverlay.jsx`](../components/AlarmOverlay.jsx)): Glassmorphic modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (`🦆` $\leftrightarrow$ `☕`), and friendly snooze/extend controls.
+- **Calming Study Break & Timer Alert** ([`AlarmOverlay.jsx`](../components/AlarmOverlay.jsx)): Glassmorphic modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (Learnory logo $\leftrightarrow$ `☕`), and friendly snooze/extend controls.
 
-### 🦆 7. Socratic AI Tutor, Explain & Reformat
+### ✨ 7. Socratic AI Tutor, Explain & Reformat
+- **Mallo, the quiz character**: every quiz action ("Quiz me" in the top bar and block menus, "Test me on this" after an explanation, "Retest" on the Mastery map, Quiz Drill calendar events) carries Mallo, a marshmallow icon (`MalloIcon`), and the copy speaks of Mallo quizzing and grading you. Mallo replaced the earlier duck mascot.
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
 - **Diagnostic Quiz Drawer (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions (5 multiple-choice, 3 short-answers; math block / value_input questions excluded from quick quizzes) and recording session scores directly into the mastery analytics store.
 
@@ -195,10 +196,10 @@ A comprehensive suite of 52 real-time interactive 3D STEM simulations built usin
 - **Keyboard**: `Cmd`/`Ctrl + E` attaches analysis to the current selection, `Alt + T` switches mode, `Esc` closes popovers and dialogs.
 
 ### 📦 11. Multi-Format Export, Import & Backup Engine
-- **Workspace & Space Backups (.socratic)** ([`ExportImportModal.jsx`](../components/ExportImportModal.jsx)): Export one space or the whole workspace into a portable JSON `.socratic` package: notes, sub-pages, trash, quizzes, study history, calendar events, syllabus documents, space AI settings, Literature poems and custom spaces (a whole-workspace backup adds Saved bookmarks, alarms and app settings; never your API key). Restore puts everything back where it was; importing into a different space makes copies there and leaves the originals untouched.
+- **Workspace & Space Backups (.learnory)** ([`ExportImportModal.jsx`](../components/ExportImportModal.jsx)): Export one space or the whole workspace into a portable JSON `.learnory` package (backups from before the rename, `.socratic`, still restore): notes, sub-pages, trash, quizzes, study history, calendar events, syllabus documents, space AI settings, Literature poems and custom spaces (a whole-workspace backup adds Saved bookmarks, alarms and app settings; never your API key). Restore puts everything back where it was; importing into a different space makes copies there and leaves the originals untouched.
 - **Netscape HTML Bookmarks (`.html`)**: Export space-filtered or complete bookmarks into browser-compliant HTML bookmark collections with tags and notes.
 - **Multi-Format Note Export with Pre-Download Preview** ([`ExportPreview.jsx`](../components/ExportPreview.jsx)): Preview files before downloading for **Word Document** (`.docx`), **HTML Web Page** (`.html`), **Plain Text** (`.txt`), and **Markdown** (`.md`). Features authentic Microsoft Word sheet layouts with heading colors, browser mockup frames with dynamic auto-height sandbox iframes & embedded KaTeX math formulas, monospace text editors, dedicated full-document scroll container with wheel forwarding, and rendered/source code view toggles. **PDF** directly launches the native browser print preview dialog (`window.print()`).
-- **Drag-and-Drop Import**: Drag and drop `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, or `.md` files directly into target spaces.
+- **Drag-and-Drop Import**: Drag and drop `.learnory`, `.socratic`, `.json`, `.docx`, `.html` (notes and browser bookmarks), `.txt`, or `.md` files directly into target spaces.
 
 ### 🎓 12. Interactive Onboarding Tutorial & Feature Walkthrough
 - **9 Interactive Chapters Covering 100+ Capabilities** ([`InteractiveTutorial.jsx`](../components/InteractiveTutorial.jsx)):
@@ -218,7 +219,7 @@ A comprehensive suite of 52 real-time interactive 3D STEM simulations built usin
 
 ## 🎓 Interactive Onboarding Walkthrough & Guide
 
-SocraticOS features an interactive onboarding walkthrough (`components/InteractiveTutorial.jsx`) that starts automatically on a student's first visit (`localStorage.getItem("socratic_tutorial_completed")`) or when navigating to `?tour=true`:
+Learnory features an interactive onboarding walkthrough (`components/InteractiveTutorial.jsx`) that starts automatically on a student's first visit (`localStorage.getItem("socratic_tutorial_completed")`) or when navigating to `?tour=true`:
 
 - **9 Comprehensive Interactive Chapters**:
   1. **Philosophy & Active Retrieval**: Core cognitive science foundations and 100% local-first storage model.
@@ -227,7 +228,7 @@ SocraticOS features an interactive onboarding walkthrough (`components/Interacti
   4. **Quizzes Studio**: 2-column test runner, draft answer persistence, 7 question types, and interactive step ordering puzzle.
   5. **Space Hub & Document Grounding**: Multi-discipline spaces, custom syllabus uploads, and interactive curriculum standard personas.
   6. **3D Scientific Simulation Studio**: 50+ interactive simulations across Physics, Chemistry, Biology, CS, and Mathematics.
-  7. **Focus Hub & Pomodoro Cycles**: Study calendar, multi-timer HUD, and interactive Pomodoro cycle visualizer with tab title notification preview (`🦆` ↔ `❗️`).
+  7. **Focus Hub & Pomodoro Cycles**: Study calendar, multi-timer HUD, and interactive Pomodoro cycle visualizer with tab title notification preview (Learnory logo ↔ `☕`).
   8. **Web Saver & Bookmark Manager**: Dual-pane folder trees, Google favicon resolvers, and Netscape HTML import/export.
   9. **Power Shortcuts & Bulk Operations**: Multi-note bulk actions, 24h auto-purging trash, note navigation history (`Alt+←`/`Alt+→`), and clickable shortcut pills.
 - **Restart Anytime**: Re-open the tutorial at any time via **Settings $\rightarrow$ General $\rightarrow$ "Restart Tutorial"** or via the **Command Palette (`Ctrl+K`)**.

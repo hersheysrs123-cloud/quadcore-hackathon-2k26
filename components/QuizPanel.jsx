@@ -8,6 +8,7 @@ import { effectiveAnswer, isAnswerGiven, quizGenerate, quizGrade, shouldUseClien
 import { getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
 import { CheckSquare, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import MathText from "@/components/MathText";
+import { MalloIcon } from "@/components/brand/Brand";
 import "katex/dist/katex.min.css";
 
 const MATH_SYMBOLS_DRAWER = [
@@ -45,7 +46,7 @@ export default function QuizPanel({
     <Drawer
       open={open}
       onClose={onClose}
-      icon="🦆"
+      icon={<MalloIcon className="h-6 w-6" />}
       title="Quiz me"
       subtitle={concept}
       scrollRef={scrollRef}
@@ -256,9 +257,9 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
               key={i}
               className={`h-1 flex-1 rounded-full transition-colors ${
                 i === index
-                  ? "bg-duck-400"
+                  ? "bg-brand-400"
                   : isAnswerGiven(q, answers[i])
-                    ? "bg-duck-500/40"
+                    ? "bg-brand-500/40"
                     : "bg-ink-800"
               }`}
             />
@@ -282,7 +283,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
                   onClick={() => setAnswers((prev) => ({ ...prev, [index]: oi }))}
                   className={`flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left text-[13px] leading-relaxed transition-colors ${
                     picked
-                      ? "border-duck-500/60 bg-duck-500/10 text-ink-100"
+                      ? "border-brand-500/60 bg-brand-500/10 text-ink-100"
                       : "border-ink-800 bg-ink-850 text-ink-300 hover:border-ink-700 hover:text-ink-200"
                   }`}
                 >
@@ -290,7 +291,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
                     aria-hidden="true"
                     className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
                       picked
-                        ? "border-duck-400 bg-duck-400 text-ink-950"
+                        ? "border-brand-400 bg-brand-400 text-ink-950"
                         : "border-ink-600 text-ink-500"
                     }`}
                   >
@@ -306,7 +307,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
         </ul>
       ) : question.type === "multi_select" ? (
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold text-duck-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+          <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
             <CheckSquare size={13} /> Select all correct options:
           </p>
           <ul className="space-y-2">
@@ -325,7 +326,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
                     }}
                     className={`flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left text-[13px] leading-relaxed transition-colors ${
                       picked
-                        ? "border-duck-500/60 bg-duck-500/10 text-ink-100"
+                        ? "border-brand-500/60 bg-brand-500/10 text-ink-100"
                         : "border-ink-800 bg-ink-850 text-ink-300 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
@@ -333,7 +334,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
                       aria-hidden="true"
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                         picked
-                          ? "border-duck-400 bg-duck-400 text-ink-950"
+                          ? "border-brand-400 bg-brand-400 text-ink-950"
                           : "border-ink-600 text-transparent"
                       }`}
                     >
@@ -351,7 +352,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
       ) : question.type === "step_ordering" ? (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold text-duck-400 uppercase tracking-wider">
+            <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wider">
               Arrange steps in logical order:
             </p>
             <button
@@ -444,7 +445,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
                     input.setSelectionRange(newPos, newPos);
                   }, 0);
                 }}
-                className="px-2 py-1 rounded-lg border border-ink-750 bg-ink-900 hover:border-duck-500/50 hover:bg-duck-500/10 text-ink-200 text-xs font-mono transition-colors cursor-pointer"
+                className="px-2 py-1 rounded-lg border border-ink-750 bg-ink-900 hover:border-brand-500/50 hover:bg-brand-500/10 text-ink-200 text-xs font-mono transition-colors cursor-pointer"
               >
                 {sym.label}
               </button>
@@ -458,7 +459,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
               value={answers[index] ?? ""}
               onChange={(e) => setAnswers((prev) => ({ ...prev, [index]: e.target.value }))}
               placeholder="e.g. \\frac{1}{2}, \\sqrt{3}, 42.5"
-              className="w-full rounded-xl border border-ink-800 bg-ink-850 px-3.5 py-2.5 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-xl border border-ink-800 bg-ink-850 px-3.5 py-2.5 text-sm font-mono text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
           </div>
 
@@ -466,7 +467,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
             <p className="text-[10px] font-semibold text-ink-500 uppercase tracking-wider mb-1">
               Live KaTeX Preview:
             </p>
-            <div className="text-sm text-duck-300 min-h-[1.5rem] flex items-center">
+            <div className="text-sm text-brand-300 min-h-[1.5rem] flex items-center">
               {answers[index] ? (
                 <MathText text={answers[index]} />
               ) : (
@@ -478,7 +479,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
       ) : question.type === "code_input" ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[11px] text-ink-500">
-            <span className="font-mono text-duck-400 uppercase font-semibold">
+            <span className="font-mono text-brand-400 uppercase font-semibold">
               {question.language || "code"}
             </span>
             <span>Tab = 2 spaces</span>
@@ -502,7 +503,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
               }
             }}
             placeholder={question.starterCode || "# Write your code solution here..."}
-            className="w-full resize-none rounded-xl border border-ink-800 bg-ink-900 px-3.5 py-3 font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-ink-800 bg-ink-900 px-3.5 py-3 font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
           />
         </div>
       ) : (
@@ -512,7 +513,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
             value={answers[index] ?? ""}
             onChange={(e) => setAnswers((prev) => ({ ...prev, [index]: e.target.value }))}
             placeholder="Explain it in your own words…"
-            className="w-full resize-none rounded-xl border border-ink-800 bg-ink-850 px-3.5 py-3 text-[13px] leading-relaxed text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-ink-800 bg-ink-850 px-3.5 py-3 text-[13px] leading-relaxed text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
           />
           <p className="mt-1.5 text-[11px] text-ink-600">
             Graded on the mechanism, not the wording.
@@ -542,7 +543,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
             type="button"
             onClick={submit}
             disabled={answeredCount === 0 || grading}
-            className="flex-1 rounded-xl bg-duck-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-duck-300 disabled:opacity-30"
+            className="flex-1 rounded-xl bg-brand-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-brand-300 disabled:opacity-30"
           >
             {grading
               ? "Grading…"
@@ -554,7 +555,7 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
           <button
             type="button"
             onClick={() => setIndex((i) => i + 1)}
-            className="flex-1 rounded-xl bg-duck-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-duck-300"
+            className="flex-1 rounded-xl bg-brand-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-brand-300"
           >
             {answered ? "Next question" : "Skip"}
           </button>
@@ -584,7 +585,7 @@ function QuizReview({ result, concept, onRetake }) {
         <button
           type="button"
           onClick={onRetake}
-          className="mt-5 w-full rounded-xl border border-ink-700 px-4 py-2.5 text-xs font-medium text-ink-300 transition-colors hover:border-duck-500/50 hover:text-duck-300"
+          className="mt-5 w-full rounded-xl border border-ink-700 px-4 py-2.5 text-xs font-medium text-ink-300 transition-colors hover:border-brand-500/50 hover:text-brand-300"
         >
           ↻ New questions on {concept.length > 28 ? "this note" : concept}
         </button>
@@ -713,9 +714,9 @@ function QuizReview({ result, concept, onRetake }) {
                 )}
 
                 {answer.type === "value_input" && (
-                  <div className="p-2.5 rounded-lg bg-duck-500/10 border border-duck-500/30 flex items-start gap-2">
-                    <dt className="shrink-0 text-duck-400 font-bold">Expected Value:</dt>
-                    <dd className="text-duck-200 font-medium">
+                  <div className="p-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-start gap-2">
+                    <dt className="shrink-0 text-brand-400 font-bold">Expected Value:</dt>
+                    <dd className="text-brand-200 font-medium">
                       <MathText text={answer.expectedAnswer || "—"} />
                       {answer.tolerance ? (
                         <span className="text-ink-400 ml-1 font-mono text-[11px]">(±{answer.tolerance})</span>
@@ -725,20 +726,20 @@ function QuizReview({ result, concept, onRetake }) {
                 )}
 
                 {answer.type === "code_input" && (
-                  <div className="p-2.5 rounded-lg bg-duck-500/10 border border-duck-500/30 flex flex-col gap-1">
-                    <dt className="text-duck-400 font-bold">
+                  <div className="p-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 flex flex-col gap-1">
+                    <dt className="text-brand-400 font-bold">
                       Model Solution {answer.language ? `(${answer.language})` : ""}:
                     </dt>
-                    <pre className="p-2 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-duck-200 overflow-x-auto whitespace-pre">
+                    <pre className="p-2 rounded-lg bg-ink-950/90 border border-ink-800 font-mono text-[11px] text-brand-200 overflow-x-auto whitespace-pre">
                       <code>{answer.expectedAnswer || "# No reference code"}</code>
                     </pre>
                   </div>
                 )}
 
                 {answer.expectedAnswer && !["multiple_choice", "multi_select", "step_ordering", "value_input", "code_input"].includes(answer.type) && (
-                  <div className="p-2.5 rounded-lg bg-duck-500/10 border border-duck-500/30 flex items-start gap-2">
-                    <dt className="shrink-0 text-duck-400 font-bold">Model Rubric:</dt>
-                    <dd className="text-duck-200 font-medium">
+                  <div className="p-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-start gap-2">
+                    <dt className="shrink-0 text-brand-400 font-bold">Model Rubric:</dt>
+                    <dd className="text-brand-200 font-medium">
                       <MathText text={answer.expectedAnswer} />
                     </dd>
                   </div>

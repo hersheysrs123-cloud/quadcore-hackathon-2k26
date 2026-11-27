@@ -573,7 +573,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
             type="button"
             title="Add poem"
             onClick={() => setLinesModal({ poem: null })}
-            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-ink-800 hover:text-duck-300"
+            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-ink-800 hover:text-brand-300"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -627,7 +627,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                       <span
                         title={`${n} ${n === 1 ? "annotation" : "annotations"}`}
                         className={`shrink-0 rounded-full border border-ink-750 px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-opacity group-hover/poem:opacity-0 group-has-[.lit-del:focus-visible]/poem:opacity-0 ${
-                          n ? "bg-duck-500/15 text-duck-300" : "bg-ink-850 text-ink-600"
+                          n ? "bg-brand-500/15 text-brand-300" : "bg-ink-850 text-ink-600"
                         }`}
                       >
                         {n}
@@ -693,7 +693,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
             <button
               type="button"
               onClick={() => setLinesModal({ poem: null })}
-              className="mt-1 rounded-xl bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-colors hover:bg-duck-300"
+              className="mt-1 rounded-xl bg-brand-400 px-4 py-2 text-xs font-bold text-ink-950 transition-colors hover:bg-brand-300"
             >
               Add poem
             </button>
@@ -813,7 +813,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                     }}
                     className={`rounded-xl p-1.5 transition-colors disabled:opacity-40 ${
                       (analysisFits ? panelOpen : drawer === "analysis")
-                        ? "text-duck-400"
+                        ? "text-brand-400"
                         : "text-ink-400 hover:bg-ink-800 hover:text-ink-100"
                     }`}
                   >
@@ -828,7 +828,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                       onClick={() => setDrawer((d) => (d === "essay" ? null : "essay"))}
                       className={`rounded-xl p-1.5 transition-colors ${
                         drawer === "essay"
-                          ? "text-duck-400"
+                          ? "text-brand-400"
                           : "text-ink-400 hover:bg-ink-800 hover:text-ink-100"
                       }`}
                     >
@@ -859,7 +859,7 @@ export default function LiteratureView({ activeSpace = "School" }) {
                         },
                       })
                     }
-                    className="font-semibold text-duck-300 underline underline-offset-2 hover:text-duck-200"
+                    className="font-semibold text-brand-300 underline underline-offset-2 hover:text-brand-200"
                   >
                     Delete sample
                   </button>
@@ -1096,7 +1096,7 @@ function FloatingAdd({ rect, onClick }) {
         type="button"
         onMouseDown={(e) => e.preventDefault()} // keep the selection alive
         onClick={onClick}
-        className="flex items-center gap-1.5 rounded-xl bg-duck-400 px-3 py-1.5 text-xs font-bold text-ink-950 shadow-xl transition-colors hover:bg-duck-300"
+        className="flex items-center gap-1.5 rounded-xl bg-brand-400 px-3 py-1.5 text-xs font-bold text-ink-950 shadow-xl transition-colors hover:bg-brand-300"
       >
         <Plus className="h-3.5 w-3.5" />
         Add analysis

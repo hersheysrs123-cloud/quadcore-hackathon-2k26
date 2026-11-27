@@ -1,5 +1,5 @@
 /**
- * Empirical Challenger Verification Suite for SocraticOS Milestone 1
+ * Empirical Challenger Verification Suite for Learnory Milestone 1
  * Stress-testing:
  *   1. Live Inline Math Auto-Compilation ($formula$)
  *   2. Keystroke Swallowing & Adjacent Typing

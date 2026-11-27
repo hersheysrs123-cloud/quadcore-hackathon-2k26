@@ -21,6 +21,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useGlobalTimer } from "@/lib/timerStore";
+import { LearnoryMark } from "@/components/brand/Brand";
 
 /**
  * The single navigation surface of the redesigned workspace.
@@ -124,7 +125,7 @@ function PinMenu({ x, y, targetId, hidden, onToggle, onShowAll, onClose }) {
       >
         <span
           className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-            shown ? "border-duck-400 bg-duck-500 text-ink-950" : "border-ink-600 bg-ink-850"
+            shown ? "border-brand-400 bg-brand-500 text-ink-950" : "border-ink-600 bg-ink-850"
           }`}
         >
           {shown && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
@@ -170,7 +171,7 @@ function PinMenu({ x, y, targetId, hidden, onToggle, onShowAll, onClose }) {
             type="button"
             role="menuitem"
             onClick={onShowAll}
-            className="w-full rounded-lg px-2 py-1.5 text-left text-[12px] font-medium text-duck-400 hover:bg-ink-850"
+            className="w-full rounded-lg px-2 py-1.5 text-left text-[12px] font-medium text-brand-400 hover:bg-ink-850"
           >
             Show everything
           </button>
@@ -198,14 +199,14 @@ function RailButton({ id, active, label, hint, icon: Icon, onClick, badge, accen
         active
           ? "bg-ink-800 text-ink-100"
           : accent
-          ? "text-duck-400 hover:bg-ink-850 hover:text-duck-300"
+          ? "text-brand-400 hover:bg-ink-850 hover:text-brand-300"
           : "text-ink-500 hover:bg-ink-850 hover:text-ink-200"
       }`}
     >
       {active && (
         <span
           aria-hidden="true"
-          className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-duck-400"
+          className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand-400"
         />
       )}
       <span className="relative">
@@ -263,11 +264,11 @@ export default function NavRail({
       <button
         type="button"
         onClick={() => onNavigate("home")}
-        title="SocraticOS"
-        className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-duck-400 text-xl shadow-sm transition-transform hover:scale-105"
+        title="Learnory"
+        className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl shadow-sm transition-transform hover:scale-105"
       >
-        <span aria-hidden="true">🦆</span>
-        <span className="sr-only">SocraticOS home</span>
+        <LearnoryMark className="h-10 w-10" />
+        <span className="sr-only">Learnory home</span>
       </button>
 
       <div className="flex flex-col gap-0.5">

@@ -1,13 +1,15 @@
 # File map — lib/
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). The pure engines (one per 3D topic) and the app services.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). The pure engines (one per 3D topic) and the app services.
 
 ```
 quadcore-hackathon-2k26/
 ├── lib/
 │   ├── aiService.js                      # Isomorphic client-side AI service coordinating Gemini API & user keys
-│   ├── backup.js                         # .socratic backups (v2): every store + space list; pure buildBackup / planImport (restore vs. copy-into-space with id remapping, scoped overwrite) and the IndexedDB wrappers
+│   ├── backup.js                         # .learnory backups (learnory-backup-v2; old .socratic / socratic-backup-* still import): every store + space list; pure buildBackup / planImport (restore vs. copy-into-space with id remapping, scoped overwrite) and the IndexedDB wrappers
+│   ├── backupFormat.js                   # Backup identity with no DB import: BACKUP_FORMAT, isBackupFormat (learnory- and socratic-backup prefixes), isBackupFileName (.learnory, .socratic, branded .json)
 │   ├── blocks.js                         # Text extractors, concept mappers & slash-menu relevance ranking (`rankSlashItems`)
+│   ├── brand.js                          # BRAND_NAME, BRAND_TAGLINE, BRAND_TITLE, AI_NAME ("Mallo") and LOGO_FAVICON; notes why storage keys keep the old socratic names
 │   ├── buoyancy.js                       # PURE PHYSICS: Archimedes' principle, material vs envelope volume, fluid densities, waterline integration, hull displacement & apparent weight
 │   ├── constants.js                      # Default SPACES definition (School, Personal, Misc, Journal)
 │   ├── db.js                             # Dexie.js IndexedDB schema v8 (12 stores), auto-seeding & graphics detection

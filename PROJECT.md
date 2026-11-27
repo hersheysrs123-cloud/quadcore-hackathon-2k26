@@ -1,4 +1,4 @@
-# Project: SocraticOS Block Note Editor Notion-Grade Navigation & Interaction
+# Project: Learnory Block Note Editor Notion-Grade Navigation & Interaction
 
 ## Architecture
 - **Core Component**: `components/BlockNoteEditor.jsx` (Central block-based note editor with contenteditable blocks, DOM/TreeWalker caret managers, selection boundaries, keyboard shortcuts, formatting, and persistence).

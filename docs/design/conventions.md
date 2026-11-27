@@ -1,6 +1,6 @@
 # Design — code conventions for AI and developers
 
-> Part of the [SocraticOS design system](../../DESIGN_SYSTEM.md). Conventions 1–14: theme utilities, hydration guard, print rules, toggle and modal layout, click-to-append, tutorial modal.
+> Part of the [Learnory design system](../../DESIGN_SYSTEM.md). Conventions 1–14: theme utilities, hydration guard, print rules, toggle and modal layout, click-to-append, tutorial modal.
 
 ## 🛠️ Code Conventions for AI & Developers
 
@@ -11,7 +11,7 @@
 5. **Modal Viewport Bounds**: Modal dialogs must use `max-h-[calc(100vh-2rem)] flex flex-col` and `shrink-0` on headers/footers to prevent clipping on compact displays.
 6. **Print & PDF Content Guarantees**: Any user-created note content (titles, toggle details, LaTeX formulas, code snippets) must render cleanly in `@media print` without reliance on interactive form controls or fixed-height containers.
 7. **KaTeX Extensions & Mathematical Glyphs**: Custom LaTeX macros (such as `\reflectbox{...}` and `\ext{...}`) are supported globally in `lib/editorCaret.js` using `KATEX_GLOBAL_MACROS` (including `"\\ext": "\\text{#1}"` to heal LLM `\ext` and tab-escaped `\text` outputs) and styled via `.reflect-flip` (`display: inline-block; transform: scaleX(-1);`) to ensure proper rendering across both inline and display math blocks.
-8. **Selective Block Insertion Dropzones**: The bottom click-to-insert bar (`data-insert-zone="after"`, `hover:bg-duck-400/20`) is scoped strictly to complex/container blocks (`math`, `code`, `table`, `toggle`, `columns`, `site`, `media`, `divider`) where Enter does not naturally append a block below. Linear content blocks (`text`, `h1`–`h4`, `bullet`, `number`, `todo`, `inlinemath`, `callout`, `quote`) omit the bottom dropzone to preserve clean vertical spacing and avoid visual clutter.
+8. **Selective Block Insertion Dropzones**: The bottom click-to-insert bar (`data-insert-zone="after"`, `hover:bg-brand-400/20`) is scoped strictly to complex/container blocks (`math`, `code`, `table`, `toggle`, `columns`, `site`, `media`, `divider`) where Enter does not naturally append a block below. Linear content blocks (`text`, `h1`–`h4`, `bullet`, `number`, `todo`, `inlinemath`, `callout`, `quote`) omit the bottom dropzone to preserve clean vertical spacing and avoid visual clutter.
 9. **PDF Export & Print Sheet Color-Scheme Guarantee**: Always ensure `@media print` forces `:root, html, body` and `@page` to `color-scheme: light !important; background-color: #ffffff !important;` with `--color-ink-950: #ffffff !important`, and resets all dark background container utilities (`.bg-ink-950`, `.bg-ink-900`) to `transparent !important`. This prevents Chromium's print engine from rendering dark mode canvas margins (`rgb(18, 18, 18)`) around the printed page.
 10. **Print Layout Rules & Scoped Block Engines**: Never apply layout properties (`display: block !important; width: 100% !important; flex: none !important;`) to universal background color utility selectors (`[class*="bg-ink-950"]`, `[class*="bg-ink-900"]`) in `@media print`. Always scope structural resets strictly to root layout containers (`#__next, main, [data-editor-root]`). For complex blocks (`code`, `table`, `toggle`), provide explicit scoped print rules:
     - **Code Blocks**: Display flex row with fixed-width gutter (`min-width: 2.75rem`) and full-width `<pre>` taking remaining width with high-contrast syntax highlighting token colors.
@@ -20,7 +20,7 @@
     - **Media Images**: Constrained with `max-height: 180pt !important; object-fit: contain !important; margin: 0 auto !important;` to prevent dominating page vertical space. Captions render as small, muted captions (`font-size: 9pt !important; font-weight: 400 !important; color: #64748b !important; text-align: center !important;`) targeted via `data-media-caption="true"` to prevent specificity collisions with document title selectors.
 11. **Toggle Block Layout & Auto-Expansion Rules (`components/BlockNoteEditor.jsx`)**:
     - **Header Flex Alignment**: The toggle header flex row uses `items-start` (never `items-center`) with `mt-0.5` on the 24px chevron button and status badge. This anchors the controls cleanly to line 1 of the title when titles wrap across multiple lines.
-    - **Clickable Status Badge**: The `[COLLAPSED]` / `[EXPANDED]` badge is an interactive `<button>` with `hover:border-duck-500/40 hover:text-duck-300`, allowing quick toggling from either side of the block.
+    - **Clickable Status Badge**: The `[COLLAPSED]` / `[EXPANDED]` badge is an interactive `<button>` with `hover:border-brand-500/40 hover:text-brand-300`, allowing quick toggling from either side of the block.
     - **Dynamic Auto-Expanding Details Textarea**: Interactive toggle details use dynamic height calculation (`el.style.height = Math.max(48, el.scrollHeight) + 'px'`) on mount, open transition, and input. Textareas use `resize-none overflow-hidden` to completely prevent internal scrollbars and clipping.
     - **Enter Key Stepping**: Pressing Enter at the end of a toggle heading automatically opens the toggle and focuses the details textarea at offset `(0, 0)`. Splitting a heading defaults `nextType` to `"text"`.
 12. **Modal Scroll Containers & Unbroken Flex Chains**: When embedding full-length document previews or scrollable content inside modal dialogs:
@@ -32,9 +32,9 @@
     - Click-to-append strictly operates within the note column in the empty bottom whitespace below the final block.
 14. **Interactive Onboarding Tutorial Modal Architecture (`components/InteractiveTutorial.jsx`)**:
     - **Layering & Modal Framing**: Uses fixed viewport positioning (`z-[300]`) with glassmorphic backdrop blur (`bg-ink-950/85 backdrop-blur-md`) and elevated modal shell (`z-[310] max-w-4xl max-h-[92vh] rounded-2xl border-ink-700/80 bg-ink-900 shadow-2xl`).
-    - **Dynamic Progress Indicator**: Integrated top accent bar featuring a smooth gradient progress fill (`from-duck-500 to-duck-300 h-1.5 transition-all duration-300 ease-out`) calculating percentage from current step index.
+    - **Dynamic Progress Indicator**: Integrated top accent bar featuring a smooth gradient progress fill (`from-brand-500 to-brand-300 h-1.5 transition-all duration-300 ease-out`) calculating percentage from current step index.
     - **Interactive Sandboxes**: Every chapter includes live test widgets with standard design tokens:
-      - Category & Step Dots: Clickable step dots (`h-2 rounded-full w-2 bg-ink-700 hover:bg-ink-500`, active `w-6 bg-duck-400`).
+      - Category & Step Dots: Clickable step dots (`h-2 rounded-full w-2 bg-ink-700 hover:bg-ink-500`, active `w-6 bg-brand-400`).
       - Mini-Quiz Feedback Tokens: Correct option turns emerald (`border-emerald-500 bg-emerald-500/20 text-emerald-200`); incorrect option turns rose (`border-rose-500 bg-rose-500/20 text-rose-200`).
-      - Pomodoro Visualizer: Live circular timer dial (`bg-ink-900 border-ink-700 text-duck-300 font-mono text-2xl font-black`) and tab notification badge preview.
-      - Shortcut Buttons: Interactive hotkey pills with click-to-try or clipboard feedback tooltip (`kbd.bg-ink-950 text-duck-300`).
+      - Pomodoro Visualizer: Live circular timer dial (`bg-ink-900 border-ink-700 text-brand-300 font-mono text-2xl font-black`) and tab notification badge preview.
+      - Shortcut Buttons: Interactive hotkey pills with click-to-try or clipboard feedback tooltip (`kbd.bg-ink-950 text-brand-300`).

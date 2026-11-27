@@ -189,6 +189,6 @@ it stops fitting, via `useMediaQuery` from `usehooks-ts`:
 
 The stacked-underline geometry cannot be expressed in Tailwind (layered
 `linear-gradient` backgrounds at three offsets), so `.lit-*` rules live in a
-scoped block at the foot of `app/globals.css`, written against the `ink`/`duck`
+scoped block at the foot of `app/globals.css`, written against the `ink`/`brand`
 tokens. Everything else is ordinary Tailwind utilities. See
 [docs/design/literature-ui.md](../design/literature-ui.md).

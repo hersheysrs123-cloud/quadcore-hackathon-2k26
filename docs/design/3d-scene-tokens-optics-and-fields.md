@@ -1,6 +1,6 @@
 # Design — 3D scene tokens: optics, fields and orbits
 
-> Part of the [SocraticOS design system](../../DESIGN_SYSTEM.md). Refraction, ray optics, induction, projectile, gravity wells and the shadow lab (conventions 18–23).
+> Part of the [Learnory design system](../../DESIGN_SYSTEM.md). Refraction, ray optics, induction, projectile, gravity wells and the shadow lab (conventions 18–23).
 
 18. **3D Wave Refraction & Optical Media Tokens (`PhysicsCanvas.jsx`, `media.js`)**:
     - **Optical Media Distinct Color Ramps**:

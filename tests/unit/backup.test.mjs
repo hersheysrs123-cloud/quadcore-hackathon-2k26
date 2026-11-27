@@ -4,6 +4,8 @@ import {
   BACKUP_FORMAT,
   BACKUP_TABLE_NAMES,
   buildBackup,
+  isBackupFileName,
+  isBackupFormat,
   mergeSpaceLists,
   parseBackup,
   planImport,
@@ -69,6 +71,36 @@ describe("parseBackup", () => {
     assert.throws(() => parseBackup("[]"), /not a JSON object/);
     assert.throws(() => parseBackup('{"format":"other"}'), /Unrecognized/);
     assert.equal(parseBackup('{"format":"socratic-backup-v1","data":{}}').format, "socratic-backup-v1");
+  });
+
+  it("reads backups written before and after the Learnory rename", () => {
+    for (const format of ["socratic-backup-v1", "socratic-backup-v2", "learnory-backup-v2"]) {
+      assert.equal(parseBackup(JSON.stringify({ format, data: {} })).format, format);
+    }
+  });
+});
+
+describe("backup identity across the rename", () => {
+  it("writes new backups under the Learnory name", () => {
+    assert.equal(BACKUP_FORMAT, "learnory-backup-v2");
+    assert.equal(buildBackup(workspace(), { targetSpace: "All", spaces }).format, "learnory-backup-v2");
+  });
+
+  it("recognises both format prefixes and nothing else", () => {
+    assert.ok(isBackupFormat("learnory-backup-v2"));
+    assert.ok(isBackupFormat("socratic-backup-v1"));
+    assert.ok(!isBackupFormat("other-backup-v1"));
+    assert.ok(!isBackupFormat(undefined));
+  });
+
+  it("treats .learnory and .socratic files as backups, and sniffs branded .json names", () => {
+    assert.ok(isBackupFileName("Learnory-Backup-AllSpaces-2026-11-27.learnory"));
+    assert.ok(isBackupFileName("SocraticOS-Backup-School-2026-01-02.socratic"));
+    assert.ok(isBackupFileName("my-learnory-export.JSON"));
+    assert.ok(isBackupFileName("old-socratic-export.json"));
+    assert.ok(!isBackupFileName("notes.json"));
+    assert.ok(!isBackupFileName("lecture.md"));
+    assert.ok(!isBackupFileName("learnory"));
   });
 });
 

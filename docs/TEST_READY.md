@@ -1,4 +1,4 @@
-# TEST READY: SocraticOS Block Note Editor Notion-Grade Caret Navigation & Interaction Suite
+# TEST READY: Learnory Block Note Editor Notion-Grade Caret Navigation & Interaction Suite
 
 ## Test Suite Overview
 - **File**: `tests/e2e_caret_navigation.test.js`

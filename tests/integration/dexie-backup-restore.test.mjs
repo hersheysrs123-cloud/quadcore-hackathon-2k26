@@ -51,7 +51,7 @@ export function validateAndProcessImport(rawJsonString, options = { targetSpace:
   }
 
   if (!backup || typeof backup !== "object" || !backup.format?.startsWith("socratic-backup")) {
-    throw new Error("Invalid backup file: Unrecognized SocraticOS file format.");
+    throw new Error("Invalid backup file: Unrecognized Learnory file format.");
   }
 
   const payload = backup.data || {};
@@ -151,6 +151,6 @@ describe("Dexie Workspace Backup & Restore Engine (lib/backup.js)", () => {
 
   it("rejects corrupted or non-Socratic JSON files cleanly", () => {
     assert.throws(() => validateAndProcessImport("not a json string"), /Invalid backup format/);
-    assert.throws(() => validateAndProcessImport(JSON.stringify({ some: "other_format" })), /Unrecognized SocraticOS file format/);
+    assert.throws(() => validateAndProcessImport(JSON.stringify({ some: "other_format" })), /Unrecognized Learnory file format/);
   });
 });

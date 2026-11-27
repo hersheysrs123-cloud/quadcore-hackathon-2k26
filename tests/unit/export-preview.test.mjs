@@ -65,7 +65,7 @@ describe("Document Export Previews (Word, HTML, TXT, MD)", () => {
     assert.ok(html.includes(`<title>${noteTitle}</title>`), "Must include document title");
     assert.ok(html.includes("katex.min.css"), "Must include KaTeX stylesheet for math rendering");
     assert.ok(html.includes("Wave-particle duality"), "Must include body text");
-    assert.ok(html.includes("socratic-table"), "Must include styled table container");
+    assert.ok(html.includes("learnory-table"), "Must include styled table container");
     assert.ok(html.includes("Electron"), "Must include table cells");
     assert.ok(html.includes("code-block"), "Must include code container");
   });

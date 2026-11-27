@@ -1,6 +1,6 @@
 # Developer gotchas — general
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Gotchas 1–17: theme flash, hydration, seeding, WebGL cleanup, print/PDF, error boundaries, ESLint, per-frame buffers, HTML strings and more. Per-scene gotchas are in [gotchas-3d-physics-scenes.md](gotchas-3d-physics-scenes.md).
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Gotchas 1–17: theme flash, hydration, seeding, WebGL cleanup, print/PDF, error boundaries, ESLint, per-frame buffers, HTML strings and more. Per-scene gotchas are in [gotchas-3d-physics-scenes.md](gotchas-3d-physics-scenes.md).
 
 ## ⚙️ 6. Critical Developer Gotchas & Best Practices
 
@@ -67,3 +67,8 @@
     - Every route sends `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. The export preview is a `srcdoc` iframe, so the frame rule does not touch it.
     - There is no Content-Security-Policy yet. KaTeX, the 3D models (`.glb`, HDR maps, workers), the export preview's inline script and user-supplied favicons all need allowing, so add one only after testing each of those under it.
     - Header changes need a dev-server restart.
+19. **Names left over from SocraticOS (`lib/brand.js`, `lib/db.js`, `lib/backupFormat.js`)**:
+    - The product is Learnory, but the IndexedDB name (`SocraticOS_LocalDB`) and every `localStorage` key (`socratic_spaces`, `socratic_theme`, `socratic_tutorial_completed`, `socraticos_space_switcher_layout`, ...) keep the old names on purpose. Renaming a Dexie database opens a new, empty one, and a renamed key reads as unset, so either would make existing notes and settings vanish. Only rename one together with a migration that copies the old data across.
+    - New backups are `learnory-backup-v2` / `.learnory`. Imports must keep accepting `socratic-backup-*` and `.socratic`: go through `isBackupFormat` and `isBackupFileName` rather than testing a prefix or extension inline. The HTML importer likewise still recognises the old `socratic-table` class next to `learnory-table`.
+    - Product name, tagline and favicon come from `lib/brand.js`. Use `BRAND_NAME` / `BRAND_TITLE` for any new page title or `document.title` so a later rename is one edit.
+    - `lib/` files are imported directly by `node --test`, so a relative import needs its `.js` extension (`./brand.js`); without it the test runner can't resolve it.

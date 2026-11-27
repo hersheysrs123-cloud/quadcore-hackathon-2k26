@@ -1,4 +1,4 @@
-# SocraticOS Assistant Rules & Documentation Maintenance Directives
+# Learnory Assistant Rules & Documentation Maintenance Directives
 
 Whenever you make changes to the codebase (features, components, architecture, design tokens, bug fixes), you must maintain documentation integrity by updating the relevant documentation files as part of your task.
 

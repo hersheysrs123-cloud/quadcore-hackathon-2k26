@@ -1,12 +1,13 @@
 import "./globals.css";
+import { BRAND_TITLE } from "@/lib/brand";
 
 export const metadata = {
   title: {
-    default: "SocraticOS — notes that quiz you back",
+    default: BRAND_TITLE,
     template: "%s",
   },
   description:
-    "An all-in-one productivity and Socratic learning workspace. Take notes, have them explained, then find out what you actually understood.",
+    "Learnory is an all-in-one study workspace. Take notes, have them explained, then find out what you actually understood.",
 };
 
 export const viewport = {

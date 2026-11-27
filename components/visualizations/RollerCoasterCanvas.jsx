@@ -531,14 +531,14 @@ function MonitorDock({ live, total, verdict, minHeight, friction, maxSpeed }) {
             {/* ── Energy budget: three stores that always sum to the total ── */}
             <DockSection
               title="Energy budget"
-              icon={<Zap className="h-3.5 w-3.5 text-duck-400" />}
+              icon={<Zap className="h-3.5 w-3.5 text-brand-400" />}
               summary={`${(total / 1000).toFixed(1)} kJ`}
               open={energyOpen}
               onToggle={() => setEnergyOpen((o) => !o)}
             >
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-slate-400">Total</span>
-                <span className="font-mono font-bold text-duck-300">{(total / 1000).toFixed(1)} kJ</span>
+                <span className="font-mono font-bold text-brand-300">{(total / 1000).toFixed(1)} kJ</span>
               </div>
               <div className="mt-1.5 flex h-3 w-full overflow-hidden rounded-full border border-slate-700/80 bg-slate-800">
                 <div className="h-full transition-all duration-100" style={{ width: `${gpePct}%`, backgroundColor: ENERGY_COLOURS.gpe }} title={`GPE ${(live.gpe / 1000).toFixed(1)} kJ`} />

@@ -55,7 +55,7 @@ function LinkButton({ onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors hover:text-duck-400"
+      className="flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors hover:text-brand-400"
     >
       {children}
       <ArrowRight className="h-3 w-3" />
@@ -137,7 +137,7 @@ export default function HomeView({
 
   const steps = [
     { label: "Open a note and read it", done: spaceNotes.length > 0, action: () => recent[0] && onOpenNote?.(recent[0]) },
-    { label: "Have the Duck explain it", done: false, action: () => recent[0] && onExplainNote?.(recent[0]) },
+    { label: "Have Mallo explain it", done: false, action: () => recent[0] && onExplainNote?.(recent[0]) },
     { label: "Take your first quiz", done: sessions.length > 0, action: () => recent[0] && onQuizNote?.(recent[0]) },
   ];
   const showOnboarding = sessions.length === 0;
@@ -167,12 +167,12 @@ export default function HomeView({
             onClick={onOpenInstantNote}
             className="flex items-center gap-2 rounded-xl border border-ink-800 bg-ink-900 px-3.5 py-2 text-sm font-medium text-ink-200 transition-colors hover:border-ink-700 hover:bg-ink-850"
           >
-            <Zap className="h-4 w-4 text-duck-400" /> Quick capture
+            <Zap className="h-4 w-4 text-brand-400" /> Quick capture
           </button>
           <button
             type="button"
             onClick={onCreateNote}
-            className="flex items-center gap-2 rounded-xl bg-duck-400 px-3.5 py-2 text-sm font-semibold text-ink-950 shadow-sm transition-colors hover:bg-duck-300"
+            className="flex items-center gap-2 rounded-xl bg-brand-400 px-3.5 py-2 text-sm font-semibold text-ink-950 shadow-sm transition-colors hover:bg-brand-300"
           >
             <Plus className="h-4 w-4" /> New note
           </button>
@@ -181,16 +181,16 @@ export default function HomeView({
 
       {/* Onboarding — only until the first graded session */}
       {showOnboarding && (
-        <section className="mt-8 rounded-2xl border border-duck-500/30 bg-duck-500/[0.06] p-5">
+        <section className="mt-8 rounded-2xl border border-brand-500/30 bg-brand-500/[0.06] p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-sm font-semibold text-ink-100">The study loop, in three steps</h2>
               <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-ink-400">
-                Rereading is not studying. Read a note, have it explained, then let the Duck grade what you can actually
+                Rereading is not studying. Read a note, have it explained, then let Mallo grade what you can actually
                 explain back. Each graded sub-topic lands on your mastery map.
               </p>
             </div>
-            <button type="button" onClick={onStartTutorial} className="text-xs font-medium text-duck-400 hover:text-duck-300">
+            <button type="button" onClick={onStartTutorial} className="text-xs font-medium text-brand-400 hover:text-brand-300">
               Take the guided tour
             </button>
           </div>
@@ -200,7 +200,7 @@ export default function HomeView({
                 <button
                   type="button"
                   onClick={s.action}
-                  className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-3.5 py-3 text-left transition-colors hover:border-duck-500/40"
+                  className="flex w-full items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 px-3.5 py-3 text-left transition-colors hover:border-brand-500/40"
                 >
                   <span
                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
@@ -245,7 +245,7 @@ export default function HomeView({
                       {n.emoji || "📝"}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-ink-100 group-hover:text-duck-300">
+                      <span className="block truncate text-sm font-medium text-ink-100 group-hover:text-brand-300">
                         {n.title || "Untitled Note"}
                       </span>
                       <span className="block text-xs text-ink-500">
@@ -265,7 +265,7 @@ export default function HomeView({
                     <button
                       type="button"
                       onClick={() => onQuizNote?.(n)}
-                      className="rounded-lg bg-duck-400 px-2.5 py-1.5 text-xs font-semibold text-ink-950 hover:bg-duck-300"
+                      className="rounded-lg bg-brand-400 px-2.5 py-1.5 text-xs font-semibold text-ink-950 hover:bg-brand-300"
                     >
                       Quiz me
                     </button>
@@ -417,10 +417,10 @@ export default function HomeView({
                 key={id}
                 type="button"
                 onClick={() => onOpen3D?.(id)}
-                className="group flex flex-col rounded-2xl border border-ink-800 bg-ink-900 p-4 text-left transition-colors hover:border-duck-500/40 hover:bg-ink-850"
+                className="group flex flex-col rounded-2xl border border-ink-800 bg-ink-900 p-4 text-left transition-colors hover:border-brand-500/40 hover:bg-ink-850"
               >
                 <span className="text-2xl">{CATEGORY_EMOJI[t.category]}</span>
-                <span className="mt-3 text-[13px] font-semibold leading-snug text-ink-100 group-hover:text-duck-300">
+                <span className="mt-3 text-[13px] font-semibold leading-snug text-ink-100 group-hover:text-brand-300">
                   {t.title}
                 </span>
                 <span className="mt-1 text-[11px] text-ink-500">{t.syllabus}</span>

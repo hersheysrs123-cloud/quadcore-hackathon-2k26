@@ -1,6 +1,6 @@
 # Navigation, capture, timers and alarms
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Sidebar, command palette, instant capture and history (section B), plus the multi-timer HUD and study-break alarms (section D).
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Sidebar, command palette, instant capture and history (section B), plus the multi-timer HUD and study-break alarms (section D).
 
 ### 🔍 B. Universal Navigation, Command Palette, Sidebar & Instant Capture
 - **Streamlined Dual-Level Navigation Architecture** (`components/Workspace.jsx` & `components/Sidebar.jsx`):
@@ -11,7 +11,7 @@
   - **Multi-Note Selection & Bulk Operations Suite (`components/Sidebar.jsx` & `components/Workspace.jsx`)**:
     - Inline **"Select" / "Done"** toggle button with `ListChecks` in the `{activeSpace} · Notes` header.
     - Click-to-toggle multi-selection: Clicking notes one-by-one toggles selection indicators without opening or switching notes in the editor.
-    - Checkbox indicators: Rounded checkmark pill on selected rows with `bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200` highlight. Drag handles and single-note menus are neatly suppressed during selection.
+    - Checkbox indicators: Rounded checkmark pill on selected rows with `bg-brand-500/15 ring-1 ring-brand-400/40 text-brand-200` highlight. Drag handles and single-note menus are neatly suppressed during selection.
     - Dynamic header counter (`{count} of {total} selected`) with 1-click **Select All / Deselect All** toggle.
     - **Bulk Actions Toolbar**:
       - ⭐ **Star / Unstar**: Bulk favorites or un-favorites all selected notes.
@@ -35,6 +35,6 @@
 - **Standardized Click-Outside Listeners (`usehooks-ts`)**: Standardized across 6 key components (`BlockNoteEditor.jsx`, `CreateQuizModal.jsx`, `GlobalTimerHUD.jsx`, `NoteMenu.jsx`, `Sidebar.jsx`, and `TopicSelectorDropdown.jsx`) replacing duplicated, manual `document.addEventListener("mousedown", ...)` calls.
 - **Study Calendar & Schedule** (`components/CalendarView.jsx`): Month navigation, agenda lists, space tagging, 24-hour time pickers, and custom recurring alarm scheduling.
   - **Timer panel** (`StudyTimerWidget`): a chooser of every timer (defaults + custom) that only **selects**. Start / Pause / Delete act on the selection, and a reset icon sits beside the big clock, which follows the running timer until the user picks one. "+ Custom" opens a name + minutes form that creates the timer and starts it (`clampDurationMins`). An "In progress" list shows every started timer, running **or paused** (marked "Paused"), with its live time, play/pause and reset, so concurrent timers are never hidden behind the one on display. Reset (both places) only appears once a timer has been started (`isActive || pausedSecondsLeft != null`); a fresh timer has nothing to reset.
-- **Calming Study Break & Timer Alert** (`components/AlarmOverlay.jsx`): Glassmorphic break modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (`🦆` $\leftrightarrow$ `☕`), calming title notices, and friendly snooze/extend buttons. Extend restarts the finished timer through the store's `runFor(id, mins)` (the alarm event carries `timerId`). The recurring-alarm checker scans every minute since its previous run (capped at 5 min), so a throttled background tab cannot skip an alarm.
+- **Calming Study Break & Timer Alert** (`components/AlarmOverlay.jsx`): Glassmorphic break modal alert (`✨ ☕ 🌱`) with harmonic C-major triad chime synthesis, dynamic browser tab indicator (Learnory logo $\leftrightarrow$ `☕`), calming title notices, and friendly snooze/extend buttons. Extend restarts the finished timer through the store's `runFor(id, mins)` (the alarm event carries `timerId`). The recurring-alarm checker scans every minute since its previous run (capped at 5 min), so a throttled background tab cannot skip an alarm.
 
 ---

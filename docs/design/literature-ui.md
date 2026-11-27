@@ -1,6 +1,6 @@
 # Literature — UI specs
 
-The Literature section uses the ordinary design system: `ink` surfaces, `duck`
+The Literature section uses the ordinary design system: `ink` surfaces, `brand`
 accent, `rounded-xl`/`rounded-2xl`, `animate-fade-up` modals, lucide icons. This
 file covers only what is specific to it.
 
@@ -24,8 +24,8 @@ offsets inside the `--lit-u-pad: 11px` reserved beneath each line.
 
 | Depth | Layers | Token |
 | :--- | :--- | :--- |
-| 1 | one line, 8–10px from the bottom | `--color-duck-400` |
-| 2 | adds a second at 4–6px | `--color-duck-700` |
+| 1 | one line, 8–10px from the bottom | `--color-brand-400` |
+| 2 | adds a second at 4–6px | `--color-brand-700` |
 | 3+ | adds a third at 0–2px | `--color-shaky-500` |
 
 Every state is a **background layer, never a border or `text-decoration`**, so
@@ -35,9 +35,9 @@ Hover/active tint is applied to the same segment via `--lit-tint`:
 
 | State | Tint |
 | :--- | :--- |
-| `:hover` | `duck-400` at 12% |
-| `.is-hot` (hovered from the panel) | `duck-400` at 18% |
-| `.is-open` (its popover is open) | `duck-400` at 28% |
+| `:hover` | `brand-400` at 12% |
+| `.is-hot` (hovered from the panel) | `brand-400` at 18% |
+| `.is-open` (its popover is open) | `brand-400` at 28% |
 
 `color-mix(in srgb, …)` is used so both themes get a correct tint from one rule.
 
@@ -46,9 +46,9 @@ Hover/active tint is applied to the same segment via `--lit-tint`:
 `.lit-marker` is a `<sup>` whose digits come from `::after { content: attr(data-n) }`
 — **never a text node**, see [the codebase note](../codebase/literature.md#4-componentsliteraturepoemcanvasjsx--selection--ranges).
 
-- Default: `duck-300` on `duck-400/15`, `1px` border at `duck-400/35`.
-- Hover / hot: solid `duck-400`, `ink-950` text.
-- Open: `duck-300` fill.
+- Default: `brand-300` on `brand-400/15`, `1px` border at `brand-400/35`.
+- Hover / hot: solid `brand-400`, `ink-950` text.
+- Open: `brand-300` fill.
 - `.is-part` (the 2nd+ phrase of a multi-part annotation): `opacity: .72`, so a
   rhyme pair reads as "one note, seen twice" rather than as two notes.
 

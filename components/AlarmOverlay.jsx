@@ -2,17 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTimerStore } from "@/lib/timerStore";
+import { BRAND_NAME, BRAND_TITLE, LOGO_FAVICON } from "@/lib/brand";
 
 // ─── AlarmOverlay ───────────────────────────────────────────────────
 // Features:
 //   1. Full-screen visual alarm modal with flashing alert visuals
-//   2. Dynamic browser favicon swap: Normal Duck (🦆) <-> Alarm Exclamation (❗️)
-//   3. Dynamic browser title update: "🚨 ALARM TRIGGERED! — SocraticOS"
+//   2. Dynamic browser favicon swap: Learnory logo <-> chime (☕)
+//   3. Dynamic browser title update: "⏰ Study Break / Timer Complete — Learnory"
 //   4. Web Audio API chime sound generator
 //   5. Timer extension (+1, +2, +5, +10 mins) & Event snooze (5, 10, 15, 20, 30 mins)
 // ─────────────────────────────────────────────────────────────────────
 
-const DUCK_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦆</text></svg>";
 const CHIME_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>";
 
 function setFavicon(url) {
@@ -71,9 +71,9 @@ export default function AlarmOverlay() {
   }, []);
   const lastTriggeredRef = useRef(new Set());
 
-  // Set default Duck favicon on mount
+  // Set the default logo favicon on mount
   useEffect(() => {
-    setFavicon(DUCK_FAVICON);
+    setFavicon(LOGO_FAVICON);
   }, []);
 
   // Real-time Background Alarm Checker (runs every 5s)
@@ -160,7 +160,7 @@ export default function AlarmOverlay() {
       setFavicon(CHIME_FAVICON);
 
       // Update browser title calmly
-      document.title = "⏰ Study Break / Timer Complete — SocraticOS";
+      document.title = `⏰ Study Break / Timer Complete — ${BRAND_NAME}`;
 
       // Play soft chime
       playAlarmChime();
@@ -172,10 +172,10 @@ export default function AlarmOverlay() {
 
   function handleDismiss() {
     setAlarm(null);
-    // Restore normal Duck favicon 🦆
-    setFavicon(DUCK_FAVICON);
+    // Restore the normal logo favicon
+    setFavicon(LOGO_FAVICON);
     // Restore normal document title
-    document.title = "SocraticOS — AI-Powered Learning Environment";
+    document.title = BRAND_TITLE;
   }
 
   // The timer has already been cleared when its alarm fires, so "extend"
@@ -214,7 +214,7 @@ export default function AlarmOverlay() {
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-ink-950/75 backdrop-blur-md p-4 animate-fade-in">
-      <div className="flex w-full max-w-md flex-col items-center text-center space-y-4 bg-ink-900 p-6 rounded-2xl border border-duck-500/30 shadow-2xl">
+      <div className="flex w-full max-w-md flex-col items-center text-center space-y-4 bg-ink-900 p-6 rounded-2xl border border-brand-500/30 shadow-2xl">
         <div className="flex items-center justify-center gap-3 text-3xl">
           <span>✨</span>
           <span className="text-4xl">☕</span>
@@ -222,7 +222,7 @@ export default function AlarmOverlay() {
         </div>
 
         <div>
-          <span className="rounded-full bg-duck-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-duck-300 border border-duck-500/40">
+          <span className="rounded-full bg-brand-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-300 border border-brand-500/40">
             {isTimer ? "Session Interval Complete" : "Scheduled Study Event"}
           </span>
           <h2 className="mt-2.5 text-xl font-bold tracking-tight text-ink-100">
@@ -245,7 +245,7 @@ export default function AlarmOverlay() {
                   key={mins}
                   type="button"
                   onClick={() => handleExtendTimer(mins)}
-                  className="rounded-lg border border-ink-700 bg-ink-850 py-1.5 text-xs font-semibold text-duck-300 hover:bg-ink-800 hover:border-duck-500/40 transition-all active:scale-95"
+                  className="rounded-lg border border-ink-700 bg-ink-850 py-1.5 text-xs font-semibold text-brand-300 hover:bg-ink-800 hover:border-brand-500/40 transition-all active:scale-95"
                 >
                   +{mins}m
                 </button>
@@ -275,7 +275,7 @@ export default function AlarmOverlay() {
         <button
           type="button"
           onClick={handleDismiss}
-          className="w-full rounded-xl bg-duck-500 hover:bg-duck-400 py-2.5 text-xs font-bold text-ink-950 shadow-md transition-all hover:brightness-105 active:scale-95"
+          className="w-full rounded-xl bg-brand-500 hover:bg-brand-400 py-2.5 text-xs font-bold text-ink-950 shadow-md transition-all hover:brightness-105 active:scale-95"
         >
           {isTimer ? "Dismiss & Continue" : "Got It"}
         </button>

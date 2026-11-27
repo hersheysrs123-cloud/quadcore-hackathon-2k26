@@ -112,8 +112,8 @@ export default function TopicSelectorDropdown({
         aria-label={`Select 3D simulation: currently ${currentTopic.title}`}
         className={`group flex items-center gap-2 rounded-xl border py-1.5 pl-2.5 pr-3 text-xs font-semibold transition-all cursor-pointer select-none ${
           isOpen
-            ? "border-duck-500/60 bg-ink-800 text-duck-300 ring-2 ring-duck-500/20 shadow-md"
-            : "border-ink-700 bg-ink-850 text-ink-100 hover:border-duck-500/40 hover:bg-ink-800 shadow-sm"
+            ? "border-brand-500/60 bg-ink-800 text-brand-300 ring-2 ring-brand-500/20 shadow-md"
+            : "border-ink-700 bg-ink-850 text-ink-100 hover:border-brand-500/40 hover:bg-ink-800 shadow-sm"
         }`}
       >
         {/* Subject Category Badge */}
@@ -125,7 +125,7 @@ export default function TopicSelectorDropdown({
         <div className="h-3.5 w-px bg-ink-750 shrink-0" aria-hidden="true" />
 
         {/* Topic Icon & Title */}
-        <CurrentIcon className="h-3.5 w-3.5 text-duck-400 shrink-0" />
+        <CurrentIcon className="h-3.5 w-3.5 text-brand-400 shrink-0" />
         <span className="truncate max-w-[160px] sm:max-w-[220px] md:max-w-[280px] text-left">
           {currentTopic.title}
         </span>
@@ -133,7 +133,7 @@ export default function TopicSelectorDropdown({
         {/* Animated Chevron */}
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 text-ink-400 transition-transform duration-200 group-hover:text-ink-200 ${
-            isOpen ? "rotate-180 text-duck-400" : ""
+            isOpen ? "rotate-180 text-brand-400" : ""
           }`}
         />
       </button>
@@ -157,7 +157,7 @@ export default function TopicSelectorDropdown({
                 aria-label="Filter 3D simulations"
                 autoComplete="off"
                 spellCheck={false}
-                className="w-full rounded-lg border border-ink-750 bg-ink-950/80 py-1.5 pl-8 pr-7 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50 focus:outline-none focus:ring-1 focus:ring-duck-500/30 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+                className="w-full rounded-lg border border-ink-750 bg-ink-950/80 py-1.5 pl-8 pr-7 text-xs text-ink-100 placeholder:text-ink-500 focus:border-brand-500/50 focus:outline-none focus:ring-1 focus:ring-brand-500/30 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               />
               {query && (
                 <button
@@ -179,7 +179,7 @@ export default function TopicSelectorDropdown({
               onClick={() => setActiveSubject("all")}
               className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
                 activeSubject === "all"
-                  ? "bg-duck-500/20 text-duck-300 border border-duck-500/50 shadow-sm"
+                  ? "bg-brand-500/20 text-brand-300 border border-brand-500/50 shadow-sm"
                   : "text-ink-400 hover:text-ink-200 hover:bg-ink-850 border border-transparent"
               }`}
             >
@@ -198,7 +198,7 @@ export default function TopicSelectorDropdown({
                   onClick={() => setActiveSubject(cat.id)}
                   className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
                     active
-                      ? "bg-duck-500/20 text-duck-300 border border-duck-500/50 shadow-sm"
+                      ? "bg-brand-500/20 text-brand-300 border border-brand-500/50 shadow-sm"
                       : "text-ink-400 hover:text-ink-200 hover:bg-ink-850 border border-transparent"
                   }`}
                 >
@@ -224,7 +224,7 @@ export default function TopicSelectorDropdown({
                     setQuery("");
                     setActiveSubject("all");
                   }}
-                  className="mt-3 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1 text-xs font-semibold text-ink-200 hover:bg-ink-800 hover:border-duck-500/40 cursor-pointer"
+                  className="mt-3 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1 text-xs font-semibold text-ink-200 hover:bg-ink-800 hover:border-brand-500/40 cursor-pointer"
                 >
                   Reset filters
                 </button>
@@ -257,7 +257,7 @@ export default function TopicSelectorDropdown({
                           onClick={() => handleSelect(t.id)}
                           className={`group flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-all cursor-pointer ${
                             isSelected
-                              ? "bg-duck-500/15 border-l-2 border-duck-400 text-duck-200"
+                              ? "bg-brand-500/15 border-l-2 border-brand-400 text-brand-200"
                               : "hover:bg-ink-850/80 text-ink-300 hover:text-ink-100 border-l-2 border-transparent"
                           }`}
                         >
@@ -265,7 +265,7 @@ export default function TopicSelectorDropdown({
                             <div
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                                 isSelected
-                                  ? "border-duck-500/40 bg-duck-500/20 text-duck-300"
+                                  ? "border-brand-500/40 bg-brand-500/20 text-brand-300"
                                   : "border-ink-800 bg-ink-850 text-ink-400 group-hover:border-ink-700 group-hover:text-ink-200"
                               }`}
                             >
@@ -275,7 +275,7 @@ export default function TopicSelectorDropdown({
                               <p
                                 className={`text-xs font-semibold truncate leading-tight ${
                                   isSelected
-                                    ? "text-duck-200"
+                                    ? "text-brand-200"
                                     : "text-ink-200 group-hover:text-ink-100"
                                 }`}
                               >
@@ -288,7 +288,7 @@ export default function TopicSelectorDropdown({
                           </div>
 
                           {isSelected && (
-                            <Check className="h-4 w-4 shrink-0 text-duck-400" strokeWidth={2.5} />
+                            <Check className="h-4 w-4 shrink-0 text-brand-400" strokeWidth={2.5} />
                           )}
                         </button>
                       );
@@ -302,7 +302,7 @@ export default function TopicSelectorDropdown({
           {/* 4. Dropdown Footer */}
           <div className="flex items-center justify-between px-3 py-2 border-t border-ink-800 bg-ink-950/70 text-[10px] text-ink-500">
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-duck-400/80 animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-400/80 animate-pulse" />
               <span>{TOPICS.length} Models across 5 Disciplines</span>
             </span>
             <span className="font-mono text-ink-400">Esc to close</span>

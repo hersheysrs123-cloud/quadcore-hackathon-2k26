@@ -84,7 +84,7 @@ export function DrawerError({ message, onRetry }) {
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-duck-500/50 hover:text-duck-300"
+          className="mt-2.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-brand-500/50 hover:text-brand-300"
         >
           Try again
         </button>

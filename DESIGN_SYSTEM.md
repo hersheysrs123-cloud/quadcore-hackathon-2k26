@@ -1,7 +1,7 @@
-# SocraticOS — Design System & Theme Specifications
+# Learnory — Design System & Theme Specifications
 
 > **Notice for Developers & AI Assistants**: 
-> This document defines the authoritative design tokens, color ramps, component architecture, and styling rules for SocraticOS. Always refer to this specification when building new UI components or modifying existing themes.
+> This document defines the authoritative design tokens, color ramps, component architecture, and styling rules for Learnory. Always refer to this specification when building new UI components or modifying existing themes.
 
 ---
 
@@ -11,7 +11,7 @@
 
 ## 🎨 Theme Architecture & Color Tokens
 
-SocraticOS uses a dynamic CSS variable system defined in `app/globals.css` with `@import "tailwindcss";` and `@theme`. The theme toggles between **Dark Mode** (default) and **Light Mode** via the `data-theme="light"` attribute or `.light` class on the root `<html>` element.
+Learnory uses a dynamic CSS variable system defined in `app/globals.css` with `@import "tailwindcss";` and `@theme`. The theme toggles between **Dark Mode** (default) and **Light Mode** via the `data-theme="light"` attribute or `.light` class on the root `<html>` element.
 
 ### 1. Color Palette Tokens (`--color-ink-*`)
 
@@ -38,19 +38,28 @@ numbers climb in lightness the way they do in dark mode's mirror.
 
 > **Only the steps listed here exist.** Tailwind v4 generates no CSS at all for a colour that is not defined in `@theme`, so a class such as `text-ink-350` compiles to nothing and the element silently inherits its parent's colour. Before adding a new step, define it in both the dark `@theme` block and the `[data-theme="light"]` override in `app/globals.css`.
 
-### 2. Accent Tokens (`--color-duck-*`)
+### 2. Accent Tokens (`--color-brand-*`)
 
 | Token | Hex / Value | Usage |
 | :--- | :--- | :--- |
-| `--color-duck-100` | `#fdf3d5` (Dark) / `#663903` (Light) | Emphasis text on a selected row (e.g. the highlighted Command Palette result) |
-| `--color-duck-200` | `#fbe7b0` (Dark) / `#7a4503` (Light) | Emphasis text on accent-tinted surfaces |
-| `--color-duck-300` | `#f9d98a` (Dark) / `#c47a06` (Light) | Duck action bar text, active 3D badge text |
-| `--color-duck-400` | `#f2c14e` (Dark) / `#b36a05` (Light) | Primary accent buttons, active space dot, selected note row |
-| `--color-duck-500` | `#d9a227` (Dark) / `#8f5304` (Light) | Focused borders, button hover ring, multi-select row tint |
-| `--color-duck-700` | `#8a6410` (Dark) / `#6b3e03` (Light) | Solid ribbon fills (Word export preview) |
+| `--color-brand-100` | `#fdf3d5` (Dark) / `#663903` (Light) | Emphasis text on a selected row (e.g. the highlighted Command Palette result) |
+| `--color-brand-200` | `#fbe7b0` (Dark) / `#7a4503` (Light) | Emphasis text on accent-tinted surfaces |
+| `--color-brand-300` | `#f9d98a` (Dark) / `#c47a06` (Light) | Action bar text, active 3D badge text |
+| `--color-brand-400` | `#f2c14e` (Dark) / `#b36a05` (Light) | Primary accent buttons, active space dot, selected note row |
+| `--color-brand-500` | `#d9a227` (Dark) / `#8f5304` (Light) | Focused borders, button hover ring, multi-select row tint |
+| `--color-brand-700` | `#8a6410` (Dark) / `#6b3e03` (Light) | Solid ribbon fills (Word export preview) |
 
-In light mode `duck-100` and `duck-200` are the **emphasis-text** steps, so on
+In light mode `brand-100` and `brand-200` are the **emphasis-text** steps, so on
 a white surface they are the darkest browns rather than brighter oranges.
+
+These were named `duck-*` before the Learnory rename. The values did not change;
+only the name did, so `bg-brand-400` is exactly the old `bg-duck-400`.
+
+#### Brand marks (`components/brand/Brand.jsx`)
+
+- **`LearnoryMark`**: the logo, a rounded `brand-400` tile with an `ink-950` "L" and dot. It is drawn in tokens, so it follows the theme (gold on dark, amber with a light "L" in light mode). Used in the nav rail, sidebar header, landing nav and footer. `app/icon.svg` and `LOGO_FAVICON` in `lib/brand.js` are fixed-colour copies for the favicon, which can't read CSS variables.
+- **`MalloIcon`**: Mallo, the marshmallow who quizzes you. It marks every quiz action ("Quiz me", "Test me on this", "Retest", Quiz Drill calendar events) and the 404 and error pages. It uses **fixed colours** (cream body, warm `#a8875a` outline, pink cheeks) so the character looks the same in both themes; the outline keeps it visible on white. Size it with `h-*`/`w-*`; for inline text use `h-[1.1em] w-[1.1em] align-[-0.2em]`.
+- Don't put either mark inside a native `<option>`: options only render text. Give the data a plain-text fallback (see `EVENT_TYPES` in `CalendarView.jsx`, `icon` plus `glyph`).
 
 ### 3. Mastery Status Scale (`--color-solid-500` / `--color-shaky-500` / `--color-gap-500`)
 
@@ -66,7 +75,7 @@ Each status also has lighter emphasis steps for text and hover states: `--color-
 
 **Colour is never the only channel.** Every place that paints a status must also render the glyph and the word — a good/bad scale is red-vs-green by definition, which collapses under deuteranopia ($\Delta E \approx 0.7$). The glyphs form an ordinal ramp (filled → half → hollow) that survives greyscale and a 12px cell.
 
-The scale's yellow step is deliberately **unused**: it measures 1.08 contrast against `--color-duck-400`, so a "shaky" chip would read as a primary button. The light steps are re-stepped for the light surface rather than flipped, and light-mode shaky avoids the darker orange because it sits $\Delta E \approx 0.1$ from the light-mode duck accent. All three clear 4.5:1 on `ink-900` in both modes.
+The scale's yellow step is deliberately **unused**: it measures 1.08 contrast against `--color-brand-400`, so a "shaky" chip would read as a primary button. The light steps are re-stepped for the light surface rather than flipped, and light-mode shaky avoids the darker orange because it sits $\Delta E \approx 0.1$ from the light-mode brand accent. All three clear 4.5:1 on `ink-900` in both modes.
 
 ### 4. 3D Visualization Studio Canvas Palette (`components/visualizations/scene-kit.jsx`)
 
@@ -93,7 +102,7 @@ chrome around it.
 
 ### Note Typography Palette (3 Academic Font Options)
 
-SocraticOS features 3 per-note typography font families configured in `app/globals.css` and selectable via the Notion-style typography picker in `NoteMenu`:
+Learnory features 3 per-note typography font families configured in `app/globals.css` and selectable via the Notion-style typography picker in `NoteMenu`:
 
 | Font ID | Family Name | CSS Class | Font Stack | Best For |
 | :--- | :--- | :--- | :--- | :--- |

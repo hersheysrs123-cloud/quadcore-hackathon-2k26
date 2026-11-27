@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
  */
 
 export const EXPORT_FORMATS = [
-  { id: "socratic", label: "Socratic Backup (.socratic / .json)", extension: "socratic" },
+  { id: "socratic", label: "Learnory Backup (.learnory / .socratic / .json)", extension: "learnory" },
   { id: "pdf", label: "Print / PDF Document (.pdf)", extension: "pdf" },
   { id: "docx", label: "Microsoft Word Document (.docx)", extension: "docx" },
   { id: "markdown", label: "Markdown Document (.md)", extension: "md" },

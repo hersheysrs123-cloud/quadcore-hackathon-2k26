@@ -112,7 +112,7 @@ describe("Web Saver — Netscape HTML Bookmarks Export & Import (lib/exportImpor
     const { html, count } = generateNetscapeBookmarksHtml(sampleBookmarks, sampleFolders, "School");
     assert.equal(count, 3);
     assert.ok(html.includes("<!DOCTYPE NETSCAPE-Bookmark-file-1>"));
-    assert.ok(html.includes("<TITLE>SocraticOS Bookmarks — School</TITLE>"));
+    assert.ok(html.includes("<TITLE>Learnory Bookmarks — School</TITLE>"));
     assert.ok(html.includes(">Mathematics</H3>"));
     assert.ok(html.includes(">Calculus Deep Dive</H3>"));
     assert.ok(html.includes('HREF="https://www.3blue1brown.com/topics/calculus"'));

@@ -116,7 +116,7 @@ export function VesselRack({
               <meshStandardMaterial color={active ? PALETTE.gold : "#e8ebf0"} roughness={0.6} />
             </mesh>
             {showLabels && (
-            <SceneLabel position={[0, 0.3, holderRadius + 0.5]} tone={active ? "text-duck-300" : "text-ink-300"} accent={active}>
+            <SceneLabel position={[0, 0.3, holderRadius + 0.5]} tone={active ? "text-brand-300" : "text-ink-300"} accent={active}>
               {labels[i] ?? `${i + 1}`}
             </SceneLabel>
             )}

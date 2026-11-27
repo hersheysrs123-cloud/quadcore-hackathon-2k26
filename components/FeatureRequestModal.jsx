@@ -89,7 +89,7 @@ export default function FeatureRequestModal({ open, onClose }) {
       <div className="relative w-full max-w-md rounded-2xl border border-ink-800 bg-ink-900 shadow-2xl p-6 overflow-hidden z-10 animate-fade-up flex flex-col">
         <div className="flex items-center justify-between border-b border-ink-800 pb-4 mb-5 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-duck-500/10 text-duck-400 border border-duck-500/20">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
               <MessageSquare className="h-5 w-5" />
             </div>
             <div>
@@ -114,7 +114,7 @@ export default function FeatureRequestModal({ open, onClose }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
           </div>
 
@@ -123,7 +123,7 @@ export default function FeatureRequestModal({ open, onClose }) {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
             >
               <option value="Feature Request">Feature Request</option>
               <option value="Bug Report">Bug Report</option>
@@ -140,7 +140,7 @@ export default function FeatureRequestModal({ open, onClose }) {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Brief summary..."
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
           </div>
 
@@ -152,7 +152,7 @@ export default function FeatureRequestModal({ open, onClose }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Describe your request or issue in detail..."
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none resize-none"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none resize-none"
             />
           </div>
 
@@ -178,7 +178,7 @@ export default function FeatureRequestModal({ open, onClose }) {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-1.5 rounded-xl bg-duck-400 px-5 py-2 text-xs font-semibold text-ink-950 hover:bg-duck-300 transition-all shadow-md disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl bg-brand-400 px-5 py-2 text-xs font-semibold text-ink-950 hover:bg-brand-300 transition-all shadow-md disabled:opacity-50"
               >
                 {isSubmitting ? (
                   "Sending..."

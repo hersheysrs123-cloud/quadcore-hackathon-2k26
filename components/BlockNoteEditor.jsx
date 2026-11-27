@@ -26,6 +26,7 @@ import {
 } from "@/lib/blocks";
 import { findNoteAcrossSpaces, hasPageBlockFor, diffRemovedPageIds } from "@/lib/noteHierarchy";
 import { isExternalPropChange, rememberSent } from "@/lib/noteEcho";
+import { MalloIcon } from "@/components/brand/Brand";
 
 
 
@@ -33,7 +34,7 @@ import { isExternalPropChange, rememberSent } from "@/lib/noteEcho";
 // Full Notion-style block suite:
 //   • Headings 1–4 (h1, h2, h3, h4)
 //   • Bullet List, Numbered List, To-Do List (checkboxes), Toggle List
-//   • Callout Box with icon picker (💡, ⚠️, 📌, 🔥, ⭐, 🎉, ℹ️, 🦆)
+//   • Callout Box with icon picker (💡, ⚠️, 📌, 🔥, ⭐, 🎉, ℹ️, ❓)
 //   • Quote (accent bar), Divider (hr), Nested Sub-Page cards (`page` blocks)
 //   • Media Embeds (Image / Audio / Video) & Clickable Site Bookmark Embeds
 //   • Math Equation Container (LaTeX & KaTeX renderer)
@@ -70,14 +71,14 @@ const BANNER_PRESETS = [
   { id: "sunset", label: "Sunset Amber", style: "bg-gradient-to-r from-amber-500 via-orange-600 to-red-600" },
   { id: "ocean", label: "Ocean Teal", style: "bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600" },
   { id: "midnight", label: "Midnight Blue", style: "bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900" },
-  { id: "gold", label: "Socratic Gold", style: "bg-gradient-to-r from-yellow-400 via-amber-500 to-amber-600" },
+  { id: "gold", label: "Learnory Gold", style: "bg-gradient-to-r from-yellow-400 via-amber-500 to-amber-600" },
 ];
 
-const CALLOUT_ICONS = ["💡", "⚠️", "📌", "🔥", "⭐", "🎉", "ℹ️", "🦆"];
+const CALLOUT_ICONS = ["💡", "⚠️", "📌", "🔥", "⭐", "🎉", "ℹ️", "❓"];
 
 const NOTE_EMOJIS = [
   "📝", "🎓", "💡", "🚀", "📚", "💻", "🎨", "⚡",
-  "🦆", "🔥", "⭐", "🎯", "📌", "✨", "🧪", "🧠",
+  "📖", "🔥", "⭐", "🎯", "📌", "✨", "🧪", "🧠",
   "🏆", "🌱", "💬", "🌐", "⚙️", "🔮", "💎", "📜"
 ];
 
@@ -961,7 +962,7 @@ function SlashMenu({ onSelect, onClose, filter = "", title = "Block type", searc
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter blocks…"
-            className="w-full rounded-md border border-ink-750 bg-ink-950 px-2 py-1 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
+            className="w-full rounded-md border border-ink-750 bg-ink-950 px-2 py-1 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none"
           />
         </div>
       )}
@@ -987,7 +988,7 @@ function SlashMenu({ onSelect, onClose, filter = "", title = "Block type", searc
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold ${
                   i === activeIdx
-                    ? "bg-duck-500/20 text-duck-300"
+                    ? "bg-brand-500/20 text-brand-300"
                     : "bg-ink-850 text-ink-500"
                 }`}
               >
@@ -1080,7 +1081,7 @@ function BlockContextMenu({
               onExplainBlock?.(blockText);
               onClose();
             }}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:bg-ink-800 hover:text-duck-300 disabled:opacity-30"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 font-medium text-ink-200 transition-colors hover:border-brand-500/50 hover:bg-ink-800 hover:text-brand-300 disabled:opacity-30"
           >
             <span>✨</span>
             <span>Explain</span>
@@ -1092,9 +1093,9 @@ function BlockContextMenu({
               onQuizBlock?.(blockText);
               onClose();
             }}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-duck-500/30 bg-duck-500/10 px-2.5 py-1.5 font-medium text-duck-300 transition-colors hover:bg-duck-500/20 hover:text-duck-200 disabled:opacity-30"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-2.5 py-1.5 font-medium text-brand-300 transition-colors hover:bg-brand-500/20 hover:text-brand-200 disabled:opacity-30"
           >
-            <span>🦆</span>
+            <MalloIcon className="h-4 w-4" />
             <span>Quiz me</span>
           </button>
         </div>
@@ -1175,7 +1176,7 @@ function BlockContextMenu({
               }}
               className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors ${
                 block.type === bt.type
-                  ? "bg-duck-500/20 text-duck-300 font-semibold"
+                  ? "bg-brand-500/20 text-brand-300 font-semibold"
                   : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
               }`}
             >
@@ -1391,8 +1392,8 @@ function InlineEquationPopover({
             }}
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-all ${
               presetsOpen
-                ? "border-duck-400 bg-duck-500/25 text-duck-200 shadow-sm"
-                : "border-ink-700 bg-ink-850 text-ink-300 hover:border-duck-500/50 hover:bg-duck-500/10 hover:text-duck-200"
+                ? "border-brand-400 bg-brand-500/25 text-brand-200 shadow-sm"
+                : "border-ink-700 bg-ink-850 text-ink-300 hover:border-brand-500/50 hover:bg-brand-500/10 hover:text-brand-200"
             }`}
             title="Open math equation & symbol presets"
           >
@@ -1413,7 +1414,7 @@ function InlineEquationPopover({
           <button
             type="button"
             onClick={handleCommit}
-            className="rounded bg-duck-500/20 px-2.5 py-0.5 text-xs font-semibold text-duck-200 border border-duck-400/40 hover:bg-duck-500/30 transition-colors"
+            className="rounded bg-brand-500/20 px-2.5 py-0.5 text-xs font-semibold text-brand-200 border border-brand-400/40 hover:bg-brand-500/30 transition-colors"
           >
             Done ↵
           </button>
@@ -1431,7 +1432,7 @@ function InlineEquationPopover({
               ref={presetsRef}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className={`absolute right-0 z-[110] w-72 rounded-xl border border-duck-500/40 bg-ink-900/98 p-2.5 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto ${
+              className={`absolute right-0 z-[110] w-72 rounded-xl border border-brand-500/40 bg-ink-900/98 p-2.5 shadow-2xl backdrop-blur space-y-2.5 animate-fade-in text-left pointer-events-auto ${
                 placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"
               }`}
               style={{
@@ -1440,7 +1441,7 @@ function InlineEquationPopover({
             >
               {/* Common Formulas */}
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-duck-400/90 mb-1.5 px-0.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-brand-400/90 mb-1.5 px-0.5">
                   Formulas & Structures
                 </div>
                 <div className="grid grid-cols-2 gap-1">
@@ -1452,11 +1453,11 @@ function InlineEquationPopover({
                         handleInsert(p.latex);
                         setPresetsOpen(false);
                       }}
-                      className="flex items-center justify-between rounded border border-ink-800 bg-ink-950/80 px-2 py-1 text-xs text-ink-200 hover:border-duck-500/50 hover:bg-duck-500/15 hover:text-duck-200 transition-colors group"
+                      className="flex items-center justify-between rounded border border-ink-800 bg-ink-950/80 px-2 py-1 text-xs text-ink-200 hover:border-brand-500/50 hover:bg-brand-500/15 hover:text-brand-200 transition-colors group"
                       title={p.latex}
                     >
                       <span className="font-medium text-[11px]">{p.label}</span>
-                      <span className="font-mono text-[10px] text-ink-500 group-hover:text-duck-300/80">{p.display}</span>
+                      <span className="font-mono text-[10px] text-ink-500 group-hover:text-brand-300/80">{p.display}</span>
                     </button>
                   ))}
                 </div>
@@ -1464,7 +1465,7 @@ function InlineEquationPopover({
 
               {/* Math Symbols */}
               <div className="border-t border-ink-800/80 pt-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-duck-400/90 mb-1.5 px-0.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-brand-400/90 mb-1.5 px-0.5">
                   Symbols & Greek
                 </div>
                 <div className="grid grid-cols-5 gap-1">
@@ -1476,7 +1477,7 @@ function InlineEquationPopover({
                         handleInsert(s.latex);
                         setPresetsOpen(false);
                       }}
-                      className="flex h-7 items-center justify-center rounded border border-ink-800 bg-ink-950/80 font-mono text-xs font-medium text-ink-300 hover:border-duck-500/50 hover:bg-duck-500/20 hover:text-duck-200 transition-all"
+                      className="flex h-7 items-center justify-center rounded border border-ink-800 bg-ink-950/80 font-mono text-xs font-medium text-ink-300 hover:border-brand-500/50 hover:bg-brand-500/20 hover:text-brand-200 transition-all"
                       title={`Insert ${s.latex}`}
                     >
                       {s.label}
@@ -1506,7 +1507,7 @@ function InlineEquationPopover({
             }
           }}
           placeholder="LaTeX formula (e.g. f'(x) = 2x or \\lim_{x \\to 0}\\frac{\\sin x}{x})..."
-          className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 font-mono text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none focus:ring-1 focus:ring-duck-400/50"
+          className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 font-mono text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/50"
         />
       </div>
 
@@ -1741,7 +1742,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         }
       }}
       id={`math_${block.id}`}
-      className="group/mathblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 cursor-pointer outline-none focus:ring-1 focus:ring-duck-400/40"
+      className="group/mathblk relative my-3 overflow-hidden rounded-xl border border-ink-800 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-brand-500/50 cursor-pointer outline-none focus:ring-1 focus:ring-brand-400/40"
     >
       {/* KaTeX Centered Equation Viewer (100% full formula visibility with dynamic auto-scaling) */}
       <div
@@ -1751,9 +1752,9 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
           onSelect(block.id);
           if (!isLocked) setIsEditing(true);
         }}
-        className={`relative flex items-center min-h-[3.5rem] py-2.5 px-4 text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-duck-500/40 transition-colors w-full ${
+        className={`relative flex items-center min-h-[3.5rem] py-2.5 px-4 text-ink-100 text-lg bg-ink-950/60 rounded-lg border border-ink-800/80 cursor-pointer hover:border-brand-500/40 transition-colors w-full ${
           isOverflowing
-            ? "justify-start overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-duck-500/50 scrollbar-track-transparent"
+            ? "justify-start overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-brand-500/50 scrollbar-track-transparent"
             : "justify-center overflow-hidden"
         }`}
       >
@@ -1764,7 +1765,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             transformOrigin: isOverflowing ? "left center" : "center center",
             transition: "transform 0.15s ease-out",
           }}
-          className={`flex items-center text-duck-300 ${isOverflowing ? "min-w-max pr-6" : "max-w-full justify-center"}`}
+          className={`flex items-center text-brand-300 ${isOverflowing ? "min-w-max pr-6" : "max-w-full justify-center"}`}
         >
           {formula ? (
             <KaTeXRender formula={formula} displayMode={true} />
@@ -1789,7 +1790,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         >
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-duck-400">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-brand-400">
                 LaTeX Formula Input
               </label>
               <span className="text-[10px] text-ink-500 font-mono">Press Enter to exit · Shift+Enter for new line</span>
@@ -1802,7 +1803,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
               onKeyDown={handleKeyDown}
               placeholder="e.g. \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}"
               rows={2}
-              className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 font-mono text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 font-mono text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
             />
           </div>
 
@@ -1813,8 +1814,8 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
               onClick={() => setPresetsOpen((prev) => !prev)}
               className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
                 presetsOpen
-                  ? "border-duck-400 bg-duck-500/25 text-duck-200 shadow-sm"
-                  : "border-ink-700 bg-ink-850 text-ink-300 hover:border-duck-500/50 hover:bg-duck-500/10 hover:text-duck-200"
+                  ? "border-brand-400 bg-brand-500/25 text-brand-200 shadow-sm"
+                  : "border-ink-700 bg-ink-850 text-ink-300 hover:border-brand-500/50 hover:bg-brand-500/10 hover:text-brand-200"
               }`}
               title="Toggle math formula presets & symbols"
             >
@@ -1837,7 +1838,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
               <button
                 type="button"
                 onClick={handleSave}
-                className="rounded-md bg-duck-400 px-3 py-1 text-xs font-semibold text-ink-950 hover:bg-duck-300 cursor-pointer"
+                className="rounded-md bg-brand-400 px-3 py-1 text-xs font-semibold text-ink-950 hover:bg-brand-300 cursor-pointer"
               >
                 Done (Save)
               </button>
@@ -1860,7 +1861,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
                         setFormula(preset.latex);
                         onUpdateBlock(block.id, { content: preset.latex });
                       }}
-                      className="rounded-md border border-ink-750 bg-ink-850 px-2 py-0.5 text-[11px] font-mono text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+                      className="rounded-md border border-ink-750 bg-ink-850 px-2 py-0.5 text-[11px] font-mono text-ink-300 hover:border-brand-500/40 hover:bg-ink-800 hover:text-brand-300 transition-colors cursor-pointer"
                     >
                       {preset.label}
                     </button>
@@ -1896,7 +1897,7 @@ function MathBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
                           setFormula((prev) => (prev ? prev + " " : "") + sym);
                         }
                       }}
-                      className="rounded border border-ink-750 bg-ink-850/80 px-1.5 py-0.5 text-xs font-mono text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-duck-200 transition-colors cursor-pointer"
+                      className="rounded border border-ink-750 bg-ink-850/80 px-1.5 py-0.5 text-xs font-mono text-ink-300 hover:border-brand-500/40 hover:bg-ink-800 hover:text-brand-200 transition-colors cursor-pointer"
                       title={sym}
                     >
                       {sym.replace(/^\\/, "")}
@@ -2372,8 +2373,8 @@ function TableCell({
         data-placeholder={placeholder}
         className={`w-full outline-none transition-colors rounded px-1.5 py-1 min-h-[1.5em] empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] ${
           isHeader
-            ? "font-semibold text-duck-300 focus:text-duck-200 focus:bg-ink-800/80"
-            : "text-ink-100 focus:text-duck-200 focus:bg-ink-900/80"
+            ? "font-semibold text-brand-300 focus:text-brand-200 focus:bg-ink-800/80"
+            : "text-ink-100 focus:text-brand-200 focus:bg-ink-900/80"
         } ${isLocked ? "cursor-default select-text" : ""}`}
       />
       {!isLocked && onDelete && (
@@ -2915,7 +2916,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
           }
         }
       }}
-      className="group/tableblk relative my-3 overflow-visible rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-duck-500/40 outline-none focus:ring-1 focus:ring-duck-400/40"
+      className="group/tableblk relative my-3 overflow-visible rounded-xl border border-ink-800 bg-ink-900/90 shadow-lg transition-all hover:border-brand-500/40 outline-none focus:ring-1 focus:ring-brand-400/40"
     >
       {/* Inline LaTeX Equation Popover positioned ABOVE the Table */}
       {!isLocked && mathPopoverOpen && (
@@ -2941,7 +2942,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
       {/* Table Top Toolbar */}
       <div className="flex items-center justify-between border-b border-ink-800 bg-ink-950/80 px-3.5 py-2 select-none rounded-t-xl print:hidden">
         <div className="flex items-center gap-2">
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-duck-500/20 text-xs font-bold text-duck-400 shrink-0">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-500/20 text-xs font-bold text-brand-400 shrink-0">
             ▦
           </span>
           <span className="text-xs font-semibold text-ink-300">Table</span>
@@ -2956,7 +2957,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
               type="button"
               onClick={addColumn}
               title="Add Column to the right"
-              className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
+              className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:border-brand-500/40 hover:bg-ink-800 cursor-pointer"
             >
               <span>+</span> Column
             </button>
@@ -2964,7 +2965,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
               type="button"
               onClick={() => addRow()}
               title="Add Row to bottom"
-              className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/40 hover:bg-ink-800 cursor-pointer"
+              className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:border-brand-500/40 hover:bg-ink-800 cursor-pointer"
             >
               <span>+</span> Row
             </button>
@@ -2999,9 +3000,9 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                         if (dragOverCol === colIdx) setDragOverCol(null);
                       }}
                       onDrop={(e) => handleColDrop(e, colIdx)}
-                      className={`group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-duck-300 last:border-r-0 transition-colors ${
+                      className={`group/th relative border-r border-ink-800 px-3 py-2 text-left font-semibold text-brand-300 last:border-r-0 transition-colors ${
                         dragOverCol === colIdx && draggedCol !== colIdx
-                          ? "bg-duck-500/25 ring-2 ring-inset ring-duck-400/80"
+                          ? "bg-brand-500/25 ring-2 ring-inset ring-brand-400/80"
                           : ""
                       }`}
                     >
@@ -3014,8 +3015,8 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                           title="Drag to move column"
                           className={`absolute top-0.5 left-1/2 -translate-x-1/2 z-20 flex h-3.5 w-6 items-center justify-center rounded text-[9px] cursor-grab active:cursor-grabbing select-none transition-all ${
                             isColActive
-                              ? "opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40"
-                              : "opacity-0 group-hover/th:opacity-100 text-ink-400 hover:text-duck-300 hover:bg-ink-800/90"
+                              ? "opacity-100 bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/40"
+                              : "opacity-0 group-hover/th:opacity-100 text-ink-400 hover:text-brand-300 hover:bg-ink-800/90"
                           }`}
                         >
                           ⠿
@@ -3054,7 +3055,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                   onDrop={(e) => handleRowDrop(e, rowIdx)}
                   className={`group/tr border-b border-ink-800/70 transition-colors hover:bg-ink-900/40 last:border-b-0 ${
                     dragOverRow === rowIdx && draggedRow !== rowIdx
-                      ? "bg-duck-500/25 ring-2 ring-inset ring-duck-400/80"
+                      ? "bg-brand-500/25 ring-2 ring-inset ring-brand-400/80"
                       : ""
                   }`}
                 >
@@ -3076,8 +3077,8 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                           title="Drag to move row"
                           className={`absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity ${
                             isRowActive
-                              ? "opacity-100 text-duck-400 font-bold"
-                              : "opacity-0 group-hover/tr:opacity-100 text-ink-400 hover:text-duck-300"
+                              ? "opacity-100 text-brand-400 font-bold"
+                              : "opacity-0 group-hover/tr:opacity-100 text-ink-400 hover:text-brand-300"
                           }`}
                         >
                           <span className="flex h-5 w-5 items-center justify-center rounded hover:bg-ink-800 text-xs">
@@ -3092,7 +3093,7 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                     <td
                       key={`c-${colIdx}`}
                       className={`group/td relative border-r border-ink-800/70 px-3 py-1.5 text-ink-100 last:border-r-0 transition-colors ${
-                        dragOverCol === colIdx && draggedCol !== colIdx ? "bg-duck-500/10" : ""
+                        dragOverCol === colIdx && draggedCol !== colIdx ? "bg-brand-500/10" : ""
                       }`}
                     >
                       {/* If header row is disabled, show column handle on first row */}
@@ -3104,8 +3105,8 @@ function TableBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                           title="Drag to move column"
                           className={`absolute top-0.5 left-1/2 -translate-x-1/2 z-20 flex h-3.5 w-6 items-center justify-center rounded text-[9px] cursor-grab active:cursor-grabbing select-none transition-all ${
                             focusedCell?.colIdx === colIdx
-                              ? "opacity-100 bg-duck-500/20 text-duck-300 ring-1 ring-duck-500/40"
-                              : "opacity-0 group-hover/td:opacity-100 text-ink-400 hover:text-duck-300 hover:bg-ink-800/90"
+                              ? "opacity-100 bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/40"
+                              : "opacity-0 group-hover/td:opacity-100 text-ink-400 hover:text-brand-300 hover:bg-ink-800/90"
                           }`}
                         >
                           ⠿
@@ -3195,11 +3196,11 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
         }
       }}
       id={`site_${block.id}`}
-      className="group/siteblk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-3.5 shadow-md transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
+      className="group/siteblk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-3.5 shadow-md transition-all hover:border-brand-500/50 outline-none focus:ring-1 focus:ring-brand-400/40"
     >
       {!block.url ? (
         <form onSubmit={handleEmbed} className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-duck-500/15 text-sm shrink-0">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500/15 text-sm shrink-0">
             🌐
           </span>
           <input
@@ -3207,18 +3208,18 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             placeholder="Paste website URL (e.g. https://wikipedia.org) and press Enter…"
-            className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
+            className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none"
           />
           <button
             type="submit"
             disabled={!urlInput.trim()}
-            className="rounded-lg bg-duck-500/20 border border-duck-400/40 px-3 py-1.5 text-xs font-semibold text-duck-200 transition-colors hover:bg-duck-500/30 disabled:opacity-40 cursor-pointer"
+            className="rounded-lg bg-brand-500/20 border border-brand-400/40 px-3 py-1.5 text-xs font-semibold text-brand-200 transition-colors hover:bg-brand-500/30 disabled:opacity-40 cursor-pointer"
           >
             Embed
           </button>
         </form>
       ) : (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 bg-ink-950/70 p-3 transition-all hover:border-duck-500/40">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 bg-ink-950/70 p-3 transition-all hover:border-brand-500/40">
           <a
             href={formattedUrl}
             target="_blank"
@@ -3239,7 +3240,7 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
               <span className="hidden text-xs">🌐</span>
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-ink-100 truncate group-hover/link:text-duck-300">
+              <p className="text-xs font-semibold text-ink-100 truncate group-hover/link:text-brand-300">
                 {block.title || domain}
               </p>
               <p className="text-[11px] text-ink-500 truncate">{formattedUrl}</p>
@@ -3262,7 +3263,7 @@ function SiteBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onExi
               href={formattedUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-750 bg-ink-850 text-xs font-bold text-ink-400 hover:border-duck-500/40 hover:bg-duck-500/10 hover:text-duck-300 transition-colors"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-750 bg-ink-850 text-xs font-bold text-ink-400 hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-300 transition-colors"
               title="Open link in new tab"
             >
               ↗
@@ -3370,8 +3371,8 @@ function PageBlock({
       }}
       className={`group/pageblk relative my-1 flex items-center gap-3 rounded-lg border px-3 py-2 outline-none transition-all select-none ${
         pageNote
-          ? "cursor-pointer border-transparent bg-ink-900/40 hover:bg-ink-850 hover:border-ink-700 focus:ring-1 focus:ring-duck-400/50 focus:border-duck-500/40"
-          : "cursor-default border-dashed border-ink-700 bg-ink-900/30 focus:ring-1 focus:ring-duck-400/40"
+          ? "cursor-pointer border-transparent bg-ink-900/40 hover:bg-ink-850 hover:border-ink-700 focus:ring-1 focus:ring-brand-400/50 focus:border-brand-500/40"
+          : "cursor-default border-dashed border-ink-700 bg-ink-900/30 focus:ring-1 focus:ring-brand-400/40"
       }`}
       title={pageNote ? `Open "${liveTitle}"` : undefined}
     >
@@ -3381,7 +3382,7 @@ function PageBlock({
       <div className="min-w-0 flex-1">
         <p
           className={`truncate text-[15px] font-semibold leading-snug ${
-            pageNote ? "text-ink-100 underline decoration-ink-700 underline-offset-4 group-hover/pageblk:decoration-duck-400/70" : "text-ink-400 line-through decoration-ink-600"
+            pageNote ? "text-ink-100 underline decoration-ink-700 underline-offset-4 group-hover/pageblk:decoration-brand-400/70" : "text-ink-400 line-through decoration-ink-600"
           }`}
         >
           {liveTitle}
@@ -3395,7 +3396,7 @@ function PageBlock({
       {pageNote ? (
         <span
           aria-hidden="true"
-          className="shrink-0 text-ink-500 transition-all group-hover/pageblk:translate-x-0.5 group-hover/pageblk:text-duck-300"
+          className="shrink-0 text-ink-500 transition-all group-hover/pageblk:translate-x-0.5 group-hover/pageblk:text-brand-300"
         >
           →
         </span>
@@ -3408,7 +3409,7 @@ function PageBlock({
                 e.stopPropagation();
                 onRecoverSubPage(pageId);
               }}
-              className="rounded-md border border-duck-500/40 bg-duck-500/15 px-2.5 py-1 text-[11px] font-semibold text-duck-200 hover:bg-duck-500/25 transition-colors cursor-pointer"
+              className="rounded-md border border-brand-500/40 bg-brand-500/15 px-2.5 py-1 text-[11px] font-semibold text-brand-200 hover:bg-brand-500/25 transition-colors cursor-pointer"
               title="Restore this sub-page from the Trash"
             >
               🔄 Restore
@@ -3518,7 +3519,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
         }
       }}
       id={`media_${block.id}`}
-      className="group/mediablk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-duck-500/50 outline-none focus:ring-1 focus:ring-duck-400/40"
+      className="group/mediablk relative my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-900/90 p-4 shadow-lg transition-all hover:border-brand-500/50 outline-none focus:ring-1 focus:ring-brand-400/40"
     >
       {!block.url ? (
         <div className="space-y-3">
@@ -3530,7 +3531,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                 onClick={() => setActiveTab("url")}
                 className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                   activeTab === "url"
-                    ? "bg-duck-500/20 text-duck-200 border border-duck-400/40"
+                    ? "bg-brand-500/20 text-brand-200 border border-brand-400/40"
                     : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
                 }`}
               >
@@ -3542,7 +3543,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                   onClick={() => setActiveTab("upload")}
                   className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                     activeTab === "upload"
-                      ? "bg-duck-500/20 text-duck-200 border border-duck-400/40"
+                      ? "bg-brand-500/20 text-brand-200 border border-brand-400/40"
                       : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
                   }`}
                 >
@@ -3568,7 +3569,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                   }}
                   className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase transition-all cursor-pointer ${
                     mediaKind === m.id
-                      ? "bg-duck-500/25 text-duck-300 border border-duck-500/50"
+                      ? "bg-brand-500/25 text-brand-300 border border-brand-500/50"
                       : "bg-ink-850 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
                   }`}
                 >
@@ -3590,12 +3591,12 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                     ? "Paste YouTube URL (e.g. https://www.youtube.com/watch?v=... or youtu.be)..."
                     : `Paste image URL (e.g. https://example.com/diagram.png)...`
                 }
-                className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-400 focus:outline-none"
+                className="flex-1 rounded-lg border border-ink-750 bg-ink-950 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-400 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={!urlInput.trim()}
-                className="rounded-lg bg-duck-500/20 border border-duck-400/40 px-3 py-1.5 text-xs font-semibold text-duck-200 transition-colors hover:bg-duck-500/30 disabled:opacity-40 cursor-pointer"
+                className="rounded-lg bg-brand-500/20 border border-brand-400/40 px-3 py-1.5 text-xs font-semibold text-brand-200 transition-colors hover:bg-brand-500/30 disabled:opacity-40 cursor-pointer"
               >
                 Embed
               </button>
@@ -3615,12 +3616,12 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-ink-700 bg-ink-950/60 p-6 transition-all hover:border-duck-500/60 hover:bg-duck-500/5 cursor-pointer group"
+                className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-ink-700 bg-ink-950/60 p-6 transition-all hover:border-brand-500/60 hover:bg-brand-500/5 cursor-pointer group"
               >
                 <span className="text-3xl mb-1.5 group-hover:scale-110 transition-transform">
                   🖼️
                 </span>
-                <span className="text-xs font-semibold text-ink-200 group-hover:text-duck-200">
+                <span className="text-xs font-semibold text-ink-200 group-hover:text-brand-200">
                   Click to select image from your computer
                 </span>
                 <span className="text-[10px] text-ink-500 mt-0.5">
@@ -3634,7 +3635,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
         /* Rendered Media Viewport */
         <div className="space-y-2.5">
           <div className="flex items-center justify-between border-b border-ink-800/80 pb-2">
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-duck-400 uppercase tracking-wider font-['Segoe_UI_Emoji','Apple_Color_Emoji','Noto_Color_Emoji',sans-serif]">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-400 uppercase tracking-wider font-['Segoe_UI_Emoji','Apple_Color_Emoji','Noto_Color_Emoji',sans-serif]">
               <span>{isYouTube ? "▶️ YouTube Video" : mediaKind === "audio" ? "🎵 Audio" : mediaKind === "video" ? "🎬 Video" : "🖼️ Image"}</span>
             </span>
 
@@ -3655,7 +3656,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
                         }}
                         className={`rounded px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${
                           isActive
-                            ? "bg-duck-500/30 text-duck-200 border border-duck-400/50 shadow-sm"
+                            ? "bg-brand-500/30 text-brand-200 border border-brand-400/50 shadow-sm"
                             : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
                         }`}
                         title={`Resize to ${sz} width`}
@@ -3745,7 +3746,7 @@ function MediaBlock({ block, onUpdateBlock, onSelect, onDelete, onAddAfter, onEx
               }
             }}
             placeholder="Add an optional caption (e.g. Lecture 4: Key concepts)..."
-            className="w-full bg-transparent text-center text-xs text-ink-400 placeholder:text-ink-600 outline-none border-b border-transparent focus:border-duck-500/30 py-0.5"
+            className="w-full bg-transparent text-center text-xs text-ink-400 placeholder:text-ink-600 outline-none border-b border-transparent focus:border-brand-500/30 py-0.5"
           />
         </div>
       )}
@@ -4071,7 +4072,7 @@ function ColumnItem({ blockId, col, idx, totalCols = 2, isLocked, onTitleChange,
           container?.focus();
         }
       }}
-      className="flex flex-col rounded-xl border border-ink-800/80 bg-ink-900/80 p-3.5 shadow-sm transition-all hover:border-duck-500/30 hover:bg-ink-900/95 group/colcard min-w-0"
+      className="flex flex-col rounded-xl border border-ink-800/80 bg-ink-900/80 p-3.5 shadow-sm transition-all hover:border-brand-500/30 hover:bg-ink-900/95 group/colcard min-w-0"
     >
       {/* Column Title with Inline Math / Code formatting */}
       <div
@@ -4083,7 +4084,7 @@ function ColumnItem({ blockId, col, idx, totalCols = 2, isLocked, onTitleChange,
         onBlur={handleTitleBlur}
         onKeyDown={handleKeyDown}
         data-placeholder={`Column ${idx + 1} Title...`}
-        className="w-full bg-transparent text-xs font-semibold text-ink-100 placeholder:text-ink-600 border-b border-ink-800/60 pb-1.5 mb-2 focus:outline-none focus:border-duck-400 empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] transition-colors min-h-[1.5em]"
+        className="w-full bg-transparent text-xs font-semibold text-ink-100 placeholder:text-ink-600 border-b border-ink-800/60 pb-1.5 mb-2 focus:outline-none focus:border-brand-400 empty:before:text-ink-600 empty:before:content-[attr(data-placeholder)] transition-colors min-h-[1.5em]"
       />
 
       {/* Column Multi-Line Body with Live KaTeX ($x$) & Inline Code (`code`) */}
@@ -4273,7 +4274,7 @@ function ColumnsBlock({
           onAddAfter?.(block.id, "", "text");
         }
       }}
-      className="relative w-full my-2 select-text outline-none focus:ring-1 focus:ring-duck-400/40 rounded-xl"
+      className="relative w-full my-2 select-text outline-none focus:ring-1 focus:ring-brand-400/40 rounded-xl"
     >
       {/* Inline LaTeX Equation Popover positioned directly above the Columns */}
       {!isLocked && mathPopoverOpen && (
@@ -4906,15 +4907,15 @@ const EditorBlock = memo(function EditorBlock({
         isHidden ? "hidden print:block " : ""
       }${
         isMultiSelected
-          ? "bg-duck-500/20 border border-duck-400/60 shadow-md ring-1 ring-duck-400/40"
+          ? "bg-brand-500/20 border border-brand-400/60 shadow-md ring-1 ring-brand-400/40"
           : isSelected
             ? "bg-ink-900/60"
             : "hover:bg-ink-900/30"
       } ${
         isDragTarget === "after"
-          ? "after:absolute after:-bottom-px after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-duck-400"
+          ? "after:absolute after:-bottom-px after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-brand-400"
           : isDragTarget
-            ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-duck-400"
+            ? "before:absolute before:-top-px before:left-0 before:h-0.5 before:w-full before:rounded-full before:bg-brand-400"
             : ""
       }`}
       onClick={(e) => {
@@ -4976,7 +4977,7 @@ const EditorBlock = memo(function EditorBlock({
             aria-haspopup="menu"
             aria-expanded={insertMenuOpen}
             className={`rounded p-1 text-sm leading-none font-bold transition-colors cursor-pointer ${
-              insertMenuOpen ? "bg-ink-800 text-duck-300" : "text-ink-500 hover:bg-ink-800 hover:text-duck-300"
+              insertMenuOpen ? "bg-ink-800 text-brand-300" : "text-ink-500 hover:bg-ink-800 hover:text-brand-300"
             }`}
           >
             +
@@ -5014,7 +5015,7 @@ const EditorBlock = memo(function EditorBlock({
               setMenuOpen(!menuOpen);
             }}
             title="Drag to move · click for block menu"
-            className="cursor-grab rounded p-1 text-xs text-ink-500 transition-colors hover:bg-ink-800 hover:text-duck-300 active:cursor-grabbing"
+            className="cursor-grab rounded p-1 text-xs text-ink-500 transition-colors hover:bg-ink-800 hover:text-brand-300 active:cursor-grabbing"
           >
             ⠿
           </button>
@@ -5073,11 +5074,11 @@ const EditorBlock = memo(function EditorBlock({
             }
           }}
           className={`group/divider py-3 px-2 cursor-pointer outline-none rounded-lg transition-all ${
-            isSelected ? "ring-1 ring-duck-400/40 bg-duck-500/5" : "hover:bg-ink-850/50"
+            isSelected ? "ring-1 ring-brand-400/40 bg-brand-500/5" : "hover:bg-ink-850/50"
           }`}
           title="Click to select divider. Press Backspace/Delete to remove, Enter to add block below."
         >
-          <hr className={`border-t transition-colors ${isSelected ? "border-duck-400/70" : "border-ink-800 group-hover/divider:border-ink-700"}`} />
+          <hr className={`border-t transition-colors ${isSelected ? "border-brand-400/70" : "border-ink-800 group-hover/divider:border-ink-700"}`} />
         </div>
       ) : block.type === "math" ? (
         /* Math Equation Block */
@@ -5153,7 +5154,7 @@ const EditorBlock = memo(function EditorBlock({
             disabled={isLocked}
             checked={Boolean(block.checked)}
             onChange={(e) => onUpdateBlock(block.id, { checked: e.target.checked }, false, true)}
-            className={`mt-1 h-4 w-4 rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0 ${
+            className={`mt-1 h-4 w-4 rounded border-ink-700 bg-ink-850 text-brand-400 focus:ring-0 ${
               isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
           />
@@ -5182,7 +5183,7 @@ const EditorBlock = memo(function EditorBlock({
               type="button"
               onClick={() => onUpdateBlock(block.id, { open: block.open === false ? true : false }, false, true)}
               aria-expanded={block.open !== false}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs text-ink-400 transition-colors hover:bg-ink-800 hover:text-duck-300 print:hidden cursor-pointer mt-0.5 select-none"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs text-ink-400 transition-colors hover:bg-ink-800 hover:text-brand-300 print:hidden cursor-pointer mt-0.5 select-none"
               title={block.open === false ? "Expand" : "Collapse"}
             >
               <span className={`inline-block transition-transform ${block.open === false ? "" : "rotate-90"}`}>▶</span>
@@ -5275,7 +5276,7 @@ const EditorBlock = memo(function EditorBlock({
         </div>
       ) : block.type === "quote" ? (
         /* 8. Quote */
-        <div className="group/quoteblk quote border-l-4 border-duck-400 pl-4 py-1 italic">
+        <div className="group/quoteblk quote border-l-4 border-brand-400 pl-4 py-1 italic">
           <Tag
             ref={contentRef}
             contentEditable={!isLocked}
@@ -5351,7 +5352,7 @@ const EditorBlock = memo(function EditorBlock({
             e.stopPropagation();
             onAddAfter(block.id, "", "text");
           }}
-          className="h-1.5 w-full cursor-text my-0.5 rounded transition-all hover:bg-duck-400/20 group/dropzone flex items-center justify-center"
+          className="h-1.5 w-full cursor-text my-0.5 rounded transition-all hover:bg-brand-400/20 group/dropzone flex items-center justify-center"
           title="Click to place cursor and type below this block"
         />
       )}
@@ -5571,7 +5572,7 @@ function TextSelectionToolbar({
         type="button"
         onClick={() => handleFormat("code")}
         title="Convert to Code (`code`)"
-        className="flex h-7 px-1.5 items-center justify-center rounded-lg font-mono text-xs text-ink-200 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+        className="flex h-7 px-1.5 items-center justify-center rounded-lg font-mono text-xs text-ink-200 hover:bg-ink-800 hover:text-brand-300 transition-colors cursor-pointer"
       >
         &lt;/&gt;
       </button>
@@ -5579,7 +5580,7 @@ function TextSelectionToolbar({
         type="button"
         onClick={() => handleFormat("math")}
         title="Convert to Formula ($formula$)"
-        className="flex h-7 px-1.5 items-center justify-center rounded-lg font-mono text-xs font-bold text-duck-300 hover:bg-duck-500/20 hover:text-duck-200 transition-colors cursor-pointer"
+        className="flex h-7 px-1.5 items-center justify-center rounded-lg font-mono text-xs font-bold text-brand-300 hover:bg-brand-500/20 hover:text-brand-200 transition-colors cursor-pointer"
       >
         $x$
       </button>
@@ -5597,7 +5598,7 @@ function TextSelectionToolbar({
           }
         }}
         title="Explain highlighted text with AI"
-        className="flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-ink-200 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+        className="flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-ink-200 hover:bg-ink-800 hover:text-brand-300 transition-colors cursor-pointer"
       >
         <span>✨</span>
         <span>Explain</span>
@@ -5611,9 +5612,9 @@ function TextSelectionToolbar({
           }
         }}
         title="Generate quiz from highlighted text"
-        className="flex items-center gap-1 rounded-lg border border-duck-500/30 bg-duck-500/10 px-2 py-1 font-medium text-duck-300 hover:bg-duck-500/20 hover:text-duck-200 transition-colors cursor-pointer"
+        className="flex items-center gap-1 rounded-lg border border-brand-500/30 bg-brand-500/10 px-2 py-1 font-medium text-brand-300 hover:bg-brand-500/20 hover:text-brand-200 transition-colors cursor-pointer"
       >
-        <span>🦆</span>
+        <MalloIcon className="h-4 w-4" />
         <span>Quiz me</span>
       </button>
     </div>
@@ -7397,9 +7398,9 @@ export default function BlockNoteEditor({
       el.focus();
       const blockContainer = el.closest("[data-block-id]");
       if (blockContainer) {
-        blockContainer.classList.add("ring-2", "ring-duck-400", "bg-duck-500/10");
+        blockContainer.classList.add("ring-2", "ring-brand-400", "bg-brand-500/10");
         setTimeout(() => {
-          blockContainer.classList.remove("ring-2", "ring-duck-400", "bg-duck-500/10");
+          blockContainer.classList.remove("ring-2", "ring-brand-400", "bg-brand-500/10");
         }, 1200);
       }
     }
@@ -7891,7 +7892,7 @@ export default function BlockNoteEditor({
       {/* High-Performance Marquee Selection Box (Absolute in document coordinate space) */}
       {marqueeBox && (
         <div
-          className="absolute z-40 pointer-events-none rounded border border-duck-400/80 bg-duck-500/15 shadow-sm transition-none select-none"
+          className="absolute z-40 pointer-events-none rounded border border-brand-400/80 bg-brand-500/15 shadow-sm transition-none select-none"
           style={{
             left: marqueeBox.left,
             top: marqueeBox.top,
@@ -7924,15 +7925,15 @@ export default function BlockNoteEditor({
       {(isReformatting || reformatToast) && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-fade-in select-none">
           {isReformatting ? (
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-ink-900/95 border border-duck-500/50 shadow-2xl backdrop-blur-md text-xs font-semibold text-duck-200 ring-4 ring-duck-400/20">
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-ink-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md text-xs font-semibold text-brand-200 ring-4 ring-brand-400/20">
               <Sparkles className="h-4 w-4 text-amber-400 animate-spin shrink-0" />
               <div className="flex flex-col">
                 <span className="flex items-center gap-1.5">
                   <span>Structuring & Reformatting Note with AI...</span>
-                  <span className="inline-flex h-2 w-2 rounded-full bg-duck-400 animate-ping" />
+                  <span className="inline-flex h-2 w-2 rounded-full bg-brand-400 animate-ping" />
                 </span>
                 {reformatProgress ? (
-                  <span className="text-[10px] text-duck-300/80 font-normal">
+                  <span className="text-[10px] text-brand-300/80 font-normal">
                     {typeof reformatProgress === "string"
                       ? reformatProgress
                       : reformatProgress.message || (reformatProgress.total > 1 ? `Part ${reformatProgress.current} of ${reformatProgress.total}...` : null)}
@@ -7945,7 +7946,7 @@ export default function BlockNoteEditor({
               className={`flex items-center gap-2 px-4 py-2 rounded-2xl border shadow-2xl backdrop-blur-md text-xs font-semibold ${
                 reformatToast.type === "error"
                   ? "border-rose-500/50 bg-ink-900/95 text-rose-300 ring-4 ring-rose-500/20"
-                  : "border-duck-500/50 bg-ink-900/95 text-duck-200 ring-4 ring-duck-500/20"
+                  : "border-brand-500/50 bg-ink-900/95 text-brand-200 ring-4 ring-brand-500/20"
               }`}
             >
               {reformatToast.type === "error" ? (
@@ -8120,7 +8121,7 @@ export default function BlockNoteEditor({
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-2.5 py-1 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/40 hover:text-duck-300 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-2.5 py-1 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-brand-500/40 hover:text-brand-300 cursor-pointer"
                   >
                     <span>😀</span>
                     <span>Add Icon</span>
@@ -8173,7 +8174,7 @@ export default function BlockNoteEditor({
                   <button
                     type="button"
                     onClick={() => setShowBannerPicker(!showBannerPicker)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-2.5 py-1 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/40 hover:text-duck-300 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/90 px-2.5 py-1 text-xs font-semibold text-ink-300 shadow-sm backdrop-blur-md transition-all hover:border-brand-500/40 hover:text-brand-300 cursor-pointer"
                   >
                     <span>🖼️</span>
                     <span>Add Cover</span>
@@ -8274,7 +8275,7 @@ export default function BlockNoteEditor({
               }
             }}
             placeholder="Untitled"
-            className={`w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-duck-500/50 focus:outline-none min-h-[3.5rem] ${
+            className={`w-full border-b border-ink-800/80 bg-transparent pt-1 pb-3 leading-snug text-4xl font-extrabold tracking-tight text-ink-100 placeholder:text-ink-700 focus:border-brand-500/50 focus:outline-none min-h-[3.5rem] ${
               isLocked ? "cursor-default select-text" : ""
             }`}
           />

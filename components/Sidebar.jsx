@@ -10,6 +10,7 @@ import { seedDemoContent, getSyllabusStatement, saveSyllabusStatement, saveAllSp
 import GlobalTimerHUD from "@/components/GlobalTimerHUD";
 import NoteMenu from "@/components/NoteMenu";
 import FeatureRequestModal from "@/components/FeatureRequestModal";
+import { LearnoryMark } from "@/components/brand/Brand";
 import { SPACE_ICON_OPTIONS } from "@/lib/constants";
 import { buildNoteTree, getAncestorIds, normalizeParentId } from "@/lib/noteHierarchy";
 
@@ -146,7 +147,7 @@ function FactoryResetConfirmModal({ open, target, onClose, onConfirm }) {
                       }
                     }}
                     placeholder="Type RESET"
-                    className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 font-mono text-sm font-bold text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+                    className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 font-mono text-sm font-bold text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
                     autoFocus
                   />
                 </div>
@@ -416,7 +417,7 @@ export function SettingsModal({
             onClick={() => setTab("general")}
             className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
               tab === "general"
-                ? "border-duck-400 text-duck-300"
+                ? "border-brand-400 text-brand-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
@@ -428,7 +429,7 @@ export function SettingsModal({
             onClick={() => setTab("ai")}
             className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
               tab === "ai"
-                ? "border-duck-400 text-duck-300"
+                ? "border-brand-400 text-brand-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
@@ -476,7 +477,7 @@ export function SettingsModal({
             onClick={() => setTab("support")}
             className={`border-b-2 px-3 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
               tab === "support"
-                ? "border-duck-400 text-duck-300"
+                ? "border-brand-400 text-brand-300"
                 : "border-transparent text-ink-400 hover:text-ink-200"
             }`}
           >
@@ -488,7 +489,7 @@ export function SettingsModal({
           {tab === "support" && (
             <div className="space-y-4 max-w-2xl mx-auto py-2">
               <p className="text-xs text-ink-400">
-                SocraticOS is free and runs entirely in your browser. If it helps you study, you can chip in or tell us what to build next.
+                Learnory is free and runs entirely in your browser. If it helps you study, you can chip in or tell us what to build next.
               </p>
 
               <button
@@ -514,10 +515,10 @@ export function SettingsModal({
               <button
                 type="button"
                 onClick={() => setFeedbackOpen(true)}
-                className="flex w-full items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-left transition-all hover:border-duck-500/40 hover:bg-duck-500/5"
+                className="flex w-full items-center justify-between rounded-xl border border-ink-800 bg-ink-850 p-4 text-left transition-all hover:border-brand-500/40 hover:bg-brand-500/5"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-duck-500/20 bg-duck-500/10 text-duck-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10 text-brand-400">
                     <MessageSquare className="h-5 w-5" />
                   </div>
                   <div>
@@ -525,7 +526,7 @@ export function SettingsModal({
                     <div className="text-[11px] text-ink-400">Report a bug, suggest a feature, or share an idea</div>
                   </div>
                 </div>
-                <span className="rounded bg-duck-500/10 px-2 py-1 text-[10px] font-bold uppercase text-duck-400">Send</span>
+                <span className="rounded bg-brand-500/10 px-2 py-1 text-[10px] font-bold uppercase text-brand-400">Send</span>
               </button>
             </div>
           )}
@@ -553,7 +554,7 @@ export function SettingsModal({
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="AIzaSy..."
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-3 pl-10 pr-12 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none font-mono"
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-3 pl-10 pr-12 text-sm text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none font-mono"
                   />
                   <button
                     type="button"
@@ -569,7 +570,7 @@ export function SettingsModal({
                     href="https://aistudio.google.com/app/apikey"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-duck-400 underline hover:text-duck-300"
+                    className="text-brand-400 underline hover:text-brand-300"
                   >
                     Google AI Studio
                   </a>.
@@ -579,7 +580,7 @@ export function SettingsModal({
               <div className="flex justify-end pt-3">
                 <button
                   type="submit"
-                  className="rounded-xl bg-duck-400 px-6 py-2.5 text-xs font-bold text-ink-950 hover:bg-duck-300 transition-colors shadow-md"
+                  className="rounded-xl bg-brand-400 px-6 py-2.5 text-xs font-bold text-ink-950 hover:bg-brand-300 transition-colors shadow-md"
                 >
                   {aiSaved ? "✓ Saved to Dexie!" : "Save AI Key & Settings"}
                 </button>
@@ -592,7 +593,7 @@ export function SettingsModal({
               {/* Keyboard Shortcuts - 3 Column Wide Grid */}
               <div>
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
-                  <Command className="w-4 h-4 text-duck-400" />
+                  <Command className="w-4 h-4 text-brand-400" />
                   Keyboard Shortcuts
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -642,7 +643,7 @@ export function SettingsModal({
                     onClick={() => setTheme("dark")}
                     className={`flex items-center justify-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all ${
                       theme === "dark"
-                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
+                        ? "border-brand-500/50 bg-brand-500/20 text-brand-300 shadow-md ring-1 ring-brand-400/40"
                         : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
@@ -658,7 +659,7 @@ export function SettingsModal({
                     onClick={() => setTheme("light")}
                     className={`flex items-center justify-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all ${
                       theme === "light"
-                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
+                        ? "border-brand-500/50 bg-brand-500/20 text-brand-300 shadow-md ring-1 ring-brand-400/40"
                         : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
@@ -683,7 +684,7 @@ export function SettingsModal({
                     onClick={() => onSpaceSwitcherLayoutChange?.("dropdown")}
                     className={`flex items-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all cursor-pointer ${
                       spaceSwitcherLayout === "dropdown"
-                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
+                        ? "border-brand-500/50 bg-brand-500/20 text-brand-300 shadow-md ring-1 ring-brand-400/40"
                         : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
@@ -699,7 +700,7 @@ export function SettingsModal({
                     onClick={() => onSpaceSwitcherLayoutChange?.("grid")}
                     className={`flex items-center gap-3 rounded-xl border p-4 text-sm font-semibold transition-all cursor-pointer ${
                       spaceSwitcherLayout === "grid"
-                        ? "border-duck-500/50 bg-duck-500/20 text-duck-300 shadow-md ring-1 ring-duck-400/40"
+                        ? "border-brand-500/50 bg-brand-500/20 text-brand-300 shadow-md ring-1 ring-brand-400/40"
                         : "border-ink-800 bg-ink-850 text-ink-400 hover:border-ink-700 hover:text-ink-200"
                     }`}
                   >
@@ -715,7 +716,7 @@ export function SettingsModal({
               {/* Editor Behavior */}
               <div className="border-t border-ink-800/80 pt-5 space-y-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
-                  <PlusSquare className="w-4 h-4 text-duck-400" />
+                  <PlusSquare className="w-4 h-4 text-brand-400" />
                   Editor Behavior
                 </label>
                 <div className="flex items-center justify-between p-4 rounded-xl border border-ink-800 bg-ink-850">
@@ -730,7 +731,7 @@ export function SettingsModal({
                       onChange={(e) => handleToggleClickToAppend(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-duck-500"></div>
+                    <div className="w-11 h-6 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                   </label>
                 </div>
               </div>
@@ -753,7 +754,7 @@ export function SettingsModal({
                       }}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-duck-500"></div>
+                    <div className="w-11 h-6 bg-ink-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                   </label>
                 </div>
 
@@ -762,7 +763,7 @@ export function SettingsModal({
                 </p>
 
                 {/* Upload zone */}
-                <label className={`group relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${syllabusEnabled ? "border-ink-700 hover:border-duck-500/70 hover:bg-duck-500/5" : "border-ink-800 opacity-40 pointer-events-none"} ${syllabusFileLoading ? "animate-pulse" : ""}`}>
+                <label className={`group relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${syllabusEnabled ? "border-ink-700 hover:border-brand-500/70 hover:bg-brand-500/5" : "border-ink-800 opacity-40 pointer-events-none"} ${syllabusFileLoading ? "animate-pulse" : ""}`}>
                   <input
                     type="file"
                     accept=".txt,.md,.docx,.pdf"
@@ -773,7 +774,7 @@ export function SettingsModal({
                   {syllabusFileLoading ? (
                     <>
                       <span className="text-3xl animate-spin inline-block">⏳</span>
-                      <p className="text-sm font-semibold text-duck-300">Extracting text from document…</p>
+                      <p className="text-sm font-semibold text-brand-300">Extracting text from document…</p>
                       <p className="text-xs text-ink-500">Large PDFs may take a few seconds</p>
                     </>
                   ) : syllabusText ? (
@@ -818,7 +819,7 @@ export function SettingsModal({
                           setSyllabusSaved(true);
                           setTimeout(() => setSyllabusSaved(false), 2000);
                         }}
-                        className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-1 text-[11px] font-semibold text-ink-400 hover:text-ink-200 hover:border-duck-500/50 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                        className="flex items-center gap-1 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-1 text-[11px] font-semibold text-ink-400 hover:text-ink-200 hover:border-brand-500/50 transition-all disabled:opacity-40 disabled:pointer-events-none"
                       >
                         {label}
                       </button>
@@ -858,12 +859,12 @@ export function SettingsModal({
               {/* Interactive Tutorial Replay */}
               <div className="border-t border-ink-800/80 pt-5 space-y-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-ink-400 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-duck-400" />
+                  <Sparkles className="w-4 h-4 text-brand-400" />
                   Interactive Tutorial &amp; Feature Guide
                 </label>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-duck-500/30 bg-duck-500/10">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-brand-500/30 bg-brand-500/10">
                   <div className="space-y-0.5 pr-2">
-                    <p className="text-sm font-semibold text-ink-100">Take the SocraticOS Onboarding Tour</p>
+                    <p className="text-sm font-semibold text-ink-100">Take the Learnory Onboarding Tour</p>
                     <p className="text-xs text-ink-300">
                       Explore all 19 editor blocks, Quizzes Studio, Space Hub syllabus, 50+ 3D simulations, multi-timer HUD, and power shortcuts.
                     </p>
@@ -874,7 +875,7 @@ export function SettingsModal({
                       onClose();
                       if (onStartTutorial) onStartTutorial();
                     }}
-                    className="flex items-center gap-2 rounded-lg bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-duck-300 shadow-sm shrink-0 whitespace-nowrap cursor-pointer"
+                    className="flex items-center gap-2 rounded-lg bg-brand-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-brand-300 shadow-sm shrink-0 whitespace-nowrap cursor-pointer"
                   >
                     <span>🎓</span>
                     <span>Restart Tutorial</span>
@@ -899,7 +900,7 @@ export function SettingsModal({
                   <span>100% Offline Workspace Backups</span>
                 </div>
                 <p className="mt-1 text-xs text-sky-300/80">
-                  Save a complete snapshot of your workspace (notes, whiteboard drawings, calendar events, and study sessions) directly to your hard drive, or restore an existing <code>.socratic</code> / <code>.json</code> backup.
+                  Save a complete snapshot of your workspace (notes, whiteboard drawings, calendar events, and study sessions) directly to your hard drive, or restore an existing <code>.learnory</code>, <code>.socratic</code> or <code>.json</code> backup.
                 </p>
               </div>
 
@@ -913,11 +914,11 @@ export function SettingsModal({
               {/* Export & Import Dual Columns */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Export Section */}
-                <div className="rounded-xl border border-duck-500/30 bg-duck-500/5 p-4 space-y-3 flex flex-col justify-between">
+                <div className="rounded-xl border border-brand-500/30 bg-brand-500/5 p-4 space-y-3 flex flex-col justify-between">
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-duck-200">Export Space Backup (.socratic)</div>
-                      <span className="text-[10px] text-duck-400 font-mono">Select Space</span>
+                      <div className="text-xs font-bold text-brand-200">Export Space Backup (.learnory)</div>
+                      <span className="text-[10px] text-brand-400 font-mono">Select Space</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {[{ name: "All", icon: "🌐" }, ...spaces].map((sp) => (
@@ -927,7 +928,7 @@ export function SettingsModal({
                           onClick={() => setBackupExportSpace(sp.name)}
                           className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all ${
                             backupExportSpace === sp.name
-                              ? "border-duck-400 bg-duck-500/30 text-duck-200 shadow-sm"
+                              ? "border-brand-400 bg-brand-500/30 text-brand-200 shadow-sm"
                               : "border-ink-700 bg-ink-900/60 text-ink-400 hover:text-ink-200"
                           }`}
                         >
@@ -942,14 +943,14 @@ export function SettingsModal({
                     type="button"
                     onClick={handleExport}
                     disabled={isExporting}
-                    className="flex w-full items-center justify-between rounded-lg border border-duck-500/40 bg-duck-500/20 p-3 text-xs font-bold text-duck-300 transition-all hover:bg-duck-500/30 disabled:opacity-50 shadow-sm mt-2"
+                    className="flex w-full items-center justify-between rounded-lg border border-brand-500/40 bg-brand-500/20 p-3 text-xs font-bold text-brand-300 transition-all hover:bg-brand-500/30 disabled:opacity-50 shadow-sm mt-2"
                   >
                     <div className="flex items-center gap-2">
-                      <Download className="h-4 w-4 text-duck-400" />
+                      <Download className="h-4 w-4 text-brand-400" />
                       <span>Export {backupExportSpace === "All" ? "All Spaces" : `"${backupExportSpace}" Space`}</span>
                     </div>
-                    <span className="rounded bg-duck-500/30 px-2 py-0.5 font-mono text-[10px] text-duck-200">
-                      {isExporting ? "Exporting..." : ".socratic"}
+                    <span className="rounded bg-brand-500/30 px-2 py-0.5 font-mono text-[10px] text-brand-200">
+                      {isExporting ? "Exporting..." : ".learnory"}
                     </span>
                   </button>
                 </div>
@@ -958,7 +959,7 @@ export function SettingsModal({
                 <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3 flex flex-col justify-between">
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-emerald-200">Import Workspace File (.socratic)</div>
+                      <div className="text-xs font-bold text-emerald-200">Import Workspace File (.learnory or .socratic)</div>
                       <span className="text-[10px] text-emerald-400 font-mono">Target Space</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -999,7 +1000,7 @@ export function SettingsModal({
                     </div>
                     <input
                       type="file"
-                      accept=".socratic,.json"
+                      accept=".learnory,.socratic,.json"
                       className="hidden"
                       onChange={handleImportFile}
                       disabled={isImporting}
@@ -1012,9 +1013,9 @@ export function SettingsModal({
               </div>
 
               {/* Seed Demo Content Card */}
-              <div className="rounded-xl border border-duck-500/30 bg-duck-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-bold text-duck-200">
+                  <div className="flex items-center gap-2 text-xs font-bold text-brand-200">
                     <span>🌱</span>
                     <span>Sample Study Notes (Demo Notes Only)</span>
                   </div>
@@ -1025,7 +1026,7 @@ export function SettingsModal({
                 <button
                   type="button"
                   onClick={handleSeedDemoNotes}
-                  className="rounded-lg border border-duck-500/40 bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-duck-300 whitespace-nowrap shadow-sm shrink-0"
+                  className="rounded-lg border border-brand-500/40 bg-brand-400 px-4 py-2 text-xs font-bold text-ink-950 transition-all hover:bg-brand-300 whitespace-nowrap shadow-sm shrink-0"
                 >
                   🌱 Restore Seed Notes
                 </button>
@@ -1113,7 +1114,7 @@ export function SettingsModal({
                   <select 
                     value={gfx.graphicsPreset} 
                     onChange={handlePresetChange}
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
                   >
                     <option value="auto">Auto-detect</option>
                     <option value="high">High Quality</option>
@@ -1128,7 +1129,7 @@ export function SettingsModal({
                   <select 
                     value={gfx.targetFps} 
                     onChange={(e) => updateGfx('targetFps', parseInt(e.target.value, 10))}
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
                   >
                     <option value={30}>30 FPS</option>
                     <option value={60}>60 FPS</option>
@@ -1141,7 +1142,7 @@ export function SettingsModal({
                   <select 
                     value={gfx.pixelRatio} 
                     onChange={(e) => updateGfx('pixelRatio', parseFloat(e.target.value))}
-                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
                   >
                     <option value={1.0}>1.0x (Standard)</option>
                     <option value={1.5}>1.5x (Retina)</option>
@@ -1311,7 +1312,7 @@ export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="📂"
-                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-brand-500/50 focus:outline-none"
               />
               <span className="text-xs text-ink-400">Pick below or type any custom emoji</span>
             </div>
@@ -1323,7 +1324,7 @@ export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
                   onClick={() => setIcon(emoji)}
                   className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all ${
                     icon === emoji
-                      ? "bg-duck-500/20 ring-2 ring-duck-400"
+                      ? "bg-brand-500/20 ring-2 ring-brand-400"
                       : "bg-ink-850 hover:bg-ink-800"
                   }`}
                 >
@@ -1351,7 +1352,7 @@ export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
               }}
               placeholder="e.g. Research"
               maxLength={32}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
             {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
           </div>
@@ -1370,7 +1371,7 @@ export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
               onChange={(e) => setBlurb(e.target.value)}
               placeholder="e.g. Courses, problem sets & exam preparation"
               maxLength={80}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
           </div>
 
@@ -1385,7 +1386,7 @@ export function CreateSpaceModal({ open, onClose, onCreate, spaces = [] }) {
             <button
               type="submit"
               disabled={!name.trim()}
-              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-duck-300 shadow-sm cursor-pointer"
+              className="rounded-lg bg-brand-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-brand-300 shadow-sm cursor-pointer"
             >
               Create
             </button>
@@ -1486,7 +1487,7 @@ export function EditSpaceModal({
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="📂"
-                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-12 h-9 rounded-lg border border-ink-700 bg-ink-850 text-center text-lg font-bold text-ink-100 focus:border-brand-500/50 focus:outline-none"
               />
               <span className="text-xs text-ink-400">Pick below or type any custom emoji</span>
             </div>
@@ -1498,7 +1499,7 @@ export function EditSpaceModal({
                   onClick={() => setIcon(emoji)}
                   className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all ${
                     icon === emoji
-                      ? "bg-duck-500/20 ring-2 ring-duck-400"
+                      ? "bg-brand-500/20 ring-2 ring-brand-400"
                       : "bg-ink-850 hover:bg-ink-800"
                   }`}
                 >
@@ -1526,7 +1527,7 @@ export function EditSpaceModal({
               }}
               placeholder="e.g. Research"
               maxLength={32}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
             {error && <p className="mt-1.5 text-xs font-medium text-rose-400 animate-fade-in">{error}</p>}
           </div>
@@ -1545,7 +1546,7 @@ export function EditSpaceModal({
               onChange={(e) => setBlurb(e.target.value)}
               placeholder="e.g. Courses, problem sets & exam preparation"
               maxLength={80}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
             />
           </div>
 
@@ -1574,7 +1575,7 @@ export function EditSpaceModal({
               <button
                 type="submit"
                 disabled={!name.trim()}
-                className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-duck-300 shadow-sm cursor-pointer"
+                className="rounded-lg bg-brand-400 px-4 py-1.5 text-xs font-semibold text-ink-950 transition-opacity disabled:opacity-30 hover:bg-brand-300 shadow-sm cursor-pointer"
               >
                 Save
               </button>
@@ -1639,7 +1640,7 @@ export function TrashModal({
               <button
                 type="button"
                 onClick={onRecoverAll}
-                className="rounded-lg border border-duck-500/30 bg-duck-500/10 px-3 py-1 text-xs font-semibold text-duck-300 transition-colors hover:bg-duck-500/20"
+                className="rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-300 transition-colors hover:bg-brand-500/20"
               >
                 🔄 Recover All
               </button>
@@ -1680,7 +1681,7 @@ export function TrashModal({
                       </span>
                       {trashedParent && (
                         <span
-                          className="truncate rounded bg-duck-500/10 px-1.5 py-0.5 text-[10px] text-duck-300 font-medium"
+                          className="truncate rounded bg-brand-500/10 px-1.5 py-0.5 text-[10px] text-brand-300 font-medium"
                           title={`Sub-page of "${trashedParent.title || "Untitled Note"}" — restoring the parent restores this page too`}
                         >
                           ↳ in {trashedParent.title || "Untitled Note"}
@@ -1696,7 +1697,7 @@ export function TrashModal({
                     <button
                       type="button"
                       onClick={() => onRecoverNote(note.id)}
-                      className="rounded-md border border-duck-500/30 bg-duck-500/10 px-2.5 py-1 text-xs font-medium text-duck-300 transition-colors hover:bg-duck-500/20"
+                      className="rounded-md border border-brand-500/30 bg-brand-500/10 px-2.5 py-1 text-xs font-medium text-brand-300 transition-colors hover:bg-brand-500/20"
                       title="Recover Note"
                     >
                       🔄 Recover
@@ -1819,7 +1820,7 @@ export function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
           <div className="flex items-center gap-2">
-            <FolderInput className="w-4 h-4 text-duck-400" />
+            <FolderInput className="w-4 h-4 text-brand-400" />
             <h3 className="text-sm font-bold text-ink-100">
               Move {count} Note{count === 1 ? "" : "s"} to Space
             </h3>
@@ -1850,7 +1851,7 @@ export function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-all cursor-pointer ${
                     isCurrent
                       ? "opacity-40 cursor-not-allowed bg-ink-950/40 text-ink-500 border border-transparent"
-                      : "hover:bg-duck-500/10 hover:text-duck-300 text-ink-200 hover:border-duck-500/30 border border-ink-800/60 bg-ink-850/60"
+                      : "hover:bg-brand-500/10 hover:text-brand-300 text-ink-200 hover:border-brand-500/30 border border-ink-800/60 bg-ink-850/60"
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
@@ -1860,7 +1861,7 @@ export function BatchMoveModal({ open, count, currentSpace, spaces = [], onClose
                   {isCurrent ? (
                     <span className="text-[10px] text-ink-500 shrink-0">(Current)</span>
                   ) : (
-                    <span className="text-xs text-ink-500 group-hover:text-duck-300 shrink-0">→</span>
+                    <span className="text-xs text-ink-500 group-hover:text-brand-300 shrink-0">→</span>
                   )}
                 </button>
               );
@@ -2202,7 +2203,7 @@ export default function Sidebar({
           className={`group relative flex items-center justify-between gap-0.5 rounded-lg transition-all ${
             isMultiSelecting
               ? isSelected
-                ? "bg-duck-500/15 ring-1 ring-duck-400/40 text-duck-200 shadow-xs"
+                ? "bg-brand-500/15 ring-1 ring-brand-400/40 text-brand-200 shadow-xs"
                 : "hover:bg-ink-850 text-ink-300"
               : isDragging
               ? "opacity-30 bg-ink-800/50"
@@ -2217,7 +2218,7 @@ export default function Sidebar({
           {!isMultiSelecting && isDragOver && (
             <div
               style={{ left: `${indentPx}px` }}
-              className={`absolute right-0 h-0.5 z-20 bg-duck-400 rounded-full shadow-[0_0_8px_rgba(240,192,74,0.9)] pointer-events-none ${
+              className={`absolute right-0 h-0.5 z-20 bg-brand-400 rounded-full shadow-[0_0_8px_rgba(240,192,74,0.9)] pointer-events-none ${
                 dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
               }`}
             />
@@ -2237,8 +2238,8 @@ export default function Sidebar({
               <span
                 className={`flex items-center justify-center w-4 h-4 rounded transition-all ${
                   isSelected
-                    ? "border border-duck-400 bg-duck-500 text-ink-950 shadow-xs"
-                    : "border border-ink-600 hover:border-duck-400/70 bg-ink-850"
+                    ? "border border-brand-400 bg-brand-500 text-ink-950 shadow-xs"
+                    : "border border-ink-600 hover:border-brand-400/70 bg-ink-850"
                 }`}
               >
                 {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -2258,7 +2259,7 @@ export default function Sidebar({
                 setDragOverInfo(null);
               }}
               title="Drag to reorder note"
-              className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-duck-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="flex items-center justify-center p-1 text-ink-600 group-hover:text-ink-400 hover:!text-brand-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <GripVertical className="w-3.5 h-3.5" />
             </div>
@@ -2275,7 +2276,7 @@ export default function Sidebar({
                 e.stopPropagation();
                 toggleExpanded(n.id);
               }}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-500 hover:bg-ink-800 hover:text-duck-300 transition-colors cursor-pointer"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-500 hover:bg-ink-800 hover:text-brand-300 transition-colors cursor-pointer"
               title={isExpanded ? "Collapse sub-pages" : `Show ${children.length} sub-page${children.length === 1 ? "" : "s"}`}
             >
               <ChevronRight
@@ -2298,7 +2299,7 @@ export default function Sidebar({
             }}
             className={`flex flex-1 items-center gap-2 rounded-lg pl-1 pr-2 py-2 text-left text-sm min-w-0 transition-colors cursor-pointer ${
               isMultiSelecting && isSelected
-                ? "text-duck-200 font-semibold"
+                ? "text-brand-200 font-semibold"
                 : isActive && !isMultiSelecting
                 ? "bg-ink-800 text-ink-100 font-semibold shadow-xs"
                 : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/40 font-medium"
@@ -2359,9 +2360,9 @@ export default function Sidebar({
         {/* Brand Header with Support, Feedback & Settings */}
         <div className="flex h-13 shrink-0 items-center justify-between border-b border-ink-800/80 px-4 py-2.5">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xl leading-none shrink-0">🦆</span>
+            <LearnoryMark className="h-6 w-6 shrink-0" />
             <span className="text-sm font-bold tracking-tight text-ink-100 shrink-0">
-              SocraticOS
+              Learnory
             </span>
           </div>
 
@@ -2381,7 +2382,7 @@ export default function Sidebar({
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
               title="Feedback/Request"
-              className="rounded-lg p-1.5 text-duck-400/90 transition-colors hover:bg-ink-850 hover:text-duck-300"
+              className="rounded-lg p-1.5 text-brand-400/90 transition-colors hover:bg-ink-850 hover:text-brand-300"
             >
               <MessageSquare className="w-4 h-4" />
             </button>
@@ -2422,7 +2423,7 @@ export default function Sidebar({
               title="3D Simulations & Visualizations"
               className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-all active:scale-95 group/tool ${
                 activeTab === "3d"
-                  ? "bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold"
+                  ? "bg-ink-800 text-brand-300 shadow-sm ring-1 ring-brand-400/40 font-semibold"
                   : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
               }`}
             >
@@ -2437,7 +2438,7 @@ export default function Sidebar({
               title="Calendar & Timers"
               className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-all active:scale-95 group/tool ${
                 activeTab === "calendar"
-                  ? "bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold"
+                  ? "bg-ink-800 text-brand-300 shadow-sm ring-1 ring-brand-400/40 font-semibold"
                   : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
               }`}
             >
@@ -2452,7 +2453,7 @@ export default function Sidebar({
               title="Web Saver (Bookmarks)"
               className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-all active:scale-95 group/tool ${
                 activeTab === "websaver"
-                  ? "bg-ink-800 text-duck-300 shadow-sm ring-1 ring-duck-400/40 font-semibold"
+                  ? "bg-ink-800 text-brand-300 shadow-sm ring-1 ring-brand-400/40 font-semibold"
                   : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
               }`}
             >
@@ -2484,8 +2485,8 @@ export default function Sidebar({
                     key={space.name}
                     className={`group/space relative flex items-center justify-between rounded-xl border px-2.5 py-2 text-xs transition-all ${
                       isActive
-                        ? "border-duck-500/60 bg-duck-500/15 text-duck-300 font-semibold shadow-sm ring-1 ring-duck-500/30"
-                        : "border-ink-750 bg-ink-850/80 text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-ink-100"
+                        ? "border-brand-500/60 bg-brand-500/15 text-brand-300 font-semibold shadow-sm ring-1 ring-brand-500/30"
+                        : "border-ink-750 bg-ink-850/80 text-ink-300 hover:border-brand-500/40 hover:bg-ink-800 hover:text-ink-100"
                     }`}
                   >
                     <button
@@ -2505,7 +2506,7 @@ export default function Sidebar({
                           e.stopPropagation();
                           setEditingSpace(space);
                         }}
-                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-ink-700/60 text-ink-400 hover:text-duck-300 transition-all cursor-pointer"
+                        className="opacity-0 group-hover/space:opacity-100 p-0.5 rounded hover:bg-ink-700/60 text-ink-400 hover:text-brand-300 transition-all cursor-pointer"
                         title="Edit space (name & emoji)"
                       >
                         <Pencil className="w-3 h-3" />
@@ -2532,7 +2533,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}
-                className="flex items-center justify-center gap-1 rounded-xl border border-dashed border-ink-700/80 bg-ink-850/40 px-2.5 py-2 text-xs text-ink-400 hover:border-duck-500/50 hover:bg-duck-500/10 hover:text-duck-300 transition-all font-medium cursor-pointer"
+                className="flex items-center justify-center gap-1 rounded-xl border border-dashed border-ink-700/80 bg-ink-850/40 px-2.5 py-2 text-xs text-ink-400 hover:border-brand-500/50 hover:bg-brand-500/10 hover:text-brand-300 transition-all font-medium cursor-pointer"
                 title="Create New Space"
               >
                 <span className="text-sm leading-none">＋</span>
@@ -2546,7 +2547,7 @@ export default function Sidebar({
                 type="button"
                 onClick={() => setSpacesDropdownOpen((prev) => !prev)}
                 title="Switch Space"
-                className="flex w-full items-center justify-between rounded-xl border border-ink-700/80 bg-ink-850/90 px-3 py-2 text-xs font-medium text-ink-200 transition-colors hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100 active:scale-98 shadow-sm"
+                className="flex w-full items-center justify-between rounded-xl border border-ink-700/80 bg-ink-850/90 px-3 py-2 text-xs font-medium text-ink-200 transition-colors hover:border-brand-500/50 hover:bg-ink-800 hover:text-ink-100 active:scale-98 shadow-sm"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-sm leading-none shrink-0">{currentSpaceObj?.icon || "📂"}</span>
@@ -2569,7 +2570,7 @@ export default function Sidebar({
                           key={space.name} 
                           className={`group/space flex w-full items-center justify-between rounded-lg transition-colors ${
                             isActive
-                              ? "bg-ink-800 text-duck-300 font-semibold"
+                              ? "bg-ink-800 text-brand-300 font-semibold"
                               : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
                           }`}
                         >
@@ -2586,7 +2587,7 @@ export default function Sidebar({
                               <span className="truncate">{space.name}</span>
                             </div>
                             {isActive && (
-                              <span className="h-1.5 w-1.5 rounded-full bg-duck-400 shrink-0 mx-2" />
+                              <span className="h-1.5 w-1.5 rounded-full bg-brand-400 shrink-0 mx-2" />
                             )}
                           </button>
                           
@@ -2598,7 +2599,7 @@ export default function Sidebar({
                                 setSpacesDropdownOpen(false);
                                 setEditingSpace(space);
                               }}
-                              className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-ink-700/60 text-ink-400 hover:text-duck-300 transition-all cursor-pointer"
+                              className="opacity-0 group-hover/space:opacity-100 p-1 rounded hover:bg-ink-700/60 text-ink-400 hover:text-brand-300 transition-all cursor-pointer"
                               title="Edit space (name & emoji)"
                             >
                               <Pencil className="w-3 h-3" />
@@ -2628,7 +2629,7 @@ export default function Sidebar({
                       setSpacesDropdownOpen(false);
                       setModalOpen(true);
                     }}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-duck-400 transition-colors hover:bg-ink-850 hover:text-duck-300 font-medium"
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-brand-400 transition-colors hover:bg-ink-850 hover:text-brand-300 font-medium"
                   >
                     <span className="text-sm leading-none">＋</span>
                     <span>Create New Space</span>
@@ -2644,8 +2645,8 @@ export default function Sidebar({
             onClick={() => onNavigateTab?.("spacehub")}
             className={`mt-2 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition-all group shadow-sm ${
               activeTab === "spacehub"
-                ? "border-duck-500/60 bg-duck-500/15 text-duck-300 shadow-duck-500/5 ring-1 ring-duck-500/30"
-                : "border-ink-750 bg-ink-850/80 text-ink-200 hover:border-duck-500/40 hover:bg-ink-800 hover:text-ink-100"
+                ? "border-brand-500/60 bg-brand-500/15 text-brand-300 shadow-brand-500/5 ring-1 ring-brand-500/30"
+                : "border-ink-750 bg-ink-850/80 text-ink-200 hover:border-brand-500/40 hover:bg-ink-800 hover:text-ink-100"
             }`}
             title={`Open ${activeSpace} Space Hub: Syllabus documents & subject settings`}
           >
@@ -2654,7 +2655,7 @@ export default function Sidebar({
               <div className="text-left truncate">
                 <div className="text-[11px] font-bold leading-tight truncate flex items-center gap-1.5">
                   <span>Space Hub</span>
-                  <span className="rounded bg-duck-500/20 px-1 py-0.2 text-[9px] font-bold text-duck-300">
+                  <span className="rounded bg-brand-500/20 px-1 py-0.2 text-[9px] font-bold text-brand-300">
                     Syllabus
                   </span>
                 </div>
@@ -2663,7 +2664,7 @@ export default function Sidebar({
                 </div>
               </div>
             </div>
-            <span className="text-xs text-ink-400 group-hover:text-duck-300 transition-colors shrink-0">→</span>
+            <span className="text-xs text-ink-400 group-hover:text-brand-300 transition-colors shrink-0">→</span>
           </button>
         </div>
 
@@ -2686,7 +2687,7 @@ export default function Sidebar({
                 }}
                 className={`text-[11px] px-2 py-0.5 rounded transition-all font-medium flex items-center gap-1 cursor-pointer ${
                   isMultiSelecting
-                    ? "bg-duck-500/20 text-duck-300 ring-1 ring-duck-400/40 font-semibold"
+                    ? "bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/40 font-semibold"
                     : "text-ink-400 hover:text-ink-200 hover:bg-ink-800"
                 }`}
                 title={isMultiSelecting ? "Exit multi-select mode" : "Select multiple notes"}
@@ -2702,12 +2703,12 @@ export default function Sidebar({
             <div className="mb-2.5 p-2 rounded-xl bg-ink-850/90 border border-ink-750 shadow-sm space-y-2">
               <div className="flex items-center justify-between text-xs px-1 font-medium">
                 <span className="text-ink-200">
-                  <strong className="text-duck-300 font-bold">{selectedNoteIds.size}</strong> of {currentNotes.length} selected
+                  <strong className="text-brand-300 font-bold">{selectedNoteIds.size}</strong> of {currentNotes.length} selected
                 </span>
                 <button
                   type="button"
                   onClick={handleSelectAllToggle}
-                  className="text-[11px] text-duck-400 hover:text-duck-300 hover:underline cursor-pointer font-medium"
+                  className="text-[11px] text-brand-400 hover:text-brand-300 hover:underline cursor-pointer font-medium"
                 >
                   {selectedNoteIds.size === currentNotes.length ? "Deselect All" : "Select All"}
                 </button>
@@ -2757,10 +2758,10 @@ export default function Sidebar({
                   type="button"
                   disabled={selectedNoteIds.size === 0}
                   onClick={() => setBatchMoveOpen(true)}
-                  className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-ink-300 hover:text-duck-300 hover:bg-ink-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                  className="flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-ink-300 hover:text-brand-300 hover:bg-ink-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
                   title="Move selected notes to another space"
                 >
-                  <FolderInput className="w-3.5 h-3.5 text-duck-400" />
+                  <FolderInput className="w-3.5 h-3.5 text-brand-400" />
                   <span className="text-[10px] font-medium leading-none">Move</span>
                 </button>
 
@@ -2819,7 +2820,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onCreateNote}
-            className="mt-2 w-full rounded-lg border border-dashed border-ink-700/80 px-3 py-2 text-left text-sm font-medium text-ink-400 transition-colors hover:border-duck-500/50 hover:bg-ink-850/50 hover:text-duck-300"
+            className="mt-2 w-full rounded-lg border border-dashed border-ink-700/80 px-3 py-2 text-left text-sm font-medium text-ink-400 transition-colors hover:border-brand-500/50 hover:bg-ink-850/50 hover:text-brand-300"
           >
             + New note
           </button>

@@ -28,10 +28,11 @@ import {
   Table as TableIcon,
 } from "lucide-react";
 import { ALL_BLOCKS as RAW_BLOCKS } from "@/lib/tutorialData.js";
+import { MalloIcon } from "@/components/brand/Brand";
 
 /**
- * 🎓 SocraticOS Interactive Onboarding & Feature Mastery Guide
- * Exhaustive, fully interactive walkthrough covering all core pillars and 100+ features of SocraticOS.
+ * 🎓 Learnory Interactive Onboarding & Feature Mastery Guide
+ * Exhaustive, fully interactive walkthrough covering all core pillars and 100+ features of Learnory.
  */
 export default function InteractiveTutorial({
   isOpen,
@@ -101,13 +102,13 @@ export default function InteractiveTutorial({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="SocraticOS Interactive Onboarding Guide"
+        aria-label="Learnory Interactive Onboarding Guide"
         className="relative z-[310] flex flex-col w-full max-w-4xl max-h-[92vh] rounded-2xl border border-ink-700/80 bg-ink-900 shadow-2xl shadow-ink-950/90 overflow-hidden"
       >
         {/* Progress Bar */}
         <div className="w-full bg-ink-800 h-1.5 shrink-0 overflow-hidden">
           <div
-            className="bg-gradient-to-r from-duck-500 to-duck-300 h-full transition-all duration-300 ease-out"
+            className="bg-gradient-to-r from-brand-500 to-brand-300 h-full transition-all duration-300 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -115,12 +116,12 @@ export default function InteractiveTutorial({
         {/* Top Header */}
         <header className="flex items-center justify-between border-b border-ink-800 bg-ink-950/70 px-6 py-3.5 shrink-0">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-duck-500/20 text-duck-300 text-xl border border-duck-500/30 shrink-0">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300 text-xl border border-brand-500/30 shrink-0">
               {step.badgeEmoji}
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-duck-400">
+                <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-brand-400">
                   Step {currentStep + 1} of {TUTORIAL_STEPS.length} · {step.category}
                 </span>
               </div>
@@ -178,7 +179,7 @@ export default function InteractiveTutorial({
                   else localStorage.removeItem("socratic_tutorial_completed");
                 }
               }}
-              className="h-3.5 w-3.5 rounded border-ink-700 bg-ink-800 text-duck-400 focus:ring-duck-400/50"
+              className="h-3.5 w-3.5 rounded border-ink-700 bg-ink-800 text-brand-400 focus:ring-brand-400/50"
             />
             <span>Don&apos;t show automatically on startup</span>
           </label>
@@ -192,7 +193,7 @@ export default function InteractiveTutorial({
                 onClick={() => setCurrentStep(idx)}
                 className={`h-2 rounded-full transition-all ${
                   idx === currentStep
-                    ? "w-6 bg-duck-400"
+                    ? "w-6 bg-brand-400"
                     : "w-2 bg-ink-700 hover:bg-ink-500"
                 }`}
                 title={`Jump to Step ${idx + 1}: ${s.shortTitle}`}
@@ -217,7 +218,7 @@ export default function InteractiveTutorial({
               <button
                 type="button"
                 onClick={() => setCurrentStep((prev) => Math.min(TUTORIAL_STEPS.length - 1, prev + 1))}
-                className="flex items-center gap-1.5 rounded-xl bg-duck-400 px-5 py-2 text-xs font-extrabold text-ink-950 hover:bg-duck-300 transition-all shadow-md cursor-pointer"
+                className="flex items-center gap-1.5 rounded-xl bg-brand-400 px-5 py-2 text-xs font-extrabold text-ink-950 hover:bg-brand-300 transition-all shadow-md cursor-pointer"
               >
                 <span>Next Step</span>
                 <ChevronRight size={16} />
@@ -226,7 +227,7 @@ export default function InteractiveTutorial({
               <button
                 type="button"
                 onClick={() => handleClose(true)}
-                className="flex items-center gap-2 rounded-xl bg-duck-400 px-6 py-2 text-xs font-extrabold text-ink-950 hover:bg-duck-300 transition-all shadow-lg shadow-duck-500/20 cursor-pointer"
+                className="flex items-center gap-2 rounded-xl bg-brand-400 px-6 py-2 text-xs font-extrabold text-ink-950 hover:bg-brand-300 transition-all shadow-lg shadow-brand-500/20 cursor-pointer"
               >
                 <span>Start Studying! 🚀</span>
               </button>
@@ -274,10 +275,10 @@ export const TUTORIAL_STEPS = [
     id: "philosophy",
     category: "Philosophy & Architecture",
     shortTitle: "Philosophy",
-    badgeEmoji: "🦆",
-    title: "Welcome to SocraticOS — The Active Learning OS",
+    badgeEmoji: "👋",
+    title: "Welcome to Learnory — where learning lives",
     description:
-      "SocraticOS is built on one core cognitive science principle: rereading is an illusion of competence. True learning happens when you are actively quizzed, interrogated on mechanisms, and forced to retrieve knowledge.",
+      "Learnory is built on one core cognitive science principle: rereading is an illusion of competence. True learning happens when you are actively quizzed, interrogated on mechanisms, and forced to retrieve knowledge.",
     Content: () => {
       const [activePillar, setActivePillar] = useState("retrieval");
       return (
@@ -289,7 +290,7 @@ export const TUTORIAL_STEPS = [
                 title: "Active Retrieval",
                 icon: "🧠",
                 short: "Rereading is passive; Socratic testing builds long-term recall.",
-                details: "Every note connects directly to diagnostic AI quizzes, the Socratic AI Tutor, and real-time confidence heatmaps (Solid ●, Shaky ◐, Gap ○).",
+                details: "Every note connects directly to diagnostic AI quizzes, the AI Tutor, and real-time confidence heatmaps (Solid ●, Shaky ◐, Gap ○).",
               },
               {
                 id: "local",
@@ -312,7 +313,7 @@ export const TUTORIAL_STEPS = [
                 onClick={() => setActivePillar(pillar.id)}
                 className={`text-left p-4 rounded-xl border transition-all cursor-pointer ${
                   activePillar === pillar.id
-                    ? "border-duck-500/60 bg-duck-500/15 shadow-md ring-1 ring-duck-400/40"
+                    ? "border-brand-500/60 bg-brand-500/15 shadow-md ring-1 ring-brand-400/40"
                     : "border-ink-800 bg-ink-850/70 hover:border-ink-700 hover:bg-ink-850"
                 }`}
               >
@@ -325,13 +326,13 @@ export const TUTORIAL_STEPS = [
             ))}
           </div>
 
-          <div className="p-4 rounded-xl border border-duck-500/30 bg-duck-500/10 text-xs text-ink-200 flex items-start gap-3">
+          <div className="p-4 rounded-xl border border-brand-500/30 bg-brand-500/10 text-xs text-ink-200 flex items-start gap-3">
             <span className="text-base shrink-0">💡</span>
             <div>
-              <span className="font-bold text-duck-300">Why this matters: </span>
+              <span className="font-bold text-brand-300">Why this matters: </span>
               <span>
                 {activePillar === "retrieval" && "Active recall creates strong synaptic pathways. Whenever you write a note, take an immediate AI quiz on your weakest points!"}
-                {activePillar === "local" && "Everything is stored in your device's IndexedDB. You can export complete .socratic backups anytime from Settings."}
+                {activePillar === "local" && "Everything is stored in your device's IndexedDB. You can export complete .learnory backups anytime from Settings."}
                 {activePillar === "spaces" && "Each space has its own syllabus documents and mastery heatmap, preventing chemistry formulas from mixing with history notes."}
               </span>
             </div>
@@ -364,7 +365,7 @@ export const TUTORIAL_STEPS = [
           {/* Interactive Font Switcher */}
           <div className="flex items-center justify-between p-3 rounded-xl border border-ink-800 bg-ink-850/80">
             <div className="flex items-center gap-2 text-xs font-semibold text-ink-300">
-              <Palette size={14} className="text-duck-400" />
+              <Palette size={14} className="text-brand-400" />
               <span>Preview 3 Note Typography Fonts:</span>
             </div>
             <div className="flex gap-1">
@@ -379,7 +380,7 @@ export const TUTORIAL_STEPS = [
                   onClick={() => setPreviewFont(f.id)}
                   className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
                     previewFont === f.id
-                      ? "border-duck-400 bg-duck-400 text-ink-950 shadow-sm"
+                      ? "border-brand-400 bg-brand-400 text-ink-950 shadow-sm"
                       : "border-ink-700 bg-ink-900 text-ink-300 hover:text-ink-100"
                   }`}
                 >
@@ -390,10 +391,10 @@ export const TUTORIAL_STEPS = [
           </div>
 
           {/* Interactive Font Preview Sample */}
-          <div className={`p-3 rounded-xl border border-duck-500/30 bg-duck-500/5 text-xs text-ink-100 ${
+          <div className={`p-3 rounded-xl border border-brand-500/30 bg-brand-500/5 text-xs text-ink-100 ${
             previewFont === "serif" ? "font-serif" : previewFont === "mono" ? "font-mono" : "font-sans"
           }`}>
-            ✨ <strong>Live Font Preview:</strong> &ldquo;The unexamined life is not worth living.&rdquo; — Formula: <span className="text-duck-300 font-mono font-bold">{"$F = G \\frac{m_1 m_2}{r^2}$"}</span>
+            ✨ <strong>Live Font Preview:</strong> &ldquo;The unexamined life is not worth living.&rdquo; — Formula: <span className="text-brand-300 font-mono font-bold">{"$F = G \\frac{m_1 m_2}{r^2}$"}</span>
           </div>
 
           {/* Block Category Filter Tabs */}
@@ -405,7 +406,7 @@ export const TUTORIAL_STEPS = [
                 onClick={() => setActiveCategory(cat)}
                 className={`px-3 py-1 rounded-lg border font-semibold transition-all shrink-0 cursor-pointer ${
                   activeCategory === cat
-                    ? "border-duck-400/50 bg-duck-400/20 text-duck-300"
+                    ? "border-brand-400/50 bg-brand-400/20 text-brand-300"
                     : "border-ink-800 bg-ink-900 text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -421,14 +422,14 @@ export const TUTORIAL_STEPS = [
               return (
                 <div
                   key={b.type}
-                  className="p-2.5 rounded-xl border border-ink-800 bg-ink-850/80 hover:border-duck-500/40 transition-colors"
+                  className="p-2.5 rounded-xl border border-ink-800 bg-ink-850/80 hover:border-brand-500/40 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Icon size={14} className="text-duck-400" />
+                      <Icon size={14} className="text-brand-400" />
                       <span className="text-xs font-bold text-ink-100">{b.name}</span>
                     </div>
-                    <span className="text-[10px] font-mono text-duck-300 bg-ink-950 px-1.5 py-0.5 rounded border border-ink-800">
+                    <span className="text-[10px] font-mono text-brand-300 bg-ink-950 px-1.5 py-0.5 rounded border border-ink-800">
                       {b.syntax}
                     </span>
                   </div>
@@ -446,7 +447,7 @@ export const TUTORIAL_STEPS = [
               onClick={() => {
                 if (onNavigateTab) onNavigateTab("notes");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400/20 border border-duck-400/40 px-3 py-1.5 text-xs font-bold text-duck-300 hover:bg-duck-400/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400/20 border border-brand-400/40 px-3 py-1.5 text-xs font-bold text-brand-300 hover:bg-brand-400/30 transition-all cursor-pointer"
             >
               <span>Open Note Editor</span>
               <ArrowRight size={14} />
@@ -476,7 +477,7 @@ export const TUTORIAL_STEPS = [
           {/* Sub-Tabs Switcher */}
           <div className="flex rounded-xl border border-ink-800 bg-ink-950 p-1">
             {[
-              { id: "quiz", label: "🦆 Interactive Mini-Quiz", desc: "Try answering live!" },
+              { id: "quiz", label: <span className="inline-flex items-center gap-1.5"><MalloIcon className="h-4 w-4" /> Mallo&rsquo;s Mini-Quiz</span>, desc: "Try answering live!" },
               { id: "explain", label: "✨ Structured Explain Panel", desc: "Mechanism & Analogies" },
             ].map((t) => (
               <button
@@ -485,7 +486,7 @@ export const TUTORIAL_STEPS = [
                 onClick={() => setAiTab(t.id)}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer text-center ${
                   aiTab === t.id
-                    ? "bg-duck-500/20 text-duck-300 border border-duck-400/40 shadow-sm"
+                    ? "bg-brand-500/20 text-brand-300 border border-brand-400/40 shadow-sm"
                     : "text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -496,9 +497,9 @@ export const TUTORIAL_STEPS = [
 
           {/* Interactive Mini-Quiz Sandbox */}
           {aiTab === "quiz" && (
-            <div className="p-4 rounded-xl border border-duck-500/40 bg-ink-850 space-y-3 animate-fade-in">
+            <div className="p-4 rounded-xl border border-brand-500/40 bg-ink-850 space-y-3 animate-fade-in">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold uppercase text-duck-400 tracking-wider">
+                <span className="text-[10px] font-mono font-bold uppercase text-brand-400 tracking-wider">
                   Live Interactive Question · Physics Optics
                 </span>
                 <span className="text-xs text-ink-400">Score: {quizSubmitted ? (quizSelected === 1 ? "100%" : "0%") : "—"}</span>
@@ -514,13 +515,13 @@ export const TUTORIAL_STEPS = [
                   { id: 2, text: "The ray passes straight through without any deviation." },
                   { id: 3, text: "Total internal reflection occurs regardless of angle." },
                 ].map((opt) => {
-                  let optStyle = "border-ink-700 bg-ink-900 text-ink-200 hover:border-duck-500/50";
+                  let optStyle = "border-ink-700 bg-ink-900 text-ink-200 hover:border-brand-500/50";
                   if (quizSubmitted) {
                     if (opt.id === 1) optStyle = "border-emerald-500 bg-emerald-500/20 text-emerald-200 font-bold";
                     else if (quizSelected === opt.id) optStyle = "border-rose-500 bg-rose-500/20 text-rose-200";
                     else optStyle = "border-ink-800 bg-ink-950/60 text-ink-500 opacity-60";
                   } else if (quizSelected === opt.id) {
-                    optStyle = "border-duck-400 bg-duck-400/20 text-duck-200 ring-1 ring-duck-400";
+                    optStyle = "border-brand-400 bg-brand-400/20 text-brand-200 ring-1 ring-brand-400";
                   }
 
                   return (
@@ -560,7 +561,7 @@ export const TUTORIAL_STEPS = [
                     type="button"
                     disabled={quizSelected === null}
                     onClick={() => setQuizSubmitted(true)}
-                    className="px-4 py-1.5 rounded-lg bg-duck-400 text-ink-950 text-xs font-bold hover:bg-duck-300 disabled:opacity-40 cursor-pointer"
+                    className="px-4 py-1.5 rounded-lg bg-brand-400 text-ink-950 text-xs font-bold hover:bg-brand-300 disabled:opacity-40 cursor-pointer"
                   >
                     Check Answer
                   </button>
@@ -584,25 +585,25 @@ export const TUTORIAL_STEPS = [
           {/* Structured Explain Simulation */}
           {aiTab === "explain" && (
             <div className="p-4 rounded-xl border border-ink-800 bg-ink-850 space-y-2.5 animate-fade-in text-xs">
-              <div className="flex items-center gap-2 font-bold text-duck-300">
+              <div className="flex items-center gap-2 font-bold text-brand-300">
                 <span>✨</span>
                 <span>4-Part Concept Breakdown:</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="p-2.5 rounded-lg border border-ink-700 bg-ink-900">
-                  <div className="font-bold text-duck-300">1. TL;DR Abstract</div>
+                  <div className="font-bold text-brand-300">1. TL;DR Abstract</div>
                   <p className="text-[11px] text-ink-400 mt-1">High-level executive summary in plain English.</p>
                 </div>
                 <div className="p-2.5 rounded-lg border border-ink-700 bg-ink-900">
-                  <div className="font-bold text-duck-300">2. Step-by-Step Mechanism</div>
+                  <div className="font-bold text-brand-300">2. Step-by-Step Mechanism</div>
                   <p className="text-[11px] text-ink-400 mt-1">Causal step 1 → step 2 physical breakdown.</p>
                 </div>
                 <div className="p-2.5 rounded-lg border border-ink-700 bg-ink-900">
-                  <div className="font-bold text-duck-300">3. Real-World Analogy</div>
+                  <div className="font-bold text-brand-300">3. Real-World Analogy</div>
                   <p className="text-[11px] text-ink-400 mt-1">Intuitive everyday metaphor to cement intuition.</p>
                 </div>
                 <div className="p-2.5 rounded-lg border border-ink-700 bg-ink-900">
-                  <div className="font-bold text-duck-300">4. Common Misconceptions</div>
+                  <div className="font-bold text-brand-300">4. Common Misconceptions</div>
                   <p className="text-[11px] text-ink-400 mt-1">Classic exam pitfalls and distractor traps.</p>
                 </div>
               </div>
@@ -663,7 +664,7 @@ export const TUTORIAL_STEPS = [
                 onClick={() => setActiveQType(q.id)}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
                   activeQType === q.id
-                    ? "border-duck-400 bg-duck-400/20 text-duck-300"
+                    ? "border-brand-400 bg-brand-400/20 text-brand-300"
                     : "border-ink-800 bg-ink-900 text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -675,7 +676,7 @@ export const TUTORIAL_STEPS = [
           {/* Interactive Step Ordering Puzzle */}
           <div className="p-4 rounded-xl border border-ink-800 bg-ink-850 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-duck-300 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-brand-300 flex items-center gap-1.5">
                 <Sliders size={14} />
                 <span>Interactive Question Type Demo: Step Ordering</span>
               </span>
@@ -689,7 +690,7 @@ export const TUTORIAL_STEPS = [
                   className="flex items-center justify-between p-2.5 rounded-lg border border-ink-700 bg-ink-900 text-xs text-ink-200"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-duck-500/20 text-duck-300 font-mono text-[11px] font-bold">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-500/20 text-brand-300 font-mono text-[11px] font-bold">
                       {idx + 1}
                     </span>
                     <span>{s.text}</span>
@@ -729,7 +730,7 @@ export const TUTORIAL_STEPS = [
               <button
                 type="button"
                 onClick={() => setOrderChecked(true)}
-                className="px-4 py-1.5 rounded-lg bg-duck-400 text-ink-950 text-xs font-bold hover:bg-duck-300 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-brand-400 text-ink-950 text-xs font-bold hover:bg-brand-300 cursor-pointer"
               >
                 Validate Order
               </button>
@@ -744,7 +745,7 @@ export const TUTORIAL_STEPS = [
               onClick={() => {
                 if (onNavigateTab) onNavigateTab("quizzes");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400/20 border border-duck-400/40 px-3 py-1.5 text-xs font-bold text-duck-300 hover:bg-duck-400/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400/20 border border-brand-400/40 px-3 py-1.5 text-xs font-bold text-brand-300 hover:bg-brand-400/30 transition-all cursor-pointer"
             >
               <span>Open 🎯 Quizzes Studio</span>
               <ArrowRight size={14} />
@@ -805,7 +806,7 @@ export const TUTORIAL_STEPS = [
                   onClick={() => setSelectedStandard(std)}
                   className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     selectedStandard === std
-                      ? "border-duck-400 bg-duck-400 text-ink-950 shadow-sm"
+                      ? "border-brand-400 bg-brand-400 text-ink-950 shadow-sm"
                       : "border-ink-700 bg-ink-850 text-ink-300 hover:text-ink-100"
                   }`}
                 >
@@ -818,7 +819,7 @@ export const TUTORIAL_STEPS = [
           {/* Dynamic Preset Preview */}
           <div className="p-4 rounded-xl border border-ink-800 bg-ink-850 space-y-2.5 text-xs">
             <div className="flex items-center justify-between border-b border-ink-800 pb-2">
-              <span className="font-bold text-duck-300">{cur.level}</span>
+              <span className="font-bold text-brand-300">{cur.level}</span>
               <span className="font-mono text-[10px] text-ink-400">Strictness: {cur.strictness}</span>
             </div>
             <div>
@@ -834,7 +835,7 @@ export const TUTORIAL_STEPS = [
               onClick={() => {
                 if (onNavigateTab) onNavigateTab("spacehub");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400/20 border border-duck-400/40 px-3 py-1.5 text-xs font-bold text-duck-300 hover:bg-duck-400/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400/20 border border-brand-400/40 px-3 py-1.5 text-xs font-bold text-brand-300 hover:bg-brand-400/30 transition-all cursor-pointer"
             >
               <span>Open ⚙️ Space Hub</span>
               <ArrowRight size={14} />
@@ -893,7 +894,7 @@ export const TUTORIAL_STEPS = [
                 onClick={() => setDomain(d.id)}
                 className={`px-3 py-1 rounded-lg border font-semibold transition-all shrink-0 cursor-pointer ${
                   domain === d.id
-                    ? "border-duck-400 bg-duck-400/20 text-duck-300"
+                    ? "border-brand-400 bg-brand-400/20 text-brand-300"
                     : "border-ink-800 bg-ink-900 text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -907,7 +908,7 @@ export const TUTORIAL_STEPS = [
             {visibleSims.map((sim) => (
               <div
                 key={sim.id}
-                className="p-2.5 rounded-xl border border-ink-800 bg-ink-850 hover:border-duck-500/40 transition-colors"
+                className="p-2.5 rounded-xl border border-ink-800 bg-ink-850 hover:border-brand-500/40 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-base">{sim.emoji}</span>
@@ -925,7 +926,7 @@ export const TUTORIAL_STEPS = [
               onClick={() => {
                 if (onNavigateTab) onNavigateTab("3d");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400/20 border border-duck-400/40 px-3 py-1.5 text-xs font-bold text-duck-300 hover:bg-duck-400/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400/20 border border-brand-400/40 px-3 py-1.5 text-xs font-bold text-brand-300 hover:bg-brand-400/30 transition-all cursor-pointer"
             >
               <span>Launch 🌌 3D Studio</span>
               <ArrowRight size={14} />
@@ -944,7 +945,7 @@ export const TUTORIAL_STEPS = [
     badgeEmoji: "📅",
     title: "Multi-Timer HUD, Pomodoro Rhythm & Study Calendar",
     description:
-      "Keep study momentum going with zero idle CPU timers. Run Pomodoro focus blocks (25m), short breaks (5m), or custom countdowns with animated browser tab pulse notifications (🦆 ↔ ❗️).",
+      "Keep study momentum going with zero idle CPU timers. Run Pomodoro focus blocks (25m), short breaks (5m), or custom countdowns with animated browser tab notifications (logo ↔ ☕).",
     Content: ({ onNavigateTab }) => {
       const [activePhase, setActivePhase] = useState("focus");
 
@@ -954,9 +955,9 @@ export const TUTORIAL_STEPS = [
           icon: "🎯",
           duration: "25:00",
           progress: 85,
-          color: "text-duck-400 border-duck-400",
+          color: "text-brand-400 border-brand-400",
           desc: "Single-task focus block on your hardest concepts or quiz reviews.",
-          tabPreview: "🦆 SocraticOS · Studying",
+          tabPreview: "(25:00 ⏱️ Focus) Learnory",
         },
         shortBreak: {
           title: "5m Active Short Break",
@@ -965,7 +966,7 @@ export const TUTORIAL_STEPS = [
           progress: 100,
           color: "text-emerald-400 border-emerald-400",
           desc: "Stand up, stretch, hydrate. Let your diffuse memory networks consolidate.",
-          tabPreview: "❗️ Break Time! · SocraticOS",
+          tabPreview: "⏰ Study Break / Timer Complete — Learnory",
         },
         longBreak: {
           title: "15m Recharge Break",
@@ -974,7 +975,7 @@ export const TUTORIAL_STEPS = [
           progress: 100,
           color: "text-sky-400 border-sky-400",
           desc: "Take a walk or grab a snack after 4 completed Pomodoro cycles.",
-          tabPreview: "🌴 Long Break · SocraticOS",
+          tabPreview: "(15:00 ⏱️ Long Break) Learnory",
         },
       };
 
@@ -995,7 +996,7 @@ export const TUTORIAL_STEPS = [
                 onClick={() => setActivePhase(p.id)}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer text-center ${
                   activePhase === p.id
-                    ? "bg-duck-500/20 text-duck-300 border border-duck-400/40 shadow-sm"
+                    ? "bg-brand-500/20 text-brand-300 border border-brand-400/40 shadow-sm"
                     : "text-ink-400 hover:text-ink-200"
                 }`}
               >
@@ -1014,7 +1015,7 @@ export const TUTORIAL_STEPS = [
               <p className="text-xs text-ink-400 max-w-sm leading-relaxed">{current.desc}</p>
               <div className="pt-1 flex items-center justify-center sm:justify-start gap-2 text-[11px] font-mono text-ink-300">
                 <span className="text-ink-500">Browser Tab Notification:</span>
-                <span className="bg-ink-950 px-2 py-0.5 rounded border border-ink-800 text-duck-300">
+                <span className="bg-ink-950 px-2 py-0.5 rounded border border-ink-800 text-brand-300">
                   {current.tabPreview}
                 </span>
               </div>
@@ -1022,7 +1023,7 @@ export const TUTORIAL_STEPS = [
 
             {/* Circular Timer Visual Display */}
             <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-ink-700 bg-ink-900 shrink-0 min-w-[120px]">
-              <span className="text-2xl font-black font-mono text-duck-300">{current.duration}</span>
+              <span className="text-2xl font-black font-mono text-brand-300">{current.duration}</span>
               <span className="text-[10px] font-semibold text-ink-400 uppercase tracking-wider mt-0.5">
                 Multi-Timer HUD
               </span>
@@ -1037,7 +1038,7 @@ export const TUTORIAL_STEPS = [
               onClick={() => {
                 if (onNavigateTab) onNavigateTab("calendar");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400/20 border border-duck-400/40 px-3 py-1.5 text-xs font-bold text-duck-300 hover:bg-duck-400/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400/20 border border-brand-400/40 px-3 py-1.5 text-xs font-bold text-brand-300 hover:bg-brand-400/30 transition-all cursor-pointer"
             >
               <span>Open 📅 Calendar</span>
               <ArrowRight size={14} />
@@ -1086,7 +1087,7 @@ export const TUTORIAL_STEPS = [
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Interactive Mock Folder Tree */}
             <div className="p-3 rounded-xl border border-ink-800 bg-ink-850 space-y-2">
-              <div className="text-xs font-bold text-duck-300 flex items-center gap-1.5">
+              <div className="text-xs font-bold text-brand-300 flex items-center gap-1.5">
                 <Folder size={14} />
                 <span>Folders Tree:</span>
               </div>
@@ -1098,7 +1099,7 @@ export const TUTORIAL_STEPS = [
                     onClick={() => setSelectedFolder(f.id)}
                     className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       selectedFolder === f.id
-                        ? "bg-duck-500/20 text-duck-300 border border-duck-400/30"
+                        ? "bg-brand-500/20 text-brand-300 border border-brand-400/30"
                         : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
                     }`}
                   >
@@ -1116,7 +1117,7 @@ export const TUTORIAL_STEPS = [
 
             {/* Interactive Bookmark Cards */}
             <div className="md:col-span-2 p-3 rounded-xl border border-ink-800 bg-ink-850 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-duck-300">
+              <div className="flex items-center justify-between text-xs font-bold text-brand-300">
                 <div className="flex items-center gap-1.5">
                   <Bookmark size={14} />
                   <span>Bookmarks in &ldquo;{selectedFolder}&rdquo;:</span>
@@ -1134,7 +1135,7 @@ export const TUTORIAL_STEPS = [
                       <div className="text-xs font-bold text-ink-100">{bm.title}</div>
                       <div className="text-[10px] text-ink-400 font-mono mt-0.5">{bm.domain}</div>
                     </div>
-                    <span className="text-[10px] bg-duck-500/10 text-duck-300 border border-duck-500/30 px-2 py-0.5 rounded-full font-semibold">
+                    <span className="text-[10px] bg-brand-500/10 text-brand-300 border border-brand-500/30 px-2 py-0.5 rounded-full font-semibold">
                       {bm.tag}
                     </span>
                   </div>
@@ -1150,7 +1151,7 @@ export const TUTORIAL_STEPS = [
               onClick={() => {
                 if (onNavigateTab) onNavigateTab("websaver");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-duck-400/20 border border-duck-400/40 px-3 py-1.5 text-xs font-bold text-duck-300 hover:bg-duck-400/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-400/20 border border-brand-400/40 px-3 py-1.5 text-xs font-bold text-brand-300 hover:bg-brand-400/30 transition-all cursor-pointer"
             >
               <span>Open 🔖 Web Saver</span>
               <ArrowRight size={14} />
@@ -1201,20 +1202,20 @@ export const TUTORIAL_STEPS = [
                   if (sc.action) sc.action();
                   else copyToClipboard(sc.key);
                 }}
-                className="flex items-center justify-between p-2.5 rounded-xl border border-ink-800 bg-ink-850 hover:border-duck-500/40 transition-all cursor-pointer group"
+                className="flex items-center justify-between p-2.5 rounded-xl border border-ink-800 bg-ink-850 hover:border-brand-500/40 transition-all cursor-pointer group"
                 title={sc.action ? "Click to launch shortcut live!" : "Click to copy shortcut"}
               >
                 <div className="space-y-0.5">
-                  <div className="text-xs font-semibold text-ink-200 group-hover:text-duck-300 transition-colors">
+                  <div className="text-xs font-semibold text-ink-200 group-hover:text-brand-300 transition-colors">
                     {sc.desc}
                   </div>
                   {sc.action && (
-                    <span className="text-[10px] text-duck-400 font-bold flex items-center gap-1">
+                    <span className="text-[10px] text-brand-400 font-bold flex items-center gap-1">
                       <span>⚡ Click to try live</span>
                     </span>
                   )}
                 </div>
-                <kbd className="rounded-md border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-[11px] font-bold text-duck-300 shadow-sm shrink-0">
+                <kbd className="rounded-md border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-[11px] font-bold text-brand-300 shadow-sm shrink-0">
                   {copiedShortcut === sc.key ? "Copied! ✓" : sc.key}
                 </kbd>
               </div>
@@ -1222,11 +1223,11 @@ export const TUTORIAL_STEPS = [
           </div>
 
           {/* Data Safety & 24h Trash Card */}
-          <div className="p-3.5 rounded-xl border border-duck-500/30 bg-duck-500/10 text-xs text-ink-300 leading-relaxed flex items-start gap-3">
+          <div className="p-3.5 rounded-xl border border-brand-500/30 bg-brand-500/10 text-xs text-ink-300 leading-relaxed flex items-start gap-3">
             <span className="text-lg shrink-0">🛡️</span>
             <div>
-              <strong className="text-duck-200">24h Auto-Purge Trash &amp; Workspace Backups: </strong>
-              Deleted notes stay safe in the 24-hour trash drawer with real-time recovery countdowns. You can export complete workspace packages anytime to <code className="text-duck-300 font-mono font-bold">.socratic</code> JSON backup files from the <strong>Export / Import</strong> modal or <strong>Settings</strong>.
+              <strong className="text-brand-200">24h Auto-Purge Trash &amp; Workspace Backups: </strong>
+              Deleted notes stay safe in the 24-hour trash drawer with real-time recovery countdowns. You can export complete workspace packages anytime to <code className="text-brand-300 font-mono font-bold">.learnory</code> JSON backup files from the <strong>Export / Import</strong> modal or <strong>Settings</strong>.
             </div>
           </div>
         </div>

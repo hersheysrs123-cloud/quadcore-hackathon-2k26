@@ -1,6 +1,6 @@
 # Developer gotchas — 3D physics scenes
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Gotchas 15–23: simple machines, buoyancy, refraction, motor effect, ray optics, induction, projectile, incline, Hooke's law.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Gotchas 15–23: simple machines, buoyancy, refraction, motor effect, ray optics, induction, projectile, incline, Hooke's law.
 
 15. **Simple Machines Kinematics, Rotational Inertia, Class Direction Conventions & Block-and-Tackle Rigging (`SimpleMachinesCanvas.jsx`)**:
     - Levers must respect class-specific Newton vector conventions: Class 1 fulcrum sits between load and effort with downward effort press `[0, -1, 0]`, while Class 2 and Class 3 have the fulcrum at $x = 0$ with load and effort lifting upward `[0, 1, 0]`.
