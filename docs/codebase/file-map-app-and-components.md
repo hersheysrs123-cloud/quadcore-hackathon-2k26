@@ -28,7 +28,7 @@ quadcore-hackathon-2k26/
 │   ├── AlarmOverlay.jsx                  # Calming glassmorphic study break modal with gentle chime & snooze controls
 │   ├── BlockNoteEditor.jsx               # 20-block Notion-style editor with slash menu, 6-dots handles, covers & stats
 │   ├── brand/
-│   │   └── Brand.jsx                     # LearnoryMark (gold "L" logo), LearnoryLogo (mark + wordmark) and MalloIcon (the marshmallow quiz character); hook-free SVG, safe in server components
+│   │   └── Brand.jsx                     # LearnoryMark (gold "L" logo), LearnoryLogo (mark + wordmark) MalloIcon (the marshmallow quiz character, six moods with CSS animation) and MalloDefs (its shared gradients, rendered once by app/layout.js); hook-free SVG, safe in server components
 │   ├── CalendarView.jsx                  # Study schedule calendar, month navigation, agenda, Pomodoro integration & alarms
 │   ├── CommandPalette.jsx                # Ctrl+K global fuzzy search modal for notes, bookmarks, views, and settings
 │   ├── ConfidenceHeatmap.jsx             # Per-session sub-topic confidence heatmap (Solid / Shaky / Gap)

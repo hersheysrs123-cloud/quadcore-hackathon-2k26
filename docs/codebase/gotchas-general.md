@@ -72,3 +72,6 @@
     - New backups are `learnory-backup-v2` / `.learnory`. Imports must keep accepting `socratic-backup-*` and `.socratic`: go through `isBackupFormat` and `isBackupFileName` rather than testing a prefix or extension inline. The HTML importer likewise still recognises the old `socratic-table` class next to `learnory-table`.
     - Product name, tagline and favicon come from `lib/brand.js`. Use `BRAND_NAME` / `BRAND_TITLE` for any new page title or `document.title` so a later rename is one edit.
     - `lib/` files are imported directly by `node --test`, so a relative import needs its `.js` extension (`./brand.js`); without it the test runner can't resolve it.
+20. **SVG ids in shared icons (`components/brand/Brand.jsx`)**:
+    - Don't build gradient or clip-path ids with `useId` in an icon used across the app. `useId` derives from the component's position in the tree, and the workspace tree differs between the server render and the first client render, so the ids (and every `url(#…)` using them) mismatched and React logged a hydration error. Mallo's gradients are defined once by `<MalloDefs />` in the root layout under fixed ids instead.
+    - Keep that defs SVG zero-sized, not `display: none`: Chrome doesn't paint gradients defined inside a `display: none` SVG.

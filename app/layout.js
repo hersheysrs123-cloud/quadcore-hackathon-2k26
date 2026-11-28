@@ -1,5 +1,6 @@
 import "./globals.css";
 import { BRAND_TITLE } from "@/lib/brand";
+import { MalloDefs } from "@/components/brand/Brand";
 
 export const metadata = {
   title: {
@@ -40,7 +41,10 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>
-      <body className="min-h-screen bg-ink-950 text-ink-100">{children}</body>
+      <body className="min-h-screen bg-ink-950 text-ink-100">
+        <MalloDefs />
+        {children}
+      </body>
     </html>
   );
 }

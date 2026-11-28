@@ -1589,3 +1589,145 @@ html.light .katex-inline-node:hover {
 .lit-blurable.is-hidden * {
   pointer-events: none;
 }
+
+/* ── Mallo (components/brand/Brand.jsx) ────────────────────────────────
+ * Each mood's motion. Transforms on SVG parts need `transform-box:
+ * fill-box`, or the origin is the whole SVG's corner, not the part.
+ * Delays read --mallo-delay (set per icon) so a row of Mallos doesn't move
+ * in lockstep. Everything stops under prefers-reduced-motion. */
+.mallo .mallo-body,
+.mallo .mallo-eyes,
+.mallo .mallo-swirl,
+.mallo .mallo-dot,
+.mallo .mallo-sparkle,
+.mallo .mallo-z {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.mallo .mallo-body {
+  transform-origin: 50% 100%;
+}
+
+/* happy: a blink every few seconds; a squish when its button is hovered */
+.mallo-happy .mallo-eyes {
+  animation: mallo-blink 4.8s infinite;
+  animation-delay: var(--mallo-delay, 0s);
+}
+:is(button, a, [role="button"]):hover > .mallo-animate .mallo-body,
+:is(button, a, [role="button"]):hover > * > .mallo-animate .mallo-body,
+.mallo-animate:hover .mallo-body {
+  animation: mallo-squish 0.55s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+/* thinking: bobbing, with thought dots pulsing in turn */
+.mallo-thinking .mallo-body {
+  animation: mallo-bob 1.3s ease-in-out infinite;
+}
+.mallo-thinking .mallo-dot {
+  animation: mallo-dot 1.3s ease-in-out infinite;
+}
+.mallo-thinking .mallo-dot-2 { animation-delay: 0.18s; }
+.mallo-thinking .mallo-dot-3 { animation-delay: 0.36s; }
+
+/* proud: hops and lands with a squash, sparkles twinkling */
+.mallo-proud .mallo-body {
+  animation: mallo-hop 1.6s cubic-bezier(0.35, 0, 0.25, 1) infinite;
+}
+.mallo-proud .mallo-sparkle {
+  animation: mallo-twinkle 1.6s ease-in-out infinite;
+}
+.mallo-proud .mallo-sparkle-2 { animation-delay: 0.5s; }
+.mallo-proud .mallo-sparkle-3 { animation-delay: 1s; }
+.mallo-proud .mallo-eyes {
+  animation: mallo-blink 3.6s infinite;
+}
+
+/* encouraging: a determined bounce-and-tilt, like a pep talk */
+.mallo-encouraging .mallo-body {
+  animation: mallo-pep 1.8s ease-in-out infinite;
+}
+.mallo-encouraging .mallo-eyes {
+  animation: mallo-blink 5.2s infinite;
+}
+
+/* sleepy: slow breathing, Zzz drifting up */
+.mallo-sleepy .mallo-body {
+  animation: mallo-breathe 3.2s ease-in-out infinite;
+}
+.mallo-sleepy .mallo-z {
+  animation: mallo-z 3.2s ease-out infinite;
+}
+.mallo-sleepy .mallo-z-2 { animation-delay: 1.6s; }
+
+/* dizzy: a woozy wobble, eyes spinning */
+.mallo-dizzy .mallo-body {
+  animation: mallo-wobble 1.5s ease-in-out infinite;
+}
+.mallo-dizzy .mallo-swirl {
+  animation: mallo-spin 1.1s linear infinite;
+}
+
+@keyframes mallo-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  93% { transform: scaleY(0.1); }
+  96% { transform: scaleY(1); }
+}
+@keyframes mallo-squish {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(1.14, 0.86); }
+  60% { transform: scale(0.94, 1.08); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes mallo-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7%) rotate(-3deg); }
+}
+@keyframes mallo-dot {
+  0%, 100% { opacity: 0.25; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes mallo-hop {
+  0% { transform: translateY(0) scale(1.05, 0.95); }
+  18% { transform: translateY(0) scale(0.97, 1.04); }
+  42% { transform: translateY(-22%) scale(0.98, 1.03); }
+  64% { transform: translateY(0) scale(1.07, 0.93); }
+  78% { transform: translateY(0) scale(0.98, 1.02); }
+  100% { transform: translateY(0) scale(1.05, 0.95); }
+}
+@keyframes mallo-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  45% { opacity: 1; transform: scale(1.15) rotate(45deg); }
+  70% { opacity: 0.8; transform: scale(0.9) rotate(70deg); }
+}
+@keyframes mallo-pep {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  20% { transform: translateY(-12%) rotate(-6deg); }
+  40% { transform: translateY(0) rotate(0deg) scale(1.06, 0.94); }
+  55% { transform: translateY(-6%) rotate(5deg); }
+  75% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes mallo-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.04, 0.95); }
+}
+@keyframes mallo-z {
+  0% { opacity: 0; transform: translate(0, 2px) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(3px, -5px) scale(1.15); }
+}
+@keyframes mallo-wobble {
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  25% { transform: rotate(-9deg) translateX(-4%); }
+  50% { transform: rotate(0deg) translateX(0) scale(1.03, 0.97); }
+  75% { transform: rotate(9deg) translateX(4%); }
+}
+@keyframes mallo-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mallo,
+  .mallo * {
+    animation: none !important;
+  }
+}

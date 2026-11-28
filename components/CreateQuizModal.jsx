@@ -6,6 +6,7 @@ import { X, Sparkles, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { saveQuiz, getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
 import { shouldUseClientAI, quizGenerate } from "@/lib/aiService";
 import { editorBlocksToText, extractHeadingsFromBlocks } from "@/lib/blocks";
+import { MalloIcon } from "@/components/brand/Brand";
 
 const HeadingCheckboxItem = memo(function HeadingCheckboxItem({
   heading,
@@ -990,8 +991,8 @@ export default function CreateQuizModal({
           >
             {generating ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-ink-950 border-t-transparent rounded-full animate-spin" />
-                <span>Generating Quiz ({totalQuestions} Qs)...</span>
+                <MalloIcon mood="thinking" className="h-4 w-4" />
+                <span>Mallo is writing {totalQuestions} questions...</span>
               </>
             ) : (
               <>

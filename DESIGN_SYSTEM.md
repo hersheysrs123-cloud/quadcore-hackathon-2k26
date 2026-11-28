@@ -58,7 +58,19 @@ only the name did, so `bg-brand-400` is exactly the old `bg-duck-400`.
 #### Brand marks (`components/brand/Brand.jsx`)
 
 - **`LearnoryMark`**: the logo, a rounded `brand-400` tile with an `ink-950` "L" and dot. It is drawn in tokens, so it follows the theme (gold on dark, amber with a light "L" in light mode). Used in the nav rail, sidebar header, landing nav and footer. `app/icon.svg` and `LOGO_FAVICON` in `lib/brand.js` are fixed-colour copies for the favicon, which can't read CSS variables.
-- **`MalloIcon`**: Mallo, the marshmallow who quizzes you. It marks every quiz action ("Quiz me", "Test me on this", "Retest", Quiz Drill calendar events) and the 404 and error pages. It uses **fixed colours** (a white-to-cream gradient body with soft side shading, a toasted base, a side gloss, a warm `#c4a57a` outline, eyes with two catch-lights and blurred pink cheeks) so the character looks the same in both themes; the outline keeps it visible on white. Its gradient and clip ids come from `useId`, so every instance is self-contained. Size it with `h-*`/`w-*`; for inline text use `h-[1.1em] w-[1.1em] align-[-0.2em]`.
+- **`MalloIcon`**: Mallo, the marshmallow who quizzes you. It marks every quiz action ("Quiz me", "Test me on this", "Retest", Quiz Drill calendar events) and the 404 and error pages. It uses **fixed colours** (a white-to-cream gradient body with soft side shading, a toasted base, a side gloss, a warm `#c4a57a` outline, eyes with two catch-lights and blurred pink cheeks) so the character looks the same in both themes; the outline keeps it visible on white. Its gradients and clip path are defined **once per page** by `<MalloDefs />` (in `app/layout.js`, and in `app/global-error.jsx`, which replaces the layout) under fixed ids (`mallo-body`, `mallo-side`, `mallo-top`, `mallo-blush`, `mallo-clip`).
+- **Moods** (`mood` prop, list in `MALLO_MOODS`), each with its own motion when `animate` (default) is on. The CSS lives in the "Mallo" block at the end of `app/globals.css`:
+
+  | Mood | Face | Motion | Used for |
+  | :--- | :--- | :--- | :--- |
+  | `happy` (default) | open eyes, small smile | blinks every ~5 s; squishes when its button or link is hovered | every "Quiz me"-style button |
+  | `thinking` | eyes glancing up, small "o" mouth, thought dots | bobs, dots pulse in turn | quiz generating / grading, Quiz Studio grading, quiz creator |
+  | `proud` | wink, open grin, gold sparkles | hops and lands with a squash, sparkles twinkle | quiz score 80+ |
+  | `encouraging` | raised brows, open grin | bounce-and-tilt pep talk | quiz score under 50 |
+  | `sleepy` | closed eyes, Zzz | slow breathing, Zzz drift up | empty notes list, empty Mastery map, no quizzes |
+  | `dizzy` | spiral eyes, wavy mouth | wobbles, eyes spin | 404, error pages, AI errors (`DrawerError`) |
+
+  Scores 50–79 show `happy`. The score-to-mood rule and Mallo's line are `malloReaction` in `lib/brand.js`. Thought dots, sparkles and Zzz draw outside the icon box (`overflow: visible`), so every mood has the same footprint; leave a little room above-right. All Mallo motion stops under `prefers-reduced-motion: reduce`. Size it with `h-*`/`w-*`; for inline text use `h-[1.1em] w-[1.1em] align-[-0.2em]`.
 - Don't put either mark inside a native `<option>`: options only render text. Give the data a plain-text fallback (see `EVENT_TYPES` in `CalendarView.jsx`, `icon` plus `glyph`).
 
 ### 3. Mastery Status Scale (`--color-solid-500` / `--color-shaky-500` / `--color-gap-500`)

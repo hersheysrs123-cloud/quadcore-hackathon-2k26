@@ -26,6 +26,7 @@ quadcore-hackathon-2k26/
 │   │   ├── note-persistence-flow.test.mjs # Debounced save, unmount flush, and font/width persistence
 │   │   ├── note-echo.test.mjs            # Saved-value history and the echo vs. outside-change decision for the open note's title, banner and emoji
 │   │   ├── backup.test.mjs               # Backups: learnory-backup-v2 written, socratic-backup-v1/v2 + .socratic still read, every store, no API key, one-space filtering, v1 import, restore vs. copy with id remapping, overwrite scope, space list merge
+│   │   ├── brand.test.mjs                # Learnory name/title and malloReaction score thresholds
 │   │   ├── json-latex-repair.test.mjs    # Single-backslash LaTeX in Gemini JSON: any command parses, escape-letter commands stay commands, real \n / \t and \uXXXX untouched
 │   │   ├── quiz-tutor-fixes.test.mjs     # effectiveAnswer / isAnswerGiven for untouched step ordering and starter code; tutor history trimming
 │   │   ├── note-hierarchy.test.mjs        # Nested sub-page helpers: tree/descendants/ancestors, cycles & orphans, deep clone, restore semantics

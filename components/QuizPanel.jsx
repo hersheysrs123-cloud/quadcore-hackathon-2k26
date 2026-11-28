@@ -9,6 +9,7 @@ import { getSyllabusStatement, getSpaceSettings } from "@/lib/storageService";
 import { CheckSquare, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import MathText from "@/components/MathText";
 import { MalloIcon } from "@/components/brand/Brand";
+import { malloReaction } from "@/lib/brand";
 import "katex/dist/katex.min.css";
 
 const MATH_SYMBOLS_DRAWER = [
@@ -204,9 +205,12 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
   if (phase === "generating") {
     return (
       <div className="space-y-4 px-5 py-6" aria-busy="true">
-        <p className="text-xs text-ink-500">
-          Reading your note and writing questions…
-        </p>
+        <div className="flex items-center gap-3">
+          <MalloIcon mood="thinking" className="h-10 w-10" />
+          <p className="text-xs text-ink-500">
+            Mallo is reading your note and writing questions…
+          </p>
+        </div>
         <div className="skeleton h-4 w-3/4 rounded" />
         <div className="skeleton h-24 rounded-xl" />
         <div className="skeleton h-11 rounded-xl" />
@@ -543,10 +547,15 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
             type="button"
             onClick={submit}
             disabled={answeredCount === 0 || grading}
-            className="flex-1 rounded-xl bg-brand-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-brand-300 disabled:opacity-30"
+            className={`flex-1 rounded-xl bg-brand-400 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-brand-300 ${grading ? "cursor-wait" : "disabled:opacity-30"}`}
           >
             {grading
-              ? "Grading…"
+              ? (
+                <span className="inline-flex items-center gap-2">
+                  <MalloIcon mood="thinking" className="h-4 w-4" />
+                  Mallo is grading…
+                </span>
+              )
               : answeredCount === 0
                 ? "Answer at least one question"
                 : `Submit ${answeredCount} of ${total}`}
@@ -567,9 +576,14 @@ function QuizRunner({ open, concept, noteContent, spaceId = null, onComplete, sc
 
 // ─── Quiz review ────────────────────────────────────────────────────
 function QuizReview({ result, concept, onRetake }) {
+  const reaction = malloReaction(result.score);
   return (
     <div className="animate-fade-up">
       <section className="border-b border-ink-800 px-5 py-6">
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-ink-800 bg-ink-850 px-3 py-2.5">
+          <MalloIcon mood={reaction.mood} className="h-10 w-10" />
+          <p className="text-[13px] font-medium leading-snug text-ink-200">{reaction.line}</p>
+        </div>
         <div className="flex items-center gap-5">
           <ScoreRing score={result.score} />
           <div className="min-w-0">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { MalloIcon } from "@/components/brand/Brand";
 
 export default function Error({ error, reset }) {
   useEffect(() => {
@@ -9,6 +10,7 @@ export default function Error({ error, reset }) {
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 p-6 text-center bg-ink-950 text-ink-100">
+      <MalloIcon mood="dizzy" className="h-14 w-14" title="Mallo, dizzy" />
       <h2 className="text-base font-bold text-ink-200">Something went wrong</h2>
       <p className="text-xs text-ink-400">{error?.message || "An unexpected error occurred."}</p>
       <button

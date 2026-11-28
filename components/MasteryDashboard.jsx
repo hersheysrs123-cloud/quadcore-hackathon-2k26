@@ -450,6 +450,7 @@ function EmptyState({ notes = [], spaceName = "this space", onStudy }) {
           )}
         </div>
 
+        <MalloIcon mood="sleepy" className="mb-4 h-14 w-14" />
         <h2 className="text-2xl sm:text-[28px] font-bold leading-tight tracking-tight text-ink-100">
           Your mastery map for {displayName} is empty
         </h2>

@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import NoteMenu from "@/components/NoteMenu";
+import { MalloIcon } from "@/components/brand/Brand";
 import {
   BatchDeleteConfirmModal,
   BatchMoveModal,
@@ -679,6 +680,7 @@ export default function NotesPanel({
       <div className="mt-1 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {notes.length === 0 ? (
           <div className="mt-6 rounded-xl border border-dashed border-ink-700 px-4 py-6 text-center">
+            <MalloIcon mood="sleepy" className="mx-auto mb-2 h-10 w-10" />
             <p className="text-sm font-medium text-ink-200">No notes yet</p>
             <p className="mt-1 text-xs text-ink-500">Start writing and Mallo will quiz you on it later.</p>
             <button

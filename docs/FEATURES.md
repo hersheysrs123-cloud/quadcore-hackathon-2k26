@@ -149,6 +149,7 @@ A comprehensive suite of 52 real-time interactive 3D STEM simulations built usin
 
 ### ✨ 7. Socratic AI Tutor, Explain & Reformat
 - **Mallo, the quiz character**: every quiz action ("Quiz me" in the top bar and block menus, "Test me on this" after an explanation, "Retest" on the Mastery map, Quiz Drill calendar events) carries Mallo, a marshmallow icon (`MalloIcon`), and the copy speaks of Mallo quizzing and grading you. Mallo replaced the earlier duck mascot.
+- **Mallo's moods**: Mallo thinks (bobbing, thought dots) while a quiz is written or graded; on the results screen it winks and hops among sparkles at 80%+, smiles at 50–79%, and gives an encouraging pep talk below 50%, with a short line for each. It dozes (Zzz) on empty states and goes dizzy (spinning spiral eyes) on errors and the 404 page. The default Mallo blinks and squishes when you hover a quiz button. Motion turns off if the device asks for reduced motion.
 - **AI Explain (`POST /api/explain`)**: Returns structured note breakdowns containing TL;DR summaries, ordered mechanism steps, analogies with explicit limitations, common misconceptions, worked examples, and check-yourself questions.
 - **Diagnostic Quiz Drawer (`components/QuizPanel.jsx`)**: Dedicated quiz assessment sidebar for active notes and selections, evaluating understanding through dynamic questions (5 multiple-choice, 3 short-answers; math block / value_input questions excluded from quick quizzes) and recording session scores directly into the mastery analytics store.
 

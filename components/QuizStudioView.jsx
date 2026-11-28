@@ -40,6 +40,8 @@ import ScoreRing from "@/components/ScoreRing";
 import ConfidenceHeatmap from "@/components/ConfidenceHeatmap";
 import CreateQuizModal from "@/components/CreateQuizModal";
 import MathText from "@/components/MathText";
+import { MalloIcon } from "@/components/brand/Brand";
+import { malloReaction } from "@/lib/brand";
 import "katex/dist/katex.min.css";
 
 const MATH_SYMBOLS = [
@@ -1188,8 +1190,8 @@ export default function QuizStudioView({
                 >
                   {isGrading ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-ink-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Grading Exam...</span>
+                      <MalloIcon mood="thinking" className="h-4 w-4" />
+                      <span>Mallo is grading...</span>
                     </>
                   ) : (
                     <>
@@ -1319,8 +1321,8 @@ export default function QuizStudioView({
                   >
                     {isGrading ? (
                       <>
-                        <div className="w-3.5 h-3.5 border-2 border-brand-300 border-t-transparent rounded-full animate-spin" />
-                        <span>Grading...</span>
+                        <MalloIcon mood="thinking" className="h-4 w-4" />
+                        <span>Mallo is grading...</span>
                       </>
                     ) : (
                       <>
@@ -1417,6 +1419,10 @@ export default function QuizStudioView({
               <div className="text-xs text-ink-300 leading-relaxed">
                 <MathText text={res.summary} />
               </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-center gap-1.5 sm:w-36">
+              <MalloIcon mood={malloReaction(res.score).mood} className="h-14 w-14" />
+              <p className="text-center text-[11px] font-medium leading-snug text-ink-300">{malloReaction(res.score).line}</p>
             </div>
           </div>
 
@@ -1782,9 +1788,7 @@ export default function QuizStudioView({
           <div>
             {filteredQuizzes.length === 0 ? (
               <div className="text-center py-20 border border-dashed border-ink-800 rounded-3xl space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-ink-900 border border-ink-800 text-brand-400 flex items-center justify-center text-2xl mx-auto shadow-sm">
-                  🎯
-                </div>
+                <MalloIcon mood="sleepy" className="mx-auto h-12 w-12" />
                 <h3 className="text-sm font-bold text-ink-200">No quizzes found</h3>
                 <p className="text-xs text-ink-500 max-w-sm mx-auto">
                   {searchQuery || difficultyFilter !== "all"
