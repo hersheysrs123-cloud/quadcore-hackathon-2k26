@@ -1,6 +1,6 @@
 # Developer gotchas — nested sub-pages
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Gotcha 24: the `parentId` + `page` block invariants.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Gotcha 24: the `parentId` + `page` block invariants.
 
 24. **Nested Sub-Pages (`parentId` + `page` blocks)**:
     - `saveNote` treats `parentId: undefined` as "keep the stored value" and `parentId: null` as "make top-level". Partial saves from the editor never carry it; pass `null` explicitly only when you really mean to detach a page. A note is never allowed to be its own parent.

@@ -173,7 +173,7 @@ export default function AddBookmarkModal({
         {/* Header */}
         <header className="flex items-center justify-between border-b border-ink-800 px-6 py-4 bg-ink-900/90">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-duck-500/10 border border-duck-500/30 text-duck-400">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/10 border border-brand-500/30 text-brand-400">
               <Bookmark className="h-4 w-4" />
             </div>
             <div>
@@ -201,7 +201,7 @@ export default function AddBookmarkModal({
             <label className="text-xs font-semibold text-ink-300 flex items-center justify-between">
               <span>Website URL *</span>
               {extractDomain(url) && (
-                <span className="text-[10px] text-duck-300 font-mono flex items-center gap-1">
+                <span className="text-[10px] text-brand-300 font-mono flex items-center gap-1">
                   <Globe className="h-3 w-3" /> {extractDomain(url)}
                 </span>
               )}
@@ -228,7 +228,7 @@ export default function AddBookmarkModal({
                 onChange={handleUrlChange}
                 onBlur={handleUrlBlur}
                 placeholder="https://example.com/article"
-                className="w-full rounded-xl border border-ink-700 bg-ink-850 pl-10 pr-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none font-mono"
+                className="w-full rounded-xl border border-ink-700 bg-ink-850 pl-10 pr-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none font-mono"
               />
             </div>
           </div>
@@ -243,20 +243,20 @@ export default function AddBookmarkModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. 3Blue1Brown — Calculus Essence"
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
             />
           </div>
 
           {/* Folder Assignment */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-ink-300 flex items-center gap-1.5">
-              <Folder className="h-3.5 w-3.5 text-duck-400" />
+              <Folder className="h-3.5 w-3.5 text-brand-400" />
               <span>Folder</span>
             </label>
             <select
               value={folderId}
               onChange={(e) => setFolderId(e.target.value)}
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-200 focus:border-duck-500 focus:outline-none"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-200 focus:border-brand-500 focus:outline-none"
             >
               <option value="">📁 (Unorganized / Root)</option>
               {folders.map((f) => (
@@ -272,18 +272,18 @@ export default function AddBookmarkModal({
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-ink-300 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <Tag className="h-3.5 w-3.5 text-duck-400" />
+                <Tag className="h-3.5 w-3.5 text-brand-400" />
                 <span>Tags</span>
               </span>
               <span className="text-[10px] text-ink-500">Press Enter or comma</span>
             </label>
 
             {/* Tag Chips */}
-            <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 p-2 min-h-[42px] focus-within:border-duck-500">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 p-2 min-h-[42px] focus-within:border-brand-500">
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded-md bg-duck-500/15 border border-duck-500/30 px-2 py-0.5 text-[11px] font-medium text-duck-300"
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-500/15 border border-brand-500/30 px-2 py-0.5 text-[11px] font-medium text-brand-300"
                 >
                   #{tag}
                   <button
@@ -317,7 +317,7 @@ export default function AddBookmarkModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Why is this resource useful? Key ideas or context for exams..."
-              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none resize-none leading-relaxed"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none resize-none leading-relaxed"
             />
           </div>
 
@@ -337,7 +337,7 @@ export default function AddBookmarkModal({
               <button
                 type="submit"
                 disabled={!url.trim() || isSaving}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-duck-400 px-5 py-2 text-xs font-bold text-ink-950 shadow-md shadow-duck-500/20 transition-all hover:bg-duck-300 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-400 px-5 py-2 text-xs font-bold text-ink-950 shadow-md shadow-brand-500/20 transition-all hover:bg-brand-300 disabled:opacity-40"
               >
                 {isSaving ? (
                   <span>Saving...</span>

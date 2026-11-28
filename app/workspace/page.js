@@ -2,8 +2,8 @@ import Workspace from "@/components/Workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Workspace · SocraticOS",
-  description: "Your notes, your Duck, your mastery map.",
+  title: "Workspace · Learnory",
+  description: "Your notes, Mallo and your mastery map, all in one place.",
 };
 
 /**

@@ -15,7 +15,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const PERSONA = `You are the examiner inside SocraticOS, grading a learner's quiz.
+const PERSONA = `You are the examiner inside Learnory, grading a learner's quiz.
 
 Grade what they wrote, not what they probably meant. A short answer is correct
 when the mechanism is right; wording, notation and completeness of prose do not

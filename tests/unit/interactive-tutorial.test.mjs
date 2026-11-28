@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TUTORIAL_STEPS_META, ALL_19_BLOCKS } from "../../lib/tutorialData.js";
+import { TUTORIAL_STEPS_META, ALL_BLOCKS } from "../../lib/tutorialData.js";
 
 describe("Interactive Onboarding Tutorial Architecture & Feature Registry", () => {
   it("defines exactly 9 comprehensive tutorial steps covering all core pillars", () => {
@@ -29,11 +29,12 @@ describe("Interactive Onboarding Tutorial Architecture & Feature Registry", () =
     });
   });
 
-  it("covers all 19 Notion-style editor block types in ALL_19_BLOCKS", () => {
-    assert.equal(ALL_19_BLOCKS.length, 19, "ALL_19_BLOCKS must define all 19 supported block types");
+  it("covers all 20 Notion-style editor block types in ALL_BLOCKS", () => {
+    assert.equal(ALL_BLOCKS.length, 20, "ALL_BLOCKS must define all 20 supported block types");
 
     const expectedBlocks = [
       "text",
+      "page",
       "h1",
       "h2",
       "h3",
@@ -54,12 +55,12 @@ describe("Interactive Onboarding Tutorial Architecture & Feature Registry", () =
       "site",
     ];
 
-    const definedTypes = ALL_19_BLOCKS.map((b) => b.type);
+    const definedTypes = ALL_BLOCKS.map((b) => b.type);
     expectedBlocks.forEach((type) => {
-      assert.ok(definedTypes.includes(type), `ALL_19_BLOCKS must include block type "${type}"`);
+      assert.ok(definedTypes.includes(type), `ALL_BLOCKS must include block type "${type}"`);
     });
 
-    ALL_19_BLOCKS.forEach((b) => {
+    ALL_BLOCKS.forEach((b) => {
       assert.ok(b.cat, `Block ${b.type} must define a category`);
       assert.ok(b.name, `Block ${b.type} must define a human-readable name`);
       assert.ok(b.syntax, `Block ${b.type} must document syntax/shortcut`);

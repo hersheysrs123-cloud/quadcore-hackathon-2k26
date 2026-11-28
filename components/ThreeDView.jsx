@@ -24,7 +24,7 @@ import { CANVAS_BG } from "@/components/visualizations/scene-kit";
 const viewportLoader = () => (
   <div className="flex h-full w-full items-center justify-center min-h-[400px]" style={{ backgroundColor: CANVAS_BG }}>
     <div className="flex flex-col items-center gap-3">
-      <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink-700 border-t-duck-400" />
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink-700 border-t-brand-400" />
       <span className="text-[11px] uppercase tracking-wider text-ink-500">Compiling 3D scene</span>
     </div>
   </div>
@@ -215,7 +215,7 @@ export default function ThreeDView({
                 </>
               )}
 
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-duck-500/30 bg-duck-500/10 text-base shadow-inner">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-500/10 text-base shadow-inner">
                 🧊
               </div>
 
@@ -247,10 +247,10 @@ export default function ThreeDView({
             <button
               type="button"
               onClick={toggleTopBars}
-              className="flex items-center gap-1.5 rounded-lg border border-duck-500/50 bg-duck-500/20 px-2.5 py-1 text-xs font-semibold text-duck-300 hover:bg-duck-500/30 transition-all shadow-sm ring-1 ring-duck-400/20 whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg border border-brand-500/50 bg-brand-500/20 px-2.5 py-1 text-xs font-semibold text-brand-300 hover:bg-brand-500/30 transition-all shadow-sm ring-1 ring-brand-400/20 whitespace-nowrap cursor-pointer"
               title="Show all top bars"
             >
-              <ChevronDown className="h-3.5 w-3.5 text-duck-400 shrink-0" />
+              <ChevronDown className="h-3.5 w-3.5 text-brand-400 shrink-0" />
               <span className="whitespace-nowrap">Show top bars</span>
             </button>
           </div>

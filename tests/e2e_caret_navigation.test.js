@@ -1,6 +1,6 @@
 /**
  * ═════════════════════════════════════════════════════════════════════════════
- * SocraticOS — End-to-End Caret Navigation, Inline Math/Code Pills,
+ * Learnory — End-to-End Caret Navigation, Inline Math/Code Pills,
  * Line Splitting, Backspace Merging, Whitespace Focus & Persistence Test Suite
  * ═════════════════════════════════════════════════════════════════════════════
  *
@@ -733,12 +733,12 @@ export function formatMarkdownInline(rawText) {
   text = text.replace(/(?<!\\)\$([^\$\n]+?)(?<!\\)\$/g, (match, formula) => {
     const katexHtml = renderKatexToStringMemoized(formula);
     const escapedFormula = formula.replace(/"/g, "&quot;");
-    return `<span class="katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-duck-500/40 bg-duck-500/10 text-duck-200 font-semibold select-none" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`;
+    return `<span class="katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-brand-500/40 bg-brand-500/10 text-brand-200 font-semibold select-none" data-formula="${escapedFormula}" contenteditable="false">${katexHtml}</span>`;
   });
 
   // 2. Inline code (`...`)
   text = text.replace(/(?<!\\)`([^`\n]+?)(?<!\\)`/g, (match, code) => {
-    return `<code class="rounded px-1.5 py-0.5 font-mono text-[13px] bg-ink-800 text-duck-300 border border-ink-700 font-normal">${code}</code>`;
+    return `<code class="rounded px-1.5 py-0.5 font-mono text-[13px] bg-ink-800 text-brand-300 border border-ink-700 font-normal">${code}</code>`;
   });
 
   // 3. Bold (**...**)
@@ -1104,7 +1104,7 @@ export function tryAutoFormatInlineCode(el) {
     const afterText = container.nodeValue.substring(offset);
 
     const codeEl = document.createElement("code");
-    codeEl.className = "rounded px-1.5 py-0.5 font-mono text-[13px] bg-ink-800 text-duck-300 border border-ink-700 font-normal";
+    codeEl.className = "rounded px-1.5 py-0.5 font-mono text-[13px] bg-ink-800 text-brand-300 border border-ink-700 font-normal";
     codeEl.textContent = codeContent;
 
     const trailingText = document.createTextNode(afterText);
@@ -1145,7 +1145,7 @@ export function tryAutoFormatInlineMath(el) {
     const afterText = container.nodeValue.substring(offset);
 
     const mathPill = document.createElement("span");
-    mathPill.className = "katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-duck-500/40 bg-duck-500/10 text-duck-200 font-semibold select-none";
+    mathPill.className = "katex-inline-node inline-flex items-center mx-1 px-2 py-0.5 rounded-md border border-brand-500/40 bg-brand-500/10 text-brand-200 font-semibold select-none";
     mathPill.setAttribute("data-formula", formula);
     mathPill.setAttribute("contenteditable", "false");
     mathPill.innerHTML = renderKatexToStringMemoized(formula);
@@ -1621,7 +1621,7 @@ export class BlockNoteEditorHarness {
 // 5. TEST SUITE IMPLEMENTATION: TIERS 1–4 (82 TEST CASES)
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("SocraticOS E2E Caret Navigation, Pills, Splitting & Persistence Suite", () => {
+describe("Learnory E2E Caret Navigation, Pills, Splitting & Persistence Suite", () => {
 
   // ───────────────────────────────────────────────────────────────────────────
   // TIER 1: FEATURE COVERAGE (>= 5 tests per feature for F1 to F7 = 35 tests)

@@ -221,7 +221,7 @@ export default function AITutorPanel({
                 type="button"
                 disabled={loading}
                 onClick={() => handleSend(starter)}
-                className="shrink-0 text-left rounded-full border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-all hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-40"
+                className="shrink-0 text-left rounded-full border border-ink-750 bg-ink-850 px-2.5 py-1 text-[11px] font-medium text-ink-300 transition-all hover:border-brand-500/50 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-40"
               >
                 ✨ {starter}
               </button>
@@ -236,7 +236,7 @@ export default function AITutorPanel({
             }}
             className="flex items-end gap-2"
           >
-            <div className="relative flex-1 rounded-xl border border-ink-700 bg-ink-850/80 focus-within:border-duck-500/70 focus-within:ring-1 focus-within:ring-duck-500/30 transition-all">
+            <div className="relative flex-1 rounded-xl border border-ink-700 bg-ink-850/80 focus-within:border-brand-500/70 focus-within:ring-1 focus-within:ring-brand-500/30 transition-all">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -251,7 +251,7 @@ export default function AITutorPanel({
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-duck-400 text-ink-950 font-bold transition-all hover:bg-duck-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-sm"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-400 text-ink-950 font-bold transition-all hover:bg-brand-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-sm"
               title="Send (Enter)"
             >
               <Send className="h-4 w-4" />
@@ -259,7 +259,7 @@ export default function AITutorPanel({
           </form>
           <div className="flex items-center justify-between text-[10px] text-ink-500 px-1">
             <span>Press Enter to send, Shift+Enter for new line</span>
-            <span>Supports LaTeX: <code className="text-duck-400 font-mono">$formula$</code></span>
+            <span>Supports LaTeX: <code className="text-brand-400 font-mono">$formula$</code></span>
           </div>
         </div>
       }
@@ -268,7 +268,7 @@ export default function AITutorPanel({
         {/* Space Context Strip Badge */}
         <div className="rounded-xl border border-ink-800 bg-ink-850/60 p-3 flex flex-wrap items-center justify-between gap-2 text-xs shadow-xs">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-duck-500/10 text-duck-300 font-bold text-xs border border-duck-500/30">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand-500/10 text-brand-300 font-bold text-xs border border-brand-500/30">
               {spaceName?.[0]?.toUpperCase() || "S"}
             </span>
             <div className="min-w-0">
@@ -344,9 +344,9 @@ export default function AITutorPanel({
             <div className="flex items-start gap-2.5 animate-fade-in">
               <div className="rounded-2xl rounded-bl-xs bg-ink-900 border border-ink-800 px-4 py-3 text-xs text-ink-400 flex items-center gap-2 shadow-sm">
                 <span className="inline-flex gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-duck-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="h-1.5 w-1.5 rounded-full bg-duck-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="h-1.5 w-1.5 rounded-full bg-duck-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </span>
                 <span className="text-[11px] text-ink-400">Consulting syllabus &amp; formulating explanation…</span>
               </div>

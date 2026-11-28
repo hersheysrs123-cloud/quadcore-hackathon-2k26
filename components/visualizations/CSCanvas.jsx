@@ -235,7 +235,7 @@ function Bars({ frame, size, showValues }) {
               />
             </mesh>
             {showValues && (
-              <SceneLabel position={[0, height + 0.34, 0]} tone={isActive ? "text-duck-300" : "text-ink-400"}>
+              <SceneLabel position={[0, height + 0.34, 0]} tone={isActive ? "text-brand-300" : "text-ink-400"}>
                 {value}
               </SceneLabel>
             )}

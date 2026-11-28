@@ -1,6 +1,6 @@
 /**
  * ═════════════════════════════════════════════════════════════════════════════
- * SocraticOS — Tier 5 Final Adversarial Stress Testing & Coverage Hardening
+ * Learnory — Tier 5 Final Adversarial Stress Testing & Coverage Hardening
  * ═════════════════════════════════════════════════════════════════════════════
  *
  * Objectives:

@@ -1942,7 +1942,7 @@ export default function Workspace() {
               type="button"
               onClick={toggleZenMode}
               title="Exit focus mode (Esc or Ctrl+Shift+F)"
-              className="flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/90 px-3.5 py-1.5 text-xs font-semibold text-ink-200 shadow-xl backdrop-blur-md transition-colors hover:border-duck-500/50 hover:text-duck-300"
+              className="flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/90 px-3.5 py-1.5 text-xs font-semibold text-ink-200 shadow-xl backdrop-blur-md transition-colors hover:border-brand-500/50 hover:text-brand-300"
             >
               <Minimize2 className="h-3.5 w-3.5" />
               <span>Exit focus</span>

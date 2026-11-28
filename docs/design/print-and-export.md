@@ -1,10 +1,10 @@
 # Design — print, PDF and export previews
 
-> Part of the [SocraticOS design system](../../DESIGN_SYSTEM.md). Print stylesheet, standalone HTML export and the pre-download preview (sections 7, 8, 29).
+> Part of the [Learnory design system](../../DESIGN_SYSTEM.md). Print stylesheet, standalone HTML export and the pre-download preview (sections 7, 8, 29).
 
 ### 7. Print Stylesheet & PDF Export (`@media print`)
 - **Page Layout**: Set to A4 with `margin: 1.2cm 1.5cm`, modern sans-serif typography (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif, "Segoe UI Emoji"`), and interactive UI chrome (`aside`, `header`, `nav`, `button:not(.print-content)`, modals, timer HUDs, drag handles, table toolbar chrome) blanket-hidden.
-- **Universal Solid Dark Text**: Enforces `color: #0f172a !important;` on `[data-editor-root] *`, `[data-block-id] *`, `[contenteditable]`, and all neutral ink / duck utilities (`.text-ink-*`, `.text-duck-*`), preventing faint inverted cyan/gray text on white paper.
+- **Universal Solid Dark Text**: Enforces `color: #0f172a !important;` on `[data-editor-root] *`, `[data-block-id] *`, `[contenteditable]`, and all neutral ink / brand utilities (`.text-ink-*`, `.text-brand-*`), preventing faint inverted cyan/gray text on white paper.
 - **Cover Banner**: Compact sleek banner rendering (`height: 60pt; max-height: 60pt; border-radius: 6pt; margin-bottom: 8pt;`) with exact background color / image preservation (`print-color-adjust: exact`) and interactive picker buttons suppressed.
 - **Print Header & Emojis**: Note icon and title auto-wrap cleanly via print-rendered `<h1>` with native color emoji font fallback (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`) on both the note header and callout boxes.
 - **Code Block Formatting & Syntax Highlighting**: Clean light card (`#f8fafc border border-slate-200`) with atomic page break protection (`break-inside: avoid !important; page-break-inside: avoid !important;`), pitch-black container backgrounds completely stripped, line numbers gutter on `#f1f5f9` with slate text `#94a3b8`, and 12 high-contrast token colors (keywords `#be185d`, types/functions `#0284c7`, strings `#059669`, comments `#64748b`, numbers `#d97706`, builtins `#2563eb`).
@@ -33,7 +33,7 @@
 - **Top Control & Format Switcher Bar**:
   - Surface: `border-b border-ink-800 bg-ink-950/80 px-4 sm:px-6 py-3 shrink-0`.
   - Back Button: `border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-xs font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100 rounded-lg`.
-  - Format Switcher Tabs: `bg-ink-900/90 border border-ink-800 p-1 rounded-xl` housing active pill `bg-duck-500 text-ink-950 font-bold shadow-xs` and inactive pill `text-ink-400 hover:text-ink-200 hover:bg-ink-800/60`.
+  - Format Switcher Tabs: `bg-ink-900/90 border border-ink-800 p-1 rounded-xl` housing active pill `bg-brand-500 text-ink-950 font-bold shadow-xs` and inactive pill `text-ink-400 hover:text-ink-200 hover:bg-ink-800/60`.
 - **Word Document (.docx) Sheet Preview Tokens**:
   - Ribbon Bar: `bg-[#1f4e79] text-white text-xs font-medium px-4 py-2 border-b border-gray-200` with Microsoft Word logo indicator and print layout metadata.
   - Page Canvas: Authentic 8.5" x 11" sheet layout `bg-white text-gray-900 shadow-2xl rounded-sm max-w-3xl mx-auto p-8 sm:p-14 min-h-[580px] border border-gray-200 font-sans leading-relaxed`.
@@ -59,9 +59,9 @@
   - Code Cell: `whitespace-pre font-mono text-ink-100 text-[11px] sm:text-xs leading-relaxed`.
 - **Bottom Footer Download Bar**:
   - Surface: `border-t border-ink-800 bg-ink-950 px-4 sm:px-6 py-3.5 shrink-0`.
-  - Primary Action Button: `border border-duck-500/40 bg-duck-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 shadow-md active:scale-95`.
+  - Primary Action Button: `border border-brand-500/40 bg-brand-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-brand-400 shadow-md active:scale-95`.
 - **Scroll Container Architecture**:
-  - Canvas Container: `flex-1 min-h-0 overflow-y-auto overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-duck-500/30 scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-duck-500/50 scroll-smooth`.
+  - Canvas Container: `flex-1 min-h-0 overflow-y-auto overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-500/30 scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-brand-500/50 scroll-smooth`.
   - Viewport Bounds: `h-[calc(100vh-2.5rem)] sm:h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] max-h-[920px]` with backdrop `overflow-hidden` to prevent parent scroll conflict.
 
 ---

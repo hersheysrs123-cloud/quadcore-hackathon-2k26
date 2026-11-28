@@ -142,7 +142,7 @@ async function runCdpCapture() {
         codeLines: cb.querySelector('code')?.textContent.split('\\n').length,
         tokensHighlighted: cb.querySelectorAll('code span[style]').length
       }));
-      results.tables = Array.from(document.querySelectorAll('.socratic-table')).map(t => ({
+      results.tables = Array.from(document.querySelectorAll('.learnory-table')).map(t => ({
         headers: Array.from(t.querySelectorAll('th')).map(th => th.textContent.trim()),
         rowCount: t.querySelectorAll('tbody tr').length
       }));

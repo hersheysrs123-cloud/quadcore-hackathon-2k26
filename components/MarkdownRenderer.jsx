@@ -60,7 +60,7 @@ export function FormattedInline({ text = "" }) {
         if (raw.startsWith("`") && raw.endsWith("`")) {
           // Inline code
           parts.push(
-            <code key={key} className="rounded bg-ink-800 border border-ink-700/80 px-1.5 py-0.5 text-[11px] font-mono text-duck-300">
+            <code key={key} className="rounded bg-ink-800 border border-ink-700/80 px-1.5 py-0.5 text-[11px] font-mono text-brand-300">
               {raw.slice(1, -1)}
             </code>
           );
@@ -109,7 +109,7 @@ export function FormattedInline({ text = "" }) {
                 href={linkMatch[2]}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-duck-400 hover:text-duck-300 underline decoration-duck-500/40 underline-offset-2"
+                className="text-brand-400 hover:text-brand-300 underline decoration-brand-500/40 underline-offset-2"
               >
                 {linkMatch[1]}
               </a>
@@ -383,7 +383,7 @@ export function MarkdownRenderer({ content, className = "" }) {
             );
           case "h2":
             return (
-              <h2 key={idx} className="text-sm font-bold text-duck-300 mt-2">
+              <h2 key={idx} className="text-sm font-bold text-brand-300 mt-2">
                 <FormattedInline text={block.content} />
               </h2>
             );
@@ -417,7 +417,7 @@ export function MarkdownRenderer({ content, className = "" }) {
             return (
               <blockquote
                 key={idx}
-                className="border-l-2 border-duck-400/80 bg-ink-950/60 pl-3 py-1 text-xs italic text-ink-300 rounded-r-md"
+                className="border-l-2 border-brand-400/80 bg-ink-950/60 pl-3 py-1 text-xs italic text-ink-300 rounded-r-md"
               >
                 <FormattedInline text={block.content} />
               </blockquote>

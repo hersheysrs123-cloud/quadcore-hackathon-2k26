@@ -11,7 +11,7 @@ import { normalizeQuiz, QUIZ_TYPE_MAX, quizCount, quizLevelDirective } from "@/l
 
 export const dynamic = "force-dynamic";
 
-const PERSONA = `You are the examiner inside SocraticOS, a study workspace.
+const PERSONA = `You are the examiner inside Learnory, a study workspace.
 
 You write short diagnostic quizzes from a learner's own notes. The point is to
 find out what they actually understand, so a question they can answer by

@@ -1,10 +1,10 @@
 # Local-first database
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Dexie schema v9, all 13 object stores, and where the network is used.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Dexie schema v9, all 13 object stores, and where the network is used.
 
 ## 🗄️ 4. Local-First Database Architecture (`lib/db.js` & `lib/storageService.js`)
 
-SocraticOS operates entirely local-first using **Dexie.js** (IndexedDB database name: `SocraticOS_LocalDB`, version 9 — v8 adds the `parentId` index for nested sub-pages and back-fills `parentId = null` on existing notes and trash items; v9 adds the `poems` store for the Literature section).
+Learnory operates entirely local-first using **Dexie.js** (IndexedDB database name: `SocraticOS_LocalDB`, kept from before the Learnory rename because renaming it would start an empty database, version 9 — v8 adds the `parentId` index for nested sub-pages and back-fills `parentId = null` on existing notes and trash items; v9 adds the `poems` store for the Literature section).
 
 ### IndexedDB Object Stores (13 Total):
 1. `notes`: Primary note documents.

@@ -1,12 +1,14 @@
 import "./globals.css";
+import { BRAND_TITLE } from "@/lib/brand";
+import { MalloDefs } from "@/components/brand/Brand";
 
 export const metadata = {
   title: {
-    default: "SocraticOS — notes that quiz you back",
+    default: BRAND_TITLE,
     template: "%s",
   },
   description:
-    "An all-in-one productivity and Socratic learning workspace. Take notes, have them explained, then find out what you actually understood.",
+    "Learnory is an all-in-one study workspace. Take notes, have them explained, then find out what you actually understood.",
 };
 
 export const viewport = {
@@ -39,7 +41,10 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>
-      <body className="min-h-screen bg-ink-950 text-ink-100">{children}</body>
+      <body className="min-h-screen bg-ink-950 text-ink-100">
+        <MalloDefs />
+        {children}
+      </body>
     </html>
   );
 }

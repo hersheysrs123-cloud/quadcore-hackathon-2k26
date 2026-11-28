@@ -940,7 +940,7 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
             <div className="space-y-2 text-[11px] leading-relaxed">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-ink-400">Shadow size</span>
-                <span className="font-mono font-semibold text-duck-300">
+                <span className="font-mono font-semibold text-brand-300">
                   {solved.castsShadow ? `${solved.shadowWidthCm.toFixed(1)} × ${solved.shadowHeightCm.toFixed(1)} cm` : "none"}
                 </span>
               </div>
@@ -949,7 +949,7 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
                 title="Exact for a thin object. A thick one is magnified a little more on the side facing the torch, and a little less on the far side — the rays settle it."
               >
                 <span className="text-ink-400">Times bigger (at its middle)</span>
-                <span className="font-mono font-semibold text-duck-300">{solved.magnification.toFixed(2)}×</span>
+                <span className="font-mono font-semibold text-brand-300">{solved.magnification.toFixed(2)}×</span>
               </div>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-ink-400">Torch → object</span>
@@ -1039,7 +1039,7 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
             >
               <div
                 className={`h-14 w-1 rounded-full transition-all ${
-                  isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+                  isResizing ? "bg-brand-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-brand-400/80 group-hover:h-20"
                 }`}
               />
             </div>
@@ -1047,7 +1047,7 @@ export default function ShadowLabCanvas({ onOpenQuiz }) {
             {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
             <div
               onPointerDown={handleResizePointerDown}
-              className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+              className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-brand-400 select-none"
               title="Drag to resize panel width"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">

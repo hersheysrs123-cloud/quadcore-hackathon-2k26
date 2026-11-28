@@ -50,13 +50,13 @@ describe("10-Language Syntax Highlighter (lib/syntaxHighlighter.js)", () => {
     });
 
     it("tokenizes JSON keys and values distinctly", () => {
-      const code = '{\n  "name": "SocraticOS",\n  "version": 2\n}';
+      const code = '{\n  "name": "Learnory",\n  "version": 2\n}';
       const tokens = tokenizeCode(code, "json");
 
       const jsonKeys = tokens.filter((t) => t.type === "json-key").map((t) => t.text.trim());
       assert.ok(jsonKeys.includes('"name"'));
       assert.ok(jsonKeys.includes('"version"'));
-      assert.ok(tokens.some((t) => t.type === "string" && t.text === '"SocraticOS"'));
+      assert.ok(tokens.some((t) => t.type === "string" && t.text === '"Learnory"'));
       assert.ok(tokens.some((t) => t.type === "number" && t.text === "2"));
     });
 

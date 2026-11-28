@@ -367,7 +367,7 @@ export default function NoteMenu({
           type="button"
           onClick={handleToggleOpen}
           title={isSidebar ? "Page options" : "Note options"}
-          className="inline-flex items-center justify-center rounded-lg border border-ink-700/80 bg-ink-850/60 p-1.5 text-ink-300 transition-all hover:border-duck-500/50 hover:bg-ink-800 hover:text-ink-100 focus:outline-none shadow-sm"
+          className="inline-flex items-center justify-center rounded-lg border border-ink-700/80 bg-ink-850/60 p-1.5 text-ink-300 transition-all hover:border-brand-500/50 hover:bg-ink-800 hover:text-ink-100 focus:outline-none shadow-sm"
         >
           <MoreHorizontal className="h-4 w-4" />
         </button>
@@ -376,9 +376,9 @@ export default function NoteMenu({
           ref={buttonRef}
           type="button"
           onClick={handleToggleOpen}
-          className="inline-flex items-center gap-1.5 rounded-full border border-ink-700 bg-ink-900/90 px-3 py-1 text-xs font-semibold text-ink-200 shadow-sm backdrop-blur-md transition-all hover:border-duck-500/50 hover:text-duck-300"
+          className="inline-flex items-center gap-1.5 rounded-full border border-ink-700 bg-ink-900/90 px-3 py-1 text-xs font-semibold text-ink-200 shadow-sm backdrop-blur-md transition-all hover:border-brand-500/50 hover:text-brand-300"
         >
-          <MoreHorizontal className="h-3.5 w-3.5 text-duck-400" />
+          <MoreHorizontal className="h-3.5 w-3.5 text-brand-400" />
           <span>{isSidebar ? "Page Menu" : "Note Menu"}</span>
           <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </button>
@@ -387,7 +387,7 @@ export default function NoteMenu({
           ref={buttonRef}
           type="button"
           onClick={handleToggleOpen}
-          className="inline-flex items-center gap-2 rounded-lg border border-duck-500/40 bg-duck-500/10 px-3.5 py-1.5 text-xs font-semibold text-duck-300 shadow-sm transition-all hover:bg-duck-500/20 hover:text-duck-200 focus:outline-none"
+          className="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-brand-500/10 px-3.5 py-1.5 text-xs font-semibold text-brand-300 shadow-sm transition-all hover:bg-brand-500/20 hover:text-brand-200 focus:outline-none"
         >
           <MoreHorizontal className="h-4 w-4" />
           <span>{isSidebar ? "Page Menu" : "Note Menu"}</span>
@@ -418,7 +418,7 @@ export default function NoteMenu({
             <div className="px-2 py-1.5 border-b border-ink-800/80 mb-1">
               {isRenaming ? (
                 <form onSubmit={handleConfirmRename} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-duck-400">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-brand-400">
                     <span>Rename Note</span>
                     <button
                       type="button"
@@ -442,7 +442,7 @@ export default function NoteMenu({
                         }
                       }}
                       placeholder="Note title..."
-                      className="flex-1 rounded border border-duck-500/50 bg-ink-950 px-1.5 py-0.5 text-xs text-ink-100 focus:outline-none focus:ring-1 focus:ring-duck-400"
+                      className="flex-1 rounded border border-brand-500/50 bg-ink-950 px-1.5 py-0.5 text-xs text-ink-100 focus:outline-none focus:ring-1 focus:ring-brand-400"
                     />
                   </div>
                   <div className="flex items-center justify-end gap-1.5 pt-0.5">
@@ -455,7 +455,7 @@ export default function NoteMenu({
                     </button>
                     <button
                       type="submit"
-                      className="rounded bg-duck-400 px-2 py-0.5 text-[10px] font-bold text-ink-950 hover:bg-duck-300"
+                      className="rounded bg-brand-400 px-2 py-0.5 text-[10px] font-bold text-ink-950 hover:bg-brand-300"
                     >
                       Save
                     </button>
@@ -463,7 +463,7 @@ export default function NoteMenu({
                 </form>
               ) : (
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-duck-400 flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400 flex items-center justify-between">
                     <span>{isSidebar ? "Page Options" : "Note Menu"}</span>
                     <span className="text-ink-500 font-normal normal-case text-[10px] truncate max-w-[80px]">
                       {currentSpace}
@@ -499,7 +499,7 @@ export default function NoteMenu({
                         title={`${f.label} (${f.tip})`}
                         className={`flex flex-col items-center justify-center rounded-lg border py-2 px-1.5 transition-all cursor-pointer ${
                           isSelected
-                            ? "border-duck-400/80 bg-duck-500/20 text-duck-300 shadow-sm ring-1 ring-duck-400/40"
+                            ? "border-brand-400/80 bg-brand-500/20 text-brand-300 shadow-sm ring-1 ring-brand-400/40"
                             : "border-ink-700/60 bg-ink-850/40 text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100"
                         }`}
                       >
@@ -552,8 +552,8 @@ export default function NoteMenu({
                 }}
                 className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs font-medium transition-colors ${
                   isReformatting
-                    ? "bg-duck-500/15 border border-duck-500/30 text-duck-200 cursor-wait"
-                    : "text-duck-300 hover:bg-ink-800 hover:text-duck-200"
+                    ? "bg-brand-500/15 border border-brand-500/30 text-brand-200 cursor-wait"
+                    : "text-brand-300 hover:bg-ink-800 hover:text-brand-200"
                 }`}
                 title={isReformatting ? "AI is structuring and reformatting this note..." : "Reformat Note (AI)"}
               >
@@ -562,7 +562,7 @@ export default function NoteMenu({
                   <span>{isReformatting ? "Reformatting Note..." : "Reformat Note (AI)"}</span>
                 </div>
                 {isReformatting && (
-                  <span className="text-[10px] text-duck-400 font-bold animate-pulse">AI</span>
+                  <span className="text-[10px] text-brand-400 font-bold animate-pulse">AI</span>
                 )}
               </button>
             )}
@@ -615,7 +615,7 @@ export default function NoteMenu({
                 title="Create a blank page nested inside this note"
               >
                 <div className="flex items-center gap-2">
-                  <FilePlus2 className="h-3.5 w-3.5 text-duck-400" />
+                  <FilePlus2 className="h-3.5 w-3.5 text-brand-400" />
                   <span>New sub-page</span>
                 </div>
                 <span className="text-[10px] text-ink-500">Nested</span>
@@ -674,7 +674,7 @@ export default function NoteMenu({
                         className={`flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs transition-colors ${
                           isCurrent
                             ? "bg-ink-850/50 text-ink-400 font-semibold cursor-default"
-                            : "text-ink-200 hover:bg-ink-800 hover:text-duck-300"
+                            : "text-ink-200 hover:bg-ink-800 hover:text-brand-300"
                         }`}
                       >
                         <div className="flex items-center gap-1.5 truncate">
@@ -682,7 +682,7 @@ export default function NoteMenu({
                           <span className="truncate text-xs">{sp.name}</span>
                         </div>
                         {isCurrent && (
-                          <span className="text-[9px] text-duck-400 font-medium shrink-0">
+                          <span className="text-[9px] text-brand-400 font-medium shrink-0">
                             Current
                           </span>
                         )}
@@ -712,7 +712,7 @@ export default function NoteMenu({
                   </div>
                   <div
                     className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-                      note?.fullWidth ? "bg-duck-400" : "bg-ink-700"
+                      note?.fullWidth ? "bg-brand-400" : "bg-ink-700"
                     }`}
                   >
                     <span
@@ -734,12 +734,12 @@ export default function NoteMenu({
                   className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs font-medium text-ink-200 transition-colors hover:bg-ink-800 hover:text-ink-100 cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <Lock className={`h-3.5 w-3.5 ${note?.isLocked ? "text-duck-400" : "text-ink-400"}`} />
+                    <Lock className={`h-3.5 w-3.5 ${note?.isLocked ? "text-brand-400" : "text-ink-400"}`} />
                     <span>Lock page</span>
                   </div>
                   <div
                     className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-                      note?.isLocked ? "bg-duck-400" : "bg-ink-700"
+                      note?.isLocked ? "bg-brand-400" : "bg-ink-700"
                     }`}
                   >
                     <span

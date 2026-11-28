@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { MalloIcon } from "@/components/brand/Brand";
 
 /**
  * The right-hand panel every LLM surface lives in.
@@ -76,15 +77,15 @@ export function DrawerError({ message, onRetry }) {
 
   return (
     <div className="rounded-xl border border-gap-500/30 bg-gap-500/5 px-4 py-3">
-      <p className="flex items-start gap-2 text-xs leading-relaxed text-gap-500">
-        <span aria-hidden="true">⚠</span>
+      <p className="flex items-start gap-2.5 text-xs leading-relaxed text-gap-500">
+        <MalloIcon mood="dizzy" className="mt-0.5 h-6 w-6" />
         <span>{message}</span>
       </p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-duck-500/50 hover:text-duck-300"
+          className="mt-2.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-brand-500/50 hover:text-brand-300"
         >
           Try again
         </button>

@@ -12,14 +12,14 @@ import { normalizeExplanation } from "@/lib/aiService";
 export const dynamic = "force-dynamic";
 
 /**
- * The Explainer is the Duck's opposite number.
+ * The Explainer is Mallo's opposite number.
  *
  * The Socratic route is under standing orders never to give an answer; this one
  * exists to give exactly that. Keeping them as separate endpoints with opposed
  * personas is what stops either from drifting into a hedged middle — a tutor
  * that half-explains and half-quizzes does neither job.
  */
-const PERSONA = `You are the Explainer inside SocraticOS, a study workspace.
+const PERSONA = `You are the Explainer inside Learnory, a study workspace.
 
 A learner has written notes and wants the concept explained properly. Explain it
 so that they could rebuild the idea themselves, not just recognise it.
@@ -120,7 +120,7 @@ export async function POST(request) {
           content: `Explain "${concept.trim()}" to me, using my notes to decide what I already have and what I am missing.`,
         },
       ],
-      // An explanation should be the same one twice. Variety is the Duck's job.
+      // An explanation should be the same one twice. Variety is Mallo's job.
       temperature: 0.4,
       schema: EXPLAIN_SCHEMA,
     });

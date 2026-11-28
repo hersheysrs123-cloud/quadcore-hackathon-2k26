@@ -11,6 +11,7 @@ import {
   toggleAlarm,
 } from "@/lib/storageService";
 import { Edit3, Trash2, Bell, Plus, Pause, Play, RotateCcw, Calendar as CalendarIcon, Volume2 } from "lucide-react";
+import { MalloIcon } from "@/components/brand/Brand";
 import {
   useGlobalTimer,
   useTimerStore,
@@ -20,8 +21,11 @@ import {
 } from "@/lib/timerStore";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
+// `icon` is plain text because the type picker is a native <select>, whose
+// options can only hold strings. `glyph`, when set, replaces it everywhere
+// else (calendar cells and event chips).
 const EVENT_TYPES = [
-  { id: "socratic", label: "Quiz Drill", icon: "🦆", badge: "bg-duck-500/20 text-duck-300 border-duck-500/30" },
+  { id: "socratic", label: "Quiz Drill", icon: "❓", glyph: <MalloIcon className="h-[1.1em] w-[1.1em] align-[-0.2em]" />, badge: "bg-brand-500/20 text-brand-300 border-brand-500/30" },
   { id: "study", label: "Study Session", icon: "📚", badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
   { id: "deadline", label: "Deadline", icon: "⏰", badge: "bg-rose-500/20 text-rose-300 border-rose-500/30" },
   { id: "pomodoro", label: "Pomodoro Focus", icon: "🍅", badge: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
@@ -122,7 +126,7 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
           <h2 className="text-sm font-semibold text-ink-100">Study &amp; Pomodoro Timers</h2>
         </div>
         {activeTimers.length > 0 && (
-          <span className="rounded-full border border-duck-500/40 bg-duck-500/15 px-2 py-0.5 text-[10px] font-bold text-duck-300">
+          <span className="rounded-full border border-brand-500/40 bg-brand-500/15 px-2 py-0.5 text-[10px] font-bold text-brand-300">
             {activeTimers.length} running
           </span>
         )}
@@ -145,14 +149,14 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
               title={t.title}
               className={`flex max-w-[11rem] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 isSel
-                  ? "border-duck-500/50 bg-duck-500/15 text-duck-200"
+                  ? "border-brand-500/50 bg-brand-500/15 text-brand-200"
                   : "border-ink-800 bg-ink-950 text-ink-400 hover:border-ink-700 hover:text-ink-200"
               }`}
             >
               <span className="shrink-0">{MODE_EMOJI[t.mode] || "⏱️"}</span>
               <span className="truncate">{t.isDefault ? t.title.replace("Pomodoro ", "") : t.title}</span>
               {t.isActive && (
-                <span className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-duck-400" aria-label="running" />
+                <span className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" aria-label="running" />
               )}
             </button>
           );
@@ -163,8 +167,8 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
           aria-expanded={customOpen}
           className={`flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1.5 text-xs font-medium transition-colors ${
             customOpen
-              ? "border-duck-500/50 text-duck-300"
-              : "border-ink-700 text-ink-400 hover:border-duck-500/40 hover:text-duck-300"
+              ? "border-brand-500/50 text-brand-300"
+              : "border-ink-700 text-ink-400 hover:border-brand-500/40 hover:text-brand-300"
           }`}
         >
           <Plus className="h-3 w-3" /> Custom
@@ -182,7 +186,7 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
             onChange={(e) => setCustomTitle(e.target.value)}
             placeholder="Name (optional), e.g. Maths past paper"
             autoFocus
-            className="w-full rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50 focus:outline-none"
+            className="w-full rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 focus:border-brand-500/50 focus:outline-none"
           />
           <div className="flex items-center gap-2">
             <input
@@ -192,12 +196,12 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
               value={customMins}
               onChange={(e) => setCustomMins(e.target.value)}
               aria-label="Duration in minutes"
-              className="w-20 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-center text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              className="w-20 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-center text-xs font-semibold text-ink-100 focus:border-brand-500/50 focus:outline-none"
             />
             <span className="text-xs text-ink-400">minutes</span>
             <button
               type="submit"
-              className="ml-auto rounded-md bg-duck-400 px-3 py-1.5 text-xs font-bold text-ink-950 hover:bg-duck-300"
+              className="ml-auto rounded-md bg-brand-400 px-3 py-1.5 text-xs font-bold text-ink-950 hover:bg-brand-300"
             >
               Create &amp; start
             </button>
@@ -232,7 +236,7 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-800">
           <div
-            className={`h-full transition-[width] duration-300 ease-linear ${nearing ? "bg-rose-500" : "bg-duck-400"}`}
+            className={`h-full transition-[width] duration-300 ease-linear ${nearing ? "bg-rose-500" : "bg-brand-400"}`}
             style={{ width: `${selected.percentLeft}%` }}
           />
         </div>
@@ -245,7 +249,7 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
           className={`w-28 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-colors ${
             selected.isActive
               ? "border border-rose-500/40 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
-              : "bg-duck-400 text-ink-950 hover:bg-duck-300"
+              : "bg-brand-400 text-ink-950 hover:bg-brand-300"
           }`}
         >
           {startLabel}
@@ -274,7 +278,7 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
               <li
                 key={t.id}
                 className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
-                  t.id === selected.id ? "border-duck-500/40 bg-duck-500/10" : "border-ink-800 bg-ink-950"
+                  t.id === selected.id ? "border-brand-500/40 bg-brand-500/10" : "border-ink-800 bg-ink-950"
                 }`}
               >
                 <button
@@ -293,7 +297,7 @@ const StudyTimerWidget = memo(function StudyTimerWidget() {
                 </button>
                 <span
                   className={`font-mono text-xs font-bold tabular-nums ${
-                    t.isNearingEnd ? "text-rose-400" : t.isActive ? "text-duck-300" : "text-ink-400"
+                    t.isNearingEnd ? "text-rose-400" : t.isActive ? "text-brand-300" : "text-ink-400"
                   }`}
                 >
                   {formatClock(t.secondsLeft)}
@@ -331,13 +335,13 @@ function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, o
     <div className="rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-xl">
       <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
         <div className="flex items-center gap-2">
-          <Bell className="h-4 w-4 text-duck-400" />
+          <Bell className="h-4 w-4 text-brand-400" />
           <h2 className="text-sm font-semibold text-ink-100">Regular Alarms & Reminders</h2>
         </div>
         <button
           type="button"
           onClick={onAddAlarm}
-          className="flex items-center gap-1 rounded-lg border border-duck-500/40 bg-duck-500/10 px-2.5 py-1 text-xs font-bold text-duck-300 hover:bg-duck-500/20 transition-all"
+          className="flex items-center gap-1 rounded-lg border border-brand-500/40 bg-brand-500/10 px-2.5 py-1 text-xs font-bold text-brand-300 hover:bg-brand-500/20 transition-all"
         >
           <Plus className="h-3.5 w-3.5" />
           <span>New Alarm</span>
@@ -351,7 +355,7 @@ function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, o
           <button
             type="button"
             onClick={onAddAlarm}
-            className="mt-2 text-xs font-semibold text-duck-400 hover:underline"
+            className="mt-2 text-xs font-semibold text-brand-400 hover:underline"
           >
             + Add a recurring daily or weekly alarm
           </button>
@@ -389,7 +393,7 @@ function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, o
                           className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold ${
                             active
                               ? alarm.enabled
-                                ? "bg-duck-400 text-ink-950"
+                                ? "bg-brand-400 text-ink-950"
                                 : "bg-ink-700 text-ink-300"
                               : "bg-ink-950 text-ink-600"
                           }`}
@@ -430,7 +434,7 @@ function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, o
                     type="button"
                     onClick={() => onEditAlarm(alarm)}
                     title="Edit Alarm"
-                    className="p-1 text-ink-500 hover:text-duck-300 transition-colors"
+                    className="p-1 text-ink-500 hover:text-brand-300 transition-colors"
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -450,7 +454,7 @@ function RegularAlarmsWidget({ alarms, onAddAlarm, onEditAlarm, onDeleteAlarm, o
                     type="button"
                     onClick={() => onToggleAlarm(alarm.id)}
                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                      alarm.enabled ? "bg-duck-400" : "bg-ink-700"
+                      alarm.enabled ? "bg-brand-400" : "bg-ink-700"
                     }`}
                   >
                     <span
@@ -550,7 +554,7 @@ function EventModal({ open, eventData, selectedDate, activeSpace = "School", spa
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Socratic Quiz or Exam Review"
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
               autoFocus
             />
           </div>
@@ -561,7 +565,7 @@ function EventModal({ open, eventData, selectedDate, activeSpace = "School", spa
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
               >
                 {EVENT_TYPES.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -577,7 +581,7 @@ function EventModal({ open, eventData, selectedDate, activeSpace = "School", spa
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
               />
             </div>
           </div>
@@ -589,7 +593,7 @@ function EventModal({ open, eventData, selectedDate, activeSpace = "School", spa
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs font-mono font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs font-mono font-semibold text-ink-100 focus:border-brand-500/50 focus:outline-none"
               />
             </div>
 
@@ -598,7 +602,7 @@ function EventModal({ open, eventData, selectedDate, activeSpace = "School", spa
               <select
                 value={space}
                 onChange={(e) => setSpace(e.target.value)}
-                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
               >
                 {(spaces && spaces.length > 0
                   ? spaces
@@ -627,7 +631,7 @@ function EventModal({ open, eventData, selectedDate, activeSpace = "School", spa
             <button
               type="submit"
               disabled={!title.trim()}
-              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950 disabled:opacity-40"
+              className="rounded-lg bg-brand-400 px-4 py-1.5 text-xs font-semibold text-ink-950 disabled:opacity-40"
             >
               {eventData ? "Update Event" : "Save Event"}
             </button>
@@ -707,7 +711,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
       >
         <div className="flex items-center justify-between border-b border-ink-800 pb-3">
           <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-duck-400" />
+            <Bell className="h-4 w-4 text-brand-400" />
             <h3 className="text-sm font-semibold text-ink-100">
               {alarmData ? "Edit Regular Alarm" : "New Regular Alarm"}
             </h3>
@@ -725,7 +729,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Daily Math Review"
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs text-ink-100 focus:border-brand-500/50 focus:outline-none"
               autoFocus
             />
           </div>
@@ -736,7 +740,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm font-mono font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm font-mono font-bold text-ink-100 focus:border-brand-500/50 focus:outline-none"
             />
           </div>
 
@@ -747,7 +751,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
                 <button
                   type="button"
                   onClick={() => selectQuick("all")}
-                  className="text-[10px] text-duck-400 hover:underline"
+                  className="text-[10px] text-brand-400 hover:underline"
                 >
                   Every Day
                 </button>
@@ -755,7 +759,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
                 <button
                   type="button"
                   onClick={() => selectQuick("weekdays")}
-                  className="text-[10px] text-duck-400 hover:underline"
+                  className="text-[10px] text-brand-400 hover:underline"
                 >
                   Weekdays
                 </button>
@@ -763,7 +767,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
                 <button
                   type="button"
                   onClick={() => selectQuick("weekends")}
-                  className="text-[10px] text-duck-400 hover:underline"
+                  className="text-[10px] text-brand-400 hover:underline"
                 >
                   Weekends
                 </button>
@@ -780,7 +784,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
                     onClick={() => toggleDay(d.id)}
                     className={`flex flex-col items-center justify-center rounded-lg border py-2 text-xs transition-all ${
                       active
-                        ? "border-duck-500/60 bg-duck-500/20 text-duck-300 font-bold"
+                        ? "border-brand-500/60 bg-brand-500/20 text-brand-300 font-bold"
                         : "border-ink-800 bg-ink-850 text-ink-500 hover:border-ink-700"
                     }`}
                   >
@@ -797,7 +801,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
               id="alarm-enabled"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
-              className="rounded border-ink-700 bg-ink-850 text-duck-400 focus:ring-0"
+              className="rounded border-ink-700 bg-ink-850 text-brand-400 focus:ring-0"
             />
             <label htmlFor="alarm-enabled" className="text-xs text-ink-300 font-medium">
               Enable Alarm Immediately
@@ -814,7 +818,7 @@ function AlarmModal({ open, alarmData, onClose, onSave }) {
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-duck-400 px-4 py-1.5 text-xs font-semibold text-ink-950"
+              className="rounded-lg bg-brand-400 px-4 py-1.5 text-xs font-semibold text-ink-950"
             >
               {alarmData ? "Update Alarm" : "Save Alarm"}
             </button>
@@ -988,7 +992,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
             >
               ◀
             </button>
-            <span className="px-3 text-xs font-bold text-duck-400">
+            <span className="px-3 text-xs font-bold text-brand-400">
               {monthNames[currentMonth]} {currentYear}
             </span>
             <button
@@ -1015,7 +1019,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
               setEditingEvent(null);
               setEventModalOpen(true);
             }}
-            className="flex items-center gap-1.5 rounded-lg bg-duck-400 px-3.5 py-2 text-xs font-semibold text-ink-950 shadow-md transition-opacity hover:opacity-90"
+            className="flex items-center gap-1.5 rounded-lg bg-brand-400 px-3.5 py-2 text-xs font-semibold text-ink-950 shadow-md transition-opacity hover:opacity-90"
           >
             <span>＋</span>
             <span>Add Event</span>
@@ -1057,7 +1061,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
                   onClick={() => setSelectedDate(cell.dateStr)}
                   className={`group relative flex h-24 flex-col justify-between rounded-lg border p-2 text-left transition-all ${
                     isSelected
-                      ? "border-duck-500/60 bg-duck-500/10"
+                      ? "border-brand-500/60 bg-brand-500/10"
                       : isToday
                       ? "border-ink-700 bg-ink-850"
                       : "border-ink-800/60 bg-ink-950/50 hover:border-ink-700 hover:bg-ink-850/60"
@@ -1067,15 +1071,15 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
                     <span
                       className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
                         isToday
-                          ? "bg-duck-400 font-bold text-ink-950"
+                          ? "bg-brand-400 font-bold text-ink-950"
                           : isSelected
-                          ? "font-semibold text-duck-300"
+                          ? "font-semibold text-brand-300"
                           : "text-ink-300"
                       }`}
                     >
                       {cell.day}
                     </span>
-                    {dayEvs.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-duck-400" />}
+                    {dayEvs.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />}
                   </div>
 
                   <div className="space-y-1 overflow-hidden">
@@ -1086,7 +1090,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
                           key={ev.id}
                           className={`truncate rounded border px-1.5 py-0.5 text-[10px] font-medium ${tObj.badge}`}
                         >
-                          {tObj.icon} {ev.title}
+                          {tObj.glyph ?? tObj.icon} {ev.title}
                         </div>
                       );
                     })}
@@ -1124,7 +1128,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
           <div className="rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-xl">
             <div className="mb-4 flex items-center justify-between border-b border-ink-800 pb-3">
               <h2 className="text-sm font-semibold text-ink-100">Agenda ({selectedDate})</h2>
-              <span className="text-xs font-medium text-duck-400">
+              <span className="text-xs font-medium text-brand-400">
                 {selectedDateEvents.length} Event{selectedDateEvents.length === 1 ? "" : "s"}
               </span>
             </div>
@@ -1139,7 +1143,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
                     setEditingEvent(null);
                     setEventModalOpen(true);
                   }}
-                  className="mt-2 text-xs font-semibold text-duck-400 hover:underline"
+                  className="mt-2 text-xs font-semibold text-brand-400 hover:underline"
                 >
                   + Add an event or drill
                 </button>
@@ -1157,7 +1161,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
                         <span
                           className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${tObj.badge}`}
                         >
-                          <span>{tObj.icon}</span>
+                          <span>{tObj.glyph ?? tObj.icon}</span>
                           <span>{tObj.label}</span>
                         </span>
                         <div className="flex items-center gap-1.5">
@@ -1195,7 +1199,7 @@ export default function CalendarView({ activeSpace = "School", spaces = [], onNa
                               setEventModalOpen(true);
                             }}
                             title="Edit Event"
-                            className="p-1 text-ink-500 hover:text-duck-300 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100"
+                            className="p-1 text-ink-500 hover:text-brand-300 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100"
                           >
                             <Edit3 className="h-3.5 w-3.5" />
                           </button>

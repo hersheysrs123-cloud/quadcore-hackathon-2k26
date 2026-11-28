@@ -51,7 +51,7 @@ function ViewPopover({ poem, annotation, number, testMode, revealed, onToggleRev
   return (
     <>
       <div className="flex items-start gap-2 border-b border-ink-800 px-3.5 py-2.5">
-        <span className="mt-0.5 shrink-0 rounded-md border border-duck-500/30 bg-duck-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-duck-300">
+        <span className="mt-0.5 shrink-0 rounded-md border border-brand-500/30 bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-brand-300">
           {number}
         </span>
         <div className="flex min-w-0 flex-1 flex-wrap gap-x-2 gap-y-1">
@@ -147,7 +147,7 @@ function ChooserPopover({ poem, annotations, numbers, testMode, onPick, onHover,
             onClick={() => onPick(ann.id)}
             className="flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-ink-850"
           >
-            <span className="mt-0.5 shrink-0 rounded-md border border-duck-500/30 bg-duck-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-duck-300">
+            <span className="mt-0.5 shrink-0 rounded-md border border-brand-500/30 bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-brand-300">
               {numbers[ann.id]}
             </span>
             <span className="flex min-w-0 flex-col gap-1">
@@ -252,7 +252,7 @@ function EditorPopover({
               type="button"
               disabled={!canAddPart}
               onClick={onAddPart}
-              className="rounded-lg border border-dashed border-ink-700 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:border-duck-500/50 hover:bg-ink-850 disabled:pointer-events-none disabled:text-ink-500"
+              className="rounded-lg border border-dashed border-ink-700 px-2 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:border-brand-500/50 hover:bg-ink-850 disabled:pointer-events-none disabled:text-ink-500"
             >
               {canAddPart ? "+ Add selected phrase" : "+ Select more text to add"}
             </button>
@@ -279,7 +279,7 @@ function EditorPopover({
               }
             }}
             placeholder="Optional — e.g. Imagery, Structure, Tone"
-            className="w-full rounded-xl border border-ink-750 bg-ink-850 px-2.5 py-1.5 text-[13px] text-ink-100 outline-none transition-colors placeholder:text-ink-600 focus:border-duck-500/50 focus:ring-2 focus:ring-duck-400/20"
+            className="w-full rounded-xl border border-ink-750 bg-ink-850 px-2.5 py-1.5 text-[13px] text-ink-100 outline-none transition-colors placeholder:text-ink-600 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-400/20"
           />
         </div>
 
@@ -303,7 +303,7 @@ function EditorPopover({
               }
             }}
             placeholder="Your analysis of these words…"
-            className="w-full resize-y rounded-xl border border-ink-750 bg-ink-850 px-2.5 py-2 text-[13px] leading-relaxed text-ink-100 outline-none transition-colors placeholder:text-ink-600 focus:border-duck-500/50 focus:ring-2 focus:ring-duck-400/20"
+            className="w-full resize-y rounded-xl border border-ink-750 bg-ink-850 px-2.5 py-2 text-[13px] leading-relaxed text-ink-100 outline-none transition-colors placeholder:text-ink-600 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-400/20"
           />
           {error && <p className="mt-1 text-[11px] font-medium text-gap-400">{error}</p>}
         </div>
@@ -330,7 +330,7 @@ function EditorPopover({
         <button
           type="button"
           onClick={submit}
-          className="rounded-xl bg-duck-400 px-3.5 py-1.5 text-xs font-bold text-ink-950 transition-colors hover:bg-duck-300"
+          className="rounded-xl bg-brand-400 px-3.5 py-1.5 text-xs font-bold text-ink-950 transition-colors hover:bg-brand-300"
         >
           Save
         </button>

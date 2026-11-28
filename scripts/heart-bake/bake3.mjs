@@ -373,7 +373,7 @@ addMesh("coronaryVeins", coronaryVeins);
 
 const json = {
   extensionsUsed: ["KHR_mesh_quantization"], extensionsRequired: ["KHR_mesh_quantization"],
-  asset: { version: "2.0", generator: "SocraticOS heart bake", copyright: "BodyParts3D, © The Database Center for Life Science, CC BY 4.0 (adapted: sectioned, walls and fat modelled, recoloured)" },
+  asset: { version: "2.0", generator: "Learnory heart bake", copyright: "BodyParts3D, © The Database Center for Life Science, CC BY 4.0 (adapted: sectioned, walls and fat modelled, recoloured)" },
   scene: 0, scenes: [{ nodes: nodes.map((_, i) => i) }], nodes, meshes, accessors, bufferViews,
   buffers: [{ byteLength }],
 };

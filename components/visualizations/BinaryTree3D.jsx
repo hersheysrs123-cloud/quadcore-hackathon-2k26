@@ -481,7 +481,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
               onClick={() => setActiveTab("controls")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "controls"
-                  ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
+                  ? "border border-brand-500/40 bg-brand-500/20 text-brand-300 shadow-sm"
                   : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
               }`}
             >
@@ -494,7 +494,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
               onClick={() => setActiveTab("details")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "details"
-                  ? "border border-duck-500/40 bg-duck-500/20 text-duck-300 shadow-sm"
+                  ? "border border-brand-500/40 bg-brand-500/20 text-brand-300 shadow-sm"
                   : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
               }`}
             >
@@ -536,7 +536,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors ${
                       balanced
-                        ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                        ? "border border-brand-500/40 bg-brand-500/20 text-brand-300"
                         : "bg-ink-800 text-ink-400"
                     }`}
                   >
@@ -557,7 +557,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     value={insertValue}
                     onChange={(e) => setInsertValue(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleInsert()}
-                    className="w-full min-w-0 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-[11px] tabular-nums text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full min-w-0 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-[11px] tabular-nums text-ink-100 focus:border-brand-500/50 focus:outline-none"
                   />
                   <HudButton
                     icon={Plus}
@@ -590,7 +590,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    className="w-full min-w-0 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-[11px] tabular-nums text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-full min-w-0 rounded-md border border-ink-700 bg-ink-850 px-2 py-1.5 text-[11px] tabular-nums text-ink-100 focus:border-brand-500/50 focus:outline-none"
                   />
                   <HudButton icon={Search} onClick={handleSearch}>
                     Find
@@ -621,7 +621,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
             <div className="space-y-3">
               {/* Syllabus & Overview */}
               <div className="rounded-lg border border-ink-800 bg-ink-950/50 p-2.5 space-y-1.5">
-                <span className="inline-block rounded border border-duck-500/30 bg-duck-500/10 px-2 py-0.5 text-[10px] font-mono text-duck-300">
+                <span className="inline-block rounded border border-brand-500/30 bg-brand-500/10 px-2 py-0.5 text-[10px] font-mono text-brand-300">
                   Computer Science 4.1 · Data Structures
                 </span>
                 <p className="text-xs font-medium leading-relaxed text-ink-200">
@@ -640,7 +640,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                   className="flex w-full items-center justify-between gap-2 text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <Lightbulb className="h-3.5 w-3.5 shrink-0 text-duck-400" strokeWidth={2} />
+                    <Lightbulb className="h-3.5 w-3.5 shrink-0 text-brand-400" strokeWidth={2} />
                     <span className="text-xs font-semibold text-ink-100">
                       Key Concepts (toggle)
                     </span>
@@ -649,7 +649,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     <span
                       className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors ${
                         keyConceptsOpen
-                          ? "border border-duck-500/40 bg-duck-500/20 text-duck-300"
+                          ? "border border-brand-500/40 bg-brand-500/20 text-brand-300"
                           : "bg-ink-800 text-ink-400"
                       }`}
                     >
@@ -657,7 +657,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     </span>
                     <ChevronDown
                       className={`h-3.5 w-3.5 text-ink-400 transition-transform duration-200 ${
-                        keyConceptsOpen ? "rotate-180 text-duck-300" : ""
+                        keyConceptsOpen ? "rotate-180 text-brand-300" : ""
                       }`}
                       strokeWidth={2}
                     />
@@ -669,7 +669,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     {BST_CONCEPTS.map((concept, i) => (
                       <div key={i} className="flex gap-2">
                         <span
-                          className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-duck-400"
+                          className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400"
                           aria-hidden="true"
                         />
                         <p className="text-[11px] leading-relaxed text-ink-200">{concept}</p>
@@ -711,7 +711,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                           key={`${v}-${i}`}
                           className={`rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${
                             i === revealed.length - 1
-                              ? "bg-duck-500/20 text-duck-300 border border-duck-500/30"
+                              ? "bg-brand-500/20 text-brand-300 border border-brand-500/30"
                               : "bg-ink-800 text-ink-400"
                           }`}
                         >
@@ -817,7 +817,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
                     };
                     onOpenQuiz(bstTopic, bstParams);
                   }}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-duck-400 to-duck-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-duck-300 hover:to-duck-400 shadow-md hover:shadow-duck-500/20 active:scale-[0.99] cursor-pointer"
+                  className="flex w-full items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-brand-400 to-brand-500 px-3.5 py-2.5 text-xs font-bold text-ink-950 transition-all hover:from-brand-300 hover:to-brand-400 shadow-md hover:shadow-brand-500/20 active:scale-[0.99] cursor-pointer"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Sparkles className="h-4 w-4 shrink-0 text-ink-950" strokeWidth={2.25} />
@@ -842,7 +842,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
       >
         <div
           className={`h-14 w-1 rounded-full transition-all ${
-            isResizing ? "bg-duck-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20"
+            isResizing ? "bg-brand-400 shadow-md scale-y-110" : "bg-ink-700/50 group-hover:bg-brand-400/80 group-hover:h-20"
           }`}
         />
       </div>
@@ -850,7 +850,7 @@ export default function BinaryTree3D({ onOpenQuiz }) {
       {/* ─── Bottom-Right Corner Resize Grip Indicator ─── */}
       <div
         onPointerDown={handleResizePointerDown}
-        className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-duck-400 select-none"
+        className="absolute bottom-1.5 right-1.5 z-30 cursor-nwse-resize p-1 text-ink-600 transition-colors hover:text-brand-400 select-none"
         title="Drag to resize panel width"
       >
         <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 hover:opacity-100 fill-current">

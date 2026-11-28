@@ -108,7 +108,7 @@ function ImportBookmarksConfirmModal({ open, file, onClose, onConfirm }) {
           </div>
           <div>
             <h3 className="text-sm font-bold text-ink-100">Import HTML Bookmarks</h3>
-            <p className="text-xs text-ink-400">Target: <span className="font-semibold text-duck-300">Global Vault</span></p>
+            <p className="text-xs text-ink-400">Target: <span className="font-semibold text-brand-300">Global Vault</span></p>
           </div>
         </div>
 
@@ -183,7 +183,7 @@ function FolderModal({ open, onClose, onSave, initialName = "", parentId = null,
       <div onClick={onClose} className="fixed inset-0 z-[250] bg-ink-950/70 backdrop-blur-xs" />
       <div className="fixed left-1/2 top-1/2 z-[260] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-ink-800 bg-ink-900 p-5 shadow-2xl animate-fade-up">
         <h3 className="text-sm font-bold text-ink-100 flex items-center gap-2">
-          <FolderPlus className="h-4 w-4 text-duck-400" />
+          <FolderPlus className="h-4 w-4 text-brand-400" />
           <span>{title}</span>
         </h3>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
@@ -194,7 +194,7 @@ function FolderModal({ open, onClose, onSave, initialName = "", parentId = null,
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Folder name (e.g. Research Papers)..."
-            className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+            className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3.5 py-2.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
           />
           <div className="flex items-center justify-end gap-2">
             <button
@@ -207,7 +207,7 @@ function FolderModal({ open, onClose, onSave, initialName = "", parentId = null,
             <button
               type="submit"
               disabled={!name.trim()}
-              className="rounded-xl bg-duck-400 px-4 py-1.5 text-xs font-bold text-ink-950 hover:bg-duck-300 disabled:opacity-40"
+              className="rounded-xl bg-brand-400 px-4 py-1.5 text-xs font-bold text-ink-950 hover:bg-brand-300 disabled:opacity-40"
             >
               Save Folder
             </button>
@@ -472,7 +472,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
         {/* Sidebar Header */}
         <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3 bg-ink-900/60">
           <div className="flex items-center gap-2">
-            <Folder className="h-4 w-4 text-duck-400" />
+            <Folder className="h-4 w-4 text-brand-400" />
             <span className="text-xs font-bold uppercase tracking-wider text-ink-200">
               Folders
             </span>
@@ -481,7 +481,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
             type="button"
             onClick={() => setFolderModalState({ open: true, mode: "create", parentId: null, folder: null })}
             title="Create New Folder"
-            className="flex items-center gap-1 rounded-lg border border-duck-500/30 bg-duck-500/10 px-2 py-1 text-[11px] font-semibold text-duck-300 transition-colors hover:bg-duck-500/20"
+            className="flex items-center gap-1 rounded-lg border border-brand-500/30 bg-brand-500/10 px-2 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-500/20"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>New</span>
@@ -501,12 +501,12 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
             onDrop={(e) => handleDrop(e, "all")}
             className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
               selectedFolderId === "all"
-                ? "bg-ink-800 text-duck-300 font-semibold shadow-xs"
+                ? "bg-ink-800 text-brand-300 font-semibold shadow-xs"
                 : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
-            } ${dragOverFolderId === "all" ? "ring-2 ring-duck-400 bg-duck-500/20" : ""}`}
+            } ${dragOverFolderId === "all" ? "ring-2 ring-brand-400 bg-brand-500/20" : ""}`}
           >
             <div className="flex items-center gap-2.5">
-              <Bookmark className="h-4 w-4 text-duck-400" />
+              <Bookmark className="h-4 w-4 text-brand-400" />
               <span>All Bookmarks</span>
             </div>
             <span className="rounded-md bg-ink-850 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
@@ -525,9 +525,9 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
             onDrop={(e) => handleDrop(e, "unorganized")}
             className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
               selectedFolderId === "unorganized"
-                ? "bg-ink-800 text-duck-300 font-semibold shadow-xs"
+                ? "bg-ink-800 text-brand-300 font-semibold shadow-xs"
                 : "text-ink-400 hover:bg-ink-850 hover:text-ink-200"
-            } ${dragOverFolderId === "unorganized" ? "ring-2 ring-duck-400 bg-duck-500/20" : ""}`}
+            } ${dragOverFolderId === "unorganized" ? "ring-2 ring-brand-400 bg-brand-500/20" : ""}`}
           >
             <div className="flex items-center gap-2.5">
               <Globe className="h-4 w-4 text-ink-500" />
@@ -594,7 +594,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
               type="button"
               onClick={handleExportHtml}
               title="Export standard Netscape HTML bookmarks for Chrome, Firefox, Safari"
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[11px] font-semibold text-ink-300 transition-colors hover:border-duck-500/40 hover:text-duck-300"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[11px] font-semibold text-ink-300 transition-colors hover:border-brand-500/40 hover:text-brand-300"
             >
               <Download className="h-3.5 w-3.5" />
               <span>Export HTML</span>
@@ -643,7 +643,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search bookmarks by title, URL, or notes..."
-                className="w-full rounded-xl border border-ink-700 bg-ink-850 pl-9 pr-8 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500 focus:outline-none"
+                className="w-full rounded-xl border border-ink-700 bg-ink-850 pl-9 pr-8 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
               />
               {searchQuery && (
                 <button
@@ -663,7 +663,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="rounded-xl border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs text-ink-300 focus:border-duck-500 focus:outline-none cursor-pointer"
+                  className="rounded-xl border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs text-ink-300 focus:border-brand-500 focus:outline-none cursor-pointer"
                 >
                   <option value="newest">Newest Added</option>
                   <option value="oldest">Oldest Added</option>
@@ -680,7 +680,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
                   title="Grid View"
                   className={`rounded-lg p-1.5 transition-colors ${
                     viewMode === "grid"
-                      ? "bg-ink-700 text-duck-300"
+                      ? "bg-ink-700 text-brand-300"
                       : "text-ink-500 hover:text-ink-200"
                   }`}
                 >
@@ -692,7 +692,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
                   title="List View"
                   className={`rounded-lg p-1.5 transition-colors ${
                     viewMode === "list"
-                      ? "bg-ink-700 text-duck-300"
+                      ? "bg-ink-700 text-brand-300"
                       : "text-ink-500 hover:text-ink-200"
                   }`}
                 >
@@ -707,7 +707,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
                   setEditBookmark(null);
                   setAddModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 rounded-xl bg-duck-400 px-3.5 py-2 text-xs font-bold text-ink-950 shadow-md shadow-duck-500/10 transition-all hover:bg-duck-300 active:scale-98"
+                className="flex items-center gap-1.5 rounded-xl bg-brand-400 px-3.5 py-2 text-xs font-bold text-ink-950 shadow-md shadow-brand-500/10 transition-all hover:bg-brand-300 active:scale-98"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Bookmark</span>
@@ -732,7 +732,7 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
           {displayedBookmarks.length === 0 ? (
             /* Empty State */
             <div className="flex flex-col items-center justify-center py-16 text-center max-w-md mx-auto">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-duck-500/10 border border-duck-500/30 text-3xl">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-500/10 border border-brand-500/30 text-3xl">
                 🔖
               </div>
               <h3 className="mt-4 text-base font-bold text-ink-100">
@@ -750,12 +750,12 @@ export default function WebSaverView({ activeSpace = "General", spaces = [] }) {
                     setEditBookmark(null);
                     setAddModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 rounded-xl bg-duck-400 px-4 py-2 text-xs font-bold text-ink-950 shadow-md hover:bg-duck-300 transition-all"
+                  className="flex items-center gap-1.5 rounded-xl bg-brand-400 px-4 py-2 text-xs font-bold text-ink-950 shadow-md hover:bg-brand-300 transition-all"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Add First Bookmark</span>
                 </button>
-                <label className="flex items-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 px-4 py-2 text-xs font-semibold text-ink-300 hover:border-duck-500/40 hover:text-duck-300 transition-colors cursor-pointer">
+                <label className="flex items-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 px-4 py-2 text-xs font-semibold text-ink-300 hover:border-brand-500/40 hover:text-brand-300 transition-colors cursor-pointer">
                   <Upload className="h-4 w-4" />
                   <span>Import HTML File</span>
                   <input
@@ -912,9 +912,9 @@ function FolderTreeItem({
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         className={`group flex items-center justify-between rounded-xl py-1.5 pr-2 text-xs font-medium transition-colors cursor-pointer ${
           isSelected
-            ? "bg-ink-800 text-duck-300 font-semibold shadow-xs"
+            ? "bg-ink-800 text-brand-300 font-semibold shadow-xs"
             : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
-        } ${isDragOver ? "ring-2 ring-duck-400 bg-duck-500/20" : ""}`}
+        } ${isDragOver ? "ring-2 ring-brand-400 bg-brand-500/20" : ""}`}
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {hasChildren ? (
@@ -930,7 +930,7 @@ function FolderTreeItem({
           )}
 
           {isSelected || isExpanded ? (
-            <FolderOpen className="h-4 w-4 text-duck-400 shrink-0" />
+            <FolderOpen className="h-4 w-4 text-brand-400 shrink-0" />
           ) : (
             <Folder className="h-4 w-4 text-ink-400 shrink-0" />
           )}
@@ -1030,7 +1030,7 @@ function BookmarkGridCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, bookmark.id)}
-      className="group relative flex flex-col justify-between rounded-2xl border border-ink-800 bg-ink-900/90 p-4 transition-all hover:border-duck-500/40 hover:bg-ink-850 hover:shadow-lg shadow-xs"
+      className="group relative flex flex-col justify-between rounded-2xl border border-ink-800 bg-ink-900/90 p-4 transition-all hover:border-brand-500/40 hover:bg-ink-850 hover:shadow-lg shadow-xs"
     >
       <div>
         {/* Card Header: Favicon, Domain Pill & Quick Actions */}
@@ -1046,7 +1046,7 @@ function BookmarkGridCard({
                   onError={() => setImgError(true)}
                 />
               ) : (
-                <Globe className="h-4 w-4 text-duck-400" />
+                <Globe className="h-4 w-4 text-brand-400" />
               )}
             </div>
             <div className="min-w-0">
@@ -1093,7 +1093,7 @@ function BookmarkGridCard({
           href={bookmark.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="group/title flex items-start gap-1.5 font-bold text-sm text-ink-100 hover:text-duck-300 transition-colors line-clamp-2 leading-snug"
+          className="group/title flex items-start gap-1.5 font-bold text-sm text-ink-100 hover:text-brand-300 transition-colors line-clamp-2 leading-snug"
         >
           <span>{bookmark.title || domain || "Saved Link"}</span>
           <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-40 group-hover/title:opacity-100 transition-opacity mt-0.5" />
@@ -1112,7 +1112,7 @@ function BookmarkGridCard({
             {bookmark.tags.map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center rounded-md bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 text-[10px] font-medium text-duck-300 select-none"
+                className="inline-flex items-center rounded-md bg-brand-500/10 border border-brand-500/20 px-1.5 py-0.5 text-[10px] font-medium text-brand-300 select-none"
               >
                 #{t}
               </span>
@@ -1129,7 +1129,7 @@ function BookmarkGridCard({
         <select
           value={bookmark.folderId || ""}
           onChange={(e) => onMoveFolder(e.target.value)}
-          className="rounded-lg border border-ink-700 bg-ink-800 px-2 py-1 text-[11px] text-ink-300 focus:border-duck-500 focus:outline-none max-w-[150px] truncate"
+          className="rounded-lg border border-ink-700 bg-ink-800 px-2 py-1 text-[11px] text-ink-300 focus:border-brand-500 focus:outline-none max-w-[150px] truncate"
         >
           <option value="">(Unorganized)</option>
           {folders.map((f) => (
@@ -1163,7 +1163,7 @@ function BookmarkListItem({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, bookmark.id)}
-      className="group flex items-center justify-between gap-4 rounded-xl border border-ink-800 bg-ink-900/90 p-3 transition-all hover:border-duck-500/40 hover:bg-ink-850 shadow-xs"
+      className="group flex items-center justify-between gap-4 rounded-xl border border-ink-800 bg-ink-900/90 p-3 transition-all hover:border-brand-500/40 hover:bg-ink-850 shadow-xs"
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {/* Favicon */}
@@ -1177,7 +1177,7 @@ function BookmarkListItem({
               onError={() => setImgError(true)}
             />
           ) : (
-            <Globe className="h-4 w-4 text-duck-400" />
+            <Globe className="h-4 w-4 text-brand-400" />
           )}
         </div>
 
@@ -1188,7 +1188,7 @@ function BookmarkListItem({
               href={bookmark.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-bold text-xs text-ink-100 hover:text-duck-300 transition-colors truncate flex items-center gap-1"
+              className="font-bold text-xs text-ink-100 hover:text-brand-300 transition-colors truncate flex items-center gap-1"
             >
               <span>{bookmark.title || domain || "Saved Link"}</span>
               <ExternalLink className="h-3 w-3 shrink-0 opacity-40 hover:opacity-100" />
@@ -1211,7 +1211,7 @@ function BookmarkListItem({
             {bookmark.tags.slice(0, 3).map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center rounded-md bg-duck-500/10 border border-duck-500/20 px-1.5 py-0.5 text-[10px] font-medium text-duck-300 select-none"
+                className="inline-flex items-center rounded-md bg-brand-500/10 border border-brand-500/20 px-1.5 py-0.5 text-[10px] font-medium text-brand-300 select-none"
               >
                 #{t}
               </span>
@@ -1226,7 +1226,7 @@ function BookmarkListItem({
         <select
           value={bookmark.folderId || ""}
           onChange={(e) => onMoveFolder(e.target.value)}
-          className="hidden sm:block rounded-lg border border-ink-700 bg-ink-800 px-2 py-1 text-[11px] text-ink-300 focus:border-duck-500 focus:outline-none max-w-[120px] truncate"
+          className="hidden sm:block rounded-lg border border-ink-700 bg-ink-800 px-2 py-1 text-[11px] text-ink-300 focus:border-brand-500 focus:outline-none max-w-[120px] truncate"
         >
           <option value="">(Unorganized)</option>
           {folders.map((f) => (

@@ -245,7 +245,7 @@ export default function ShapeDropdown({ value, onChange }) {
         onKeyDown={onKeyDown}
         suppressHydrationWarning
         className={`flex w-full items-center gap-2.5 rounded-lg border px-2 py-1.5 text-left transition-colors ${
-          open ? "border-duck-500/60 bg-ink-800" : "border-ink-700 bg-ink-850 hover:border-ink-600"
+          open ? "border-brand-500/60 bg-ink-800" : "border-ink-700 bg-ink-850 hover:border-ink-600"
         }`}
       >
         <Thumb shape={value} />
@@ -297,11 +297,11 @@ export default function ShapeDropdown({ value, onChange }) {
                       onClick={() => choose(shape)}
                       className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1 ${
                         highlighted ? "bg-ink-800" : ""
-                      } ${selected ? "text-duck-300" : "text-ink-200"}`}
+                      } ${selected ? "text-brand-300" : "text-ink-200"}`}
                     >
                       <Thumb shape={shape} />
                       <span className="min-w-0 flex-1 truncate text-[12px]">{SHAPE_LABELS[shape]}</span>
-                      {selected && <Check className="h-3.5 w-3.5 shrink-0 text-duck-400" strokeWidth={2.5} />}
+                      {selected && <Check className="h-3.5 w-3.5 shrink-0 text-brand-400" strokeWidth={2.5} />}
                     </div>
                   );
                 })}

@@ -120,7 +120,7 @@ export default function EssayPanel({ poem, tab, onTabChange, onSave, onClose }) 
               ? "Write your introduction for this poem here."
               : "Write your conclusion for this poem here."
           }
-          className="h-full w-full resize-none rounded-xl border border-ink-800 bg-ink-850 p-3 text-[13px] leading-relaxed text-ink-200 outline-none transition-colors placeholder:text-ink-600 focus:border-duck-500/50 focus:ring-2 focus:ring-duck-400/20 disabled:opacity-50"
+          className="h-full w-full resize-none rounded-xl border border-ink-800 bg-ink-850 p-3 text-[13px] leading-relaxed text-ink-200 outline-none transition-colors placeholder:text-ink-600 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-400/20 disabled:opacity-50"
         />
       </div>
 

@@ -352,7 +352,7 @@ export function SceneLabel({
       <span
         className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
           accent
-            ? "border-duck-500/50 bg-duck-500/15 text-duck-300"
+            ? "border-brand-500/50 bg-brand-500/15 text-brand-300"
             : `border-ink-800 bg-ink-950/85 ${tone}`
         } ${className}`}
       >
@@ -403,7 +403,7 @@ export function Callout({ anchor, at, side = "right", children, tone = "text-ink
       <Html position={at} style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
         <span
           className={`inline-block whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
-            accent ? "border-duck-500/50 bg-duck-500/15 text-duck-300" : `border-ink-800 bg-ink-950/85 ${tone}`
+            accent ? "border-brand-500/50 bg-brand-500/15 text-brand-300" : `border-ink-800 bg-ink-950/85 ${tone}`
           }`}
           style={{ transform: side === "left" ? "translate(-100%, -50%)" : "translate(0, -50%)" }}
         >

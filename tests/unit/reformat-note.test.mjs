@@ -14,7 +14,7 @@ import {
 
 describe("Intelligent Note Reformatting Engine", () => {
   describe("Schema & Allowed Types Validation", () => {
-    it("defines valid SocraticOS block types for note reformatting", () => {
+    it("defines valid Learnory block types for note reformatting", () => {
       assert.ok(Array.isArray(REFORMAT_BLOCK_TYPES));
       assert.ok(REFORMAT_BLOCK_TYPES.includes("text"));
       assert.ok(REFORMAT_BLOCK_TYPES.includes("h1"));

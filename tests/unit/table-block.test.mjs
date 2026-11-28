@@ -184,7 +184,7 @@ describe("Table Block Serialization & AI Extraction", () => {
       },
     };
     const html = blocksToHTMLLossy([tableBlock], "My Note", "📊");
-    assert.ok(html.includes("socratic-table"));
+    assert.ok(html.includes("learnory-table"));
     assert.ok(html.includes("<th>Col A</th>"));
     assert.ok(html.includes("<td>Val A</td>"));
   });

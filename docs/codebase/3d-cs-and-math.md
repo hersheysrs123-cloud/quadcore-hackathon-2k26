@@ -1,6 +1,6 @@
 # 3D studio — Computer Science and Mathematics scenes
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). Binary search / AVL tree, sorting, gradient descent, solids of revolution, unit circle and Fourier synthesis.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). Binary search / AVL tree, sorting, gradient descent, solids of revolution, unit circle and Fourier synthesis.
 
 4. **Computer Science Engine** (`CSCanvas.jsx` & `BinaryTree3D.jsx`):
    - **3D Binary Search Tree / AVL Tree** (`binary_tree`): Interactive node insertion, searching, depth planes, and animated in-order, pre-order, and post-order traversals with complete Visual Tree Keys (Idle, Comparison, Found, Missing, Selected, Branch Edges).

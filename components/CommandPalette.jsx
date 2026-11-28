@@ -81,7 +81,7 @@ export default function CommandPalette({
           // eslint-disable-next-line @next/next/no-img-element -- favicon from any site; next/image only loads allow-listed hosts
           <img src={bm.favicon} alt="" className="w-4 h-4 object-contain rounded-xs" />
         ) : (
-          <Globe size={16} className="text-duck-400" />
+          <Globe size={16} className="text-brand-400" />
         ),
         onSelect: () => {
           if (bm.spaceId) setActiveSpace(bm.spaceId);
@@ -154,7 +154,7 @@ export default function CommandPalette({
       <div className="fixed inset-0 bg-ink-950/80 backdrop-blur-sm transition-opacity" onClick={() => setIsOpen(false)} />
       <div className="relative w-full max-w-2xl bg-ink-900 border border-ink-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-fade-up">
         <div className="flex items-center gap-3 px-4 py-3 border-b border-ink-800 bg-ink-900">
-          <Search className="w-5 h-5 text-duck-400 shrink-0" />
+          <Search className="w-5 h-5 text-brand-400 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -188,14 +188,14 @@ export default function CommandPalette({
                     }}
                     onMouseEnter={() => setSelectedIndex(index)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left w-full ${
-                      isSelected ? "bg-duck-500/10 border border-duck-500/20" : "bg-transparent border border-transparent hover:bg-ink-800/50"
+                      isSelected ? "bg-brand-500/10 border border-brand-500/20" : "bg-transparent border border-transparent hover:bg-ink-800/50"
                     }`}
                   >
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${isSelected ? "bg-duck-500/20 text-duck-400 border border-duck-500/20" : "bg-ink-800 text-ink-400"}`}>
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${isSelected ? "bg-brand-500/20 text-brand-400 border border-brand-500/20" : "bg-ink-800 text-ink-400"}`}>
                       {item.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-semibold truncate ${isSelected ? "text-duck-100" : "text-ink-200"}`}>
+                      <div className={`text-sm font-semibold truncate ${isSelected ? "text-brand-100" : "text-ink-200"}`}>
                         {item.title}
                       </div>
                       {(item.subtitle || item.type) && (
@@ -211,7 +211,7 @@ export default function CommandPalette({
                       )}
                     </div>
                     {isSelected && (
-                      <div className="text-duck-500 font-mono text-[10px] uppercase tracking-wider px-2 shrink-0">
+                      <div className="text-brand-500 font-mono text-[10px] uppercase tracking-wider px-2 shrink-0">
                         Enter
                       </div>
                     )}

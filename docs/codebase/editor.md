@@ -1,6 +1,6 @@
 # Block editor
 
-> Part of the [SocraticOS codebase reference](../../CODEBASE_SUMMARY.md). The Notion-style editor: 20 block types, keyboard state machine, caret engine, undo/redo, smart paste, sub-pages, auto-save.
+> Part of the [Learnory codebase reference](../../CODEBASE_SUMMARY.md). The Notion-style editor: 20 block types, keyboard state machine, caret engine, undo/redo, smart paste, sub-pages, auto-save.
 
 ### 📝 A. Notion-Style Block Editor (`components/BlockNoteEditor.jsx`)
 - **20 Block Types Supported**:
@@ -13,9 +13,9 @@
   7. `number`: Ordered list item with dynamic sequential & hierarchical counting (Level 0 `1.`, `2.`, `3.`; Level 1 `a.`, `b.`, `c.`; Level 2 `i.`, `ii.`, `iii.`; Level 3 `A.`, `B.`, `C.`), `Tab` / `Shift+Tab` indentation, level inheritance on Enter, hierarchical reset across block boundaries, Backspace un-indentation, and Enter-at-start prepending.
   8. `todo`: Interactive checkbox with task strikethrough, `[x]` / `[X]` checked markdown shortcuts, clean split marker stripping, and database synchronization.
   9. `toggle`: Collapsible container (`▶` arrow, `> ` shortcut). Its contents are the blocks right after it with a deeper `level` (see **Nested blocks** below); collapsing hides them on screen (`hidden print:block`, so they still print). Enter at the end of an open toggle adds its first child; on a collapsed toggle it adds a new toggle after the contents. An empty open toggle shows an "Empty toggle" hint that adds a child. Old notes kept the contents as `details` text: `migrateToggleDetails` turns it into nested blocks on open, paste and AI reformat.
-  10. `callout`: Highlighted frame with 8 icon presets (`💡`, `⚠️`, `📌`, `🔥`, `⭐`, `🎉`, `ℹ️`, `🦆`) and click-away dismissal.
+  10. `callout`: Highlighted frame with 8 icon presets (`💡`, `⚠️`, `📌`, `🔥`, `⭐`, `🎉`, `ℹ️`, `❓`) and click-away dismissal.
   11. `columns`: Multi-column split layout block supporting 2 to 5 columns with borderless Notion styling, dedicated `/2 columns` - `/5 columns` slash menu items, responsive grid cards (`grid-cols-1 md:grid-cols-2` up to `grid-cols-5`), individual column header titles with `Enter` advancing to column content, bidirectional vertical traversal (`content` first-line `ArrowUp` ↔ `title`), cross-column `ArrowLeft`/`ArrowRight` and `Tab`/`Shift+Tab` navigation, container card `Backspace`/`Delete` removal, rich editable multi-line bodies with live KaTeX `$formula$` and `` `code` `` rendering, and `ArrowDown` boundary exit.
-  12. `table`: Interactive grid table block with streamlined Notion styling (no title input clutter; compact header with `▦ Table` label and dimension badge `Rows × Cols`), rich markdown & KaTeX cell rendering (`TableCell`), interactive inline LaTeX editing via click popover with presets and deletion, clean `$formula$` typing, dynamic cell editing, focus-activated column & row drag handles (`⠿`) that smoothly appear when focusing cells in that column or row (with visual drop indicators `ring-2 ring-inset ring-duck-400/80` for drag-and-drop reordering), `+ Column` / `+ Row` controls, column and row deletion (`✕`) with complete Undo/Redo (`Ctrl+Z`/`Ctrl+Y`), header row toggle, vertical arrow navigation across all intermediate rows (`Header` ↔ `Row 0` ↔ `Row 1`... ↔ `Exit`), horizontal arrow cell hopping (`ArrowLeft`/`ArrowRight`), headerless table `ArrowUp` exit, bottom-right cell upward entry, container card `Backspace`/`Delete` removal, and `Tab` / `Shift+Tab` keyboard cell navigation.
+  12. `table`: Interactive grid table block with streamlined Notion styling (no title input clutter; compact header with `▦ Table` label and dimension badge `Rows × Cols`), rich markdown & KaTeX cell rendering (`TableCell`), interactive inline LaTeX editing via click popover with presets and deletion, clean `$formula$` typing, dynamic cell editing, focus-activated column & row drag handles (`⠿`) that smoothly appear when focusing cells in that column or row (with visual drop indicators `ring-2 ring-inset ring-brand-400/80` for drag-and-drop reordering), `+ Column` / `+ Row` controls, column and row deletion (`✕`) with complete Undo/Redo (`Ctrl+Z`/`Ctrl+Y`), header row toggle, vertical arrow navigation across all intermediate rows (`Header` ↔ `Row 0` ↔ `Row 1`... ↔ `Exit`), horizontal arrow cell hopping (`ArrowLeft`/`ArrowRight`), headerless table `ArrowUp` exit, bottom-right cell upward entry, container card `Backspace`/`Delete` removal, and `Tab` / `Shift+Tab` keyboard cell navigation.
   13. `quote`: Blockquote with thick accent border.
   14. `math`: Full-width LaTeX equation block with live KaTeX rendering, intelligent visibility check with comfortable font scaling floor (`MIN_READABLE_SCALE = 0.75`), dynamic horizontal scroll container with mouse wheel horizontal panning (`overflow-x-auto`), direct viewport click-to-edit, streamlined single `✨ Presets ▾` toggle button with expandable template & symbol tray, multi-line LaTeX traversal (`Shift+Enter` with line-by-line arrow navigation before boundary exit), horizontal arrow exit (`ArrowLeft`/`ArrowRight`), container card `Backspace`/`Delete` removal, and auto-save on arrow navigation.
   15. `inlinemath`: In-sentence LaTeX formula (`$formula$`) with Notion-style clear rendering (transparent background, borderless, text-matching color, soft hover feedback, and no side handles or pill borders), click popover editor, 10 formula presets, and 20 math symbols.
@@ -61,7 +61,7 @@
 - **Notion-Style Right-Side Outline (Table of Contents)**:
   - Dynamically scans `h1`, `h2`, `h3`, `h4` headings across the document.
   - Sits on the right margin with a collapsible floating pill toggle `📑 Outline (N)` and expanded outline drawer.
-  - Active scroll spy: Automatically highlights the heading currently in reading focus (`border-l-2 border-duck-400 bg-duck-500/15`) throttled via `requestAnimationFrame`.
+  - Active scroll spy: Automatically highlights the heading currently in reading focus (`border-l-2 border-brand-400 bg-brand-500/15`) throttled via `requestAnimationFrame`.
   - Smooth in-page jumping: Clicking any outline item scrolls directly to that heading, focuses it, and triggers a pulse highlight ring.
 
 - **Inline Image & Video Resize Presets (`25%` / `50%` / `100%`)**:
@@ -76,7 +76,7 @@
   - Visual `◀` and `▶` breadcrumb controls in the top navigation bar with disabled state reflection and shortcut tooltips.
 
 - **Google Docs & Web Rich HTML Smart Paste Sanitizer (`parseHtmlToBlocks` & `handleSmartPaste`)**:
-  - Automatically parses clipboard `text/html` from Google Docs, Notion, Word, Canvas LMS, and web pages directly into structured, sanitized SocraticOS block trees.
+  - Automatically parses clipboard `text/html` from Google Docs, Notion, Word, Canvas LMS, and web pages directly into structured, sanitized Learnory block trees.
   - Strips Google Docs boilerplate (`docs-internal-guid`, foreign inline font-family / font-size styles) preventing DOM corruption or theme leakage.
   - Converts semantic HTML elements (`<h1>`-`<h6>`, `<ul>`, `<ol>`, `<table>`, `<blockquote>`, `<pre>`, `<code>`, `<hr>`, `<iframe>`, `<video>`, `<img>`) into native blocks.
   - Converts inline tags and Google Docs span styling (`<b>`, `<strong>`, `font-weight: 700`, `<i>`, `<em>`, `font-style: italic`, `<code>`, `<a>`, `<mark>`, `<s>`) into clean inline Markdown tokens (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`, `==highlight==`, `~~strike~~`).
@@ -87,7 +87,7 @@
 
 - **Floating Text Selection Popover Toolbar (`TextSelectionToolbar`)**:
   - Automatically appears above any highlighted text across any editable block, list, heading, quote, callout, or table cell.
-  - Action buttons: **Bold** (`B`), **Italic** (`I`), **Underline** (`U`), **Cross / Strikethrough** (`S`), **Convert to Code** (`</>`), **Convert to Formula** (`$x$`), ✨ **Explain**, and 🦆 **Quiz me on Selection**.
+  - Action buttons: **Bold** (`B`), **Italic** (`I`), **Underline** (`U`), **Cross / Strikethrough** (`S`), **Convert to Code** (`</>`), **Convert to Formula** (`$x$`), ✨ **Explain**, and **Quiz me on Selection** (Mallo icon).
   - **Focus & Caret Retention**: Converting text to math or code synchronously compiles into rich elements and re-focuses without losing document focus.
   - **Underline Persistence**: Underline `<u>` elements are preserved losslessly across DOM serialization, inline formatting, and editor state updates.
   - **Formatting Boundary Caret Escaping**: Setting the caret at the boundary end of formatted spans places the caret in a trailing text node outside the formatting element, preventing subsequent typing from being inadvertently styled.
@@ -123,9 +123,9 @@
 
 - **Notion 6-Dots & Right-Click Context Menu**:
   - Accessible via hovering the `⠿` grip handle or **right-clicking anywhere on the block**.
-  - Clean block-level actions: ✨ **Explain Block**, 🦆 **Quiz on Block**, Duplicate (📋), Move Up/Down (⬆️/⬇️), Copy Text (📄), and Turn Into Submenu. Dismissible via click-outside or `Escape`.
+  - Clean block-level actions: ✨ **Explain Block**, **Quiz on Block** (Mallo icon), Duplicate (📋), Move Up/Down (⬆️/⬇️), Copy Text (📄), and Turn Into Submenu. Dismissible via click-outside or `Escape`.
 
-- **Cover Banners & Custom Icons**: 100% full-width cover banners with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Socratic Gold*) and custom emoji picker with 24 academic presets (`NOTE_EMOJIS`).
+- **Cover Banners & Custom Icons**: 100% full-width cover banners with 5 gradient presets (*Cyberpunk*, *Sunset Amber*, *Ocean Teal*, *Midnight Blue*, *Learnory Gold*) and custom emoji picker with 24 academic presets (`NOTE_EMOJIS`).
 
 - **3 Typography Font Options & Note Menu Selector**:
   - Three font options are offered: **Default Sans** (`font-note-sans`), **Classic Serif** (`font-note-serif`) and **Developer Mono** (`font-note-mono`). `app/globals.css` also defines `font-note-handwriting` and `font-note-geometric`, but `NOTE_FONTS` in `NoteMenu.jsx` does not offer them, so they can only be reached by editing a note's `fontStyle` directly.

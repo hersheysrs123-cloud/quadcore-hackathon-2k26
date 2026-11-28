@@ -127,14 +127,14 @@ describe("3D Respiratory Mechanics & Thoracic Physics Engine", () => {
       assert.ok(skeleton.commercialUse.includes("Permitted"));
     });
 
-    it("identifies custom procedural components as original SocraticOS contributions with commercial rights", () => {
+    it("identifies custom procedural components as original Learnory contributions with commercial rights", () => {
       const diaphragm = RESPIRATORY_MODEL_CREDITS.find((c) => c.id === "diaphragm");
-      assert.strictEqual(diaphragm.author, "SocraticOS Core Team");
+      assert.strictEqual(diaphragm.author, "Learnory Core Team");
       assert.strictEqual(diaphragm.file, "Procedural Mesh");
       assert.ok(diaphragm.commercialUse.includes("Permitted"));
 
       const intercostals = RESPIRATORY_MODEL_CREDITS.find((c) => c.id === "intercostals");
-      assert.strictEqual(intercostals.author, "SocraticOS Core Team");
+      assert.strictEqual(intercostals.author, "Learnory Core Team");
       assert.strictEqual(intercostals.file, "Procedural Mesh");
       assert.ok(intercostals.commercialUse.includes("Permitted"));
     });

@@ -1,4 +1,4 @@
-# E2E Test Infra: SocraticOS Block Note Editor Notion-Grade Navigation
+# E2E Test Infra: Learnory Block Note Editor Notion-Grade Navigation
 
 ## Test Philosophy
 - Opaque-box, requirement-driven. Derives strictly from `ORIGINAL_REQUEST.md`.

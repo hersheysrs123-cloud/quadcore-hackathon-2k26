@@ -1,6 +1,6 @@
 # Design — 3D studio interface
 
-> Part of the [SocraticOS design system](../../DESIGN_SYSTEM.md). Diagram tokens, contextual controls, sidebar resizing, respiratory tokens, model credits modal and the topic selector (sections 21–24, 27 and convention 15).
+> Part of the [Learnory design system](../../DESIGN_SYSTEM.md). Diagram tokens, contextual controls, sidebar resizing, respiratory tokens, model credits modal and the topic selector (sections 21–24, 27 and convention 15).
 
 ### 21. Physics Diagram Tokens (`force-diagram.jsx` / `energy-bars.jsx`)
 
@@ -18,14 +18,14 @@ Two shared modules own the colour vocabulary for the mechanics scenes, so the sa
 A topic's `controls` entry may carry `when: (params) => boolean`. `VisualizationHUD` filters on it before rendering, so a control that only applies to one of a topic's modes is hidden rather than shown inert — the simple-machines bench swaps its fulcrum-position slider for a sheave count when the machine type changes to the block and tackle. Controls without a `when` are always shown, so the field is fully backwards-compatible.
 
 ### 23. Universal 3D Visualization Sidebar Controls Resizability Standard
-All 3D interactive visualizations across SocraticOS (including shared `VisualizationHUD.jsx`, dedicated `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx`) implement a unified, responsive drag-to-resize sidebar pattern:
+All 3D interactive visualizations across Learnory (including shared `VisualizationHUD.jsx`, dedicated `ShadowLabCanvas.jsx`, `EyeCanvas.jsx`, `BinaryTree3D.jsx`, and `RespiratoryCanvas.jsx`) implement a unified, responsive drag-to-resize sidebar pattern:
 - **Docked Flex-Row Layout**: The sidebar sits as a dedicated `<aside>` flex item alongside the WebGL viewport `<main className="relative flex-1 h-full w-full min-w-0 min-h-0">`, ensuring the rendering space is physically separated from controls rather than occluded by a floating overlay. The legacy nested card border (`rounded-xl border border-ink-800 shadow-2xl`) has been removed, so controls reside directly in the sleek full-height rectangular sidebar container (`border-r border-ink-800 bg-ink-900/95`).
 - **Toggleable Full-Space Viewport**: Collapsing the sidebar via the header action button (`X`) unmounts the sidebar from the layout flow, allowing the 3D rendering canvas to seamlessly expand to 100% full width.
 - **Single Controls Toggle Trigger**: When collapsed, legacy separate "Details" and "Key Concepts" buttons are removed in favor of a single floating `[Controls]` button (`absolute left-4 top-4 z-20`) on the canvas. When pressed, the sidebar expands, and users can switch tabs between "Controls" and "Details" directly in the header tab switcher.
 - **Panel Width Range**: Dynamically clamped between `Math.max(180, Math.floor(window.innerWidth * 0.10))` (minimum 10% viewport / 180px) and `Math.floor(window.innerWidth * 0.80)` (maximum 80% viewport).
 - **Persistent Width Storage**: Persisted under `localStorage.getItem("socratic_hud_panel_width")` with SSR-safe initial mount fallback (286px–300px).
-- **Right Edge Drag Handle**: `cursor-ew-resize` pill element (`h-14 w-1 rounded-full bg-ink-700/50 group-hover:bg-duck-400/80 group-hover:h-20`) with active drag scaling (`bg-duck-400 shadow-md scale-y-110`).
-- **Bottom-Right Corner Grip Indicator**: `cursor-nwse-resize` 3-dot SVG grip pattern (`text-ink-600 hover:text-duck-400`).
+- **Right Edge Drag Handle**: `cursor-ew-resize` pill element (`h-14 w-1 rounded-full bg-ink-700/50 group-hover:bg-brand-400/80 group-hover:h-20`) with active drag scaling (`bg-brand-400 shadow-md scale-y-110`).
+- **Bottom-Right Corner Grip Indicator**: `cursor-nwse-resize` 3-dot SVG grip pattern (`text-ink-600 hover:text-brand-400`).
 - **Scroll Container**: Inner content is encased in a flex column with `overflow-y-auto p-3` preventing viewport overflow.
 
 ### 24. 3D Respiratory Mechanics & Thoracic Physics Tokens
@@ -38,7 +38,7 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
   - Inflow Stream: Crisp sky blue (`#38bdf8`, emissive `1.8`) representing fresh ambient oxygenated air streaming down trachea into bronchi.
   - Outflow Stream: Warm amber gold (`#fbbf24`, emissive `1.8`) representing expired carbon dioxide streams moving upward and out.
 - **Real-Time Synchronized SVG Physics Gauges**:
-  - Thorax Volume (L): Gradient fill `from-duck-500 via-emerald-400 to-sky-400` with vertical resting FRC marker line (`2.8 L`).
+  - Thorax Volume (L): Gradient fill `from-brand-500 via-emerald-400 to-sky-400` with vertical resting FRC marker line (`2.8 L`).
   - Intra-Thoracic Pressure $\Delta P$ (kPa): Bi-directional bar centered at atmospheric zero ($0\text{ kPa}$). Sub-atmospheric vacuum spans left in sky blue (`bg-sky-500`); positive compression spans right in rose (`bg-rose-500`).
   - Air Flow Rate $\dot{V}$ (L/s): Real-time vector meter displaying instantaneous volumetric flow velocity into or out of the lungs.
 - **3D Kinematic Motion Arrows**:
@@ -48,12 +48,12 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
 ### 27. 3D Model Credits & Open-Source Attribution Modal (`RespiratoryCanvas.jsx`)
 - **Quick-Access Floating Pill Button**:
   - Container / Placement: `absolute top-3 right-3 z-20 pointer-events-auto`.
-  - Styling: `flex items-center gap-1.5 rounded-lg border border-ink-800/90 bg-ink-900/90 px-2.5 py-1.5 text-xs font-semibold text-ink-300 shadow-xl backdrop-blur-md transition-all hover:border-duck-500/50 hover:bg-ink-850 hover:text-duck-300 cursor-pointer`.
+  - Styling: `flex items-center gap-1.5 rounded-lg border border-ink-800/90 bg-ink-900/90 px-2.5 py-1.5 text-xs font-semibold text-ink-300 shadow-xl backdrop-blur-md transition-all hover:border-brand-500/50 hover:bg-ink-850 hover:text-brand-300 cursor-pointer`.
 - **HUD Header Credits Trigger**:
   - Inactive State: `border-ink-700 bg-ink-800 text-ink-400 hover:text-ink-200 hover:border-ink-600`.
-  - Active / Open State: `border-duck-500/50 bg-duck-500/20 text-duck-300`.
+  - Active / Open State: `border-brand-500/50 bg-brand-500/20 text-brand-300`.
 - **In-HUD Deep Link**:
-  - Styling: `pt-2 border-t border-ink-800/60 flex items-center justify-between text-[10px] text-ink-400` with action link `text-duck-400 hover:text-duck-300 hover:underline font-semibold cursor-pointer`.
+  - Styling: `pt-2 border-t border-ink-800/60 flex items-center justify-between text-[10px] text-ink-400` with action link `text-brand-400 hover:text-brand-300 hover:underline font-semibold cursor-pointer`.
 - **Credits Modal Backdrop & Dialog**:
   - Backdrop: `fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-ink-950/80 backdrop-blur-sm animate-fade-in`.
   - Dialog Frame: `relative w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl border border-ink-700/80 bg-ink-900/98 shadow-2xl backdrop-blur-xl text-ink-100 overflow-hidden animate-scale-in`.
@@ -73,19 +73,19 @@ All 3D interactive visualizations across SocraticOS (including shared `Visualiza
     - **Single Distraction-Free Header**: Eliminates redundant secondary horizontal category scroll strips, maximizing viewport height for 3D canvases across both Workspace and `/visualizations` routes.
     - **Trigger Button Design Tokens**:
       - Shell: `rounded-xl border py-1.5 pl-2.5 pr-3 text-xs font-semibold cursor-pointer select-none transition-all`.
-      - Closed State: `border-ink-700 bg-ink-850 text-ink-100 hover:border-duck-500/40 hover:bg-ink-800 shadow-sm`.
-      - Active/Open State: `border-duck-500/60 bg-ink-800 text-duck-300 ring-2 ring-duck-500/20 shadow-md`.
+      - Closed State: `border-ink-700 bg-ink-850 text-ink-100 hover:border-brand-500/40 hover:bg-ink-800 shadow-sm`.
+      - Active/Open State: `border-brand-500/60 bg-ink-800 text-brand-300 ring-2 ring-brand-500/20 shadow-md`.
       - Discipline Badge: `rounded-md bg-ink-900/90 px-1.5 py-0.5 text-[10.5px] font-bold text-ink-300 border border-ink-800 shadow-inner shrink-0` showing subject emoji + capitalized title.
       - Topic Title: Truncated max-width (`max-w-[160px] sm:max-w-[220px] md:max-w-[280px]`) accompanied by rotating chevron (`transition-transform duration-200`).
     - **Dropdown Popover Design Tokens**:
       - Shell: `w-[340px] sm:w-[420px] rounded-2xl border border-ink-750 bg-ink-900/98 shadow-2xl backdrop-blur-2xl z-50 ring-1 ring-black/40 overflow-hidden`.
-      - Search Input Header: `p-2.5 border-b border-ink-800 bg-ink-900/90` with embedded `Search` and clear `X` buttons, `bg-ink-950/80 border-ink-750 text-xs text-ink-100 placeholder:text-ink-500 focus:border-duck-500/50`.
+      - Search Input Header: `p-2.5 border-b border-ink-800 bg-ink-900/90` with embedded `Search` and clear `X` buttons, `bg-ink-950/80 border-ink-750 text-xs text-ink-100 placeholder:text-ink-500 focus:border-brand-500/50`.
       - Subject Quick-Filter Pills: Horizontal pill strip (`bg-ink-950/50 border-b border-ink-800/80 px-2.5 py-1.5`) supporting 1-click discipline filtering:
-        - Active Pill: `bg-duck-500/20 text-duck-300 border border-duck-500/50 shadow-sm`.
+        - Active Pill: `bg-brand-500/20 text-brand-300 border border-brand-500/50 shadow-sm`.
         - Inactive Pill: `text-ink-400 hover:text-ink-200 hover:bg-ink-850 border border-transparent`.
       - Sticky Discipline Headers: `sticky top-0 z-10 bg-ink-900/95 backdrop-blur-md border-b border-ink-800/80 px-3 py-1.5 text-[11px] font-bold text-ink-300 shadow-sm` with model count badge (`bg-ink-800/80 px-2 py-0.5 rounded-full border border-ink-700/60`).
       - Topic Item Rows: `group flex w-full items-center justify-between gap-3 px-3 py-2 text-left cursor-pointer transition-all`:
-        - Active Option: `bg-duck-500/15 border-l-2 border-duck-400 text-duck-200` with `Check` icon in `text-duck-400`.
+        - Active Option: `bg-brand-500/15 border-l-2 border-brand-400 text-brand-200` with `Check` icon in `text-brand-400`.
         - Inactive Option: `hover:bg-ink-850/80 text-ink-300 hover:text-ink-100 border-l-2 border-transparent`.
       - Popover Footer: `px-3 py-2 border-t border-ink-800 bg-ink-950/70 text-[10px] text-ink-500` displaying model counts across 5 disciplines and `Esc to close` shortcut hint.
 

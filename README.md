@@ -1,6 +1,8 @@
-# SocraticOS
+# Learnory
 
-> **quadcore-hackathon-2k26** — a study workspace where your notes quiz you back: block-based notes, 52 interactive 3D science simulations, and a Socratic AI tutor.
+**Learnory — where learning lives.**
+
+> **quadcore-hackathon-2k26** — a study workspace where your notes quiz you back: block-based notes, 52 interactive 3D science simulations, a Socratic AI tutor, and Mallo, the marshmallow who quizzes you.
 
 Built on one premise: **rereading is not studying**. Take notes, explore the concept in real-time 3D, ask the tutor, get quizzed on it, and watch a sub-topic mastery heatmap fill in over time.
 
@@ -35,7 +37,7 @@ Open [localhost:3000](http://localhost:3000) for the landing page or go straight
 | ⏱️ **Focus** | Multi-timer HUD (Pomodoro, breaks, custom), study calendar, recurring alarms |
 | 📖 **Literature** | Annotate poems with overlapping close-reading analysis (stacked underlines, numbered markers, one note across several phrases), a Normal/Test recall mode, a line editor that keeps annotations attached, per-poem intro and conclusion, JSON backups |
 | 🔖 **Web Saver** | Bookmark folders per space with favicons; Netscape HTML import/export |
-| 📦 **Export** | `.socratic` backups, `.docx`, `.html`, `.txt`, `.md`, PDF via print, drag-and-drop import |
+| 📦 **Export** | `.learnory` backups (old `.socratic` files still import), `.docx`, `.html`, `.txt`, `.md`, PDF via print, drag-and-drop import |
 | 🎓 **Tutorial** | 9-chapter interactive onboarding, replayable from Settings or the command palette |
 
 The full tour is in [docs/FEATURES.md](docs/FEATURES.md).

@@ -1,13 +1,13 @@
-# SocraticOS — Comprehensive Codebase Summary & Handover Guide
+# Learnory — Comprehensive Codebase Summary & Handover Guide
 
 > **To any AI Assistant or Developer taking over**: 
-> This document provides an exhaustive, authoritative technical overview of **SocraticOS** (`quadcore-hackathon-2k26`). It explains the architecture, local-first IndexedDB storage model, Literature poem annotation, UI component hierarchy, 20-block note editor, 52-topic 3D scientific simulation studio across 5 STEM domains, AI tutoring & diagnostic quiz engines, multi-timer HUD system, export/import engine, design system tokens, and operational gotchas.
+> This document provides an exhaustive, authoritative technical overview of **Learnory** (`quadcore-hackathon-2k26`). It explains the architecture, local-first IndexedDB storage model, Literature poem annotation, UI component hierarchy, 20-block note editor, 52-topic 3D scientific simulation studio across 5 STEM domains, AI tutoring & diagnostic quiz engines, multi-timer HUD system, export/import engine, design system tokens, and operational gotchas.
 
 ---
 
 ## 📌 1. Executive Summary & Tech Stack
 
-**SocraticOS** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes across 7 question types, an interactive space-grounded AI Tutor, multi-timer HUDs, website bookmarking with folder hierarchies, a Literature workspace for annotating poems with overlapping close-reading analysis, and an aggregate mastery heatmap tracking sub-topic confidence over time.
+**Learnory** is an intelligent, Notion-inspired learning operating system and 3D scientific visualization studio built on one fundamental principle: **rereading is not studying**. The application pairs rich block-based note-taking with interactive real-time 3D models, structured AI explanations, diagnostic quizzes across 7 question types, an interactive space-grounded AI Tutor, multi-timer HUDs, website bookmarking with folder hierarchies, a Literature workspace for annotating poems with overlapping close-reading analysis, and an aggregate mastery heatmap tracking sub-topic confidence over time.
 
 ### Tech Stack:
 - **Framework**: Next.js 15.0.0 (App Router, Turbopack / Webpack build engine)
@@ -18,8 +18,8 @@
 - **3D Engine**: Three.js (r185), `@react-three/fiber` (v9), `@react-three/drei` (v10), custom Canvas engines with OrbitControls, procedural & clinical CT geometry, and WebGL lifecycle memory management
 - **Math & Equation Engine**: KaTeX (`katex`) for full block and in-sentence `$formula$` inline math rendering
 - **Syntax Highlighting**: **PrismJS** (`prismjs` v1.30.0) AST tokenizer across 10 programming languages with custom color token mapping
-- **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, Netscape Bookmark standard HTML import/export, `.socratic` JSON workspace backup format
-- **Timer & Audio Subsystem**: Reactive multi-timer Zustand store (`lib/timerStore.js`, 0% idle CPU auto-sleep), Web Audio API chime synthesis for alarms, dynamic browser tab favicon (`🦆` $\leftrightarrow$ `❗️`) and title flashing
+- **Document & File Conversion**: `docx` + `mammoth` (MS Word generation & parsing), HTML/Markdown/Plain-Text lossless conversion, Netscape Bookmark standard HTML import/export, `.learnory` JSON workspace backup format (older `.socratic` files still import)
+- **Timer & Audio Subsystem**: Reactive multi-timer Zustand store (`lib/timerStore.js`, 0% idle CPU auto-sleep), Web Audio API chime synthesis for alarms, dynamic browser tab favicon (Learnory logo $\leftrightarrow$ `☕`) and title flashing
 
 ---
 
@@ -81,7 +81,7 @@ Refer to **[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)** for exhaustive design token 
 - **Backgrounds**: Main Viewport `bg-ink-950` (`#0b0d12` Dark / `#f6f7f9` Light), Rail/Panel/Card `bg-ink-900` (`#11141b` / `#ffffff`), Inputs/Blocks `bg-ink-850` (`#171b24` / `#f1f2f5`).
 - **Borders & Dividers**: Primary `border-ink-800` (`#21262f` / `#e6e8ed`), Half-step `border-ink-750` (`#262c37` / `#dfe2e8`), Secondary `border-ink-700` (`#2e3540` / `#cfd3db`).
 - **Text Ramps**: High-contrast `text-ink-100` (`#f5f6f8` / `#0f1219`), Body `text-ink-200` (`#d9dde5` / `#262b36`), Secondary `text-ink-300` (`#bac0cd` / `#393e4c`), Muted `text-ink-400` / `text-ink-500`.
-- **Accents**: Duck Gold Primary `text-duck-300` (`#f9d98a`), `bg-duck-400` (`#f2c14e`), `bg-duck-500/15`, `ring-duck-400/40`.
+- **Accents**: Learnory Gold primary `text-brand-300` (`#f9d98a`), `bg-brand-400` (`#f2c14e`), `bg-brand-500/15`, `ring-brand-400/40`.
 - **Mastery Status Scale**:
   - Solid: `●` `text-solid-500` (`#22b14c` Dark / `#158a3a` Light)
   - Shaky: `◐` `text-shaky-500` (`#ec835a` Dark / `#d9601f` Light)

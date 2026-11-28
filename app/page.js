@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { STATUS } from "@/lib/mastery";
+import { BRAND_TITLE, BRAND_TAGLINE } from "@/lib/brand";
+import { LearnoryLogo, LearnoryMark, MalloIcon } from "@/components/brand/Brand";
 
 export const metadata = {
-  title: "SocraticOS — notes that quiz you back",
+  title: BRAND_TITLE,
   description:
     "Block notes, a calendar, 3D visualisations, and an AI that explains your notes then quizzes you on them — scoring every sub-topic onto a mastery heatmap.",
 };
@@ -32,8 +34,7 @@ function Nav() {
     <header className="sticky top-0 z-30 border-b border-ink-800/70 bg-ink-950/80 backdrop-blur-xl">
       <nav className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-duck-400 text-sm">🦆</span>
-          <span className="text-sm font-semibold tracking-tight text-ink-100">SocraticOS</span>
+          <LearnoryLogo />
         </Link>
         <div className="ml-auto flex items-center gap-1">
           <a href="#loop" className="hidden rounded-lg px-3 py-1.5 text-[13px] text-ink-400 transition-colors hover:text-ink-100 sm:block">
@@ -44,7 +45,7 @@ function Nav() {
           </a>
           <Link
             href="/workspace"
-            className="ml-2 rounded-lg bg-duck-400 px-3.5 py-1.5 text-[13px] font-semibold text-ink-950 transition-colors hover:bg-duck-300"
+            className="ml-2 rounded-lg bg-brand-400 px-3.5 py-1.5 text-[13px] font-semibold text-ink-950 transition-colors hover:bg-brand-300"
           >
             Open workspace
           </Link>
@@ -58,7 +59,7 @@ function Hero() {
   return (
     <section className="mx-auto max-w-6xl px-6 pb-12 pt-20 sm:pt-28">
       <div className="mx-auto max-w-3xl text-center animate-fade-up">
-        <p className="text-[13px] font-medium text-duck-400">Rereading is not studying</p>
+        <p className="text-[13px] font-medium text-brand-400">Rereading is not studying</p>
         <h1 className="mt-4 text-balance text-[42px] font-bold leading-[1.05] tracking-tight text-ink-100 sm:text-[64px]">
           Notes that quiz you back
         </h1>
@@ -69,7 +70,7 @@ function Hero() {
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/workspace?tour=true"
-            className="rounded-xl bg-duck-400 px-5 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-duck-500/20 transition-colors hover:bg-duck-300"
+            className="rounded-xl bg-brand-400 px-5 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-brand-500/20 transition-colors hover:bg-brand-300"
           >
             Start studying
           </Link>
@@ -104,7 +105,7 @@ function AppPreview() {
     <div className="overflow-hidden rounded-2xl border border-ink-800 bg-ink-900 shadow-2xl shadow-ink-950">
       <div className="flex min-h-[24rem]">
         <div className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r border-ink-800 py-3 sm:flex">
-          <span className="mb-2 flex h-7 w-7 items-center justify-center rounded-lg bg-duck-400 text-xs">🦆</span>
+          <LearnoryMark className="mb-2 h-7 w-7" />
           {rail.map(([glyph, label, active]) => (
             <span
               key={label}
@@ -150,7 +151,7 @@ function AppPreview() {
             </span>
             <span className="flex items-center gap-1 rounded-lg border border-ink-800 bg-ink-850 p-0.5 text-[9px]">
               <span className="rounded-md px-2 py-1 text-ink-300">Explain</span>
-              <span className="rounded-md bg-duck-400 px-2 py-1 font-semibold text-ink-950">🦆 Quiz me</span>
+              <span className="inline-flex items-center gap-1 rounded-md bg-brand-400 px-2 py-1 font-semibold text-ink-950"><MalloIcon className="h-3 w-3" /> Quiz me</span>
               <span className="rounded-md px-2 py-1 text-ink-300">Tutor</span>
             </span>
           </div>
@@ -160,7 +161,7 @@ function AppPreview() {
               <p className="text-[11px] leading-relaxed text-ink-300">
                 An eigenvector is a direction a transformation doesn&rsquo;t rotate — it only stretches or squashes it.
               </p>
-              <div className="rounded-lg border border-ink-800 bg-ink-850 px-3 py-2 font-mono text-[10px] text-duck-300">
+              <div className="rounded-lg border border-ink-800 bg-ink-850 px-3 py-2 font-mono text-[10px] text-brand-300">
                 A v = λ v
               </div>
               {["λ > 1 — stretches", "λ < 0 — flips across the origin"].map((line) => (
@@ -169,7 +170,7 @@ function AppPreview() {
                   {line}
                 </p>
               ))}
-              <p className="rounded-lg bg-ink-850 px-3 py-2 text-[11px] leading-relaxed text-ink-200 ring-1 ring-duck-500/30">
+              <p className="rounded-lg bg-ink-850 px-3 py-2 text-[11px] leading-relaxed text-ink-200 ring-1 ring-brand-500/30">
                 I can&rsquo;t explain why a shear matrix has only one eigenvector direction.
               </p>
             </div>
@@ -244,7 +245,7 @@ const LOOP = [
   {
     step: "03",
     title: "Get quizzed",
-    body: "Graded questions or a Socratic interrogation that keeps asking “why?” until it finds where your understanding stops.",
+    body: "Mallo, your marshmallow examiner, asks graded questions or keeps asking “why?” until it finds where your understanding stops.",
   },
   {
     step: "04",
@@ -256,7 +257,7 @@ const LOOP = [
 function Loop() {
   return (
     <section id="loop" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-      <p className="text-[13px] font-medium text-duck-400">How it works</p>
+      <p className="text-[13px] font-medium text-brand-400">How it works</p>
       <h2 className="mt-2 max-w-2xl text-balance text-[30px] font-bold leading-tight tracking-tight text-ink-100 sm:text-[38px]">
         One loop, from notes to mastery
       </h2>
@@ -284,12 +285,12 @@ function Tools() {
   return (
     <section id="tools" className="border-y border-ink-800/70 bg-ink-900/40">
       <div className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-        <p className="text-[13px] font-medium text-duck-400">Also inside</p>
+        <p className="text-[13px] font-medium text-brand-400">Also inside</p>
         <h2 className="mt-2 text-[30px] font-bold leading-tight tracking-tight text-ink-100 sm:text-[38px]">Everything else a study day needs</h2>
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
           {TOOLS.map((t) => (
             <div key={t.title} className="flex gap-4 rounded-2xl border border-ink-800 bg-ink-900 p-6">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink-850 text-lg text-duck-400">{t.icon}</span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink-850 text-lg text-brand-400">{t.icon}</span>
               <div>
                 <h3 className="text-[15px] font-semibold text-ink-100">{t.title}</h3>
                 <p className="mt-1 text-[13px] leading-relaxed text-ink-400">{t.body}</p>
@@ -311,7 +312,7 @@ function FinalCta() {
       </p>
       <Link
         href="/workspace?tour=true"
-        className="mt-8 inline-block rounded-xl bg-duck-400 px-6 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-duck-500/20 transition-colors hover:bg-duck-300"
+        className="mt-8 inline-block rounded-xl bg-brand-400 px-6 py-3 text-sm font-semibold text-ink-950 shadow-lg shadow-brand-500/20 transition-colors hover:bg-brand-300"
       >
         Open the workspace
       </Link>
@@ -323,7 +324,12 @@ function Footer() {
   return (
     <footer className="border-t border-ink-800/70">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs text-ink-500">
-        <span>🦆 SocraticOS</span>
+        <span className="inline-flex items-center gap-2">
+          <LearnoryMark className="h-5 w-5" />
+          <span>
+            <span className="font-semibold text-ink-300">Learnory</span> — {BRAND_TAGLINE}
+          </span>
+        </span>
         <span>Local-first. Your notes never leave this browser unless you export them.</span>
       </div>
     </footer>

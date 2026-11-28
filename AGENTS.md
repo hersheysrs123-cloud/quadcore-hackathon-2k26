@@ -1,4 +1,4 @@
-# SocraticOS Assistant Rules & Documentation Maintenance Directives
+# Learnory Assistant Rules & Documentation Maintenance Directives
 
 Documentation must match the code, but update it **once per branch, not after every change**. Do the docs pass when the work on a branch is finished: right before opening a PR, or when the user asks for it. Don't touch docs mid-task unless the user asks. A docs pass covers every change on the branch, so check `git diff main...HEAD` to see what needs documenting.
 

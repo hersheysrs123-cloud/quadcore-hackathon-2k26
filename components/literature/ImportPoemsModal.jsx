@@ -17,7 +17,7 @@ export default function ImportPoemsModal({ open, preview, currentCount, onClose,
       <div onClick={onClose} className="fixed inset-0 z-[250] bg-ink-950/75 backdrop-blur-xs" />
       <div className="fixed left-1/2 top-1/2 z-[260] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-ink-800 bg-ink-900 p-6 shadow-2xl animate-fade-up">
         <div className="flex items-center gap-3 border-b border-ink-800 pb-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-duck-500/30 bg-duck-500/10 text-duck-300">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/30 bg-brand-500/10 text-brand-300">
             <Upload className="h-5 w-5" />
           </div>
           <h3 className="text-sm font-bold text-ink-100">Import Literature backup</h3>

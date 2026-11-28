@@ -1,6 +1,6 @@
 # Design — 3D scene tokens: mechanics
 
-> Part of the [SocraticOS design system](../../DESIGN_SYSTEM.md). Simple machines, buoyancy, incline, Hooke's law, roller coaster and the dynamometer test stand (conventions 16, 17, 24–27).
+> Part of the [Learnory design system](../../DESIGN_SYSTEM.md). Simple machines, buoyancy, incline, Hooke's law, roller coaster and the dynamometer test stand (conventions 16, 17, 24–27).
 
 16. **3D Simple Machines & Mechanics Apparatus Tokens (`SimpleMachinesCanvas.jsx`)**:
     - **Workbench Base**: Modern elevated laboratory table base (`#64748b` rounded slab with `#cbd5e1` brushed aluminum surface inlay and `#475569` corner support pedestals), replacing dark low-contrast surfaces. Floor grid lines balanced at `#334155` / `#475569`.
@@ -66,7 +66,7 @@
       - Lifting Handles: High-contrast chrome handles (`#e2e8f0`) with slate recessed wells (`#475569`).
     - **Right Telemetry Sidebar & Analytics HUD Tokens**:
       - Sidebar Container: Dedicated docked `<aside>` (`w-[320px]`, `border-l border-ink-800 bg-ink-900/95 backdrop-blur-md shadow-2xl`) cleanly separated from the 3D WebGL viewport.
-      - Sidebar Header: `border-b border-ink-800/70 pb-1`, `Activity` icon in `text-duck-300`, title in `text-xs font-bold uppercase tracking-wider text-ink-100`, and close button (`X`, `hover:bg-ink-800 hover:text-ink-100`).
+      - Sidebar Header: `border-b border-ink-800/70 pb-1`, `Activity` icon in `text-brand-300`, title in `text-xs font-bold uppercase tracking-wider text-ink-100`, and close button (`X`, `hover:bg-ink-800 hover:text-ink-100`).
       - Static Grip Capacity Bar (`InclineGripBar`):
         - Container: `rounded-xl border border-ink-800 bg-ink-950/70 p-3 space-y-2`.
         - State Badges:
@@ -86,13 +86,13 @@
         - Metric Tokens:
           - Acceleration ($a$): `text-ink-200` (static) / `text-rose-400` (accelerating).
           - Net Force ($\Sigma F$): `text-emerald-400` (equilibrium) / `text-amber-400` (unbalanced).
-          - Velocity ($v$): `text-duck-300` font-bold.
+          - Velocity ($v$): `text-brand-300` font-bold.
           - Ramp Angle ($\theta$) & Slope Weight ($W_\parallel$): `text-amber-300` (gold).
           - Normal Force ($N$): `text-sky-300`.
           - Applied Pull ($F$) & Mass ($m$): `text-ink-200`.
           - Static & Kinetic Coefficients ($\mu_s, \mu_k$): `text-ink-200`.
       - Telemetry Reopen Trigger:
-        - Floating button (`top-4 right-4 z-20`) with glassmorphic backing (`border border-ink-700 bg-ink-900/90 backdrop-blur text-ink-200 hover:bg-ink-800 hover:text-white`), `Activity` icon (`text-duck-300`), and `Telemetry` label to reopen the panel on demand.
+        - Floating button (`top-4 right-4 z-20`) with glassmorphic backing (`border border-ink-700 bg-ink-900/90 backdrop-blur text-ink-200 hover:bg-ink-800 hover:text-white`), `Activity` icon (`text-brand-300`), and `Telemetry` label to reopen the panel on demand.
       - Centered Camera Framing: Apparatus centered at `position: [0.6, 1.4, 12.8]` with OrbitControls target at `[0.6, 0.2, 0]`.
 
 25. **3D Hooke's Law Apparatus & Extension Graph Tokens (`HookesLawCanvas.jsx`, `force-diagram.jsx`)**:

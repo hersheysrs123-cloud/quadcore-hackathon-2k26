@@ -68,8 +68,8 @@ const FORMAT_CONFIGS = {
     ext: ".md",
     icon: "⬇️",
     badge: "Standard Markdown",
-    color: "text-duck-300 border-duck-500/40 bg-duck-500/10",
-    ribbonColor: "bg-duck-700",
+    color: "text-brand-300 border-brand-500/40 bg-brand-500/10",
+    ribbonColor: "bg-brand-700",
     description: "Standard Markdown file compatible with Obsidian, GitHub, and Notion",
   },
 };
@@ -284,7 +284,7 @@ export default function ExportPreview({
               onClick={() => handleSelectFormat(cfg.id)}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all ${
                 activeFormat === cfg.id
-                  ? "bg-duck-500 text-ink-950 font-bold shadow-xs"
+                  ? "bg-brand-500 text-ink-950 font-bold shadow-xs"
                   : "text-ink-400 hover:text-ink-200 hover:bg-ink-800/60"
               }`}
               title={`Preview as ${cfg.name} (${cfg.ext})`}
@@ -307,7 +307,7 @@ export default function ExportPreview({
                 onClick={() => setViewMode("rendered")}
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
                   viewMode === "rendered"
-                    ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
+                    ? "bg-brand-500/20 text-brand-300 border border-brand-500/40"
                     : "text-ink-400 hover:text-ink-200 hover:bg-ink-800/50"
                 }`}
               >
@@ -319,7 +319,7 @@ export default function ExportPreview({
                 onClick={() => setViewMode("source")}
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
                   viewMode === "source"
-                    ? "bg-duck-500/20 text-duck-300 border border-duck-500/40"
+                    ? "bg-brand-500/20 text-brand-300 border border-brand-500/40"
                     : "text-ink-400 hover:text-ink-200 hover:bg-ink-800/50"
                 }`}
               >
@@ -398,7 +398,7 @@ export default function ExportPreview({
         {/* Copy to Clipboard & Scroll Hint */}
         <div className="flex items-center gap-2">
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-ink-400 font-medium">
-            <span className="h-1.5 w-1.5 rounded-full bg-duck-400/80 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-400/80 animate-pulse" />
             <span>Scrollable Preview</span>
           </span>
           <button
@@ -419,7 +419,7 @@ export default function ExportPreview({
         tabIndex={0}
         role="region"
         aria-label="Export document preview canvas"
-        className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-ink-900/30 overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-duck-500/30 scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-duck-500/50 scrollbar-track-transparent scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-ink-900/30 overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-500/30 scrollbar-thin scrollbar-thumb-ink-700/80 hover:scrollbar-thumb-brand-500/50 scrollbar-track-transparent scroll-smooth"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {/* 1. WORD DOCUMENT (.docx) PREVIEW */}
@@ -463,7 +463,7 @@ export default function ExportPreview({
                   <div className="mt-14 pt-4 border-t border-gray-200 text-center text-xs text-gray-400 flex items-center justify-between">
                     <span>{title}</span>
                     <span>Page 1 of 1</span>
-                    <span className="text-[10px]">SocraticOS Word Exporter</span>
+                    <span className="text-[10px]">Learnory Word Exporter</span>
                   </div>
                 </div>
               </div>
@@ -579,7 +579,7 @@ export default function ExportPreview({
       {/* ─── Bottom Footer Download Bar ─── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-800 bg-ink-950 px-4 sm:px-6 py-3.5 shrink-0">
         <div className="flex items-center gap-2 text-xs text-ink-400">
-          <Sparkles className="h-4 w-4 text-duck-400 shrink-0" />
+          <Sparkles className="h-4 w-4 text-brand-400 shrink-0" />
           <span>
             Preview matches the exported file. Click below to download directly to your machine.
           </span>
@@ -598,7 +598,7 @@ export default function ExportPreview({
             type="button"
             onClick={() => onDownload && onDownload(activeFormat)}
             disabled={isProcessing}
-            className="inline-flex items-center gap-2 rounded-xl border border-duck-500/40 bg-duck-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-duck-400 disabled:opacity-50 transition-all shadow-md active:scale-95"
+            className="inline-flex items-center gap-2 rounded-xl border border-brand-500/40 bg-brand-500 px-5 py-2 text-xs font-bold text-ink-950 hover:bg-brand-400 disabled:opacity-50 transition-all shadow-md active:scale-95"
           >
             <Download className="h-4 w-4" />
             <span>

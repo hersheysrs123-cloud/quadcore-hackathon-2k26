@@ -58,15 +58,15 @@
   --color-ink-200: #d9dde5;
   --color-ink-100: #f5f6f8;
 
-  /* The Duck accent — kept, slightly warmer and less saturated.
+  /* The brand accent (Learnory gold) — warm, slightly desaturated.
    * 100 and 200 are the emphasis-text steps (selected command-palette row);
    * 700 is the pressed/border step. */
-  --color-duck-100: #fdf3d5;
-  --color-duck-200: #fbe7b0;
-  --color-duck-300: #f9d98a;
-  --color-duck-400: #f2c14e;
-  --color-duck-500: #d9a227;
-  --color-duck-700: #8a6410;
+  --color-brand-100: #fdf3d5;
+  --color-brand-200: #fbe7b0;
+  --color-brand-300: #f9d98a;
+  --color-brand-400: #f2c14e;
+  --color-brand-500: #d9a227;
+  --color-brand-700: #8a6410;
 
   /* ── Mastery status scale (Solid / Shaky / Gap) ────────────────────
    * Reserved meanings. Never reuse these as decoration or as a series
@@ -102,12 +102,12 @@
 
   /* 100 and 200 are the emphasis-text steps, so on a white surface they are
    * the darkest browns, not brighter oranges. */
-  --color-duck-100: #663903;
-  --color-duck-200: #7a4503;
-  --color-duck-300: #c47a06;
-  --color-duck-400: #b36a05;
-  --color-duck-500: #8f5304;
-  --color-duck-700: #6b3e03;
+  --color-brand-100: #663903;
+  --color-brand-200: #7a4503;
+  --color-brand-300: #c47a06;
+  --color-brand-400: #b36a05;
+  --color-brand-500: #8f5304;
+  --color-brand-700: #6b3e03;
 
   --color-solid-300: #16a34a;
   --color-solid-400: #15803d;
@@ -206,7 +206,7 @@ body {
 }
 
 ::selection {
-  background-color: var(--color-duck-400);
+  background-color: var(--color-brand-400);
   color: var(--color-ink-950);
 }
 
@@ -387,7 +387,7 @@ body {
   [contenteditable],
   div, p, span, li,
   .text-ink-100, .text-ink-200, .text-ink-300, .text-ink-400, .text-ink-500,
-  .text-duck-100, .text-duck-200, .text-duck-300, .text-duck-400 {
+  .text-brand-100, .text-brand-200, .text-brand-300, .text-brand-400 {
     color: #0f172a !important;
   }
 
@@ -748,8 +748,8 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  [class*="group/codeblk"] .text-duck-300,
-  [class*="group/codeblk"] span[class*="text-duck-300"] {
+  [class*="group/codeblk"] .text-brand-300,
+  [class*="group/codeblk"] span[class*="text-brand-300"] {
     color: #d97706 !important;
     font-weight: 600 !important;
     -webkit-print-color-adjust: exact !important;
@@ -1434,7 +1434,7 @@ html.light .katex-inline-node:hover {
      · the text stays a flat run of spans, so selection offsets (and the
        `data-start` contract PoemCanvas relies on) stay exact.
 
-   Depth 1 is the duck accent nearest the text, depth 2 adds a muted
+   Depth 1 is the brand accent nearest the text, depth 2 adds a muted
    second line, depth 3+ adds a third. `--lit-u-pad` is the reserved
    space beneath each line that the stack is drawn into. */
 .lit-poem {
@@ -1501,32 +1501,32 @@ html.light .katex-inline-node:hover {
 
 .lit-seg[data-depth="1"] {
   --lit-u-layers:
-    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px);
+    linear-gradient(to top, transparent 0 8px, var(--color-brand-400) 8px 10px, transparent 10px);
 }
 
 .lit-seg[data-depth="2"] {
   --lit-u-layers:
-    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px),
-    linear-gradient(to top, transparent 0 4px, var(--color-duck-700) 4px 6px, transparent 6px);
+    linear-gradient(to top, transparent 0 8px, var(--color-brand-400) 8px 10px, transparent 10px),
+    linear-gradient(to top, transparent 0 4px, var(--color-brand-700) 4px 6px, transparent 6px);
 }
 
 .lit-seg[data-depth="3"] {
   --lit-u-layers:
-    linear-gradient(to top, transparent 0 8px, var(--color-duck-400) 8px 10px, transparent 10px),
-    linear-gradient(to top, transparent 0 4px, var(--color-duck-700) 4px 6px, transparent 6px),
+    linear-gradient(to top, transparent 0 8px, var(--color-brand-400) 8px 10px, transparent 10px),
+    linear-gradient(to top, transparent 0 4px, var(--color-brand-700) 4px 6px, transparent 6px),
     linear-gradient(to top, transparent 0 0, var(--color-shaky-500) 0 2px, transparent 2px);
 }
 
 .lit-seg.has-ann:hover {
-  --lit-tint: color-mix(in srgb, var(--color-duck-400) 12%, transparent);
+  --lit-tint: color-mix(in srgb, var(--color-brand-400) 12%, transparent);
 }
 
 .lit-seg.is-hot {
-  --lit-tint: color-mix(in srgb, var(--color-duck-400) 18%, transparent);
+  --lit-tint: color-mix(in srgb, var(--color-brand-400) 18%, transparent);
 }
 
 .lit-seg.is-open {
-  --lit-tint: color-mix(in srgb, var(--color-duck-400) 28%, transparent);
+  --lit-tint: color-mix(in srgb, var(--color-brand-400) 28%, transparent);
 }
 
 /* Numbered markers. The digits live in a pseudo-element so they are invisible
@@ -1539,9 +1539,9 @@ html.light .katex-inline-node:hover {
   font-variant-numeric: tabular-nums;
   line-height: 1;
   vertical-align: super;
-  color: var(--color-duck-300);
-  background: color-mix(in srgb, var(--color-duck-400) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-duck-400) 35%, transparent);
+  color: var(--color-brand-300);
+  background: color-mix(in srgb, var(--color-brand-400) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-brand-400) 35%, transparent);
   border-radius: 3px;
   padding: 1.5px 3px 1.5px 3.5px;
   margin: 0 1px 0 1.5px;
@@ -1559,15 +1559,15 @@ html.light .katex-inline-node:hover {
 
 .lit-marker:hover,
 .lit-marker.is-hot {
-  background: var(--color-duck-400);
+  background: var(--color-brand-400);
   color: var(--color-ink-950);
-  border-color: var(--color-duck-400);
+  border-color: var(--color-brand-400);
 }
 
 .lit-marker.is-open {
-  background: var(--color-duck-300);
+  background: var(--color-brand-300);
   color: var(--color-ink-950);
-  border-color: var(--color-duck-300);
+  border-color: var(--color-brand-300);
 }
 
 /* A marker for the 2nd+ phrase of a multi-part annotation is dimmed, so a
@@ -1588,4 +1588,146 @@ html.light .katex-inline-node:hover {
 
 .lit-blurable.is-hidden * {
   pointer-events: none;
+}
+
+/* ── Mallo (components/brand/Brand.jsx) ────────────────────────────────
+ * Each mood's motion. Transforms on SVG parts need `transform-box:
+ * fill-box`, or the origin is the whole SVG's corner, not the part.
+ * Delays read --mallo-delay (set per icon) so a row of Mallos doesn't move
+ * in lockstep. Everything stops under prefers-reduced-motion. */
+.mallo .mallo-body,
+.mallo .mallo-eyes,
+.mallo .mallo-swirl,
+.mallo .mallo-dot,
+.mallo .mallo-sparkle,
+.mallo .mallo-z {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.mallo .mallo-body {
+  transform-origin: 50% 100%;
+}
+
+/* happy: a blink every few seconds; a squish when its button is hovered */
+.mallo-happy .mallo-eyes {
+  animation: mallo-blink 4.8s infinite;
+  animation-delay: var(--mallo-delay, 0s);
+}
+:is(button, a, [role="button"]):hover > .mallo-animate .mallo-body,
+:is(button, a, [role="button"]):hover > * > .mallo-animate .mallo-body,
+.mallo-animate:hover .mallo-body {
+  animation: mallo-squish 0.55s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+/* thinking: bobbing, with thought dots pulsing in turn */
+.mallo-thinking .mallo-body {
+  animation: mallo-bob 1.3s ease-in-out infinite;
+}
+.mallo-thinking .mallo-dot {
+  animation: mallo-dot 1.3s ease-in-out infinite;
+}
+.mallo-thinking .mallo-dot-2 { animation-delay: 0.18s; }
+.mallo-thinking .mallo-dot-3 { animation-delay: 0.36s; }
+
+/* proud: hops and lands with a squash, sparkles twinkling */
+.mallo-proud .mallo-body {
+  animation: mallo-hop 1.6s cubic-bezier(0.35, 0, 0.25, 1) infinite;
+}
+.mallo-proud .mallo-sparkle {
+  animation: mallo-twinkle 1.6s ease-in-out infinite;
+}
+.mallo-proud .mallo-sparkle-2 { animation-delay: 0.5s; }
+.mallo-proud .mallo-sparkle-3 { animation-delay: 1s; }
+.mallo-proud .mallo-eyes {
+  animation: mallo-blink 3.6s infinite;
+}
+
+/* encouraging: a determined bounce-and-tilt, like a pep talk */
+.mallo-encouraging .mallo-body {
+  animation: mallo-pep 1.8s ease-in-out infinite;
+}
+.mallo-encouraging .mallo-eyes {
+  animation: mallo-blink 5.2s infinite;
+}
+
+/* sleepy: slow breathing, Zzz drifting up */
+.mallo-sleepy .mallo-body {
+  animation: mallo-breathe 3.2s ease-in-out infinite;
+}
+.mallo-sleepy .mallo-z {
+  animation: mallo-z 3.2s ease-out infinite;
+}
+.mallo-sleepy .mallo-z-2 { animation-delay: 1.6s; }
+
+/* dizzy: a woozy wobble, eyes spinning */
+.mallo-dizzy .mallo-body {
+  animation: mallo-wobble 1.5s ease-in-out infinite;
+}
+.mallo-dizzy .mallo-swirl {
+  animation: mallo-spin 1.1s linear infinite;
+}
+
+@keyframes mallo-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  93% { transform: scaleY(0.1); }
+  96% { transform: scaleY(1); }
+}
+@keyframes mallo-squish {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(1.14, 0.86); }
+  60% { transform: scale(0.94, 1.08); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes mallo-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7%) rotate(-3deg); }
+}
+@keyframes mallo-dot {
+  0%, 100% { opacity: 0.25; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes mallo-hop {
+  0% { transform: translateY(0) scale(1.05, 0.95); }
+  18% { transform: translateY(0) scale(0.97, 1.04); }
+  42% { transform: translateY(-22%) scale(0.98, 1.03); }
+  64% { transform: translateY(0) scale(1.07, 0.93); }
+  78% { transform: translateY(0) scale(0.98, 1.02); }
+  100% { transform: translateY(0) scale(1.05, 0.95); }
+}
+@keyframes mallo-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  45% { opacity: 1; transform: scale(1.15) rotate(45deg); }
+  70% { opacity: 0.8; transform: scale(0.9) rotate(70deg); }
+}
+@keyframes mallo-pep {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  20% { transform: translateY(-12%) rotate(-6deg); }
+  40% { transform: translateY(0) rotate(0deg) scale(1.06, 0.94); }
+  55% { transform: translateY(-6%) rotate(5deg); }
+  75% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes mallo-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.04, 0.95); }
+}
+@keyframes mallo-z {
+  0% { opacity: 0; transform: translate(0, 2px) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(3px, -5px) scale(1.15); }
+}
+@keyframes mallo-wobble {
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  25% { transform: rotate(-9deg) translateX(-4%); }
+  50% { transform: rotate(0deg) translateX(0) scale(1.03, 0.97); }
+  75% { transform: rotate(9deg) translateX(4%); }
+}
+@keyframes mallo-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mallo,
+  .mallo * {
+    animation: none !important;
+  }
 }

@@ -43,7 +43,7 @@ const ACADEMIC_LEVELS = [
 const AI_PERSONAS = [
   { id: "examiner", icon: "⚖️", label: "Standard Examiner", blurb: "Balanced, high-fidelity diagnostic assessment with objective rigor" },
   { id: "strict", icon: "🧐", label: "Strict Examiner", blurb: "Zero tolerance for imprecise terms; strictly penalizes hand-waving" },
-  { id: "socratic", icon: "🦆", label: "Socratic Guide", blurb: "Probes foundational mechanisms, counterfactuals, and the core 'why'" },
+  { id: "socratic", icon: "🏛️", label: "Socratic Guide", blurb: "Probes foundational mechanisms, counterfactuals, and the core 'why'" },
   { id: "coach", icon: "💡", label: "Friendly Coach", blurb: "Encouraging, supportive tone emphasizing conceptual intuition" },
   { id: "olympiad", icon: "🏆", label: "Olympiad Mentor", blurb: "Pushes multi-step synthesis, lateral thinking, and deep derivations" },
 ];
@@ -313,7 +313,7 @@ export default function SpaceHubView({
                   <h1 className="text-base font-bold text-ink-100 tracking-tight">
                     {activeSpace} Hub
                   </h1>
-                  <span className="rounded-md border border-duck-500/30 bg-duck-500/10 px-2 py-0.5 text-[10px] font-bold text-duck-300 uppercase tracking-wider">
+                  <span className="rounded-md border border-brand-500/30 bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold text-brand-300 uppercase tracking-wider">
                     Space Dashboard
                   </span>
                 </div>
@@ -334,7 +334,7 @@ export default function SpaceHubView({
                 <select
                   value={activeSpace}
                   onChange={(e) => onSelectSpace?.(e.target.value)}
-                  className="rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-duck-500/50 focus:outline-none cursor-pointer appearance-none shadow-sm"
+                  className="rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-3 pr-8 text-xs font-semibold text-ink-100 focus:border-brand-500/50 focus:outline-none cursor-pointer appearance-none shadow-sm"
                 >
                   {spaces.map((s) => (
                     <option key={s.name} value={s.name}>
@@ -356,7 +356,7 @@ export default function SpaceHubView({
           <div className="rounded-2xl border border-ink-800 bg-ink-900/60 p-4 shadow-sm">
             <div className="flex items-center justify-between text-xs text-ink-400">
               <span className="font-medium">Curriculum Docs</span>
-              <BookOpen className="h-4 w-4 text-duck-400" />
+              <BookOpen className="h-4 w-4 text-brand-400" />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-black text-ink-100">{documents.length}</span>
@@ -412,7 +412,7 @@ export default function SpaceHubView({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-ink-800">
             <div>
               <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-duck-400" />
+                <FileText className="h-5 w-5 text-brand-400" />
                 <h2 className="text-base font-bold text-ink-100 tracking-tight">
                   Curriculum &amp; Syllabus Documents
                 </h2>
@@ -436,7 +436,7 @@ export default function SpaceHubView({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={fileUploading}
-                className="flex items-center gap-2 rounded-xl bg-duck-500 hover:bg-duck-400 text-ink-950 px-4 py-2 text-xs font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-ink-950 px-4 py-2 text-xs font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50"
               >
                 <Upload className="h-4 w-4" />
                 <span>{fileUploading ? "Extracting Text..." : "Upload Syllabus Document"}</span>
@@ -462,9 +462,9 @@ export default function SpaceHubView({
                   key={preset.name}
                   type="button"
                   onClick={() => handleApplyPreset(preset)}
-                  className="flex flex-col text-left p-3 rounded-2xl border border-ink-800 bg-ink-850/60 hover:bg-ink-800 hover:border-duck-500/40 transition-all group"
+                  className="flex flex-col text-left p-3 rounded-2xl border border-ink-800 bg-ink-850/60 hover:bg-ink-800 hover:border-brand-500/40 transition-all group"
                 >
-                  <span className="text-xs font-bold text-ink-200 group-hover:text-duck-300 transition-colors">
+                  <span className="text-xs font-bold text-ink-200 group-hover:text-brand-300 transition-colors">
                     {preset.name}
                   </span>
                   <span className="text-[10px] text-ink-500 mt-1 line-clamp-2">
@@ -493,10 +493,10 @@ export default function SpaceHubView({
             ) : documents.length === 0 ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="group relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-ink-800 hover:border-duck-500/50 hover:bg-duck-500/5 p-10 text-center cursor-pointer transition-all"
+                className="group relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-ink-800 hover:border-brand-500/50 hover:bg-brand-500/5 p-10 text-center cursor-pointer transition-all"
               >
                 <div className="rounded-full bg-ink-850 p-4 group-hover:scale-110 transition-transform">
-                  <Upload className="h-6 w-6 text-duck-400" />
+                  <Upload className="h-6 w-6 text-brand-400" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-ink-200">
@@ -648,7 +648,7 @@ export default function SpaceHubView({
                       onClick={() => updateSetting("aiPersona", p.id)}
                       className={`w-full flex items-center justify-between p-3 rounded-2xl border text-left transition-all ${
                         isSelected
-                          ? "border-duck-500/50 bg-duck-500/10 text-duck-200 shadow-sm"
+                          ? "border-brand-500/50 bg-brand-500/10 text-brand-200 shadow-sm"
                           : "border-ink-800 bg-ink-850/60 text-ink-300 hover:bg-ink-800 hover:text-ink-100"
                       }`}
                     >
@@ -659,7 +659,7 @@ export default function SpaceHubView({
                           <div className="text-[11px] text-ink-400 mt-0.5">{p.blurb}</div>
                         </div>
                       </div>
-                      {isSelected && <Check className="h-4 w-4 text-duck-400 shrink-0 ml-2" />}
+                      {isSelected && <Check className="h-4 w-4 text-brand-400 shrink-0 ml-2" />}
                     </button>
                   );
                 })}
@@ -717,7 +717,7 @@ export default function SpaceHubView({
             {/* Space Name */}
             <form onSubmit={handleRename} className="space-y-1.5">
               <label className="text-xs font-semibold text-ink-300 flex items-center gap-1.5">
-                <Pencil className="w-3.5 h-3.5 text-duck-400" />
+                <Pencil className="w-3.5 h-3.5 text-brand-400" />
                 <span>Space Name</span>
               </label>
               <div className="flex items-center gap-2 max-w-md">
@@ -730,12 +730,12 @@ export default function SpaceHubView({
                     if (renameError) setRenameError("");
                   }}
                   placeholder="Space Name"
-                  className="flex-1 rounded-xl border border-ink-700 bg-ink-850 py-2 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+                  className="flex-1 rounded-xl border border-ink-700 bg-ink-850 py-2 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={renaming || !spaceNameInput.trim() || spaceNameInput.trim() === activeSpace}
-                  className="rounded-xl bg-duck-400 hover:bg-duck-300 text-ink-950 px-4 py-2 text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-sm"
+                  className="rounded-xl bg-brand-400 hover:bg-brand-300 text-ink-950 px-4 py-2 text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-sm"
                 >
                   {renaming ? "Saving..." : "Rename"}
                 </button>
@@ -755,7 +755,7 @@ export default function SpaceHubView({
                     maxLength={4}
                     value={settings.icon}
                     onChange={(e) => updateSetting("icon", e.target.value)}
-                    className="w-14 rounded-xl border border-ink-700 bg-ink-850 py-2 text-center text-xl font-bold text-ink-100 focus:border-duck-500/50 focus:outline-none"
+                    className="w-14 rounded-xl border border-ink-700 bg-ink-850 py-2 text-center text-xl font-bold text-ink-100 focus:border-brand-500/50 focus:outline-none"
                   />
                   <span className="text-xs text-ink-400">Type custom emoji or pick preset below</span>
                 </div>
@@ -768,7 +768,7 @@ export default function SpaceHubView({
                       onClick={() => updateSetting("icon", emoji)}
                       className={`h-8 w-8 flex items-center justify-center rounded-xl text-base transition-all cursor-pointer ${
                         settings.icon === emoji
-                          ? "bg-duck-500/20 ring-2 ring-duck-400"
+                          ? "bg-brand-500/20 ring-2 ring-brand-400"
                           : "bg-ink-850 hover:bg-ink-800"
                       }`}
                     >
@@ -786,7 +786,7 @@ export default function SpaceHubView({
                   placeholder="e.g. Courses, problem sets & exam preparation"
                   value={settings.blurb}
                   onChange={(e) => updateSetting("blurb", e.target.value)}
-                  className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-duck-500/50 focus:outline-none"
+                  className="w-full rounded-xl border border-ink-700 bg-ink-850 py-2.5 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-brand-500/50 focus:outline-none"
                 />
                 <p className="text-[11px] text-ink-500 mt-1">
                   Shown as the subtitle for this space across headers and dashboards.
@@ -803,7 +803,7 @@ export default function SpaceHubView({
           <div className="relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-3xl border border-ink-700 bg-ink-900 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-ink-800 px-6 py-4">
               <div className="flex items-center gap-2.5">
-                <FileText className="h-5 w-5 text-duck-400" />
+                <FileText className="h-5 w-5 text-brand-400" />
                 <h3 className="text-sm font-bold text-ink-100 truncate">{previewDoc.name}</h3>
               </div>
               <button

@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import NoteMenu from "@/components/NoteMenu";
+import { MalloIcon } from "@/components/brand/Brand";
 import {
   BatchDeleteConfirmModal,
   BatchMoveModal,
@@ -313,7 +314,7 @@ export default function NotesPanel({
           }
           className={`group relative flex items-center gap-1 rounded-lg pr-1 transition-colors ${
             isMultiSelecting && isSelected
-              ? "bg-duck-500/15 text-duck-200 ring-1 ring-duck-400/40"
+              ? "bg-brand-500/15 text-brand-200 ring-1 ring-brand-400/40"
               : isActive
               ? "bg-ink-800 text-ink-100"
               : "text-ink-300 hover:bg-ink-850 hover:text-ink-100"
@@ -324,7 +325,7 @@ export default function NotesPanel({
             <div
               aria-hidden="true"
               style={{ left: `${indentPx}px` }}
-              className={`pointer-events-none absolute right-0 z-20 h-0.5 rounded-full bg-duck-400 ${
+              className={`pointer-events-none absolute right-0 z-20 h-0.5 rounded-full bg-brand-400 ${
                 dragOverInfo.position === "top" ? "-top-0.5" : "-bottom-0.5"
               }`}
             />
@@ -341,8 +342,8 @@ export default function NotesPanel({
               <span
                 className={`flex h-4 w-4 items-center justify-center rounded transition-colors ${
                   isSelected
-                    ? "border border-duck-400 bg-duck-500 text-ink-950"
-                    : "border border-ink-600 bg-ink-850 hover:border-duck-400/70"
+                    ? "border border-brand-400 bg-brand-500 text-ink-950"
+                    : "border border-ink-600 bg-ink-850 hover:border-brand-400/70"
                 }`}
               >
                 {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
@@ -359,7 +360,7 @@ export default function NotesPanel({
               }}
               onDragEnd={endDrag}
               title="Drag to reorder note"
-              className="flex h-5 w-5 shrink-0 cursor-grab items-center justify-center text-ink-600 opacity-0 transition-opacity hover:text-duck-300 active:cursor-grabbing group-hover:opacity-100"
+              className="flex h-5 w-5 shrink-0 cursor-grab items-center justify-center text-ink-600 opacity-0 transition-opacity hover:text-brand-300 active:cursor-grabbing group-hover:opacity-100"
             >
               <GripVertical className="h-3.5 w-3.5" />
             </div>
@@ -374,7 +375,7 @@ export default function NotesPanel({
               }}
               title="Add a sub-page"
               aria-label={`Add a sub-page to ${n.title || "Untitled Note"}`}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-duck-300 focus-visible:opacity-100 group-hover:opacity-100"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-brand-300 focus-visible:opacity-100 group-hover:opacity-100"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -402,7 +403,7 @@ export default function NotesPanel({
             <span className={`truncate ${isActive ? "font-semibold" : "font-medium"}`}>
               {n.title || "Untitled Note"}
             </span>
-            {n.isFavorite && <Star className="h-3 w-3 shrink-0 fill-duck-400 text-duck-400" />}
+            {n.isFavorite && <Star className="h-3 w-3 shrink-0 fill-brand-400 text-brand-400" />}
           </button>
           {!isMultiSelecting && (
             <NoteMenu
@@ -437,8 +438,8 @@ export default function NotesPanel({
                   key={s.name}
                   className={`group/sp relative flex items-center rounded-xl border px-2 py-2 transition-colors ${
                     active
-                      ? "border-duck-500/60 bg-duck-500/15 font-semibold text-duck-300"
-                      : "border-ink-750 bg-ink-850/80 text-ink-300 hover:border-duck-500/40 hover:bg-ink-800 hover:text-ink-100"
+                      ? "border-brand-500/60 bg-brand-500/15 font-semibold text-brand-300"
+                      : "border-ink-750 bg-ink-850/80 text-ink-300 hover:border-brand-500/40 hover:bg-ink-800 hover:text-ink-100"
                   }`}
                 >
                   <button
@@ -465,7 +466,7 @@ export default function NotesPanel({
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-duck-400 hover:bg-ink-850"
+            className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-brand-400 hover:bg-ink-850"
           >
             <Plus className="h-3 w-3" /> New space
           </button>
@@ -543,7 +544,7 @@ export default function NotesPanel({
                 setSwitcherOpen(false);
                 setCreateOpen(true);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium text-duck-400 hover:bg-ink-850"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium text-brand-400 hover:bg-ink-850"
             >
               <Plus className="h-3.5 w-3.5" /> New space
             </button>
@@ -558,9 +559,9 @@ export default function NotesPanel({
           type="button"
           onClick={() => onOpenSpaceHub?.()}
           title={`Open the ${activeSpace} Space Hub: syllabus and subject settings`}
-          className="flex w-full items-center gap-2.5 rounded-lg border border-ink-750 bg-ink-850/60 px-2.5 py-1.5 text-left transition-colors hover:border-duck-500/40 hover:bg-ink-800"
+          className="flex w-full items-center gap-2.5 rounded-lg border border-ink-750 bg-ink-850/60 px-2.5 py-1.5 text-left transition-colors hover:border-brand-500/40 hover:bg-ink-800"
         >
-          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-duck-400" />
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-brand-400" />
           <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-200">Space Hub</span>
           <span className="shrink-0 text-[10px] text-ink-500">Syllabus &amp; AI</span>
         </button>
@@ -602,7 +603,7 @@ export default function NotesPanel({
               aria-pressed={isMultiSelecting}
               className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors ${
                 isMultiSelecting
-                  ? "bg-duck-500/20 font-semibold text-duck-300 ring-1 ring-duck-400/40"
+                  ? "bg-brand-500/20 font-semibold text-brand-300 ring-1 ring-brand-400/40"
                   : "text-ink-400 hover:bg-ink-800 hover:text-ink-100"
               }`}
             >
@@ -625,12 +626,12 @@ export default function NotesPanel({
         <div className="mx-3 mt-2 space-y-2 rounded-xl border border-ink-750 bg-ink-850/90 p-2">
           <div className="flex items-center justify-between px-1 text-xs font-medium">
             <span className="text-ink-200">
-              <strong className="font-bold text-duck-300">{selectedNoteIds.size}</strong> of {notes.length} selected
+              <strong className="font-bold text-brand-300">{selectedNoteIds.size}</strong> of {notes.length} selected
             </span>
             <button
               type="button"
               onClick={handleSelectAllToggle}
-              className="text-[11px] font-medium text-duck-400 hover:text-duck-300 hover:underline"
+              className="text-[11px] font-medium text-brand-400 hover:text-brand-300 hover:underline"
             >
               {selectedNoteIds.size === notes.length ? "Deselect all" : "Select all"}
             </button>
@@ -641,7 +642,7 @@ export default function NotesPanel({
               label={allSelectedAreStarred ? "Unstar" : "Star"}
               title={allSelectedAreStarred ? "Unstar selected notes" : "Star selected notes"}
               disabled={selectedNoteIds.size === 0}
-              iconClass={`text-duck-400 ${allSelectedAreStarred ? "fill-duck-400" : ""}`}
+              iconClass={`text-brand-400 ${allSelectedAreStarred ? "fill-brand-400" : ""}`}
               onClick={() => onToggleFavoriteMultipleNotes?.(Array.from(selectedNoteIds))}
             />
             <BulkAction
@@ -679,12 +680,13 @@ export default function NotesPanel({
       <div className="mt-1 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {notes.length === 0 ? (
           <div className="mt-6 rounded-xl border border-dashed border-ink-700 px-4 py-6 text-center">
+            <MalloIcon mood="sleepy" className="mx-auto mb-2 h-10 w-10" />
             <p className="text-sm font-medium text-ink-200">No notes yet</p>
-            <p className="mt-1 text-xs text-ink-500">Start writing and the Duck will quiz you on it later.</p>
+            <p className="mt-1 text-xs text-ink-500">Start writing and Mallo will quiz you on it later.</p>
             <button
               type="button"
               onClick={onCreateNote}
-              className="mt-3 rounded-lg bg-duck-400 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-duck-300"
+              className="mt-3 rounded-lg bg-brand-400 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-brand-300"
             >
               New note
             </button>
