@@ -249,7 +249,8 @@ export default function NotesPanel({
   function renderRow(n, depth, { showChevron = true, reorderable = true } = {}) {
     const children = tree.childrenOf.get(n.id) || [];
     const hasChildren = showChevron && children.length > 0;
-    const isOpen = hasChildren && expanded.has(n.id);
+    // Like Notion, any page can be expanded; an empty one says so.
+    const isOpen = showChevron && expanded.has(n.id);
     const isActive = n.id === activeNoteId;
     const isSelected = selectedNoteIds.has(n.id);
     const isDragging = draggingNoteId === n.id;
@@ -349,7 +350,11 @@ export default function NotesPanel({
                 {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
               </span>
             </button>
-          ) : canReorder ? (
+          ) : null}
+
+          {/* Drag handle: sits in the margin left of the row (absolutely
+              positioned), so it takes no space until hovered. */}
+          {!isMultiSelecting && canReorder && (
             <div
               draggable
               onDragStart={(e) => {
@@ -360,65 +365,77 @@ export default function NotesPanel({
               }}
               onDragEnd={endDrag}
               title="Drag to reorder note"
-              className="flex h-5 w-5 shrink-0 cursor-grab items-center justify-center text-ink-600 opacity-0 transition-opacity hover:text-brand-300 active:cursor-grabbing group-hover:opacity-100"
+              style={{ left: `${indentPx - 15}px` }}
+              className="absolute top-1/2 flex h-5 w-3.5 -translate-y-1/2 cursor-grab items-center justify-center text-ink-600 opacity-0 transition-opacity hover:text-brand-300 active:cursor-grabbing group-hover:opacity-100"
             >
               <GripVertical className="h-3.5 w-3.5" />
             </div>
-          ) : null}
+          )}
 
-          {!isMultiSelecting && (
+          {/* Icon slot: the emoji, swapped for an expand arrow on hover. */}
+          {showChevron && !isMultiSelecting ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onCreateSubPage?.(n);
+                toggleExpanded(n.id);
               }}
-              title="Add a sub-page"
-              aria-label={`Add a sub-page to ${n.title || "Untitled Note"}`}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-brand-300 focus-visible:opacity-100 group-hover:opacity-100"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {hasChildren ? (
-            <button
-              type="button"
-              onClick={() => toggleExpanded(n.id)}
+              aria-expanded={isOpen}
               aria-label={isOpen ? "Collapse sub-pages" : "Expand sub-pages"}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-500 hover:bg-ink-700 hover:text-ink-200"
+              title={isOpen ? "Collapse" : "Expand"}
+              className="group/icon relative flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-400 hover:bg-ink-700 hover:text-ink-100"
             >
-              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              <span className="text-sm leading-none group-hover:opacity-0">{n.emoji || "📝"}</span>
+              <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </span>
             </button>
           ) : (
-            <span className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center text-sm leading-none">{n.emoji || "📝"}</span>
           )}
+
           <button
             type="button"
             onClick={() => (isMultiSelecting ? toggleSelectNote(n.id) : onSelectNote?.(n))}
-            className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-[13px]"
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-[13px]"
             title={n.title || "Untitled Note"}
           >
-            <span className="shrink-0 text-sm leading-none">{n.emoji || "📝"}</span>
             <span className={`truncate ${isActive ? "font-semibold" : "font-medium"}`}>
               {n.title || "Untitled Note"}
             </span>
             {n.isFavorite && <Star className="h-3 w-3 shrink-0 fill-brand-400 text-brand-400" />}
           </button>
+
+          {/* Hover actions, Notion order: add a sub-page, then the menu. */}
           {!isMultiSelecting && (
-            <NoteMenu
-              mode="sidebar"
-              note={n}
-              {...menuProps}
-              variant="icon"
-              align="right"
-              className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-            />
+            <div className="hidden shrink-0 items-center gap-1 group-focus-within:flex group-hover:flex">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCreateSubPage?.(n);
+                }}
+                title="Add a sub-page"
+                aria-label={`Add a sub-page to ${n.title || "Untitled Note"}`}
+                className="inline-flex items-center justify-center rounded-lg border border-ink-700/80 bg-ink-850/60 p-1.5 text-ink-300 shadow-sm transition-all hover:border-brand-500/50 hover:bg-ink-800 hover:text-ink-100"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <NoteMenu mode="sidebar" note={n} {...menuProps} variant="icon" align="right" />
+            </div>
           )}
         </div>
-        {hasChildren && isOpen && (
-          <ul className="mt-0.5 space-y-0.5">{children.map((c) => renderRow(c, depth + 1))}</ul>
-        )}
+        {isOpen &&
+          (hasChildren ? (
+            <ul className="mt-0.5 space-y-0.5">{children.map((c) => renderRow(c, depth + 1))}</ul>
+          ) : (
+            <p
+              className="py-1 text-xs text-ink-600"
+              style={{ paddingLeft: `${indentPx + 14 + 28}px` }}
+            >
+              No pages inside
+            </p>
+          ))}
       </li>
     );
   }
